@@ -90,6 +90,8 @@ export const COASTER_TRACK_TILES = 'coaster_tracks'
 export const PITCH_TILES = 'sport_pitches'
 export const OBJECT_LINE_TILES = 'object_lines'
 export const OBJECT_AREA_TILES = 'object_areas'
+/** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
+export const BRIDGE_DECK_TILES = 'bridge_decks'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'

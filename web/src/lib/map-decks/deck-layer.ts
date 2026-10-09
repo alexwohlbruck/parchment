@@ -24,10 +24,17 @@ import {
   joinNeighbours,
   smooth,
   beside,
+  boundsOf,
   chains,
+  COVER,
+  holds,
+  MAX_REACH,
   fitEdges,
   clip,
+  covered,
   onEdge,
+  parseLine,
+  parseProfile,
   deckMesh,
   onDeck,
   solve,
@@ -67,6 +74,8 @@ export type DeckSources = {
   paint?: { source: string; layer: string }
   /** Barrelman's carriageways at their real width, which the decks are fitted to. */
   surfaces?: { source: string; layer: string }
+  /** Barrelman's solved decks, drawn as served; bridges it has none for are solved here. */
+  profiles?: { source: string; layer: string }
   /** Source ids whose lines are routes to lay over decks. */
   routes: () => string[]
 }
@@ -112,6 +121,16 @@ const mercator = ([lng, lat]: number[]): Point => {
   return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
 }
 
+/** Run when the main thread is idle, or soon where the browser cannot say; returns a cancel. */
+const idle = (run: () => void): (() => void) => {
+  if (typeof requestIdleCallback === 'function') {
+    const handle = requestIdleCallback(run, { timeout: 1000 })
+    return () => cancelIdleCallback(handle)
+  }
+  const handle = setTimeout(run, 0)
+  return () => clearTimeout(handle)
+}
+
 const polygonsOf = (geometry: any): number[][][][] =>
   geometry?.type === 'Polygon' ? [geometry.coordinates]
   : geometry?.type === 'MultiPolygon' ? geometry.coordinates
@@ -137,8 +156,10 @@ export class DeckLayer {
   private onChange?: (event?: { sourceId?: string }) => void
   private pending: Mesh | null = null
   private sampler: { source: string; ground: GroundSampler } | null = null
+  /** Each served deck's datum offset at its ends, by id. */
+  private offsets = new Map<string, [number, number]>()
   /** Each deck's ground in true metres, keyed by its outline. */
-  private profiles = new Map<string, number[]>()
+  private grounds = new Map<string, number[]>()
   /** The tiles the last build read, and whether something besides them has changed since. */
   private built = ''
   private stale = true
@@ -157,13 +178,16 @@ export class DeckLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.program = link(gl, VS, FS)
-    const tiled = () => new Set([this.sources.basemap, this.sources.paint?.source, this.sources.surfaces?.source])
+    const tiled = () => new Set([this.sources.basemap, this.sources.paint?.source, this.sources.surfaces?.source, this.sources.profiles?.source])
     // A build reads every loaded tile, so it waits for a source to finish
     // loading rather than running once per tile as they stream in. A pan
     // that loads nothing new leaves the decks as they are.
     this.onChange = event => {
-      if (!event?.sourceId) this.invalidate(false)
-      else if (!(event as any).isSourceLoaded) return
+      if (!event?.sourceId) {
+        // A pan rebuilds nothing unless it has gone far enough to re-base the vertices.
+        const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
+        if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
+      } else if (!(event as any).isSourceLoaded) return
       else if (tiled().has(event.sourceId)) this.invalidate(false)
       else if (this.sources.routes().includes(event.sourceId)) this.invalidate()
     }
@@ -183,6 +207,7 @@ export class DeckLayer {
     }
     if (this.onTerrain) map.off('terrain', this.onTerrain)
     clearTimeout(this.scheduled)
+    this.cancelIdle?.()
     if (this.buffers) for (const b of Object.values(this.buffers)) gl.deleteBuffer(b)
     gl.deleteProgram(this.program)
     this.map = null
@@ -195,14 +220,19 @@ export class DeckLayer {
   invalidate(force = true) {
     if (force) this.stale = true
     clearTimeout(this.scheduled)
+    this.cancelIdle?.()
     this.scheduled = setTimeout(() => {
-      if (!this.map) return
-      const mesh = this.build()
-      if (!mesh) return
-      this.pending = mesh
-      this.map.triggerRepaint?.()
+      this.cancelIdle = idle(() => {
+        if (!this.map) return
+        const mesh = this.build()
+        if (!mesh) return
+        this.pending = mesh
+        this.map.triggerRepaint?.()
+      })
     }, 200) as unknown as number
   }
+
+  private cancelIdle?: () => void
 
   /** The terrain source's elevation tiles, read at its most detailed zoom. */
   private groundSampler(): GroundSampler | null {
@@ -210,19 +240,18 @@ export class DeckLayer {
     const source = id ? this.map.getSource(id) : null
     const template = source?.tiles?.[0]
     if (!template) return null
-    if (this.sampler?.source !== template) {
-      const zoom = Math.min(source.maxzoom ?? 15, 15)
-      const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
-        zoom,
-        minZoom: Math.max(0, zoom - 5),
-        capacity: 24,
-        onLoad: () => this.invalidate(),
-      })
-      this.sampler = { source: template, ground }
-      this.profiles.clear()
-      return ground
-    }
-    return this.sampler.ground
+    if (this.sampler && this.sampler.source === template) return this.sampler.ground
+    const zoom = Math.min(source.maxzoom ?? 15, 15)
+    const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
+      zoom,
+      minZoom: Math.max(0, zoom - 5),
+      capacity: 24,
+      onLoad: () => this.invalidate(),
+    })
+    this.sampler = { source: template, ground }
+    this.grounds.clear()
+    this.offsets.clear()
+    return ground
   }
 
   /**
@@ -231,7 +260,7 @@ export class DeckLayer {
    */
   private groundOf(chain: Chain): number[] | null {
     const key = `${chain.edges.map(e => e.toFixed(1))}|${chain.points.map(p => `${Math.round(p[0] * 2 ** 26)},${Math.round(p[1] * 2 ** 26)}`).join(';')}`
-    const known = this.profiles.get(key)
+    const known = this.grounds.get(key)
     if (known) return known
     const sampler = this.groundSampler()
     if (!sampler) return null
@@ -242,8 +271,8 @@ export class DeckLayer {
     const [centre, l, r] = samples as number[][]
     const ground = filled(besideGround(centre, l, r, along(chain.points)))
     if (!ground) return null
-    if (this.profiles.size >= PROFILE_CACHE) this.profiles.delete(this.profiles.keys().next().value!)
-    this.profiles.set(key, ground)
+    if (this.grounds.size >= PROFILE_CACHE) this.grounds.delete(this.grounds.keys().next().value!)
+    this.grounds.set(key, ground)
     return ground
   }
 
@@ -255,14 +284,28 @@ export class DeckLayer {
     }
   }
 
+  /** Whether the served decks for this view are still on their way, so solving bridges here would be wasted. */
+  private awaitingServed(): boolean {
+    const id = this.sources.profiles?.source
+    const source = id ? this.map.getSource(id) : null
+    if (!source || this.map.getZoom() < (source.minzoom ?? 0)) return false
+    try {
+      return !this.map.isSourceLoaded(id)
+    } catch {
+      return false
+    }
+  }
+
   private build(): Mesh | null {
+    if (this.awaitingServed()) return null
     const pieces: Piece[] = []
     const tiles: Bounds[] = []
     const bridges = this.query(this.sources.basemap, this.sources.roads, ['==', ['get', 'brunnel'], 'bridge'])
     const paint = this.paint()
     const kerbs = this.kerbs()
+    const served = this.served()
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const read = [...new Set(bridges.map(f => `${f._z}/${f._x}/${f._y}`))].sort().join(' ') + `|${paint.length}|${kerbs.length}`
+    const read = [...new Set(bridges.map(f => `${f._z}/${f._x}/${f._y}`))].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
     const near = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && near && read === this.built) return null
     this.stale = false
@@ -276,6 +319,7 @@ export class DeckLayer {
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
           pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined })
     }
+    const placed = served.flatMap(d => this.place(d))
     if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
     // A cut where a tile meets another loaded one joins back up; one at the
@@ -283,18 +327,22 @@ export class DeckLayer {
     const loaded = tiles.reduce<Bounds | null>((u, t) => u
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
-    const decks = absorbPaths(fitted(chains(dedupe(pieces), p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs))
+    const servedBounds = served.map(({ chain }) => ({ chain, bounds: boundsOf(chain.points, Math.max(...chain.edges) + COVER) }))
+    const own = dedupe(pieces).filter(piece => !covered(piece, servedBounds))
+    const decks = absorbPaths(fitted(chains(own, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
-    const solved = decks.flatMap(chain => {
+    const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean }> = decks.flatMap(chain => {
       const groundAt = this.groundOf(chain)
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
+    const local = solved.length
+    solved.push(...placed)
     // An end left in the air because it meets another deck takes that deck's
     // height there, so a ramp lands on the road it joins. Twice, so a height
     // carries through a ramp joining a ramp.
     for (let pass = 0; pass < 2; pass++) {
       const others = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) }))
-      for (const [k, s] of solved.entries()) {
+      for (const [k, s] of solved.slice(0, local).entries()) {
         const ends = [s.chain.points[0], s.chain.points[s.chain.points.length - 1]]
         const resting = ends.map((p, i) => {
           if (s.chain.grounded[i]) return null
@@ -304,7 +352,7 @@ export class DeckLayer {
         if (resting[0] !== null || resting[1] !== null) s.z = solve(s.chain, s.groundAt, resting)
       }
     }
-    for (const s of solved) s.z = smooth(s.z, along(s.chain.points), s.groundAt)
+    for (const s of solved.slice(0, local)) s.z = smooth(s.z, along(s.chain.points), s.groundAt)
     const open = joinNeighbours(solved)
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
@@ -315,10 +363,13 @@ export class DeckLayer {
 
     const p = this.palette
     const mesh: Mesh = { position: [], normal: [], color: [] }
-    for (const [k, { chain, groundAt, z }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { surface: p.surface, concrete: p.concrete, parapet: p.parapet }, mesh, open[k])
+    for (const [k, { chain, groundAt, z, piers }] of solved.entries())
+      deckMesh(chain, z, groundAt, this.origin, { surface: p.surface, concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
 
-    const surfaces = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) + 1 }))
+    const surfaces = solved.map(({ chain, z }) => {
+      const width = 2 * Math.max(...chain.edges) + 1
+      return { points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width) }
+    })
     this.paintFrom = mesh.position.length / 3
     for (const { props, runs, areas } of paint) {
       const color = props.color === 'yellow' ? p.yellow : props.color === 'red' ? p.red : props.color === 'green' ? p.green : p.white
@@ -338,6 +389,49 @@ export class DeckLayer {
         }
     this.version++
     return mesh
+  }
+
+  /** Barrelman's decks in view, one copy each: every tile a deck crosses carries all of it, exactly. */
+  private served(): Served[] {
+    if (!this.sources.profiles) return []
+    const { source, layer } = this.sources.profiles
+    const best = new Map<string, any>()
+    for (const f of this.query(source, layer)) {
+      const id = f.properties?.id
+      if (id && (f._z ?? 0) >= (best.get(id)?._z ?? -1)) best.set(id, f)
+    }
+    return [...best.values()].flatMap(f => {
+      const props = f.properties
+      const points = parseLine(props.line).map(mercator)
+      const [z, groundAt] = [parseProfile(props.heights), parseProfile(props.ground)]
+      if (points.length < 2 || z.length !== points.length || groundAt.length !== points.length) return []
+      const kind = props.kind === 'rail' || props.kind === 'path' ? props.kind : 'road'
+      const edges: [number, number] = [Number(props.left_edge) || 3, Number(props.right_edge) || 3]
+      const chain: Chain = { points, kind, layer: Math.max(1, Number(props.layer) || 1), width: edges[0] + edges[1], edges,
+        grounded: [props.start_grounded !== false, props.end_grounded !== false] }
+      return [{ id: String(props.id), chain, z, groundAt, piers: parseProfile(props.piers) }]
+    })
+  }
+
+  /**
+   * A served deck moved onto the terrain drawn here. Heights are above EGM96;
+   * the difference between its ground and ours at each end, spread along it,
+   * takes up the datum and any other source. Null while our ground loads.
+   */
+  private place(deck: Served): Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed: boolean }> {
+    let offset = this.offsets.get(deck.id)
+    if (!offset) {
+      const sampler = this.groundSampler()
+      const { points } = deck.chain
+      const ends = [points[0], points[points.length - 1]].map(p => (sampler ? sampler.at(p) : NaN))
+      if (ends.some(g => g === null)) return []
+      offset = ends.map((g, i) => (Number.isNaN(g) ? 0 : g! - deck.groundAt[i ? deck.groundAt.length - 1 : 0])) as [number, number]
+      this.offsets.set(deck.id, offset)
+    }
+    const d = along(deck.chain.points)
+    const total = d[d.length - 1] || 1
+    const shift = d.map(s => offset[0] + ((offset[1] - offset[0]) * s) / total)
+    return [{ chain: deck.chain, z: deck.z.map((z, i) => z + shift[i]), groundAt: deck.groundAt.map((g, i) => g + shift[i]), piers: deck.piers, fixed: true }]
   }
 
   /** The bridges' own lane paint, as runs clipped to their tiles. */
@@ -482,14 +576,17 @@ export class DeckLayer {
 
 type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
+type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }
+
 /** Each road deck fitted to the kerbs nearest it, so a deck and its twin do not take each other's. */
 function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
-  const roads = decks.filter(d => d.kind === 'road')
+  const roads = decks.filter(d => d.kind === 'road').map(road => ({ road, bounds: boundsOf(road.points, MAX_REACH) }))
   const owned = new Map<Chain, Point[]>()
   for (const q of kerbs) {
     let nearest: Chain | null = null
     let distance = Infinity
-    for (const road of roads) {
+    for (const { road, bounds } of roads) {
+      if (!holds(bounds, q)) continue
       const d = beside(road.points, q).distance
       if (d < distance) [nearest, distance] = [road, d]
     }

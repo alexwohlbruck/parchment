@@ -13,7 +13,7 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, project, shadowModel } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
@@ -552,5 +552,14 @@ describe('flavors', () => {
       const sum = (c: [number, number, number]) => c[0] + c[1] + c[2]
       expect(sum(OBJECT_PALETTE.dark[role]), role).toBeLessThan(sum(OBJECT_PALETTE.light[role]))
     }
+  })
+})
+
+describe('object shadows', () => {
+  test('cast with the far variant where the manifest has one', () => {
+    const models = new Set(Object.keys(OBJECT_MODELS))
+    expect(shadowModel('tree-broadleaf-a', models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
+    expect(shadowModel('tree-broadleaf-a-crown', models)).toBe(`tree-broadleaf-a-crown${FAR_SUFFIX}`)
+    expect(shadowModel(`tree-broadleaf-a${FAR_SUFFIX}`, models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
   })
 })

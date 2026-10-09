@@ -821,7 +821,7 @@ export class ObjectLayer {
     gl.uniform1f(this.shadowUniforms.u_per_metre, this.placed[0].perMetre)
     gl.disable(gl.CULL_FACE)
     for (const batch of this.batches) {
-      const model = this.models.get(batch.model)
+      const model = this.models.get(shadowModel(batch.model, this.models))
       if (!model) continue
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
@@ -844,6 +844,12 @@ export class ObjectLayer {
     const length = Math.hypot(x, y, z) || 1
     return [x / length, y / length, z / length]
   }
+}
+
+/** The model a batch casts its shadow with: the far variant where one exists, since the mask is too coarse to show more. */
+export function shadowModel(name: string, models: { has(name: string): boolean }): string {
+  const far = `${name}${FAR_SUFFIX}`
+  return models.has(far) ? far : name
 }
 
 /** The widest horizontal extent of a model, in its own units. */

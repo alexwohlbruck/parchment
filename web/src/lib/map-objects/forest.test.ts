@@ -103,7 +103,7 @@ describe('forest falloff', () => {
     const far = { ...camera, altitude: 400, focal: 900, spacing: 12 }
     const centre: [number, number] = [0, 0]
     expect(forestLevel(far, centre, FULL_REACH * 0.99, 0)).toBe(0)
-    expect(forestLevel(far, centre, FULL_REACH * 2, 0)).toBeCloseTo(1)
+    expect(forestLevel(far, centre, FULL_REACH * 2, 0)).toBeCloseTo(2)
     expect(forestLevel(far, centre, FULL_REACH * 0.5, 0, 1)).toBe(1)
   })
 

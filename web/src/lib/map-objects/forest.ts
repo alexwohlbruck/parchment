@@ -286,11 +286,11 @@ export function falloff(apart: number, spacing: number, floor = 0): number {
 
 /**
  * The thinning level at cell `x, y`: the screen-spacing level, but never sparser
- * than full density within `FULL_REACH` of the centre and one level per doubling past it.
+ * than full density within `FULL_REACH` of the centre and two levels per doubling past it.
  */
 export function forestLevel(camera: ForestCamera, centre: Point, x: number, y: number, floor = 0): number {
   const onScreen = falloff(screenSpacing(camera, x - camera.x, y - camera.y), camera.spacing)
-  const near = Math.log2(Math.max(Math.hypot(x - centre[0], y - centre[1]), 1e-9) / FULL_REACH)
+  const near = 2 * Math.log2(Math.max(Math.hypot(x - centre[0], y - centre[1]), 1e-9) / FULL_REACH)
   return Math.max(floor, Math.min(onScreen, near))
 }
 
@@ -436,18 +436,52 @@ function coarsened(block: string, stride: number): ForestPoint[] | undefined {
   return undefined
 }
 
+/** Each wood piece's own bounds, so only the blocks it covers are visited. */
+const extents = new Map<string, Bounds>()
+
+function extentOf(geometry: any): Bounds {
+  const out = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  const polys = geometry?.type === 'Polygon' ? [geometry.coordinates] : geometry?.type === 'MultiPolygon' ? geometry.coordinates : []
+  for (const poly of polys)
+    for (const [lng, lat] of poly[0] ?? []) {
+      const x = mercX(lng)
+      const y = mercY(lat)
+      if (x < out.minX) out.minX = x
+      if (x > out.maxX) out.maxX = x
+      if (y < out.minY) out.minY = y
+      if (y > out.maxY) out.maxY = y
+    }
+  return out
+}
+
+/** Block strides for the current view; every wood piece in a block shares one. */
+let strides = new Map<number, number>()
+
+function strideOf(bi: number, bj: number): number {
+  const key = bi * 1048576 + bj
+  let stride = strides.get(key)
+  if (stride === undefined) strides.set(key, (stride = blockStride(bi, bj)))
+  return stride
+}
+
 function plantingOf(feature: any): ForestPoint[] {
   const tile = tileBounds(feature)
   const points: ForestPoint[] = []
   if (!tile) return points
   const key = pieceKey(feature)
-  const area = view
-    ? { minX: Math.max(tile.minX, view.minX), minY: Math.max(tile.minY, view.minY), maxX: Math.min(tile.maxX, view.maxX), maxY: Math.min(tile.maxY, view.maxY) }
-    : tile
+  let piece = extents.get(key)
+  if (!piece) {
+    piece = extentOf(feature.geometry)
+    if (extents.size >= MAX_PLANTED) extents.clear()
+    extents.set(key, piece)
+  }
+  const area = [tile, piece, view ?? tile].reduce((a, b) => ({
+    minX: Math.max(a.minX, b.minX), minY: Math.max(a.minY, b.minY), maxX: Math.min(a.maxX, b.maxX), maxY: Math.min(a.maxY, b.maxY),
+  }))
   let polygons: Ring[][] | null = null
   for (let bj = Math.floor(area.minY / BLOCK); bj * BLOCK < area.maxY; bj++)
     for (let bi = Math.floor(area.minX / BLOCK); bi * BLOCK < area.maxX; bi++) {
-      const stride = blockStride(bi, bj)
+      const stride = strideOf(bi, bj)
       const blockKey = `${key}|${bi},${bj}|${stride}`
       let block = planted.get(blockKey) ?? coarsened(`${key}|${bi},${bj}`, stride)
       if (!block) {
@@ -495,6 +529,7 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
     source = { map, layer: spec.source }
     exclusions = null
     shown = new Map()
+    strides = new Map()
     floor = map.getZoom() < SPARSE_BELOW_ZOOM ? 1 : 0
     view = plantingBounds(map)
     camera = forestCamera(map)

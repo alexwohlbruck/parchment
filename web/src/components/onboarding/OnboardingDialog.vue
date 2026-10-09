@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, provide, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSubscriptionService } from '@/services/subscription.service'
@@ -166,7 +165,7 @@ async function complete() {
       onboardingCompletedAt: completedAt,
     })
     localStorage.removeItem(STORAGE_KEY)
-    router.push({ name: AppRoute.MAP })
+    authStore.goToStashedPath()
   } finally {
     completing.value = false
   }

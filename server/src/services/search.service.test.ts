@@ -355,6 +355,32 @@ describe('search service', () => {
       expect(resp.results).toEqual([])
     })
 
+    test('a partial brand match sits below a place named exactly what was typed', async () => {
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/relation/113314', name: { value: 'Austin', sourceId: 'osm', timestamp: '' } }),
+        makePlace({ id: 'osm/relation/2', name: { value: 'Austin County', sourceId: 'osm', timestamp: '' } }),
+        makePlace({ id: 'osm/way/3', name: { value: 'Austin Tower', sourceId: 'osm', timestamp: '' } }),
+      ])
+      mockGetBrandSuggestions.mockResolvedValue([brand('Austin Bank')])
+
+      const resp = (await search('user-1', { query: 'austin', lat: 37.77, lng: -122.41 })) as any
+
+      expect(resp.results.map((r: any) => r.title)).toEqual(['Austin', 'Austin County', 'Austin Tower', 'Austin Bank'])
+    })
+
+    test('a brand still leads when no place has the typed name', async () => {
+      // "starbuks": the locations are named Starbucks, not what was typed.
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/node/1', name: { value: 'Starbucks', sourceId: 'osm', timestamp: '' } }),
+        makePlace({ id: 'osm/node/2', name: { value: 'Starbucks', sourceId: 'osm', timestamp: '' } }),
+      ])
+      mockGetBrandSuggestions.mockResolvedValue([brand('Starbucks')])
+
+      const resp = (await search('user-1', { query: 'starbuks', lat: 35.22, lng: -80.84 })) as any
+
+      expect(resp.results[1].type).toBe('brand')
+    })
+
     test('keeps fuzzy brand matches for ordinary queries', async () => {
       mockGetBrandSuggestions.mockResolvedValue([brand('New York Life')])
 

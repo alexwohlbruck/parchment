@@ -109,6 +109,10 @@ const ADDRESS_QUERY = /^\s*\d+[a-z]?\s+\S/i
 const STREET_QUERY =
   /\S\s+(st|street|av|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|pl|place|pkwy|parkway|hwy|highway|way|cir|circle|ter|terrace)\.?\s*$/i
 
+/** Relevance of a partial brand match when a place is named exactly what was
+ *  typed: below the first five places (0.90 down to 0.82). */
+const BRAND_BELOW_NAMED_PLACE = 0.8
+
 /** Normalize a brand/query string for exact-match comparison. */
 function normalizeBrandText(s: string): string {
   return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
@@ -467,15 +471,25 @@ export async function search(
   // Brand suggestions: an exact-name brand pins above the individual locations
   // (places top out at 0.9); a fuzzy brand match sits just alongside them,
   // except under a street or address, where it only pushes those results down.
+  //
+  // When a place is named exactly what was typed, that place is what the user
+  // means, and a brand that only starts with the same word comes after the
+  // first few places instead: "austin" put Austin Bank (4 locations) second,
+  // under the city, and "portland" did the same with Portland Glass.
   if (brands.length > 0) {
     const qNorm = normalizeBrandText(query || '')
     const streetQuery = ADDRESS_QUERY.test(query || '') || STREET_QUERY.test(query || '')
+    const placeNamedAsTyped = scoredResults.some(
+      (s) => s.result.type === 'place' && normalizeBrandText(s.result.title || '') === qNorm,
+    )
     for (let i = 0; i < brands.length; i++) {
       const exact = normalizeBrandText(brands[i].name) === qNorm
       if (!exact && streetQuery) continue
       scoredResults.push({
         result: convertBrandToSearchResult(brands[i]),
-        relevance: exact ? 0.97 : 0.9 - i * 0.02,
+        relevance: exact
+          ? 0.97
+          : (placeNamedAsTyped ? BRAND_BELOW_NAMED_PLACE : 0.9) - i * 0.02,
       })
     }
   }

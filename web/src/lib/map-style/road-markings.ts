@@ -19,7 +19,7 @@ const TO = 17
 
 const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string; green: string; red: string }> = {
   light: { asphalt: 'hsl(36, 4%, 70%)', white: 'hsl(40, 30%, 98%)', yellow: 'hsl(43, 72%, 60%)', green: 'hsl(148, 26%, 60%)', red: 'hsl(9, 42%, 62%)' },
-  dark: { asphalt: 'hsl(222, 5%, 25%)', white: 'hsla(40, 15%, 88%, 0.82)', yellow: 'hsla(43, 58%, 56%, 0.85)', green: 'hsl(148, 20%, 33%)', red: 'hsl(9, 26%, 33%)' },
+  dark: { asphalt: 'hsl(222, 5%, 25%)', white: 'hsla(40, 10%, 80%, 0.7)', yellow: 'hsla(43, 50%, 52%, 0.75)', green: 'hsl(148, 20%, 33%)', red: 'hsl(9, 26%, 33%)' },
 }
 
 /** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
@@ -72,6 +72,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
   const kind = (k: string) => ['==', ['get', 'kind'], k]
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
   const style = (...s: string[]) => ['in', ['get', 'style'], ['literal', s]]
+  const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow'], 0.55, 1]
   return [
     {
       id: `Road surface${suffix}`,
@@ -88,17 +89,26 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       source: DETAIL_SOURCE,
       'source-layer': ROAD_MARKING_TILES,
       minzoom: FROM,
-      filter: ['all', band, ['==', ['get', 'pattern'], 'fill']],
+      filter: ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
       paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn(FROM) },
+    },
+    {
+      id: `Road paint fill${suffix}`,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': ROAD_MARKING_TILES,
+      minzoom: TO,
+      filter: ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
+      paint: { 'fill-color': c.white, 'fill-opacity': fadeIn(TO) },
     },
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: 3 m of paint, 9 m of gap.
     line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 75] }),
     line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, 0.6) }),
-    line('Stop line', [kind('stop')], 0.45),
+    line('Stop line', [kind('stop'), pattern('solid')], 0.45),
     // A zebra is one wide line, dashed into bars that run with the traffic.
-    line('Crosswalk zebra', [kind('crosswalk'), style('zebra', 'ladder')], 3, { 'line-dasharray': [0.2, 0.2], 'line-color': c.white }),
-    line('Crosswalk lines', [kind('crosswalk'), style('lines', 'ladder')], 0.25, { 'line-gap-width': metres(3), 'line-color': c.white }),
+    line('Crosswalk zebra', [kind('crosswalk'), pattern('solid'), style('zebra', 'ladder')], 3, { 'line-dasharray': [0.2, 0.2], 'line-color': c.white }),
+    line('Crosswalk lines', [kind('crosswalk'), pattern('solid'), style('lines', 'ladder')], 0.25, { 'line-gap-width': metres(3), 'line-color': c.white }),
     {
       id: `Road glyph${suffix}`,
       type: 'symbol',
@@ -114,7 +124,9 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
         // A glyph is 40 px tall in the sprite and about 6 m on the road.
-        'icon-size': ['interpolate', ['exponential', 2], ['zoom'], TO, (6 * 2 ** TO) / 63330 / 40, 22, (6 * 2 ** 22) / 63330 / 40],
+        // Bike symbols are drawn at a rider's scale, to fit inside a 1.5 m lane.
+        'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
+          TO, ['*', glyphScale, (6 * 2 ** TO) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
       },
       paint: { 'icon-color': c.white, 'icon-opacity': fadeIn(TO + 0.5) },
     },

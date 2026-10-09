@@ -21,7 +21,6 @@ export const FURNITURE_MODELS = {
   fountain: '/models/fountain.glb',
   'fountain-jet': '/models/fountain-jet.glb',
   'street-lamp': '/models/street-lamp.glb',
-  'lamp-post': '/models/lamp-post.glb',
   bollard: '/models/bollard.glb',
   billboard: '/models/billboard.glb',
 }
@@ -38,8 +37,7 @@ const HEIGHT: Record<FurnitureModel, number> = {
   'drinking-water': 1.0,
   fountain: 2.08,
   'fountain-jet': 8,
-  'street-lamp': 7.86,
-  'lamp-post': 4.4,
+  'street-lamp': 4.42,
   bollard: 0.92,
   billboard: 9.1,
 }
@@ -116,16 +114,12 @@ export function headingToBearing(heading: number): number {
 
 export function furnitureInstance(feature: any, lng: number, lat: number): ObjectInstance | null {
   const props = feature.properties ?? {}
-  let model = MODEL_FOR[props.kind]
+  const model = MODEL_FOR[props.kind]
   if (!model) return null
 
   const seed = props.id ?? feature.id ?? `${lng},${lat}`
   const heading = bearingOf(props.direction)
-  if (heading === null) {
-    if (NEEDS_DIRECTION.has(model)) return null
-    // A lamp with no road to reach over stands as a post-top lantern instead.
-    if (model === 'street-lamp') model = 'lamp-post'
-  }
+  if (heading === null && NEEDS_DIRECTION.has(model)) return null
 
   const height = HEIGHT[model]
   return {

@@ -37,6 +37,7 @@ import { BUILDING_PASTELS, BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
+import { ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES } from './road-markings'
 import { ENGINE_PROJECTIONS, MapEngine, MapProjection } from '@/types/map.types'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -133,12 +134,9 @@ describe('terrain source', () => {
     expect(src.type).toBe('raster-dem')
   })
 
-  test('declares the tile size and zoom the dataset actually has', () => {
-    // Terrarium tiles are 256px where a DEM source otherwise assumes 512, and
-    // the dataset stops at 15. Both wrong by default, and both wrong quietly:
-    // the terrain just comes out garbled rather than erroring.
-    expect(src.tileSize).toBe(256)
-    expect(src.maxzoom).toBe(15)
+  test('declares the 512 px tiles the archive serves', () => {
+    // A wrong tile size does not error; the terrain just comes out garbled.
+    expect(src.tileSize).toBe(512)
   })
 
   test('needs no API key', () => {
@@ -2422,5 +2420,40 @@ describe('markings only offset from a carriageway', () => {
     expect(allowed).not.toContain('cycleway')
     expect(allowed).not.toContain('footway')
     expect(allowed).not.toContain('path')
+  })
+})
+
+describe('road markings', () => {
+  const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+  const ids = style.layers.map(l => l.id)
+  const at = (id: string) => ids.indexOf(id)
+
+  test('paint at grade goes over the ground roads and under every bridge', () => {
+    expect(at('Road line')).toBeGreaterThan(at('Highway'))
+    expect(at('Road line')).toBeLessThan(at('Minor road bridge'))
+    expect(at('Road line bridge')).toBeGreaterThan(at('Highway bridge'))
+  })
+
+  test('the basemap roads fade to the carriageway asphalt rather than vanish', () => {
+    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    expect(minor.paint['line-color'][0]).toBe('interpolate')
+    const surface = style.layers.find(l => l.id === 'Road surface') as any
+    expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
+  })
+})
+
+describe('HD roads off', () => {
+  const style = buildMapStyle({ ...opts, theme: 'light' })
+  const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
+
+  test('draws no lane geometry, at grade or on a deck', () => {
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']))).toEqual([])
+  })
+
+  test('leaves the basemap roads their own colour and casing', () => {
+    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    const casing = style.layers.find(l => l.id === 'Minor road outline') as any
+    expect(minor.paint['line-color'][0]).not.toBe('interpolate')
+    expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
   })
 })

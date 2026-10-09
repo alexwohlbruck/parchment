@@ -125,7 +125,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bloom: [0.42, 0.24, 0.32],
     'bloom-alt': [0.46, 0.4, 0.18],
     pv: [0.22, 0.29, 0.45],
-    'pv-frame': [0.5, 0.53, 0.58],
+    'pv-frame': [0.4, 0.43, 0.48],
     lattice: [0.32, 0.34, 0.36],
   },
 }

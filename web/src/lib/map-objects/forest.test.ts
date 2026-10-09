@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, falloff, forestCamera, forestTree, keeps, latticeLevel, plantForest, polygonsOf, screenSpacing, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
+import { buildExclusions, falloff, forestCamera, forestLevel, forestTree, FULL_REACH, keeps, latticeLevel, plantForest, polygonsOf, screenSpacing, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -97,6 +97,14 @@ describe('forest falloff', () => {
   test('cells closer to the camera are never thinner than those beyond them', () => {
     for (let d = 1; d < 2000; d *= 1.5) expect(levelAt(d * 1.5, 0)).toBeGreaterThanOrEqual(levelAt(d, 0))
     expect(levelAt(10, 0)).toBe(0)
+  })
+
+  test('full density out to FULL_REACH of the centre however far the camera, thinning gently past it', () => {
+    const far = { ...camera, altitude: 400, focal: 900, spacing: 12 }
+    const centre: [number, number] = [0, 0]
+    expect(forestLevel(far, centre, FULL_REACH * 0.99, 0)).toBe(0)
+    expect(forestLevel(far, centre, FULL_REACH * 2, 0)).toBeCloseTo(1)
+    expect(forestLevel(far, centre, FULL_REACH * 0.5, 0, 1)).toBe(1)
   })
 
   test('lattice level counts shared halvings', () => {

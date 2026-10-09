@@ -90,11 +90,17 @@ import {
   BUILDING_3D_TILES,
   LANDMARK_SOURCE,
   LANDMARK_TILES,
+  DETAIL_SOURCE,
   WOOD_LAYER,
   forestFloorColor,
   woodColorOf,
 } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import { DeckLayer } from '@/lib/map-decks/deck-layer'
+import { DECK_PALETTE } from '@/lib/map-decks/palette'
+import { flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
+import { SOURCE } from '@/lib/map-style/build'
+import { ROAD_MARKING_TILES, ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -447,6 +453,8 @@ export class MaplibreStrategy extends MapStrategy {
       // The new style has its own building filters and no landmark layer.
       if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
+      this.deckLayer = null
+      this.mutedBridges.clear()
       this.buildingFilters.clear()
       this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
@@ -816,6 +824,11 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   private async applyMapObjects() {
+    await this.applyObjectLayer()
+    this.applyDecks()
+  }
+
+  private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
     const flat = () => {
@@ -884,6 +897,54 @@ export class MaplibreStrategy extends MapStrategy {
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
     shadowCasters.add(this.objectLayer)
     flat()
+  }
+
+  private deckLayer: DeckLayer | null = null
+  /** Flat bridge layers muted under the decks, with the opacity each had. */
+  private mutedBridges = new Map<string, { property: any; value: unknown }>()
+
+  /**
+   * Bridges as 3D decks, with the terrain and 3D objects both on: the decks
+   * stand on the ground the terrain gives their ends, so without it they would
+   * float. The flat bridge layers are muted under them rather than hidden, so
+   * their tiles keep loading for the decks to read.
+   */
+  private applyDecks() {
+    const map = this.mapInstance
+    const active = this.map3dObjects && !!map.getTerrain?.()
+    if (active && !this.deckLayer) {
+      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+      this.deckLayer = new DeckLayer(
+        {
+          basemap: SOURCE,
+          roads: 'transportation',
+          ...(this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}),
+          surfaces: { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES },
+          routes: () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id)),
+        },
+        DECK_PALETTE[flavor],
+      )
+      map.addLayer(this.deckLayer as any, firstLabelLayer(map))
+    } else if (!active && this.deckLayer) {
+      if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
+      this.deckLayer = null
+    }
+    for (const layer of map.getStyle()?.layers ?? []) {
+      const property = flatBridgeOpacity(layer as any) as any
+      if (!property) continue
+      if (active && !this.mutedBridges.has(layer.id)) {
+        this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
+        map.setPaintProperty(layer.id, property, 0)
+      } else if (!active && this.mutedBridges.has(layer.id)) {
+        map.setPaintProperty(layer.id, property, this.mutedBridges.get(layer.id)!.value as any)
+        this.mutedBridges.delete(layer.id)
+      }
+    }
+  }
+
+  override setMap3dTerrain(value: boolean) {
+    super.setMap3dTerrain(value)
+    this.applyDecks()
   }
 
   override setBuildingShade(value: boolean) {

@@ -8,6 +8,7 @@ import {
   parkingLayers,
   treeLayers,
   landmarkLayers,
+  bridgeDeckLayers,
   coasterTrackLayers,
   pitchLayers,
   plantedAreaLayers,
@@ -598,7 +599,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   const lastBuilding = out
     .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
     .lastIndexOf(true)
-  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers())
+  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers(), ...bridgeDeckLayers())
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.

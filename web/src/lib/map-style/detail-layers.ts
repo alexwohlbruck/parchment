@@ -90,8 +90,9 @@ export const COASTER_TRACK_TILES = 'coaster_tracks'
 export const PITCH_TILES = 'sport_pitches'
 export const OBJECT_LINE_TILES = 'object_lines'
 export const OBJECT_AREA_TILES = 'object_areas'
-/** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
+/** Bridge decks with their solved height profiles; read by the deck layer, drawn by no style layer but `bridgeDeckLayers`' invisible one. */
 export const BRIDGE_DECK_TILES = 'bridge_decks'
+export const BRIDGE_DECK_LAYER = 'Bridge decks'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -245,6 +246,24 @@ export function landmarkLayers(): any[] {
       'source-layer': LANDMARK_TILES,
       minzoom: 12,
       paint: { 'circle-opacity': 0, 'circle-radius': 1 },
+    },
+  ]
+}
+
+/**
+ * What keeps Barrelman's solved decks in the detail tiles past z16. Never
+ * seen: the deck layer reads them with `querySourceFeatures`, and an
+ * over-zoomed tile is cut down to the source layers some style layer draws.
+ */
+export function bridgeDeckLayers(): any[] {
+  return [
+    {
+      id: BRIDGE_DECK_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': BRIDGE_DECK_TILES,
+      minzoom: 14,
+      paint: { 'line-opacity': 0 },
     },
   ]
 }

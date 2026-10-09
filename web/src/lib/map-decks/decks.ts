@@ -21,6 +21,39 @@ export type Piece = {
   /** Carriageway width in metres. */
   width: number
   kind: 'road' | 'rail' | 'path'
+  /** Zoom of the tile the piece came from. */
+  zoom?: number
+}
+
+function boxOf(points: Point[], pad: number): Bounds {
+  const xs = points.map(p => p[0])
+  const ys = points.map(p => p[1])
+  return { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad }
+}
+
+/**
+ * Pieces with the stretches a closer tile also carries cut away. A parent
+ * tile stays loaded while its children stream in, so the same bridge can
+ * arrive twice, once simplified, and would stand as two overlapping decks.
+ */
+export function dedupe(pieces: Piece[], tolerance = 4): Piece[] {
+  const boxes = new Map(pieces.map(p => [p, boxOf(p.points, tolerance / metresPerUnit(p.points[0][1]))]))
+  const overlap = (a: Bounds, b: Bounds) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY
+  return pieces.flatMap(piece => {
+    const closer = pieces.filter(o => (o.zoom ?? 0) > (piece.zoom ?? 0) && o.kind === piece.kind && o.layer === piece.layer &&
+      overlap(boxes.get(o)!, boxes.get(piece)!))
+    if (!closer.length) return [piece]
+    const runs: Point[][] = []
+    let run: Point[] = []
+    for (const p of densify(piece.points, tolerance / 2)) {
+      if (closer.some(o => beside(o.points, p).distance < tolerance)) {
+        if (run.length >= 2) runs.push(run)
+        run = []
+      } else run.push(p)
+    }
+    if (run.length >= 2) runs.push(run)
+    return runs.map(points => ({ ...piece, points }))
+  })
 }
 
 export type Chain = Piece & {

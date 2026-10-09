@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, chains, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, chains, dedupe, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -166,5 +166,22 @@ describe('neighbouring decks', () => {
     const both = deckMesh(c, z, [100, 100, 100], c.points[0], colors, { position: [], normal: [], color: [] })
     const one = deckMesh(c, z, [100, 100, 100], c.points[0], colors, { position: [], normal: [], color: [] }, [[true, true, true], [false, false, false]])
     expect(one.position.length).toBeLessThan(both.position.length)
+  })
+})
+
+describe('dedupe', () => {
+  const piece = (points: Point[], zoom: number) => ({ points, layer: 1, width: 10, kind: 'road' as const, zoom })
+
+  test('a bridge a closer tile also carries is kept only once', () => {
+    const kept = dedupe([piece(line(0, 100), 13), piece(offset(1, 0, 100), 14)])
+    expect(kept).toHaveLength(1)
+    expect(kept[0].zoom).toBe(14)
+  })
+
+  test('the stretch a closer tile does not reach is kept', () => {
+    const kept = dedupe([piece(line(0, 200), 13), piece(line(0, 100), 14)])
+    const parent = kept.find(p => p.zoom === 13)!
+    expect(along(parent.points).at(-1)).toBeGreaterThan(90)
+    expect(parent.points[0][0]).toBeGreaterThan(line(100)[0][0])
   })
 })

@@ -1528,11 +1528,11 @@ const TREES = {
     fronds: crownOf(28, 150, {
       length: 2.6,
       arch: [
-        { rise: 1.2, fall: 0.85, droop: 0.3 }, { rise: 0.75, fall: 0.35, droop: 0.3 }, { rise: 0.3, fall: -0.15, droop: 0.3 },
-        { rise: -0.15, fall: -0.6, droop: 0.3 }, { rise: -0.6, fall: -1.05, droop: 0.3 }, { rise: -1, fall: -1.35, droop: 0.3 },
+        { rise: 1.2, fall: 0.85, droop: 0.3 }, { rise: 0.65, fall: 0.25, droop: 0.3 }, { rise: 0.1, fall: -0.35, droop: 0.3 },
+        { rise: -0.45, fall: -0.9, droop: 0.3 }, { rise: -0.95, fall: -1.35, droop: 0.3 },
       ],
     }),
-    farEvery: 5, farStations: [0.7],
+    farEvery: 3, farStations: [0.7],
   }),
   // Date palms after Phoenix canariensis: a stout trunk under a dense crown of
   // long, stiff fronds, the young ones climbing and the old arching to the

@@ -918,7 +918,7 @@ export class MaplibreStrategy extends MapStrategy {
         {
           basemap: SOURCE,
           roads: 'transportation',
-          paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES },
+          ...(this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}),
           surfaces: { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES },
           routes: () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id)),
         },

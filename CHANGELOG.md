@@ -2,16 +2,34 @@
 
 ### Added
 
+* Solar farms show rows of panels, flower beds bloom, and scrub, shrubbery and mapped shrubs grow as 3D bushes, clipped square where a planting is tagged that way.
+* With 3D terrain and objects on, bridges and elevated roads stand in 3D on piers, with their lane markings and your route carried up onto the deck.
+* Up close, roads draw at their real width with rounded kerbs, lane and centre lines, stop lines, crosswalks, turn arrows and bike lane symbols, easing across where lanes are added or dropped.
+* Fences, walls, hedges and guard rails now stand in 3D and follow the slope of the ground, power lines hang between their towers and poles up and down hills, and electrified rail carries its overhead wire.
 * Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
+* Sports courts and fields now show their markings, surfaces, nets, hoops and goals, from tennis and pickleball to basketball, soccer and football.
 * The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.
+* Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
+* Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
 
 ### Changed
 
+* **A brand no longer sits right under the city you typed.** Searching
+  "austin" or "manhattan" put a small chain that only starts with the name
+  (Austin Bank, Manhattan Bagel) second, above the rest of the places with that
+  name. When a place is named exactly what was typed, a brand that only partly
+  matches now comes after the first few places. A brand still leads when it is
+  what was typed ("target") or when no place has that name ("starbuks").
+
+* A fountain in a pond or lake now draws as a jet of water rather than a stone basin.
+* The experimental HD roads setting now works on the MapLibre map too, drawing lane markings, crosswalks and turn arrows.
+* 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
 * 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
 
 ### Fixed
 
+* Distant palm trees on the 3D map now look like palms. Past the first screenful each one was drawn as a ball on a stick. Nearby palms are redrawn too: slimmer grey trunks, long arching fronds, and a fan palm alongside the feather palms.
 * Buildings near a 3D landmark no longer flatten a second after the map loads. A large ride such as a roller coaster hid every building standing anywhere within its outer bounds, so at Carowinds the entrance plaza, the Paladium and most of the buildings around Fury 325 lost their 3D shape. A landmark now hides only the buildings it actually stands on.
 
 ## [0.13.2] - 2026-10-07
@@ -19,6 +37,8 @@
 ### Fixed
 
 * Opening a shared link while signed out now takes you to that page after you sign in, including for new accounts finishing setup.
+* Roller coaster supports reach the ground with 3D terrain on, instead of stopping short of it on sloping ground.
+* 3D landmarks can be raised onto plinths and piers the map doesn't draw, or sunk below the street, and stay rigid when raised. Anything sunk below the ground is hidden with 3D terrain off too.
 
 ## [0.13.1] - 2026-10-07
 

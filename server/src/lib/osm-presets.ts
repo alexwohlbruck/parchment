@@ -3,6 +3,7 @@ import { getLanguageCode } from './i18n'
 import { getChipLabel } from './display-chips'
 import { translate } from './i18n/translate'
 import { logWarn, logger } from './logger'
+import { placeTypeLabel } from './place-type-label'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -603,6 +604,10 @@ export function getPlaceType(
   language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): string {
+  // Countries, states, counties, cities: no iD preset names these well.
+  const division = placeTypeLabel(tags, language)
+  if (division) return division
+
   const match = matchTags(tags, geometry)
   if (match?.preset) {
     return getPresetName(match.preset, language)

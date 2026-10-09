@@ -9,10 +9,15 @@ import {
   treeLayers,
   landmarkLayers,
   coasterTrackLayers,
+  pitchLayers,
+  plantedAreaLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
+import { monorailLayers } from './monorail-layers'
+import { asphaltRoads, roadMarkingLayers } from './road-markings'
+import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
@@ -207,6 +212,8 @@ export interface BasemapStyleOptions {
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   /** How POIs are drawn; defaults to the category badge. */
   poiStyle?: PoiStyleId
+  /** Lane-level roads at street zoom; off by default. */
+  hdRoads?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -452,8 +459,9 @@ export function buildLayers(options: {
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   lang?: string
   poiStyle?: PoiStyleId
+  hdRoads?: boolean
 }): LayerSpecification[] {
-  const { flavor, categoryColors, lang, poiStyle = 'badge' } = options
+  const { flavor, categoryColors, lang, poiStyle = 'badge', hdRoads = false } = options
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
 
@@ -469,7 +477,7 @@ export function buildLayers(options: {
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(converted, flavor) as LayerSpecification[]
+  return spliceDetailLayers(converted, flavor, hdRoads) as LayerSpecification[]
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
@@ -560,8 +568,11 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): any[] {
   const out = [...layers]
+
+  const stadium = out.findIndex(l => l.id === 'Stadium')
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...pitchLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
@@ -572,7 +583,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const firstBuilding = out.findIndex(
     l => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES,
   )
-  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, ...coasterTrackLayers(flavor))
+  // Monorails share the slot: an elevated beam passes over the bridges it crosses.
+  out.splice(
+    firstBuilding < 0 ? out.length : firstBuilding,
+    0,
+    ...monorailLayers(flavor, SOURCE),
+    ...coasterTrackLayers(flavor),
+  )
 
   // Both building source-layers: the flat fill still reads the basemap's
   // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go
@@ -607,7 +624,16 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     }
   }
 
-  return out
+
+  // Lane geometry sits on top of each band of the road network: the ground's
+  // under the first bridge, the bridges' over the last.
+  const ground = bridgeBandIndex(out)
+  if (!hdRoads || ground === undefined) return out
+  const roads = asphaltRoads(out, flavor)
+  const decks = aboveBridgesIndex(roads)
+  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
+  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
+  return roads
 }
 
 /** The plan-view outline, rounded exactly as far as the extrusion it traces. */
@@ -638,7 +664,7 @@ function withBuildingCasts(layers: any[], flavor: FlavorId): any[] {
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -661,7 +687,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
         : {}),
     },
     sky: SKY[flavor],
-    layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
+    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }),
   } as StyleSpecification
 }
 
@@ -676,7 +702,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -702,9 +728,10 @@ export function buildSatelliteStyle(
       categoryColors,
       lang,
       poiStyle,
+      hdRoads,
     }).filter(
       l =>
-        l.type === 'symbol' ||
+        (l.type === 'symbol' && (l as any).source === SOURCE) ||
         // Keep the arterial network so the imagery stays navigable.
         /^(Highway|Major road)$/.test(l.id),
     )

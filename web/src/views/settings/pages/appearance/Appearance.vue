@@ -187,7 +187,6 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.hdRoads')"
         :description="
           $t('settings.mapSettings.configuration.hdRoadsDescription')

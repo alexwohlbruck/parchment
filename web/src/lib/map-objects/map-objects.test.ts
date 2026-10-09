@@ -17,7 +17,7 @@ import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLi
 import { AREA_MODELS, areaObject } from './areas'
 import { SOLAR_MODELS } from './solar'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, unproject } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel, unproject } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
@@ -816,5 +816,17 @@ describe('flavors', () => {
       const sum = (c: [number, number, number]) => c[0] + c[1] + c[2]
       expect(sum(OBJECT_PALETTE.dark[role]), role).toBeLessThan(sum(OBJECT_PALETTE.light[role]))
     }
+  })
+})
+
+describe('object shadows', () => {
+  const models = new Set(Object.keys(OBJECT_MODELS))
+  test('cast with the far variant where the manifest has one', () => {
+    expect(shadowModel({ model: 'tree-broadleaf-a', stretched: false }, models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
+    expect(shadowModel({ model: `tree-broadleaf-a${FAR_SUFFIX}`, stretched: false }, models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
+  })
+
+  test('a stretched batch keeps its own model, whose length sets its scale', () => {
+    expect(shadowModel({ model: 'tree-broadleaf-a', stretched: true }, models)).toBe('tree-broadleaf-a')
   })
 })

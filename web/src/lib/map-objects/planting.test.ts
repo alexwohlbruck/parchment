@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { blockedAlong, buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
-import { forestTree, woodFamily, CROWN_SUFFIX, FOREST_GRID, type WoodTags } from './forest'
+import { blockedAlong, buildExclusions, falloff, keeps, latticeLevel, plant, plantingCamera, plantingLevel, polygonsOf, screenSpacing, spansAt, MERCATOR_METRE, type PlantedPoint } from './planting'
+import { forestTree, levelGrowth, woodFamily, CROWN_SUFFIX, FOREST_GRID, type WoodTags } from './forest'
 import { TREE_FAMILIES } from './trees'
 
 const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
@@ -89,6 +89,21 @@ describe('forest planting', () => {
     expect(sparse.height).toBeGreaterThan(edge.height)
   })
 
+  test('thinned trees grow by level: the sparse scale at one level, gentler past it, capped', () => {
+    expect(levelGrowth(0)).toEqual({ height: 1, spread: 1 })
+    const [one, two, far] = [levelGrowth(1), levelGrowth(2), levelGrowth(9)]
+    expect(forestTree(0, 0, 4, 7, { level: 1 }).height).toBeCloseTo(forestTree(0, 0, 4, 7, { sparse: true }).height)
+    expect(two.height / one.height).toBeLessThan(one.height)
+    expect(far).toEqual(levelGrowth(3))
+  })
+
+  test('a strided planting is the full planting on the coarser lattice', () => {
+    const ex = buildExclusions([], [])
+    const key = (t: PlantedPoint) => `${t[2]},${t[3]}`
+    const full = plantForest(wood, everywhere, ex).filter(t => t[2] % 4 === 0 && t[3] % 4 === 0).map(key)
+    expect(plant(wood, everywhere, ex, FOREST_GRID, 4).map(key)).toEqual(full)
+  })
+
   describe('by what the wood holds', () => {
     const cells = Array.from({ length: 2000 }, (_, k) => [k % 50, Math.floor(k / 50)] as const)
     const broadleafShare = (wood: WoodTags) =>
@@ -158,5 +173,73 @@ describe('blocked spans along a line', () => {
       }
     }
     expect(mismatches).toBe(0)
+  })
+})
+
+describe('planting falloff', () => {
+  const cell = FOREST_SPACING
+  const camera = { x: 0, y: 0, altitude: 30 * cell, focal: 1266, spacing: 8 }
+  const levelAt = (dx: number, dy: number) => falloff(screenSpacing(camera, dx * cell, dy * cell, cell), camera.spacing)
+
+  test('full density while cells are wide apart on screen, one level per halving after', () => {
+    expect(falloff(32, 8)).toBe(0)
+    expect(falloff(8, 8)).toBeCloseTo(1)
+    expect(falloff(2, 8)).toBeCloseTo(3)
+    expect(falloff(32, 8, 1)).toBe(1)
+  })
+
+  test('cells closer to the camera are never thinner than those beyond them', () => {
+    for (let d = 1; d < 2000; d *= 1.5) expect(levelAt(d * 1.5, 0)).toBeGreaterThanOrEqual(levelAt(d, 0))
+    expect(levelAt(10, 0)).toBe(0)
+  })
+
+  test('full density out to the reach of the centre however far the camera, two levels per doubling past it', () => {
+    const far = { ...camera, altitude: 400 * cell, focal: 900, spacing: 12 }
+    const reach = 56 * cell
+    expect(plantingLevel(far, [0, 0], reach, cell, reach * 0.99, 0)).toBe(0)
+    expect(plantingLevel(far, [0, 0], reach, cell, reach * 2, 0)).toBeCloseTo(2)
+    expect(plantingLevel(far, [0, 0], reach, cell, reach * 0.5, 0, 1)).toBe(1)
+  })
+
+  test('lattice level counts shared halvings', () => {
+    expect(latticeLevel(3, 8)).toBe(0)
+    expect(latticeLevel(4, 8)).toBe(2)
+    expect(latticeLevel(0, 0)).toBe(16)
+  })
+
+  test('a wood running to the horizon costs a bounded number of trees', () => {
+    const shownWithin = (radius: number) => {
+      let n = 0
+      for (let i = -radius; i <= radius; i++)
+        for (let j = 0; j <= radius; j++)
+          if (Math.hypot(i, j) < radius && keeps(i + 8192, j + 8192, levelAt(i + 0.5, j + 0.5))) n++
+      return n
+    }
+    expect(shownWithin(1600)).toBeLessThan(shownWithin(400) * 1.3)
+  })
+
+  test('levels blend over a band rather than meeting at a ring, and never go below the floor', () => {
+    const kept = (level: number, floor = 0) => {
+      let n = 0, total = 0
+      for (let i = 0; i < 4096; i += 2) for (let j = 1; j < 64; j += 2) { total++; if (keeps(i, j, level, floor)) n++ }
+      return n / total
+    }
+    expect(kept(0.6)).toBe(1)
+    expect(kept(1.1)).toBeGreaterThan(0.05)
+    expect(kept(1.1)).toBeLessThan(0.95)
+    expect(kept(1.4)).toBe(0)
+    expect(kept(1, 1)).toBe(0)
+  })
+
+  test('the camera stands behind the centre, by the pitch, facing the bearing', () => {
+    const map = {
+      getCenter: () => ({ lng: 0, lat: 0 }), getZoom: () => 18, getPitch: () => 60, getBearing: () => 0,
+      getCanvas: () => ({ clientWidth: 390, clientHeight: 844 }), transform: { cameraToCenterDistance: 1266 },
+    }
+    const cam = plantingCamera(map)
+    expect(cam.y).toBeGreaterThan(0.5)
+    expect(cam.x).toBeCloseTo(0.5)
+    expect(cam.altitude).toBeCloseTo((cam.y - 0.5) / Math.tan(Math.PI / 3))
+    expect(cam.spacing).toBeGreaterThan(5)
   })
 })

@@ -30,11 +30,27 @@ export const CROWN_SUFFIX = '-crown'
 
 /**
  * Below this zoom a wood is planted at every other cell each way, a quarter of
- * the trees, each scaled up to close the canopy over twice the spacing.
+ * the trees, each scaled up to close the canopy over twice the spacing. Farther
+ * off it thins further (see `plantedSpec`'s falloff), and each level past the
+ * first grows its trees by `LEVEL_*` more, up to `MAX_GROWTH` levels.
  */
 export const SPARSE_BELOW_ZOOM = 15
 const SPARSE_SCALE = 1.5
 const SPARSE_SPREAD = 1.25
+const LEVEL_HEIGHT = 1.12
+const LEVEL_SPREAD = 1.3
+const MAX_GROWTH = 3
+
+/** Height and spread multipliers for a tree at thinning level `level`: #585's sparse scale at 1, gentler past it. */
+export function levelGrowth(level: number): { height: number; spread: number } {
+  const g = Math.max(0, Math.min(level, MAX_GROWTH))
+  const first = Math.min(g, 1)
+  const rest = Math.max(0, g - 1)
+  return {
+    height: (1 + (SPARSE_SCALE - 1) * first) * LEVEL_HEIGHT ** rest,
+    spread: (1 + (SPARSE_SPREAD - 1) * first) * LEVEL_SPREAD ** rest,
+  }
+}
 
 const CROWNS: Record<string, string> = Object.fromEntries(
   Object.values(TREE_FAMILIES)
@@ -62,20 +78,21 @@ export function forestTree(
   lat: number,
   i: number,
   j: number,
-  { interior = false, sparse = false, wood = {} }: Partial<PlantedPlace> & { wood?: WoodTags } = {},
+  { interior = false, sparse = false, level = sparse ? 1 : 0, wood = {} }: Partial<PlantedPlace> & { wood?: WoodTags } = {},
 ): ObjectInstance {
   const family = woodFamily(wood, i, j)
-  const height = lerp(HEIGHT[family], cellHash(i, j, 4)) * (sparse ? SPARSE_SCALE : 1)
+  const growth = levelGrowth(level)
+  const height = lerp(HEIGHT[family], cellHash(i, j, 4)) * growth.height
   const model = pick(TREE_FAMILIES[family], cellHash(i, j, 9))
   return {
     lng,
     lat,
     height,
-    spread: height * lerp(SPREAD, cellHash(i, j, 5)) * (sparse ? SPARSE_SPREAD : 1),
+    spread: height * lerp(SPREAD, cellHash(i, j, 5)) * growth.spread,
     heading: cellHash(i, j, 6) * Math.PI * 2,
     shade: 0.84 + cellHash(i, j, 7) * 0.24,
     tint: cellHash(i, j, 8),
-    model: interior && !sparse ? (CROWNS[model] ?? model) : model,
+    model: interior && level < 1 ? (CROWNS[model] ?? model) : model,
   }
 }
 
@@ -95,7 +112,7 @@ export const FOREST_OBJECTS = plantedSpec({
   source: BASEMAP_SOURCE,
   sourceLayer: 'landcover',
   minzoom: 14,
-  budget: 10000,
+  falloff: { full: 18000 },
   sparseBelow: SPARSE_BELOW_ZOOM,
   grid: feature => (feature.properties?.class === 'wood' ? FOREST_GRID : null),
   clear: () => true,

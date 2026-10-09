@@ -64,8 +64,15 @@ const FAR_BELOW_ZOOM = 17
 const SETTLE = 80
 
 /** Fewest milliseconds between gathers while the camera is still moving. */
-const MOVING_GATHER = 600
+const MOVING_GATHER = 350
 const AT_MOST = 300
+
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: short while moving, longer at rest. */
+const SLICE = 8
+const RESTING_SLICE = 100
+/** Candidates placed, or features read, between checks of the slice clock. */
+const STEP = 256
+const FEATURE_STEP = 8
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
 const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
@@ -275,6 +282,8 @@ export type ObjectSourceSpec = {
   toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
   /** Runs once per gather, before any feature, with the map. */
   prepare?: (map: any, spec: ObjectSourceSpec) => void
+  /** Heavy setup run after `prepare` a step at a time, so a gather can yield between steps. */
+  prepareSteps?: () => Iterable<void>
   /** False when one feature arrives as several tile pieces that must all be kept. Defaults to true. */
   distinct?: boolean
   /** Whether the objects depend on the view, so a pan has to gather again. */
@@ -312,6 +321,8 @@ type Batch = {
   tint: Float32Array
   slope: Float32Array
   count: number
+  /** Whether any instance sets a `length`, which scales by this model's own length. */
+  stretched: boolean
   /**
    * Uploaded on the first frame that draws this batch, and not again.
    *
@@ -436,6 +447,8 @@ export class ObjectLayer {
   private needsGather = true
   private needsArrange = true
   private scheduled = 0
+  private gathering: Iterator<void> | null = null
+  private slice = 0
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
@@ -565,10 +578,38 @@ export class ObjectLayer {
       // Tiles stream in all through a pan or orbit. Gathering on each stalls the
       // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
       const now = performance.now()
+      if (this.gathering) return
       if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
-      if (this.needsArrange) this.arrange()
-      this.map.triggerRepaint?.()
+      else if (this.needsArrange) {
+        this.arrange()
+        this.map.triggerRepaint?.()
+      }
     }, wait) as unknown as number
+  }
+
+  /**
+   * Start a gather and run it a slice at a time. One in progress is never
+   * restarted: tiles stream in for seconds after a pan, and restarting on each
+   * meant a slow device never finished one. The next waits for it instead.
+   */
+  private gather() {
+    this.gathering = this.gatherSteps()
+    this.runSlice()
+  }
+
+  private runSlice() {
+    const steps = this.gathering
+    if (!steps || !this.map) return
+    const until = performance.now() + (this.map.isMoving?.() ? SLICE : RESTING_SLICE)
+    while (performance.now() < until) {
+      if (!steps.next().done) continue
+      this.gathering = null
+      this.arrange()
+      this.map.triggerRepaint?.()
+      if (this.needsGather) this.invalidate(true)
+      return
+    }
+    this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
   }
 
   private upload(gl: WebGL2RenderingContext, target: number, data: ArrayBufferView) {
@@ -582,7 +623,9 @@ export class ObjectLayer {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
     if (this.scheduled) clearTimeout(this.scheduled)
+    clearTimeout(this.slice)
     this.scheduled = 0
+    this.gathering = null
     this.map = null
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.shadowProgram)
@@ -612,12 +655,12 @@ export class ObjectLayer {
    * an object on a tile boundary would otherwise be drawn twice — hence the id
    * set. Objects with no id are kept: a duplicate is better than a hole.
    */
-  private gather() {
+  private *gatherSteps(): Generator<void> {
     this.needsGather = false
     this.gatheredAt = performance.now()
     const zoom = this.map.getZoom()
     this.gatheredZoom = zoom
-    this.placed = []
+    const placedNow: Placed[] = []
 
     const terrain = this.map.getTerrain?.() ? this.map : null
     const heights = new Map<string, number>()
@@ -635,23 +678,27 @@ export class ObjectLayer {
     const { lng: centerLng, lat: centerLat } = this.map.getCenter()
     const lngScale = Math.cos((centerLat * Math.PI) / 180)
     const bounds = this.map.getBounds?.()
-    // Padded so a tree just off the edge still casts its shadow in.
-    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.1 : 0
+    // Padded so a pan reveals objects already gathered.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.35 : 0
     const inView = (lng: number, lat: number) =>
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
       spec.prepare?.(this.map, spec)
+      if (spec.prepareSteps) yield* spec.prepareSteps()
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
       } catch {
         continue
       }
+      yield
       const positions = spec.positions ?? pointPositions
       const candidates: Array<[any, number, number, number]> = []
+      let read = 0
       for (const feature of features) {
+        if (++read % FEATURE_STEP === 0) yield
         const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
           const scoped = `${spec.sourceLayer}:${key}`
@@ -674,7 +721,9 @@ export class ObjectLayer {
         candidates.sort((a, b) => away(a) - away(b))
         candidates.length = spec.budget
       }
-      for (const [feature, i, lng, lat] of candidates) {
+      for (let c = 0; c < candidates.length; c++) {
+        if (c % STEP === STEP - 1) yield
+        const [feature, i, lng, lat] = candidates[c]
         const instance = spec.toInstance(feature, lng, lat, i)
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
@@ -688,9 +737,10 @@ export class ObjectLayer {
           placed.gx = plane.gx
           placed.gy = plane.gy
         } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
-        this.placed.push(placed)
+        placedNow.push(placed)
       }
     }
+    this.placed = placedNow
   }
 
   /**
@@ -755,7 +805,8 @@ export class ObjectLayer {
         slope[i * 2] = gx
         slope[i * 2 + 1] = gy
       }
-      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, buffers: null })
+      const stretched = group.some(p => p.instance.length !== undefined)
+      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, stretched, buffers: null })
     }
   }
 
@@ -904,7 +955,7 @@ export class ObjectLayer {
     gl.uniform1f(this.shadowUniforms.u_per_metre, this.placed[0].perMetre)
     gl.disable(gl.CULL_FACE)
     for (const batch of this.batches) {
-      const model = this.models.get(batch.model)
+      const model = this.models.get(shadowModel(batch, this.models))
       if (!model) continue
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
@@ -927,6 +978,15 @@ export class ObjectLayer {
     const length = Math.hypot(x, y, z) || 1
     return [x / length, y / length, z / length]
   }
+}
+
+/**
+ * The model a batch casts its shadow with: the far variant, since the mask is too
+ * coarse to show more. Not for stretched batches, whose scale is set by their own model's length.
+ */
+export function shadowModel(batch: { model: string; stretched: boolean }, models: { has(name: string): boolean }): string {
+  const far = `${batch.model}${FAR_SUFFIX}`
+  return !batch.stretched && models.has(far) ? far : batch.model
 }
 
 /** The widest horizontal extent of a model, in its own units. */

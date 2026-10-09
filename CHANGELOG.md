@@ -26,6 +26,7 @@
 * The experimental HD roads setting now works on the MapLibre map too, drawing lane markings, crosswalks and turn arrows, and is on by default there.
 * 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
+* 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
 
 ### Fixed
 

@@ -1070,6 +1070,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme,
       mapStyle: this.options.mapStyle,
       poiStyle: this.poiStyle(),
+      hdRoads: this.hdRoads(),
       categoryColors: this.categoryColors(theme),
     })
   }
@@ -1134,6 +1135,20 @@ export class MaplibreStrategy extends MapStrategy {
    */
   private poiStyle(): PoiStyleId {
     return useMapStore().settings.poiStyle ?? 'badge'
+  }
+
+  /** The value the current style was built with; see `setHdRoads`. */
+  private builtHdRoads?: boolean
+
+  private hdRoads(): boolean {
+    this.builtHdRoads = !!useMapStore().settings.hdRoads
+    return this.builtHdRoads
+  }
+
+  /** Lane geometry is baked into the style, so a change rebuilds it. */
+  override setHdRoads(value: boolean) {
+    if (this.builtHdRoads === undefined || this.builtHdRoads === value) return
+    this.reloadStyle()
   }
 
   /**
@@ -1294,6 +1309,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme: theme as 'light' | 'dark',
       mapStyle: this.options.mapStyle,
       poiStyle: this.poiStyle(),
+      hdRoads: this.hdRoads(),
       categoryColors: this.categoryColors(theme),
     }
 

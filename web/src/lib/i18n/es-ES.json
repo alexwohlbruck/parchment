@@ -469,6 +469,7 @@
       },
       "baseMap": "Mapa base",
       "overlays": "Superposiciones",
+      "pois": "Puntos de interés",
       "savedPlaces": "Mostrar lugares guardados",
       "showCanvases": "Mostrar lienzos",
       "placeCount": "{count} lugares",

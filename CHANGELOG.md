@@ -2,7 +2,7 @@
 
 ### Added
 
-* Fences, walls, hedges and guard rails now stand in 3D, power lines hang between their towers and poles, and electrified rail carries its overhead wire.
+* Fences, walls, hedges and guard rails now stand in 3D and follow the slope of the ground, power lines hang between their towers and poles up and down hills, and electrified rail carries its overhead wire.
 
 * Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
 

@@ -10,6 +10,7 @@ import {
   landmarkLayers,
   coasterTrackLayers,
   pitchLayers,
+  plantedAreaLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
@@ -570,7 +571,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
-  if (stadium >= 0) out.splice(stadium + 1, 0, ...pitchLayers(flavor))
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...pitchLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))

@@ -2,6 +2,8 @@
 
 ### Added
 
+* Solar farms show rows of panels, flower beds bloom, and scrub, shrubbery and mapped shrubs grow as 3D bushes, clipped square where a planting is tagged that way.
+
 * With 3D terrain and objects on, bridges and elevated roads stand in 3D on piers, with their lane markings and your route carried up onto the deck.
 
 * Up close, roads draw at their real width with rounded kerbs, lane and centre lines, stop lines, crosswalks, turn arrows and bike lane symbols, easing across where lanes are added or dropped.

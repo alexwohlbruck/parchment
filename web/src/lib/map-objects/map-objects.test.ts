@@ -14,13 +14,15 @@ import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OB
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
 import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLine } from './lines'
+import { AREA_MODELS, areaObject } from './areas'
+import { SOLAR_MODELS } from './solar'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, unproject } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -225,7 +227,7 @@ describe('models', () => {
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
     // glTF is Y-up; the layer swaps to Z-up on the way into the shader.
-    if ((HUNG_MODELS as string[]).includes(name)) {
+    if ([...HUNG_MODELS, ...Object.keys(SOLAR_MODELS)].includes(name)) {
       expect(model.min[1]).toBeGreaterThan(0)
       expect(model.max[1]).toBeLessThanOrEqual(1.0001)
     } else {
@@ -700,6 +702,21 @@ describe('lines', () => {
     const masts = placeLine('catenary', track, null).filter(p => p.model === 'catenary-mast')
     const length = measure([-80.84, 35.2], [-80.83, 35.2]).length
     expect(masts.length).toBe(Math.floor((length - 27.5) / 55) + 1)
+  })
+})
+
+describe('planted areas', () => {
+  test('a mapped shrub stands taller than scrub undergrowth may', () => {
+    const heights = Array.from({ length: 50 }, (_, i) => areaObject('shrub', -80, 35, i, 7)!.height)
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(1.5)
+  })
+
+  test('box-shaped shrubbery is clipped square, set in rows', () => {
+    const boxes = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3, 'box')!)
+    expect(new Set(boxes.map(b => b.model))).toEqual(new Set(['shrub-box']))
+    expect(new Set(boxes.map(b => b.heading))).toEqual(new Set([0]))
+    const loose = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3)!.model)
+    expect(loose).not.toContain('shrub-box')
   })
 })
 

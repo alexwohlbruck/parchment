@@ -10,7 +10,7 @@
 import { DETAIL_SOURCE, OBJECT_LINE_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
 import { bearingOf } from './furniture'
-import { cellHash } from './forest'
+import { cellHash } from './planting'
 import { tagged } from './vary'
 
 export const LINE_MODELS = {

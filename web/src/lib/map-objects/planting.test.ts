@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, forestTree, plantForest, polygonsOf, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
+import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
+import { forestTree, CROWN_SUFFIX, FOREST_GRID } from './forest'
+
+const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
+const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -77,7 +81,7 @@ describe('forest planting', () => {
   test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
     const edge = forestTree(0, 0, 4, 7)
     expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
-    expect(forestTree(0, 0, 4, 7, { interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
+    expect(forestTree(0, 0, 4, 7, { interior: true, sparse: false }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
     const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)

@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, forestTree, plantForest, polygonsOf, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
+import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
+import { forestTree, CROWN_SUFFIX, FOREST_GRID } from './forest'
+
+const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
+const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -41,6 +45,15 @@ describe('forest planting', () => {
     }
   })
 
+  test('grows on under a bridge', () => {
+    const coordinates = [[-80.851, 35.202], [-80.844, 35.202]]
+    const road = { properties: { class: 'primary' }, geometry: { type: 'LineString', coordinates } }
+    const bridge = { properties: { class: 'primary', brunnel: 'bridge' }, geometry: { type: 'LineString', coordinates } }
+    const all = plantForest(wood, everywhere, buildExclusions([], []))
+    expect(plantForest(wood, everywhere, buildExclusions([bridge], []))).toEqual(all)
+    expect(plantForest(wood, everywhere, buildExclusions([road], [])).length).toBeLessThan(all.length)
+  })
+
   test('two tiles of one wood plant disjoint sets', () => {
     const mid = (wood[0][0][0] + wood[0][1][0]) / 2
     const ex = buildExclusions([], [])
@@ -68,7 +81,7 @@ describe('forest planting', () => {
   test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
     const edge = forestTree(0, 0, 4, 7)
     expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
-    expect(forestTree(0, 0, 4, 7, { interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
+    expect(forestTree(0, 0, 4, 7, { interior: true, sparse: false }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
     const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)

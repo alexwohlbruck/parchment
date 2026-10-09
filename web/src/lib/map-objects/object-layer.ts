@@ -110,12 +110,14 @@ const VS = `
   attribute vec3 a_normal;
   /** Instance: mercator position, relative to the layer's current origin. */
   attribute vec3 a_offset;
-  /** Instance: height and lateral scale in mercator units, plus a heading. */
-  attribute vec3 a_shape;
+  /** Instance: height and lateral scale in mercator units, a heading, and a stretch along the model's x. */
+  attribute vec4 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
   attribute float a_shade;
   /** Instance: how far toward the role's alternate colour, 0-1. */
   attribute float a_tint;
+  /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
+  attribute vec2 a_slope;
 
   varying vec3 v_color;
 
@@ -127,13 +129,14 @@ const VS = `
     // orientation so it opens correctly in any viewer; the swap happens here.
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
-    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
     n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
 
-    vec3 world = a_offset + vec3(p.xy * a_shape.y, p.z * a_shape.x);
+    vec2 across = p.xy * a_shape.y;
+    vec3 world = a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across));
 
     vec3 unit = normalize(n);
     // Half-lambert: a plain dot product leaves every face turned away from the
@@ -167,7 +170,7 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5 }
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
 /**
  * The cast shadow: the object sheared along the light onto the ground it
@@ -180,15 +183,16 @@ const SHADOW_VS = `
   uniform float u_per_metre;
   attribute vec3 a_position;
   attribute vec3 a_offset;
-  attribute vec3 a_shape;
+  attribute vec4 a_shape;
+  attribute vec2 a_slope;
   void main() {
     float c = cos(a_shape.z);
     float s = sin(a_shape.z);
-    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
-    vec2 xy = a_offset.xy + p.xy * a_shape.y;
     float metres = p.z * a_shape.x / u_per_metre;
-    gl_Position = u_matrix * vec4(xy + u_shear * metres, a_offset.z, 1.0);
+    vec2 xy = p.xy * a_shape.y + u_shear * metres;
+    gl_Position = u_matrix * vec4(a_offset.xy + xy, a_offset.z + dot(a_slope, xy), 1.0);
   }`
 
 const SHADOW_FS = `
@@ -240,6 +244,8 @@ export type ObjectInstance = {
   spread: number
   /** Metres across, where it was measured; overrides `spread` using the model's own width. */
   width?: number
+  /** Metres along the model's x, stretching it to span a segment; see `modelLength`. */
+  length?: number
   /** Radians. */
   heading: number
   /** Multiplier on the model's own colours. */
@@ -248,6 +254,11 @@ export type ObjectInstance = {
   tint?: number
   /** Which model to draw it with. */
   model: string
+  /**
+   * Follow the ground along `length`, and `across` metres the other way, rather
+   * than standing level at one height. For spans long enough to cross a slope.
+   */
+  conform?: true | { across: number }
 }
 
 export type ObjectSourceSpec = {
@@ -277,6 +288,8 @@ type ModelBuffers = {
   cullable: boolean
   /** The model's widest horizontal extent, in model units. */
   width: number
+  /** The model's extent along x, in model units. */
+  length: number
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -297,6 +310,7 @@ type Batch = {
   shape: Float32Array
   shade: Float32Array
   tint: Float32Array
+  slope: Float32Array
   count: number
   /**
    * Uploaded on the first frame that draws this batch, and not again.
@@ -307,7 +321,7 @@ type Batch = {
    * does. GL is touched only inside `render`, so the arrays are built off the
    * render path and handed over here.
    */
-  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer } | null
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer } | null
 }
 
 /**
@@ -326,6 +340,42 @@ export type Placed = {
   /** Ground height in mercator units, which is how an object stands on terrain. */
   z: number
   perMetre: number
+  /** Ground slope, east and south; see `groundPlane`. */
+  gx: number
+  gy: number
+}
+
+/**
+ * The ground under a long object as a plane through its ends: the height at its
+ * anchor and the rise per unit run east and south, from `sample`, which reads
+ * the terrain at an offset in metres east and south of the anchor.
+ *
+ * The anchor takes the ends' mean rather than its own height, so consecutive
+ * spans meet at shared ends and a wire reaches both of its poles.
+ */
+export function groundPlane(
+  heading: number,
+  along: number,
+  across: number,
+  sample: (east: number, south: number) => number,
+): { elevation: number; gx: number; gy: number } {
+  const c = Math.cos(heading)
+  const s = Math.sin(heading)
+  const a = along / 2
+  const start = sample(-c * a, -s * a)
+  const end = sample(c * a, s * a)
+  const rise = along > 0 ? (end - start) / along : 0
+  if (!(across > 0)) return { elevation: (start + end) / 2, gx: rise * c, gy: rise * s }
+  const b = across / 2
+  const left = sample(s * b, -c * b)
+  const right = sample(-s * b, c * b)
+  const tilt = (right - left) / across
+  return { elevation: (start + end + left + right) / 4, gx: rise * c - tilt * s, gy: rise * s + tilt * c }
+}
+
+/** Longitude and latitude of a mercator position. */
+export function unproject(x: number, y: number): [number, number] {
+  return [x * 360 - 180, (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * Math.PI)) - 90]
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string) {
@@ -442,6 +492,7 @@ export class ObjectLayer {
       this.models.set(name, {
         cullable: this.solid[name] ?? false,
         width: modelWidth(model),
+        length: modelLength(model),
         primitives: model.primitives.map(p => {
           const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
           return {
@@ -569,6 +620,16 @@ export class ObjectLayer {
     this.placed = []
 
     const terrain = this.map.getTerrain?.() ? this.map : null
+    const heights = new Map<string, number>()
+    const heightAt = (lng: number, lat: number) => {
+      const key = `${Math.round(lng * 1e6)},${Math.round(lat * 1e6)}`
+      let h = heights.get(key)
+      if (h === undefined) {
+        h = (terrain.queryTerrainElevation([lng, lat]) ?? 0) as number
+        heights.set(key, h)
+      }
+      return h
+    }
     const seen = new Set<string>()
 
     const { lng: centerLng, lat: centerLat } = this.map.getCenter()
@@ -616,9 +677,17 @@ export class ObjectLayer {
       for (const [feature, i, lng, lat] of candidates) {
         const instance = spec.toInstance(feature, lng, lat, i)
         if (!instance) continue
-        const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
-        const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
-        project(lng, lat, elevation, placed)
+        const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
+        project(lng, lat, 0, placed)
+        if (terrain && instance.conform && instance.length) {
+          const { x, y, perMetre } = placed
+          const across = instance.conform === true ? 0 : instance.conform.across
+          const plane = groundPlane(instance.heading, instance.length, across,
+            (east, south) => heightAt(...unproject(x + east * perMetre, y + south * perMetre)))
+          placed.z = plane.elevation * perMetre
+          placed.gx = plane.gx
+          placed.gy = plane.gy
+        } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
         this.placed.push(placed)
       }
     }
@@ -663,26 +732,30 @@ export class ObjectLayer {
     for (const [model, group] of buckets) {
       if (!this.models.has(model)) continue
       const offset = new Float32Array(group.length * 3)
-      const shape = new Float32Array(group.length * 3)
+      const shape = new Float32Array(group.length * 4)
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
+      const slope = new Float32Array(group.length * 2)
       // A measured crown is sized against the near model's width even when the
-      // far one is drawn. The far model is a few fronds or a coarser solid, and
-      // its own width along x and z can differ by a tenth or more — enough
-      // that the tree would grow or shrink as it crossed the switch.
+      // far one is drawn, so a tree doesn't grow or shrink as it crosses the switch.
       const nearWidth = this.models.get(nearOf(model))?.width || 1
       for (let i = 0; i < group.length; i++) {
-        const { instance, x, y, z, perMetre } = group[i]
+        const { instance, x, y, z, perMetre, gx, gy } = group[i]
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
-        shape[i * 3] = instance.height * perMetre
-        shape[i * 3 + 1] = (instance.width === undefined ? instance.spread : instance.width / nearWidth) * perMetre
-        shape[i * 3 + 2] = instance.heading
+        const buffers = this.models.get(model)
+        shape[i * 4] = instance.height * perMetre
+        const across = instance.width === undefined ? instance.spread : instance.width / nearWidth
+        shape[i * 4 + 1] = across * perMetre
+        shape[i * 4 + 2] = instance.heading
+        shape[i * 4 + 3] = instance.length === undefined ? 1 : instance.length / ((buffers?.length || 1) * across)
         shade[i] = instance.shade
         tint[i] = instance.tint ?? 0
+        slope[i * 2] = gx
+        slope[i * 2 + 1] = gy
       }
-      this.batches.push({ model, offset, shape, shade, tint, count: group.length, buffers: null })
+      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, buffers: null })
     }
   }
 
@@ -797,6 +870,7 @@ export class ObjectLayer {
       shape: gl.createBuffer()!,
       shade: gl.createBuffer()!,
       tint: gl.createBuffer()!,
+      slope: gl.createBuffer()!,
     }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -806,9 +880,10 @@ export class ObjectLayer {
       gl.vertexAttribDivisor(loc, 1)
     }
     attach(batch.buffers.offset, batch.offset, LOC.a_offset, 3)
-    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 3)
+    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 4)
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
     attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
+    attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
   }
 
   /**
@@ -865,6 +940,14 @@ function modelWidth(model: GlbModel): number {
 
 const CANOPY = new Set(['foliage', 'blossom'])
 
+/** A model's extent along x, in its own units. */
+function modelLength(model: GlbModel): number {
+  let length = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3) length = Math.max(length, 2 * Math.abs(p.position[i]))
+  return length
+}
+
 /** A crown's y bounds, so its underside can be shaded; nothing else is. */
 function crownOcclusion(role: string, position: Float32Array): [number, number, number] {
   if (!CANOPY.has(role)) return [0, 1, 0]
@@ -878,7 +961,7 @@ function crownOcclusion(role: string, position: Float32Array): [number, number, 
 }
 
 /** `matrix * translate(origin)`, without pulling in a matrix library. */
-function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
+export function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
   const out = new Float32Array(16)
   for (let i = 0; i < 16; i++) out[i] = matrix[i]
   const [x, y, z] = origin

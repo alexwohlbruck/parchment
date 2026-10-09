@@ -35,6 +35,7 @@
 
 * Opening a shared link while signed out now takes you to that page after you sign in, including for new accounts finishing setup.
 * Roller coaster supports reach the ground with 3D terrain on, instead of stopping short of it on sloping ground.
+* 3D landmarks can be raised onto plinths and piers the map doesn't draw, or sunk below the street, and stay rigid when raised. Anything sunk below the ground is hidden with 3D terrain off too.
 
 ## [0.13.1] - 2026-10-07
 

@@ -180,3 +180,40 @@ export function groundLifts(
   })
   return { lifts, mean: heights.length ? sum / heights.length : 0, lowest }
 }
+
+/** Metres: a floor this far down never clips anything. */
+const NO_FLOOR = 1e6
+
+/**
+ * How a placement's elevation changes the way its model meets the ground.
+ *
+ * The elevation moves the whole anchor, after the model has been set on the
+ * lowest ground under it (see `place` in `landmark-layer.ts`), so the model's
+ * own ground stays where it was built and a lift in its geometry is never
+ * needed. What changes is the drape:
+ *
+ *   raised  Nothing of the model touches the ground — it stands on a plinth
+ *           or a pier the map doesn't draw — so it is `rigid`: it takes the
+ *           mean ground as one block, and no part of it is stretched over
+ *           the terrain below.
+ *   sunk    Its base is under the street, and the ground it meets is
+ *           `groundAt` model metres above its own. The drape is measured
+ *           from there, so its street-level walls follow the street the way
+ *           a building's base does. Without that, a bowl 30 m deep would be
+ *           rigid above the street and never meet it.
+ *
+ * And `floor`, in map metres up from the anchor: where the flat map's ground
+ * is with the terrain off. The flat map writes no depth, so a sunk model
+ * would show through it; whatever is below is not drawn. With the terrain on,
+ * the terrain's own depth hides what is under it, more exactly than the
+ * coarse grid could, so nothing is clipped.
+ */
+export type ElevationDrape = { rigid: boolean; groundAt: number; floor: number }
+
+export function elevationDrape(elevation: number, scale: number, terrain: boolean): ElevationDrape {
+  return {
+    rigid: elevation > 0,
+    groundAt: Math.max(-elevation, 0) / scale,
+    floor: terrain ? -NO_FLOOR : -elevation,
+  }
+}

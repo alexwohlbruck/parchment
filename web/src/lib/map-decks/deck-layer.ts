@@ -11,6 +11,7 @@
  * clears what runs underneath.
  */
 import { MercatorCoordinate } from 'maplibre-gl'
+import earcut from 'earcut'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
@@ -47,6 +48,8 @@ export type DeckPalette = {
   parapet: [number, number, number]
   white: [number, number, number]
   yellow: [number, number, number]
+  green: [number, number, number]
+  red: [number, number, number]
   route: [number, number, number]
   routeCasing: [number, number, number]
 }
@@ -100,6 +103,11 @@ const mercator = ([lng, lat]: number[]): Point => {
   const s = Math.sin((lat * Math.PI) / 180)
   return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
 }
+
+const polygonsOf = (geometry: any): number[][][][] =>
+  geometry?.type === 'Polygon' ? [geometry.coordinates]
+  : geometry?.type === 'MultiPolygon' ? geometry.coordinates
+  : []
 
 const linesOf = (geometry: any): number[][][] =>
   geometry?.type === 'LineString' ? [geometry.coordinates]
@@ -176,11 +184,19 @@ export class DeckLayer {
     if (!this.map.getTerrain?.() || !terrain?.getElevationForLngLatZoom) return () => 0
     const top = Math.min(Math.floor(this.map.getZoom()), terrain.tileManager?.maxzoom ?? 15)
     // The rendered surface, where the fork exposes it, is what draped roads lie on.
-    const rendered = terrain.getCoverageIndex?.() ? terrain : null
+    const transform = this.map.transform
+    const rendered = transform && terrain.getCoverageIndex?.() ? terrain : null
     return ([x, y]) => {
       const { lng, lat } = new MercatorCoordinate(x, y).toLngLat()
       const at = { lng, lat, wrap: () => at }
-      if (rendered) return rendered.getElevationForLngLat(at, this.map.transform)
+      if (rendered) {
+        try {
+          const h = rendered.getElevationForLngLat(at, transform)
+          if (Number.isFinite(h)) return h
+        } catch {
+          // Off the rendered tiles its fallback needs a camera the globe may not have yet.
+        }
+      }
       for (let z = top; z >= Math.max(0, top - 6); z--) {
         const h = terrain.getElevationForLngLatZoom(at, z)
         if (h) return h
@@ -252,8 +268,10 @@ export class DeckLayer {
 
     const surfaces = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) + 1 }))
     this.paintFrom = mesh.position.length / 3
-    for (const { props, runs } of paint) {
-      const color = props.color === 'yellow' ? p.yellow : p.white
+    for (const { props, runs, areas } of paint) {
+      const color = props.color === 'yellow' ? p.yellow : props.color === 'red' ? p.red : props.color === 'green' ? p.green : p.white
+      // Coloured lanes lie under the lines; white bars over them.
+      for (const rings of areas) this.fill(mesh, rings, surfaces, color, props.color === 'white' ? 0.03 : 0.02)
       const width = PAINT_WIDTH[props.kind] ?? 0.12
       for (const run of runs)
         for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
@@ -275,10 +293,12 @@ export class DeckLayer {
     if (!this.sources.paint) return []
     return this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true]).flatMap(f => {
       const props = f.properties ?? {}
-      if (!props.bridge || props.kind === 'crosswalk') return []
+      if (!props.bridge) return []
       const tile = tileBounds(f)
-      const runs = linesOf(f.geometry).flatMap(line => (tile ? clip(line.map(mercator), tile) : [line.map(mercator)]))
-      return [{ props, runs }]
+      // A crosswalk line is dashed into bars by the style; only its filled form draws here.
+      const runs = props.kind === 'crosswalk' ? [] : linesOf(f.geometry).flatMap(line => (tile ? clip(line.map(mercator), tile) : [line.map(mercator)]))
+      const areas = polygonsOf(f.geometry).map(rings => rings.map(ring => densify(ring.map(mercator), PAINT_SAMPLE)))
+      return [{ props, runs, areas }]
     })
   }
 
@@ -291,6 +311,23 @@ export class DeckLayer {
       const polygons = g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : []
       return polygons.flat(2).map(mercator)
     })
+  }
+
+  /** A painted area laid on the decks, where every corner of a triangle is on one. */
+  private fill(mesh: Mesh, rings: Point[][], decks: any[], color: number[], lift: number) {
+    const flat = rings.flat()
+    const z = onDeck(flat, decks, lift)
+    const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
+    const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
+    for (let t = 0; t < index.length; t += 3) {
+      const corners = [index[t], index[t + 1], index[t + 2]]
+      if (corners.some(k => z[k] === null)) continue
+      for (const k of corners) {
+        mesh.position.push(flat[k][0] - this.origin[0], flat[k][1] - this.origin[1], z[k]! * scale)
+        mesh.normal.push(0, 0, 1)
+        mesh.color.push(color[0], color[1], color[2])
+      }
+    }
   }
 
   /** Paint along a line, lifted onto the decks under it, as flat quads. */
@@ -391,7 +428,7 @@ export class DeckLayer {
   }
 }
 
-type Paint = { props: Record<string, any>; runs: Point[][] }
+type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
 /** Each road deck fitted to the kerbs nearest it, so a deck and its twin do not take each other's. */
 function fitted(decks: Chain[], kerbs: Point[]): Chain[] {

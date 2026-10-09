@@ -281,6 +281,8 @@ export type ObjectSourceSpec = {
   toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
   /** Runs once per gather, before any feature, with the map. */
   prepare?: (map: any, spec: ObjectSourceSpec) => void
+  /** Heavy setup run after `prepare` a step at a time, so a gather can yield between steps. */
+  prepareSteps?: () => Iterable<void>
   /** False when one feature arrives as several tile pieces that must all be kept. Defaults to true. */
   distinct?: boolean
   /** Whether the objects depend on the view, so a pan has to gather again. */
@@ -678,6 +680,7 @@ export class ObjectLayer {
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
       spec.prepare?.(this.map, spec)
+      if (spec.prepareSteps) yield* spec.prepareSteps()
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })

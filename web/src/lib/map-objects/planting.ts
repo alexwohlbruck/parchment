@@ -187,10 +187,20 @@ export function blockedAlong(ex: ForestExclusions, y: number, x0: number, x1: nu
 
 /** Index the ways and open areas a forest must leave clear. */
 export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {
+  return finish(exclusionSteps(ways, areas))
+}
+
+/** Ways and areas read between yields while indexing exclusions. */
+const EXCLUSION_STEP = 64
+
+/** `buildExclusions` a few features at a time. */
+export function* exclusionSteps(ways: any[], areas: any[]): Generator<void, ForestExclusions> {
   const metre = MERCATOR_METRE
   const cell = 32 * metre
   const segments = new Map<number, number[][]>()
+  let read = 0
   for (const way of ways) {
+    if (++read % EXCLUSION_STEP === 0) yield
     if (way.properties?.brunnel === 'tunnel' || way.properties?.brunnel === 'bridge') continue
     const clearance = (CLEARANCE[way.properties?.class] ?? DEFAULT_CLEARANCE) * metre
     const lines =
@@ -210,6 +220,7 @@ export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {
   }
   const indexed = new Map<number, Ring[][]>()
   for (const rings of areas.flatMap(a => polygonsOf(a.geometry))) {
+    if (++read % EXCLUSION_STEP === 0) yield
     let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
     for (const [x, y] of rings[0] ?? []) {
       minX = Math.min(minX, x); maxX = Math.max(maxX, x)
@@ -403,13 +414,22 @@ export function builtExclusionsFor(map: any, basemap: string = BASEMAP_SOURCE): 
   ])
 }
 
-function exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): ForestExclusions {
-  return buildExclusions(querySource(map, basemap, 'transportation'), [
-    ...querySource(map, basemap, 'building'),
-    ...querySource(map, basemap, 'water'),
-    ...querySource(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)),
-    ...OPEN_DETAIL.flatMap(([layer, keep]) => querySource(map, ...detail(layer)).filter(keep)),
-  ])
+function* exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): Generator<void, ForestExclusions> {
+  const ways = querySource(map, basemap, 'transportation')
+  yield
+  const areas = [...querySource(map, basemap, 'building'), ...querySource(map, basemap, 'water')]
+  yield
+  areas.push(...querySource(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
+  for (const [layer, keep] of OPEN_DETAIL) areas.push(...querySource(map, ...detail(layer)).filter(keep))
+  yield
+  return yield* exclusionSteps(ways, areas)
+}
+
+/** Run a generator to its end, for when there is nothing to yield to. */
+function finish<T>(steps: Generator<void, T>): T {
+  let next = steps.next()
+  while (!next.done) next = steps.next()
+  return next.value
 }
 
 /** The view in mercator units, padded a tenth each way so shadows from just off screen land. */
@@ -526,13 +546,15 @@ export function plantedSpec(options: {
     return undefined
   }
 
+  type Block = { key: string; stride: number; bounds: Bounds }
+
   /**
-   * One tile piece planted block by block, inside the view and the piece's own
+   * The blocks of one tile piece to plant: inside the view and the piece's own
    * extent. Under a budget, also only within the square around the centre that
    * `budget` objects at this spacing would fill; under a falloff, each block at
    * the coarsest stride its nearest cell allows.
    */
-  const plantPiece = (feature: any, grid: Grid, tile: Bounds, clear: boolean): PlantedPoint[] => {
+  const blocksOf = (feature: any, grid: Grid, tile: Bounds): Block[] => {
     const key = pieceKey(feature)
     let extent = extents.get(key)
     if (!extent) {
@@ -546,25 +568,33 @@ export function plantedSpec(options: {
       area = intersect(area, { minX: center[0] - reach, minY: center[1] - reach, maxX: center[0] + reach, maxY: center[1] + reach })
     }
     const block = BLOCK_CELLS * grid.dx * MERCATOR_METRE
-    const points: PlantedPoint[] = []
-    let polygons: Ring[][] | null = null
+    const blocks: Block[] = []
     for (let bj = Math.floor(area.minY / block); bj * block < area.maxY; bj++)
-      for (let bi = Math.floor(area.minX / block); bi * block < area.maxX; bi++) {
-        const stride = strideOf(grid, block, bi, bj)
-        const blockKey = `${key}|${bi},${bj}`
-        let planting = planted.get(`${blockKey}|${stride}`) ?? coarsened(blockKey, stride)
-        if (!planting) {
-          const bounds = intersect(tile, { minX: bi * block, minY: bj * block, maxX: (bi + 1) * block, maxY: (bj + 1) * block })
-          polygons ??= polygonsOf(feature.geometry)
-          if (clear) exclusions ??= map ? exclusionsFor(map, basemap, detail) : buildExclusions([], [])
-          planting = bounds.minX < bounds.maxX && bounds.minY < bounds.maxY
-            ? polygons.flatMap(rings => plant(rings, bounds, clear ? exclusions : null, grid, stride))
-            : []
-          if (planted.size >= 20000) planted.clear()
-          planted.set(`${blockKey}|${stride}`, planting)
-        }
-        for (const p of planting) points.push(p)
-      }
+      for (let bi = Math.floor(area.minX / block); bi * block < area.maxX; bi++)
+        blocks.push({
+          key: `${key}|${bi},${bj}`,
+          stride: strideOf(grid, block, bi, bj),
+          bounds: intersect(tile, { minX: bi * block, minY: bj * block, maxX: (bi + 1) * block, maxY: (bj + 1) * block }),
+        })
+    return blocks
+  }
+
+  const cached = (b: Block) => planted.get(`${b.key}|${b.stride}`) ?? coarsened(b.key, b.stride)
+
+  function* plantSteps(feature: any, grid: Grid, b: Block, clear: boolean): Generator<void, PlantedPoint[]> {
+    if (clear && !exclusions) exclusions = map ? yield* exclusionsFor(map, basemap, detail) : buildExclusions([], [])
+    const planting = b.bounds.minX < b.bounds.maxX && b.bounds.minY < b.bounds.maxY
+      ? polygonsOf(feature.geometry).flatMap(rings => plant(rings, b.bounds, clear ? exclusions : null, grid, b.stride))
+      : []
+    if (planted.size >= 20000) planted.clear()
+    planted.set(`${b.key}|${b.stride}`, planting)
+    return planting
+  }
+
+  const plantPiece = (feature: any, grid: Grid, tile: Bounds, clear: boolean): PlantedPoint[] => {
+    const points: PlantedPoint[] = []
+    for (const b of blocksOf(feature, grid, tile))
+      for (const p of cached(b) ?? finish(plantSteps(feature, grid, b, clear))) points.push(p)
     return points
   }
 
@@ -614,6 +644,26 @@ export function plantedSpec(options: {
       center = [mercX(lng), mercY(lat)]
       camera = options.falloff ? plantingCamera(m) : null
       options.prepare?.(m)
+    },
+    *prepareSteps() {
+      if (!map) return
+      let features: any[]
+      try {
+        features = map.querySourceFeatures(options.source, { sourceLayer: options.sourceLayer })
+      } catch {
+        return
+      }
+      for (const feature of features) {
+        if (feature.geometry?.type === 'Point') continue
+        const grid = options.grid(feature)
+        const tile = grid && tileBounds(feature)
+        if (!grid || !tile) continue
+        for (const b of blocksOf(feature, grid, tile))
+          if (!cached(b)) {
+            yield* plantSteps(feature, grid, b, options.clear(feature))
+            yield
+          }
+      }
     },
     positions: feature => shownOf(feature).points.map(([lng, lat]) => [lng, lat] as [number, number]),
     toInstance(feature, lng, lat, index) {

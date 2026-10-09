@@ -20,10 +20,11 @@ export const CROWN_SUFFIX = '-crown'
 
 /**
  * Below this zoom a wood is planted at every other cell each way, a quarter of
- * the trees, a little wider to fill in, standing on the wood's own green.
+ * the trees, each scaled up to close the canopy over twice the spacing.
  */
 export const SPARSE_BELOW_ZOOM = 15
-const SPARSE_SPREAD = 1.3
+const SPARSE_SCALE = 1.5
+const SPARSE_SPREAD = 1.25
 
 const CROWNS: Record<string, string> = Object.fromEntries(
   Object.values(TREE_FAMILIES).flat().map(model => [model, `${model}${CROWN_SUFFIX}`]),
@@ -37,7 +38,7 @@ export function forestTree(
   { interior, sparse }: PlantedPlace = { interior: false, sparse: false },
 ): ObjectInstance {
   const family = cellHash(i, j, 3) < 0.7 ? 'broadleaf' : 'conifer'
-  const height = lerp(HEIGHT[family], cellHash(i, j, 4))
+  const height = lerp(HEIGHT[family], cellHash(i, j, 4)) * (sparse ? SPARSE_SCALE : 1)
   const model = pick(TREE_FAMILIES[family], cellHash(i, j, 9))
   return {
     lng,
@@ -55,7 +56,7 @@ export const FOREST_OBJECTS = plantedSpec({
   source: BASEMAP_SOURCE,
   sourceLayer: 'landcover',
   minzoom: 14,
-  budget: 6000,
+  budget: 10000,
   sparseBelow: SPARSE_BELOW_ZOOM,
   grid: feature => (feature.properties?.class === 'wood' ? FOREST_GRID : null),
   clear: () => true,

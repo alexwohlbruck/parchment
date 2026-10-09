@@ -162,8 +162,8 @@ export const MAX_REACH = 16
  * sense of `deckMesh`), and whether it falls alongside a segment rather than
  * off either end of the line.
  */
-export function beside(points: Point[], q: Point): { distance: number; left: boolean; alongside: boolean } {
-  let best = { distance: Infinity, left: true, alongside: false }
+export function beside(points: Point[], q: Point): { distance: number; left: boolean; alongside: boolean; segment: number; t: number } {
+  let best = { distance: Infinity, left: true, alongside: false, segment: 1, t: 0 }
   const scale = metresPerUnit(q[1])
   for (let i = 1; i < points.length; i++) {
     const [a, b] = [points[i - 1], points[i]]
@@ -174,7 +174,7 @@ export function beside(points: Point[], q: Point): { distance: number; left: boo
     const distance = Math.hypot(a[0] + dx * t - q[0], a[1] + dy * t - q[1]) * scale
     if (distance < best.distance) {
       const alongside = (raw >= 0 || i > 1) && (raw <= 1 || i < points.length - 1)
-      best = { distance, left: (q[0] - a[0]) * -dy + (q[1] - a[1]) * dx > 0, alongside }
+      best = { distance, left: (q[0] - a[0]) * -dy + (q[1] - a[1]) * dx > 0, alongside, segment: i, t }
     }
   }
   return best
@@ -282,6 +282,88 @@ export function heightAt(d: number[], z: number[], at: number): number {
   return z[z.length - 1]
 }
 
+/** Per vertex, whether each side of a deck (left, right) runs against another deck. */
+export type Sides = [boolean[], boolean[]]
+
+/** A line with points added so no segment is longer than `step` metres. */
+export function densify(points: Point[], step: number): Point[] {
+  const out: Point[] = points.length ? [points[0]] : []
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1], points[i]]
+    const metres = Math.hypot(b[0] - a[0], b[1] - a[1]) * metresPerUnit((a[1] + b[1]) / 2)
+    const n = Math.max(1, Math.ceil(metres / step))
+    for (let k = 1; k <= n; k++) out.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n])
+  }
+  return out
+}
+
+/** Each vertex's points on a deck's left and right edges, for sampling the ground beneath them. */
+export function edgePoints(chain: Chain): [Point[], Point[]] {
+  const pts = chain.points
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const left: Point[] = []
+  const right: Point[] = []
+  pts.forEach((p, i) => {
+    const [a, b] = [pts[Math.max(0, i - 1)], pts[Math.min(n - 1, i + 1)]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const [nx, ny] = [-(b[1] - a[1]) / len * scale, (b[0] - a[0]) / len * scale]
+    left.push([p[0] + nx * chain.edges[0], p[1] + ny * chain.edges[0]])
+    right.push([p[0] - nx * chain.edges[1], p[1] - ny * chain.edges[1]])
+  })
+  return [left, right]
+}
+
+/**
+ * A deck's profile eased into a vertical curve: each interior height averaged
+ * over `span` metres around it, the ends kept, and never below the ground.
+ */
+export function smooth(z: number[], d: number[], ground: number[], span = 24): number[] {
+  const n = z.length
+  return z.map((_, i) => {
+    if (i === 0 || i === n - 1) return z[i]
+    let sum = 0
+    let weight = 0
+    for (let k = 0; k < n; k++) {
+      const w = span / 2 - Math.abs(d[k] - d[i])
+      if (w > 0) {
+        sum += z[k] * w
+        weight += w
+      }
+    }
+    return Math.max(sum / weight, ground[i])
+  })
+}
+
+/**
+ * Decks that run side by side as one: where a deck's edge meets another's
+ * within `gap` metres and at about its height, both take the higher height
+ * there and lose the parapet between them. Heights are updated in place.
+ */
+export function joinNeighbours(decks: Array<{ chain: Chain; z: number[] }>, gap = 1.5, step = 1.5): Sides[] {
+  const open: Sides[] = decks.map(({ chain }) => [chain.points.map(() => false), chain.points.map(() => false)])
+  for (const [a, A] of decks.entries())
+    for (const [b, B] of decks.entries()) {
+      if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail') continue
+      A.chain.points.forEach((p, i) => {
+        const near = beside(B.chain.points, p)
+        if (!near.alongside) return
+        const [j, t] = [near.segment, near.t]
+        const zb = B.z[j - 1] + (B.z[j] - B.z[j - 1]) * t
+        if (Math.abs(zb - A.z[i]) > step) return
+        const q: Point = [
+          B.chain.points[j - 1][0] + (B.chain.points[j][0] - B.chain.points[j - 1][0]) * t,
+          B.chain.points[j - 1][1] + (B.chain.points[j][1] - B.chain.points[j - 1][1]) * t,
+        ]
+        const facing = beside(A.chain.points, q).left ? 0 : 1
+        if (near.distance > A.chain.edges[facing] + B.chain.edges[near.left ? 0 : 1] + gap) return
+        open[a][facing][i] = true
+        A.z[i] = Math.max(A.z[i], zb)
+      })
+    }
+  return open
+}
+
 export type Mesh = { position: number[]; normal: number[]; color: number[] }
 
 export type DeckColors = { surface: number[]; concrete: number[]; parapet: number[] }
@@ -297,6 +379,7 @@ export function deckMesh(
   origin: Point,
   colors: DeckColors,
   out: Mesh,
+  open: Sides = [[], []],
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -361,6 +444,8 @@ export function deckMesh(
     quad(at(s0.left, z0 - SLAB), at(s1.left, z1 - SLAB), at(s1.right, z1 - SLAB), at(s0.right, z0 - SLAB), colors.concrete)
     // Parapets along both edges.
     for (const side of ['left', 'right'] as const) {
+      const shared = open[side === 'left' ? 0 : 1]
+      if (shared[i - 1] && shared[i]) continue
       const [o0, o1] = [s0[side], s1[side]]
       const [i0, i1] = [inset(s0, side, 0.3), inset(s1, side, 0.3)]
       const flip = side === 'left'

@@ -14,6 +14,10 @@ import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
+  densify,
+  edgePoints,
+  joinNeighbours,
+  smooth,
   beside,
   chains,
   fitEdges,
@@ -81,6 +85,9 @@ const FS = `
 /** Paint widths in metres, and the dash for a dashed line. */
 const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45 }
 const DASH = { on: 3, off: 9 }
+/** Metres between height samples along a deck, and along paint laid on one. */
+const SAMPLE = 6
+const PAINT_SAMPLE = 3
 
 const tileBounds = (feature: any): Bounds | null => {
   const { _x: x, _y: y, _z: z } = feature
@@ -168,9 +175,12 @@ export class DeckLayer {
     const terrain = this.map.terrain
     if (!this.map.getTerrain?.() || !terrain?.getElevationForLngLatZoom) return () => 0
     const top = Math.min(Math.floor(this.map.getZoom()), terrain.tileManager?.maxzoom ?? 15)
+    // The rendered surface, where the fork exposes it, is what draped roads lie on.
+    const rendered = terrain.getCoverageIndex?.() ? terrain : null
     return ([x, y]) => {
       const { lng, lat } = new MercatorCoordinate(x, y).toLngLat()
       const at = { lng, lat, wrap: () => at }
+      if (rendered) return rendered.getElevationForLngLat(at, this.map.transform)
       for (let z = top; z >= Math.max(0, top - 6); z--) {
         const h = terrain.getElevationForLngLatZoom(at, z)
         if (h) return h
@@ -210,16 +220,18 @@ export class DeckLayer {
       : { ...t }, null)
     const paint = this.paint()
     const decks = absorbPaths(fitted(chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
+      .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
-      const groundAt = filled(chain.points.map(ground))
+      const [left, right] = edgePoints(chain)
+      const groundAt = filled(chain.points.map((q, i) => highest([ground(q), ground(left[i]), ground(right[i])])))
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
     // An end left in the air because it meets another deck takes that deck's
     // height there, so a ramp lands on the road it joins. Twice, so a height
     // carries through a ramp joining a ramp.
     for (let pass = 0; pass < 2; pass++) {
-      const others = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: chain.width }))
+      const others = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) }))
       for (const [k, s] of solved.entries()) {
         const ends = [s.chain.points[0], s.chain.points[s.chain.points.length - 1]]
         const resting = ends.map((p, i) => {
@@ -230,11 +242,13 @@ export class DeckLayer {
         if (resting[0] !== null || resting[1] !== null) s.z = solve(s.chain, s.groundAt, resting)
       }
     }
+    for (const s of solved) s.z = smooth(s.z, along(s.chain.points), s.groundAt)
+    const open = joinNeighbours(solved)
 
     const p = this.palette
     const mesh: Mesh = { position: [], normal: [], color: [] }
-    for (const { chain, groundAt, z } of solved)
-      deckMesh(chain, z, groundAt, this.origin, { surface: p.surface, concrete: p.concrete, parapet: p.parapet }, mesh)
+    for (const [k, { chain, groundAt, z }] of solved.entries())
+      deckMesh(chain, z, groundAt, this.origin, { surface: p.surface, concrete: p.concrete, parapet: p.parapet }, mesh, open[k])
 
     const surfaces = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) + 1 }))
     this.paintFrom = mesh.position.length / 3
@@ -280,7 +294,8 @@ export class DeckLayer {
   }
 
   /** Paint along a line, lifted onto the decks under it, as flat quads. */
-  private strip(mesh: Mesh, points: Point[], decks: any[], width: number, color: number[], lift: number, offset: number, dashed: boolean) {
+  private strip(mesh: Mesh, line: Point[], decks: any[], width: number, color: number[], lift: number, offset: number, dashed: boolean) {
+    const points = densify(line, PAINT_SAMPLE)
     const z = onDeck(points, decks, lift)
     let travelled = 0
     for (let i = 1; i < points.length; i++) {
@@ -392,6 +407,12 @@ function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
     if (nearest) owned.set(nearest, [...(owned.get(nearest) ?? []), q])
   }
   return decks.map(d => (owned.has(d) ? { ...d, edges: fitEdges(d, owned.get(d)!) } : d))
+}
+
+/** The highest of several ground samples, ignoring those not yet loaded. */
+function highest(samples: number[]): number {
+  const known = samples.filter(h => !Number.isNaN(h))
+  return known.length ? Math.max(...known) : NaN
 }
 
 /** Gaps in a ground profile filled from the nearest sampled point; null if there are none. */

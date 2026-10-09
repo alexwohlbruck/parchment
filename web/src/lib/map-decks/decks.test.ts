@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, chains, clip, deckMesh, fitEdges, onDeck, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, chains, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -110,5 +110,61 @@ describe('deck width', () => {
     const far: Chain = { ...chain(offset(40, 0, 100), [true, true]), kind: 'path', width: 2, edges: [1, 1] }
     const across: Chain = { ...chain([line(50)[0], offset(30, 50)[0]], [true, true]), kind: 'path', width: 2, edges: [1, 1] }
     expect(absorbPaths([road, far, across])).toHaveLength(3)
+  })
+})
+
+describe('deck profile', () => {
+  test('a long span is sampled often enough to follow the ground under it', () => {
+    const points = densify(line(0, 100), 6)
+    expect(points.length).toBe(18)
+    const d = along(points)
+    for (let i = 1; i < d.length; i++) expect(d[i] - d[i - 1]).toBeLessThanOrEqual(6.01)
+  })
+
+  test('a deck over a rise in the middle of its span never dips into it', () => {
+    const points = densify(line(0, 120), 6)
+    const ground = along(points).map(d => 100 + Math.max(0, 8 - Math.abs(d - 60) / 4))
+    const z = smooth(solve(chain(points, [true, true]), ground), along(points), ground)
+    z.forEach((h, i) => expect(h).toBeGreaterThanOrEqual(ground[i]))
+    expect(Math.max(...z)).toBeGreaterThan(107)
+  })
+
+  test('easing takes the kink out of a ramp without lifting its ends', () => {
+    const points = densify(line(0, 60), 6)
+    const d = along(points)
+    const raw = d.map(x => 100 + Math.max(0, x - 30) * 0.06)
+    const eased = smooth(raw, d, d.map(() => 100))
+    expect(eased[0]).toBe(raw[0])
+    expect(eased.at(-1)).toBe(raw.at(-1))
+    const kink = (zs: number[], i: number) => Math.abs(zs[i + 1] - 2 * zs[i] + zs[i - 1])
+    const at = d.findIndex(x => x >= 30)
+    expect(kink(eased, at)).toBeLessThan(kink(raw, at))
+  })
+})
+
+describe('neighbouring decks', () => {
+  const twin = (metres: number, z: number) => ({ chain: chain(offset(metres, 0, 50, 100), [true, true]), z: [z, z, z] })
+
+  test('twin carriageways side by side lose the parapets between them and meet at one height', () => {
+    const decks = [twin(0, 106), twin(10.5, 105.5)]
+    const open = joinNeighbours(decks)
+    expect(open[0][0]).toEqual([true, true, true])
+    expect(open[0][1]).toEqual([false, false, false])
+    expect(open[1][1]).toEqual([true, true, true])
+    expect(decks[1].z).toEqual([106, 106, 106])
+  })
+
+  test('a deck crossing over another keeps its parapets', () => {
+    const open = joinNeighbours([twin(0, 100), twin(10.5, 112)])
+    expect(open.flat(2).some(Boolean)).toBe(false)
+  })
+
+  test('a shared side draws no parapet', () => {
+    const c = chain(line(0, 40, 80), [false, false])
+    const z = [106, 106, 106]
+    const colors = { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1] }
+    const both = deckMesh(c, z, [100, 100, 100], c.points[0], colors, { position: [], normal: [], color: [] })
+    const one = deckMesh(c, z, [100, 100, 100], c.points[0], colors, { position: [], normal: [], color: [] }, [[true, true, true], [false, false, false]])
+    expect(one.position.length).toBeLessThan(both.position.length)
   })
 })

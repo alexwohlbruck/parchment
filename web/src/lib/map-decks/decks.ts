@@ -348,6 +348,22 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
 }
 
 /**
+ * The ground a deck must clear: under its centreline, or higher under either
+ * edge, but rising toward an edge no faster than the deck may climb from its
+ * nearer end. A road enters a bridge in a cut as often as on a bank, and the
+ * slopes beside it at the abutment are not something to climb over.
+ */
+export function besideGround(centre: number[], left: number[], right: number[], d: number[]): number[] {
+  const total = d[d.length - 1] ?? 0
+  return centre.map((g, i) => {
+    const edges = [left[i], right[i]].filter(h => !Number.isNaN(h))
+    const base = Number.isNaN(g) ? (edges.length ? Math.min(...edges) : NaN) : g
+    if (Number.isNaN(base) || !edges.length) return base
+    return Math.max(base, Math.min(Math.max(...edges), base + MAX_GRADE * Math.min(d[i], total - d[i])))
+  })
+}
+
+/**
  * A deck's profile eased into a vertical curve: each interior height averaged
  * over `span` metres around it, the ends kept, and never below the ground.
  */

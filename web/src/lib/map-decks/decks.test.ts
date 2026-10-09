@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, chains, dedupe, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, besideGround, chains, dedupe, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -183,5 +183,17 @@ describe('dedupe', () => {
     const parent = kept.find(p => p.zoom === 13)!
     expect(along(parent.points).at(-1)).toBeGreaterThan(90)
     expect(parent.points[0][0]).toBeGreaterThan(line(100)[0][0])
+  })
+})
+
+describe('besideGround', () => {
+  test('a bank beside the abutment does not lift the deck end', () => {
+    const d = [0, 6, 12, 60, 108, 114, 120]
+    const centre = d.map(() => 100)
+    const bank = d.map(() => 104)
+    const g = besideGround(centre, bank, centre, d)
+    expect(g[0]).toBe(100)
+    expect(g[1]).toBeCloseTo(100 + MAX_GRADE * 6, 6)
+    expect(g[3]).toBeCloseTo(100 + MAX_GRADE * 60, 6)
   })
 })

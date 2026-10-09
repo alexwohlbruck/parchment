@@ -15,6 +15,7 @@ import earcut from 'earcut'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
+  besideGround,
   dedupe,
   densify,
   edgePoints,
@@ -241,10 +242,7 @@ export class DeckLayer {
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
       const [left, right] = edgePoints(chain)
-      // The ends meet the road on its centreline; between them the deck clears the ground under either edge.
-      const last = chain.points.length - 1
-      const groundAt = filled(chain.points.map((q, i) =>
-        i === 0 || i === last ? ground(q) : highest([ground(q), ground(left[i]), ground(right[i])])))
+      const groundAt = filled(besideGround(chain.points.map(ground), left.map(ground), right.map(ground), along(chain.points)))
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
     // An end left in the air because it meets another deck takes that deck's
@@ -448,12 +446,6 @@ function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
     if (nearest) owned.set(nearest, [...(owned.get(nearest) ?? []), q])
   }
   return decks.map(d => (owned.has(d) ? { ...d, edges: fitEdges(d, owned.get(d)!) } : d))
-}
-
-/** The highest of several ground samples, ignoring those not yet loaded. */
-function highest(samples: number[]): number {
-  const known = samples.filter(h => !Number.isNaN(h))
-  return known.length ? Math.max(...known) : NaN
 }
 
 /** Gaps in a ground profile filled from the nearest sampled point; null if there are none. */

@@ -275,7 +275,7 @@ export class DeckLayer {
       const width = PAINT_WIDTH[props.kind] ?? 0.12
       for (const run of runs)
         for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
-          this.strip(mesh, run, surfaces, width, color, 0.04, offset, props.pattern === 'dashed')
+          this.strip(mesh, run, surfaces, width, color, 0.04, offset, String(props.pattern).startsWith('dashed'))
     }
     for (const id of this.sources.routes())
       for (const f of this.query(id))

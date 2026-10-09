@@ -363,6 +363,8 @@ export function plantedSpec(options: {
   grid: (feature: any) => Grid | null
   clear: (feature: any) => boolean
   instance: (feature: any, lng: number, lat: number, i: number, j: number, place: PlantedPlace) => ObjectInstance | null
+  /** Runs once per gather, before any feature is planted. */
+  prepare?: (map: any) => void
 }): PlantedSpec {
   const planted = new Map<string, PlantedPoint[]>()
   const current = new WeakMap<object, PlantedPoint[]>()
@@ -461,6 +463,7 @@ export function plantedSpec(options: {
       view = viewBounds(m)
       const { lng, lat } = m.getCenter()
       center = [mercX(lng), mercY(lat)]
+      options.prepare?.(m)
     },
     positions: feature => shownOf(feature).map(([lng, lat]) => [lng, lat] as [number, number]),
     toInstance(feature, lng, lat, index) {

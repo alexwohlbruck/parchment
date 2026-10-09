@@ -11,13 +11,13 @@ const everywhere = { minX: 0, minY: 0, maxX: 1, maxY: 1 }
 const field = square(-80.85, 35.2, -80.847, 35.202)
 
 describe('solar rows', () => {
-  test('lays a few long segments per row rather than one object per table', () => {
+  test('lays each row as a few long slabs rather than one object per table', () => {
     const rows = solarRows(field, everywhere)
     const lats = new Set(rows.map(r => r.lat))
     expect(lats.size).toBeGreaterThan(25)
     expect(lats.size).toBeLessThan(40)
-    expect(rows.length).toBeLessThan(lats.size * 15)
-    for (const r of rows) expect(r.length).toBeGreaterThan(14)
+    expect(rows.length).toBeLessThanOrEqual(lats.size * 15)
+    for (const r of rows) expect(r.length).toBeLessThanOrEqual(24)
   })
 
   test('segments fill each row to within its inset of the edges', () => {

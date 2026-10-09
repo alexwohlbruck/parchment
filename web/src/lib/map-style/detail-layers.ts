@@ -143,6 +143,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     field: 'hsl(104, 36%, 70%)',
     pitchLine: 'hsla(0, 0%, 100%, 0.95)',
     solar: 'hsl(222, 22%, 60%)',
+    solarPanel: 'hsl(220, 30%, 40%)',
     flowerbed: 'hsl(330, 38%, 84%)',
   },
   dark: {
@@ -159,6 +160,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     field: 'hsl(112, 22%, 28%)',
     pitchLine: 'hsla(0, 0%, 88%, 0.6)',
     solar: 'hsl(222, 22%, 26%)',
+    solarPanel: 'hsl(222, 30%, 34%)',
     flowerbed: 'hsl(330, 16%, 30%)',
   },
 }
@@ -462,7 +464,11 @@ export function plantedAreaLayers(flavor: FlavorId): any[] {
       'source-layer': OBJECT_AREA_TILES,
       minzoom: 14,
       filter: kind('solar'),
-      paint: { 'fill-color': c.solar, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9] },
+      // Panel-coloured until the 3D rows take over at z17, then the ground between them.
+      paint: {
+        'fill-color': ['interpolate', ['linear'], ['zoom'], 16.5, c.solarPanel, 17, c.solar],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9],
+      },
     },
     {
       id: FLOWERBED_LAYER,

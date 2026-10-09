@@ -1,7 +1,7 @@
 /**
- * Ground-mounted solar arrays from barrelman's `object_areas`, as long
- * east-west rows of panels facing the equator. Each row is cut into a few
- * stretched segments, so a field costs hundreds of instances, not thousands.
+ * Ground-mounted solar arrays from barrelman's `object_areas`, as east-west
+ * rows of panels facing the equator: a row is a few stretched slabs, short
+ * enough to follow the terrain, so a field costs a few hundred 12-triangle instances.
  */
 import { DETAIL_SOURCE, OBJECT_AREA_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -12,7 +12,7 @@ export const SOLAR_MODELS = {
   'solar-row': '/models/solar-row.glb',
 }
 
-/** Row pitch, segment length and end inset, in mercator metres. */
+/** Row pitch, longest slab and end inset, in mercator metres. */
 const PITCH = 8
 const SEGMENT = 24
 const INSET = 1
@@ -20,7 +20,7 @@ const SHORTEST = 3
 
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
 
-/** A row segment: its centre and its length in metres. */
+/** A row slab: its centre and its length in metres. */
 export type SolarRow = { lng: number; lat: number; length: number }
 
 const lngOf = (x: number) => x * 360 - 180
@@ -28,7 +28,7 @@ const latOf = (y: number) => (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * 
 
 /**
  * Rows across a polygon on a world-anchored pitch, clipped to `bounds` so a
- * polygon split across tiles is laid once, and split into near-equal segments.
+ * polygon split across tiles is laid once.
  */
 export function solarRows(geometry: any, bounds: Bounds): SolarRow[] {
   const [pitch, segment, inset] = [PITCH, SEGMENT, INSET].map(m => m * MERCATOR_METRE)
@@ -46,7 +46,7 @@ export function solarRows(geometry: any, bounds: Bounds): SolarRow[] {
         const x0 = Math.max(a + inset, bounds.minX)
         const x1 = Math.min(b - inset, bounds.maxX)
         if ((x1 - x0) / MERCATOR_METRE < SHORTEST) continue
-        const n = Math.max(1, Math.round((x1 - x0) / segment))
+        const n = Math.ceil((x1 - x0) / segment)
         const step = (x1 - x0) / n
         for (let k = 0; k < n; k++)
           out.push({ lng: lngOf(x0 + (k + 0.5) * step), lat, length: step * metres })
@@ -88,10 +88,10 @@ function solarSpec(): ObjectSourceSpec {
   return {
     source: DETAIL_SOURCE,
     sourceLayer: OBJECT_AREA_TILES,
-    minzoom: 16.5,
+    minzoom: 17,
     distinct: false,
     followsView: true,
-    budget: 3000,
+    budget: 1000,
     positions: feature => rowsOf(feature).map(r => [r.lng, r.lat] as [number, number]),
     toInstance: (feature, _lng, _lat, index) => {
       const row = rowsOf(feature)[index]

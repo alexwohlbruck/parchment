@@ -1532,22 +1532,14 @@ const AREAS = {
       { role: 'bloom', ...blooms },
     ]
   }),
-  // A 24 m segment of a panel row, 3.4 m up the slope, tilted 25° toward the
-  // south (-z). The layer stretches it along x to fit the row.
-  'solar-row': furnLod(q => {
+  // A 24 m length of panel row, 3.4 m up the slope and tilted 25° toward the
+  // south (-z), with no posts: the layer stretches it to span the whole row.
+  'solar-row': () => {
     const tilt = (25 * Math.PI) / 180
     const half = 1.7 * Math.cos(tilt)
     const [low, high] = [0.6, 0.6 + 3.4 * Math.sin(tilt)]
-    const slab = (inset, lift) => {
-      const t = inset * Math.tan(tilt)
-      return [[-half + inset, low + t + lift], [half - inset, high - t + lift], [half - inset, high - t + lift + 0.06], [-half + inset, low + t + lift + 0.06]]
-    }
-    const glass = extrude(mesh(), slab(0.05, 0.04), -11.95, 11.95)
-    if (!q.seg) return [{ role: 'pv', ...glass }]
-    const posts = mesh()
-    for (const x of [-8, 0, 8]) box(posts, [x - 0.06, 0, -0.06], [x + 0.06, (low + high) / 2, 0.06])
-    return [{ role: 'pv', ...glass }, { role: 'pv-frame', ...extrude(mesh(), slab(0, 0), -12, 12) }, { role: 'metal', ...posts }]
-  }),
+    return [{ role: 'pv', ...extrude(mesh(), [[-half, low], [half, high], [half, high + 0.06], [-half, low + 0.06]], -12, 12) }]
+  },
 }
 
 // ---------------------------------------------------------------------------

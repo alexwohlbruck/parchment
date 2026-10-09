@@ -37,6 +37,10 @@ import type { GlbModel } from './glb.mjs'
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
 
+/** The model a far variant stands in for; any other name is its own. */
+export const nearOf = (model: string) =>
+  model.endsWith(FAR_SUFFIX) ? model.slice(0, -FAR_SUFFIX.length) : model
+
 /**
  * How far from the centre of the view an object may be, in ground pixels,
  * before it is drawn with its far model.
@@ -222,7 +226,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
+export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full
@@ -732,6 +736,9 @@ export class ObjectLayer {
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
       const slope = new Float32Array(group.length * 2)
+      // A measured crown is sized against the near model's width even when the
+      // far one is drawn, so a tree doesn't grow or shrink as it crosses the switch.
+      const nearWidth = this.models.get(nearOf(model))?.width || 1
       for (let i = 0; i < group.length; i++) {
         const { instance, x, y, z, perMetre, gx, gy } = group[i]
         offset[i * 3] = x - origin.x
@@ -739,7 +746,7 @@ export class ObjectLayer {
         offset[i * 3 + 2] = z
         const buffers = this.models.get(model)
         shape[i * 4] = instance.height * perMetre
-        const across = instance.width === undefined ? instance.spread : instance.width / (buffers?.width || 1)
+        const across = instance.width === undefined ? instance.spread : instance.width / nearWidth
         shape[i * 4 + 1] = across * perMetre
         shape[i * 4 + 2] = instance.heading
         shape[i * 4 + 3] = instance.length === undefined ? 1 : instance.length / ((buffers?.length || 1) * across)

@@ -13,8 +13,8 @@
  *   diameter_crown  the canopy across, in metres — sets the spread directly
  *   circumference   the trunk's girth. Not a height, but strongly correlated
  *                   with one, so a girth with no height still narrows it down
- *   leaf_type       broadleaved or needleleaved, the one tag with real coverage
- *                   (~13%), and the one that picks the model
+ *   leaf_type       broadleaved, needleleaved or palm, the one tag with real
+ *                   coverage (~13%), and the one that picks the model
  *   genus / species which of the three families this is, including the palms
  *                   that `leaf_type` has no value for
  *   denotation      a street tree is pruned and smaller than one with room
@@ -79,6 +79,9 @@ export function treeFamily(props: Record<string, any>): TreeFamily {
   if (PALM_GENERA.test(taxon)) return 'palm'
   if (CONIFER_GENERA.test(taxon)) return 'conifer'
   if (props.leaf_type === 'needleleaved') return 'conifer'
+  // OSM has a leaf type for palms, and it is what most palms carry: Bayfront
+  // Park in Miami has hundreds tagged this way and none with a genus.
+  if (props.leaf_type === 'palm') return 'palm'
   return 'broadleaf'
 }
 

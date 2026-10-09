@@ -10,7 +10,7 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
-import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
+import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS, type TreeFamily } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
 import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLine } from './lines'
@@ -23,6 +23,8 @@ import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
+/** The roles a crown is made of. */
+const CANOPY = new Set(['foliage', 'blossom'])
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -73,15 +75,16 @@ describe('models', () => {
    * the upper one is how the first attempt went too far the other way and left
    * every crown floating on a stick.
    *
-   * Measured at the widest point, which on these models is the flare where the
-   * trunk meets the ground; the shaft above it comes out around half this.
+   * Measured near the ground, at the flare where the trunk meets it; the
+   * shaft above comes out around half this.
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
-    const reach = (roles: string[], below = Infinity) => {
+    const canopy = (material: string) => CANOPY.has(material)
+    const reach = (matches: (material: string) => boolean, below = Infinity) => {
       let radius = 0
       for (const p of model.primitives) {
-        if (!roles.includes(p.material)) continue
+        if (!matches(p.material)) continue
         for (const v of p.index) {
           if (p.position[v * 3 + 1] > below) continue
           radius = Math.max(radius, Math.hypot(p.position[v * 3], p.position[v * 3 + 2]))
@@ -91,13 +94,12 @@ describe('models', () => {
     }
     let crownBottom = Infinity
     for (const p of model.primitives) {
-      if (p.material !== 'foliage') continue
+      if (!canopy(p.material)) continue
       for (const v of p.index) crownBottom = Math.min(crownBottom, p.position[v * 3 + 1])
     }
-    const crown = reach(['foliage'])
-    // Only the length of trunk anyone can see; branches inside the crown are
-    // behind the foliage they hold up.
-    const trunk = reach(['bark', 'palm-bark'], crownBottom)
+    const crown = reach(canopy)
+    // Near the ground, below any limbs reaching out under the crown.
+    const trunk = reach(m => m === 'bark' || m === 'palm-bark', Math.min(crownBottom, 0.3))
     expect(crown).toBeGreaterThan(0)
     const ratio = trunk / crown
     const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`
@@ -324,7 +326,7 @@ describe('models', () => {
       for (const p of model.primitives)
         for (let i = 0; i < p.position.length; i += 3) {
           const [x, y, z] = [p.position[i], p.position[i + 1], p.position[i + 2]]
-          if (p.material === 'foliage') {
+          if (CANOPY.has(p.material)) {
             reach = Math.max(reach, Math.hypot(x, z))
             bottom = Math.min(bottom, y)
             top = Math.max(top, y)
@@ -333,7 +335,7 @@ describe('models', () => {
       let lean = 0
       let n = 0
       for (const p of model.primitives) {
-        if (p.material === 'foliage') continue
+        if (CANOPY.has(p.material)) continue
         for (let i = 0; i < p.position.length; i += 3)
           if (p.position[i + 1] > trunkTop - 0.01) {
             lean += p.position[i]
@@ -363,7 +365,8 @@ describe('models', () => {
    * way you go; a star reaches far along its fronds and hardly at all between
    * them. The lozenges scored 0.85 or more here.
    */
-  test.each(TREE_FAMILIES.palm.map(name => `${name}${FAR_SUFFIX}`))('%s is a star from above', name => {
+  const PALMS = [...new Set([...TREE_FAMILIES.palm, ...TREE_FAMILIES.fanPalm, ...TREE_FAMILIES.datePalm])]
+  test.each(PALMS.map(name => `${name}${FAR_SUFFIX}`))('%s is a star from above', name => {
     const triangles: Array<Array<[number, number]>> = []
     for (const p of load(name).primitives) {
       if (p.material !== 'foliage') continue
@@ -469,25 +472,37 @@ describe('trees', () => {
   })
 
   test('family comes from the taxon first, then the leaf type', () => {
-    expect(treeFamily({ genus: 'Pinus' })).toBe('conifer')
-    expect(treeFamily({ genus: 'Washingtonia' })).toBe('palm')
-    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('palm')
-    for (const genus of ['Sabal', 'Roystonea', 'Washingtonia', 'Phoenix'])
-      expect(treeFamily({ genus }), genus).toBe('palm')
+    expect(treeFamily({ genus: 'Pinus' })).toBe('pine')
+    expect(treeFamily({ genus: 'Washingtonia' })).toBe('fanPalm')
+    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('datePalm')
+    expect(treeFamily({ genus: 'Roystonea' })).toBe('palm')
+    expect(treeFamily({ species: 'Prunus serrulata' })).toBe('blossom')
+    expect(treeFamily({ genus: 'Sabal' })).toBe('fanPalm')
+    expect(treeFamily({ genus: 'Cocos' })).toBe('palm')
     expect(treeFamily({ leaf_type: 'needleleaved' })).toBe('conifer')
-    expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
+    // Most palms carry only a leaf type; the id picks one from the mixed family.
     expect(treeFamily({ leaf_type: 'palm' })).toBe('palm')
+    expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
     // A genus that names a conifer wins over a leaf type that disagrees.
     expect(treeFamily({ genus: 'Picea', leaf_type: 'broadleaved' })).toBe('conifer')
     expect(treeFamily({})).toBe('broadleaf')
   })
 
   test('a family only ever draws its own models', () => {
-    for (const [family, models] of Object.entries(TREE_FAMILIES)) {
+    const genus: Record<TreeFamily, string> = {
+      broadleaf: '',
+      conifer: 'Picea',
+      pine: 'Pinus',
+      palm: 'Roystonea',
+      fanPalm: 'Washingtonia',
+      datePalm: 'Phoenix',
+      blossom: 'Prunus',
+    }
+    for (const [family, models] of Object.entries(TREE_FAMILIES) as [TreeFamily, readonly string[]][]) {
       const drawn = new Set(
         Array.from({ length: 60 }, (_, i) =>
           treeInstance(
-            { properties: { id: `node/${i}`, genus: family === 'palm' ? 'Phoenix' : family === 'conifer' ? 'Pinus' : '' } },
+            { properties: { id: `node/${i}`, genus: genus[family] } },
             -73.97,
             40.76,
           )!.model,

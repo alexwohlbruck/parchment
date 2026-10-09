@@ -65,6 +65,8 @@ const ROLE_COLOR = {
   water: [0.45, 0.62, 0.72, 1],
   lamp: [1, 0.93, 0.76, 1],
   panel: [0.93, 0.92, 0.89, 1],
+  blossom: [0.93, 0.7, 0.78, 1],
+  thatch: [0.6, 0.5, 0.36, 1],
   net: [0.25, 0.27, 0.27, 1],
   tape: [0.95, 0.95, 0.93, 1],
   rim: [0.86, 0.4, 0.16, 1],
@@ -76,6 +78,9 @@ const ROLE_COLOR = {
   pv: [0.16, 0.22, 0.34, 1],
   lattice: [0.62, 0.64, 0.66, 1],
 }
+
+/** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
+const CANOPY = new Set(['foliage', 'blossom', 'spray'])
 
 /** How far apart two faces can lean and still share a smoothed normal. */
 const CREASE_DEGREES = 78
@@ -641,7 +646,7 @@ const TRUNK_RATIO = 0.3
  */
 function slimTrunks(parts) {
   const bark = parts.filter(p => p.role === 'bark')
-  const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
+  const foliage = parts.filter(p => CANOPY.has(p.role))
   if (!bark.length || !foliage.length) return
 
   const spread = (list, below = Infinity) => {
@@ -659,7 +664,8 @@ function slimTrunks(parts) {
   for (const part of foliage)
     for (const v of part.index) crownBottom = Math.min(crownBottom, part.position[v * 3 + 1])
 
-  const trunk = spread(bark, crownBottom)
+  // Low down only, below any limbs that reach out under the crown.
+  const trunk = spread(bark, Math.min(crownBottom, 0.3))
   const crown = spread(foliage)
   if (trunk < 1e-4 || crown < 1e-4) return
   const scale = Math.min(1, (TRUNK_RATIO * crown) / trunk)
@@ -688,9 +694,11 @@ function slimTrunks(parts) {
 function farLod(parts) {
   const out = []
   for (const part of parts) {
+    // A palm's skirt is a sliver under its crown by the time this is drawn.
+    if (part.role === 'thatch') continue
     const { min, max } = boundsOf(part)
     const m = mesh()
-    if (part.role === 'foliage') {
+    if (CANOPY.has(part.role)) {
       lozenge(m, min, max)
     } else {
       const radius = baseRadius(part, min, max)
@@ -1531,7 +1539,7 @@ function palmTrunk(m, { height, lean, from = 0, to = height, base, top, sides, r
  * Keep `farEvery` coprime with the number of ages in the crown's `arch`, or
  * the far model keeps only some ages — every climbing frond and no hanging one.
  */
-function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, crownshaft, hub }, far) {
+function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, crownshaft, hub, skirt }, far) {
   const crown = [height * lean, height, 0]
   // Under a crownshaft the trunk stops where the shaft takes over, on the same
   // curve — at both levels of detail, so the far trunk is no taller than the near.
@@ -1553,7 +1561,19 @@ function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, cr
     merge(leaves, shaft)
   }
   if (!far && hub) merge(leaves, blob(mesh(), crown, hub, { seed: 7, subdivisions: 1 }))
-  return [{ role: 'palm-bark', ...bark }, { role: 'foliage', ...leaves }]
+  const parts = [{ role: 'palm-bark', ...bark }, { role: 'foliage', ...leaves }]
+  // The dead fronds an unpruned Washingtonia keeps, hanging flat against the
+  // trunk below the living ones: a sleeve flaring out towards the crown.
+  // Kept at the far LOD too, since from the side it is half the tree's outline.
+  if (skirt) {
+    const from = height * (1 - skirt.length)
+    const thatch = cylinder(mesh(), far ? 5 : 10, skirt.radius * 0.75, skirt.radius, from, height - from - 0.2)
+    // On the trunk's curve, so a leaning palm does not wear its skirt off-centre.
+    for (let i = 0; i < thatch.position.length; i += 3)
+      thatch.position[i] += (thatch.position[i + 1] / height) ** 2 * height * lean
+    parts.push({ role: 'thatch', ...thatch })
+  }
+  return parts
 }
 
 /** Append one mesh's triangles to another's. */
@@ -1584,6 +1604,19 @@ function crownOf(count, seed, { length, lengthVariety = 0.15, arch }) {
   })
 }
 
+const SPRUCE_TIERS = [[2.6, 2.9, 2.2, 171], [4.6, 2.3, 2.1, 172], [6.5, 1.7, 1.9, 173], [8.2, 1.05, 1.9, 174]]
+const SPRUCE_CONE = [[3.66, 2.9, 6.44, 171]]
+
+function spruce(q, tiers) {
+  const crown = mesh()
+  for (const [y, radius, rise, seed] of tiers)
+    blob(crown, [0, y, 0], [radius, rise, radius], { subdivisions: q.cone, seed, lump: 0.05, flat: 0.25, taper: 0.8 })
+  return [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.38, 0.1, 0, 9) },
+    { role: 'foliage', ...crown },
+  ]
+}
+
 /**
  * The trees, generated. Modelled in metres; `toUnit` rescales each to one unit
  * tall, and the layer scales height and spread per instance.
@@ -1606,7 +1639,7 @@ const CROWN = { crown: 2, cone: 2, sides: 3 }
  * A tree's crown alone, for the inside of a wood where no trunk shows. Built at
  * a step less detail and fitted with the whole tree, so it sits where its crown would.
  */
-const crownOnly = (make, q) => () => make(q).filter(p => p.role === 'foliage')
+const crownOnly = (make, q) => () => make(q).filter(p => CANOPY.has(p.role))
 
 const palmLod = spec => Object.assign(() => palm(spec, false), { far: () => palm(spec, true) })
 
@@ -1660,7 +1693,7 @@ const TREES = {
   // Palms. Two feather palms after the royal and coconut palms — a crownshaft,
   // long arching fronds — and a fan palm after Washingtonia and Sabal: a
   // straighter trunk under a tighter, rounder crown of fans on stalks.
-  // `trees.ts` picks between them by id, since the family carries no subtype.
+  // `trees.ts` picks between them by id where OSM gives no genus to go on.
   //
   // Each frond's arch is set by its age, oldest last: climbing, spreading,
   // hanging. The far LOD keeps a spread of them and three joints instead of seven.
@@ -1694,6 +1727,80 @@ const TREES = {
     }),
     farEvery: 2, farStations: [0.4],
   }),
+  // Fan palms after Washingtonia and Sabal, and date palms after Phoenix, for
+  // the trees whose genus names them (`trees.ts`, GENERA). Built as the palms
+  // above are, and as heavy: trunks a twentieth of their height across at the
+  // foot, and fronds at full width.
+  //
+  // A tall Washingtonia: a small round crown of fans high on a straight trunk,
+  // wearing a skirt of dead ones beneath it.
+  'tree-palm-fan-a': palmLod({
+    height: 16, lean: 0.02, base: 0.66, top: 0.44, kind: 'fan',
+    hub: [0.55, 0.6, 0.55],
+    skirt: { length: 0.2, radius: 0.85 },
+    fronds: crownOf(22, 140, {
+      length: 2.9,
+      arch: [
+        { rise: 1.1, fall: 0.7, droop: 0.3 }, { rise: 0.6, fall: 0.15, droop: 0.3 }, { rise: 0.15, fall: -0.35, droop: 0.3 },
+        { rise: -0.3, fall: -0.8, droop: 0.3 }, { rise: -0.75, fall: -1.2, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  // A Sabal: short and stout under a dense, rounded ball of fans that reaches
+  // nearly as far down as it does up.
+  'tree-palm-fan-b': palmLod({
+    height: 9, lean: 0.03, base: 0.52, top: 0.42, kind: 'fan',
+    hub: [0.6, 0.65, 0.6],
+    fronds: crownOf(28, 150, {
+      length: 2.6,
+      arch: [
+        { rise: 1.2, fall: 0.85, droop: 0.3 }, { rise: 0.65, fall: 0.25, droop: 0.3 }, { rise: 0.1, fall: -0.35, droop: 0.3 },
+        { rise: -0.45, fall: -0.9, droop: 0.3 }, { rise: -0.95, fall: -1.35, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  // Date palms after Phoenix canariensis: a stout trunk under a dense crown of
+  // long, stiff fronds, the young ones climbing and the old arching to the
+  // ground. The squat one is the park specimen, the tall one the street palm.
+  'tree-palm-date-a': palmLod({
+    height: 9, lean: 0.02, base: 0.74, top: 0.6, kind: 'feather',
+    hub: [0.85, 0.75, 0.85],
+    fronds: crownOf(22, 160, {
+      length: 5.2,
+      arch: [{ rise: 1.05, fall: 0.25, droop: 0.6 }, { rise: 0.55, fall: -0.55, droop: 0.65 }, { rise: 0.15, fall: -1.15, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  'tree-palm-date-b': palmLod({
+    height: 13, lean: 0.04, base: 0.7, top: 0.52, kind: 'feather',
+    hub: [0.75, 0.7, 0.75],
+    fronds: crownOf(22, 165, {
+      length: 4.6,
+      arch: [{ rise: 0.95, fall: 0.15, droop: 0.6 }, { rise: 0.45, fall: -0.7, droop: 0.65 }, { rise: 0.05, fall: -1.3, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  // Spruce in tiers: stacked skirts of branches, each with a flat underside.
+  // Far off the tiers merge, so one cone stands in for them.
+  // The cone spans the tiers top to bottom, flat underside and all, so the
+  // far tree hangs as low as the near one. Built through `lod` for the crown
+  // a wood's interior draws, since `forest.ts` plants this as a conifer.
+  'tree-conifer-e': lod(q => spruce(q, q === FAR ? SPRUCE_CONE : SPRUCE_TIERS)),
+  // Pines built from layered, drooping needle skirts: a tall pine with an
+  // open, ragged crown high on a bare trunk, and a full conical fir.
+  'tree-pine-a': lod(q => pine(q, 211, 15, [[6.8, 2.6, 1.45], [8.3, 3.1, 1.5], [9.8, 2.6, 1.45], [11.1, 2.5, 1.4], [12.3, 1.8, 1.35], [13.3, 1.1, 1.3], [14.1, 0.6, 0.9]], { trunk: 14, base: 0.38, stubs: 4, lobes: 6, ragged: 0.4 })),
+  'tree-pine-b': lod(q => pine(q, 221, 14, [[2.8, 4, 2.6], [4.3, 3.6, 2.6], [5.8, 3.2, 2.5], [7.3, 2.7, 2.4], [8.7, 2.1, 2.3], [10, 1.5, 2.2], [11.3, 0.9, 2.7]], { trunk: 12, base: 0.45 })),
+  // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
+  'tree-blossom-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
+    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 202, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
+  ]),
+  'tree-blossom-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.46, 0.3, 0, 3.2) },
+    { role: 'blossom', ...blob(mesh(), [0, 5.4, 0], [3.3, 3.2, 3.3], { subdivisions: q.crown, seed: 211, lump: 0.16, ripple: 0.14, flat: 0.7, taper: 0.06 }) },
+  ]),
 }
 
 // ---------------------------------------------------------------------------
@@ -1736,6 +1843,114 @@ const AREAS = {
 
 // ---------------------------------------------------------------------------
 
+/** A thin three-sided limb from `a` to `b`, capped at both ends. */
+function limb(m, a, b, r0, r1) {
+  const d = b.map((c, i) => c - a[i])
+  const len = Math.hypot(...d) || 1
+  const t = d.map(c => c / len)
+  const up = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+  const ul = Math.hypot(...u)
+  u.forEach((c, i) => { u[i] = c / ul })
+  const v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+  const at = (p, r, k) => {
+    const ang = (k / 3) * Math.PI * 2
+    return p.map((c, i) => c + (Math.cos(ang) * u[i] + Math.sin(ang) * v[i]) * r)
+  }
+  const lo = [0, 1, 2].map(k => at(a, r0, k))
+  const hi = [0, 1, 2].map(k => at(b, r1, k))
+  for (let k = 0; k < 3; k++) quad(m, lo[k], hi[k], hi[(k + 1) % 3], lo[(k + 1) % 3])
+  face(m, lo[2], lo[1], lo[0])
+  face(m, hi[0], hi[1], hi[2])
+  return m
+}
+
+/**
+ * One layer of needles: a closed star of drooping lobes around the trunk, each
+ * ridged down its middle, notched once along each edge, and lifting at the tip.
+ */
+function needleLayer(m, y, radius, rise, lobes, phase, { barbs = true, reach = () => 1 } = {}) {
+  const step = (Math.PI * 2) / lobes
+  const at = (r, a, h) => [Math.cos(a) * r, y + h, Math.sin(a) * r]
+  const apex = [0, y + rise, 0]
+  const under = [0, y + rise * 0.12, 0]
+  const valleys = Array.from({ length: lobes }, (_, i) => at(radius * 0.5, (i + phase + 0.5) * step, rise * 0.3))
+  for (let i = 0; i < lobes; i++) {
+    const a = (i + phase) * step
+    const R = radius * reach(i)
+    const [prev, next] = [valleys[(i + lobes - 1) % lobes], valleys[i]]
+    const m1 = at(R * 0.45, a, rise * 0.5)
+    const m2 = at(R * 0.8, a, -rise * 0.04)
+    const tip = at(R, a, rise * 0.04)
+    face(m, apex, m1, prev)
+    face(m, apex, next, m1)
+    if (barbs) {
+      const [bl, nl] = [at(R * 0.68, a - step * 0.33, -rise * 0.02), at(R * 0.76, a - step * 0.08, rise * 0.08)]
+      const [br, nr] = [at(R * 0.68, a + step * 0.33, -rise * 0.02), at(R * 0.76, a + step * 0.08, rise * 0.08)]
+      face(m, prev, m1, bl), face(m, bl, m1, nl), face(m, nl, m1, m2), face(m, nl, m2, tip)
+      face(m, m1, next, br), face(m, m1, br, nr), face(m, m1, nr, m2), face(m, m2, nr, tip)
+      for (const [u, v] of [[prev, bl], [bl, nl], [nl, tip], [tip, nr], [nr, br], [br, next]]) face(m, under, u, v)
+    } else {
+      face(m, prev, m1, m2), face(m, prev, m2, tip), face(m, m1, next, m2), face(m, m2, next, tip)
+      face(m, under, prev, tip), face(m, under, tip, next)
+    }
+  }
+  return m
+}
+
+/** A drooping tier for the far model: a star-pointed cone, notched between its points. */
+function skirt(m, y, radius, rise, points, phase) {
+  const rim = Array.from({ length: points * 2 }, (_, i) => {
+    const a = ((i + phase) / (points * 2)) * Math.PI * 2
+    const out = i % 2 ? radius * 0.62 : radius
+    return [Math.cos(a) * out, y - (i % 2 ? 0 : rise * 0.22), Math.sin(a) * out]
+  })
+  const apex = [0, y + rise, 0]
+  const under = [0, y + rise * 0.15, 0]
+  for (let i = 0; i < rim.length; i++) {
+    const j = (i + 1) % rim.length
+    face(m, rim[i], apex, rim[j])
+    face(m, rim[j], under, rim[i])
+  }
+  return m
+}
+
+/**
+ * A pine: a trunk with a few dead stubs below a crown of stacked needle layers,
+ * each [y, radius, rise], rotated so their lobes interleave. `ragged` varies
+ * lobe length and stunts the odd one. Far off, three star-pointed skirts.
+ */
+function pine(q, seed, height, layers, { trunk, base, stubs = 0, lobes = 7, ragged = 0 }) {
+  const r = rng(seed)
+  const bark = cylinder(mesh(), q.sides, base, 0.08, 0, trunk)
+  const needles = mesh()
+  const top = layers.at(-1)
+  const crownTop = top[0] + top[2]
+  if (q.crown <= 1) {
+    const picks = [0, Math.floor(layers.length / 3), Math.floor((layers.length * 2) / 3)]
+    picks.forEach((i, k) => {
+      const [y, radius] = layers[i]
+      const next = k === 2 ? crownTop : layers[picks[k + 1]][0] + layers[picks[k + 1]][2] * 0.6
+      // Based so its drooping points stop level with the layer's own.
+      const base = (y + 0.22 * next) / 1.22
+      skirt(needles, base, radius * 0.9, next - base, 6, k * 0.5)
+    })
+    return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+  }
+  for (let k = 0; k < stubs; k++) {
+    const y = layers[0][0] * (0.35 + (k / stubs) * 0.5)
+    const ang = k * 2.4 + r()
+    limb(bark, [0, y, 0], [Math.cos(ang) * (base + 0.2), y + 0.2, Math.sin(ang) * (base + 0.2)], 0.06, 0.02)
+  }
+  layers.forEach(([y, radius, rise], t) => {
+    const last = t === layers.length - 1
+    const stunted = [Math.floor(r() * lobes), Math.floor(r() * lobes)]
+    const reach = i => (ragged && stunted.includes(i) ? 0.5 : 1 - ragged * r())
+    needleLayer(needles, y, radius, rise, last ? 5 : lobes, t * 0.5 + r() * 0.3, { barbs: radius > 1.4, reach })
+  })
+  return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true })
   const written = []
@@ -1758,7 +1973,7 @@ async function main() {
     const holes = open ? 0 : parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
-    const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
+    const foliage = parts.filter(p => CANOPY.has(p.role))
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
 
     const near = toGlb(name, parts)

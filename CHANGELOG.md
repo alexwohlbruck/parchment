@@ -15,6 +15,7 @@
 * Sports courts and fields now show their markings, surfaces, nets, hoops and goals, from tennis and pickleball to basketball, soccer and football.
 * Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
 * The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.
+* Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
 
 ### Changed
 

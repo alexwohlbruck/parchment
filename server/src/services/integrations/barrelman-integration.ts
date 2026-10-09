@@ -54,6 +54,7 @@ import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
+import { peliasLayerLabel } from '../../lib/place-type-label'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -642,9 +643,15 @@ export class BarrelmanIntegration
     const icon: PlaceIcon | undefined = isIntersection
       ? { icon: 'Signpost', iconPack: 'lucide' as const }
       : buildPlaceIcon(presetMatch)
+    // Pelias rows have no tags to type them by beyond the address barrelman
+    // lends them, so a postal code or a city would read as an "Address".
+    const peliasLayer = r.categories?.[0]?.startsWith('pelias/')
+      ? r.categories[0].slice('pelias/'.length)
+      : null
     const placeTypeLabel = isIntersection
       ? 'Intersection'
-      : getPlaceType(tags, language, osmGeomHint as GeometryType) ||
+      : peliasLayerLabel(peliasLayer, language) ||
+        getPlaceType(tags, language, osmGeomHint as GeometryType) ||
         r.categories?.[0] ||
         'place'
 

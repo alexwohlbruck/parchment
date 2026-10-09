@@ -1895,7 +1895,7 @@
         "3dObjects": "3D objects",
         "3dObjectsDescription": "Draw trees and street furniture as models. MapLibre only.",
         "hdRoads": "HD roads",
-        "hdRoadsDescription": "High-definition road visualization with enhanced detail",
+        "hdRoadsDescription": "Draw lanes, crosswalks and turn arrows at street level",
         "indoorMaps": "Indoor maps",
         "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
         "poiLabels": "POI labels",

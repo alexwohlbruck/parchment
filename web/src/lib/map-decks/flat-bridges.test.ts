@@ -3,7 +3,7 @@ import { buildMapStyle } from '@/lib/map-style/build'
 import { flatBridgeOpacity } from './flat-bridges'
 
 describe('flatBridgeOpacity', () => {
-  const layers = buildMapStyle({ tileServerUrl: 'https://example.test/tiles', theme: 'light' } as any).layers as any[]
+  const layers = buildMapStyle({ tileServerUrl: 'https://example.test/tiles', theme: 'light', hdRoads: true } as any).layers as any[]
   const muted = (id: string) => {
     const layer = layers.find(l => l.id === id)
     expect(layer, id).toBeDefined()

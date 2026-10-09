@@ -37,6 +37,7 @@ import { BUILDING_PASTELS, BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
+import { ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES } from './road-markings'
 import { ENGINE_PROJECTIONS, MapEngine, MapProjection } from '@/types/map.types'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -2423,7 +2424,7 @@ describe('markings only offset from a carriageway', () => {
 })
 
 describe('road markings', () => {
-  const style = buildMapStyle({ ...opts, theme: 'light' })
+  const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
   const ids = style.layers.map(l => l.id)
   const at = (id: string) => ids.indexOf(id)
 
@@ -2438,5 +2439,21 @@ describe('road markings', () => {
     expect(minor.paint['line-color'][0]).toBe('interpolate')
     const surface = style.layers.find(l => l.id === 'Road surface') as any
     expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
+  })
+})
+
+describe('HD roads off', () => {
+  const style = buildMapStyle({ ...opts, theme: 'light' })
+  const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
+
+  test('draws no lane geometry, at grade or on a deck', () => {
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']))).toEqual([])
+  })
+
+  test('leaves the basemap roads their own colour and casing', () => {
+    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    const casing = style.layers.find(l => l.id === 'Minor road outline') as any
+    expect(minor.paint['line-color'][0]).not.toBe('interpolate')
+    expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
   })
 })

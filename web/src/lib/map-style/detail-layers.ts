@@ -159,7 +159,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     courtAsphalt: 'hsl(216, 12%, 30%)',
     field: 'hsl(112, 22%, 28%)',
     pitchLine: 'hsla(0, 0%, 88%, 0.6)',
-    solar: 'hsl(222, 22%, 26%)',
+    solar: 'hsl(222, 22%, 22%)',
     solarPanel: 'hsl(222, 30%, 34%)',
     flowerbed: 'hsl(330, 16%, 30%)',
   },

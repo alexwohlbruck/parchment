@@ -227,7 +227,7 @@ describe('models', () => {
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
     // glTF is Y-up; the layer swaps to Z-up on the way into the shader.
-    if ((HUNG_MODELS as string[]).includes(name)) {
+    if ([...HUNG_MODELS, ...Object.keys(SOLAR_MODELS)].includes(name)) {
       expect(model.min[1]).toBeGreaterThan(0)
       expect(model.max[1]).toBeLessThanOrEqual(1.0001)
     } else {

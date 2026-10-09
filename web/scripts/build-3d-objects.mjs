@@ -1545,11 +1545,7 @@ const AREAS = {
     const glass = extrude(mesh(), slab(0.05, 0.04), -11.95, 11.95)
     if (!q.seg) return [{ role: 'pv', ...glass }]
     const posts = mesh()
-    for (const x of [-9, -3, 3, 9])
-      for (const f of [0.15, 0.85]) {
-        const z = -half + 2 * half * f
-        box(posts, [x - 0.05, 0, z - 0.05], [x + 0.05, low + f * (high - low), z + 0.05])
-      }
+    for (const x of [-8, 0, 8]) box(posts, [x - 0.06, 0, -0.06], [x + 0.06, (low + high) / 2, 0.06])
     return [{ role: 'pv', ...glass }, { role: 'pv-frame', ...extrude(mesh(), slab(0, 0), -12, 12) }, { role: 'metal', ...posts }]
   }),
 }

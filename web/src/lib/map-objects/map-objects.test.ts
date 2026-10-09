@@ -13,12 +13,14 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS, type TreeFamily } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, nearOf, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
+/** The roles a crown is made of. */
+const CANOPY = new Set(['foliage', 'blossom'])
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -74,7 +76,7 @@ describe('models', () => {
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
-    const canopy = (material: string) => material === 'foliage' || material === 'blossom'
+    const canopy = (material: string) => CANOPY.has(material)
     const reach = (matches: (material: string) => boolean, below = Infinity) => {
       let radius = 0
       for (const p of model.primitives) {
@@ -93,7 +95,7 @@ describe('models', () => {
     }
     const crown = reach(canopy)
     // Near the ground, below any limbs reaching out under the crown.
-    const trunk = reach(m => m === 'bark', Math.min(crownBottom, 0.3))
+    const trunk = reach(m => m === 'bark' || m === 'palm-bark', Math.min(crownBottom, 0.3))
     expect(crown).toBeGreaterThan(0)
     const ratio = trunk / crown
     const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`
@@ -174,13 +176,19 @@ describe('models', () => {
     '%s presents its outward faces as FRONT_FACE claims',
     name => {
       let tested = 0
-      for (const primitive of load(name).primitives) {
+      const model = load(name)
+      const upOf = (p: (typeof model.primitives)[number], i: number) =>
+        [0, 1, 2].reduce((sum, k) => sum + p.normal[p.index[i + k] * 3 + 1], 0) / 3
+      let steepest = -1
+      for (const p of model.primitives) for (let i = 0; i < p.index.length; i += 3) steepest = Math.max(steepest, upOf(p, i))
+      // A cone or a lumpy crown never faces straight up; its most upward faces stand in.
+      const floor = Math.min(0.9, steepest - 0.05)
+      for (const primitive of model.primitives) {
         for (let i = 0; i < primitive.index.length; i += 3) {
           const triangle = [primitive.index[i], primitive.index[i + 1], primitive.index[i + 2]]
           // Only the faces a plan view can see. Those are the ones that have to
           // survive the cull, so they are the ones worth asking about.
-          const up = triangle.reduce((sum, v) => sum + primitive.normal[v * 3 + 1], 0) / 3
-          if (up < 0.9) continue
+          if (upOf(primitive, i) < floor) continue
           const screen = triangle.map(v => {
             const [x, y, z] = [0, 1, 2].map(c => primitive.position[v * 3 + c])
             // Model space to the map's, mirroring the swap in `VS`, and then to
@@ -288,6 +296,105 @@ describe('models', () => {
     }
   })
 
+  /**
+   * A far model keeps its near model's silhouette, so the switch between them
+   * is a drop in detail and not a change of tree.
+   *
+   * The test above only bounds the far model from outside, which a lozenge
+   * passes: palms had no far model of their own, so each was stood in for by a
+   * ball on a straight post — as wide as its fronds, but round where they
+   * spread and upright where the trunk leaned. Three things pin that down: the
+   * crown reaches as far, hangs as low, and sits on a trunk that leans the same.
+   */
+  test.each(Object.keys(TREE_MODELS))('%s keeps its silhouette at the far LOD', name => {
+    expect(OBJECT_MODELS, `${name} has no far model`).toHaveProperty(`${name}${FAR_SUFFIX}`)
+    const shape = (model: ReturnType<typeof load>) => {
+      let reach = 0
+      let bottom = Infinity
+      let top = -Infinity
+      // Where the trunk ends, measured as the centre of its highest vertices.
+      let trunkTop = -Infinity
+      for (const p of model.primitives)
+        for (let i = 0; i < p.position.length; i += 3) {
+          const [x, y, z] = [p.position[i], p.position[i + 1], p.position[i + 2]]
+          if (CANOPY.has(p.material)) {
+            reach = Math.max(reach, Math.hypot(x, z))
+            bottom = Math.min(bottom, y)
+            top = Math.max(top, y)
+          } else trunkTop = Math.max(trunkTop, y)
+        }
+      let lean = 0
+      let n = 0
+      for (const p of model.primitives) {
+        if (CANOPY.has(p.material)) continue
+        for (let i = 0; i < p.position.length; i += 3)
+          if (p.position[i + 1] > trunkTop - 0.01) {
+            lean += p.position[i]
+            n++
+          }
+      }
+      return { reach, bottom, top, lean: lean / n }
+    }
+    const near = shape(load(name))
+    const far = shape(load(`${name}${FAR_SUFFIX}`))
+    expect(far.reach / near.reach, `${name} crown reach`).toBeGreaterThan(0.9)
+    expect(Math.abs(far.bottom - near.bottom), `${name} crown bottom`).toBeLessThan(0.06)
+    expect(Math.abs(far.top - near.top), `${name} crown top`).toBeLessThan(0.03)
+    expect(Math.abs(far.lean - near.lean), `${name} trunk lean`).toBeLessThan(0.02)
+  })
+
+  /**
+   * A distant palm is a star of fronds from above, not a disc.
+   *
+   * Seen from the map, a crown is its outline, and the outline is what told a
+   * palm from a broadleaf tree: until palms had far models of their own, each
+   * was stood in for by a lozenge fitted to its fronds, and every waterfront
+   * in Florida turned into a row of lollipops past the first screenful.
+   *
+   * Measured by walking out from the crown's centre in every direction and
+   * noting how far the foliage reaches. A disc reaches about as far whichever
+   * way you go; a star reaches far along its fronds and hardly at all between
+   * them. The lozenges scored 0.85 or more here.
+   */
+  const PALMS = [...new Set([...TREE_FAMILIES.palm, ...TREE_FAMILIES.fanPalm, ...TREE_FAMILIES.datePalm])]
+  test.each(PALMS.map(name => `${name}${FAR_SUFFIX}`))('%s is a star from above', name => {
+    const triangles: Array<Array<[number, number]>> = []
+    for (const p of load(name).primitives) {
+      if (p.material !== 'foliage') continue
+      for (let i = 0; i < p.index.length; i += 3)
+        triangles.push([0, 1, 2].map(k => [p.position[p.index[i + k] * 3], p.position[p.index[i + k] * 3 + 2]] as [number, number]))
+    }
+    const xs = triangles.flat().map(([x]) => x)
+    const zs = triangles.flat().map(([, z]) => z)
+    const [cx, cz] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2]
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))
+    const cross = (a: number[], b: number[], c: number[]) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    const covered = (x: number, z: number) =>
+      triangles.some(([a, b, c]) => {
+        const d = [cross(a, b, [x, z]), cross(b, c, [x, z]), cross(c, a, [x, z])]
+        return !(d.some(v => v < 0) && d.some(v => v > 0))
+      })
+    const reach = Array.from({ length: 72 }, (_, k) => {
+      const angle = (k / 72) * Math.PI * 2
+      let furthest = 0
+      for (let j = 1; j <= 80; j++) {
+        const t = (j / 80) * span
+        if (covered(cx + Math.cos(angle) * t, cz + Math.sin(angle) * t)) furthest = t
+      }
+      return furthest
+    }).sort((a, b) => a - b)
+    // The tenth percentile, so one frond pointing between two samples cannot pass a disc.
+    const ratio = reach[Math.floor(reach.length * 0.1)] / reach[reach.length - 1]
+    expect(ratio, `${name} reaches ${(ratio * 100).toFixed(0)}% as far between fronds as along them`).toBeLessThan(0.7)
+  })
+
+  test('a far model is sized as the model it stands in for', () => {
+    expect(nearOf(`tree-palm-a${FAR_SUFFIX}`)).toBe('tree-palm-a')
+    expect(nearOf('tree-palm-a')).toBe('tree-palm-a')
+    // Only the suffix, not a name that happens to contain it.
+    expect(nearOf('far-bench')).toBe('far-bench')
+  })
+
   test.each(ALL)('%s has unit-length normals', name => {
     // Smoothing averages normals across faces, and an un-normalised average
     // shades as if the surface were darker rather than as if it were curved.
@@ -361,7 +468,10 @@ describe('trees', () => {
     expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('datePalm')
     expect(treeFamily({ genus: 'Roystonea' })).toBe('palm')
     expect(treeFamily({ species: 'Prunus serrulata' })).toBe('blossom')
+    expect(treeFamily({ genus: 'Sabal' })).toBe('fanPalm')
+    expect(treeFamily({ genus: 'Cocos' })).toBe('palm')
     expect(treeFamily({ leaf_type: 'needleleaved' })).toBe('conifer')
+    // Most palms carry only a leaf type; the id picks one from the mixed family.
     expect(treeFamily({ leaf_type: 'palm' })).toBe('palm')
     expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
     // A genus that names a conifer wins over a leaf type that disagrees.

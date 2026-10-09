@@ -37,6 +37,10 @@ import type { GlbModel } from './glb.mjs'
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
 
+/** The model a far variant stands in for; any other name is its own. */
+export const nearOf = (model: string) =>
+  model.endsWith(FAR_SUFFIX) ? model.slice(0, -FAR_SUFFIX.length) : model
+
 /**
  * How far from the centre of the view an object may be, in ground pixels,
  * before it is drawn with its far model.
@@ -58,6 +62,9 @@ const FAR_BELOW_ZOOM = 17
  * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
  */
 const SETTLE = 80
+
+/** Fewest milliseconds between gathers while the camera is still moving. */
+const MOVING_GATHER = 600
 const AT_MOST = 300
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
@@ -215,7 +222,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
+export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full
@@ -255,6 +262,14 @@ export type ObjectSourceSpec = {
   positions?: (feature: any) => Array<[number, number]>
   /** Turns one position into an instance, or null to skip it. */
   toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
+  /** Runs once per gather, before any feature, with the map. */
+  prepare?: (map: any, spec: ObjectSourceSpec) => void
+  /** False when one feature arrives as several tile pieces that must all be kept. Defaults to true. */
+  distinct?: boolean
+  /** Whether the objects depend on the view, so a pan has to gather again. */
+  followsView?: boolean
+  /** Most objects this spec may place, keeping those nearest the view centre. */
+  budget?: number
 }
 
 type ModelBuffers = {
@@ -367,6 +382,7 @@ export class ObjectLayer {
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
   private gatheredZoom = NaN
+  private gatheredAt = 0
   private needsGather = true
   private needsArrange = true
   private scheduled = 0
@@ -457,7 +473,8 @@ export class ObjectLayer {
     }
     // Panning does not change which objects exist, only which of them are far
     // enough away to draw cheaply — so it asks for the cheap half of the work.
-    this.onMoveEnd = () => this.invalidate(this.map.getZoom() !== this.gatheredZoom)
+    const followsView = this.specs.some(s => s.followsView)
+    this.onMoveEnd = () => this.invalidate(followsView || this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
     map.on('moveend', this.onMoveEnd)
     // The tiles are usually already loaded when the layer is added — turning
@@ -494,7 +511,10 @@ export class ObjectLayer {
     this.scheduled = setTimeout(() => {
       this.scheduled = 0
       if (!this.map) return
-      if (this.needsGather) this.gather()
+      // Tiles stream in all through a pan or orbit. Gathering on each stalls the
+      // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
+      const now = performance.now()
+      if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
       if (this.needsArrange) this.arrange()
       this.map.triggerRepaint?.()
     }, wait) as unknown as number
@@ -543,6 +563,7 @@ export class ObjectLayer {
    */
   private gather() {
     this.needsGather = false
+    this.gatheredAt = performance.now()
     const zoom = this.map.getZoom()
     this.gatheredZoom = zoom
     this.placed = []
@@ -550,8 +571,17 @@ export class ObjectLayer {
     const terrain = this.map.getTerrain?.() ? this.map : null
     const seen = new Set<string>()
 
+    const { lng: centerLng, lat: centerLat } = this.map.getCenter()
+    const lngScale = Math.cos((centerLat * Math.PI) / 180)
+    const bounds = this.map.getBounds?.()
+    // Padded so a tree just off the edge still casts its shadow in.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.1 : 0
+    const inView = (lng: number, lat: number) =>
+      !bounds ||
+      (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
+      spec.prepare?.(this.map, spec)
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
@@ -559,8 +589,9 @@ export class ObjectLayer {
         continue
       }
       const positions = spec.positions ?? pointPositions
+      const candidates: Array<[any, number, number, number]> = []
       for (const feature of features) {
-        const key = feature.id ?? feature.properties?.id
+        const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
           const scoped = `${spec.sourceLayer}:${key}`
           if (seen.has(scoped)) continue
@@ -569,13 +600,26 @@ export class ObjectLayer {
         const places = positions(feature)
         for (let i = 0; i < places.length; i++) {
           const [lng, lat] = places[i]
-          const instance = spec.toInstance(feature, lng, lat, i)
-          if (!instance) continue
-          const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
-          const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
-          project(lng, lat, elevation, placed)
-          this.placed.push(placed)
+          // A spec regathered on every pan can skip what is off screen; it will be back.
+          if (spec.followsView && !inView(lng, lat)) continue
+          candidates.push([feature, i, lng, lat])
         }
+      }
+      // Trimmed to the budget before any instance is built or terrain read: those
+      // are the expensive half, and a wood offers twice the trees it may draw.
+      if (spec.budget !== undefined && candidates.length > spec.budget) {
+        const away = (c: [any, number, number, number]) =>
+          ((c[2] - centerLng) * lngScale) ** 2 + (c[3] - centerLat) ** 2
+        candidates.sort((a, b) => away(a) - away(b))
+        candidates.length = spec.budget
+      }
+      for (const [feature, i, lng, lat] of candidates) {
+        const instance = spec.toInstance(feature, lng, lat, i)
+        if (!instance) continue
+        const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
+        const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
+        project(lng, lat, elevation, placed)
+        this.placed.push(placed)
       }
     }
   }
@@ -622,14 +666,18 @@ export class ObjectLayer {
       const shape = new Float32Array(group.length * 3)
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
+      // A measured crown is sized against the near model's width even when the
+      // far one is drawn. The far model is a few fronds or a coarser solid, and
+      // its own width along x and z can differ by a tenth or more — enough
+      // that the tree would grow or shrink as it crossed the switch.
+      const nearWidth = this.models.get(nearOf(model))?.width || 1
       for (let i = 0; i < group.length; i++) {
         const { instance, x, y, z, perMetre } = group[i]
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
         shape[i * 3] = instance.height * perMetre
-        const across = instance.width === undefined ? instance.spread : instance.width / (this.models.get(model)?.width || 1)
-        shape[i * 3 + 1] = across * perMetre
+        shape[i * 3 + 1] = (instance.width === undefined ? instance.spread : instance.width / nearWidth) * perMetre
         shape[i * 3 + 2] = instance.heading
         shade[i] = instance.shade
         tint[i] = instance.tint ?? 0

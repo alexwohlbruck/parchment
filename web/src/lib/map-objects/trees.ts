@@ -100,6 +100,9 @@ export function treeFamily(props: Record<string, any>): TreeFamily {
   const named = GENERA.find(([genus]) => genus.test(taxon))
   if (named) return named[1]
   if (props.leaf_type === 'needleleaved') return 'conifer'
+  // OSM has a leaf type for palms, and it is what most palms carry: Bayfront
+  // Park in Miami has hundreds tagged this way and none with a genus. Without
+  // a genus to name the kind, the id picks one from the mixed `palm` family.
   if (props.leaf_type === 'palm') return 'palm'
   return 'broadleaf'
 }

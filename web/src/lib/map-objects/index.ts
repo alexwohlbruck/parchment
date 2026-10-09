@@ -11,11 +11,13 @@ import { type ObjectPalette, type ObjectSourceSpec } from './object-layer'
 import models from './models.json'
 import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
+import { FOREST_OBJECTS } from './forest'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
   TREE_ROW_OBJECTS,
   FURNITURE_OBJECTS,
+  FOREST_OBJECTS,
 ]
 
 /**
@@ -64,6 +66,9 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
     bark: [0.56, 0.45, 0.36],
+    // A palm's trunk is grey, not brown: ringed, fibrous, and pale as concrete
+    // on a royal palm.
+    'palm-bark': [0.62, 0.58, 0.52],
     foliage: [0.66, 0.83, 0.5],
     'foliage-alt': [0.55, 0.77, 0.52],
     metal: [0.3, 0.36, 0.33],
@@ -83,6 +88,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
+    'palm-bark': [0.2, 0.19, 0.17],
     foliage: [0.17, 0.3, 0.17],
     'foliage-alt': [0.12, 0.25, 0.18],
     metal: [0.2, 0.23, 0.26],

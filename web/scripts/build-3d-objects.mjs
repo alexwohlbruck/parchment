@@ -12,7 +12,7 @@
  * this script:
  *
  *   role      Every part is tagged `bark`, `foliage`, `metal`, `wood` or
- *             `paint`, written as its material name, so the layer can colour
+ *             `paint` (and so on — see `ROLE_COLOR`), written as its material name, so the layer can colour
  *             it per flavor.
  *   unit      Scaled and translated so the model is exactly 1 tall with its
  *             base at y=0 and centred on x/z, which is what lets the layer's
@@ -39,6 +39,8 @@ const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
 
 /** Suffix on the cheap variant of every model. */
 export const FAR_SUFFIX = '-far'
+/** Suffix on a tree's trunkless crown; see `crownOnly`. */
+const CROWN_SUFFIX = '-crown'
 
 /**
  * Roles, and the default colour each is written with.
@@ -49,6 +51,7 @@ export const FAR_SUFFIX = '-far'
  */
 const ROLE_COLOR = {
   bark: [0.35, 0.27, 0.22, 1],
+  'palm-bark': [0.47, 0.44, 0.4, 1],
   foliage: [0.31, 0.52, 0.27, 1],
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
@@ -1197,51 +1200,185 @@ function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisio
   return m
 }
 
-/** Rotate a part's points about the Y axis, then tip them about the X axis. */
-function turn(points, yaw, pitch) {
-  const [cy, sy, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)]
-  return points.map(([x, y, z]) => {
-    const y1 = y * cp - z * sp
-    const z1 = y * sp + z * cp
-    return [x * cy + z1 * sy, y1, -x * sy + z1 * cy]
+const smoothstep = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * A palm frond: a narrow blade along an arching spine.
+ *
+ * The spine leaves the crown climbing at `rise` and bends over until it is
+ * heading down at `fall`, so a crown of them is a fountain from the side and a
+ * star from above — the two views a palm is recognised by. `stations` are the
+ * fractions along it that get a cross-section; the base and tip are points.
+ *
+ * The cross-section is a shallow roof, its edges hanging `droop` of the half-
+ * width below the midrib the way a pinnate frond's leaflets do, closed by a
+ * keel underneath. A blade with a keel is a solid, which keeps the whole crown
+ * cullable: a flat ribbon would be open, and an open frond is lit from the
+ * wrong side whenever its back is turned to the camera. `keel: false` closes
+ * it straight across instead, a triangle rather than a diamond, for the far LOD.
+ */
+function frond(m, base, { length, yaw, rise, fall, width, droop, stations, keel = true }) {
+  const STEPS = 48
+  const angle = s => rise + (fall - rise) * s ** 1.6
+  // The spine, integrated from its angle so a station lands on the same curve
+  // whatever the level of detail.
+  const spine = [[0, 0]]
+  for (let i = 0; i < STEPS; i++) {
+    const a = angle((i + 0.5) / STEPS)
+    const [u, v] = spine[i]
+    spine.push([u + (Math.cos(a) * length) / STEPS, v + (Math.sin(a) * length) / STEPS])
+  }
+  const out = [Math.cos(yaw), 0, Math.sin(yaw)]
+  const side = [-Math.sin(yaw), 0, Math.cos(yaw)]
+  const point = (s, across, lift) => {
+    const k = Math.min(STEPS, Math.round(s * STEPS))
+    const [u, v] = spine[k]
+    const a = angle(s)
+    // The blade's own up: square to the spine, in the plane it arches in.
+    const n = [-Math.sin(a) * out[0], Math.cos(a), -Math.sin(a) * out[2]]
+    return [0, 1, 2].map(c => base[c] + out[c] * u + (c === 1 ? v : 0) + side[c] * across + n[c] * lift)
+  }
+  const rings = stations.map(s => {
+    const w = width(s) * length
+    const top = point(s, 0, 0.1 * w)
+    const right = point(s, w, -droop * w)
+    const left = point(s, -w, -droop * w)
+    return keel ? [top, right, point(s, 0, -(droop + 0.08) * w - 0.01), left] : [top, right, left]
+  })
+  const start = point(0, 0, 0)
+  const tip = point(1, 0, 0)
+  const sides = rings[0].length
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    face(m, start, rings[0][j], rings[0][i])
+    for (let k = 0; k < rings.length - 1; k++) quad(m, rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i])
+    face(m, rings[rings.length - 1][i], rings[rings.length - 1][j], tip)
+  }
+}
+
+/** How much wider a far frond is than the near one at the same point; see `palm`. */
+const FAR_FROND_WIDTH = 1.35
+
+/** How wide a frond is along its length, as a fraction of that length. */
+const FROND_WIDTH = {
+  // Pinnate: a bare stalk, then leaflets that run most of its length and taper
+  // to the tip.
+  feather: s => 0.11 * (0.2 + 0.8 * smoothstep(0.05, 0.4, s)) * (1 - 0.8 * smoothstep(0.45, 1, s)),
+  // Palmate: a long bare stalk, then a fan as wide as it is long.
+  fan: s => 0.4 * (0.05 + 0.95 * smoothstep(0.25, 0.7, s)),
+}
+
+/**
+ * A palm trunk: a tube that tapers from a slight flare at the ground and
+ * curves over by `lean`, as many palms do once they are tall.
+ *
+ * Built as one tube rather than stacked cylinders, so it has the same outline
+ * at any number of rings and the far LOD can simply take fewer of them.
+ */
+function palmTrunk(m, { height, lean, from = 0, to = height, base, top, sides, rings }) {
+  const bend = y => (y / height) ** 2 * height * lean
+  const radius = t => top + (base - top) * (1 - t) ** 1.6
+  const at = Array.from({ length: rings }, (_, k) => {
+    const t = k / (rings - 1)
+    const y = from + t * (to - from)
+    return ring(sides, radius(t), y).map(([x, yy, z]) => [x + bend(y), yy, z])
+  })
+  for (let k = 0; k < rings - 1; k++)
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      quad(m, at[k][i], at[k][j], at[k + 1][j], at[k + 1][i])
+    }
+  // Capped with a fan from one corner: the caps are a trunk's ends, where
+  // nobody looks, and a centre vertex would only cost triangles.
+  const [lo, hi] = [at[0], at[rings - 1]]
+  for (let i = 1; i < sides - 1; i++) {
+    face(m, lo[0], lo[i + 1], lo[i])
+    face(m, hi[0], hi[i], hi[i + 1])
+  }
+  return m
+}
+
+/**
+ * Palms, at either level of detail, from one description — so the far model
+ * is the near one with fewer fronds and fewer joints, standing on the same
+ * trunk and arching the same way, rather than a fitted proxy. A fitted proxy
+ * is a lozenge, and a lozenge on a post is a lollipop.
+ *
+ * `fronds` are drawn in order and the far model keeps every `farEvery`th one,
+ * spread round the crown by the golden angle so any subset is still a star.
+ * Keep `farEvery` coprime with the number of ages in the crown's `arch`, or
+ * the far model keeps only some ages — every climbing frond and no hanging one.
+ */
+function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, crownshaft, hub, skirt }, far) {
+  const crown = [height * lean, height, 0]
+  // Under a crownshaft the trunk stops where the shaft takes over, on the same
+  // curve — at both levels of detail, so the far trunk is no taller than the near.
+  const shaftFrom = crownshaft ? height - crownshaft.length : height
+  const sides = far ? 5 : 8
+  const bark = palmTrunk(mesh(), { height, lean, to: shaftFrom, base, top, sides, rings: far ? 3 : 7 })
+  const leaves = mesh()
+  const stations = far ? farStations : [1, 2, 3, 4, 5].map(k => k / 6)
+  fronds.forEach((spec, i) => {
+    if (far && i % farEvery) return
+    // A far blade has one joint, so it is a kite: widest at that joint and
+    // tapering both ways, it covers about half the near blade's area. Widened
+    // to make up for it, or the distant crown reads as a few pencil strokes.
+    const width = far ? s => FROND_WIDTH[kind](s) * FAR_FROND_WIDTH : FROND_WIDTH[kind]
+    frond(leaves, crown, { ...spec, width, stations, keel: !far })
+  })
+  if (shaftFrom < height) {
+    const shaft = palmTrunk(mesh(), { height, lean, from: shaftFrom, base: crownshaft.radius, top: crownshaft.radius * 0.85, sides, rings: far ? 2 : 3 })
+    merge(leaves, shaft)
+  }
+  if (!far && hub) merge(leaves, blob(mesh(), crown, hub, { seed: 7, subdivisions: 1 }))
+  const parts = [{ role: 'palm-bark', ...bark }, { role: 'foliage', ...leaves }]
+  // The dead fronds an unpruned Washingtonia keeps, hanging flat against the
+  // trunk below the living ones: a sleeve flaring out towards the crown.
+  // Kept at the far LOD too, since from the side it is half the tree's outline.
+  if (skirt) {
+    const from = height * (1 - skirt.length)
+    const thatch = cylinder(mesh(), far ? 5 : 10, skirt.radius * 0.75, skirt.radius, from, height - from - 0.2)
+    // On the trunk's curve, so a leaning palm does not wear its skirt off-centre.
+    for (let i = 0; i < thatch.position.length; i += 3)
+      thatch.position[i] += (thatch.position[i + 1] / height) ** 2 * height * lean
+    parts.push({ role: 'thatch', ...thatch })
+  }
+  return parts
+}
+
+/** Append one mesh's triangles to another's. */
+function merge(into, from) {
+  const offset = into.position.length / 3
+  into.position.push(...from.position)
+  into.normal.push(...from.normal)
+  into.index.push(...from.index.map(i => i + offset))
+  return into
+}
+
+/**
+ * A crown of fronds. Each is placed by the golden angle, so neighbours never
+ * line up, and takes its arch from where it is in the crown's life: the
+ * youngest climb, the oldest hang below the horizontal.
+ */
+function crownOf(count, seed, { length, lengthVariety = 0.15, arch }) {
+  const r = rng(seed)
+  return Array.from({ length: count }, (_, i) => {
+    const age = arch[i % arch.length]
+    return {
+      length: length * (1 - lengthVariety / 2 + r() * lengthVariety),
+      yaw: i * 2.39996 + r() * 0.25,
+      rise: age.rise + (r() - 0.5) * 0.15,
+      fall: age.fall + (r() - 0.5) * 0.15,
+      droop: age.droop,
+    }
   })
 }
 
-/** A palm frond: a flattened lumpless blob, swung out and drooping from the crown. */
-function frond(m, crown, length, yaw, droop, seed, { width = 0.22 * length / 2.4 + 0.12, bend = 0.35 } = {}) {
-  const f = mesh()
-  blob(f, [0, 0, length / 2], [width, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
-  const pts = []
-  for (let i = 0; i < f.position.length; i += 3) {
-    // Bend along its length: the tip falls further than the base.
-    const z = f.position[i + 2]
-    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * bend, z])
-  }
-  const moved = turn(pts, yaw, droop).map(([x, y, z]) => [x + crown[0], y + crown[1], z + crown[2]])
-  for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
-}
-
-/** A palm trunk: segments that thin towards the crown and curve over by `lean`. */
-function palmTrunk(height, lean, base, top) {
-  const bark = mesh()
-  const segs = 6
-  for (let i = 0; i < segs; i++) {
-    const seg = mesh()
-    const radius = k => base + ((top - base) * k) / segs
-    cylinder(seg, 8, radius(i), radius(i + 1), 0, height / segs + 0.05)
-    for (let v = 0; v < seg.position.length; v += 3) {
-      const y = seg.position[v + 1] + (i * height) / segs
-      seg.position[v] += (y / height) ** 2 * height * lean
-      seg.position[v + 1] = y
-    }
-    const pts = []
-    for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
-    for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
-  }
-  return bark
-}
-
 const SPRUCE_TIERS = [[2.6, 2.9, 2.2, 171], [4.6, 2.3, 2.1, 172], [6.5, 1.7, 1.9, 173], [8.2, 1.05, 1.9, 174]]
+const SPRUCE_CONE = [[3.66, 2.9, 6.44, 171]]
 
 function spruce(q, tiers) {
   const crown = mesh()
@@ -1269,7 +1406,18 @@ const FAR = { crown: 1, cone: 1, sides: 4 }
  * A tree whose far variant is itself at lower detail, rather than a fitted
  * proxy — so a distant tree keeps its own silhouette and swapping is invisible.
  */
-const lod = make => Object.assign(() => make(NEAR), { far: () => make(FAR) })
+const CROWN = { crown: 2, cone: 2, sides: 3 }
+
+/**
+ * A tree's crown alone, for the inside of a wood where no trunk shows. Built at
+ * a step less detail and fitted with the whole tree, so it sits where its crown would.
+ */
+const crownOnly = (make, q) => () => make(q).filter(p => CANOPY.has(p.role))
+
+const palmLod = spec => Object.assign(() => palm(spec, false), { far: () => palm(spec, true) })
+
+const lod = make =>
+  Object.assign(() => make(NEAR), { far: () => make(FAR), crown: crownOnly(make, CROWN), crownFar: crownOnly(make, FAR) })
 
 const TREES = {
   // Each crown is one smooth, softly undulating solid rather than a cluster of
@@ -1315,65 +1463,104 @@ const TREES = {
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
     { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
   ]),
-  ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
-    `tree-palm-${k}`,
-    () => {
-      const r = rng(seed)
-      const lean = 0.06 + r() * 0.05
-      const bark = palmTrunk(height, lean, 0.28, 0.16)
-      const top = [height * lean, height, 0]
-      const leaves = mesh()
-      for (let i = 0; i < count; i++)
-        frond(leaves, top, 2.6 + r() * 0.6, (i / count) * Math.PI * 2 + r() * 0.3, -0.25 - r() * 0.35, seed + i)
-      blob(leaves, top, [0.45, 0.4, 0.45], { seed: seed + 50, subdivisions: 1 })
-      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
-    },
-  ])),
-  // Fan palms, after Washingtonia and Sabal: a tight ball of stiff fans on a
-  // straight trunk, the tall one wearing a skirt of dead fronds beneath it.
-  ...Object.fromEntries([['a', 16, 22, 0.32, true, 140], ['b', 9, 26, 0.36, false, 150]].map(([k, height, count, base, skirt, seed]) => [
-    `tree-palm-fan-${k}`,
-    () => {
-      const r = rng(seed)
-      const lean = 0.015 + r() * 0.02
-      const bark = palmTrunk(height, lean, base, base * 0.8)
-      const top = [height * lean, height, 0]
-      const leaves = mesh()
-      for (let i = 0; i < count; i++) {
-        const tilt = -0.75 + (i % 5) * 0.32 + r() * 0.15
-        frond(leaves, top, 2.7 + r() * 0.5, i * 2.4 + r() * 0.3, tilt, seed + i, { width: 0.8, bend: 0.08 })
-      }
-      blob(leaves, top, [0.8, 0.7, 0.8], { seed: seed + 50, subdivisions: 1 })
-      const parts = [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
-      if (skirt) {
-        const thatch = cylinder(mesh(), 9, base * 1.9, base * 2.6, height * 0.78, height * 0.2)
-        thatch.position.forEach((v, i) => { if (i % 3 === 0) thatch.position[i] = v + height * lean * 0.85 })
-        parts.push({ role: 'thatch', ...thatch })
-      }
-      return parts
-    },
-  ])),
-  // Date palm, after Phoenix: a stout trunk under a dense crown of long arching
-  // fronds, some still climbing and the older ones hanging low.
-  ...Object.fromEntries([['a', 9, 28, 0.62, 160], ['b', 13, 22, 0.55, 165]].map(([k, height, count, base, seed]) => [
-    `tree-palm-date-${k}`,
-    () => {
-      const r = rng(seed)
-      const lean = 0.01 + r() * 0.03
-      const bark = palmTrunk(height, lean, base, base * 0.78)
-      const top = [height * lean, height, 0]
-      const leaves = mesh()
-      for (let i = 0; i < count; i++) {
-        const upper = i % 2 === 0
-        frond(leaves, top, 4.2 + r() * 0.8, i * 2.4 + r() * 0.2, upper ? -0.75 - r() * 0.25 : -0.05 - r() * 0.3, seed + i, { width: 0.42, bend: upper ? 0.3 : 0.45 })
-      }
-      blob(leaves, top, [0.9, 0.7, 0.9], { seed: seed + 50, subdivisions: 1 })
-      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
-    },
-  ])),
+  // Palms. Two feather palms after the royal and coconut palms — a crownshaft,
+  // long arching fronds — and a fan palm after Washingtonia and Sabal: a
+  // straighter trunk under a tighter, rounder crown of fans on stalks.
+  // `trees.ts` picks between them by id where OSM gives no genus to go on.
+  //
+  // Each frond's arch is set by its age, oldest last: climbing, spreading,
+  // hanging. The far LOD keeps a spread of them and three joints instead of seven.
+  'tree-palm-a': palmLod({
+    height: 12, lean: 0.05, base: 0.58, top: 0.34, kind: 'feather',
+    crownshaft: { length: 1.6, radius: 0.4 },
+    fronds: crownOf(15, 110, {
+      length: 5,
+      arch: [{ rise: 0.75, fall: -0.65, droop: 0.75 }, { rise: 0.35, fall: -1.2, droop: 0.8 }, { rise: 0.05, fall: -1.45, droop: 0.85 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  'tree-palm-b': palmLod({
+    height: 13, lean: 0.015, base: 0.56, top: 0.4, kind: 'fan',
+    hub: [0.45, 0.5, 0.45],
+    fronds: crownOf(24, 120, {
+      length: 2.75,
+      arch: [
+        { rise: 1.15, fall: 0.75, droop: 0.3 }, { rise: 0.7, fall: 0.25, droop: 0.3 }, { rise: 0.25, fall: -0.25, droop: 0.3 },
+        { rise: -0.2, fall: -0.7, droop: 0.3 }, { rise: -0.65, fall: -1.1, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  'tree-palm-c': palmLod({
+    height: 8, lean: 0.12, base: 0.46, top: 0.3, kind: 'feather',
+    crownshaft: { length: 1.1, radius: 0.36 },
+    fronds: crownOf(13, 130, {
+      length: 4.2,
+      arch: [{ rise: 0.65, fall: -0.7, droop: 0.75 }, { rise: 0.3, fall: -1.25, droop: 0.8 }, { rise: 0, fall: -1.55, droop: 0.85 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  // Fan palms after Washingtonia and Sabal, and date palms after Phoenix, for
+  // the trees whose genus names them (`trees.ts`, GENERA). Built as the palms
+  // above are, and as heavy: trunks a twentieth of their height across at the
+  // foot, and fronds at full width.
+  //
+  // A tall Washingtonia: a small round crown of fans high on a straight trunk,
+  // wearing a skirt of dead ones beneath it.
+  'tree-palm-fan-a': palmLod({
+    height: 16, lean: 0.02, base: 0.66, top: 0.44, kind: 'fan',
+    hub: [0.55, 0.6, 0.55],
+    skirt: { length: 0.2, radius: 0.85 },
+    fronds: crownOf(22, 140, {
+      length: 2.9,
+      arch: [
+        { rise: 1.1, fall: 0.7, droop: 0.3 }, { rise: 0.6, fall: 0.15, droop: 0.3 }, { rise: 0.15, fall: -0.35, droop: 0.3 },
+        { rise: -0.3, fall: -0.8, droop: 0.3 }, { rise: -0.75, fall: -1.2, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  // A Sabal: short and stout under a dense, rounded ball of fans that reaches
+  // nearly as far down as it does up.
+  'tree-palm-fan-b': palmLod({
+    height: 9, lean: 0.03, base: 0.52, top: 0.42, kind: 'fan',
+    hub: [0.6, 0.65, 0.6],
+    fronds: crownOf(28, 150, {
+      length: 2.6,
+      arch: [
+        { rise: 1.2, fall: 0.85, droop: 0.3 }, { rise: 0.75, fall: 0.35, droop: 0.3 }, { rise: 0.3, fall: -0.15, droop: 0.3 },
+        { rise: -0.15, fall: -0.6, droop: 0.3 }, { rise: -0.6, fall: -1.05, droop: 0.3 }, { rise: -1, fall: -1.35, droop: 0.3 },
+      ],
+    }),
+    farEvery: 5, farStations: [0.7],
+  }),
+  // Date palms after Phoenix canariensis: a stout trunk under a dense crown of
+  // long, stiff fronds, the young ones climbing and the old arching to the
+  // ground. The squat one is the park specimen, the tall one the street palm.
+  'tree-palm-date-a': palmLod({
+    height: 9, lean: 0.02, base: 0.74, top: 0.6, kind: 'feather',
+    hub: [0.85, 0.75, 0.85],
+    fronds: crownOf(22, 160, {
+      length: 5.2,
+      arch: [{ rise: 1.05, fall: 0.25, droop: 0.6 }, { rise: 0.55, fall: -0.55, droop: 0.65 }, { rise: 0.15, fall: -1.15, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  'tree-palm-date-b': palmLod({
+    height: 13, lean: 0.04, base: 0.7, top: 0.52, kind: 'feather',
+    hub: [0.75, 0.7, 0.75],
+    fronds: crownOf(22, 165, {
+      length: 4.6,
+      arch: [{ rise: 0.95, fall: 0.15, droop: 0.6 }, { rise: 0.45, fall: -0.7, droop: 0.65 }, { rise: 0.05, fall: -1.3, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
   // Spruce in tiers: stacked skirts of branches, each with a flat underside.
   // Far off the tiers merge, so one cone stands in for them.
-  'tree-conifer-e': Object.assign(() => spruce(NEAR, SPRUCE_TIERS), { far: () => spruce(FAR, [[5, 2.9, 4.6, 171]]) }),
+  // The cone spans the tiers top to bottom, flat underside and all, so the
+  // far tree hangs as low as the near one. Built through `lod` for the crown
+  // a wood's interior draws, since `forest.ts` plants this as a conifer.
+  'tree-conifer-e': lod(q => spruce(q, q === FAR ? SPRUCE_CONE : SPRUCE_TIERS)),
   // Pines built from layered, drooping needle skirts: a tall pine with an
   // open, ragged crown high on a bare trunk, and a full conical fir.
   'tree-pine-a': lod(q => pine(q, 211, 15, [[6.8, 2.6, 1.45], [8.3, 3.1, 1.5], [9.8, 2.6, 1.45], [11.1, 2.5, 1.4], [12.3, 1.8, 1.35], [13.3, 1.1, 1.3], [14.1, 0.6, 0.9]], { trunk: 14, base: 0.38, stubs: 4, lobes: 6, ragged: 0.4 })),
@@ -1381,7 +1568,7 @@ const TREES = {
   // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
   'tree-blossom-a': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
-    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 201, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
+    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 202, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
   ]),
   'tree-blossom-b': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.46, 0.3, 0, 3.2) },
@@ -1504,11 +1691,11 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts, ownFar) => {
+  const emit = async (name, parts, ownFar, inherited) => {
     // A level of detail can leave a part out entirely; an empty part has no volume.
     parts = parts.filter(p => p.index.length)
     ownFar = ownFar?.filter(p => p.index.length)
-    const fit = toUnit(parts)
+    const fit = toUnit(parts, inherited)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
@@ -1538,6 +1725,10 @@ async function main() {
     if (ownFar) {
       toUnit(ownFar, fit)
       far = ownFar
+      // Shaded as the near model is, or the switch between them is a pop
+      // from soft to faceted even where the outline holds.
+      const leaves = far.filter(p => p.role === 'foliage')
+      if (leaves.length) smoothNormals(leaves, CREASE_DEGREES)
     }
     // Oriented in its own right: these solids are built here rather than
     // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
@@ -1565,9 +1756,13 @@ async function main() {
         (holes ? `   capped ${holes}` : '') +
         (solid ? '' : '   NOT SOLID (drawn double-sided)'),
     )
+    return fit
   }
 
-  for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(TREES)) {
+    const fit = await emit(name, build(), build.far?.())
+    if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
+  }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
 
   // What was actually written, so the app asks for exactly that. Not every

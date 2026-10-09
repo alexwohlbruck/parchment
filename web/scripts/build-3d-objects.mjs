@@ -60,6 +60,7 @@ const ROLE_COLOR = {
   bench: [0.87, 0.78, 0.66, 1],
   bin: [0.34, 0.36, 0.38, 1],
   recycling: [0.2, 0.33, 0.52, 1],
+  spray: [0.9, 0.95, 0.99, 1],
   stone: [0.74, 0.72, 0.68, 1],
   water: [0.45, 0.62, 0.72, 1],
   lamp: [1, 0.93, 0.76, 1],
@@ -640,7 +641,7 @@ const TRUNK_RATIO = 0.3
  */
 function slimTrunks(parts) {
   const bark = parts.filter(p => p.role === 'bark')
-  const foliage = parts.filter(p => p.role === 'foliage')
+  const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
   if (!bark.length || !foliage.length) return
 
   const spread = (list, below = Infinity) => {
@@ -944,6 +945,30 @@ function slat(z, y, w, t, tilt, seg, round = 0.012) {
   return pts
 }
 
+/**
+ * A closed profile `[r, y, jag?]` spun about the y axis. `jag` pushes alternate
+ * vertices of that ring out and down by its amount, for a ragged edge.
+ */
+function lathe(m, sides, profile) {
+  const rings = profile.map(([r, y, jag = 0]) =>
+    Array.from({ length: sides }, (_, i) => {
+      const a = (i / sides) * Math.PI * 2
+      const k = i % 2 ? jag : -jag
+      return [Math.cos(a) * (r + k), y - k, Math.sin(a) * (r + k)]
+    }))
+  for (let k = 0; k < profile.length; k++) {
+    const [lo, hi] = [rings[k], rings[(k + 1) % profile.length]]
+    if (profile[k][0] === 0 && profile[(k + 1) % profile.length][0] === 0) continue
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      if (profile[k][0] === 0) face(m, lo[i], hi[j], hi[i])
+      else if (profile[(k + 1) % profile.length][0] === 0) face(m, lo[i], lo[j], hi[i])
+      else quad(m, lo[i], lo[j], hi[j], hi[i])
+    }
+  }
+  return m
+}
+
 /** A thick straight bar between two points in the side plane. */
 function bar([z0, y0], [z1, y1], w) {
   const [dz, dy] = [z1 - z0, y1 - y0]
@@ -1072,6 +1097,19 @@ const FURNITURE = {
       cylinder(water, q.sides, 0.58, 0.58, 1.62, 0.08)
     }
     return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
+  }),
+  // An aerating jet in a pond: a tall slim column of water rising out of a
+  // mound of mist at its foot, and a thin ring of splash on the water.
+  'fountain-jet': furnLod(q => {
+    const column = lathe(mesh(), 6, q.seg
+      ? [[0, 0], [0.55, 0.3], [0.28, 2], [0.22, 6.2], [0.32, 8.6], [0.3, 9.5], [0.14, 9.95], [0, 10]]
+      : [[0, 0], [0.5, 0.3], [0.26, 8.6], [0.2, 9.8], [0, 10]])
+    const fan = lathe(mesh(), q.seg ? 9 : 6, q.seg
+      ? [[0, 0.1], [1.5, 0.15, 0.2], [1.2, 0.9], [0.75, 2.0], [0.42, 3.2], [0, 3.4]]
+      : [[0, 0.1], [1.4, 0.15], [1.2, 0.6], [0.4, 3.2], [0, 3.3]])
+    if (!q.seg) return [column, fan].map(m => ({ role: 'spray', ...m }))
+    const splash = lathe(mesh(), 10, [[1.3, 0], [2.0, 0.12, 0.15], [2.7, 0]])
+    return [column, fan, splash].map(m => ({ role: 'spray', ...m }))
   }),
   // A classic post-top lantern: fluted base, banded pole, four glass panes
   // under a pyramid roof. Square, so a direction lines its panes up with the street.
@@ -1720,7 +1758,7 @@ async function main() {
     const holes = open ? 0 : parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
-    const foliage = parts.filter(p => p.role === 'foliage')
+    const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
 
     const near = toGlb(name, parts)

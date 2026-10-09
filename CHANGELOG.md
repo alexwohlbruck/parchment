@@ -18,6 +18,7 @@
 
 ### Changed
 
+* A fountain in a pond or lake now draws as a jet of water rather than a stone basin.
 * The experimental HD roads setting now works on the MapLibre map too, drawing lane markings, crosswalks and turn arrows.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
 

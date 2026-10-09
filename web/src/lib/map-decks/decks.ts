@@ -21,37 +21,26 @@ export type Piece = {
   /** Carriageway width in metres. */
   width: number
   kind: 'road' | 'rail' | 'path'
-  /** Zoom of the tile the piece came from. */
+  /** Zoom and bounds of the tile the piece came from. */
   zoom?: number
-}
-
-function boxOf(points: Point[], pad: number): Bounds {
-  const xs = points.map(p => p[0])
-  const ys = points.map(p => p[1])
-  return { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad }
+  tile?: Bounds
 }
 
 /**
- * Pieces with the stretches a closer tile also carries cut away. A parent
- * tile stays loaded while its children stream in, so the same bridge can
- * arrive twice, once simplified, and would stand as two overlapping decks.
+ * Pieces with the stretches a closer tile also covers cut away, exactly at
+ * that tile's edge so what is left joins the closer tile's pieces end to end.
+ * A parent tile stays loaded while its children stream in, so the same bridge
+ * can arrive twice and would stand as two overlapping decks.
  */
-export function dedupe(pieces: Piece[], tolerance = 4): Piece[] {
-  const boxes = new Map(pieces.map(p => [p, boxOf(p.points, tolerance / metresPerUnit(p.points[0][1]))]))
-  const overlap = (a: Bounds, b: Bounds) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY
+export function dedupe(pieces: Piece[]): Piece[] {
+  const tiles = new Map<string, { zoom: number; bounds: Bounds }>()
+  for (const { tile, zoom } of pieces) if (tile && zoom !== undefined) tiles.set(`${zoom}/${tile.minX}/${tile.minY}`, { zoom, bounds: tile })
+  const overlap = (a: Bounds, b: Bounds) => a.minX < b.maxX && b.minX < a.maxX && a.minY < b.maxY && b.minY < a.maxY
   return pieces.flatMap(piece => {
-    const closer = pieces.filter(o => (o.zoom ?? 0) > (piece.zoom ?? 0) && o.kind === piece.kind && o.layer === piece.layer &&
-      overlap(boxes.get(o)!, boxes.get(piece)!))
-    if (!closer.length) return [piece]
-    const runs: Point[][] = []
-    let run: Point[] = []
-    for (const p of densify(piece.points, tolerance / 2)) {
-      if (closer.some(o => beside(o.points, p).distance < tolerance)) {
-        if (run.length >= 2) runs.push(run)
-        run = []
-      } else run.push(p)
-    }
-    if (run.length >= 2) runs.push(run)
+    if (!piece.tile) return [piece]
+    let runs = [piece.points]
+    for (const { zoom, bounds } of tiles.values())
+      if (zoom > (piece.zoom ?? 0) && overlap(bounds, piece.tile)) runs = runs.flatMap(run => cutOut(run, bounds))
     return runs.map(points => ({ ...piece, points }))
   })
 }
@@ -75,6 +64,9 @@ export const PARAPET = 0.9
 /** Distance between piers, in metres, and the least height worth a pier. */
 export const PIER_SPACING = 28
 export const PIER_MIN = 2.5
+/** How far a pier runs on below the ground, and the least height a deck needs over it to be more than road, in metres. */
+export const FOOTING = 0.5
+export const BOX_MIN = 1
 
 const WORLD = 40075016.686
 
@@ -84,7 +76,39 @@ export function metresPerUnit(y: number): number {
   return WORLD * Math.cos(lat)
 }
 
-/** A line cut to a box, as the runs of it that lie inside (Liang-Barsky per segment). */
+/** The stretch of a segment inside a box, as parameters from 0 to 1 along it (Liang-Barsky); null if none. */
+function span([x0, y0]: Point, [x1, y1]: Point, b: Bounds): [number, number] | null {
+  const dx = x1 - x0
+  const dy = y1 - y0
+  let t0 = 0
+  let t1 = 1
+  for (const [p, q] of [[-dx, x0 - b.minX], [dx, b.maxX - x0], [-dy, y0 - b.minY], [dy, b.maxY - y0]]) {
+    if (p === 0) {
+      if (q < 0) return null
+    } else {
+      const r = q / p
+      if (p < 0) t0 = Math.max(t0, r)
+      else t1 = Math.min(t1, r)
+    }
+  }
+  return t0 > t1 ? null : [t0, t1]
+}
+
+const lerp = (a: Point, b: Point, t: number): Point => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+
+/** A line's bounds, grown by `metres` all round. */
+export function boundsOf(points: Point[], metres = 0): Bounds {
+  const pad = metres / metresPerUnit(points[0][1])
+  let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const [x, y] of points) [minX, minY, maxX, maxY] = [Math.min(minX, x), Math.min(minY, y), Math.max(maxX, x), Math.max(maxY, y)]
+  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
+}
+
+export const meets = (a: Bounds, b: Bounds) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY
+
+export const holds = (b: Bounds, [x, y]: Point) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY
+
+/** A line cut to a box, as the runs of it that lie inside. */
 export function clip(points: Point[], b: Bounds): Point[][] {
   const runs: Point[][] = []
   let run: Point[] = []
@@ -93,31 +117,39 @@ export function clip(points: Point[], b: Bounds): Point[][] {
     run = []
   }
   for (let i = 1; i < points.length; i++) {
-    const [x0, y0] = points[i - 1]
-    const [x1, y1] = points[i]
-    const dx = x1 - x0
-    const dy = y1 - y0
-    let t0 = 0
-    let t1 = 1
-    let inside = true
-    for (const [p, q] of [[-dx, x0 - b.minX], [dx, b.maxX - x0], [-dy, y0 - b.minY], [dy, b.maxY - y0]]) {
-      if (p === 0) {
-        if (q < 0) inside = false
-      } else {
-        const r = q / p
-        if (p < 0) t0 = Math.max(t0, r)
-        else t1 = Math.min(t1, r)
-      }
-    }
-    if (!inside || t0 > t1) {
+    const inside = span(points[i - 1], points[i], b)
+    if (!inside) {
       flush()
       continue
     }
-    const a: Point = [x0 + dx * t0, y0 + dy * t0]
-    const c: Point = [x0 + dx * t1, y0 + dy * t1]
+    if (!run.length) run.push(lerp(points[i - 1], points[i], inside[0]))
+    run.push(lerp(points[i - 1], points[i], inside[1]))
+    if (inside[1] < 1) flush()
+  }
+  flush()
+  return runs
+}
+
+/** A line with a box cut out of it, as the runs of it that lie outside. */
+export function cutOut(points: Point[], b: Bounds): Point[][] {
+  const runs: Point[][] = []
+  let run: Point[] = []
+  const flush = () => {
+    if (run.length >= 2) runs.push(run)
+    run = []
+  }
+  for (let i = 1; i < points.length; i++) {
+    const [a, c] = [points[i - 1], points[i]]
+    const inside = span(a, c, b)
     if (!run.length) run.push(a)
-    run.push(c)
-    if (t1 < 1) flush()
+    if (!inside) {
+      run.push(c)
+      continue
+    }
+    if (inside[0] > 0) run.push(lerp(a, c, inside[0]))
+    flush()
+    if (inside[1] < 1) run.push(lerp(a, c, inside[1]), c)
+    else run = []
   }
   flush()
   return runs
@@ -387,13 +419,15 @@ export function smooth(z: number[], d: number[], ground: number[], span = 24): n
 /**
  * Decks that run side by side as one: where a deck's edge meets another's
  * within `gap` metres and at about its height, both take the higher height
- * there and lose the parapet between them. Heights are updated in place.
+ * there and lose the parapet between them. Heights are updated in place,
+ * except a `fixed` deck's, whose were joined where they were solved.
  */
-export function joinNeighbours(decks: Array<{ chain: Chain; z: number[] }>, gap = 1.5, step = 1.5): Sides[] {
+export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?: boolean }>, gap = 1.5, step = 1.5): Sides[] {
   const open: Sides[] = decks.map(({ chain }) => [chain.points.map(() => false), chain.points.map(() => false)])
+  const bounds = decks.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges) + gap))
   for (const [a, A] of decks.entries())
     for (const [b, B] of decks.entries()) {
-      if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail') continue
+      if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail' || !meets(bounds[a], bounds[b])) continue
       A.chain.points.forEach((p, i) => {
         const near = beside(B.chain.points, p)
         if (!near.alongside) return
@@ -407,7 +441,7 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[] }>, gap 
         const facing = beside(A.chain.points, q).left ? 0 : 1
         if (near.distance > A.chain.edges[facing] + B.chain.edges[near.left ? 0 : 1] + gap) return
         open[a][facing][i] = true
-        A.z[i] = Math.max(A.z[i], zb)
+        if (!A.fixed) A.z[i] = Math.max(A.z[i], zb)
       })
     }
   return open
@@ -429,6 +463,7 @@ export function deckMesh(
   colors: DeckColors,
   out: Mesh,
   open: Sides = [[], []],
+  piers?: number[],
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -486,8 +521,9 @@ export function deckMesh(
   for (let i = 1; i < n; i++) {
     const [s0, s1] = [sides[i - 1], sides[i]]
     const [z0, z1] = [z[i - 1], z[i]]
-    // Road surface, both sides of the slab, and its underside.
     quad(at(s0.left, z0), at(s0.right, z0), at(s1.right, z1), at(s1.left, z1), colors.surface)
+    // Where the deck runs at the ground it is just road: no slab or parapets.
+    if (z0 - groundAt[i - 1] < BOX_MIN && z1 - groundAt[i] < BOX_MIN) continue
     quad(at(s0.right, z0), at(s0.right, z0 - SLAB), at(s1.right, z1 - SLAB), at(s1.right, z1), colors.concrete)
     quad(at(s1.left, z1), at(s1.left, z1 - SLAB), at(s0.left, z0 - SLAB), at(s0.left, z0), colors.concrete)
     quad(at(s0.left, z0 - SLAB), at(s1.left, z1 - SLAB), at(s1.right, z1 - SLAB), at(s0.right, z0 - SLAB), colors.concrete)
@@ -505,13 +541,15 @@ export function deckMesh(
       face(at(o0, z0 + PARAPET), at(i0, z0 + PARAPET), at(i1, z1 + PARAPET), at(o1, z1 + PARAPET))
     }
   }
-  // Piers, where the deck stands high enough to need them.
+  // Piers where given, else wherever the deck stands high enough to need them.
   const d = along(pts)
   const total = d[n - 1]
-  for (let at_ = PIER_SPACING / 2; at_ < total; at_ += PIER_SPACING) {
+  const spaced: number[] = []
+  for (let s = PIER_SPACING / 2; s < total; s += PIER_SPACING) spaced.push(s)
+  for (const at_ of piers ?? spaced) {
     const top = heightAt(d, z, at_) - SLAB
-    const bottom = heightAt(d, groundAt, at_)
-    if (top - bottom < PIER_MIN) continue
+    const bottom = heightAt(d, groundAt, at_) - FOOTING
+    if (top - bottom < (piers ? FOOTING : PIER_MIN + FOOTING)) continue
     let k = 1
     while (k < n - 1 && d[k] < at_) k++
     const t = (at_ - d[k - 1]) / (d[k] - d[k - 1] || 1)
@@ -534,13 +572,14 @@ export function deckMesh(
  */
 export function onDeck(
   points: Point[],
-  decks: Array<{ points: Point[]; z: number[]; d: number[]; width: number }>,
+  decks: Array<{ points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds }>,
   lift: number,
 ): Array<number | null> {
   return points.map(p => {
     let best: number | null = null
     let bestDistance = Infinity
     for (const deck of decks) {
+      if (deck.bounds && !holds(deck.bounds, p)) continue
       const scale = metresPerUnit(p[1])
       for (let i = 1; i < deck.points.length; i++) {
         const [a, b] = [deck.points[i - 1], deck.points[i]]
@@ -557,3 +596,30 @@ export function onDeck(
     return best
   })
 }
+
+/** A profile served as decimetres joined by commas, in metres. */
+export function parseProfile(text: unknown): number[] {
+  return typeof text === 'string' && text ? text.split(',').map(v => Number(v) / 10) : []
+}
+
+/** A served deck's exact samples: the first as lng,lat and each after as a step from the last, in 1e-7 degrees. */
+export function parseLine(text: unknown): Array<[number, number]> {
+  if (typeof text !== 'string' || !text) return []
+  let [x, y] = [0, 0]
+  return text.split(';').map(pair => {
+    const [dx, dy] = pair.split(',').map(Number)
+    ;[x, y] = [x + dx, y + dy]
+    return [x / 1e7, y / 1e7] as [number, number]
+  })
+}
+
+/** Whether most of a piece lies on one of the given decks, so it is drawn already. */
+export function covered(piece: Piece, decks: Array<{ chain: Chain; bounds: Bounds }>): boolean {
+  const rail = piece.kind === 'rail'
+  const on = piece.points.filter(p => decks.some(({ chain: d, bounds }) =>
+    (d.kind === 'rail') === rail && holds(bounds, p) && beside(d.points, p).distance < Math.max(...d.edges) + COVER))
+  return on.length * 2 >= piece.points.length
+}
+
+/** How far beyond a served deck's edge a basemap bridge may lie and still be the same bridge, in metres. */
+export const COVER = 3

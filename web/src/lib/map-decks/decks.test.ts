@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, besideGround, chains, dedupe, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -170,19 +170,36 @@ describe('neighbouring decks', () => {
 })
 
 describe('dedupe', () => {
-  const piece = (points: Point[], zoom: number) => ({ points, layer: 1, width: 10, kind: 'road' as const, zoom })
+  const box = (from: number, to: number) => ({ minX: line(from)[0][0], minY: 0, maxX: line(to)[0][0], maxY: 1 })
+  const piece = (points: Point[], zoom: number, tile = box(-1000, 1000)) =>
+    ({ points, layer: 1, width: 10, kind: 'road' as const, zoom, tile })
 
   test('a bridge a closer tile also carries is kept only once', () => {
-    const kept = dedupe([piece(line(0, 100), 13), piece(offset(1, 0, 100), 14)])
+    const kept = dedupe([piece(line(0, 100), 13), piece(offset(1, 0, 100), 14, box(-500, 500))])
     expect(kept).toHaveLength(1)
     expect(kept[0].zoom).toBe(14)
   })
 
-  test('the stretch a closer tile does not reach is kept', () => {
-    const kept = dedupe([piece(line(0, 200), 13), piece(line(0, 100), 14)])
+  test('what is left of a parent meets the closer tile at its edge and joins it', () => {
+    const child = box(-500, 100)
+    const kept = dedupe([piece(line(0, 200), 13), ...clip(offset(0.5, 0, 200), child).map(p => piece(p, 14, child))])
     const parent = kept.find(p => p.zoom === 13)!
-    expect(along(parent.points).at(-1)).toBeGreaterThan(90)
-    expect(parent.points[0][0]).toBeGreaterThan(line(100)[0][0])
+    expect(parent.points[0][0]).toBeCloseTo(line(100)[0][0], 12)
+    expect(chains(kept, () => false, 1.5 * M)).toHaveLength(1)
+  })
+
+  test('tiles side by side at different zooms both keep their pieces', () => {
+    const kept = dedupe([piece(line(0, 100), 13, box(-500, 100)), piece(line(100, 200), 14, box(100, 500))])
+    const span = along(line(0, 100)).at(-1)!
+    expect(kept.map(p => along(p.points).at(-1)!)).toEqual([expect.closeTo(span, 6), expect.closeTo(span, 6)])
+  })
+})
+
+describe('cutOut', () => {
+  test('keeps the stretches either side of a box', () => {
+    const runs = cutOut(line(0, 100), { minX: line(40)[0][0], minY: 0, maxX: line(60)[0][0], maxY: 1 })
+    const span = along(line(0, 40)).at(-1)!
+    expect(runs.map(r => along(r).at(-1)!)).toEqual([expect.closeTo(span, 6), expect.closeTo(span, 6)])
   })
 })
 
@@ -195,5 +212,48 @@ describe('besideGround', () => {
     expect(g[0]).toBe(100)
     expect(g[1]).toBeCloseTo(100 + MAX_GRADE * 6, 6)
     expect(g[3]).toBeCloseTo(100 + MAX_GRADE * 60, 6)
+  })
+})
+
+describe('served profiles', () => {
+  test('decimetres to metres', () => {
+    expect(parseProfile('2054,2061,-5')).toEqual([205.4, 206.1, -0.5])
+    expect(parseProfile(undefined)).toEqual([])
+  })
+
+  test('exact samples from lng,lat and steps in 1e-7 degrees', () => {
+    expect(parseLine('-808469645,352217126;-182,187')).toEqual([[-80.8469645, 35.2217126], [-80.8469827, 35.2217313]])
+  })
+})
+
+describe('covered', () => {
+  test('a basemap bridge lying on a served deck is drawn already; one beside it is not', () => {
+    const deck = chain(line(0, 100), [true, true])
+    const served = [{ chain: deck, bounds: boundsOf(deck.points, 8) }]
+    const piece = (points: Point[]) => ({ points, layer: 1, width: 10, kind: 'road' as const })
+    expect(covered(piece(offset(1, 0, 50, 100)), served)).toBe(true)
+    expect(covered(piece(offset(20, 0, 50, 100)), served)).toBe(false)
+  })
+})
+
+describe('deckMesh structure', () => {
+  const colors = { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [0.5, 0.5, 0.5] }
+  const mesh = () => ({ position: [] as number[], normal: [] as number[], color: [] as number[] })
+  const triangles = (m: ReturnType<typeof mesh>, shade: number) => m.color.filter((_, i) => i % 9 === 0 && m.color[i] === shade).length
+
+  test('a deck running at the ground is just road: no slab, parapets or piers', () => {
+    const c = chain(line(0, 40, 80), [true, true])
+    const m = deckMesh(c, [100.2, 100.3, 100.2], [100, 100, 100], c.points[0], colors, mesh())
+    expect(triangles(m, 0)).toBe(4)
+    expect(triangles(m, 1) + triangles(m, 0.5)).toBe(0)
+  })
+
+  test('piers stand where they are given', () => {
+    const c = chain(line(0, 40, 80), [true, true])
+    const m = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh(), [[], []], [20])
+    const spaced = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh())
+    const slab = 3 * 2 * 2
+    expect(triangles(m, 1) - slab).toBe(8)
+    expect(triangles(spaced, 1) - slab).toBe(8 * 3)
   })
 })

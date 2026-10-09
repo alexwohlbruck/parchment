@@ -2,6 +2,10 @@
 
 ### Added
 
+* Fences, walls, hedges and guard rails now stand in 3D and follow the slope of the ground, power lines hang between their towers and poles up and down hills, and electrified rail carries its overhead wire.
+
+* Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
+
 * Sports courts and fields now show their markings, surfaces, nets, hoops and goals, from tennis and pickleball to basketball, soccer and football.
 * Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
 * The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.

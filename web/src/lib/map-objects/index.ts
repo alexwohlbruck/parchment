@@ -13,6 +13,7 @@ import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
 import { SPORT_MODELS, SPORT_OBJECTS } from './sports'
 import { FOREST_OBJECTS } from './forest'
+import { LINE_MODELS, LINE_OBJECTS } from './lines'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -20,6 +21,7 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
   FURNITURE_OBJECTS,
   SPORT_OBJECTS,
   FOREST_OBJECTS,
+  LINE_OBJECTS,
 ]
 
 /**
@@ -47,7 +49,7 @@ export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
 export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
-export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS }
+export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS }
 
 /**
  * Role colours, per flavor.
@@ -89,6 +91,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     rim: [0.88, 0.42, 0.18],
     frame: [0.97, 0.97, 0.96],
     goalpost: [0.96, 0.8, 0.22],
+    wire: [0.22, 0.23, 0.24],
+    mesh: [0.72, 0.74, 0.74],
+    lattice: [0.66, 0.68, 0.7],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -111,6 +116,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     rim: [0.55, 0.27, 0.12],
     frame: [0.62, 0.62, 0.6],
     goalpost: [0.6, 0.5, 0.16],
+    wire: [0.08, 0.09, 0.1],
+    mesh: [0.3, 0.31, 0.32],
+    lattice: [0.32, 0.34, 0.36],
   },
 }
 

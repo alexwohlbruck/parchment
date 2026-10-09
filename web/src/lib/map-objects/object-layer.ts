@@ -65,8 +65,9 @@ const AT_MOST = 300
 
 /** Longest a gather holds the main thread before yielding to a frame, in milliseconds. */
 const SLICE = 8
-/** Candidates placed between checks of the slice clock. */
+/** Candidates placed, or features read, between checks of the slice clock. */
 const STEP = 256
+const FEATURE_STEP = 8
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
 const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
@@ -619,7 +620,9 @@ export class ObjectLayer {
       yield
       const positions = spec.positions ?? pointPositions
       const candidates: Array<[any, number, number, number]> = []
+      let read = 0
       for (const feature of features) {
+        if (++read % FEATURE_STEP === 0) yield
         const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
           const scoped = `${spec.sourceLayer}:${key}`

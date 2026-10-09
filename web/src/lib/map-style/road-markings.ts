@@ -13,9 +13,9 @@ export const ROAD_SURFACE_TILES = 'road_surfaces'
 export const ROAD_MARKING_TILES = 'road_markings'
 export const ROAD_GLYPH_TILES = 'road_glyphs'
 
-/** Where the basemap hands roads over to the lane geometry. */
+/** Where the basemap hands roads over to the lane geometry; every lane layer fades in over the same span. */
 const FROM = 16
-const TO = 17
+const TO = FROM + 0.6
 
 const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string; green: string; red: string }> = {
   light: { asphalt: 'hsl(36, 4%, 70%)', white: 'hsl(40, 30%, 98%)', yellow: 'hsl(43, 72%, 60%)', green: 'hsl(148, 26%, 60%)', red: 'hsl(9, 42%, 62%)' },
@@ -28,7 +28,7 @@ export function metres(m: number, minimum = 0): any {
   return ['interpolate', ['exponential', 2], ['zoom'], FROM, at(FROM), 22, at(22)]
 }
 
-const fadeIn = (from: number) => ['interpolate', ['linear'], ['zoom'], from, 0, from + 0.6, 1]
+const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
 
 /** The basemap's at-grade and bridge road fills and casings. */
 const ROAD_FILLS = ['Minor road', 'Major road', 'Highway', 'Minor road bridge', 'Major road bridge', 'Highway bridge']
@@ -64,10 +64,10 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     type: 'line',
     source: DETAIL_SOURCE,
     'source-layer': ROAD_MARKING_TILES,
-    minzoom: TO,
+    minzoom: FROM,
     filter: ['all', band, ...filter],
     layout: { 'line-cap': 'butt', 'line-join': 'round', ...layout },
-    paint: { 'line-color': paint, 'line-width': metres(width, 0.6), 'line-opacity': fadeIn(TO), ...extra },
+    paint: { 'line-color': paint, 'line-width': metres(width, 0.6), 'line-opacity': fadeIn, ...extra },
   })
   const kind = (k: string) => ['==', ['get', 'kind'], k]
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
@@ -81,7 +81,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       'source-layer': ROAD_SURFACE_TILES,
       minzoom: FROM,
       filter: band,
-      paint: { 'fill-color': c.asphalt, 'fill-opacity': fadeIn(FROM) },
+      paint: { 'fill-color': c.asphalt, 'fill-opacity': fadeIn },
     },
     {
       id: `Road lane fill${suffix}`,
@@ -90,16 +90,16 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       'source-layer': ROAD_MARKING_TILES,
       minzoom: FROM,
       filter: ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
-      paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn(FROM) },
+      paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn },
     },
     {
       id: `Road paint fill${suffix}`,
       type: 'fill',
       source: DETAIL_SOURCE,
       'source-layer': ROAD_MARKING_TILES,
-      minzoom: TO,
+      minzoom: FROM,
       filter: ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
-      paint: { 'fill-color': c.white, 'fill-opacity': fadeIn(TO) },
+      paint: { 'fill-color': c.white, 'fill-opacity': fadeIn },
     },
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
@@ -116,7 +116,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       type: 'symbol',
       source: DETAIL_SOURCE,
       'source-layer': ROAD_GLYPH_TILES,
-      minzoom: TO + 0.5,
+      minzoom: FROM,
       filter: band,
       layout: {
         'icon-image': ['get', 'glyph'],
@@ -128,9 +128,9 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
         // A glyph is 40 px tall in the sprite and about 6 m on the road.
         // Bike symbols are drawn at a rider's scale, to fit inside a 1.5 m lane.
         'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
-          TO, ['*', glyphScale, (6 * 2 ** TO) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
+          FROM, ['*', glyphScale, (6 * 2 ** FROM) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
       },
-      paint: { 'icon-color': c.white, 'icon-opacity': fadeIn(TO + 0.5) },
+      paint: { 'icon-color': c.white, 'icon-opacity': fadeIn },
     },
   ]
 }

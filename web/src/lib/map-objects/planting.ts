@@ -326,6 +326,8 @@ const SCREEN_OBJECTS = 9000
 const MIN_SPACING = 5
 const DITHER = 0.7
 const BLOCK_CELLS = 16
+/** Levels a cell shown last gather may slip before it is thinned, so a small pan never drops a visible tree. */
+const HYSTERESIS = 0.5
 
 /** The camera in mercator units: ground position and height, focal length and the target spacing in CSS pixels. */
 export type PlantingCamera = { x: number; y: number; altitude: number; focal: number; spacing: number }
@@ -432,12 +434,12 @@ function finish<T>(steps: Generator<void, T>): T {
   return next.value
 }
 
-/** The view in mercator units, padded a tenth each way so shadows from just off screen land. */
+/** The view in mercator units, padded a third each way, so a pan reveals trees already planted. */
 function viewBounds(map: any): Bounds | null {
   const b = map.getBounds?.()
   if (!b) return null
   const [x0, x1, y0, y1] = [mercX(b.getWest()), mercX(b.getEast()), mercY(b.getNorth()), mercY(b.getSouth())]
-  const pad = Math.max(x1 - x0, y1 - y0) * 0.1
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.35
   return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
 }
 
@@ -501,6 +503,9 @@ export function plantedSpec(options: {
   const planted = new Map<string, PlantedPoint[]>()
   const extents = new Map<string, Bounds>()
   let shown = new Map<object, Shown>()
+  let wasShown = new Set<number>()
+  let nowShown = new Set<number>()
+  const cellId = (i: number, j: number) => i * 67108864 + j
   let strides = new Map<string, number>()
   let floor = 0
   let map: any = null
@@ -529,7 +534,7 @@ export function plantedSpec(options: {
       Math.min(Math.max(y, bj * block), (bj + 1) * block),
     ]
     const lowest = Math.min(levelAt(grid, ...nearest([camera.x, camera.y])), levelAt(grid, ...nearest(center)))
-    stride = 2 ** Math.max(0, Math.min(Math.floor(lowest - DITHER / 2), Math.log2(BLOCK_CELLS)))
+    stride = 2 ** Math.max(0, Math.min(Math.floor(lowest - DITHER / 2 - HYSTERESIS), Math.log2(BLOCK_CELLS)))
     strides.set(key, stride)
     return stride
   }
@@ -613,7 +618,10 @@ export function plantedSpec(options: {
         const [sx, sy] = [grid.dx * MERCATOR_METRE, grid.dy * MERCATOR_METRE]
         for (const p of plantPiece(feature, grid, tile, options.clear(feature))) {
           const level = levelAt(grid, (p[2] + 0.5) * sx, (p[3] + 0.5) * sy)
-          if (options.falloff ? !keeps(p[2], p[3], level, floor) : latticeLevel(p[2], p[3]) < floor) continue
+          const id = cellId(p[2], p[3])
+          const slack = wasShown.has(id) ? HYSTERESIS : 0
+          if (options.falloff ? !keeps(p[2], p[3], Math.max(floor, level - slack), floor) : latticeLevel(p[2], p[3]) < floor) continue
+          nowShown.add(id)
           out.points.push(p)
           out.levels.push(level)
         }
@@ -638,6 +646,9 @@ export function plantedSpec(options: {
       exclusions = null
       shown = new Map()
       strides = new Map()
+      // A gather abandoned for a newer one leaves a partial set; keep the last full one instead.
+      if (nowShown.size >= wasShown.size / 2) wasShown = nowShown
+      nowShown = new Set()
       floor = m.getZoom() < (options.sparseBelow ?? -Infinity) ? 1 : 0
       view = viewBounds(m)
       const { lng, lat } = m.getCenter()

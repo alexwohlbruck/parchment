@@ -64,11 +64,12 @@ const FAR_BELOW_ZOOM = 17
 const SETTLE = 80
 
 /** Fewest milliseconds between gathers while the camera is still moving. */
-const MOVING_GATHER = 600
+const MOVING_GATHER = 350
 const AT_MOST = 300
 
-/** Longest a gather holds the main thread before yielding to a frame, in milliseconds. */
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: short while moving, longer at rest. */
 const SLICE = 8
+const RESTING_SLICE = 100
 /** Candidates placed, or features read, between checks of the slice clock. */
 const STEP = 256
 const FEATURE_STEP = 8
@@ -577,17 +578,21 @@ export class ObjectLayer {
       // Tiles stream in all through a pan or orbit. Gathering on each stalls the
       // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
       const now = performance.now()
+      if (this.gathering) return
       if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
-      else if (this.needsArrange && !this.gathering) {
+      else if (this.needsArrange) {
         this.arrange()
         this.map.triggerRepaint?.()
       }
     }, wait) as unknown as number
   }
 
-  /** Start a gather, abandoning any still in progress, and run it a slice at a time. */
+  /**
+   * Start a gather and run it a slice at a time. One in progress is never
+   * restarted: tiles stream in for seconds after a pan, and restarting on each
+   * meant a slow device never finished one. The next waits for it instead.
+   */
   private gather() {
-    clearTimeout(this.slice)
     this.gathering = this.gatherSteps()
     this.runSlice()
   }
@@ -595,12 +600,13 @@ export class ObjectLayer {
   private runSlice() {
     const steps = this.gathering
     if (!steps || !this.map) return
-    const until = performance.now() + SLICE
+    const until = performance.now() + (this.map.isMoving?.() ? SLICE : RESTING_SLICE)
     while (performance.now() < until) {
       if (!steps.next().done) continue
       this.gathering = null
       this.arrange()
       this.map.triggerRepaint?.()
+      if (this.needsGather) this.invalidate(true)
       return
     }
     this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
@@ -672,8 +678,8 @@ export class ObjectLayer {
     const { lng: centerLng, lat: centerLat } = this.map.getCenter()
     const lngScale = Math.cos((centerLat * Math.PI) / 180)
     const bounds = this.map.getBounds?.()
-    // Padded so a tree just off the edge still casts its shadow in.
-    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.1 : 0
+    // Padded so a pan reveals objects already gathered.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.35 : 0
     const inView = (lng: number, lat: number) =>
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)

@@ -130,8 +130,60 @@ function inArea(ex: ForestExclusions, x: number, y: number): boolean {
   return !!near && near.some(rings => inside(rings, x, y))
 }
 
-/** Whether a point is clear of every way and excluded area. */
-export const isClear = (ex: ForestExclusions, x: number, y: number) => !nearWay(ex, x, y) && !inArea(ex, x, y)
+/** Where the horizontal line at `y` comes within a way's clearance (plus `pad`), as an x interval, or null. */
+function wayCrossing(s: number[], y: number, pad: number): Span | null {
+  const [x0, y0, x1, y1] = s
+  const r = s[4] + pad
+  let lo = Infinity
+  let hi = -Infinity
+  for (const [cx, cy] of [[x0, y0], [x1, y1]]) {
+    const h = r * r - (y - cy) ** 2
+    if (h < 0) continue
+    lo = Math.min(lo, cx - Math.sqrt(h))
+    hi = Math.max(hi, cx + Math.sqrt(h))
+  }
+  const [dx, dy] = [x1 - x0, y1 - y0]
+  const length = Math.hypot(dx, dy)
+  if (length > 0 && dy !== 0) {
+    // Linear in x along the line: the projection onto the segment, and the signed distance from it.
+    const bounds = [
+      [dx, (y - y0) * dy, 0, length * length],
+      [dy, -(y - y0) * dx, -r * length, r * length],
+    ].map(([k, c, min, max]) => {
+      const [a, b] = [(min - c) / k + x0, (max - c) / k + x0]
+      return k > 0 ? [a, b] : k < 0 ? [b, a] : c >= min && c <= max ? [-Infinity, Infinity] : [Infinity, -Infinity]
+    })
+    const [a, b] = [Math.max(bounds[0][0], bounds[1][0]), Math.min(bounds[0][1], bounds[1][1])]
+    if (a <= b) [lo, hi] = [Math.min(lo, a), Math.max(hi, b)]
+  }
+  return lo <= hi ? [lo, hi] : null
+}
+
+/**
+ * Where the horizontal line at `y` between `x0` and `x1` is blocked by a way's
+ * clearance or an excluded area, each widened by `pad`; sorted, may overlap.
+ */
+export function blockedAlong(ex: ForestExclusions, y: number, x0: number, x1: number, pad: number): Span[] {
+  const blocked: Span[] = []
+  const seenWays = new Set<number[]>()
+  const seenAreas = new Set<Ring[]>()
+  const j = Math.floor(y / ex.cell)
+  for (let i = Math.floor(x0 / ex.cell) - 1; i <= Math.floor(x1 / ex.cell) + 1; i++)
+    for (let dj = -1; dj <= 1; dj++) {
+      for (const s of ex.segments.get(cellKey(i, j + dj)) ?? []) {
+        if (seenWays.has(s)) continue
+        seenWays.add(s)
+        const span = wayCrossing(s, y, pad)
+        if (span) blocked.push(span)
+      }
+      for (const rings of ex.areas.get(cellKey(i, j + dj)) ?? []) {
+        if (seenAreas.has(rings)) continue
+        seenAreas.add(rings)
+        for (const [a, b] of spansAt(rings, y)) blocked.push([a - pad, b + pad])
+      }
+    }
+  return blocked.sort((a, b) => a[0] - b[0])
+}
 
 /** Index the ways and open areas a forest must leave clear. */
 export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {

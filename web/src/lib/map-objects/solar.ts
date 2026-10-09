@@ -8,8 +8,8 @@ import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
 import { bearingOf } from './furniture'
 import {
   MERCATOR_METRE,
+  blockedAlong,
   builtExclusionsFor,
-  isClear,
   pieceKey,
   polygonsOf,
   spansAt,
@@ -22,12 +22,12 @@ export const SOLAR_MODELS = {
   'solar-row': '/models/solar-row.glb',
 }
 
-/** Row pitch, longest slab, end inset, shortest slab and the step clearance is checked at, in mercator metres. */
+/** Row pitch, longest slab, end inset, shortest slab and half a row's depth, in mercator metres. */
 const PITCH = 8
 const SEGMENT = 24
 const INSET = 1
 const SHORTEST = 3
-const STEP = 1.5
+const ROW_HALF_DEPTH = 1.5
 
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
 
@@ -40,18 +40,14 @@ const latOf = (y: number) => (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * 
 /** The stretches of `[x0, x1]` at height `y` that stay clear of every exclusion. */
 function clearRuns(x0: number, x1: number, y: number, ex: ForestExclusions | null): Array<[number, number]> {
   if (!ex) return [[x0, x1]]
-  const step = STEP * MERCATOR_METRE
   const runs: Array<[number, number]> = []
-  let start: number | null = null
-  for (let x = x0; ; x = Math.min(x + step, x1)) {
-    const clear = isClear(ex, x, y)
-    if (clear && start === null) start = x
-    if (start !== null && (!clear || x >= x1)) {
-      runs.push([start, clear ? x : x - step])
-      start = null
-    }
-    if (x >= x1) break
+  let from = x0
+  for (const [a, b] of blockedAlong(ex, y, x0, x1, ROW_HALF_DEPTH * MERCATOR_METRE)) {
+    if (a > from) runs.push([from, Math.min(a, x1)])
+    from = Math.max(from, b)
+    if (from >= x1) break
   }
+  if (from < x1) runs.push([from, x1])
   return runs
 }
 

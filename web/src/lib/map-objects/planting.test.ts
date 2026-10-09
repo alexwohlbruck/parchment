@@ -1,6 +1,10 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, forestTree, plantForest, polygonsOf, spansAt, woodFamily, CROWN_SUFFIX, FOREST_SPACING, type WoodTags } from './forest'
+import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
+import { forestTree, woodFamily, CROWN_SUFFIX, FOREST_GRID, type WoodTags } from './forest'
 import { TREE_FAMILIES } from './trees'
+
+const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
+const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -42,6 +46,15 @@ describe('forest planting', () => {
     }
   })
 
+  test('grows on under a bridge', () => {
+    const coordinates = [[-80.851, 35.202], [-80.844, 35.202]]
+    const road = { properties: { class: 'primary' }, geometry: { type: 'LineString', coordinates } }
+    const bridge = { properties: { class: 'primary', brunnel: 'bridge' }, geometry: { type: 'LineString', coordinates } }
+    const all = plantForest(wood, everywhere, buildExclusions([], []))
+    expect(plantForest(wood, everywhere, buildExclusions([bridge], []))).toEqual(all)
+    expect(plantForest(wood, everywhere, buildExclusions([road], [])).length).toBeLessThan(all.length)
+  })
+
   test('two tiles of one wood plant disjoint sets', () => {
     const mid = (wood[0][0][0] + wood[0][1][0]) / 2
     const ex = buildExclusions([], [])
@@ -66,16 +79,17 @@ describe('forest planting', () => {
     expect(trees.some(t => t[4])).toBe(true)
   })
 
-  test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
+  test('interior trees draw only their crowns; sparse ones stay whole and grow larger', () => {
     const edge = forestTree(0, 0, 4, 7)
     expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
-    expect(forestTree(0, 0, 4, 7, { interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
+    expect(forestTree(0, 0, 4, 7, { interior: true, sparse: false }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
     const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)
+    expect(sparse.height).toBeGreaterThan(edge.height)
   })
 
-  describe('what the wood says grows in it', () => {
+  describe('by what the wood holds', () => {
     const cells = Array.from({ length: 2000 }, (_, k) => [k % 50, Math.floor(k / 50)] as const)
     const broadleafShare = (wood: WoodTags) =>
       cells.filter(([i, j]) => woodFamily(wood, i, j) === 'broadleaf').length / cells.length
@@ -92,8 +106,8 @@ describe('forest planting', () => {
     })
 
     test('a genus outranks the leaf type', () => {
-      expect(woodFamily({ genus: 'Pinus', leaf_type: 'mixed' }, 1, 2)).toBe('conifer')
-      expect(woodFamily({ genus: 'Phoenix' }, 1, 2)).toBe('palm')
+      expect(woodFamily({ genus: 'Pinus', leaf_type: 'mixed' }, 1, 2)).toBe('pine')
+      expect(woodFamily({ genus: 'Phoenix' }, 1, 2)).toBe('datePalm')
       expect(woodFamily({ genus: 'Quercus' }, 1, 2)).toBe('broadleaf')
     })
 
@@ -108,7 +122,7 @@ describe('forest planting', () => {
 
     test('a palm, which has no crown model, stands whole inside a wood', () => {
       const tree = forestTree(0, 0, 1, 2, { wood: { genus: 'Phoenix' }, interior: true })
-      expect(TREE_FAMILIES.palm).toContain(tree.model)
+      expect(TREE_FAMILIES.datePalm).toContain(tree.model)
     })
   })
 })

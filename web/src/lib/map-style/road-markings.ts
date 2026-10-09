@@ -102,8 +102,10 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       paint: { 'fill-color': c.white, 'fill-opacity': fadeIn(TO) },
     },
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
-    // Dashes are measured in line widths: 3 m of paint, 9 m of gap.
-    line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 75] }),
+    // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
+    // gap, on motorways the highway's 3 m and 9 m.
+    line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 50] }),
+    line('Road line dashed long', [pattern('dashed_long')], 0.12, { 'line-dasharray': [25, 75] }),
     line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, 0.6) }),
     line('Stop line', [kind('stop'), pattern('solid')], 0.45),
     // A zebra is one wide line, dashed into bars that run with the traffic.

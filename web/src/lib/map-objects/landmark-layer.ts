@@ -34,9 +34,10 @@
  * reduced motion.
  */
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
+import { groundContacts, groundLifts, modelGround, type Contact, type ModelGround } from './landmark-ground'
 import {
-  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
-  type Footprint, type Landmark, type LandmarkFlavor,
+  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, modelToLngLat, parseLandmark,
+  polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
@@ -88,6 +89,10 @@ const GROUND_SINK = 0.5
  * field; above it the model takes the footprint's mean ground, so roofs stay
  * level and towers straight. Walls stay vertical either way: a vertex only
  * ever moves up or down.
+ *
+ * Measured from the model's own ground, not from y = 0: a coaster built over
+ * a slope has its feet metres up the model at the top of it, and they follow
+ * the map's ground as fully as the ones at the bottom. See `landmark-ground`.
  */
 const GROUND_BLEND = 25
 
@@ -97,18 +102,25 @@ const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 
 const LOC = { a_position: 0, a_normal: 1, a_uv: 2 }
 
 /**
- * The terrain under a landmark, as a GROUND_GRID² grid of model-metre lifts
- * over its plan extent (`u_bounds`: minX, minZ, maxX, maxZ), and how a vertex
- * follows it — see GROUND_BLEND. All zero with the terrain off.
+ * The terrain under a landmark, as a GROUND_GRID² grid over its plan extent
+ * (`u_bounds`: minX, minZ, maxX, maxZ), in model metres: per point, the map's
+ * rise above the lowest ground, and the ground the model itself was built on
+ * (0 for a flat base; see `groundLifts`). A vertex is lifted by the first less
+ * the second, as far as GROUND_BLEND says; `u_ground_mean` is that difference
+ * averaged, which is what the rigid part above the blend takes. All zero with
+ * the terrain off.
  */
 const GROUND = `
-  uniform float u_ground[${GROUND_GRID * GROUND_GRID}];
+  uniform vec2 u_ground[${GROUND_GRID * GROUND_GRID}];
   uniform float u_ground_mean;
   uniform vec4 u_bounds;
   uniform float u_blend;
-  float groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
-  /** The ground's rise at a plan point in model metres, held at the grid's edge beyond it. */
-  float groundUnder(vec2 xz) {
+  vec2 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
+  /**
+   * At a plan point, held at the grid's edge beyond it: x the map's rise, y
+   * the model's own ground.
+   */
+  vec2 groundUnder(vec2 xz) {
     vec2 span = max(u_bounds.zw - u_bounds.xy, vec2(1e-3));
     vec2 g = clamp((xz - u_bounds.xy) / span, 0.0, 1.0) * float(${GROUND_GRID - 1});
     ivec2 c = min(ivec2(floor(g)), ivec2(${GROUND_GRID - 2}));
@@ -119,8 +131,9 @@ const GROUND = `
       f.y);
   }
   vec3 onGround(vec3 p) {
-    float follow = 1.0 - clamp(p.y / u_blend, 0.0, 1.0);
-    return p + vec3(0.0, mix(u_ground_mean, groundUnder(p.xz), follow), 0.0);
+    vec2 g = groundUnder(p.xz);
+    float follow = 1.0 - clamp((p.y - g.y) / u_blend, 0.0, 1.0);
+    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow), 0.0);
   }`
 
 const ATTRIBUTES = `
@@ -307,7 +320,7 @@ const SHADOW_VS = `#version 300 es
   /** The ground's rise above the lowest point, in map metres, at a map point. */
   float riseAt(vec2 m) {
     vec2 xz = vec2(u_plan.x * m.x + u_plan.y * m.y, -u_plan.y * m.x + u_plan.x * m.y) / u_plan.z;
-    return groundUnder(xz) * u_plan.z;
+    return groundUnder(xz).x * u_plan.z;
   }
   void main() {
     vec3 m = (u_node * vec4(a_position, 1.0)).xyz;
@@ -376,6 +389,8 @@ type Model = {
   pose: { at: number; nodes: Map<number, Float32Array> } | null
   /** Metres from its origin that it reaches, sideways or up, once loaded. */
   reach: number
+  /** Where it could touch the ground, once loaded; see `groundContacts`. */
+  contacts: Contact[] | null
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -383,7 +398,7 @@ export type Replaced = { refs: string[]; featureIds: number[] }
 
 type Placement = Landmark & {
   placed: Anchor
-  /** Lifts off the base, per grid point, in model metres; see GROUND. */
+  /** The map's rise and the model's own ground, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
   /** Metres the base was sunk below the lowest ground; 0 with terrain off. */
@@ -429,6 +444,12 @@ export class LandmarkLayer {
    * and so re-lays out every building — on every zoom step.
    */
   private hiddenFor = new Map<string | number, string>()
+  /**
+   * The ground each placed model was built on, by placement, once every
+   * contact has been read off loaded terrain — it does not change after, and
+   * reading it is a few hundred samples.
+   */
+  private grounds = new Map<string, ModelGround>()
   /** Buildings found inside a drawn landmark's footprint, by the last gather. */
   private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
@@ -515,6 +536,7 @@ export class LandmarkLayer {
     this.lingering++
     this.leaving = []
     this.hiddenFor.clear()
+    this.grounds.clear()
     for (const model of this.models.values()) release(gl, model)
     this.models.clear()
     gl.deleteProgram(this.draw.program)
@@ -671,37 +693,54 @@ export class LandmarkLayer {
 
   /**
    * A landmark set on the terrain as it stands now: its base at the lowest
-   * ground under its footprint, and the rise of the ground above that, per
-   * grid point, for the vertex shader. Until the model has loaded its extent
-   * is unknown, so the anchor stands in; the load invalidates and this runs
-   * again.
+   * ground under its footprint, and the ground per grid point — the map's and
+   * the model's own — for the vertex shader. Until the model has loaded its
+   * extent is unknown, so the anchor stands in; the load invalidates and this
+   * runs again.
    */
   private place(
     landmark: Landmark,
     sample: ((point: [number, number]) => number) | null,
     detailed: boolean,
   ): Placement {
-    const footprint = this.models.get(landmark.model)?.footprint
-    const ground = new Float32Array(GROUND_GRID * GROUND_GRID)
+    const model = this.models.get(landmark.model)
+    const footprint = model?.footprint
+    let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * 2)
     let base = 0, groundMean = 0, sink = 0
     if (sample) {
-      const heights = (footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]).map(sample)
-      // A 0 among real heights is a tile that has not loaded, not the sea:
-      // read it as the lowest ground rather than burying the model to 0.
-      const loaded = heights.some(h => h !== 0)
-      const known = loaded ? heights.filter(h => h !== 0) : heights
-      const lowest = Math.min(...known)
-      base = lowest - GROUND_SINK
+      const points = footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]
+      const own = footprint && model ? this.modelGround(landmark, model, sample) : { follows: false as const }
+      const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+      const lifts = groundLifts(points.map(sample), exaggeration, own, landmark.scale)
+      base = lifts.lowest - GROUND_SINK
       sink = GROUND_SINK
       if (footprint) {
-        heights.forEach((h, i) => { ground[i] = (loaded && h === 0 ? 0 : h - lowest) / landmark.scale })
-        groundMean = ground.reduce((a, b) => a + b, 0) / ground.length
+        ground = lifts.lifts
+        groundMean = lifts.mean
       }
     }
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
     const doors = new Float32Array(landmark.entrances.flat())
     return { ...landmark, placed, ground, groundMean, sink, detailed, doors }
+  }
+
+  /**
+   * The ground a placed model was built on: flat, or the terrain. Read off
+   * the DEM under its contacts, raw — the map's heights come exaggerated —
+   * and kept once all of them have loaded.
+   */
+  private modelGround(landmark: Landmark, model: Model, sample: (point: [number, number]) => number): ModelGround {
+    const key = `${landmark.id} ${landmark.model} ${landmark.lng} ${landmark.lat} ${landmark.bearing} ${landmark.scale}`
+    const known = this.grounds.get(key)
+    if (known) return known
+    const contacts = model.contacts ?? []
+    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+    // 0 is a tile that has not loaded; see `place`.
+    const raw = contacts.map(([x, , z]) => sample(modelToLngLat(landmark, x, z)) / exaggeration || NaN)
+    const fitted = modelGround(contacts, raw, landmark.scale)
+    if (contacts.length && raw.every(Number.isFinite)) this.grounds.set(key, fitted)
+    return fitted
   }
 
   /**
@@ -820,7 +859,9 @@ export class LandmarkLayer {
       known.used = now
       return
     }
-    const model: Model = { pending: null, primitives: null, footprint: null, used: now, animation: null, pose: null, reach: 0 }
+    const model: Model = {
+      pending: null, primitives: null, footprint: null, used: now, animation: null, pose: null, reach: 0, contacts: null,
+    }
     this.models.set(file, model)
     void (async () => {
       const response = await fetch(this.options.modelUrl(file))
@@ -839,6 +880,7 @@ export class LandmarkLayer {
       // buildings it hides, and the ground is sampled under the footprint,
       // so both are what the model covers as it stands, not all it sweeps.
       model.footprint = { minX: glb.min[0], maxX: glb.max[0], minZ: glb.min[2], maxZ: glb.max[2] }
+      model.contacts = groundContacts(glb.primitives, model.footprint)
       model.animation = glb.animation
       model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
       model.coverage = planCoverage(glb, poseGlb(glb, 0))
@@ -1068,7 +1110,7 @@ export class LandmarkLayer {
    */
   private groundUniforms(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, p: Placement) {
     const f = this.models.get(p.model)?.footprint
-    gl.uniform1fv(u.u_ground, p.ground)
+    gl.uniform2fv(u.u_ground, p.ground)
     gl.uniform1f(u.u_ground_mean, p.groundMean)
     gl.uniform4f(u.u_bounds, f?.minX ?? 0, f?.minZ ?? 0, f?.maxX ?? 1, f?.maxZ ?? 1)
     gl.uniform1f(u.u_blend, GROUND_BLEND / p.scale)

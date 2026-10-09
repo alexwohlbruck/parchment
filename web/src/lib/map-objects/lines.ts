@@ -35,21 +35,26 @@ export const HUNG_MODELS: LineModel[] = ['guard-rail-span', 'power-wires', 'pole
 /**
  * What each kind draws: a span along every segment, and what stands at its
  * joints. A `seated` span hangs at a fixed height rather than standing at a
- * tagged one, and is built in place above the ground; see `HUNG_MODELS`.
+ * tagged one, and is built in place above the ground; see `HUNG_MODELS`. A
+ * `strung` span sags from joint to joint, so it is never cut into pieces.
  */
-const KINDS: Record<string, { span: LineModel; joint?: LineModel; height: number; every?: number; seated?: boolean }> = {
+const KINDS: Record<string, { span: LineModel; joint?: LineModel; height: number; every?: number; seated?: boolean; strung?: boolean }> = {
   fence: { span: 'fence-span', joint: 'fence-post', height: 1.5 },
   wall: { span: 'wall-span', height: 1.8 },
   retaining_wall: { span: 'wall-span', height: 1.2 },
   city_wall: { span: 'wall-span', height: 6 },
   hedge: { span: 'hedge-span', height: 1.6 },
   guard_rail: { span: 'guard-rail-span', height: 0.8, seated: true },
-  power_line: { span: 'power-wires', joint: 'power-tower', height: 30, seated: true },
-  power_minor_line: { span: 'pole-wires', joint: 'power-pole', height: 11.2, seated: true },
+  power_line: { span: 'power-wires', joint: 'power-tower', height: 30, seated: true, strung: true },
+  power_minor_line: { span: 'pole-wires', joint: 'power-pole', height: 11.2, seated: true, strung: true },
   catenary: { span: 'catenary-wires', joint: 'catenary-mast', height: 7.4, every: 55, seated: true },
 }
 
-const METRES_PER_DEGREE = 111320
+/** On the sphere the layer projects onto, so a span ends where its segment does. */
+const METRES_PER_DEGREE = (2 * Math.PI * 6371008.8) / 360
+
+/** Longest piece a span is cut into, in metres, so it can bend with the ground. */
+export const LONGEST_PIECE = 20
 
 type Placement = { lng: number; lat: number; model: LineModel; bearing: number; length?: number; seed: number }
 
@@ -98,10 +103,15 @@ export function placeLine(kind: string, geometry: any, bounds: Bounds | null): P
   for (const line of linesOf(geometry)) {
     const segments = line.slice(1).map((b, k) => ({ a: line[k], b, ...measure(line[k], b) }))
     segments.forEach((s, k) => {
-      const lng = (s.a[0] + s.b[0]) / 2
-      const lat = (s.a[1] + s.b[1]) / 2
-      if (s.length > 0.2 && inside(bounds, lng, lat))
-        out.push({ lng, lat, model: spec.span, bearing: s.bearing, length: s.length, seed: k })
+      if (s.length <= 0.2) return
+      const pieces = spec.strung ? 1 : Math.ceil(s.length / LONGEST_PIECE)
+      for (let i = 0; i < pieces; i++) {
+        const t = (i + 0.5) / pieces
+        const lng = s.a[0] + (s.b[0] - s.a[0]) * t
+        const lat = s.a[1] + (s.b[1] - s.a[1]) * t
+        if (inside(bounds, lng, lat))
+          out.push({ lng, lat, model: spec.span, bearing: s.bearing, length: s.length / pieces, seed: k })
+      }
     })
     if (!spec.joint) continue
     if (spec.every) {
@@ -143,7 +153,7 @@ export function lineInstance(kind: string, tagHeight: unknown, p: Placement): Ob
     lat: p.lat,
     height,
     spread: span && !spec.seated ? 1 : height,
-    ...(span ? { length: p.length } : {}),
+    ...(span ? { length: p.length, conform: true as const } : {}),
     heading: bearingOf((p.bearing + 90) % 360)!,
     shade: 0.92 + cellHash(p.seed, Math.round(p.lng * 1e5), 1) * 0.12,
     model: p.model,

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, besideGround, chains, dedupe, clip, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, besideGround, chains, dedupe, clip, cutOut, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -170,19 +170,36 @@ describe('neighbouring decks', () => {
 })
 
 describe('dedupe', () => {
-  const piece = (points: Point[], zoom: number) => ({ points, layer: 1, width: 10, kind: 'road' as const, zoom })
+  const box = (from: number, to: number) => ({ minX: line(from)[0][0], minY: 0, maxX: line(to)[0][0], maxY: 1 })
+  const piece = (points: Point[], zoom: number, tile = box(-1000, 1000)) =>
+    ({ points, layer: 1, width: 10, kind: 'road' as const, zoom, tile })
 
   test('a bridge a closer tile also carries is kept only once', () => {
-    const kept = dedupe([piece(line(0, 100), 13), piece(offset(1, 0, 100), 14)])
+    const kept = dedupe([piece(line(0, 100), 13), piece(offset(1, 0, 100), 14, box(-500, 500))])
     expect(kept).toHaveLength(1)
     expect(kept[0].zoom).toBe(14)
   })
 
-  test('the stretch a closer tile does not reach is kept', () => {
-    const kept = dedupe([piece(line(0, 200), 13), piece(line(0, 100), 14)])
+  test('what is left of a parent meets the closer tile at its edge and joins it', () => {
+    const child = box(-500, 100)
+    const kept = dedupe([piece(line(0, 200), 13), ...clip(offset(0.5, 0, 200), child).map(p => piece(p, 14, child))])
     const parent = kept.find(p => p.zoom === 13)!
-    expect(along(parent.points).at(-1)).toBeGreaterThan(90)
-    expect(parent.points[0][0]).toBeGreaterThan(line(100)[0][0])
+    expect(parent.points[0][0]).toBeCloseTo(line(100)[0][0], 12)
+    expect(chains(kept, () => false, 1.5 * M)).toHaveLength(1)
+  })
+
+  test('tiles side by side at different zooms both keep their pieces', () => {
+    const kept = dedupe([piece(line(0, 100), 13, box(-500, 100)), piece(line(100, 200), 14, box(100, 500))])
+    const span = along(line(0, 100)).at(-1)!
+    expect(kept.map(p => along(p.points).at(-1)!)).toEqual([expect.closeTo(span, 6), expect.closeTo(span, 6)])
+  })
+})
+
+describe('cutOut', () => {
+  test('keeps the stretches either side of a box', () => {
+    const runs = cutOut(line(0, 100), { minX: line(40)[0][0], minY: 0, maxX: line(60)[0][0], maxY: 1 })
+    const span = along(line(0, 40)).at(-1)!
+    expect(runs.map(r => along(r).at(-1)!)).toEqual([expect.closeTo(span, 6), expect.closeTo(span, 6)])
   })
 })
 

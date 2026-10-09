@@ -21,37 +21,26 @@ export type Piece = {
   /** Carriageway width in metres. */
   width: number
   kind: 'road' | 'rail' | 'path'
-  /** Zoom of the tile the piece came from. */
+  /** Zoom and bounds of the tile the piece came from. */
   zoom?: number
-}
-
-function boxOf(points: Point[], pad: number): Bounds {
-  const xs = points.map(p => p[0])
-  const ys = points.map(p => p[1])
-  return { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad }
+  tile?: Bounds
 }
 
 /**
- * Pieces with the stretches a closer tile also carries cut away. A parent
- * tile stays loaded while its children stream in, so the same bridge can
- * arrive twice, once simplified, and would stand as two overlapping decks.
+ * Pieces with the stretches a closer tile also covers cut away, exactly at
+ * that tile's edge so what is left joins the closer tile's pieces end to end.
+ * A parent tile stays loaded while its children stream in, so the same bridge
+ * can arrive twice and would stand as two overlapping decks.
  */
-export function dedupe(pieces: Piece[], tolerance = 4): Piece[] {
-  const boxes = new Map(pieces.map(p => [p, boxOf(p.points, tolerance / metresPerUnit(p.points[0][1]))]))
-  const overlap = (a: Bounds, b: Bounds) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY
+export function dedupe(pieces: Piece[]): Piece[] {
+  const tiles = new Map<string, { zoom: number; bounds: Bounds }>()
+  for (const { tile, zoom } of pieces) if (tile && zoom !== undefined) tiles.set(`${zoom}/${tile.minX}/${tile.minY}`, { zoom, bounds: tile })
+  const overlap = (a: Bounds, b: Bounds) => a.minX < b.maxX && b.minX < a.maxX && a.minY < b.maxY && b.minY < a.maxY
   return pieces.flatMap(piece => {
-    const closer = pieces.filter(o => (o.zoom ?? 0) > (piece.zoom ?? 0) && o.kind === piece.kind && o.layer === piece.layer &&
-      overlap(boxes.get(o)!, boxes.get(piece)!))
-    if (!closer.length) return [piece]
-    const runs: Point[][] = []
-    let run: Point[] = []
-    for (const p of densify(piece.points, tolerance / 2)) {
-      if (closer.some(o => beside(o.points, p).distance < tolerance)) {
-        if (run.length >= 2) runs.push(run)
-        run = []
-      } else run.push(p)
-    }
-    if (run.length >= 2) runs.push(run)
+    if (!piece.tile) return [piece]
+    let runs = [piece.points]
+    for (const { zoom, bounds } of tiles.values())
+      if (zoom > (piece.zoom ?? 0) && overlap(bounds, piece.tile)) runs = runs.flatMap(run => cutOut(run, bounds))
     return runs.map(points => ({ ...piece, points }))
   })
 }
@@ -84,7 +73,27 @@ export function metresPerUnit(y: number): number {
   return WORLD * Math.cos(lat)
 }
 
-/** A line cut to a box, as the runs of it that lie inside (Liang-Barsky per segment). */
+/** The stretch of a segment inside a box, as parameters from 0 to 1 along it (Liang-Barsky); null if none. */
+function span([x0, y0]: Point, [x1, y1]: Point, b: Bounds): [number, number] | null {
+  const dx = x1 - x0
+  const dy = y1 - y0
+  let t0 = 0
+  let t1 = 1
+  for (const [p, q] of [[-dx, x0 - b.minX], [dx, b.maxX - x0], [-dy, y0 - b.minY], [dy, b.maxY - y0]]) {
+    if (p === 0) {
+      if (q < 0) return null
+    } else {
+      const r = q / p
+      if (p < 0) t0 = Math.max(t0, r)
+      else t1 = Math.min(t1, r)
+    }
+  }
+  return t0 > t1 ? null : [t0, t1]
+}
+
+const lerp = (a: Point, b: Point, t: number): Point => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+
+/** A line cut to a box, as the runs of it that lie inside. */
 export function clip(points: Point[], b: Bounds): Point[][] {
   const runs: Point[][] = []
   let run: Point[] = []
@@ -93,31 +102,39 @@ export function clip(points: Point[], b: Bounds): Point[][] {
     run = []
   }
   for (let i = 1; i < points.length; i++) {
-    const [x0, y0] = points[i - 1]
-    const [x1, y1] = points[i]
-    const dx = x1 - x0
-    const dy = y1 - y0
-    let t0 = 0
-    let t1 = 1
-    let inside = true
-    for (const [p, q] of [[-dx, x0 - b.minX], [dx, b.maxX - x0], [-dy, y0 - b.minY], [dy, b.maxY - y0]]) {
-      if (p === 0) {
-        if (q < 0) inside = false
-      } else {
-        const r = q / p
-        if (p < 0) t0 = Math.max(t0, r)
-        else t1 = Math.min(t1, r)
-      }
-    }
-    if (!inside || t0 > t1) {
+    const inside = span(points[i - 1], points[i], b)
+    if (!inside) {
       flush()
       continue
     }
-    const a: Point = [x0 + dx * t0, y0 + dy * t0]
-    const c: Point = [x0 + dx * t1, y0 + dy * t1]
+    if (!run.length) run.push(lerp(points[i - 1], points[i], inside[0]))
+    run.push(lerp(points[i - 1], points[i], inside[1]))
+    if (inside[1] < 1) flush()
+  }
+  flush()
+  return runs
+}
+
+/** A line with a box cut out of it, as the runs of it that lie outside. */
+export function cutOut(points: Point[], b: Bounds): Point[][] {
+  const runs: Point[][] = []
+  let run: Point[] = []
+  const flush = () => {
+    if (run.length >= 2) runs.push(run)
+    run = []
+  }
+  for (let i = 1; i < points.length; i++) {
+    const [a, c] = [points[i - 1], points[i]]
+    const inside = span(a, c, b)
     if (!run.length) run.push(a)
-    run.push(c)
-    if (t1 < 1) flush()
+    if (!inside) {
+      run.push(c)
+      continue
+    }
+    if (inside[0] > 0) run.push(lerp(a, c, inside[0]))
+    flush()
+    if (inside[1] < 1) run.push(lerp(a, c, inside[1]), c)
+    else run = []
   }
   flush()
   return runs

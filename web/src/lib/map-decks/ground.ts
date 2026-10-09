@@ -21,10 +21,13 @@ export function decodeHeights(rgba: ArrayLike<number>, size: number, encoding: '
   return { size, data }
 }
 
-/** Bilinear height at a position within a tile, `u` and `v` from 0 to 1. */
+/**
+ * Bilinear height at a position within a tile, `u` and `v` from 0 to 1, with
+ * each pixel's value at its top-left corner as MapLibre's terrain reads it.
+ */
 export function sampleHeights({ size, data }: Heights, u: number, v: number): number {
-  const fx = Math.min(size - 1, Math.max(0, u * size - 0.5))
-  const fy = Math.min(size - 1, Math.max(0, v * size - 0.5))
+  const fx = Math.min(size - 1, Math.max(0, u * size))
+  const fy = Math.min(size - 1, Math.max(0, v * size))
   const [x0, y0] = [Math.floor(fx), Math.floor(fy)]
   const [x1, y1] = [Math.min(size - 1, x0 + 1), Math.min(size - 1, y0 + 1)]
   const [tx, ty] = [fx - x0, fy - y0]

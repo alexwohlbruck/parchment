@@ -21,9 +21,10 @@ describe('decodeHeights', () => {
 })
 
 describe('sampleHeights', () => {
-  test('interpolates between pixel centres and clamps at the edges', () => {
+  test('interpolates between pixel corners as MapLibre does, clamped at the far edge', () => {
     const ramp = flat(4, x => x * 10)
-    expect(sampleHeights(ramp, 0.5, 0.5)).toBeCloseTo(15)
+    expect(sampleHeights(ramp, 0.5, 0.5)).toBeCloseTo(20)
+    expect(sampleHeights(ramp, 0.375, 0.5)).toBeCloseTo(15)
     expect(sampleHeights(ramp, 0, 0.5)).toBeCloseTo(0)
     expect(sampleHeights(ramp, 1, 0.5)).toBeCloseTo(30)
   })

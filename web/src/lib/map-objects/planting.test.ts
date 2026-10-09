@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
-import { forestTree, CROWN_SUFFIX, FOREST_GRID } from './forest'
+import { forestTree, woodFamily, CROWN_SUFFIX, FOREST_GRID, type WoodTags } from './forest'
+import { TREE_FAMILIES } from './trees'
 
 const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
 const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
@@ -86,5 +87,42 @@ describe('forest planting', () => {
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)
     expect(sparse.height).toBeGreaterThan(edge.height)
+  })
+
+  describe('by what the wood holds', () => {
+    const cells = Array.from({ length: 2000 }, (_, k) => [k % 50, Math.floor(k / 50)] as const)
+    const broadleafShare = (wood: WoodTags) =>
+      cells.filter(([i, j]) => woodFamily(wood, i, j) === 'broadleaf').length / cells.length
+
+    test('a needleleaved wood is all conifers, a broadleaved or leafless one all broadleaves', () => {
+      expect(broadleafShare({ leaf_type: 'needleleaved' })).toBe(0)
+      expect(broadleafShare({ leaf_type: 'broadleaved' })).toBe(1)
+      expect(broadleafShare({ leaf_type: 'leafless' })).toBe(1)
+    })
+
+    test('a mixed wood is about half and half; an untagged one keeps the broadleaf-heavy mix', () => {
+      expect(broadleafShare({ leaf_type: 'mixed' })).toBeCloseTo(0.5, 1)
+      expect(broadleafShare({})).toBeCloseTo(0.7, 1)
+    })
+
+    test('a genus outranks the leaf type', () => {
+      expect(woodFamily({ genus: 'Pinus', leaf_type: 'mixed' }, 1, 2)).toBe('pine')
+      expect(woodFamily({ genus: 'Phoenix' }, 1, 2)).toBe('datePalm')
+      expect(woodFamily({ genus: 'Quercus' }, 1, 2)).toBe('broadleaf')
+    })
+
+    test('a needleleaved wood plants conifer models, and its interior keeps their crowns', () => {
+      const wood = { leaf_type: 'needleleaved' }
+      for (const [i, j] of cells.slice(0, 50)) {
+        const edge = forestTree(0, 0, i, j, { wood })
+        expect(TREE_FAMILIES.conifer).toContain(edge.model)
+        expect(forestTree(0, 0, i, j, { wood, interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
+      }
+    })
+
+    test('a palm, which has no crown model, stands whole inside a wood', () => {
+      const tree = forestTree(0, 0, 1, 2, { wood: { genus: 'Phoenix' }, interior: true })
+      expect(TREE_FAMILIES.datePalm).toContain(tree.model)
+    })
   })
 })

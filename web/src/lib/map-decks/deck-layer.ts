@@ -8,7 +8,9 @@
  *
  * Only drawn with the terrain on. The heights come from the ground at each end:
  * lidar terrain carries a road's embankments, so a deck that spans between them
- * clears what runs underneath.
+ * clears what runs underneath. The ground is read once per deck from the
+ * terrain's tiles at a fixed zoom (see `ground.ts`), so a deck holds still as
+ * the map pans.
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import earcut from 'earcut'
@@ -37,6 +39,7 @@ import {
   type Piece,
   type Point,
 } from './decks'
+import { GroundSampler, fetchHeights } from './ground'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -93,6 +96,9 @@ const DASH = { on: 3, off: 9 }
 /** Metres between height samples along a deck, and along paint laid on one. */
 const SAMPLE = 6
 const PAINT_SAMPLE = 3
+/** Decks whose ground is kept, and how far the map may pan before vertices are re-based (mercator units). */
+const PROFILE_CACHE = 4000
+const REBASE = 1e-3
 
 const tileBounds = (feature: any): Bounds | null => {
   const { _x: x, _y: y, _z: z } = feature
@@ -130,6 +136,12 @@ export class DeckLayer {
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
   private pending: Mesh | null = null
+  private sampler: { source: string; ground: GroundSampler } | null = null
+  /** Each deck's ground in true metres, keyed by its outline. */
+  private profiles = new Map<string, number[]>()
+  /** The tiles the last build read, and whether something besides them has changed since. */
+  private built = ''
+  private stale = true
   /** Bumped when the decks change, for anything that caches what they cover. */
   version = 0
 
@@ -145,66 +157,94 @@ export class DeckLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.program = link(gl, VS, FS)
-    const ours = () => new Set([this.sources.basemap, this.sources.paint?.source, this.map?.getTerrain?.()?.source, ...this.sources.routes()])
+    const tiled = () => new Set([this.sources.basemap, this.sources.paint?.source, this.sources.surfaces?.source])
     // A build reads every loaded tile, so it waits for a source to finish
-    // loading rather than running once per tile as they stream in.
+    // loading rather than running once per tile as they stream in. A pan
+    // that loads nothing new leaves the decks as they are.
     this.onChange = event => {
-      if (!event?.sourceId || (ours().has(event.sourceId) && (event as any).isSourceLoaded)) this.invalidate()
+      if (!event?.sourceId) this.invalidate(false)
+      else if (!(event as any).isSourceLoaded) return
+      else if (tiled().has(event.sourceId)) this.invalidate(false)
+      else if (this.sources.routes().includes(event.sourceId)) this.invalidate()
     }
+    this.onTerrain = () => this.invalidate()
     map.on('sourcedata', this.onChange)
     map.on('moveend', this.onChange)
+    map.on('terrain', this.onTerrain)
     this.invalidate()
   }
+
+  private onTerrain?: () => void
 
   onRemove(map: any, gl: WebGL2RenderingContext) {
     if (this.onChange) {
       map.off('sourcedata', this.onChange)
       map.off('moveend', this.onChange)
     }
+    if (this.onTerrain) map.off('terrain', this.onTerrain)
     clearTimeout(this.scheduled)
     if (this.buffers) for (const b of Object.values(this.buffers)) gl.deleteBuffer(b)
     gl.deleteProgram(this.program)
     this.map = null
   }
 
-  /** Rebuild between frames, once a burst of tile events settles. */
-  invalidate() {
+  /**
+   * Rebuild between frames, once a burst of tile events settles. Unforced, the
+   * build is skipped when it would read the same tiles as the last one.
+   */
+  invalidate(force = true) {
+    if (force) this.stale = true
     clearTimeout(this.scheduled)
     this.scheduled = setTimeout(() => {
       if (!this.map) return
-      this.pending = this.build()
+      const mesh = this.build()
+      if (!mesh) return
+      this.pending = mesh
       this.map.triggerRepaint?.()
     }, 200) as unknown as number
   }
 
-  /**
-   * The ground sampler the object layers use: zero with the terrain off, NaN
-   * where no elevation tile has loaded yet, so a deck is not dropped to sea level.
-   */
-  private ground(): (p: Point) => number {
-    const terrain = this.map.terrain
-    if (!this.map.getTerrain?.() || !terrain?.getElevationForLngLatZoom) return () => 0
-    const top = Math.min(Math.floor(this.map.getZoom()), terrain.tileManager?.maxzoom ?? 15)
-    // The rendered surface, where the fork exposes it, is what draped roads lie on.
-    const transform = this.map.transform
-    const rendered = transform && terrain.getCoverageIndex?.() ? terrain : null
-    return ([x, y]) => {
-      const { lng, lat } = new MercatorCoordinate(x, y).toLngLat()
-      const at = { lng, lat, wrap: () => at }
-      if (rendered) {
-        try {
-          const h = rendered.getElevationForLngLat(at, transform)
-          if (Number.isFinite(h) && h !== 0) return h
-        } catch {
-          // Off the rendered tiles its fallback needs a camera the globe may not have yet.
-        }
-      }
-      for (let z = top; z >= Math.max(0, top - 6); z--) {
-        const h = terrain.getElevationForLngLatZoom(at, z)
-        if (h) return h
-      }
-      return NaN
+  /** The terrain source's elevation tiles, read at its most detailed zoom. */
+  private groundSampler(): GroundSampler | null {
+    const id = this.map.getTerrain?.()?.source
+    const source = id ? this.map.getSource(id) : null
+    const template = source?.tiles?.[0]
+    if (!template) return null
+    if (this.sampler?.source !== template) {
+      const zoom = Math.min(source.maxzoom ?? 15, 15)
+      const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
+        zoom,
+        minZoom: Math.max(0, zoom - 5),
+        capacity: 24,
+        onLoad: () => this.invalidate(),
+      })
+      this.sampler = { source: template, ground }
+      this.profiles.clear()
+      return ground
     }
+    return this.sampler.ground
+  }
+
+  /**
+   * A deck's ground in true metres: under its centreline, or its edges where
+   * they stand higher. Read once and kept; null while a tile it needs loads.
+   */
+  private groundOf(chain: Chain): number[] | null {
+    const key = `${chain.edges.map(e => e.toFixed(1))}|${chain.points.map(p => `${Math.round(p[0] * 2 ** 26)},${Math.round(p[1] * 2 ** 26)}`).join(';')}`
+    const known = this.profiles.get(key)
+    if (known) return known
+    const sampler = this.groundSampler()
+    if (!sampler) return null
+    const [left, right] = edgePoints(chain)
+    const read = (points: Point[]) => points.map(p => sampler.at(p))
+    const samples = [read(chain.points), read(left), read(right)]
+    if (samples.some(s => s.includes(null))) return null
+    const [centre, l, r] = samples as number[][]
+    const ground = filled(besideGround(centre, l, r, along(chain.points)))
+    if (!ground) return null
+    if (this.profiles.size >= PROFILE_CACHE) this.profiles.delete(this.profiles.keys().next().value!)
+    this.profiles.set(key, ground)
+    return ground
   }
 
   private query(source: string, sourceLayer?: string, filter?: any[]): any[] {
@@ -215,10 +255,18 @@ export class DeckLayer {
     }
   }
 
-  private build(): Mesh {
+  private build(): Mesh | null {
     const pieces: Piece[] = []
     const tiles: Bounds[] = []
     const bridges = this.query(this.sources.basemap, this.sources.roads, ['==', ['get', 'brunnel'], 'bridge'])
+    const paint = this.paint()
+    const kerbs = this.kerbs()
+    const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
+    const read = [...new Set(bridges.map(f => `${f._z}/${f._x}/${f._y}`))].sort().join(' ') + `|${paint.length}|${kerbs.length}`
+    const near = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
+    if (!this.stale && near && read === this.built) return null
+    this.stale = false
+    this.built = read
     for (const f of bridges) {
       const props = f.properties ?? {}
       const tile = tileBounds(f)
@@ -228,21 +276,17 @@ export class DeckLayer {
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
           pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined })
     }
-    const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    this.origin = [center.x, center.y]
+    if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
     // A cut where a tile meets another loaded one joins back up; one at the
     // edge of everything loaded is the only kind left.
     const loaded = tiles.reduce<Bounds | null>((u, t) => u
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
-    const paint = this.paint()
-    const decks = absorbPaths(fitted(chains(dedupe(pieces), p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
+    const decks = absorbPaths(fitted(chains(dedupe(pieces), p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
-    const ground = this.ground()
     const solved = decks.flatMap(chain => {
-      const [left, right] = edgePoints(chain)
-      const groundAt = filled(besideGround(chain.points.map(ground), left.map(ground), right.map(ground), along(chain.points)))
+      const groundAt = this.groundOf(chain)
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
     // An end left in the air because it meets another deck takes that deck's
@@ -262,6 +306,12 @@ export class DeckLayer {
     }
     for (const s of solved) s.z = smooth(s.z, along(s.chain.points), s.groundAt)
     const open = joinNeighbours(solved)
+    // Solved in true metres; drawn over terrain that is stretched.
+    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+    for (const s of solved) {
+      s.z = s.z.map(z => z * exaggeration)
+      s.groundAt = s.groundAt.map(g => g * exaggeration)
+    }
 
     const p = this.palette
     const mesh: Mesh = { position: [], normal: [], color: [] }

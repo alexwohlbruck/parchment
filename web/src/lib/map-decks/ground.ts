@@ -104,3 +104,26 @@ export function fetchHeights(template: string, encoding: 'terrarium' | 'mapbox')
     return decodeHeights(context.getImageData(0, 0, width, height).data, width, encoding)
   }
 }
+
+export type TerrainSampler = { source: string; ground: GroundSampler }
+
+/**
+ * A sampler over the map's terrain source at its most detailed zoom: `current`
+ * while the source is the same, a new one when it has changed, null without
+ * terrain. `onLoad` runs as each of its tiles arrives.
+ */
+export function terrainSampler(map: any, current: TerrainSampler | null, onLoad: () => void): TerrainSampler | null {
+  const id = map.getTerrain?.()?.source
+  const source = id ? map.getSource(id) : null
+  const template = source?.tiles?.[0]
+  if (!template) return null
+  if (current?.source === template) return current
+  const zoom = Math.min(source.maxzoom ?? 15, 15)
+  const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
+    zoom,
+    minZoom: Math.max(0, zoom - 5),
+    capacity: 24,
+    onLoad,
+  })
+  return { source: template, ground }
+}

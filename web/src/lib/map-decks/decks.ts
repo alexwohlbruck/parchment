@@ -449,29 +449,15 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
 
 export type Mesh = { position: number[]; normal: number[]; color: number[] }
 
-export type DeckColors = { surface: number[]; concrete: number[]; parapet: number[] }
-
 /**
- * The triangles of one solved chain, in mercator units relative to `origin`,
- * with heights already multiplied by `perMetre` (mercator units per metre).
+ * A line's left and right edges, `edges` metres out, relative to `origin`.
+ * Mitred at each vertex, the mitre capped so a hairpin does not spike.
  */
-export function deckMesh(
-  chain: Chain,
-  z: number[],
-  groundAt: number[],
-  origin: Point,
-  colors: DeckColors,
-  out: Mesh,
-  open: Sides = [[], []],
-  piers?: number[],
-): Mesh {
-  const pts = chain.points
+export function outline(pts: Point[], edges: [number, number], origin: Point): Array<{ left: Point; right: Point }> {
   const n = pts.length
   const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
-  const [toLeft, toRight] = chain.edges.map(e => e * scale)
-  const span = chain.edges[0] + chain.edges[1]
-  // Mitred sides, the mitre capped so a hairpin does not spike.
-  const sides = pts.map((p, i) => {
+  const [toLeft, toRight] = edges.map(e => e * scale)
+  return pts.map((p, i) => {
     const a = pts[Math.max(0, i - 1)]
     const b = pts[Math.min(n - 1, i + 1)]
     let tx = b[0] - a[0]
@@ -495,22 +481,50 @@ export function deckMesh(
       right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
     }
   })
+}
+
+/** A triangle onto a mesh, flat-shaded by its winding. */
+export function triangle(out: Mesh, a: number[], b: number[], c: number[], color: number[]) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+  const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+  const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
+  for (const p of [a, b, c]) {
+    out.position.push(p[0], p[1], p[2])
+    out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
+    out.color.push(color[0], color[1], color[2])
+  }
+}
+
+/** Two triangles, a-b-c and a-c-d. */
+export function quad(out: Mesh, a: number[], b: number[], c: number[], d: number[], color: number[]) {
+  triangle(out, a, b, c, color)
+  triangle(out, a, c, d, color)
+}
+
+export type DeckColors = { surface: number[]; concrete: number[]; parapet: number[] }
+
+/**
+ * The triangles of one solved chain, in mercator units relative to `origin`,
+ * with heights already multiplied by `perMetre` (mercator units per metre).
+ */
+export function deckMesh(
+  chain: Chain,
+  z: number[],
+  groundAt: number[],
+  origin: Point,
+  colors: DeckColors,
+  out: Mesh,
+  open: Sides = [[], []],
+  piers?: number[],
+): Mesh {
+  const pts = chain.points
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const span = chain.edges[0] + chain.edges[1]
+  const sides = outline(pts, chain.edges, origin)
   const h = (m: number) => m * scale
-  const push = (a: number[], b: number[], c: number[], color: number[]) => {
-    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
-    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
-    const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
-    const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
-    for (const p of [a, b, c]) {
-      out.position.push(p[0], p[1], p[2])
-      out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
-      out.color.push(color[0], color[1], color[2])
-    }
-  }
-  const quad = (a: number[], b: number[], c: number[], d: number[], color: number[]) => {
-    push(a, b, c, color)
-    push(a, c, d, color)
-  }
+  const face = (a: number[], b: number[], c: number[], d: number[], color: number[]) => quad(out, a, b, c, d, color)
   const at = (p: Point, metres: number) => [p[0], p[1], h(metres)]
   const inset = (s: { left: Point; right: Point }, side: 'left' | 'right', by: number): Point => {
     const other = side === 'left' ? s.right : s.left
@@ -521,12 +535,12 @@ export function deckMesh(
   for (let i = 1; i < n; i++) {
     const [s0, s1] = [sides[i - 1], sides[i]]
     const [z0, z1] = [z[i - 1], z[i]]
-    quad(at(s0.left, z0), at(s0.right, z0), at(s1.right, z1), at(s1.left, z1), colors.surface)
+    face(at(s0.left, z0), at(s0.right, z0), at(s1.right, z1), at(s1.left, z1), colors.surface)
     // Where the deck runs at the ground it is just road: no slab or parapets.
     if (z0 - groundAt[i - 1] < BOX_MIN && z1 - groundAt[i] < BOX_MIN) continue
-    quad(at(s0.right, z0), at(s0.right, z0 - SLAB), at(s1.right, z1 - SLAB), at(s1.right, z1), colors.concrete)
-    quad(at(s1.left, z1), at(s1.left, z1 - SLAB), at(s0.left, z0 - SLAB), at(s0.left, z0), colors.concrete)
-    quad(at(s0.left, z0 - SLAB), at(s1.left, z1 - SLAB), at(s1.right, z1 - SLAB), at(s0.right, z0 - SLAB), colors.concrete)
+    face(at(s0.right, z0), at(s0.right, z0 - SLAB), at(s1.right, z1 - SLAB), at(s1.right, z1), colors.concrete)
+    face(at(s1.left, z1), at(s1.left, z1 - SLAB), at(s0.left, z0 - SLAB), at(s0.left, z0), colors.concrete)
+    face(at(s0.left, z0 - SLAB), at(s1.left, z1 - SLAB), at(s1.right, z1 - SLAB), at(s0.right, z0 - SLAB), colors.concrete)
     // Parapets along both edges.
     for (const side of ['left', 'right'] as const) {
       const shared = open[side === 'left' ? 0 : 1]
@@ -534,11 +548,11 @@ export function deckMesh(
       const [o0, o1] = [s0[side], s1[side]]
       const [i0, i1] = [inset(s0, side, 0.3), inset(s1, side, 0.3)]
       const flip = side === 'left'
-      const face = (a: number[], b: number[], c: number[], d: number[]) =>
-        flip ? quad(a, b, c, d, colors.parapet) : quad(d, c, b, a, colors.parapet)
-      face(at(o0, z0), at(o0, z0 + PARAPET), at(o1, z1 + PARAPET), at(o1, z1))
-      face(at(i1, z1), at(i1, z1 + PARAPET), at(i0, z0 + PARAPET), at(i0, z0))
-      face(at(o0, z0 + PARAPET), at(i0, z0 + PARAPET), at(i1, z1 + PARAPET), at(o1, z1 + PARAPET))
+      const wall = (a: number[], b: number[], c: number[], d: number[]) =>
+        flip ? face(a, b, c, d, colors.parapet) : face(d, c, b, a, colors.parapet)
+      wall(at(o0, z0), at(o0, z0 + PARAPET), at(o1, z1 + PARAPET), at(o1, z1))
+      wall(at(i1, z1), at(i1, z1 + PARAPET), at(i0, z0 + PARAPET), at(i0, z0))
+      wall(at(o0, z0 + PARAPET), at(i0, z0 + PARAPET), at(i1, z1 + PARAPET), at(o1, z1 + PARAPET))
     }
   }
   // Piers where given, else wherever the deck stands high enough to need them.
@@ -559,7 +573,7 @@ export function deckMesh(
     const corners: Point[] = [[cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r]]
     for (let c = 0; c < 4; c++) {
       const [a, b] = [corners[c], corners[(c + 1) % 4]]
-      quad([a[0], a[1], h(bottom)], [b[0], b[1], h(bottom)], [b[0], b[1], h(top)], [a[0], a[1], h(top)], colors.concrete)
+      face([a[0], a[1], h(bottom)], [b[0], b[1], h(bottom)], [b[0], b[1], h(top)], [a[0], a[1], h(top)], colors.concrete)
     }
   }
   return out
@@ -623,3 +637,27 @@ export function covered(piece: Piece, decks: Array<{ chain: Chain; bounds: Bound
 
 /** How far beyond a served deck's edge a basemap bridge may lie and still be the same bridge, in metres. */
 export const COVER = 3
+
+/** A web-mercator point, 0-1 across the world, for a longitude and latitude. */
+export function mercator([lng, lat]: number[]): Point {
+  const s = Math.sin((lat * Math.PI) / 180)
+  return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
+}
+
+/** The bounds of the tile a queried feature came from, or null if it does not say. */
+export function tileBounds(feature: any): Bounds | null {
+  const { _x: x, _y: y, _z: z } = feature
+  if (typeof x !== 'number' || typeof z !== 'number') return null
+  const n = 2 ** z
+  return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
+}
+
+export const polygonsOf = (geometry: any): number[][][][] =>
+  geometry?.type === 'Polygon' ? [geometry.coordinates]
+  : geometry?.type === 'MultiPolygon' ? geometry.coordinates
+  : []
+
+export const linesOf = (geometry: any): number[][][] =>
+  geometry?.type === 'LineString' ? [geometry.coordinates]
+  : geometry?.type === 'MultiLineString' ? geometry.coordinates
+  : []

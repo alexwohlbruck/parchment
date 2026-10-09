@@ -50,6 +50,7 @@ import {
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
 import { layPaint, paintOf, strip, type Paint } from './paint'
+import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
@@ -89,16 +90,6 @@ const SAMPLE = 6
 /** Decks whose ground is kept, and how far the map may pan before vertices are re-based (mercator units). */
 const PROFILE_CACHE = 4000
 const REBASE = 1e-3
-
-/** Run when the main thread is idle, or soon where the browser cannot say; returns a cancel. */
-const idle = (run: () => void): (() => void) => {
-  if (typeof requestIdleCallback === 'function') {
-    const handle = requestIdleCallback(run, { timeout: 1000 })
-    return () => cancelIdleCallback(handle)
-  }
-  const handle = setTimeout(run, 0)
-  return () => clearTimeout(handle)
-}
 
 export class DeckLayer {
   id: string
@@ -226,12 +217,9 @@ export class DeckLayer {
   }
 
   private query(source: string, sourceLayer?: string, filter?: any[]): any[] {
-    try {
-      return this.map.querySourceFeatures(source, { ...(sourceLayer ? { sourceLayer } : {}), ...(filter ? { filter } : {}) })
-    } catch {
-      return []
-    }
+    return queryFeatures(this.map, source, sourceLayer, filter)
   }
+
 
   /** Whether the served decks for this view are still on their way, so solving bridges here would be wasted. */
   private awaitingServed(): boolean {

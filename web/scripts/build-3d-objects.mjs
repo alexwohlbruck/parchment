@@ -956,27 +956,6 @@ function lathe(m, sides, profile) {
   return m
 }
 
-/** A flat ridged ribbon along `[r, y, width]` points, swept out at azimuth `a`. */
-function arc(m, a, path) {
-  const [c, s] = [Math.cos(a), Math.sin(a)]
-  const side = [-s, 0, c]
-  const rings = path.map(([r, y, w], k) => {
-    const [r0, y0] = path[Math.max(k - 1, 0)]
-    const [r1, y1] = path[Math.min(k + 1, path.length - 1)]
-    const l = Math.hypot(r1 - r0, y1 - y0)
-    const up = [(-(y1 - y0) / l) * c, (r1 - r0) / l, (-(y1 - y0) / l) * s]
-    return [90, 210, 330].map(d => {
-      const [u, v] = [Math.cos((d * Math.PI) / 180) * w, Math.sin((d * Math.PI) / 180) * (0.12 + w * 0.2)]
-      return [0, 1, 2].map(i => [r * c, y, r * s][i] + side[i] * u + up[i] * v)
-    })
-  })
-  for (let k = 0; k + 1 < rings.length; k++)
-    for (let i = 0; i < 3; i++) quad(m, rings[k][i], rings[k][(i + 1) % 3], rings[k + 1][(i + 1) % 3], rings[k + 1][i])
-  face(m, ...rings[0])
-  face(m, ...rings[rings.length - 1])
-  return m
-}
-
 /** A thick straight bar between two points in the side plane. */
 function bar([z0, y0], [z1, y1], w) {
   const [dz, dy] = [z1 - z0, y1 - y0]
@@ -1106,20 +1085,22 @@ const FURNITURE = {
     }
     return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
   }),
-  // An aerating jet in a pond: a tall plume, a tulip of spray falling away
-  // from it, and a ring of foam where that lands. The pond is the basin.
+  // An aerating jet in a pond: a tall plume, a bell of spray falling away from
+  // it, and a ring of foam where that lands. The pond is the basin.
   'fountain-jet': furnLod(q => {
-    const plume = lathe(mesh(), q.seg ? 6 : 5, q.seg
-      ? [[0, 0], [0.8, 0.1], [0.45, 1.5], [0.35, 7.2], [0.65, 8.7], [0.5, 9.6], [0, 10]]
-      : [[0, 0], [0.6, 0.2], [0.6, 8], [0, 10]])
+    const plume = lathe(mesh(), 5, q.seg
+      ? [[0, 0], [0.7, 0.1], [0.35, 1.2], [0.35, 7.6], [0.6, 8.9], [0, 9.9]]
+      : [[0, 0], [0.5, 0.2], [0.4, 8.6], [0, 9.9]])
     if (!q.seg) {
-      const crown = lathe(mesh(), 5, [[0.8, 0], [1.2, 4.4], [2.2, 4.6], [4.6, 0]])
-      return [plume, crown].map(m => ({ role: 'spray', ...m }))
+      const dome = lathe(mesh(), 6, [[0, 0], [4.5, 0.2], [3.6, 3.2], [1.5, 4.8], [0, 5]])
+      return [plume, dome].map(m => ({ role: 'spray', ...m }))
     }
-    const parts = [plume, lathe(mesh(), 8, [[3.1, 0], [3.9, 0.55, 0.15], [5.1, 0]])]
-    const fall = [0, 0.2, 0.4, 0.6, 0.8, 1].map(t => [0.4 + 4 * t, 1.5 + 19.4 * t - 20.9 * t * t, 0.2 + 0.8 * t])
-    for (let i = 0; i < 6; i++) parts.push(arc(mesh(), ((i + 0.5) / 6) * Math.PI * 2, fall))
-    return parts.map(m => ({ role: 'spray', ...m }))
+    const bell = lathe(mesh(), 10, [
+      [0.45, 7.0], [1.5, 7.4], [2.7, 6.6], [3.7, 4.5], [4.6, 1.2, 0.45],
+      [4.3, 1.5], [3.45, 4.3], [2.55, 6.2], [1.5, 6.9],
+    ])
+    const foam = lathe(mesh(), 8, [[3.1, 0], [3.9, 0.55, 0.15], [5.1, 0]])
+    return [plume, bell, foam].map(m => ({ role: 'spray', ...m }))
   }),
   // A cobra-head lamp, its arm reaching out over the road it faces (-z).
   'street-lamp': furnLod(q => {

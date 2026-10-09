@@ -13,9 +13,9 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
-import { HUNG_MODELS, LINE_MODELS, lineInstance, measure, placeLine } from './lines'
+import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLine } from './lines'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, groundPlane, project, unproject } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
@@ -568,6 +568,32 @@ describe('lines', () => {
     expect(towers).toHaveLength(2)
   })
 
+  test('a long barrier is cut into pieces that fill its segment', () => {
+    const pieces = placeLine('fence', wire, null).filter(p => p.model === 'fence-span' && p.seed === 0)
+    const length = measure([-80.84, 35.2], [-80.838, 35.2]).length
+    expect(pieces.length).toBe(Math.ceil(length / LONGEST_PIECE))
+    for (const p of pieces) expect(p.length).toBeLessThanOrEqual(LONGEST_PIECE)
+    expect(pieces.reduce((sum, p) => sum + p.length!, 0)).toBeCloseTo(length, 6)
+  })
+
+  /** The layer finds a span's ends from its heading, so they must land on the towers it hangs from. */
+  test('a wire span\'s ends, as the layer finds them, are its towers', () => {
+    const placed = placeLine('power_line', wire, null)
+    const towers = placed.filter(p => p.model === 'power-tower')
+    placed.filter(p => p.model === 'power-wires').forEach((span, k) => {
+      const instance = lineInstance('power_line', undefined, span)
+      const at = { x: 0, y: 0, z: 0, perMetre: 0 }
+      project(instance.lng, instance.lat, 0, at)
+      const half = (instance.length! / 2) * at.perMetre
+      const [c, s] = [Math.cos(instance.heading), Math.sin(instance.heading)]
+      for (const [sign, tower] of [[-1, towers[k]], [1, towers[k + 1]]] as const) {
+        const [lng, lat] = unproject(at.x + sign * c * half, at.y + sign * s * half)
+        expect(lng).toBeCloseTo(tower.lng, 7)
+        expect(lat).toBeCloseTo(tower.lat, 7)
+      }
+    })
+  })
+
   test('masts stand along electrified track at an even spacing', () => {
     const track = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.83, 35.2]] }
     const masts = placeLine('catenary', track, null).filter(p => p.model === 'catenary-mast')
@@ -603,6 +629,41 @@ describe('projection', () => {
     expect(out.y).toBeCloseTo(reference.y, 12)
     expect(out.z).toBeCloseTo(reference.z, 12)
     expect(out.perMetre).toBeCloseTo(reference.meterInMercatorCoordinateUnits(), 12)
+  })
+})
+
+describe('ground plane', () => {
+  const slope = (east: number, south: number) => 40 + 0.3 * east - 0.1 * south
+
+  test('recovers a planar slope from any heading when sampled both ways', () => {
+    for (const heading of [0, 0.7, 2, -2.5]) {
+      const plane = groundPlane(heading, 20, 4, slope)
+      expect(plane.elevation).toBeCloseTo(40, 9)
+      expect(plane.gx).toBeCloseTo(0.3, 9)
+      expect(plane.gy).toBeCloseTo(-0.1, 9)
+    }
+  })
+
+  test('sampled along only, it keeps the rise along the object and ignores the cross slope', () => {
+    const plane = groundPlane(0, 20, 0, slope)
+    expect(plane.gx).toBeCloseTo(0.3, 9)
+    expect(plane.gy).toBe(0)
+  })
+
+  test('meets the ground at both ends however the ground curves between them', () => {
+    const hill = (east: number, south: number) => 100 - 0.01 * (east * east + south * south) + 0.2 * east
+    const heading = 0.4
+    const along = 60
+    const plane = groundPlane(heading, along, 0, hill)
+    for (const sign of [-1, 1]) {
+      const east = sign * Math.cos(heading) * (along / 2)
+      const south = sign * Math.sin(heading) * (along / 2)
+      expect(plane.elevation + plane.gx * east + plane.gy * south).toBeCloseTo(hill(east, south), 9)
+    }
+  })
+
+  test('flat ground has no slope', () => {
+    expect(groundPlane(1, 30, 5, () => 12)).toEqual({ elevation: 12, gx: 0, gy: 0 })
   })
 })
 

@@ -19,6 +19,13 @@
 
 ### Changed
 
+* **A brand no longer sits right under the city you typed.** Searching
+  "austin" or "manhattan" put a small chain that only starts with the name
+  (Austin Bank, Manhattan Bagel) second, above the rest of the places with that
+  name. When a place is named exactly what was typed, a brand that only partly
+  matches now comes after the first few places. A brand still leads when it is
+  what was typed ("target") or when no place has that name ("starbuks").
+
 * A fountain in a pond or lake now draws as a jet of water rather than a stone basin.
 * The experimental HD roads setting now works on the MapLibre map too, drawing lane markings, crosswalks and turn arrows.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.

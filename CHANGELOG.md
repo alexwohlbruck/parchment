@@ -21,6 +21,7 @@
 
 ### Fixed
 
+* Distant palm trees on the 3D map now look like palms. Past the first screenful each one was drawn as a ball on a stick. Nearby palms are redrawn too: slimmer grey trunks, long arching fronds, and a fan palm alongside the feather palms.
 * Buildings near a 3D landmark no longer flatten a second after the map loads. A large ride such as a roller coaster hid every building standing anywhere within its outer bounds, so at Carowinds the entrance plaza, the Paladium and most of the buildings around Fury 325 lost their 3D shape. A landmark now hides only the buildings it actually stands on.
 
 ## [0.13.2] - 2026-10-07

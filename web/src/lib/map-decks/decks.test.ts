@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -255,5 +255,55 @@ describe('deckMesh structure', () => {
     const slab = 3 * 2 * 2
     expect(triangles(m, 1) - slab).toBe(8)
     expect(triangles(spaced, 1) - slab).toBe(8 * 3)
+  })
+})
+
+describe('decks following their outline', () => {
+  const colors = { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [0.5, 0.5, 0.5] }
+  /** The deck surface's corners, in metres from the deck's start: [along, to the left]. */
+  const surface = (c: Chain) => {
+    const m = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, { position: [], normal: [], color: [] })
+    const corners: Array<[number, number]> = []
+    for (let k = 0; k < m.position.length; k += 3)
+      if (m.color[k] === 0) corners.push([Math.round(m.position[k] / M), Math.round(m.position[k + 1] / M)])
+    return corners
+  }
+
+  test('each side reaches as far as its own edge at every vertex', () => {
+    const c: Chain = { ...chain(line(0, 40, 80), [true, true]), sides: [[6, 10, 6], [4, 4, 8]] }
+    const corners = surface(c)
+    const at = (x: number) => corners.filter(([along]) => along === x).map(([, left]) => left)
+    expect(Math.max(...at(0))).toBe(6)
+    expect(Math.min(...at(0))).toBe(-4)
+    expect(Math.max(...at(40))).toBe(10)
+    expect(Math.min(...at(80))).toBe(-8)
+  })
+
+  test('ends meet the outline: a side runs on past its end, or stops short of it', () => {
+    const c: Chain = { ...chain(line(0, 40, 80), [true, true]), caps: [-5, 10, 0, 0] }
+    const corners = surface(c)
+    const left = corners.filter(([, side]) => side > 0).map(([along]) => along)
+    const right = corners.filter(([, side]) => side < 0).map(([along]) => along)
+    expect(Math.min(...left)).toBe(-5)
+    expect(Math.min(...right)).toBe(10)
+    expect(Math.max(...left, ...right)).toBe(80)
+  })
+
+  test('twin carriageways whose edges meet lose the parapet between them', () => {
+    // Centrelines 12 m apart: 5 m edges leave a gap, edges reaching 6 m in do not.
+    const twin = (sides?: [number[], number[]]) => [
+      { chain: { ...chain(line(0, 40, 80), [true, true]), ...(sides ? { sides } : {}) }, z: [110, 110, 110] },
+      { chain: { ...chain(offset(12, 0, 40, 80), [true, true]), ...(sides ? { sides: [sides[1], sides[0]] as [number[], number[]] } : {}) }, z: [110, 110, 110] },
+    ]
+    expect(joinNeighbours(twin())[0][0].some(Boolean)).toBe(false)
+    expect(joinNeighbours(twin([[6, 6, 6], [5, 5, 5]]))[0][0].every(Boolean)).toBe(true)
+  })
+
+  test('a served deck takes its shape only from rows that carry one for every sample', () => {
+    const shaped = { format: 2, left_edges: '60,62,65', right_edges: '40,40,41', caps: '-12,8,0,0' }
+    expect(parseShape(shaped, 3)).toEqual({ sides: [[6, 6.2, 6.5], [4, 4, 4.1]], caps: [-1.2, 0.8, 0, 0] })
+    expect(parseShape({ ...shaped, format: 1 }, 3)).toEqual({})
+    expect(parseShape({ format: 2 }, 3)).toEqual({})
+    expect(parseShape(shaped, 4)).toEqual({})
   })
 })

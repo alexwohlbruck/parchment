@@ -307,7 +307,7 @@ let view: Bounds | null = null
 /** Planting goes block by block, so a wood is only planted where it is seen. */
 const BLOCK = 16 * FOREST_SPACING
 
-const BUDGET = 6000
+const BUDGET = 10000
 
 /**
  * Where trees can still make the budget: the view, padded a tenth each way so

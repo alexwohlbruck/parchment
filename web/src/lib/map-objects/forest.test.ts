@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, falloff, forestCamera, forestLevel, forestTree, FULL_REACH, keeps, latticeLevel, plantForest, polygonsOf, screenSpacing, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
+import { buildExclusions, falloff, forestCamera, forestLevel, forestTree, FULL_REACH, keeps, latticeLevel, plantForest, polygonsOf, screenSpacing, spansAt, CROWN_SUFFIX, FOREST_SPACING, type ForestPoint } from './forest'
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -77,7 +77,7 @@ describe('forest planting', () => {
 
   test('a strided planting is the full planting on the coarser lattice', () => {
     const ex = buildExclusions([], [])
-    const key = (t: number[]) => `${t[2]},${t[3]}`
+    const key = (t: ForestPoint) => `${t[2]},${t[3]}`
     const full = plantForest(wood, everywhere, ex).filter(t => t[2] % 4 === 0 && t[3] % 4 === 0).map(key)
     expect(plantForest(wood, everywhere, ex, 4).map(key)).toEqual(full)
   })

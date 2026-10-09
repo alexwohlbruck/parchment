@@ -63,6 +63,11 @@ const SETTLE = 80
 const MOVING_GATHER = 600
 const AT_MOST = 300
 
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds. */
+const SLICE = 8
+/** Candidates placed between checks of the slice clock. */
+const STEP = 256
+
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
 const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
 
@@ -383,6 +388,8 @@ export class ObjectLayer {
   private needsArrange = true
   private scheduled = 0
   private pendingSince = 0
+  private gathering: Iterator<void> | null = null
+  private slice = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
   /** Bumped whenever the drawn instances change, so a cached shadow mask is redrawn. */
@@ -511,9 +518,32 @@ export class ObjectLayer {
       // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
       const now = performance.now()
       if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
-      if (this.needsArrange) this.arrange()
-      this.map.triggerRepaint?.()
+      else if (this.needsArrange && !this.gathering) {
+        this.arrange()
+        this.map.triggerRepaint?.()
+      }
     }, wait) as unknown as number
+  }
+
+  /** Start a gather, abandoning any still in progress, and run it a slice at a time. */
+  private gather() {
+    clearTimeout(this.slice)
+    this.gathering = this.gatherSteps()
+    this.runSlice()
+  }
+
+  private runSlice() {
+    const steps = this.gathering
+    if (!steps || !this.map) return
+    const until = performance.now() + SLICE
+    while (performance.now() < until) {
+      if (!steps.next().done) continue
+      this.gathering = null
+      this.arrange()
+      this.map.triggerRepaint?.()
+      return
+    }
+    this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
   }
 
   private upload(gl: WebGL2RenderingContext, target: number, data: ArrayBufferView) {
@@ -527,7 +557,9 @@ export class ObjectLayer {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
     if (this.scheduled) clearTimeout(this.scheduled)
+    clearTimeout(this.slice)
     this.scheduled = 0
+    this.gathering = null
     this.map = null
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.shadowProgram)
@@ -557,12 +589,12 @@ export class ObjectLayer {
    * an object on a tile boundary would otherwise be drawn twice — hence the id
    * set. Objects with no id are kept: a duplicate is better than a hole.
    */
-  private gather() {
+  private *gatherSteps(): Generator<void> {
     this.needsGather = false
     this.gatheredAt = performance.now()
     const zoom = this.map.getZoom()
     this.gatheredZoom = zoom
-    this.placed = []
+    const placedNow: Placed[] = []
 
     const terrain = this.map.getTerrain?.() ? this.map : null
     const seen = new Set<string>()
@@ -584,6 +616,7 @@ export class ObjectLayer {
       } catch {
         continue
       }
+      yield
       const positions = spec.positions ?? pointPositions
       const candidates: Array<[any, number, number, number]> = []
       for (const feature of features) {
@@ -609,15 +642,18 @@ export class ObjectLayer {
         candidates.sort((a, b) => away(a) - away(b))
         candidates.length = spec.budget
       }
-      for (const [feature, i, lng, lat] of candidates) {
+      for (let c = 0; c < candidates.length; c++) {
+        if (c % STEP === STEP - 1) yield
+        const [feature, i, lng, lat] = candidates[c]
         const instance = spec.toInstance(feature, lng, lat, i)
         if (!instance) continue
         const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
         project(lng, lat, elevation, placed)
-        this.placed.push(placed)
+        placedNow.push(placed)
       }
     }
+    this.placed = placedNow
   }
 
   /**

@@ -108,7 +108,8 @@ export interface MapSettings {
   roadLabels: boolean
   transitLabels: boolean
   placeLabels: boolean
-  hdRoads: boolean
+  /** `null` until the user chooses; see `resolveHdRoads`. */
+  hdRoads: boolean | null
   /**
    * Render indoor floor plans (airports, malls, stadiums) with a floor
    * selector. Mapbox Standard style only, and only from zoom 16.

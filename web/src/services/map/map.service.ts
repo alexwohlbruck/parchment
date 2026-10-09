@@ -657,7 +657,7 @@ function mapService() {
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
     mapStrategy?.setMap3dBuildings(mapStore.settings.buildings3d)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
-    mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
+    mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
 
@@ -1079,7 +1079,6 @@ function mapService() {
     roadLabels: (v: boolean) => mapStrategy?.setRoadLabels(v),
     transitLabels: (v: boolean) => mapStrategy?.setTransitLabels(v),
     placeLabels: (v: boolean) => mapStrategy?.setPlaceLabels(v),
-    hdRoads: (v: boolean) => mapStrategy?.setHdRoads(v),
     indoorMaps: (v: boolean) => mapStrategy?.setIndoorMaps(v),
   } as const
 
@@ -1100,8 +1099,16 @@ function mapService() {
   const toggleTransitLabels = (v?: boolean) =>
     setStrategyToggle('transitLabels', v)
   const togglePlaceLabels = (v?: boolean) => setStrategyToggle('placeLabels', v)
-  const toggleHdRoads = (v?: boolean) => setStrategyToggle('hdRoads', v)
   const toggleIndoorMaps = (v?: boolean) => setStrategyToggle('indoorMaps', v)
+
+  // Not in the table: the map follows the engine's default until the user chooses.
+  watch(
+    () => mapStore.hdRoads,
+    value => mapStrategy?.setHdRoads(value),
+  )
+  function toggleHdRoads(value?: boolean) {
+    mapStore.settings.hdRoads = value ?? !mapStore.hdRoads
+  }
 
   function toggleNorthUpSnap(value?: boolean) {
     // Default-on: a persisted settings object may predate this key.

@@ -83,7 +83,7 @@ const overriding = computed(() => !!props.mapSettings)
 
 /** Off, the switches report what the app is set to rather than going blank. */
 function valueOf(key: keyof CanvasMapSettings) {
-  return props.mapSettings?.[key] ?? settings.value[key]
+  return (props.mapSettings ?? currentMapSettings())[key]
 }
 
 function setOverriding(on: boolean) {

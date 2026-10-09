@@ -20,6 +20,7 @@ import {
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
+import { resolveHdRoads } from '@/lib/map-style/hd-roads'
 
 const emitter = mitt<MapEvents>()
 
@@ -37,7 +38,7 @@ const defaultSettings: MapSettings = {
   roadLabels: true,
   transitLabels: true,
   placeLabels: true,
-  hdRoads: false,
+  hdRoads: null,
   indoorMaps: false,
   northUpSnap: true,
   gridSnapMode: GridSnapMode.NORTH_UP,
@@ -122,6 +123,19 @@ export const useMapStore = defineStore('map', () => {
     settings.value.buildings3d = settings.value.objects3d ?? true
   }
   if (settings.value.objects3d === undefined) settings.value.objects3d = true
+
+  // HD roads became default-on for MapLibre. A stored `false` from the old
+  // default can't be told apart from a chosen one, so clear it once.
+  const hdRoadsDefaultApplied = useStorage('map-hd-roads-default', false)
+  if (!hdRoadsDefaultApplied.value) {
+    if (settings.value.hdRoads === false) settings.value.hdRoads = null
+    hdRoadsDefaultApplied.value = true
+  }
+
+  const hdRoads = computed(() =>
+    resolveHdRoads(settings.value.hdRoads, settings.value.engine),
+  )
+
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
     getDefaultControlSettings(),
@@ -194,6 +208,7 @@ export const useMapStore = defineStore('map', () => {
     setMapStrategy,
     getMapStrategy,
     settings,
+    hdRoads,
     controlSettings,
     mapCamera,
     setMapCamera,

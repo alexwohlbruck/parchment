@@ -1202,7 +1202,7 @@ export class MaplibreStrategy extends MapStrategy {
   private builtHdRoads?: boolean
 
   private hdRoads(): boolean {
-    this.builtHdRoads = !!useMapStore().settings.hdRoads
+    this.builtHdRoads = useMapStore().hdRoads
     return this.builtHdRoads
   }
 

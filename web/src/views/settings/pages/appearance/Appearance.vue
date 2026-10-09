@@ -195,7 +195,7 @@ const handleColorChange = (value: any) => {
         :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
-          :model-value="settings.hdRoads"
+          :model-value="mapStore.hdRoads"
           @update:model-value="mapService.toggleHdRoads()"
         />
       </SettingsItem>

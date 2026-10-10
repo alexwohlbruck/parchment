@@ -40,7 +40,7 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
   band: 0.24,
-  shadowBlur: 2,
+  shadowBlur: 1,
   /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
   fadeZoom: 1.2,
   /** What the cast shadow drops to looking straight down, where it reads as a stain. */
@@ -61,7 +61,7 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.16, aoIntensity: 0.23, strength: 0.04, edge: 0.18 },
+  light: { shadowAlpha: 0.16, aoIntensity: 0.18, strength: 0.04, edge: 0.18 },
   dark: { shadowAlpha: 0.07, aoIntensity: 0.18, strength: 0.035, edge: 0.2 },
 }
 

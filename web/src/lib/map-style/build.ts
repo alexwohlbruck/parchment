@@ -17,6 +17,7 @@ import {
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
+import { stepsLayers } from './steps-layers'
 import { asphaltRoads, roadMarkingLayers } from './road-markings'
 import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
@@ -623,6 +624,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
     if (last >= 0) {
       out.splice(last + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth, bridge))
     }
+  }
+
+  // Treads go over the path and every tint of it, so a bike-designated stair
+  // still reads as a stair.
+  for (const { above, layer } of stepsLayers(out)) {
+    const last = out.map(l => l.id === above || l.id.startsWith(`${above} (`)).lastIndexOf(true)
+    if (last >= 0) out.splice(last + 1, 0, layer)
   }
 
 

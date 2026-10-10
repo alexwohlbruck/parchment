@@ -17,9 +17,10 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 const FROM = 16
 const TO = FROM + 0.6
 
-const COLORS: Record<FlavorId, { asphalt: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
   light: {
     asphalt: 'hsl(200, 3%, 57%)',
+    island: 'hsl(88, 26%, 83%)',
     white: 'hsl(40, 20%, 97%)',
     crosswalk: 'hsl(40, 6%, 91%)',
     yellow: 'hsl(52, 88%, 56%)',
@@ -30,6 +31,7 @@ const COLORS: Record<FlavorId, { asphalt: string; white: string; crosswalk: stri
   // and its edge hairline do not double up.
   dark: {
     asphalt: 'hsl(222, 5%, 25%)',
+    island: 'hsl(150, 10%, 21%)',
     white: '#a4a29f',
     crosswalk: '#8f8e8c',
     yellow: '#bca83d',
@@ -108,7 +110,9 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       layout: { 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 1, 'line-opacity': edgeFadeIn } },
   ]
   return [
-    ...fill('Road surface', ROAD_SURFACE_TILES, band, c.asphalt),
+    ...fill('Road surface', ROAD_SURFACE_TILES, ['all', band, ['!=', ['get', 'kind'], 'island']], c.asphalt),
+    // A turning loop's island, over the basemap road that runs into its middle.
+    ...fill('Road island', ROAD_SURFACE_TILES, ['all', band, ['==', ['get', 'kind'], 'island']], c.island),
     ...fill('Road lane fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
       ['match', ['get', 'color'], 'red', c.red, c.green]),
     ...fill('Road paint fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],

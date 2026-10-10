@@ -249,6 +249,25 @@ export function landmarkLayers(): any[] {
   ]
 }
 
+/** Detail layers the map only reads through `querySourceFeatures`, never draws. */
+export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DECK_TILES]
+
+/**
+ * Invisible layers that keep the read-only detail layers in every tile. Past
+ * the source's maxzoom MapLibre builds tiles from the parent and keeps only
+ * source layers some style layer uses, so without these they vanish above z16.
+ */
+export function readOnlyDetailLayers(): any[] {
+  return READ_ONLY_DETAIL_TILES.map(sourceLayer => ({
+    id: `Keep ${sourceLayer}`,
+    type: 'circle',
+    source: DETAIL_SOURCE,
+    'source-layer': sourceLayer,
+    minzoom: 14,
+    paint: { 'circle-opacity': 0, 'circle-radius': 1 },
+  }))
+}
+
 /** The paved surface and its edge, drawn beneath the pedestrian block. */
 export function parkingLayers(flavor: FlavorId): any[] {
   const c = DETAIL_COLORS[flavor]

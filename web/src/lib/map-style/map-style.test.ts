@@ -22,7 +22,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES } from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
@@ -2547,5 +2547,12 @@ describe('HD roads off', () => {
     const casing = style.layers.find(l => l.id === 'Minor road outline') as any
     expect(minor.paint['line-color'][0]).not.toBe('interpolate')
     expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
+  })
+})
+
+describe('read-only detail layers', () => {
+  test('each has a style layer, so overzoomed tiles keep it', () => {
+    const used = new Set(buildMapStyle({ ...opts, theme: 'light' }).layers.map((l: any) => l['source-layer']))
+    for (const sourceLayer of READ_ONLY_DETAIL_TILES) expect(used.has(sourceLayer), sourceLayer).toBe(true)
   })
 })

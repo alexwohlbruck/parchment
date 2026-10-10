@@ -470,7 +470,7 @@
       "baseMap": "Mapa base",
       "overlays": "Superposiciones",
       "pois": "Puntos de interés",
-      "labels": "Etiquetas de calles y lugares",
+      "labels": "Etiquetas",
       "savedPlaces": "Mostrar lugares guardados",
       "showCanvases": "Mostrar lienzos",
       "placeCount": "{count} lugares",

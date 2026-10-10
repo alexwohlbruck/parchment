@@ -476,7 +476,7 @@
       "baseMap": "Base map",
       "overlays": "Overlays",
       "pois": "Points of interest",
-      "labels": "Street and place labels",
+      "labels": "Labels",
       "savedPlaces": "Show saved places",
       "showCanvases": "Show canvases",
       "placeCount": "{count} places",

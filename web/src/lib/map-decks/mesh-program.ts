@@ -56,14 +56,22 @@ export function deleteMesh(gl: WebGL2RenderingContext, buffers: MeshBuffers | nu
  * Bind the program with its matrix and the style's light, and the buffers to
  * its attributes; returns a draw for a range of vertices and an unbind.
  */
+const locations = new WeakMap<WebGLProgram, { matrix: WebGLUniformLocation | null; light: WebGLUniformLocation | null; attributes: number[] }>()
+
 export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buffers: MeshBuffers, matrix: Float32Array, light: number[]) {
+  let at = locations.get(program)
+  if (!at) {
+    at = { matrix: gl.getUniformLocation(program, 'u_matrix'), light: gl.getUniformLocation(program, 'u_light'), attributes: ['a_position', 'a_normal', 'a_color'].map(name => gl.getAttribLocation(program, name)) }
+    locations.set(program, at)
+  }
   gl.useProgram(program)
-  gl.uniformMatrix4fv(gl.getUniformLocation(program, 'u_matrix'), false, matrix)
+  gl.uniformMatrix4fv(at.matrix, false, matrix)
   const l = Math.hypot(light[0], light[1], light[2]) || 1
-  gl.uniform3f(gl.getUniformLocation(program, 'u_light'), light[0] / l, light[1] / l, light[2] / l)
+  gl.uniform3f(at.light, light[0] / l, light[1] / l, light[2] / l)
   gl.bindVertexArray(null)
-  const locs = ([['a_position', buffers.position], ['a_normal', buffers.normal], ['a_color', buffers.color]] as const).map(([name, buffer]) => {
-    const loc = gl.getAttribLocation(program, name)
+  const attributes = at.attributes
+  const locs = [buffers.position, buffers.normal, buffers.color].map((buffer, k) => {
+    const loc = attributes[k]
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.enableVertexAttribArray(loc)
     gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0)

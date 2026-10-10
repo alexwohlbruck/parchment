@@ -1,9 +1,11 @@
 /**
- * Terrain tiles past the source's most detailed zoom, upsampled from it. The
- * ground keeps the shape it had; what the finer grid adds is room for what is
- * carved into it.
+ * Terrain tiles past the source's most detailed zoom, upsampled from it, in
+ * the areas they are asked for. The ground keeps the shape it had; what the
+ * finer grid adds is room for what is carved into it. Elsewhere the tile is
+ * missing, and the map draws its parent.
  */
 import { fetchHeights, sampleHeights, type Heights } from '@/lib/map-decks/ground'
+import type { Bounds } from '@/lib/map-decks/decks'
 import { FINE_TERRAIN_PROTOCOL, TERRAIN_TILES } from './terrain'
 
 const SOURCE_MAXZOOM = 15
@@ -38,9 +40,15 @@ const missing = () => Object.assign(new Error('No terrain here'), { status: 404 
 export class FineTerrain {
   private parents = new Map<string, Promise<Heights | null>>()
   private load = fetchHeights(TERRAIN_TILES, 'terrarium')
+  private areas: Bounds[] = []
+
+  /** Serve finer tiles over these areas only, in mercator units. */
+  focus(areas: Bounds[]) {
+    this.areas = areas
+  }
 
   /** The image for a `fine-terrain://z/x/y` tile: fetched as it is up to the source's zoom, upsampled past it. */
-  async tile(url: string): Promise<ArrayBuffer> {
+  async tile(url: string): Promise<ArrayBuffer | ImageBitmap> {
     const [z, x, y] = url.slice(FINE_TERRAIN_PROTOCOL.length + 3).split('/').map(Number)
     if (z <= SOURCE_MAXZOOM) {
       const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)))
@@ -48,14 +56,14 @@ export class FineTerrain {
       if (!res.ok) throw new Error(`terrain ${res.status}`)
       return res.arrayBuffer()
     }
+    const n = 2 ** z
+    if (!this.areas.some(a => a.maxX >= x / n && a.minX <= (x + 1) / n && a.maxY >= y / n && a.minY <= (y + 1) / n)) throw missing()
     for (let depth = z - SOURCE_MAXZOOM; z - depth >= SOURCE_MAXZOOM - 5; depth++) {
       const n = 2 ** depth
       const parent = await this.parent(z - depth, Math.floor(x / n), Math.floor(y / n))
       if (!parent) continue
-      const canvas = new OffscreenCanvas(SIZE, SIZE)
       const image = new ImageData(encodeTerrarium(upsample(parent, depth, [x % n, y % n], SIZE)), SIZE, SIZE)
-      canvas.getContext('2d')!.putImageData(image, 0, 0)
-      return (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer()
+      return createImageBitmap(image, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
     }
     throw missing()
   }

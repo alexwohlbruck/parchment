@@ -32,6 +32,11 @@ describe('carvedAt', () => {
     expect(carvedAt(cut, at(-0.5))).toBeNull()
     expect(carvedAt(cut, at(40.5))).toBeNull()
   })
+
+  test('stays square at its start however wide it reaches round a bend', () => {
+    const wide = footprint([at(0), at(3), at(6, 3)], [10, 10, 10], [[10, 10, 10], [10, 10, 10]], [2, 2], [2, 2], [12, 12])
+    expect(carvedAt(wide, at(-3))).toBeNull()
+  })
 })
 
 describe('carveTile', () => {

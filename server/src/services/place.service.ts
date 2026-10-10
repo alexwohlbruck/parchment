@@ -763,6 +763,48 @@ async function enrichPlaceWithFoursquareData(
 }
 
 /**
+ * Attaches reviews from every configured review source, matched by the place's
+ * name and location. These sources are free, so unlike Foursquare this is not
+ * premium-gated.
+ */
+async function enrichPlaceWithReviews(place: Place): Promise<Place> {
+  const name = place.name?.value
+  const center = place.geometry?.value?.center
+  if (!name || !center) return place
+
+  const records = integrationManager.getConfiguredIntegrationsByCapability(
+    IntegrationCapabilityId.REVIEWS,
+  )
+  const results = await Promise.all(
+    records.map(async (record) => {
+      try {
+        const integration = integrationManager.getCachedIntegrationInstance(record)
+        return (
+          (await integration?.capabilities.reviews?.getReviews({
+            name,
+            lat: center.lat,
+            lng: center.lng,
+          })) ?? null
+        )
+      } catch (error) {
+        if (!isAbortError(error)) {
+          logError(`Error fetching reviews from ${record.integrationId}`, error)
+        }
+        return null
+      }
+    }),
+  )
+
+  for (const result of results) {
+    if (!result) continue
+    place.reviews = [...(place.reviews ?? []), ...result.reviews]
+    if (result.ratings) place.ratings = result.ratings
+    place.sources = [...place.sources, result.source]
+  }
+  return place
+}
+
+/**
  * Look up a place by ID and enrich it with data from other sources
  *
  * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
@@ -831,18 +873,29 @@ export async function lookupEnrichedPlaceById(
     // Transit departure data is now fetched separately via the widget system
     // Clone the place object for each enrichment to avoid race conditions
     const enrichmentStart = Date.now()
-    const [wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace] = await Promise.all([
+    const [
+      wikiEnrichedPlace,
+      addressEnrichedPlace,
+      foursquareEnrichedPlace,
+      reviewsEnrichedPlace,
+    ] = await Promise.all([
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
       enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
         premiumData,
         language,
       }),
+      enrichPlaceWithReviews(JSON.parse(JSON.stringify(place))),
     ])
 
     // Merge the results (wiki data takes precedence for conflicts; Foursquare
     // fills photos/hours/ratings that base + wiki + address lack)
-    place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace)
+    place = mergePlaces(
+      wikiEnrichedPlace,
+      addressEnrichedPlace,
+      foursquareEnrichedPlace,
+      reviewsEnrichedPlace,
+    )
     const enrichmentTime = Date.now() - enrichmentStart
     logger.debug(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 

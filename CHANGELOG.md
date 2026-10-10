@@ -83,6 +83,7 @@
 * Share a private collection with friends. They can open it, and editors can add places, while it stays end-to-end encrypted.
 * A place's page now lists the collections you've saved it to. Tap one to open it.
 * Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
+* Places now show open reviews and ratings from Mangrove. Sign in with your Mangrove account (OpenStreetMap, Bluesky, Google, GitHub or a passkey) to write, edit and delete your own.
 
 ### Changed
 

@@ -277,6 +277,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.MANGROVE,
+    name: 'Mangrove',
+    description: 'Open, community-written place reviews and ratings',
+    color: '#2F9E44',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.MANGROVE,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'mangroveSchema',
+    publicFields: ['signerClientId'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OPENWEATHERMAP,
     name: 'OpenWeatherMap',
     description: 'Weather data and air quality information',

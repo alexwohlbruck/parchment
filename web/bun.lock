@@ -45,6 +45,7 @@
         "latest": "^0.2.0",
         "lucide-static": "^0.511.0",
         "lucide-vue-next": "0.475.0",
+        "mangrove-reviews": "^0.8.1",
         "mapbox-gl": "^3.27.0",
         "mapillary-js": "^4.1.2",
         "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.11.2-transit.2",
@@ -1771,6 +1772,8 @@
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
     "make-asynchronous": ["make-asynchronous@1.1.0", "", { "dependencies": { "p-event": "^6.0.0", "type-fest": "^4.6.0", "web-worker": "^1.5.0" } }, "sha512-ayF7iT+44LXdxJLTrTd3TLQpFDDvPCBxXxbv+pMUSuHA5Q8zyAfwkRP6aHHwNVFBUFWtxAHqwNJxF8vMZLAbVg=="],
+
+    "mangrove-reviews": ["mangrove-reviews@0.8.1", "", {}, "sha512-huFpYijjgfdxDWqhsILit9aVFpKnCD3Da5qS4tM+74kvGvpL6F1oM1TUW4BQmoG1w8D1Mk/jbYtcZxHqV+YvOA=="],
 
     "mapbox-gl": ["mapbox-gl@3.27.0", "", {}, "sha512-K8W9LTTjFEJsg9qsnJbKk+zbXrmSqa+nU1EiFXez5gQ0T0RMtylZUelgg1/RE6vCUMvHX0gaYfWU9g2mTWuA0g=="],
 

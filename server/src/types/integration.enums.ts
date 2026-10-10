@@ -33,6 +33,8 @@ export enum IntegrationId {
   FIRMS = 'firms',
   /** Quackback — backend for the in-app feedback form. System-only, config-only. */
   QUACKBACK = 'quackback',
+  /** Mangrove — open, signed place reviews (mangrove.reviews). */
+  MANGROVE = 'mangrove',
 }
 
 export enum IntegrationCapabilityId {
@@ -58,4 +60,5 @@ export enum IntegrationCapabilityId {
   TRANSIT_ROUTING = 'transitRouting',
   RIDESHARE_ESTIMATE = 'rideshareEstimate',
   FEEDBACK = 'feedback',
+  REVIEWS = 'reviews',
 }

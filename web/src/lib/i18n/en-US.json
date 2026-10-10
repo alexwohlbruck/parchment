@@ -1400,7 +1400,32 @@
       "title": "Reviews",
       "ratings": "{count} rating | {count} ratings",
       "showAll": "Show all {count} reviews",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "writeOnMangrove": "Write a review on Mangrove",
+      "yours": "Your review",
+      "write": "Write a review",
+      "empty": "No reviews yet.",
+      "form": {
+        "opinion": "What was it like?",
+        "nickname": "Name shown with your review (optional)",
+        "publicNotice": "Reviews are published openly on Mangrove under CC BY 4.0, where anyone can read and reuse them.",
+        "post": "Post review",
+        "update": "Update review",
+        "edit": "Edit",
+        "delete": "Delete",
+        "posted": "Review posted",
+        "updated": "Review updated",
+        "deleted": "Review deleted",
+        "failed": "Couldn't save your review"
+      },
+      "signIn": {
+        "title": "Sign in to Mangrove to post",
+        "description": "Your review is published under your Mangrove account, the same one used on mangrove.reviews and other apps.",
+        "waiting": "Finish signing in in the new window…",
+        "passkey": "Passkey",
+        "expired": "Your Mangrove sign-in expired. Sign in again to continue.",
+        "failed": "Couldn't sign in to Mangrove"
+      }
     },
     "tabs": {
       "overview": "Overview",
@@ -2114,7 +2139,8 @@
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
-        "feedback": "Feedback"
+        "feedback": "Feedback",
+        "reviews": "Reviews"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -2134,6 +2160,7 @@
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
         "wikimedia": "Free media repository for place images",
+        "mangrove": "Open, community-written place reviews and ratings",
         "openweathermap": "Weather data and air quality information",
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
         "barrelman": "Self-hosted OSM search and spatial engine",

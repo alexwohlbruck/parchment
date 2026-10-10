@@ -1350,7 +1350,32 @@
       "title": "Opiniones",
       "ratings": "{count} valoración | {count} valoraciones",
       "showAll": "Ver las {count} opiniones",
-      "showLess": "Ver menos"
+      "showLess": "Ver menos",
+      "writeOnMangrove": "Escribe una opinión en Mangrove",
+      "yours": "Tu opinión",
+      "write": "Escribir una opinión",
+      "empty": "Aún no hay opiniones.",
+      "form": {
+        "opinion": "¿Qué tal fue?",
+        "nickname": "Nombre que aparece con tu opinión (opcional)",
+        "publicNotice": "Las opiniones se publican abiertamente en Mangrove con licencia CC BY 4.0, donde cualquiera puede leerlas y reutilizarlas.",
+        "post": "Publicar opinión",
+        "update": "Actualizar opinión",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "posted": "Opinión publicada",
+        "updated": "Opinión actualizada",
+        "deleted": "Opinión eliminada",
+        "failed": "No se pudo guardar tu opinión"
+      },
+      "signIn": {
+        "title": "Inicia sesión en Mangrove para publicar",
+        "description": "Tu opinión se publica con tu cuenta de Mangrove, la misma que usas en mangrove.reviews y otras aplicaciones.",
+        "waiting": "Termina de iniciar sesión en la nueva ventana…",
+        "passkey": "Llave de acceso",
+        "expired": "Tu sesión de Mangrove ha caducado. Vuelve a iniciar sesión para continuar.",
+        "failed": "No se pudo iniciar sesión en Mangrove"
+      }
     },
     "tabs": {
       "overview": "Resumen",
@@ -2006,7 +2031,8 @@
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
-        "feedback": "Comentarios"
+        "feedback": "Comentarios",
+        "reviews": "Opiniones"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -2025,6 +2051,7 @@
         "wikidata": "Base de conocimiento estructurado para enriquecer información de lugares",
         "wikipedia": "Contenido gratuito de enciclopedia y descripciones de lugares",
         "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
+        "mangrove": "Opiniones y valoraciones de lugares, abiertas y escritas por la comunidad",
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",

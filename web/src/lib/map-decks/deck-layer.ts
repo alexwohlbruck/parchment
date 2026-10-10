@@ -23,6 +23,8 @@ import {
   edgePoints,
   joinNeighbours,
   smooth,
+  steady,
+  rounded,
   beside,
   boundsOf,
   chains,
@@ -353,7 +355,12 @@ export class DeckLayer {
         if (resting[0] !== null || resting[1] !== null) s.z = solve(s.chain, s.groundAt, resting)
       }
     }
-    for (const s of solved.slice(0, local)) s.z = smooth(s.z, along(s.chain.points), s.groundAt)
+    for (const s of solved.slice(0, local)) {
+      const d = along(s.chain.points)
+      s.z = smooth(s.z, d, steady(s.groundAt, d))
+    }
+    // Curves filled in before anything is laid along them.
+    for (const s of solved) Object.assign(s, rounded(s.chain, s.z, s.groundAt))
     const open = joinNeighbours(solved)
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1

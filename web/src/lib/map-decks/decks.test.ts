@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -129,6 +129,24 @@ describe('deck profile', () => {
     expect(Math.max(...z)).toBeGreaterThan(107)
   })
 
+  test('a long deck over uneven ground runs as one arch, without waves', () => {
+    const points = densify(line(0, 900), 6)
+    const d = along(points)
+    const ground = d.map((x, i) => 100 + 1.5 * Math.sin(x / 40) + (i % 7 === 3 ? 4 : 0))
+    const z = smooth(solve(chain(points, [true, true]), ground), d, steady(ground, d))
+    // Never a sag: every height at least the lower of the highest either side of it.
+    z.forEach((h, i) => expect(Math.min(Math.max(...z.slice(0, i + 1)), Math.max(...z.slice(i))) - h).toBeLessThan(0.01))
+    for (let i = 1; i < z.length - 1; i++) expect(Math.abs(z[i + 1] - 2 * z[i] + z[i - 1])).toBeLessThan(0.05)
+  })
+
+  test('the arch is the least concave line over every point, through both ends', () => {
+    expect(arch([0, 10, 20, 30, 40], [0, 5, 1, 5, 0])).toEqual([0, 5, 5, 5, 0])
+  })
+
+  test('a lone spike in the ground is read through', () => {
+    expect(steady([1, 1, 1, 9, 1, 1], [0, 6, 12, 18, 24, 30])[3]).toBe(1)
+  })
+
   test('easing takes the kink out of a ramp without lifting its ends', () => {
     const points = densify(line(0, 60), 6)
     const d = along(points)
@@ -253,8 +271,17 @@ describe('deckMesh structure', () => {
     const m = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh(), [[], []], [20])
     const spaced = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh())
     const slab = 3 * 2 * 2
-    expect(triangles(m, 1) - slab).toBe(8)
-    expect(triangles(spaced, 1) - slab).toBe(8 * 3)
+    // A round column of COLUMN_SIDES faces under a cap beam: four sides and its underside.
+    const pier = COLUMN_SIDES * 2 + 5 * 2
+    expect(triangles(m, 1) - slab).toBe(pier)
+    expect(triangles(spaced, 1) - slab).toBe(pier * 3)
+  })
+
+  test('a wide deck stands on a bent of columns, a narrow one on one', () => {
+    const wide = { ...chain(line(0, 40, 80), [true, true]), edges: [12, 12] as [number, number] }
+    const m = deckMesh(wide, [110, 110, 110], [100, 100, 100], wide.points[0], colors, mesh(), [[], []], [20])
+    const slab = 3 * 2 * 2
+    expect(triangles(m, 1) - slab).toBe(2 * COLUMN_SIDES * 2 + 5 * 2)
   })
 })
 
@@ -305,5 +332,31 @@ describe('decks following their outline', () => {
     expect(parseShape({ ...shaped, format: 1 }, 3)).toEqual({})
     expect(parseShape({ format: 2 }, 3)).toEqual({})
     expect(parseShape(shaped, 4)).toEqual({})
+  })
+})
+
+describe('rounded', () => {
+  test('fills in a curve so no two vertices turn more than ROUND_TURN, keeping its ends and straights', () => {
+    // A quarter circle of radius 40 m in 6 m chords, as decks are served, then a straight.
+    const steps = Math.round((40 * Math.PI) / 2 / 6)
+    const arc: Point[] = Array.from({ length: steps + 1 }, (_, k) => {
+      const a = (k / steps) * (Math.PI / 2)
+      return [0.2789 + 40 * Math.sin(a) * M, y0 + 40 * (1 - Math.cos(a)) * M]
+    })
+    const points: Point[] = [...arc, [arc[steps][0], arc[steps][1] + 60 * M]]
+    const c = chain(points, [true, true])
+    const z = points.map((_, i) => 100 + i)
+    const r = rounded(c, z, z.map(() => 90))
+    expect(r.chain.points.length).toBeGreaterThan(points.length)
+    expect(r.chain.points[0]).toEqual(points[0])
+    expect(r.chain.points.at(-1)).toEqual(points.at(-1))
+    expect(r.z.length).toBe(r.chain.points.length)
+    const p = r.chain.points
+    for (let i = 1; i < p.length - 1; i++) {
+      const [ux, uy, vx, vy] = [p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1], p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]]
+      expect(Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy))).toBeLessThanOrEqual(ROUND_TURN * 1.1)
+    }
+    const straight = chain(line(0, 50, 100), [true, true])
+    expect(rounded(straight, [1, 2, 3], [0, 0, 0]).chain).toBe(straight)
   })
 })

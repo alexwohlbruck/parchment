@@ -11,7 +11,11 @@ export const TUNNEL_MIN_ZOOM = 15
 /** A tunnel feature mapped below ground. A passage under a building is a tunnel with no layer, so only a negative one counts. */
 export const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
-export const isFlatTunnel = (layer: BrunnelLayer) => layer.type === 'line' && drawsTunnel(layer)
+/** Whether a layer draws ways' tunnels: one drawn for tunnels, or a basemap one drawing every way, tunnel or not. */
+export const isFlatTunnel = (layer: BrunnelLayer) =>
+  layer.type === 'line' && (drawsTunnel(layer) || (layer['source-layer'] === 'transportation' && !JSON.stringify(layer.filter ?? null).includes('tunnel')))
+
+const UNDERGROUND_TUNNEL = ['all', ['==', ['get', 'brunnel'], 'tunnel'], UNDERGROUND]
 
 /**
  * A flat tunnel layer's opacity, put out from street zoom where its tunnel is
@@ -19,7 +23,8 @@ export const isFlatTunnel = (layer: BrunnelLayer) => layer.type === 'line' && dr
  * ways carry no layer, so a mark on one of its tunnels goes either way.
  */
 export function mutedTunnelOpacity(opacity: unknown, layer: BrunnelLayer): unknown {
-  const was = typeof opacity === 'number' ? opacity : 1
-  const muted = layer['source-layer'] === 'transportation' ? ['case', UNDERGROUND, 0, was] : 0
+  // A zoom curve cannot sit inside the step; a feature's own opacity can.
+  const was = opacity === undefined || JSON.stringify(opacity).includes('"zoom"') ? (typeof opacity === 'number' ? opacity : 1) : opacity
+  const muted = layer['source-layer'] === 'transportation' ? ['case', UNDERGROUND_TUNNEL, 0, was] : 0
   return ['step', ['zoom'], was, TUNNEL_MIN_ZOOM, muted]
 }

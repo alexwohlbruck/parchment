@@ -925,7 +925,7 @@ export class MaplibreStrategy extends MapStrategy {
     const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', ...paint, surfaces, routes }, DECK_PALETTE[flavor])
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', ...paint, surfaces, routes, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor])
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)

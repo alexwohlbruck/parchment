@@ -8,7 +8,7 @@
  *
  * Pure functions, in Web Mercator units for position and metres for height.
  */
-import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, triangle, type Mesh, type Point } from '@/lib/map-decks/decks'
 
 /** Clear height inside a bore, and the roof over it, in metres. */
 export const HEADROOM = 4.6
@@ -32,8 +32,12 @@ export const LID = 0.3
 export const FACADE = 4
 /** The shortest forecourt a portal is given, in metres, so a mouth in a hillside has walls to stand in. */
 export const FORECOURT = 9
+/** The least the ground must stand over a portal, beside it or above the bore, for a cut to be dug, in metres. */
+export const RELIEF = 2
 /** How far the roof stands over the ground it was read from, in metres: just clear, so the ground hides its slab but not its face. */
 export const RISE = 0.2
+/** How far the earth over a portal's roof slopes away beside and behind it, and how far down, in metres. */
+export const SKIRT = [5, 3]
 /** How far back over the bore its roof is built, in metres, until the ground covers it. */
 export const ROOF_SPAN = [4, 15]
 /** Metres a wall's top is averaged over, so the ground's noise does not show in it. */
@@ -150,6 +154,30 @@ export function measureEdges(line: Point[], rings: Point[][], reach = 12): [numb
   return [median(lefts), median(rights)]
 }
 
+/** Whether a point lies inside a polygon's rings, by the even-odd rule. */
+export function inside([x, y]: Point, rings: Point[][]): boolean {
+  let hit = false
+  for (const ring of rings)
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [[xi, yi], [xj, yj]] = [ring[i], ring[j]]
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
+    }
+  return hit
+}
+
+/**
+ * A portal moved out along its approach to where the approach leaves the
+ * buildings over it, the covered stretch joining the bore, so the mouth opens
+ * at a building's face. Null where the whole approach is covered.
+ */
+export function emerge(out: Point[], bore: Point[], covered: (p: Point) => boolean, step = 1): { out: Point[]; bore: Point[] } | null {
+  if (!covered(out[0])) return { out, bore }
+  const dense = densify(out, step)
+  const k = dense.findIndex(p => !covered(p))
+  if (k < 0 || k === dense.length - 1) return null
+  return { out: dense.slice(k), bore: [...dense.slice(0, k + 1).reverse(), ...bore.slice(1)] }
+}
+
 export type Cut = {
   /** Road height at each vertex. */
   floor: number[]
@@ -169,6 +197,9 @@ export type Cut = {
  * under it, `beside` the ground past each wall, `cover` the ground over the
  * bore.
  *
+ * Null where the ground stands no higher around the portal than at it: the
+ * road goes in at grade, under a building or a deck, and there is no cut.
+ *
  * The portal sits low enough to keep headroom under the cover, or lower where
  * the ground already dips. From it the floor climbs no steeper than a road may
  * until it meets the ground, and more steeply only where the road reaches a
@@ -176,11 +207,14 @@ export type Cut = {
  * nearly level with the higher rim, and no nearer than a forecourt's length.
  * The roof runs back over the bore until the ground stands as high as the crown.
  */
-export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true): Cut {
+export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true): Cut | null {
   const rims = beside.map(rim => rim.map((_, i) => {
     const near = rim.filter((__, k) => Math.abs(d[k] - d[i]) <= RIM_SPAN / 2)
     return near.reduce((a, b) => a + b, 0) / near.length
   }))
+  // Read off the ground just out from the portal too: the sample at it can land on the slope into the bore.
+  const mouth = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= RIM_SPAN))
+  if (Math.max(cover, rims[0][at], rims[1][at]) - mouth < RELIEF) return null
   const portal = Math.min(ground[at], cover - HEADROOM - ROOF)
   const out = (i: number) => d[at] - d[i]
   const floorAt = (grade: number) => ground.map((g, i) => (i > at ? portal : Math.min(g, portal + grade * out(i))))
@@ -198,7 +232,8 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   return { floor, walls, open, crown, roof }
 }
 
-export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }
+/** `ground` is what the map draws around the portal, for the earth over the bore to take on. */
+export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[]; ground: number[] }
 
 export type PortalMesh = {
   /** Drawn only within the hole: the cut, the headwall and the bore. */
@@ -207,6 +242,8 @@ export type PortalMesh = {
   lid: Mesh
   /** Drawn over the terrain: the headwall again, where it stands above the ground, and the copings. */
   outside: Mesh
+  /** The earth over each bore, drawn over the terrain but never over a cut. */
+  earth: Mesh
 }
 
 /** Coping width and how far it stands over a wall, in metres. */
@@ -260,20 +297,35 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     }
     quad(out.lid, at3(wall[a].left, walls[0][a] + LID), at3(wall[a].right, walls[1][a] + LID), at3(wall[b].right, walls[1][b] + LID), at3(wall[b].left, walls[0][b] + LID), colors.concrete)
   }
-  // The headwall and the roof behind it, as one block out to the copings,
-  // only just over the ground so the face shows and the slab barely does.
+  // The headwall, and behind it the earth over the bore: a roof just over the
+  // ground, sloping away on every side so it settles into the terrain.
   const mouth = floor[at] + HEADROOM
   const top = cut.crown + RISE
+  const low = top - SKIRT[1]
+  const skirt = outline(points, [edges[0] + KERB + COPING[0] + SKIRT[0], edges[1] + KERB + COPING[0] + SKIRT[0]], origin)
   const front = [at3(coping[at].right, mouth), at3(coping[at].left, mouth), at3(coping[at].left, top), at3(coping[at].right, top)]
   for (const mesh of [out.inside, out.outside]) quad(mesh, front[0], front[1], front[2], front[3], colors.concrete)
-  for (let i = at + 1; i <= cut.roof; i++) {
-    const [a, b] = [coping[i - 1], coping[i]]
-    quad(out.outside, at3(a.left, top), at3(a.right, top), at3(b.right, top), at3(b.left, top), colors.parapet)
-    quad(out.outside, at3(b.left, floor[i]), at3(a.left, floor[i - 1]), at3(a.left, top), at3(b.left, top), colors.concrete)
-    quad(out.outside, at3(a.right, floor[i - 1]), at3(b.right, floor[i]), at3(b.right, top), at3(a.right, top), colors.concrete)
+  const earth = (...corners: number[][]) => {
+    const [a, b, c] = corners
+    const up = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    const faced = up > 0 ? corners : [...corners].reverse()
+    if (faced.length === 3) triangle(out.earth, faced[0], faced[1], faced[2], colors.ground)
+    else quad(out.earth, faced[0], faced[1], faced[2], faced[3], colors.ground)
   }
-  const end = coping[cut.roof]
-  quad(out.outside, at3(end.left, floor[cut.roof]), at3(end.right, floor[cut.roof]), at3(end.right, top), at3(end.left, top), colors.concrete)
+  for (let i = at + 1; i <= cut.roof; i++) {
+    const [a, b, sa, sb] = [coping[i - 1], coping[i], skirt[i - 1], skirt[i]]
+    earth(at3(a.left, top), at3(a.right, top), at3(b.right, top), at3(b.left, top))
+    earth(at3(sa.left, low), at3(a.left, top), at3(b.left, top), at3(sb.left, low))
+    earth(at3(a.right, top), at3(sa.right, low), at3(sb.right, low), at3(b.right, top))
+  }
+  let back = cut.roof
+  while (back < n - 1 && d[back] - d[cut.roof] < SKIRT[0]) back++
+  const [end, behind, edge] = [coping[cut.roof], coping[back], skirt[cut.roof]]
+  earth(at3(end.left, top), at3(end.right, top), at3(behind.right, low), at3(behind.left, low))
+  earth(at3(edge.left, low), at3(end.left, top), at3(behind.left, low))
+  earth(at3(end.right, top), at3(edge.right, low), at3(behind.right, low))
+  earth(at3(skirt[at].left, low), at3(coping[at].left, top), at3(coping[at].left, low))
+  earth(at3(coping[at].right, top), at3(skirt[at].right, low), at3(coping[at].right, low))
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]

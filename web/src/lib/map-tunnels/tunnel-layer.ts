@@ -12,14 +12,14 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
+import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { layPaint, paintOf, strip, type Surface } from '@/lib/map-decks/paint'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, KERB, RIM, approach, measureEdges, portalLine, portalMesh, solveCut, truncate, type Approach, type Cut } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, type Approach, type Cut } from './tunnels'
 
 /** Carriageway widths by OpenMapTiles class, in metres, for a road with no surface to measure. */
 const WIDTH: Record<string, number> = { motorway: 11, trunk: 10, primary: 9, secondary: 8, tertiary: 7, minor: 6, service: 4 }
@@ -41,11 +41,17 @@ export type TunnelSources = {
   surfaces?: { source: string; layer: string }
   /** Source ids whose lines are routes to lay through the cuts. */
   routes: () => string[]
+  /** Where the style draws buildings, whose faces a covered portal opens at. */
+  buildings: () => Array<{ source: string; sourceLayer: string }>
 }
 
 type Solved = { points: Point[]; at: number; edges: [number, number]; cut: Cut }
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
+
+type Built = { inside: Mesh; lid: Mesh; outside: Mesh; earth: Mesh; paintFrom: number }
+
+const emptyBuilt = (): Built => ({ inside: emptyMesh(), lid: emptyMesh(), outside: emptyMesh(), earth: emptyMesh(), paintFrom: 0 })
 
 export class TunnelLayer {
   id: string
@@ -54,8 +60,8 @@ export class TunnelLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: { inside: MeshBuffers; lid: MeshBuffers; outside: MeshBuffers; paintFrom: number } | null = null
-  private pending: { inside: Mesh; lid: Mesh; outside: Mesh; paintFrom: number } | null = null
+  private buffers: { inside: MeshBuffers; lid: MeshBuffers; outside: MeshBuffers; earth: MeshBuffers; paintFrom: number } | null = null
+  private pending: Built | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
   private cancelIdle?: () => void
@@ -64,6 +70,8 @@ export class TunnelLayer {
   private sampler: TerrainSampler | null = null
   /** Each portal's solved cut, keyed by its line and width. */
   private cuts = new Map<string, Solved>()
+  /** The ground's colour behind each portal, once read off the map. */
+  private earth = new Map<string, number[]>()
   private built = ''
   private stale = true
 
@@ -145,7 +153,7 @@ export class TunnelLayer {
     return dedupe(pieces)
   }
 
-  private build(): { inside: Mesh; lid: Mesh; outside: Mesh; paintFrom: number } | null {
+  private build(): Built | null {
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
     const zoom = this.map.getZoom()
     const tunnels = zoom >= TUNNEL_MIN_ZOOM ? this.roads('tunnel') : []
@@ -155,7 +163,7 @@ export class TunnelLayer {
     this.stale = false
     this.built = read
     if (!close) this.origin = [center.x, center.y]
-    const empty = { inside: emptyMesh(), lid: emptyMesh(), outside: emptyMesh(), paintFrom: 0 }
+    const empty = emptyBuilt()
     if (!tunnels.length) return empty
 
     const tolerance = 1.5 / metresPerUnit(center.y)
@@ -172,25 +180,28 @@ export class TunnelLayer {
       ({ minX: Math.min(u.minX, b.minX), minY: Math.min(u.minY, b.minY), maxX: Math.max(u.maxX, b.maxX), maxY: Math.max(u.maxY, b.maxY) }), portals[0].bounds)
     const roads = this.roads(null).map(p => p.points).filter(line => meets(boundsOf(line), area))
     const rings = this.surfaceRings(area)
+    const footprints = this.footprints(area)
+    const covered = (q: Point) => footprints.some(f => holds(f.bounds, q) && inside(q, f.rings))
 
     const solved: Solved[] = []
     for (const { line, width } of portals) {
-      const out = approach(line[0], line[1], roads, tolerance)
-      if (out.points.length < 2) continue
-      const bore = truncate(line, BORE)
+      const found = approach(line[0], line[1], roads, tolerance)
+      const moved = found.points.length > 1 ? emerge(found.points, line, covered) : null
+      if (!moved || moved.out.length < 2) continue
+      const out = { ...found, points: moved.out }
       const edges = measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) ?? [width / 2, width / 2]
-      const cut = this.solve(out, bore, edges)
+      const cut = this.solve(out, truncate(moved.bore, BORE), edges)
       if (cut) solved.push(cut)
     }
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     const p = this.palette
-    const colors = { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }
-    const mesh = { inside: emptyMesh(), lid: emptyMesh(), outside: emptyMesh(), paintFrom: 0 }
+    const colors = { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete, ground: p.parapet }
+    const mesh = emptyBuilt()
     const surfaces: Surface[] = []
     for (const s of solved) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]] }
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, colors, mesh)
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { ...colors, ground: this.groundColor(s.points[s.cut.roof]) ?? colors.ground }, mesh)
       const points = s.points.slice(s.cut.open, s.at + 1)
       const width = 2 * Math.max(...s.edges)
       if (points.length > 1) surfaces.push({ points, z: scaled.floor.slice(s.cut.open, s.at + 1), d: along(points), width, bounds: boundsOf(points, width) })
@@ -238,11 +249,56 @@ export class TunnelLayer {
     const fill = (rim: Array<number | null>) => rim.map((g, i) => (Number.isFinite(g) ? (g as number) : ground[i]))
     const over = cover.filter(g => !Number.isNaN(g)) as number[]
     const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction)
-    if (cut.open >= at) return null
+    if (!cut || cut.open >= at) return null
     const solved = { points, at, edges, cut }
     if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
     this.cuts.set(key, solved)
     return solved
+  }
+
+  /**
+   * The colour the map draws at a point — its background, under whatever
+   * fills it shows there — brightened to undo the shading this layer gives an
+   * upward face, so earth drawn there matches the unlit ground around it.
+   * Kept once read on screen; until then, the background alone.
+   */
+  private groundColor(q: Point): number[] | null {
+    const key = `${q[0].toFixed(8)},${q[1].toFixed(8)}`
+    const known = this.earth.get(key)
+    if (known) return known
+    const style = this.map.style
+    const background = (this.map.getStyle()?.layers ?? []).find((l: any) => l.type === 'background')
+    const base = background ? style?._layers?.[background.id]?.paint?.get?.('background-color') : null
+    if (!base) return null
+    let color = [base.r, base.g, base.b]
+    const lngLat = new MercatorCoordinate(q[0], q[1]).toLngLat()
+    const { x, y } = this.map.project(lngLat)
+    const canvas = this.map.getCanvas()
+    const seen = x >= 0 && y >= 0 && x <= canvas.clientWidth && y <= canvas.clientHeight
+    if (seen)
+      for (const f of this.map.queryRenderedFeatures([x, y]).filter((f: any) => f.layer.type === 'fill').reverse()) {
+        const fill = f.layer.paint?.['fill-color']
+        if (!fill || typeof fill !== 'object') continue
+        const alpha = (f.layer.paint?.['fill-opacity'] ?? 1) * (fill.a ?? 1)
+        const rgb = fill.a ? [fill.r / fill.a, fill.g / fill.a, fill.b / fill.a] : [fill.r, fill.g, fill.b]
+        color = color.map((c, k) => c * (1 - alpha) + rgb[k] * alpha)
+      }
+    const light = style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
+    const sun = (light[2] / (Math.hypot(light[0], light[1], light[2]) || 1)) * 0.5 + 0.5
+    const shade = 0.62 + 0.38 * (sun * 0.4 + 0.6)
+    const ground = color.map(c => Math.min(1, c / shade))
+    if (seen) this.earth.set(key, ground)
+    return ground
+  }
+
+  /** Building footprints around the portals. */
+  private footprints(area: Bounds): Array<{ rings: Point[][]; bounds: Bounds }> {
+    return this.sources.buildings()
+      .flatMap(({ source, sourceLayer }) => this.query(source, sourceLayer))
+      .flatMap(f => polygonsOf(f.geometry))
+      .map(polygon => polygon.map(ring => ring.map(mercator)))
+      .map(rings => ({ rings, bounds: boundsOf(rings[0]) }))
+      .filter(({ bounds }) => meets(bounds, area))
   }
 
   /** Outlines of the carriageways at grade around the portals. */
@@ -270,14 +326,15 @@ export class TunnelLayer {
     deleteMesh(gl, this.buffers.inside)
     deleteMesh(gl, this.buffers.lid)
     deleteMesh(gl, this.buffers.outside)
+    deleteMesh(gl, this.buffers.earth)
     this.buffers = null
   }
 
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
-      const { inside, lid, outside, paintFrom } = this.pending
-      this.buffers = { inside: uploadMesh(gl, inside), lid: uploadMesh(gl, lid), outside: uploadMesh(gl, outside), paintFrom }
+      const { inside, lid, outside, earth, paintFrom } = this.pending
+      this.buffers = { inside: uploadMesh(gl, inside), lid: uploadMesh(gl, lid), outside: uploadMesh(gl, outside), earth: uploadMesh(gl, earth), paintFrom }
       this.pending = null
     }
     if (!this.buffers?.lid.count) return
@@ -322,6 +379,12 @@ export class TunnelLayer {
     gl.disable(gl.POLYGON_OFFSET_FILL)
     inside.unbind()
 
+    if (this.buffers.earth.count) {
+      gl.stencilFunc(gl.NOTEQUAL, 1, 0xff)
+      const earth = bindMesh(gl, this.program, this.buffers.earth, matrix, light)
+      earth.draw()
+      earth.unbind()
+    }
     gl.clear(gl.STENCIL_BUFFER_BIT)
     gl.disable(gl.STENCIL_TEST)
     if (this.buffers.outside.count) {

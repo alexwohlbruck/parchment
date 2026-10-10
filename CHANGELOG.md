@@ -4,8 +4,11 @@
 
 ### Changed
 
+* Power towers and poles are sturdier and easier to see, wires are a softer grey, and substations are drawn with low gantries and taut busbars instead of full-height towers.
+
 ### Fixed
 
+* Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 
 ## [0.14.0] - 2026-10-09

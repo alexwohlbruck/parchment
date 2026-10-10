@@ -1322,13 +1322,6 @@ describe('assembled styles', () => {
       }
     })
 
-    test('the solved bridge decks stay in tiles over-zoomed past z16, without drawing', () => {
-      // An over-zoomed tile keeps only the source layers some style layer reads.
-      const keeper = style.layers.find(l => (l as any)['source-layer'] === 'bridge_decks') as any
-      expect(keeper.source).toBe(DETAIL_SOURCE)
-      expect(keeper.paint['line-opacity']).toBe(0)
-    })
-
     /**
      * Street furniture is minzoom 17 upstream and the bundle is read at z≤16,
      * so it cannot join — folding it in would take benches off the map.

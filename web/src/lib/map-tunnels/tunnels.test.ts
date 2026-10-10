@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { MAX_GRADE, along, outline, type Mesh, type Point } from '@/lib/map-decks/decks'
-import { FACADE, FORECOURT, HEADROOM, PROFILES, ROOF, WING, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
+import { MAX_GRADE, along, metresPerUnit, outline, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { FACADE, FORECOURT, HEADROOM, PROFILES, ROOF, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -144,11 +144,6 @@ describe('solveCut', () => {
     expect(cut.walls[0][cut.open]).toBe(cut.floor[cut.open])
   })
 
-  test('walls rise out of the ground where the cut opens, no steeper than a wing wall', () => {
-    const { d, at } = line(160)
-    const cut = solveCut(d, at, flat(d, 10), [flat(d, 14), flat(d, 14)], 15)!
-    for (let i = cut.open; i <= at; i++) expect(cut.walls[0][i] - cut.floor[i]).toBeLessThanOrEqual(WING * (d[i] - d[cut.open]) + 1e-9)
-  })
 
   test('stops the headwall at the ground behind it', () => {
     const { d, at } = line(160)
@@ -174,15 +169,15 @@ describe('emerge', () => {
 })
 
 describe('portalMesh', () => {
+  const mesh = (): Mesh => ({ position: [], normal: [], color: [] })
   const build = () => {
     const { points, at: portal } = portalLine([at(0), at(120)], [at(0), at(-40)], 3)
     const d = along(points)
     const cut = solveCut(d, portal, d.map(() => 10), [d.map(() => 10), d.map(() => 10)], 13)!
-    const out: PortalMesh = { inside: mesh(), lid: mesh(), outside: mesh() }
-    portalMesh(points, portal, [4, 4], cut, [0, 0], { surface: [1, 0, 0], concrete: [0, 1, 0], parapet: [0, 0, 1], bore: [0, 1, 0] }, out)
+    const out: PortalMesh = { walls: mesh(), mouth: mesh(), bore: mesh() }
+    portalMesh(points, portal, [4, 4], cut, [0, 0], { surface: [1, 0, 0], concrete: [0, 1, 0], parapet: [0, 0, 1], bore: [1, 1, 0] }, out)
     return { out, points, portal, cut }
   }
-  const mesh = (): Mesh => ({ position: [], normal: [], color: [] })
   /** Each vertex of a colour, with its position and normal. */
   const vertices = (m: Mesh, color: number[]) => {
     const found: Array<{ p: number[]; n: number[] }> = []
@@ -191,19 +186,19 @@ describe('portalMesh', () => {
     return found
   }
 
-  test('the road faces up and the walls face the road', () => {
+  test('the walls face the road', () => {
     const { out } = build()
-    expect(vertices(out.inside, [1, 0, 0]).every(v => v.n[2] > 0.99)).toBe(true)
     // The road runs along y0, so each wall faces back across it.
-    const walls = vertices(out.inside, [0, 1, 0]).filter(v => Math.abs(v.n[2]) < 0.01 && Math.abs(v.n[1]) > 0.9)
+    const walls = vertices(out.walls, [0, 1, 0]).filter(v => Math.abs(v.n[2]) < 0.01 && Math.abs(v.n[1]) > 0.9)
     expect(walls.length).toBeGreaterThan(0)
     expect(walls.every(v => Math.sign(v.n[1]) === -Math.sign(v.p[1] - y0))).toBe(true)
   })
 
-  test('the lid covers the cut no farther out than it opens, up to the portal', () => {
+  test('the mouth stands across the road at the portal, from the floor to the bore\'s roof', () => {
     const { out, points, portal, cut } = build()
-    const xs = out.lid.position.filter((_, i) => i % 3 === 0)
-    expect(Math.max(...xs)).toBeLessThanOrEqual(points[cut.open][0] + 6 * M)
-    expect(Math.min(...xs)).toBeGreaterThanOrEqual(points[portal][0] - 6 * M)
+    const xs = out.mouth.position.filter((_, i) => i % 3 === 0)
+    const zs = out.mouth.position.filter((_, i) => i % 3 === 2).map(z => z * metresPerUnit(y0))
+    expect(xs.every(x => Math.abs(x - points[portal][0]) < 0.01 * M)).toBe(true)
+    expect(Math.max(...zs)).toBeCloseTo(cut.floor[portal] + cut.headroom, 1)
   })
 })

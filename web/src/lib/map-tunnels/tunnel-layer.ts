@@ -1,25 +1,25 @@
 /**
  * Road tunnels drawn in 3D: under the terrain, and opening out of it.
  *
- * A MapLibre custom layer. The terrain is opaque and draws first, so a bore
- * placed under it is hidden as it would be in life; what shows is each portal.
- * The terrain cannot be cut, so the layer masks a hole in what it drew: the
- * lid of each cut is marked in the stencil where the ground in front does not
- * hide it, the depth there is reset to the far plane, and the cut is drawn
- * inside the mark — walls, ramp, lane paint, headwall and the bore going dark.
+ * A MapLibre custom layer. Each cut is carved into the terrain's elevation
+ * tiles, so the map drapes its own ground, paths and paint down the ramp; the
+ * layer stands the retaining walls and headwall in it. The bore runs under
+ * the terrain, so it is drawn through its mouth alone: the mouth is marked in
+ * the stencil where nothing stands in front of it, the depth there is reset to
+ * the far plane, and the bore is drawn inside the mark.
  *
  * Only drawn with the terrain on, from street zoom; the flat tunnels below it.
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
+import { carveTile, footprint, type Elevation, type Footprint } from './carve'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
-import { layPaint, paintOf, strip, type Surface } from '@/lib/map-decks/paint'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, KERB, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, HEADWALL, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
 const WIDTH: Record<string, number> = {
@@ -32,9 +32,6 @@ const CLASSES: Record<BoreKind, string[]> = {
   rail: ['rail', 'transit'],
 }
 const kindOf = (cls: string): BoreKind => (CLASSES.path.includes(cls) ? 'path' : CLASSES.rail.includes(cls) ? 'rail' : 'road')
-/** Half the distance between a track's rails, and a rail's width, in metres. */
-const GAUGE = 0.72
-const RAIL = 0.1
 
 /** Metres between samples along a cut, and how far down the approach its width is measured. */
 const SAMPLE = 3
@@ -46,23 +43,61 @@ export type TunnelSources = {
   /** The basemap source and its road layer. */
   basemap: string
   roads: string
-  /** Barrelman's lane paint, laid on the floor of each cut; optional. */
-  paint?: { source: string; layer: string }
   /** Barrelman's carriageways at their real width, which the cuts are fitted to. */
   surfaces?: { source: string; layer: string }
-  /** Source ids whose lines are routes to lay through the cuts. */
-  routes: () => string[]
   /** Where the style draws buildings, whose faces a covered portal opens at. */
   buildings: () => Array<{ source: string; sourceLayer: string }>
 }
 
-type Solved = { points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind }
+type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind }
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
-type Built = { inside: Mesh; lid: Mesh; outside: Mesh; paintFrom: number }
+type Built = { walls: Mesh; mouth: Mesh; bore: Mesh; footprints: Map<string, Footprint> }
 
-const emptyBuilt = (): Built => ({ inside: emptyMesh(), lid: emptyMesh(), outside: emptyMesh(), paintFrom: 0 })
+const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), bore: emptyMesh(), footprints: new Map() })
+
+/** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
+function elevation(dem: any): Elevation {
+  const bytes = new Uint8Array(dem.data.buffer, dem.data.byteOffset, dem.data.byteLength)
+  return {
+    dim: dem.dim,
+    border: 2,
+    get: (x, y) => dem.get(x, y),
+    set: (x, y, metres) => {
+      const { r, g, b } = dem.pack(metres)
+      const i = dem._idx(x, y) * 4
+      bytes[i] = r
+      bytes[i + 1] = g
+      bytes[i + 2] = b
+      dem.min = Math.min(dem.min, metres)
+    },
+  }
+}
+
+/** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
+const CARVE = [0.5, 4]
+/** How far behind a headwall's face the floor is carved, so the ground rises behind it rather than in front. */
+const SILL = 0.5
+
+/**
+ * The ground carved for a cut: down to the floor between its walls, out to
+ * just behind the headwall, and to each wall's top beside them, banking up
+ * past its coping; behind the headwall, down to its top.
+ */
+function carvings({ points, at, edges, cut }: Solved): Array<[string, Footprint]> {
+  const beyond = (m: number) => truncate(points.slice(at), m).at(-1)!
+  const [sill, back] = [beyond(SILL), beyond(HEADWALL)]
+  const wall = edges.map(e => e + KERB)
+  const out = (m: number) => wall.map(w => w + m) as [number, number]
+  const lane = cut.floor.slice(cut.open, at + 1)
+  const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
+  const crown = [cut.crown, cut.crown]
+  return [
+    ['cut', footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1]))],
+    ['headwall', footprint([sill, back], crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN))],
+  ]
+}
 
 export class TunnelLayer {
   id: string
@@ -71,7 +106,7 @@ export class TunnelLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: { inside: MeshBuffers; lid: MeshBuffers; outside: MeshBuffers; paintFrom: number } | null = null
+  private buffers: { walls: MeshBuffers; mouth: MeshBuffers; bore: MeshBuffers } | null = null
   private pending: Built | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
@@ -82,6 +117,11 @@ export class TunnelLayer {
   /** Each portal's solved cut, keyed by its line and width. */
   private cuts = new Map<string, Solved>()
   private built = ''
+  /** The floors carved into the terrain, keyed by their cut. */
+  private carving = new Map<string, Footprint>()
+  /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
+  private carved = new WeakMap<object, number>()
+  private round = 0
   private stale = true
 
   constructor(private sources: TunnelSources, private palette: DeckPalette, options: { id?: string } = {}) {
@@ -96,15 +136,18 @@ export class TunnelLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.program = linkMeshProgram(gl)
-    const tiled = new Set([this.sources.basemap, this.sources.paint?.source, this.sources.surfaces?.source])
+    const tiled = new Set([this.sources.basemap, this.sources.surfaces?.source])
     this.onChange = event => {
-      if (!event?.sourceId) {
+      if (event?.tile && event.sourceId === this.map.getTerrain?.()?.source) {
+        // A tile arriving fills its neighbours' borders from its own uncarved ground.
+        this.round++
+        this.map.triggerRepaint()
+      } else if (!event?.sourceId) {
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
       } else if (!event.isSourceLoaded) return
       else if (tiled.has(event.sourceId)) this.invalidate(false)
-      else if (this.sources.routes().includes(event.sourceId)) this.invalidate()
     }
     this.onTerrain = () => this.invalidate()
     map.on('sourcedata', this.onChange)
@@ -123,6 +166,7 @@ export class TunnelLayer {
     this.cancelIdle?.()
     this.release(gl)
     gl.deleteProgram(this.program)
+    if (this.carving.size) map.terrain?.tileManager?.tileManager?.reload()
     this.map = null
   }
 
@@ -208,30 +252,13 @@ export class TunnelLayer {
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     const p = this.palette
-    const colors = { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }
     const floors: Record<BoreKind, number[]> = { road: p.surface, path: p.concrete, rail: p.concrete.map(c => c * 0.8) }
-    const steel = p.surface.map(c => c * 0.55)
     const mesh = emptyBuilt()
-    const surfaces: Array<Surface & { kind: BoreKind; through: Point[] }> = []
     for (const s of solved) {
-      const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]] }
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { ...colors, surface: floors[s.kind] }, mesh)
-      const points = s.points.slice(s.cut.open)
-      const width = 2 * Math.max(...s.edges)
-      surfaces.push({ points, z: scaled.floor.slice(s.cut.open), d: along(points), width, bounds: boundsOf(points, width), kind: s.kind, through: points })
+      const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration }
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh)
+      for (const [k, f] of carvings(s)) mesh.footprints.set(`${s.key}|${k}`, f)
     }
-    mesh.paintFrom = mesh.inside.position.length / 3
-    const roads = surfaces.filter(s => s.kind === 'road')
-    layPaint(mesh.inside, this.paint(roads), roads, p, this.origin)
-    for (const track of surfaces.filter(s => s.kind === 'rail'))
-      for (const side of [-GAUGE, GAUGE]) strip(mesh.inside, track.through, [track], RAIL, steel, 0.12, side, false, this.origin)
-    for (const id of this.sources.routes())
-      for (const f of this.query(id))
-        for (const line of linesOf(f.geometry)) {
-          const points = line.map(mercator)
-          strip(mesh.inside, points, surfaces, 4.4, p.routeCasing, 0.06, 0, false, this.origin)
-          strip(mesh.inside, points, surfaces, 3, p.route, 0.08, 0, false, this.origin)
-        }
     return mesh
   }
 
@@ -251,8 +278,8 @@ export class TunnelLayer {
     const rims = [0, 1].map(k => points.map((_, i) => {
       const heights = sides.map(side => height(side[k][i]))
       if (heights.some(g => g === null)) return null
-      const known = (heights as number[]).filter(g => !Number.isNaN(g)).sort((a, b) => a - b)
-      return known.length ? known[Math.floor(known.length / 2)] : NaN
+      const known = (heights as number[]).filter(g => !Number.isNaN(g))
+      return known.length ? Math.min(...known) : NaN
     }))
     const d = along(points)
     const cover = COVER_AT.map(m => {
@@ -267,7 +294,7 @@ export class TunnelLayer {
     const over = cover.filter(g => !Number.isNaN(g)) as number[]
     const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction, PROFILES[kind])
     if (!cut || cut.open >= at) return null
-    const solved = { points, at, edges, cut, kind }
+    const solved = { key, points, at, edges, cut, kind }
     if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
     this.cuts.set(key, solved)
     return solved
@@ -293,79 +320,91 @@ export class TunnelLayer {
       .filter(ring => ring.length > 1 && meets(boundsOf(ring), area))
   }
 
-  /** The markings on the roads at grade that run down into a cut. */
-  private paint(surfaces: Surface[]) {
-    if (!this.sources.paint || !surfaces.length) return []
-    const { source, layer } = this.sources.paint
-    return this.query(source, layer, ['!=', ['get', 'bridge'], true])
-      .filter(f => linesOf(f.geometry).concat(polygonsOf(f.geometry).flat()).some(line =>
-        surfaces.some(s => meets(boundsOf(line.map(mercator)), s.bounds!))))
-      .map(paintOf)
-  }
-
   private release(gl: WebGL2RenderingContext) {
     if (!this.buffers) return
-    deleteMesh(gl, this.buffers.inside)
-    deleteMesh(gl, this.buffers.lid)
-    deleteMesh(gl, this.buffers.outside)
+    deleteMesh(gl, this.buffers.walls)
+    deleteMesh(gl, this.buffers.mouth)
+    deleteMesh(gl, this.buffers.bore)
     this.buffers = null
+  }
+
+  /** Take on a new set of floors: carved over what is there, or, where one has gone, into freshly loaded ground. */
+  private carve(next: Map<string, Footprint>) {
+    const removed = [...this.carving.keys()].some(key => !next.has(key))
+    this.carving = next
+    this.round++
+    if (removed) this.map.terrain?.tileManager?.tileManager?.reload()
+  }
+
+  /** Carve the floors into each loaded elevation tile not yet carved this round. */
+  private carveTiles() {
+    const tiles = this.map.terrain?.tileManager?.tileManager?._inViewTiles?.getAllTiles?.() ?? []
+    if (!this.carving.size) return
+    const floors = [...this.carving.values()]
+    let changed = false
+    for (const tile of tiles) {
+      if (!tile.dem || this.carved.get(tile.dem) === this.round) continue
+      this.carved.set(tile.dem, this.round)
+      const { z, x, y } = tile.tileID.canonical
+      if (!carveTile(elevation(tile.dem), [z, x, y], floors)) continue
+      tile.needsTerrainPrepare = true
+      tile.needsHillshadePrepare = true
+      changed = true
+    }
+    if (changed) this.map.triggerRepaint()
   }
 
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
-      const { inside, lid, outside, paintFrom } = this.pending
-      this.buffers = { inside: uploadMesh(gl, inside), lid: uploadMesh(gl, lid), outside: uploadMesh(gl, outside), paintFrom }
+      const { walls, mouth, bore, footprints } = this.pending
+      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), bore: uploadMesh(gl, bore) }
+      this.carve(footprints)
       this.pending = null
     }
-    if (!this.buffers?.lid.count) return
+    this.carveTiles()
+    if (!this.buffers?.walls.count) return
 
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const matrix = translate(projection, [this.origin[0], this.origin[1], 0])
     const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
     const [near, far] = gl.getParameter(gl.DEPTH_RANGE) as Float32Array
     gl.enable(gl.DEPTH_TEST)
+    gl.depthMask(true)
+    gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
+    const walls = bindMesh(gl, this.program, this.buffers.walls, matrix, light)
+    walls.draw()
+    walls.unbind()
+    if (!this.buffers.mouth.count) return
+
     gl.enable(gl.STENCIL_TEST)
     gl.stencilMask(0xff)
     gl.clearStencil(0)
     gl.clear(gl.STENCIL_BUFFER_BIT)
-
-    // Mark the lid wherever nothing drawn so far stands in front of it…
-    const lid = bindMesh(gl, this.program, this.buffers.lid, matrix, light)
+    // Mark each mouth wherever nothing drawn so far stands in front of it…
+    const mouth = bindMesh(gl, this.program, this.buffers.mouth, matrix, light)
     gl.colorMask(false, false, false, false)
     gl.depthMask(false)
-    gl.depthFunc(gl.LEQUAL)
     gl.stencilFunc(gl.ALWAYS, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
-    lid.draw()
-    // …and clear the depth there, so the cut can be drawn below the ground.
+    mouth.draw()
+    // …and clear the depth there, so the bore can be drawn under the ground.
     gl.depthMask(true)
     gl.depthFunc(gl.ALWAYS)
     gl.depthRange(far, far)
     gl.stencilFunc(gl.EQUAL, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
-    lid.draw()
-    lid.unbind()
+    mouth.draw()
+    mouth.unbind()
     gl.depthRange(near, far)
     gl.colorMask(true, true, true, true)
     gl.depthFunc(gl.LEQUAL)
-
-    const inside = bindMesh(gl, this.program, this.buffers.inside, matrix, light)
-    inside.draw(0, this.buffers.paintFrom)
-    gl.enable(gl.POLYGON_OFFSET_FILL)
-    gl.polygonOffset(-2, -2)
-    inside.draw(this.buffers.paintFrom)
-    gl.disable(gl.POLYGON_OFFSET_FILL)
-    inside.unbind()
-
+    const bore = bindMesh(gl, this.program, this.buffers.bore, matrix, light)
+    bore.draw()
+    bore.unbind()
     gl.clear(gl.STENCIL_BUFFER_BIT)
     gl.disable(gl.STENCIL_TEST)
-    if (this.buffers.outside.count) {
-      const outside = bindMesh(gl, this.program, this.buffers.outside, matrix, light)
-      outside.draw()
-      outside.unbind()
-    }
   }
 }

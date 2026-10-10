@@ -33,27 +33,25 @@ export const KERB = 0.6
 /** The least depth a cut is drawn at, in metres; shallower, the road is at grade. */
 export const OPEN = 0.8
 /** How far past a wall the ground it holds back is read, in metres. */
-export const RIM = [2, 4, 6]
+export const RIM = [0.8, 1.2, 1.6]
 /** Where the ground over a bore is read, in metres in from its portal. */
 export const COVER_AT = [10, 15, 20]
 /** Metres of bore drawn in from a portal, past where any light reaches. */
 export const BORE = 40
 /** Farthest any cut runs out from its portal, in metres. */
 export const CUT_MAX = Math.max(...Object.values(PROFILES).map(p => p.reach))
-/** How far the hole's lid stands over the ground, in metres, so the terrain does not cover it. */
-export const LID = 0.3
 /** The most a headwall rises over a portal's roof, in metres; above it the hillside carries on. */
 export const FACADE = 4
 /** The shortest forecourt a portal is given, in metres, so a mouth in a hillside has walls to stand in. */
 export const FORECOURT = 9
 /** The least the ground must stand over a portal, beside it or above the bore, for a cut to be dug, in metres. */
 export const RELIEF = 2
-/** How fast a wall's top climbs from where the cut opens, in metres per metre, so it rises out of the ground like a wing wall. */
-export const WING = 0.3
 /** How far behind a headwall the ground its top meets is read, in metres. */
 const BEHIND = 6
-/** Metres a wall's top is averaged over, so the ground's noise does not show in it. */
-const RIM_SPAN = 9
+/** Metres along which a wall's top follows the lowest ground beside it. */
+const RIM_SPAN = 4
+/** How far out from a portal the ground it opens onto is read, in metres. */
+const MOUTH_SPAN = 9
 /** Sharpest turn, in radians, from one way onto the next that still carries the same road. */
 const STRAIGHT_ON = Math.PI / 3
 
@@ -221,12 +219,10 @@ export type Cut = {
  */
 export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true, profile = PROFILES.road): Cut | null {
   const { headroom, grade } = profile
-  const rims = beside.map(rim => rim.map((_, i) => {
-    const near = rim.filter((__, k) => Math.abs(d[k] - d[i]) <= RIM_SPAN / 2)
-    return near.reduce((a, b) => a + b, 0) / near.length
-  }))
+  // The lowest ground near each stretch of wall, so the ground beside never dips below its top.
+  const rims = beside.map(rim => rim.map((_, i) => Math.min(...rim.filter((__, k) => Math.abs(d[k] - d[i]) <= RIM_SPAN / 2))))
   // Read off the ground just out from the portal too: the sample at it can land on the slope into the bore.
-  const mouth = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= RIM_SPAN))
+  const mouth = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= MOUTH_SPAN))
   if (Math.max(cover, rims[0][at], rims[1][at]) - mouth < Math.min(RELIEF, (headroom + ROOF) / 2)) return null
   const portal = Math.min(ground[at], cover - headroom - ROOF)
   const out = (i: number) => d[at] - d[i]
@@ -240,37 +236,41 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   const behind = Math.min(...ground.filter((_, i) => i > at && d[i] - d[at] <= BEHIND))
   const crown = Math.max(portal + headroom + ROOF, Math.min(behind, portal + headroom + ROOF + FACADE))
   if (portal === ground[at]) while (open > 0 && d[at] - d[open] < FORECOURT) open--
-  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : f + Math.max(0, Math.min(rim[i] - f, WING * (d[i] - d[open])))))) as [number[], number[]]
+  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
   return { floor, walls, open, crown, headroom }
 }
 
 export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }
 
 export type PortalMesh = {
-  /** Drawn only within the hole: the cut, the headwall and the bore. */
-  inside: Mesh
-  /** The hole's lid, level with the wall tops. */
-  lid: Mesh
-  /** Drawn over the terrain: the copings. */
-  outside: Mesh
+  /** The retaining walls and the headwall, standing in the cut carved into the terrain. */
+  walls: Mesh
+  /** The opening in the headwall, through which the bore is drawn. */
+  mouth: Mesh
+  /** The bore going dark, drawn only through its mouth. */
+  bore: Mesh
 }
 
-/** How far a wall must stand over the floor for the cut there to be drawn, in metres. */
-const SHOWN = 0.5
-/** Coping width and how far it stands over a wall, in metres. */
-const COPING = [0.3, 0.25]
+/** How far past each wall its top runs, in metres. */
+export const MARGIN = 0.9
+/** How deep the headwall's top runs back over the bore, in metres. */
+export const HEADWALL = 1.5
+/** How far a wall's top stands over the ground beside it, in metres. */
+const CAP = 0.15
+/** How far a wall's face runs down past the floor, so the terrain never shows a gap under it. */
+const FOOT = 0.5
 
 /**
  * The triangles of one portal, relative to `origin`, with heights in metres as
  * they are to be drawn (exaggeration applied). `edges` are the carriageway's.
+ * The cut's floor is the terrain itself, carved by `carveFootprint`.
  */
 export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh) {
   const n = points.length
   const scale = 1 / metresPerUnit(points[at][1])
   const h = (m: number) => m * scale
-  const road = outline(points, edges, origin)
   const wall = outline(points, [edges[0] + KERB, edges[1] + KERB], origin)
-  const coping = outline(points, [edges[0] + KERB + COPING[0], edges[1] + KERB + COPING[0]], origin)
+  const back = outline(points, [edges[0] + KERB + MARGIN, edges[1] + KERB + MARGIN], origin)
   const at3 = (p: Point, m: number) => [p[0], p[1], h(m)]
   const { floor, walls } = cut
   const d = along(points)
@@ -278,54 +278,46 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     const k = 0.05 + 0.45 * Math.exp(-(d[i] - d[at]) / 5)
     return color.map(c => c * k)
   }
+  /** A quad given as its left-side corners, mirrored for the right so both face the same way. */
+  const sided = (side: 'left' | 'right', corners: number[][], color: number[]) =>
+    side === 'left' ? quad(out.walls, corners[0], corners[1], corners[2], corners[3], color) : quad(out.walls, corners[3], corners[2], corners[1], corners[0], color)
   for (let i = cut.open + 1; i <= at; i++) {
     const [a, b] = [i - 1, i]
-    quad(out.inside, at3(road[a].left, floor[a]), at3(road[a].right, floor[a]), at3(road[b].right, floor[b]), at3(road[b].left, floor[b]), colors.surface)
     for (const side of ['left', 'right'] as const) {
-      const k = side === 'left' ? 0 : 1
-      const top = walls[k]
-      // Kerb, and the wall's face toward the road.
-      const kerb = [at3(wall[a][side], floor[a]), at3(road[a][side], floor[a]), at3(road[b][side], floor[b]), at3(wall[b][side], floor[b])]
-      const face = [at3(wall[a][side], floor[a]), at3(wall[b][side], floor[b]), at3(wall[b][side], top[b] + LID), at3(wall[a][side], top[a] + LID)]
-      if (side === 'left') {
-        quad(out.inside, kerb[0], kerb[1], kerb[2], kerb[3], colors.concrete)
-        quad(out.inside, face[0], face[1], face[2], face[3], colors.concrete)
-      } else {
-        quad(out.inside, kerb[3], kerb[2], kerb[1], kerb[0], colors.concrete)
-        quad(out.inside, face[3], face[2], face[1], face[0], colors.concrete)
-      }
-      // A coping along the top, where the wall stands high enough to need one.
-      const rise = [a, b].map(j => (top[j] - floor[j] < 1 ? 0 : COPING[1]))
-      if (rise[0] <= 0.05 && rise[1] <= 0.05) continue
-      const [w0, w1, c0, c1] = [wall[a][side], wall[b][side], coping[a][side], coping[b][side]]
-      const [t0, t1] = [top[a] + LID + rise[0], top[b] + LID + rise[1]]
-      const box = [
-        [at3(w0, top[a]), at3(w1, top[b]), at3(w1, t1), at3(w0, t0)],
-        [at3(w0, t0), at3(w1, t1), at3(c1, t1), at3(c0, t0)],
-        [at3(c0, t0), at3(c1, t1), at3(c1, top[b]), at3(c0, top[a])],
-      ]
-      for (const f of box) side === 'left' ? quad(out.outside, f[0], f[1], f[2], f[3], colors.parapet) : quad(out.outside, f[3], f[2], f[1], f[0], colors.parapet)
+      const top = walls[side === 'left' ? 0 : 1]
+      if (top[a] - floor[a] < 0.05 && top[b] - floor[b] < 0.05) continue
+      const [t0, t1] = [top[a] + CAP, top[b] + CAP]
+      sided(side, [at3(wall[a][side], floor[a] - FOOT), at3(wall[b][side], floor[b] - FOOT), at3(wall[b][side], t1), at3(wall[a][side], t0)], colors.concrete)
+      sided(side, [at3(wall[a][side], t0), at3(wall[b][side], t1), at3(back[b][side], t1), at3(back[a][side], t0)], colors.parapet)
+      sided(side, [at3(back[a][side], t0), at3(back[b][side], t1), at3(back[b][side], top[b] - 1), at3(back[a][side], top[a] - 1)], colors.parapet)
     }
-    // Where the walls barely stand, the map's own ground and paths show instead of the cut.
-    if (Math.max(walls[0][b], walls[1][b]) - floor[b] < SHOWN) continue
-    quad(out.lid, at3(wall[a].left, walls[0][a] + LID), at3(wall[a].right, walls[1][a] + LID), at3(wall[b].right, walls[1][b] + LID), at3(wall[b].left, walls[0][b] + LID), colors.concrete)
   }
+  // The headwall: its face over the mouth and beside it, and its top back to where the carving stops.
   const mouth = floor[at] + cut.headroom
-  const front = [at3(coping[at].right, mouth), at3(coping[at].left, mouth), at3(coping[at].left, cut.crown + LID), at3(coping[at].right, cut.crown + LID)]
-  for (const mesh of [out.inside, out.outside]) quad(mesh, front[0], front[1], front[2], front[3], colors.concrete)
+  const crown = cut.crown + CAP
+  const next = Math.min(n - 1, at + 1)
+  const t = Math.min(1, HEADWALL / (d[next] - d[at] || 1))
+  const lerp = (p: Point, q: Point): Point => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]
+  const [l, r] = [back[at].left, back[at].right]
+  const [bl, br] = [lerp(l, back[next].left), lerp(r, back[next].right)]
+  quad(out.walls, at3(r, mouth), at3(l, mouth), at3(l, crown), at3(r, crown), colors.concrete)
+  for (const side of ['left', 'right'] as const)
+    sided(side, [at3(back[at][side], floor[at] - FOOT), at3(wall[at][side], floor[at] - FOOT), at3(wall[at][side], mouth), at3(back[at][side], mouth)], colors.concrete)
+  quad(out.walls, at3(l, crown), at3(r, crown), at3(br, crown), at3(bl, crown), colors.parapet)
+  quad(out.mouth, at3(wall[at].left, floor[at] - FOOT), at3(wall[at].right, floor[at] - FOOT), at3(wall[at].right, mouth), at3(wall[at].left, mouth), colors.bore)
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]
     const [fa, fb] = [floor[a], floor[b]]
     const [ca, cb] = [fa + cut.headroom, fb + cut.headroom]
     const [la, lb, ra, rb] = [wall[a].left, wall[b].left, wall[a].right, wall[b].right]
-    quad(out.inside, at3(la, fa), at3(ra, fa), at3(rb, fb), at3(lb, fb), shade(a, colors.surface))
-    quad(out.inside, at3(la, fa), at3(lb, fb), at3(lb, cb), at3(la, ca), shade(a, colors.bore))
-    quad(out.inside, at3(ra, ca), at3(rb, cb), at3(rb, fb), at3(ra, fa), shade(a, colors.bore))
-    quad(out.inside, at3(la, ca), at3(lb, cb), at3(rb, cb), at3(ra, ca), shade(a, colors.bore))
+    quad(out.bore, at3(la, fa), at3(ra, fa), at3(rb, fb), at3(lb, fb), shade(a, colors.surface))
+    quad(out.bore, at3(la, fa), at3(lb, fb), at3(lb, cb), at3(la, ca), shade(a, colors.bore))
+    quad(out.bore, at3(ra, ca), at3(rb, cb), at3(rb, fb), at3(ra, fa), shade(a, colors.bore))
+    quad(out.bore, at3(la, ca), at3(lb, cb), at3(rb, cb), at3(ra, ca), shade(a, colors.bore))
   }
   const last = n - 1
-  if (last > at) quad(out.inside, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + cut.headroom), at3(wall[last].left, floor[last] + cut.headroom), shade(last, colors.bore))
+  if (last > at) quad(out.bore, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + cut.headroom), at3(wall[last].left, floor[last] + cut.headroom), shade(last, colors.bore))
 }
 
 /** A portal's line: the approach from its far end to the portal, then the bore, each sampled every `step` metres. */

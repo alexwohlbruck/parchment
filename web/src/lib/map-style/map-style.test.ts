@@ -969,6 +969,8 @@ describe('assembled styles', () => {
     ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
     ['light glyph POIs', () => buildMapStyle({ ...opts, theme: 'light', poiStyle: 'glyph' })],
     ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
+    ['light HD roads', () => buildMapStyle({ ...opts, theme: 'light', hdRoads: true })],
+    ['dark HD roads', () => buildMapStyle({ ...opts, theme: 'dark', hdRoads: true })],
   ]
 
   // The fork registers this at runtime on its own bundled spec; the npm spec
@@ -2536,6 +2538,7 @@ describe('markings only offset from a carriageway', () => {
 
 describe('road markings', () => {
   const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+  const laneSourceLayers = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES]
   const ids = style.layers.map(l => l.id)
   const at = (id: string) => ids.indexOf(id)
 
@@ -2550,6 +2553,28 @@ describe('road markings', () => {
     expect(minor.paint['line-color'][0]).toBe('interpolate')
     const surface = style.layers.find(l => l.id === 'Road surface') as any
     expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
+  })
+
+  test('every lane fill is edged, just above it, by a hairline of its own colour', () => {
+    const fills = style.layers.filter((l: any) => l.type === 'fill' && laneSourceLayers.includes(l['source-layer'])) as any[]
+    expect(fills.length).toBeGreaterThan(0)
+    for (const f of fills) {
+      const edge = style.layers[at(f.id) + 1] as any
+      expect(edge.type, f.id).toBe('line')
+      expect(edge.filter).toEqual(f.filter)
+      expect(edge.paint['line-color']).toEqual(f.paint['fill-color'])
+    }
+  })
+
+  test('underground road tunnels give way to the street above them', () => {
+    const tunnel = style.layers.find(l => l.id === 'Tunnel') as any
+    const parsed = expression.createPropertyExpression(
+      tunnel.paint['line-opacity'], 'Tunnel.paint.line-opacity', (latest as any).paint_line['line-opacity'])
+    expect(parsed.result).toBe('success')
+    const evaluate = (layer: number) => (parsed as any).value.evaluate({ zoom: 18 }, { properties: { layer } })
+    expect(evaluate(-1)).toBe(0)
+    expect(evaluate(0)).toBeGreaterThan(0)
+    expect(buildMapStyle({ ...opts, theme: 'light' }).layers.find(l => l.id === 'Tunnel')).toMatchObject({ paint: { 'line-opacity': 0.6 } })
   })
 })
 

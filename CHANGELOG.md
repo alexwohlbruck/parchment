@@ -4,7 +4,11 @@
 
 ### Changed
 
+* 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
+
 ### Fixed
+
+* Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
 
 ## [0.14.0] - 2026-10-09
 

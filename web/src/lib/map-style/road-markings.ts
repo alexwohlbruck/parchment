@@ -45,6 +45,8 @@ export function metres(m: number, minimum = 0): any {
 }
 
 const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
+/** Over a fill still fading in, an edge would draw darker than it; it waits for the fill. */
+const edgeFadeIn = ['interpolate', ['linear'], ['zoom'], TO, 0, TO + 0.4, 1]
 
 /** The basemap's at-grade and bridge road fills and casings. */
 const ROAD_FILLS = ['Minor road', 'Major road', 'Highway', 'Minor road bridge', 'Major road bridge', 'Highway bridge']
@@ -89,34 +91,20 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
   const style = (...s: string[]) => ['in', ['get', 'style'], ['literal', s]]
   const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow'], 0.55, 1]
+  // Fills draw without antialiasing; a hairline of the fill's own colour round
+  // each one gives its edge a smooth one.
+  const fill = (id: string, sourceLayer: string, filter: any, color: any) => [
+    { id: `${id}${suffix}`, type: 'fill', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
+      paint: { 'fill-color': color, 'fill-opacity': fadeIn } },
+    { id: `${id} edge${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
+      layout: { 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 1, 'line-opacity': edgeFadeIn } },
+  ]
   return [
-    {
-      id: `Road surface${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_SURFACE_TILES,
-      minzoom: FROM,
-      filter: band,
-      paint: { 'fill-color': c.asphalt, 'fill-opacity': fadeIn },
-    },
-    {
-      id: `Road lane fill${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_MARKING_TILES,
-      minzoom: FROM,
-      filter: ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
-      paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn },
-    },
-    {
-      id: `Road paint fill${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_MARKING_TILES,
-      minzoom: FROM,
-      filter: ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
-      paint: { 'fill-color': ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white], 'fill-opacity': fadeIn },
-    },
+    ...fill('Road surface', ROAD_SURFACE_TILES, band, c.asphalt),
+    ...fill('Road lane fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
+      ['match', ['get', 'color'], 'red', c.red, c.green]),
+    ...fill('Road paint fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
+      ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white]),
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
     // gap, on motorways the highway's 3 m and 9 m.

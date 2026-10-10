@@ -13,6 +13,7 @@ import {
   LngLat as MaplibreLngLat,
   CameraOptions,
   setWorkerUrl,
+  addProtocol,
 } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -30,6 +31,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 setWorkerUrl(maplibreWorkerUrl)
+
 import {
   Basemap,
   MapTheme,
@@ -119,7 +121,12 @@ import {
   terrainSource,
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
+  FINE_TERRAIN_PROTOCOL,
 } from '@/lib/map-style/terrain'
+import { FineTerrain } from '@/lib/map-style/fine-terrain'
+
+const fineTerrain = new FineTerrain()
+addProtocol(FINE_TERRAIN_PROTOCOL, async params => ({ data: await fineTerrain.tile(params.url) }))
 import {
   rgbToHex,
   adjustLightness,
@@ -927,7 +934,7 @@ export class MaplibreStrategy extends MapStrategy {
     const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', ...paint, surfaces, routes, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor])
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor])
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
@@ -972,6 +979,10 @@ export class MaplibreStrategy extends MapStrategy {
         this.mutedTunnels.delete(layer.id)
       }
     }
+  }
+
+  protected override terrainSource() {
+    return terrainSource(true)
   }
 
   override setMap3dTerrain(value: boolean) {

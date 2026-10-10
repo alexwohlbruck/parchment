@@ -400,10 +400,14 @@ export class MapStrategy {
     this.mapInstance.resize()
   }
 
+  protected terrainSource() {
+    return terrainSource()
+  }
+
   setMap3dTerrain(value: boolean) {
     const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
     if (value && !present) {
-      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, this.terrainSource() as any)
       this.mapInstance.setTerrain({
         source: TERRAIN_SOURCE_ID,
         exaggeration: TERRAIN_EXAGGERATION,

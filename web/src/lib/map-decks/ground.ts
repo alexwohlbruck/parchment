@@ -5,6 +5,7 @@
  * however the map looks at it. Heights are true metres, before exaggeration.
  */
 import type { Point } from './decks'
+import { rawTerrainTiles } from '@/lib/map-style/terrain'
 
 export type Heights = { size: number; data: Float32Array }
 
@@ -115,10 +116,10 @@ export type TerrainSampler = { source: string; ground: GroundSampler }
 export function terrainSampler(map: any, current: TerrainSampler | null, onLoad: () => void): TerrainSampler | null {
   const id = map.getTerrain?.()?.source
   const source = id ? map.getSource(id) : null
-  const template = source?.tiles?.[0]
-  if (!template) return null
+  if (!source?.tiles?.[0]) return null
+  const { tiles: template, maxzoom } = rawTerrainTiles(source.tiles[0], source.maxzoom ?? 15)
   if (current?.source === template) return current
-  const zoom = Math.min(source.maxzoom ?? 15, 15)
+  const zoom = Math.min(maxzoom, 15)
   const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
     zoom,
     minZoom: Math.max(0, zoom - 5),

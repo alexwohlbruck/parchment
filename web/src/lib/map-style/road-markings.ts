@@ -17,9 +17,25 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 const FROM = 16
 const TO = FROM + 0.6
 
-const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string; green: string; red: string }> = {
-  light: { asphalt: 'hsl(36, 4%, 70%)', white: 'hsl(40, 30%, 98%)', yellow: 'hsl(43, 72%, 60%)', green: 'hsl(148, 26%, 60%)', red: 'hsl(9, 42%, 62%)' },
-  dark: { asphalt: 'hsl(222, 5%, 25%)', white: 'hsla(40, 10%, 80%, 0.7)', yellow: 'hsla(43, 50%, 52%, 0.75)', green: 'hsl(148, 20%, 33%)', red: 'hsl(9, 26%, 33%)' },
+const COLORS: Record<FlavorId, { asphalt: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+  light: {
+    asphalt: 'hsl(200, 3%, 57%)',
+    white: 'hsl(40, 20%, 97%)',
+    crosswalk: 'hsl(40, 6%, 91%)',
+    yellow: 'hsl(52, 88%, 56%)',
+    green: 'hsl(150, 30%, 58%)',
+    red: 'hsl(9, 48%, 62%)',
+  },
+  // Muted paint, mixed with the asphalt rather than see-through, so a fill
+  // and its edge hairline do not double up.
+  dark: {
+    asphalt: 'hsl(222, 5%, 25%)',
+    white: '#a4a29f',
+    crosswalk: '#8f8e8c',
+    yellow: '#bca83d',
+    green: 'hsl(148, 20%, 33%)',
+    red: 'hsl(9, 26%, 33%)',
+  },
 }
 
 /** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
@@ -29,10 +45,16 @@ export function metres(m: number, minimum = 0): any {
 }
 
 const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
+/** Over a fill still fading in, an edge would draw darker than it; it waits for the fill. */
+const edgeFadeIn = ['interpolate', ['linear'], ['zoom'], TO, 0, TO + 0.4, 1]
 
 /** The basemap's at-grade and bridge road fills and casings. */
 const ROAD_FILLS = ['Minor road', 'Major road', 'Highway', 'Minor road bridge', 'Major road bridge', 'Highway bridge']
 const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline', 'Minor road outline bridge', 'Major road outline bridge', 'Highway outline bridge']
+
+/** The basemap's flat road tunnels, whose dashes would read as crosswalks over the street above. */
+const ROAD_TUNNELS = ['Tunnel', 'Tunnel outline']
+const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
 /**
  * Turn the basemap's roads to asphalt and drop their casings over the hand-off,
@@ -41,6 +63,10 @@ const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outli
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   const asphalt = COLORS[flavor].asphalt
   return layers.map(layer => {
+    if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
+      const opacity = layer.paint?.['line-opacity'] ?? 1
+      return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }
+    }
     if (ROAD_FILLS.includes(layer.id) && typeof layer.paint?.['line-color'] !== 'object') {
       const color = layer.paint['line-color']
       return { ...layer, paint: { ...layer.paint, 'line-color': ['interpolate', ['linear'], ['zoom'], FROM, color, TO, asphalt] } }
@@ -73,34 +99,20 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
   const style = (...s: string[]) => ['in', ['get', 'style'], ['literal', s]]
   const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow'], 0.55, 1]
+  // Fills draw without antialiasing; a hairline of the fill's own colour round
+  // each one gives its edge a smooth one.
+  const fill = (id: string, sourceLayer: string, filter: any, color: any) => [
+    { id: `${id}${suffix}`, type: 'fill', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
+      paint: { 'fill-color': color, 'fill-opacity': fadeIn } },
+    { id: `${id} edge${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
+      layout: { 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 1, 'line-opacity': edgeFadeIn } },
+  ]
   return [
-    {
-      id: `Road surface${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_SURFACE_TILES,
-      minzoom: FROM,
-      filter: band,
-      paint: { 'fill-color': c.asphalt, 'fill-opacity': fadeIn },
-    },
-    {
-      id: `Road lane fill${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_MARKING_TILES,
-      minzoom: FROM,
-      filter: ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
-      paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn },
-    },
-    {
-      id: `Road paint fill${suffix}`,
-      type: 'fill',
-      source: DETAIL_SOURCE,
-      'source-layer': ROAD_MARKING_TILES,
-      minzoom: FROM,
-      filter: ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
-      paint: { 'fill-color': c.white, 'fill-opacity': fadeIn },
-    },
+    ...fill('Road surface', ROAD_SURFACE_TILES, band, c.asphalt),
+    ...fill('Road lane fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['!=', ['get', 'color'], 'white']],
+      ['match', ['get', 'color'], 'red', c.red, c.green]),
+    ...fill('Road paint fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
+      ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white]),
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
     // gap, on motorways the highway's 3 m and 9 m.

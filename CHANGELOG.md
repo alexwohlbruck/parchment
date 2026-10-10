@@ -7,6 +7,7 @@
 ### Changed
 
 * Footpaths are drawn with a finer edge.
+* Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
 
 ### Fixed
 

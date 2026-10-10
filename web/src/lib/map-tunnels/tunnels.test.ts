@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { MAX_GRADE, along, metresPerUnit, outline, type Mesh, type Point } from '@/lib/map-decks/decks'
-import { FACADE, FORECOURT, HEADROOM, PROFILES, ROOF, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
+import { FACADE, FORECOURT, HEADROOM, PROFILES, ROOF, approach, emerge, mergeTwins, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -152,6 +152,22 @@ describe('solveCut', () => {
   })
 })
 
+describe('mergeTwins', () => {
+  // Tunnels heading west, their portals at x = 0 and their approaches running east.
+  const track = (north: number) => ({ out: { points: [at(0, north), at(60, north)], junction: false }, bore: [at(0, north), at(-30, north)], edges: [2.5, 2.5] as [number, number], kind: 'rail' as const })
+
+  test('takes two tracks whose cuts would overlap as one cut between them, wide enough for both', () => {
+    const [merged, ...rest] = mergeTwins([track(0), track(4.5)])
+    expect(rest).toHaveLength(0)
+    expect((y0 - merged.out.points[0][1]) / M).toBeCloseTo(2.25, 1)
+    expect(merged.edges[0]).toBeCloseTo(2.25 + 2.5, 1)
+  })
+
+  test('leaves openings far enough apart for a wall between them', () => {
+    expect(mergeTwins([track(0), track(20)])).toHaveLength(2)
+  })
+})
+
 describe('emerge', () => {
   const box = [[at(-5, -10), at(20, -10), at(20, 10), at(-5, 10), at(-5, -10)]]
   const covered = (p: Point) => inside(p, box)
@@ -174,7 +190,7 @@ describe('portalMesh', () => {
     const { points, at: portal } = portalLine([at(0), at(120)], [at(0), at(-40)], 3)
     const d = along(points)
     const cut = solveCut(d, portal, d.map(() => 10), [d.map(() => 10), d.map(() => 10)], 13)!
-    const out: PortalMesh = { walls: mesh(), mouth: mesh(), bore: mesh() }
+    const out: PortalMesh = { walls: mesh(), mouth: mesh(), lid: mesh(), floor: mesh(), bore: mesh() }
     portalMesh(points, portal, [4, 4], cut, [0, 0], { surface: [1, 0, 0], concrete: [0, 1, 0], parapet: [0, 0, 1], bore: [1, 1, 0] }, out)
     return { out, points, portal, cut }
   }

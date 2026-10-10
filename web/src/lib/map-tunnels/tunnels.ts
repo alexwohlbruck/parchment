@@ -188,6 +188,56 @@ export function emerge(out: Point[], bore: Point[], covered: (p: Point) => boole
   return { out: dense.slice(k), bore: [...dense.slice(0, k + 1).reverse(), ...bore.slice(1)] }
 }
 
+/** A portal ready to be solved: the approach out from it, the bore in from it, and its carriageway's edges in metres. */
+export type Opening = { out: Approach; bore: Point[]; edges: [number, number]; kind: BoreKind }
+
+/** Points every `step` metres along a line, from its start. */
+export function resample(line: Point[], step: number): Point[] {
+  const d = along(line)
+  const out: Point[] = []
+  for (let m = 0, i = 1; m <= d.at(-1)! && i < line.length; m += step) {
+    while (i < line.length - 1 && d[i] < m) i++
+    const t = (m - d[i - 1]) / (d[i] - d[i - 1] || 1)
+    out.push([line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t])
+  }
+  return out
+}
+
+/** Two lines run side by side, as the line midway between them, as far as the shorter goes. */
+function midway(a: Point[], b: Point[]): Point[] {
+  const [ra, rb] = [resample(a, 3), resample(b, 3)]
+  return ra.slice(0, rb.length).map((p, i) => [(p[0] + rb[i][0]) / 2, (p[1] + rb[i][1]) / 2] as Point)
+}
+
+/** Sharpest angle between two bores, in radians, that still run side by side. */
+const PARALLEL = Math.PI / 9
+
+/**
+ * Openings side by side close enough that their cuts would overlap — a
+ * railway's two tracks, or twin tubes — as one opening between them, wide
+ * enough for both.
+ */
+export function mergeTwins(openings: Opening[]): Opening[] {
+  const list = [...openings]
+  for (let i = 0; i < list.length; i++)
+    for (let j = i + 1; j < list.length; j++) {
+      const [a, b] = [list[i], list[j]]
+      if (a.kind !== b.kind || a.out.points.length < 2 || b.out.points.length < 2) continue
+      const [pa, pb] = [a.out.points[0], b.out.points[0]]
+      const apart = Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) * metresPerUnit(pa[1])
+      const reach = (o: Opening) => Math.max(...o.edges) + KERB
+      if (apart > reach(a) + reach(b) || turn(heading(pa, a.bore[1] ?? pa), heading(pb, b.bore[1] ?? pb)) > PARALLEL) continue
+      const half = apart / 2 + Math.max(...a.edges, ...b.edges)
+      const out = midway(a.out.points, b.out.points)
+      const bore = midway(a.bore, b.bore)
+      if (out.length < 2 || bore.length < 2) continue
+      list[i] = { out: { points: out, junction: a.out.junction || b.out.junction }, bore, edges: [half, half], kind: a.kind }
+      list.splice(j, 1)
+      j = i
+    }
+  return list
+}
+
 export type Cut = {
   /** Road height at each vertex. */
   floor: number[]
@@ -247,6 +297,9 @@ export type PortalMesh = {
   walls: Mesh
   /** The opening in the headwall, through which the bore is drawn. */
   mouth: Mesh
+  /** Over each cut at its walls' tops, and the floor beneath: the walls are drawn again inside the lid, over the floor, so the terrain cannot cover their feet. */
+  lid: Mesh
+  floor: Mesh
   /** The bore going dark, drawn only through its mouth. */
   bore: Mesh
 }
@@ -283,6 +336,8 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     side === 'left' ? quad(out.walls, corners[0], corners[1], corners[2], corners[3], color) : quad(out.walls, corners[3], corners[2], corners[1], corners[0], color)
   for (let i = cut.open + 1; i <= at; i++) {
     const [a, b] = [i - 1, i]
+    quad(out.lid, at3(wall[a].left, walls[0][a] + CAP), at3(wall[a].right, walls[1][a] + CAP), at3(wall[b].right, walls[1][b] + CAP), at3(wall[b].left, walls[0][b] + CAP), colors.concrete)
+    quad(out.floor, at3(wall[a].left, floor[a]), at3(wall[a].right, floor[a]), at3(wall[b].right, floor[b]), at3(wall[b].left, floor[b]), colors.concrete)
     for (const side of ['left', 'right'] as const) {
       const top = walls[side === 'left' ? 0 : 1]
       if (top[a] - floor[a] < 0.05 && top[b] - floor[b] < 0.05) continue
@@ -304,9 +359,12 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   for (const side of ['left', 'right'] as const)
     sided(side, [at3(back[at][side], floor[at] - FOOT), at3(wall[at][side], floor[at] - FOOT), at3(wall[at][side], mouth), at3(back[at][side], mouth)], colors.concrete)
   quad(out.walls, at3(l, crown), at3(r, crown), at3(br, crown), at3(bl, crown), colors.parapet)
-  // Its back and sides, down into the ground, so it stands solid from behind.
+  // Its back and sides, down into the ground, so it stands solid from behind; the bore runs through.
   const base = floor[at] - FOOT
-  quad(out.walls, at3(br, base), at3(bl, base), at3(bl, crown), at3(br, crown), colors.concrete)
+  const [wl, wr] = [lerp(wall[at].left, wall[next].left), lerp(wall[at].right, wall[next].right)]
+  quad(out.walls, at3(br, mouth), at3(bl, mouth), at3(bl, crown), at3(br, crown), colors.concrete)
+  quad(out.walls, at3(bl, base), at3(wl, base), at3(wl, mouth), at3(bl, mouth), colors.concrete)
+  quad(out.walls, at3(wr, base), at3(br, base), at3(br, mouth), at3(wr, mouth), colors.concrete)
   quad(out.walls, at3(l, base), at3(bl, base), at3(bl, crown), at3(l, crown), colors.concrete)
   quad(out.walls, at3(br, base), at3(r, base), at3(r, crown), at3(br, crown), colors.concrete)
   quad(out.mouth, at3(wall[at].left, floor[at] - FOOT), at3(wall[at].right, floor[at] - FOOT), at3(wall[at].right, mouth), at3(wall[at].left, mouth), colors.bore)

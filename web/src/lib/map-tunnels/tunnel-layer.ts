@@ -19,7 +19,7 @@ import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } f
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, mergeTwins, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
 const WIDTH: Record<string, number> = {
@@ -53,9 +53,9 @@ type Solved = { key: string; points: Point[]; at: number; edges: [number, number
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
-type Built = { walls: Mesh; mouth: Mesh; bore: Mesh; footprints: Map<string, Footprint> }
+type Built = { walls: Mesh; mouth: Mesh; lid: Mesh; floor: Mesh; bore: Mesh; footprints: Map<string, Footprint> }
 
-const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), bore: emptyMesh(), footprints: new Map() })
+const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: emptyMesh(), floor: emptyMesh(), bore: emptyMesh(), footprints: new Map() })
 
 /** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
 function elevation(dem: any): Elevation {
@@ -77,6 +77,8 @@ function elevation(dem: any): Elevation {
 
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
+/** Milliseconds a frame may spend carving tiles. */
+const CARVE_BUDGET = 6
 /** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
 const SILL = 0.5
 
@@ -110,7 +112,7 @@ export class TunnelLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: { walls: MeshBuffers; mouth: MeshBuffers; bore: MeshBuffers } | null = null
+  private buffers: Record<'walls' | 'mouth' | 'lid' | 'floor' | 'bore', MeshBuffers> | null = null
   private pending: Built | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
@@ -126,9 +128,15 @@ export class TunnelLayer {
   /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
   private carved = new WeakMap<object, number>()
   private round = 0
+  /** Where finer terrain has been asked for. */
+  private focused: Bounds[] = []
   private stale = true
 
-  constructor(private sources: TunnelSources, private palette: DeckPalette, options: { id?: string } = {}) {
+  /**
+   * `focusTerrain` is told where cuts are carved, so finer terrain is served
+   * there; the terrain is reloaded when that reaches somewhere new.
+   */
+  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; focusTerrain?: (areas: Bounds[]) => void } = {}) {
     this.id = options.id ?? 'map-tunnels'
   }
 
@@ -144,7 +152,7 @@ export class TunnelLayer {
     this.onChange = event => {
       if (event?.tile && event.sourceId === this.map.getTerrain?.()?.source) {
         // A tile arriving fills its neighbours' borders from its own uncarved ground.
-        this.round++
+        this.recarveAround(event.tile)
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
@@ -170,7 +178,8 @@ export class TunnelLayer {
     this.cancelIdle?.()
     this.release(gl)
     gl.deleteProgram(this.program)
-    if (this.carving.size) map.terrain?.tileManager?.tileManager?.reload()
+    this.options.focusTerrain?.([])
+    if (this.carving.size) map.terrain?.tileManager?.tileManager?.reload(true)
     this.map = null
   }
 
@@ -243,14 +252,18 @@ export class TunnelLayer {
     const footprints = this.footprints(area)
     const covered = (q: Point) => footprints.some(f => holds(f.bounds, q) && inside(q, f.rings))
 
-    const solved: Solved[] = []
+    const openings: Opening[] = []
     for (const { line, reach, width, kind } of portals) {
       const found = approach(line[0], line[1], atGrade[kind], tolerance, PROFILES[kind].reach)
       const moved = found.points.length > 1 ? emerge(found.points, line, covered) : null
       if (!moved || moved.out.length < 2) continue
       const out = { ...found, points: moved.out }
       const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) : null
-      const cut = this.solve(out, truncate(moved.bore, reach), measured ?? [width / 2, width / 2], kind)
+      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind })
+    }
+    const solved: Solved[] = []
+    for (const { out, bore, edges, kind } of mergeTwins(openings)) {
+      const cut = this.solve(out, bore, edges, kind)
       if (cut) solved.push(cut)
     }
 
@@ -326,28 +339,49 @@ export class TunnelLayer {
 
   private release(gl: WebGL2RenderingContext) {
     if (!this.buffers) return
-    deleteMesh(gl, this.buffers.walls)
-    deleteMesh(gl, this.buffers.mouth)
-    deleteMesh(gl, this.buffers.bore)
+    for (const buffers of Object.values(this.buffers)) deleteMesh(gl, buffers)
     this.buffers = null
   }
 
   /** Take on a new set of floors: carved over what is there, or, where one has gone, into freshly loaded ground. */
   private carve(next: Map<string, Footprint>) {
     const removed = [...this.carving.keys()].some(key => !next.has(key))
+    const areas = [...next.values()].map(f => f.bounds)
+    const reached = areas.some(a => !this.focused.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
     this.carving = next
+    this.focused = areas
+    this.options.focusTerrain?.(areas)
     this.round++
-    if (removed) this.map.terrain?.tileManager?.tileManager?.reload()
+    if (removed || reached) this.map.terrain?.tileManager?.tileManager?.reload(true)
+  }
+
+  /** Mark a tile and the loaded tiles beside it to be carved again. */
+  private recarveAround(loaded: any) {
+    const { z, x, y } = loaded.tileID.canonical
+    for (const tile of this.demTiles()) {
+      const c = tile.tileID.canonical
+      if (tile.dem && c.z === z && Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) this.carved.delete(tile.dem)
+    }
+  }
+
+  private demTiles(): any[] {
+    return this.map?.terrain?.tileManager?.tileManager?._inViewTiles?.getAllTiles?.() ?? []
   }
 
   /** Carve the floors into each loaded elevation tile not yet carved this round. */
   private carveTiles() {
-    const tiles = this.map.terrain?.tileManager?.tileManager?._inViewTiles?.getAllTiles?.() ?? []
     if (!this.carving.size) return
+    const tiles = this.demTiles()
     const floors = [...this.carving.values()]
+    const start = performance.now()
     let changed = false
     for (const tile of tiles) {
       if (!tile.dem || this.carved.get(tile.dem) === this.round) continue
+      // A few tiles a frame, so a burst of them arriving does not stall one.
+      if (performance.now() - start > CARVE_BUDGET) {
+        this.map.triggerRepaint()
+        break
+      }
       this.carved.set(tile.dem, this.round)
       const { z, x, y } = tile.tileID.canonical
       if (!carveTile(elevation(tile.dem), [z, x, y], floors)) continue
@@ -361,8 +395,8 @@ export class TunnelLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
-      const { walls, mouth, bore, footprints } = this.pending
-      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), bore: uploadMesh(gl, bore) }
+      const { walls, mouth, lid, floor, bore, footprints } = this.pending
+      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.carve(footprints)
       this.pending = null
     }
@@ -372,42 +406,46 @@ export class TunnelLayer {
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const matrix = translate(projection, [this.origin[0], this.origin[1], 0])
     const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
-    const [near, far] = gl.getParameter(gl.DEPTH_RANGE) as Float32Array
+    // MapLibre's own range for 3D layers; asking the context for it would stall on the GPU.
+    const [near, far] = this.map.painter?.renderContext?.depthRangeFor3D ?? [0, 1]
     gl.enable(gl.DEPTH_TEST)
     gl.depthMask(true)
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
-    const walls = bindMesh(gl, this.program, this.buffers.walls, matrix, light)
-    walls.draw()
-    walls.unbind()
-    if (!this.buffers.mouth.count) return
+    const draw = (name: keyof NonNullable<typeof this.buffers>) => {
+      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light)
+      mesh.draw()
+      mesh.unbind()
+    }
+    draw('walls')
 
     gl.enable(gl.STENCIL_TEST)
     gl.stencilMask(0xff)
     gl.clearStencil(0)
     gl.clear(gl.STENCIL_BUFFER_BIT)
-    // Mark each mouth wherever nothing drawn so far stands in front of it…
-    const mouth = bindMesh(gl, this.program, this.buffers.mouth, matrix, light)
+    // Mark each cut's lid and each mouth wherever nothing drawn so far stands in front of them…
     gl.colorMask(false, false, false, false)
     gl.depthMask(false)
     gl.stencilFunc(gl.ALWAYS, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
-    mouth.draw()
-    // …and clear the depth there, so the bore can be drawn under the ground.
+    draw('lid')
+    draw('mouth')
+    // …clear the depth there, and set the cut's floor back into it…
     gl.depthMask(true)
     gl.depthFunc(gl.ALWAYS)
     gl.depthRange(far, far)
     gl.stencilFunc(gl.EQUAL, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
-    mouth.draw()
-    mouth.unbind()
+    draw('lid')
+    draw('mouth')
     gl.depthRange(near, far)
-    gl.colorMask(true, true, true, true)
     gl.depthFunc(gl.LEQUAL)
-    const bore = bindMesh(gl, this.program, this.buffers.bore, matrix, light)
-    bore.draw()
-    bore.unbind()
+    draw('floor')
+    // …then stand the walls on it, and draw the bore under the ground.
+    gl.colorMask(true, true, true, true)
+    draw('walls')
+    draw('bore')
     gl.clear(gl.STENCIL_BUFFER_BIT)
     gl.disable(gl.STENCIL_TEST)
   }

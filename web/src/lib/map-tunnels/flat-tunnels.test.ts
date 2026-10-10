@@ -17,7 +17,7 @@ describe('flat tunnels', () => {
       compiled.value.evaluate({ zoom }, { type: 2, properties })
     expect(opacity(TUNNEL_MIN_ZOOM - 1, { layer: -1 })).toBe(0.6)
     expect(opacity(TUNNEL_MIN_ZOOM, { layer: -1 })).toBe(0)
-    expect(opacity(TUNNEL_MIN_ZOOM, {})).toBe(0)
+    expect(opacity(TUNNEL_MIN_ZOOM, {})).toBe(0.6)
     expect(opacity(TUNNEL_MIN_ZOOM, { layer: 0 })).toBe(0.6)
   })
 })

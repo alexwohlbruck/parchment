@@ -8,8 +8,8 @@ type StyleLayer = { id: string; type: string; 'source-layer'?: string }
 /** Zoom the portals are drawn from; below it the flat tunnels stay. */
 export const TUNNEL_MIN_ZOOM = 15
 
-/** A tunnel feature mapped below ground: a negative layer, or none given. */
-export const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], -1]], 0]
+/** A tunnel feature mapped below ground. A passage under a building is a tunnel with no layer, so only a negative one counts. */
+export const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
 export const isFlatTunnel = (layer: StyleLayer) =>
   layer['source-layer'] === 'transportation' && layer.type === 'line' && /^Tunnel\b/.test(layer.id)

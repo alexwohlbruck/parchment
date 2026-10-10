@@ -32,6 +32,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import POWER from '../src/lib/map-objects/power-structures.json' with { type: 'json' }
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(HERE, '../public/models')
@@ -72,7 +73,7 @@ const ROLE_COLOR = {
   rim: [0.86, 0.4, 0.16, 1],
   frame: [0.95, 0.95, 0.94, 1],
   goalpost: [0.95, 0.8, 0.2, 1],
-  wire: [0.2, 0.21, 0.22, 1],
+  wire: [0.36, 0.37, 0.39, 1],
   mesh: [0.68, 0.7, 0.7, 1],
   bloom: [0.86, 0.5, 0.66, 1],
   pv: [0.16, 0.22, 0.34, 1],
@@ -1290,9 +1291,77 @@ function wires(m, attach, sag, r, pieces) {
  */
 const standing = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 }, open: true })
 
-/** Conductor attachment points on a lattice tower, in metres: [height, side]. */
-const TOWER_PHASES = [[23, -6.5], [23, 6.5], [28, -4], [28, 4], [29.8, 0]]
-const POLE_PHASES = [[10.4, -1.05], [10.4, 1.05], [11.1, 0]]
+/** One conductor across a unit span, hung from just under y = 1 and sagging by `sag` at mid-span. */
+const conductor = (sag, r) =>
+  standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), [[1 - r, 0]], sag, r, q.seg ? 8 : 3) }]), 1)
+
+/** Short insulators hanging from a crossarm at `top` down to each phase, where its conductor is held. */
+function insulators(m, top, phases, r) {
+  for (const [y, z] of phases) if (y < top) strut(m, [0, top, z], [0, y, z], r)
+  return m
+}
+
+/**
+ * A lattice tower, built broad and few-membered so it holds together at map
+ * scale rather than dissolving into sub-pixel struts.
+ */
+function tower(q) {
+  const { phases } = POWER['power-tower']
+  const steel = mesh()
+  const corners = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+  box(steel, [-0.35, 29.4, -0.35], [0.35, 30, 0.35])
+  for (const [y, reach] of [[22.2, 6.9], [26.7, 4.6]]) box(steel, [-0.35, y, -reach], [0.35, y + 0.6, reach])
+  if (!q.seg) {
+    for (const [sx, sz] of corners) strut(steel, [sx * 4, 0, sz * 4], [0, 29.4, 0], 0.45)
+    return [{ role: 'lattice', ...steel }]
+  }
+  const r = 0.3
+  const waist = 27
+  const w = y => 4 - (3 * y) / waist
+  const at = (y, [sx, sz]) => [sx * w(y), y, sz * w(y)]
+  const bands = [7, 13.5, 19, 23.4, waist]
+  corners.forEach((c, i) => {
+    const next = corners[(i + 1) % 4]
+    strut(steel, at(0, c), at(waist, c), r)
+    strut(steel, at(waist, c), [0, 29.4, 0], r * 0.8)
+    bands.forEach((y, k) => {
+      strut(steel, at(y, c), at(y, next), r * 0.7)
+      strut(steel, at(k ? bands[k - 1] : 0, c), at(y, next), r * 0.5)
+    })
+  })
+  for (const [y, reach, tie] of [[22.2, 6.9, [25.5, w(25.5)]], [26.7, 4.6, [28.6, 0.45]]])
+    for (const side of [-1, 1]) strut(steel, [0, y + 0.6, side * (reach - 0.3)], [0, tie[0], side * tie[1]], r * 0.6)
+  insulators(steel, 22.2, phases, 0.16)
+  insulators(steel, 26.7, phases.filter(([y]) => y > 22.2), 0.16)
+  return [{ role: 'lattice', ...steel }]
+}
+
+/** A substation gantry: an A-frame either side and a beam across, with the phases hung under it. */
+function portal(q) {
+  const { phases } = POWER['power-portal']
+  const steel = mesh()
+  const r = q.seg ? 0.25 : 0.4
+  for (const z of [-5.5, 5.5]) {
+    strut(steel, [-1.4, 0, z], [0, 12.9, z], r)
+    strut(steel, [1.4, 0, z], [0, 12.9, z], r)
+    if (q.seg) strut(steel, [-0.7, 6.45, z], [0.7, 6.45, z], r * 0.7)
+  }
+  box(steel, [-0.35, 12.9, -6], [0.35, 13.5, 6])
+  if (q.seg) insulators(steel, 12.9, phases, 0.14)
+  return [{ role: 'lattice', ...steel }]
+}
+
+/** A wooden distribution pole with a crossarm, and its insulators in grey. */
+function pole(q) {
+  const { phases } = POWER['power-pole']
+  const glass = mesh()
+  for (const [y, z] of phases) merge(glass, shift(cylinder(mesh(), 6, 0.1, 0.07, 0, 0.32), [0, y - 0.32, z]))
+  return [
+    { role: 'wood', ...cylinder(mesh(), q.seg ? 10 : 6, 0.3, 0.22, 0, 10.88) },
+    { role: 'wood', ...box(mesh(), [-0.12, 10.15, -1.45], [0.12, 10.38, 1.45]) },
+    ...(q.seg ? [{ role: 'lattice', ...glass }] : []),
+  ]
+}
 
 /**
  * Lines stood up as objects. A span runs one unit along x, so the layer can
@@ -1311,25 +1380,12 @@ const LINES = {
   'guard-rail-span': standing(furnLod(() => [
     { role: 'metal', ...box(mesh(), [-0.5, 0.55, -0.05], [0.5, 0.8, 0.05]) },
   ]), 0.8),
-  'power-tower': furnLod(q => {
-    const steel = mesh()
-    const r = q.seg ? 0.12 : 0.2
-    const leg = (sx, sz) => strut(steel, [sx * 4, 0, sz * 4], [sx * 1, 30, sz * 1], r)
-    for (const [sx, sz] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) leg(sx, sz)
-    const at = (y, sx, sz) => { const w = 4 - (3 * y) / 30; return [sx * w, y, sz * w] }
-    if (q.seg)
-      for (const y of [6, 12, 18, 23, 28])
-        for (const [a, b] of [[[1, 1], [-1, 1]], [[-1, 1], [-1, -1]], [[-1, -1], [1, -1]], [[1, -1], [1, 1]]])
-          strut(steel, at(y, ...a), at(y, ...b), r * 0.7)
-    for (const [y, span] of [[23, 7], [28, 4.5]]) strut(steel, [0, y, -span], [0, y, span], r * 1.3)
-    return [{ role: 'lattice', ...steel }]
-  }),
-  'power-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), TOWER_PHASES, 2.5, 0.12, q.seg ? 6 : 2) }]), 30),
-  'power-pole': furnLod(q => [
-    { role: 'wood', ...cylinder(mesh(), half(q), 0.15, 0.11, 0, 11.2) },
-    { role: 'wood', ...box(mesh(), [-0.06, 10.2, -1.25], [0.06, 10.32, 1.25]) },
-  ]),
-  'pole-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), POLE_PHASES, 0.6, 0.05, q.seg ? 6 : 2) }]), 11.2),
+  'power-tower': furnLod(tower),
+  'power-portal': furnLod(portal),
+  'power-pole': furnLod(pole),
+  'power-conductor': conductor(0.1, 0.005),
+  'power-busbar': conductor(0.01, 0.01),
+  'pole-conductor': conductor(0.04, 0.006),
   'catenary-mast': furnLod(q => [
     { role: 'metal', ...shift(cylinder(mesh(), half(q), 0.12, 0.1, 0, 7.4), [0, 0, 2.6]) },
     { role: 'metal', ...box(mesh(), [-0.04, 6.7, -0.1], [0.04, 6.8, 2.55]) },

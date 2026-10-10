@@ -22,8 +22,9 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES } from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
+import { STEPS_LAYER, STEPS_BRIDGE_LAYER } from './steps-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -523,6 +524,24 @@ describe('badge POI treatment', () => {
     }
   })
 
+  test('stairs draw treads over their own path band, and only on steps', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    for (const [steps, path] of [[STEPS_LAYER, 'Path'], [STEPS_BRIDGE_LAYER, 'Path bridge']]) {
+      expect(at(steps), steps).toBeGreaterThan(at(`${path}${CYCLING_SUFFIX}`))
+      expect(layers[at(steps) - 1].id.startsWith(path), steps).toBe(true)
+      expect(layers[at(steps)].paint['line-width']).toEqual(layers[at(path)].paint['line-width'])
+
+      const filter = featureFilter(layers[at(steps)].filter, `${steps}.filter`)
+      const draws = (properties: Record<string, unknown>) =>
+        filter.filter({ zoom: 18 } as any, { type: 2, properties } as any, {} as any)
+      const brunnel = path === 'Path' ? {} : { brunnel: 'bridge' }
+      expect(draws({ class: 'path', subclass: 'steps', ...brunnel })).toBe(true)
+      expect(draws({ class: 'path', subclass: 'footway', ...brunnel })).toBe(false)
+      expect(draws({ class: 'path', subclass: 'steps', brunnel: 'tunnel' })).toBe(false)
+    }
+  })
+
   /**
    * A deck mapped as an area is the same structure as one mapped as a way —
    * often the same bridge, carrying ways drawn across it — so it takes the same
@@ -950,6 +969,8 @@ describe('assembled styles', () => {
     ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
     ['light glyph POIs', () => buildMapStyle({ ...opts, theme: 'light', poiStyle: 'glyph' })],
     ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
+    ['light HD roads', () => buildMapStyle({ ...opts, theme: 'light', hdRoads: true })],
+    ['dark HD roads', () => buildMapStyle({ ...opts, theme: 'dark', hdRoads: true })],
   ]
 
   // The fork registers this at runtime on its own bundled spec; the npm spec
@@ -2517,6 +2538,7 @@ describe('markings only offset from a carriageway', () => {
 
 describe('road markings', () => {
   const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+  const laneSourceLayers = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES]
   const ids = style.layers.map(l => l.id)
   const at = (id: string) => ids.indexOf(id)
 
@@ -2531,6 +2553,41 @@ describe('road markings', () => {
     expect(minor.paint['line-color'][0]).toBe('interpolate')
     const surface = style.layers.find(l => l.id === 'Road surface') as any
     expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
+  })
+
+  test('draws a turning loop\'s island over the basemap road running into it, not as asphalt', () => {
+    const matches = (id: string, kind?: string) => {
+      const layer = style.layers.find(l => l.id === id) as any
+      return featureFilter(layer.filter, `${id}.filter`).filter({ zoom: 18 } as any, { type: 3, properties: kind ? { kind } : {} } as any)
+    }
+    expect(matches('Road surface')).toBe(true)
+    expect(matches('Road surface', 'island')).toBe(false)
+    expect(matches('Road island', 'island')).toBe(true)
+    expect(matches('Road island')).toBe(false)
+    expect(at('Road island')).toBeGreaterThan(at('Minor road'))
+    expect(at('Road island')).toBeLessThan(at('Road line'))
+  })
+
+  test('every lane fill is edged, just above it, by a hairline of its own colour', () => {
+    const fills = style.layers.filter((l: any) => l.type === 'fill' && laneSourceLayers.includes(l['source-layer'])) as any[]
+    expect(fills.length).toBeGreaterThan(0)
+    for (const f of fills) {
+      const edge = style.layers[at(f.id) + 1] as any
+      expect(edge.type, f.id).toBe('line')
+      expect(edge.filter).toEqual(f.filter)
+      expect(edge.paint['line-color']).toEqual(f.paint['fill-color'])
+    }
+  })
+
+  test('underground road tunnels give way to the street above them', () => {
+    const tunnel = style.layers.find(l => l.id === 'Tunnel') as any
+    const parsed = expression.createPropertyExpression(
+      tunnel.paint['line-opacity'], 'Tunnel.paint.line-opacity', (latest as any).paint_line['line-opacity'])
+    expect(parsed.result).toBe('success')
+    const evaluate = (layer: number) => (parsed as any).value.evaluate({ zoom: 18 }, { properties: { layer } })
+    expect(evaluate(-1)).toBe(0)
+    expect(evaluate(0)).toBeGreaterThan(0)
+    expect(buildMapStyle({ ...opts, theme: 'light' }).layers.find(l => l.id === 'Tunnel')).toMatchObject({ paint: { 'line-opacity': 0.6 } })
   })
 })
 
@@ -2547,5 +2604,12 @@ describe('HD roads off', () => {
     const casing = style.layers.find(l => l.id === 'Minor road outline') as any
     expect(minor.paint['line-color'][0]).not.toBe('interpolate')
     expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
+  })
+})
+
+describe('read-only detail layers', () => {
+  test('each has a style layer, so overzoomed tiles keep it', () => {
+    const used = new Set(buildMapStyle({ ...opts, theme: 'light' }).layers.map((l: any) => l['source-layer']))
+    for (const sourceLayer of READ_ONLY_DETAIL_TILES) expect(used.has(sourceLayer), sourceLayer).toBe(true)
   })
 })

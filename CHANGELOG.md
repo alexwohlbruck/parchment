@@ -2,6 +2,26 @@
 
 ### Added
 
+* Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+* Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
+
+### Changed
+
+* Footpaths are drawn with a finer edge.
+* 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
+* Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
+* Power towers and poles are sturdier and easier to see, wires are a softer grey, and substations are drawn with low gantries and taut busbars instead of full-height towers.
+
+### Fixed
+
+* Power lines stay joined at every tower, including through bends and across map tile edges.
+* Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
+* Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+
+## [0.14.0] - 2026-10-09
+
+### Added
+
 * Solar farms show rows of panels, flower beds bloom, and scrub, shrubbery and mapped shrubs grow as 3D bushes, clipped square where a planting is tagged that way.
 * With 3D terrain and objects on, bridges and elevated roads stand in 3D on piers, with their lane markings and your route carried up onto the deck.
 * Up close, roads draw at their real width with rounded kerbs, lane and centre lines, stop lines, crosswalks, turn arrows and bike lane symbols, easing across where lanes are added or dropped.
@@ -12,6 +32,7 @@
 * Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
 * Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
 * Points of interest can now be switched on and off from the layer selector.
+* Street and place labels can now be switched on and off from the layer selector.
 * With 3D terrain and objects on, tunnels for roads, paths, cycleways and railways now run underground: up close, each entrance is cut into the ground with retaining walls, a headwall and a dark mouth.
 
 ### Changed
@@ -28,6 +49,7 @@
 * 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
 * 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
+* 3D bridges now take the shape of the bridge drawn on the map, widening, narrowing and ending where it does, and bridges near large interchanges build faster.
 
 ### Fixed
 

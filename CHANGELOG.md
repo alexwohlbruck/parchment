@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
+
 ## [0.14.0] - 2026-10-09
 
 ### Added

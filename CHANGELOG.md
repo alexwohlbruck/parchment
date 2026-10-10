@@ -3,6 +3,7 @@
 ### Added
 
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+* Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 
 ### Changed
 

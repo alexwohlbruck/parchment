@@ -2555,6 +2555,19 @@ describe('road markings', () => {
     expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
   })
 
+  test('draws a turning loop\'s island over the basemap road running into it, not as asphalt', () => {
+    const matches = (id: string, kind?: string) => {
+      const layer = style.layers.find(l => l.id === id) as any
+      return featureFilter(layer.filter, `${id}.filter`).filter({ zoom: 18 } as any, { type: 3, properties: kind ? { kind } : {} } as any)
+    }
+    expect(matches('Road surface')).toBe(true)
+    expect(matches('Road surface', 'island')).toBe(false)
+    expect(matches('Road island', 'island')).toBe(true)
+    expect(matches('Road island')).toBe(false)
+    expect(at('Road island')).toBeGreaterThan(at('Minor road'))
+    expect(at('Road island')).toBeLessThan(at('Road line'))
+  })
+
   test('every lane fill is edged, just above it, by a hairline of its own colour', () => {
     const fills = style.layers.filter((l: any) => l.type === 'fill' && laneSourceLayers.includes(l['source-layer'])) as any[]
     expect(fills.length).toBeGreaterThan(0)

@@ -6,6 +6,8 @@
 
 ### Changed
 
+* Footpaths are drawn with a finer edge.
+
 ### Fixed
 
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.

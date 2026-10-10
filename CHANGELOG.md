@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
+
 ### Fixed
 
 ## [0.14.0] - 2026-10-09

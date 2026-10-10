@@ -2,7 +2,11 @@
 
 ### Added
 
+* Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+
 ### Changed
+
+* Footpaths are drawn with a finer edge.
 
 ### Fixed
 

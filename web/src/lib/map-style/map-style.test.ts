@@ -24,6 +24,7 @@ import {
 } from './build'
 import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES } from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
+import { STEPS_LAYER, STEPS_BRIDGE_LAYER } from './steps-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -520,6 +521,24 @@ describe('badge POI treatment', () => {
     for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
       const lightness = (name: string) => Number(/([\d.]+)%\)/.exec(tokens[name])![1])
       expect(lightness('path_bridge_casing')).toBeLessThan(lightness('path_casing'))
+    }
+  })
+
+  test('stairs draw treads over their own path band, and only on steps', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    for (const [steps, path] of [[STEPS_LAYER, 'Path'], [STEPS_BRIDGE_LAYER, 'Path bridge']]) {
+      expect(at(steps), steps).toBeGreaterThan(at(`${path}${CYCLING_SUFFIX}`))
+      expect(layers[at(steps) - 1].id.startsWith(path), steps).toBe(true)
+      expect(layers[at(steps)].paint['line-width']).toEqual(layers[at(path)].paint['line-width'])
+
+      const filter = featureFilter(layers[at(steps)].filter, `${steps}.filter`)
+      const draws = (properties: Record<string, unknown>) =>
+        filter.filter({ zoom: 18 } as any, { type: 2, properties } as any, {} as any)
+      const brunnel = path === 'Path' ? {} : { brunnel: 'bridge' }
+      expect(draws({ class: 'path', subclass: 'steps', ...brunnel })).toBe(true)
+      expect(draws({ class: 'path', subclass: 'footway', ...brunnel })).toBe(false)
+      expect(draws({ class: 'path', subclass: 'steps', brunnel: 'tunnel' })).toBe(false)
     }
   })
 

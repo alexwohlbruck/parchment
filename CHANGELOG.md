@@ -9,9 +9,11 @@
 * Footpaths are drawn with a finer edge.
 * 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
 * Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
+* Power towers and poles are sturdier and easier to see, wires are a softer grey, and substations are drawn with low gantries and taut busbars instead of full-height towers.
 
 ### Fixed
 
+* Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
 

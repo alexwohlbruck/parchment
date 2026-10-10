@@ -266,6 +266,8 @@ export type ObjectInstance = {
    * than standing level at one height. For spans long enough to cross a slope.
    */
   conform?: true | { across: number }
+  /** Metres the +x end of `length` stands above the other, on top of any slope in the ground. */
+  rise?: number
 }
 
 export type ObjectSourceSpec = {
@@ -737,6 +739,11 @@ export class ObjectLayer {
           placed.gx = plane.gx
           placed.gy = plane.gy
         } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        if (instance.rise && instance.length) {
+          const run = instance.rise / instance.length
+          placed.gx += run * Math.cos(instance.heading)
+          placed.gy += run * Math.sin(instance.heading)
+        }
         placedNow.push(placed)
       }
     }

@@ -12,7 +12,7 @@
  * this script:
  *
  *   role      Every part is tagged `bark`, `foliage`, `metal`, `wood` or
- *             `paint`, written as its material name, so the layer can colour
+ *             `paint` (and so on — see `ROLE_COLOR`), written as its material name, so the layer can colour
  *             it per flavor.
  *   unit      Scaled and translated so the model is exactly 1 tall with its
  *             base at y=0 and centred on x/z, which is what lets the layer's
@@ -39,6 +39,8 @@ const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
 
 /** Suffix on the cheap variant of every model. */
 export const FAR_SUFFIX = '-far'
+/** Suffix on a tree's trunkless crown; see `crownOnly`. */
+const CROWN_SUFFIX = '-crown'
 
 /**
  * Roles, and the default colour each is written with.
@@ -49,6 +51,7 @@ export const FAR_SUFFIX = '-far'
  */
 const ROLE_COLOR = {
   bark: [0.35, 0.27, 0.22, 1],
+  'palm-bark': [0.47, 0.44, 0.4, 1],
   foliage: [0.31, 0.52, 0.27, 1],
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
@@ -57,7 +60,27 @@ const ROLE_COLOR = {
   bench: [0.87, 0.78, 0.66, 1],
   bin: [0.34, 0.36, 0.38, 1],
   recycling: [0.2, 0.33, 0.52, 1],
+  spray: [0.9, 0.95, 0.99, 1],
+  stone: [0.74, 0.72, 0.68, 1],
+  water: [0.45, 0.62, 0.72, 1],
+  lamp: [1, 0.93, 0.76, 1],
+  panel: [0.93, 0.92, 0.89, 1],
+  blossom: [0.93, 0.7, 0.78, 1],
+  thatch: [0.6, 0.5, 0.36, 1],
+  net: [0.25, 0.27, 0.27, 1],
+  tape: [0.95, 0.95, 0.93, 1],
+  rim: [0.86, 0.4, 0.16, 1],
+  frame: [0.95, 0.95, 0.94, 1],
+  goalpost: [0.95, 0.8, 0.2, 1],
+  wire: [0.2, 0.21, 0.22, 1],
+  mesh: [0.68, 0.7, 0.7, 1],
+  bloom: [0.86, 0.5, 0.66, 1],
+  pv: [0.16, 0.22, 0.34, 1],
+  lattice: [0.62, 0.64, 0.66, 1],
 }
+
+/** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
+const CANOPY = new Set(['foliage', 'blossom', 'spray'])
 
 /** How far apart two faces can lean and still share a smoothed normal. */
 const CREASE_DEGREES = 78
@@ -100,16 +123,16 @@ function box(m, [x0, y0, z0], [x1, y1, z1]) {
   return m
 }
 
-const ring = (sides, radius, y) =>
+const ring = (sides, radius, y, phase = 0) =>
   Array.from({ length: sides }, (_, i) => {
-    const a = (i / sides) * Math.PI * 2
+    const a = ((i + phase) / sides) * Math.PI * 2
     return [Math.cos(a) * radius, y, Math.sin(a) * radius]
   })
 
 /** A tapered cylinder, capped top and bottom. */
-function cylinder(m, sides, bottomRadius, topRadius, base, height) {
-  const lo = ring(sides, bottomRadius, base)
-  const hi = ring(sides, topRadius, base + height)
+function cylinder(m, sides, bottomRadius, topRadius, base, height, phase = 0) {
+  const lo = ring(sides, bottomRadius, base, phase)
+  const hi = ring(sides, topRadius, base + height, phase)
   for (let i = 0; i < sides; i++) {
     const j = (i + 1) % sides
     quad(m, lo[i], lo[j], hi[j], hi[i])
@@ -623,7 +646,7 @@ const TRUNK_RATIO = 0.3
  */
 function slimTrunks(parts) {
   const bark = parts.filter(p => p.role === 'bark')
-  const foliage = parts.filter(p => p.role === 'foliage')
+  const foliage = parts.filter(p => CANOPY.has(p.role))
   if (!bark.length || !foliage.length) return
 
   const spread = (list, below = Infinity) => {
@@ -641,7 +664,8 @@ function slimTrunks(parts) {
   for (const part of foliage)
     for (const v of part.index) crownBottom = Math.min(crownBottom, part.position[v * 3 + 1])
 
-  const trunk = spread(bark, crownBottom)
+  // Low down only, below any limbs that reach out under the crown.
+  const trunk = spread(bark, Math.min(crownBottom, 0.3))
   const crown = spread(foliage)
   if (trunk < 1e-4 || crown < 1e-4) return
   const scale = Math.min(1, (TRUNK_RATIO * crown) / trunk)
@@ -670,9 +694,11 @@ function slimTrunks(parts) {
 function farLod(parts) {
   const out = []
   for (const part of parts) {
+    // A palm's skirt is a sliver under its crown by the time this is drawn.
+    if (part.role === 'thatch') continue
     const { min, max } = boundsOf(part)
     const m = mesh()
-    if (part.role === 'foliage') {
+    if (CANOPY.has(part.role)) {
       lozenge(m, min, max)
     } else {
       const radius = baseRadius(part, min, max)
@@ -927,6 +953,30 @@ function slat(z, y, w, t, tilt, seg, round = 0.012) {
   return pts
 }
 
+/**
+ * A closed profile `[r, y, jag?]` spun about the y axis. `jag` pushes alternate
+ * vertices of that ring out and down by its amount, for a ragged edge.
+ */
+function lathe(m, sides, profile) {
+  const rings = profile.map(([r, y, jag = 0]) =>
+    Array.from({ length: sides }, (_, i) => {
+      const a = (i / sides) * Math.PI * 2
+      const k = i % 2 ? jag : -jag
+      return [Math.cos(a) * (r + k), y - k, Math.sin(a) * (r + k)]
+    }))
+  for (let k = 0; k < profile.length; k++) {
+    const [lo, hi] = [rings[k], rings[(k + 1) % profile.length]]
+    if (profile[k][0] === 0 && profile[(k + 1) % profile.length][0] === 0) continue
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      if (profile[k][0] === 0) face(m, lo[i], hi[j], hi[i])
+      else if (profile[(k + 1) % profile.length][0] === 0) face(m, lo[i], lo[j], hi[i])
+      else quad(m, lo[i], lo[j], hi[j], hi[i])
+    }
+  }
+  return m
+}
+
 /** A thick straight bar between two points in the side plane. */
 function bar([z0, y0], [z1, y1], w) {
   const [dz, dy] = [z1 - z0, y1 - y0]
@@ -939,6 +989,7 @@ function bar([z0, y0], [z1, y1], w) {
 const FURN_NEAR = { seg: 2, sides: 24, slats: 4, ribs: 16 }
 const FURN_FAR = { seg: 0, sides: 6, slats: 1, ribs: 0 }
 const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(FURN_FAR) })
+const half = q => Math.max(6, q.sides / 2)
 
 /**
  * Generated rather than sourced, because these are simple solids whose
@@ -1002,6 +1053,292 @@ const FURNITURE = {
     extrude(parts, [[0.2, 0.66], [0.28, 0.65], [0.43, 1.06], [0.35, 1.08]], -L + 0.001, L - 0.001)
     return [{ role: 'bench', ...parts }]
   }),
+  // Long axis across x like the bench, so a table facing its path sits along it.
+  'picnic-table': furnLod(q => {
+    const L = 0.9
+    const wood = mesh()
+    extrude(wood, [[-0.38, 0.72], [0.38, 0.72], [0.38, 0.77], [-0.38, 0.77]], -L, L)
+    for (const z of [-0.62, 0.62])
+      extrude(wood, [[z - 0.14, 0.42], [z + 0.14, 0.42], [z + 0.14, 0.46], [z - 0.14, 0.46]], -L, L)
+    for (const x of [-L + 0.2, L - 0.2]) {
+      if (!q.seg) {
+        box(wood, [x - 0.05, 0, -0.5], [x + 0.05, 0.71, 0.5])
+        continue
+      }
+      extrude(wood, bar([-0.6, 0], [0.02, 0.71], 0.08), x - 0.04, x + 0.04)
+      extrude(wood, bar([0.6, 0], [-0.02, 0.71], 0.08), x - 0.04, x + 0.04)
+      extrude(wood, [[-0.76, 0.36], [0.76, 0.36], [0.76, 0.41], [-0.76, 0.41]], x - 0.04, x + 0.04)
+    }
+    return [{ role: 'wood', ...wood }]
+  }),
+  // Sheffield stands, each hoop square to the kerb so bikes park across it.
+  'bike-rack': furnLod(q => {
+    const metal = mesh()
+    const hoop = q.seg
+      ? [bar([-0.35, 0], [-0.35, 0.72], 0.05), bar([-0.37, 0.7], [-0.25, 0.83], 0.05),
+         bar([-0.27, 0.82], [0.27, 0.82], 0.05), bar([0.25, 0.83], [0.37, 0.7], 0.05),
+         bar([0.35, 0.72], [0.35, 0], 0.05)]
+      : [[[-0.38, 0], [-0.32, 0], [-0.32, 0.79], [0.32, 0.79], [0.32, 0], [0.38, 0], [0.38, 0.85], [-0.38, 0.85]]]
+    for (const x of [-0.8, 0, 0.8])
+      for (const profile of hoop) extrude(metal, profile, x - 0.025, x + 0.025)
+    return [{ role: 'metal', ...metal }]
+  }),
+  'drinking-water': furnLod(q => {
+    const body = mesh()
+    cylinder(body, q.sides, 0.16, 0.13, 0, 0.82)
+    cylinder(body, q.sides, 0.2, 0.26, 0.82, 0.12)
+    box(body, [-0.025, 0.94, -0.24], [0.025, 1.0, -0.12])
+    const basin = mesh()
+    cylinder(basin, q.sides, 0.2, 0.2, 0.9, 0.05)
+    return [{ role: 'paint', ...body }, { role: 'water', ...basin }]
+  }),
+  fountain: furnLod(q => {
+    const stone = mesh()
+    const water = mesh()
+    const sides = q.seg ? q.sides * 2 : 8
+    cylinder(stone, sides, 1.9, 1.9, 0, 0.45)
+    cylinder(water, sides, 1.75, 1.75, 0.38, 0.1)
+    cylinder(stone, half(q), 0.22, 0.18, 0.45, 1.05)
+    if (q.seg) {
+      cylinder(stone, q.sides, 0.35, 0.65, 1.5, 0.18)
+      cylinder(stone, q.sides, 0.08, 0.06, 1.68, 0.4)
+      cylinder(water, q.sides, 0.58, 0.58, 1.62, 0.08)
+    }
+    return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
+  }),
+  // An aerating jet in a pond: a tall slim column of water rising out of a
+  // mound of mist at its foot, and a thin ring of splash on the water.
+  'fountain-jet': furnLod(q => {
+    const column = lathe(mesh(), 6, q.seg
+      ? [[0, 0], [0.55, 0.3], [0.28, 2], [0.22, 6.2], [0.32, 8.6], [0.3, 9.5], [0.14, 9.95], [0, 10]]
+      : [[0, 0], [0.5, 0.3], [0.26, 8.6], [0.2, 9.8], [0, 10]])
+    const fan = lathe(mesh(), q.seg ? 9 : 6, q.seg
+      ? [[0, 0.1], [1.5, 0.15, 0.2], [1.2, 0.9], [0.75, 2.0], [0.42, 3.2], [0, 3.4]]
+      : [[0, 0.1], [1.4, 0.15], [1.2, 0.6], [0.4, 3.2], [0, 3.3]])
+    if (!q.seg) return [column, fan].map(m => ({ role: 'spray', ...m }))
+    const splash = lathe(mesh(), 10, [[1.3, 0], [2.0, 0.12, 0.15], [2.7, 0]])
+    return [column, fan, splash].map(m => ({ role: 'spray', ...m }))
+  }),
+  // A classic post-top lantern: fluted base, banded pole, four glass panes
+  // under a pyramid roof. Square, so a direction lines its panes up with the street.
+  'street-lamp': furnLod(q => {
+    const metal = mesh()
+    const glass = mesh()
+    const round = q.seg ? 8 : 6
+    const square = (m, r0, r1, base, height) => cylinder(m, 4, r0 * Math.SQRT2, r1 * Math.SQRT2, base, height, 0.5)
+    cylinder(metal, round, 0.2, 0.11, 0, 0.42)
+    cylinder(metal, round, 0.075, 0.06, 0.42, q.seg ? 2.98 : 3.08)
+    if (q.seg) {
+      cylinder(metal, round, 0.13, 0.13, 0.4, 0.06)
+      for (const y of [1.3, 2.4]) cylinder(metal, round, 0.085, 0.085, y, 0.06)
+      cylinder(metal, round, 0.06, 0.12, 3.25, 0.15)
+    }
+    square(glass, 0.16, 0.22, 3.5, 0.48)
+    square(metal, 0.27, 0.06, 4.02, 0.24)
+    if (q.seg) {
+      square(metal, 0.11, 0.17, 3.4, 0.1)
+      square(metal, 0.29, 0.29, 3.98, 0.04)
+    }
+    if (q.seg) {
+      cylinder(metal, round, 0.025, 0.025, 4.26, 0.08)
+      cylinder(metal, round, 0.045, 0.015, 4.34, 0.08)
+    }
+    return [{ role: 'metal', ...metal }, { role: 'lamp', ...glass }]
+  }),
+  bollard: furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.1, 0.1, 0, 0.85)
+    cylinder(metal, half(q), 0.095, 0.05, 0.85, 0.07)
+    return [{ role: 'metal', ...metal }]
+  }),
+  // A monopole billboard whose face looks out at the road (-z).
+  billboard: furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.32, 0.26, 0, 6.2)
+    box(metal, [-4.6, 5.9, 0.12], [4.6, 9.1, 0.42])
+    const face = mesh()
+    box(face, [-4.5, 6.0, -0.02], [4.5, 9.0, 0.14])
+    return [{ role: 'metal', ...metal }, { role: 'panel', ...face }]
+  }),
+}
+
+// ---------------------------------------------------------------------------
+// Sports equipment
+// ---------------------------------------------------------------------------
+
+/** Moves a freshly built part, so a cylinder can stand somewhere but the origin. */
+function shift(m, [dx, dy, dz]) {
+  for (let i = 0; i < m.position.length; i += 3) {
+    m.position[i] += dx
+    m.position[i + 1] += dy
+    m.position[i + 2] += dz
+  }
+  return m
+}
+
+/** A net strung across x between two posts, its tape along the top. */
+function courtNet(q, span, bottom, top, post) {
+  const sides = half(q)
+  return [
+    { role: 'metal', ...shift(cylinder(mesh(), sides, 0.04, 0.035, 0, post), [-span, 0, 0]) },
+    { role: 'metal', ...shift(cylinder(mesh(), sides, 0.04, 0.035, 0, post), [span, 0, 0]) },
+    { role: 'net', ...box(mesh(), [-span + 0.05, bottom, -0.01], [span - 0.05, top, 0.01]) },
+    { role: 'tape', ...box(mesh(), [-span + 0.05, top, -0.015], [span - 0.05, top + 0.06, 0.015]) },
+  ]
+}
+
+/**
+ * Nets, hoops and goals for the courts and fields barrelman lays out. Each faces
+ * -z like the furniture: a net's span runs across x, and a hoop or a goal looks
+ * out over the court in front of it.
+ */
+const SPORTS = {
+  'tennis-net': furnLod(q => courtNet(q, 6.4, 0.06, 0.9, 1.07)),
+  'pickleball-net': furnLod(q => courtNet(q, 3.35, 0.06, 0.86, 0.91)),
+  'volleyball-net': furnLod(q => courtNet(q, 5, 1.43, 2.37, 2.55)),
+  'basketball-hoop': furnLod(q => {
+    const rim = mesh()
+    if (q.seg) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2
+        const [x, z] = [Math.cos(a) * 0.23, -0.38 + Math.sin(a) * 0.23]
+        box(rim, [x - 0.02, 3.04, z - 0.02], [x + 0.02, 3.06, z + 0.02])
+      }
+      box(rim, [-0.06, 3.03, -0.16], [0.06, 3.07, -0.03])
+    } else {
+      box(rim, [-0.23, 3.04, -0.61], [0.23, 3.06, -0.15])
+    }
+    return [
+      { role: 'metal', ...shift(cylinder(mesh(), half(q), 0.08, 0.07, 0, 3.3), [0, 0, 1]) },
+      { role: 'metal', ...(q.seg ? box(mesh(), [-0.05, 3.0, 0.04], [0.05, 3.12, 0.96]) : mesh()) },
+      { role: 'panel', ...box(mesh(), [-0.9, 2.9, -0.03], [0.9, 3.95, 0.03]) },
+      { role: 'rim', ...rim },
+    ]
+  }),
+  'soccer-goal': furnLod(q => {
+    const frame = mesh()
+    box(frame, [-3.78, 2.38, -0.06], [3.78, 2.5, 0.06])
+    box(frame, [-3.7, 0, 1.77], [3.7, 0.05, 1.83])
+    for (const x of [-3.72, 3.72]) {
+      if (q.seg) box(frame, [x - 0.03, 0, 0.07], [x + 0.03, 0.05, 1.76])
+      extrude(frame, bar([0.08, 2.38], [1.78, 0.06], 0.05), x - 0.025, x + 0.025)
+    }
+    return [
+      { role: 'frame', ...shift(cylinder(mesh(), half(q), 0.06, 0.06, 0, 2.37), [-3.72, 0, 0]) },
+      { role: 'frame', ...shift(cylinder(mesh(), half(q), 0.06, 0.06, 0, 2.37), [3.72, 0, 0]) },
+      { role: 'frame', ...frame },
+    ]
+  }),
+  'football-goalpost': furnLod(q => [
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.1, 0.09, 0, 2.94), [0, 0, 1.5]) },
+    { role: 'goalpost', ...box(mesh(), [-0.08, 2.95, 0.1], [0.08, 3.15, 1.45]) },
+    { role: 'goalpost', ...box(mesh(), [-2.88, 2.95, -0.1], [2.88, 3.15, 0.09]) },
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.05, 0.04, 3.16, 9.04), [-2.82, 0, 0]) },
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.05, 0.04, 3.16, 9.04), [2.82, 0, 0]) },
+  ]),
+}
+
+// ---------------------------------------------------------------------------
+// Lines: barriers, power lines and catenary
+// ---------------------------------------------------------------------------
+
+/** A thin square strut between two points, for lattices and wires. */
+function strut(m, a, b, r, capped = true) {
+  const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const len = Math.hypot(...d) || 1
+  const u = d.map(v => v / len)
+  const ref = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+  const cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]]
+  const norm = v => { const l = Math.hypot(...v) || 1; return v.map(c => c / l) }
+  const s1 = norm(cross(u, ref)).map(v => v * r)
+  const s2 = norm(cross(u, s1)).map(v => v * r)
+  const corner = (p, i, j) => [p[0] + i * s1[0] + j * s2[0], p[1] + i * s1[1] + j * s2[1], p[2] + i * s1[2] + j * s2[2]]
+  const ring = p => [corner(p, 1, 1), corner(p, -1, 1), corner(p, -1, -1), corner(p, 1, -1)]
+  const lo = ring(a)
+  const hi = ring(b)
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    quad(m, lo[i], lo[j], hi[j], hi[i])
+  }
+  if (capped) {
+    quad(m, hi[0], hi[1], hi[2], hi[3])
+    quad(m, lo[3], lo[2], lo[1], lo[0])
+  }
+  return m
+}
+
+/**
+ * Wires along x over one unit of span, each sagging by `sag` at mid-span. The
+ * cross-section stays square to x, so stretching a span to length leaves the
+ * wire as thin as it was built.
+ */
+function wires(m, attach, sag, r, pieces) {
+  const ring = ([x, y, z]) => [[x, y + r, z + r], [x, y - r, z + r], [x, y - r, z - r], [x, y + r, z - r]]
+  for (const [y, z] of attach)
+    for (let k = 0; k < pieces; k++) {
+      const at = t => [t - 0.5, y - sag * (1 - (2 * t - 1) ** 2), z]
+      const lo = ring(at(k / pieces))
+      const hi = ring(at((k + 1) / pieces))
+      for (let i = 0; i < 4; i++) quad(m, lo[i], lo[(i + 1) % 4], hi[(i + 1) % 4], hi[i])
+    }
+  return m
+}
+
+/**
+ * Keep a model's own height above the ground: for spans that hang in the air.
+ * Drawn double-sided, since a stretched wire has no top to cull against.
+ */
+const standing = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 }, open: true })
+
+/** Conductor attachment points on a lattice tower, in metres: [height, side]. */
+const TOWER_PHASES = [[23, -6.5], [23, 6.5], [28, -4], [28, 4], [29.8, 0]]
+const POLE_PHASES = [[10.4, -1.05], [10.4, 1.05], [11.1, 0]]
+
+/**
+ * Lines stood up as objects. A span runs one unit along x, so the layer can
+ * stretch it to any segment; a tower or pole carries its crossarms across z,
+ * square to the line it holds.
+ */
+const LINES = {
+  'fence-span': furnLod(q => [
+    { role: 'metal', ...box(mesh(), [-0.5, 1.12, -0.02], [0.5, 1.17, 0.02]) },
+    { role: 'metal', ...(q.seg ? box(mesh(), [-0.5, 0.06, -0.02], [0.5, 0.1, 0.02]) : mesh()) },
+    { role: 'mesh', ...box(mesh(), [-0.5, 0.1, -0.008], [0.5, 1.12, 0.008]) },
+  ]),
+  'fence-post': furnLod(q => [{ role: 'metal', ...cylinder(mesh(), half(q), 0.035, 0.03, 0, 1.2) }]),
+  'wall-span': furnLod(() => [{ role: 'stone', ...box(mesh(), [-0.5, 0, -0.15], [0.5, 1, 0.15]) }]),
+  'hedge-span': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.4], [0.5, 1, 0.4], 0.2, q.seg ? 2 : 0) }]),
+  'guard-rail-span': standing(furnLod(() => [
+    { role: 'metal', ...box(mesh(), [-0.5, 0.55, -0.05], [0.5, 0.8, 0.05]) },
+  ]), 0.8),
+  'power-tower': furnLod(q => {
+    const steel = mesh()
+    const r = q.seg ? 0.12 : 0.2
+    const leg = (sx, sz) => strut(steel, [sx * 4, 0, sz * 4], [sx * 1, 30, sz * 1], r)
+    for (const [sx, sz] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) leg(sx, sz)
+    const at = (y, sx, sz) => { const w = 4 - (3 * y) / 30; return [sx * w, y, sz * w] }
+    if (q.seg)
+      for (const y of [6, 12, 18, 23, 28])
+        for (const [a, b] of [[[1, 1], [-1, 1]], [[-1, 1], [-1, -1]], [[-1, -1], [1, -1]], [[1, -1], [1, 1]]])
+          strut(steel, at(y, ...a), at(y, ...b), r * 0.7)
+    for (const [y, span] of [[23, 7], [28, 4.5]]) strut(steel, [0, y, -span], [0, y, span], r * 1.3)
+    return [{ role: 'lattice', ...steel }]
+  }),
+  'power-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), TOWER_PHASES, 2.5, 0.12, q.seg ? 6 : 2) }]), 30),
+  'power-pole': furnLod(q => [
+    { role: 'wood', ...cylinder(mesh(), half(q), 0.15, 0.11, 0, 11.2) },
+    { role: 'wood', ...box(mesh(), [-0.06, 10.2, -1.25], [0.06, 10.32, 1.25]) },
+  ]),
+  'pole-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), POLE_PHASES, 0.6, 0.05, q.seg ? 6 : 2) }]), 11.2),
+  'catenary-mast': furnLod(q => [
+    { role: 'metal', ...shift(cylinder(mesh(), half(q), 0.12, 0.1, 0, 7.4), [0, 0, 2.6]) },
+    { role: 'metal', ...box(mesh(), [-0.04, 6.7, -0.1], [0.04, 6.8, 2.55]) },
+    { role: 'metal', ...box(mesh(), [-0.03, 5.62, -0.05], [0.03, 6.7, 0.05]) },
+  ]),
+  'catenary-wires': standing(furnLod(q => [
+    { role: 'wire', ...wires(mesh(), [[5.6, 0]], 0, 0.04, 1) },
+    { role: 'wire', ...wires(mesh(), [[6.65, 0]], 0.5, 0.04, q.seg ? 6 : 2) },
+  ]), 7.4),
 }
 
 // ---------------------------------------------------------------------------
@@ -1090,28 +1427,194 @@ function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisio
   return m
 }
 
-/** Rotate a part's points about the Y axis, then tip them about the X axis. */
-function turn(points, yaw, pitch) {
-  const [cy, sy, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)]
-  return points.map(([x, y, z]) => {
-    const y1 = y * cp - z * sp
-    const z1 = y * sp + z * cp
-    return [x * cy + z1 * sy, y1, -x * sy + z1 * cy]
+const smoothstep = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * A palm frond: a narrow blade along an arching spine.
+ *
+ * The spine leaves the crown climbing at `rise` and bends over until it is
+ * heading down at `fall`, so a crown of them is a fountain from the side and a
+ * star from above — the two views a palm is recognised by. `stations` are the
+ * fractions along it that get a cross-section; the base and tip are points.
+ *
+ * The cross-section is a shallow roof, its edges hanging `droop` of the half-
+ * width below the midrib the way a pinnate frond's leaflets do, closed by a
+ * keel underneath. A blade with a keel is a solid, which keeps the whole crown
+ * cullable: a flat ribbon would be open, and an open frond is lit from the
+ * wrong side whenever its back is turned to the camera. `keel: false` closes
+ * it straight across instead, a triangle rather than a diamond, for the far LOD.
+ */
+function frond(m, base, { length, yaw, rise, fall, width, droop, stations, keel = true }) {
+  const STEPS = 48
+  const angle = s => rise + (fall - rise) * s ** 1.6
+  // The spine, integrated from its angle so a station lands on the same curve
+  // whatever the level of detail.
+  const spine = [[0, 0]]
+  for (let i = 0; i < STEPS; i++) {
+    const a = angle((i + 0.5) / STEPS)
+    const [u, v] = spine[i]
+    spine.push([u + (Math.cos(a) * length) / STEPS, v + (Math.sin(a) * length) / STEPS])
+  }
+  const out = [Math.cos(yaw), 0, Math.sin(yaw)]
+  const side = [-Math.sin(yaw), 0, Math.cos(yaw)]
+  const point = (s, across, lift) => {
+    const k = Math.min(STEPS, Math.round(s * STEPS))
+    const [u, v] = spine[k]
+    const a = angle(s)
+    // The blade's own up: square to the spine, in the plane it arches in.
+    const n = [-Math.sin(a) * out[0], Math.cos(a), -Math.sin(a) * out[2]]
+    return [0, 1, 2].map(c => base[c] + out[c] * u + (c === 1 ? v : 0) + side[c] * across + n[c] * lift)
+  }
+  const rings = stations.map(s => {
+    const w = width(s) * length
+    const top = point(s, 0, 0.1 * w)
+    const right = point(s, w, -droop * w)
+    const left = point(s, -w, -droop * w)
+    return keel ? [top, right, point(s, 0, -(droop + 0.08) * w - 0.01), left] : [top, right, left]
+  })
+  const start = point(0, 0, 0)
+  const tip = point(1, 0, 0)
+  const sides = rings[0].length
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    face(m, start, rings[0][j], rings[0][i])
+    for (let k = 0; k < rings.length - 1; k++) quad(m, rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i])
+    face(m, rings[rings.length - 1][i], rings[rings.length - 1][j], tip)
+  }
+}
+
+/** How much wider a far frond is than the near one at the same point; see `palm`. */
+const FAR_FROND_WIDTH = 1.35
+
+/** How wide a frond is along its length, as a fraction of that length. */
+const FROND_WIDTH = {
+  // Pinnate: a bare stalk, then leaflets that run most of its length and taper
+  // to the tip.
+  feather: s => 0.11 * (0.2 + 0.8 * smoothstep(0.05, 0.4, s)) * (1 - 0.8 * smoothstep(0.45, 1, s)),
+  // Palmate: a long bare stalk, then a fan as wide as it is long.
+  fan: s => 0.4 * (0.05 + 0.95 * smoothstep(0.25, 0.7, s)),
+}
+
+/**
+ * A palm trunk: a tube that tapers from a slight flare at the ground and
+ * curves over by `lean`, as many palms do once they are tall.
+ *
+ * Built as one tube rather than stacked cylinders, so it has the same outline
+ * at any number of rings and the far LOD can simply take fewer of them.
+ */
+function palmTrunk(m, { height, lean, from = 0, to = height, base, top, sides, rings }) {
+  const bend = y => (y / height) ** 2 * height * lean
+  const radius = t => top + (base - top) * (1 - t) ** 1.6
+  const at = Array.from({ length: rings }, (_, k) => {
+    const t = k / (rings - 1)
+    const y = from + t * (to - from)
+    return ring(sides, radius(t), y).map(([x, yy, z]) => [x + bend(y), yy, z])
+  })
+  for (let k = 0; k < rings - 1; k++)
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      quad(m, at[k][i], at[k][j], at[k + 1][j], at[k + 1][i])
+    }
+  // Capped with a fan from one corner: the caps are a trunk's ends, where
+  // nobody looks, and a centre vertex would only cost triangles.
+  const [lo, hi] = [at[0], at[rings - 1]]
+  for (let i = 1; i < sides - 1; i++) {
+    face(m, lo[0], lo[i + 1], lo[i])
+    face(m, hi[0], hi[i], hi[i + 1])
+  }
+  return m
+}
+
+/**
+ * Palms, at either level of detail, from one description — so the far model
+ * is the near one with fewer fronds and fewer joints, standing on the same
+ * trunk and arching the same way, rather than a fitted proxy. A fitted proxy
+ * is a lozenge, and a lozenge on a post is a lollipop.
+ *
+ * `fronds` are drawn in order and the far model keeps every `farEvery`th one,
+ * spread round the crown by the golden angle so any subset is still a star.
+ * Keep `farEvery` coprime with the number of ages in the crown's `arch`, or
+ * the far model keeps only some ages — every climbing frond and no hanging one.
+ */
+function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, crownshaft, hub, skirt }, far) {
+  const crown = [height * lean, height, 0]
+  // Under a crownshaft the trunk stops where the shaft takes over, on the same
+  // curve — at both levels of detail, so the far trunk is no taller than the near.
+  const shaftFrom = crownshaft ? height - crownshaft.length : height
+  const sides = far ? 5 : 8
+  const bark = palmTrunk(mesh(), { height, lean, to: shaftFrom, base, top, sides, rings: far ? 3 : 7 })
+  const leaves = mesh()
+  const stations = far ? farStations : [1, 2, 3, 4, 5].map(k => k / 6)
+  fronds.forEach((spec, i) => {
+    if (far && i % farEvery) return
+    // A far blade has one joint, so it is a kite: widest at that joint and
+    // tapering both ways, it covers about half the near blade's area. Widened
+    // to make up for it, or the distant crown reads as a few pencil strokes.
+    const width = far ? s => FROND_WIDTH[kind](s) * FAR_FROND_WIDTH : FROND_WIDTH[kind]
+    frond(leaves, crown, { ...spec, width, stations, keel: !far })
+  })
+  if (shaftFrom < height) {
+    const shaft = palmTrunk(mesh(), { height, lean, from: shaftFrom, base: crownshaft.radius, top: crownshaft.radius * 0.85, sides, rings: far ? 2 : 3 })
+    merge(leaves, shaft)
+  }
+  if (!far && hub) merge(leaves, blob(mesh(), crown, hub, { seed: 7, subdivisions: 1 }))
+  const parts = [{ role: 'palm-bark', ...bark }, { role: 'foliage', ...leaves }]
+  // The dead fronds an unpruned Washingtonia keeps, hanging flat against the
+  // trunk below the living ones: a sleeve flaring out towards the crown.
+  // Kept at the far LOD too, since from the side it is half the tree's outline.
+  if (skirt) {
+    const from = height * (1 - skirt.length)
+    const thatch = cylinder(mesh(), far ? 5 : 10, skirt.radius * 0.75, skirt.radius, from, height - from - 0.2)
+    // On the trunk's curve, so a leaning palm does not wear its skirt off-centre.
+    for (let i = 0; i < thatch.position.length; i += 3)
+      thatch.position[i] += (thatch.position[i + 1] / height) ** 2 * height * lean
+    parts.push({ role: 'thatch', ...thatch })
+  }
+  return parts
+}
+
+/** Append one mesh's triangles to another's. */
+function merge(into, from) {
+  const offset = into.position.length / 3
+  into.position.push(...from.position)
+  into.normal.push(...from.normal)
+  into.index.push(...from.index.map(i => i + offset))
+  return into
+}
+
+/**
+ * A crown of fronds. Each is placed by the golden angle, so neighbours never
+ * line up, and takes its arch from where it is in the crown's life: the
+ * youngest climb, the oldest hang below the horizontal.
+ */
+function crownOf(count, seed, { length, lengthVariety = 0.15, arch }) {
+  const r = rng(seed)
+  return Array.from({ length: count }, (_, i) => {
+    const age = arch[i % arch.length]
+    return {
+      length: length * (1 - lengthVariety / 2 + r() * lengthVariety),
+      yaw: i * 2.39996 + r() * 0.25,
+      rise: age.rise + (r() - 0.5) * 0.15,
+      fall: age.fall + (r() - 0.5) * 0.15,
+      droop: age.droop,
+    }
   })
 }
 
-/** A palm frond: a flattened lumpless blob, swung out and drooping from the crown. */
-function frond(m, crown, length, yaw, droop, seed) {
-  const f = mesh()
-  blob(f, [0, 0, length / 2], [0.22 * length / 2.4 + 0.12, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
-  const pts = []
-  for (let i = 0; i < f.position.length; i += 3) {
-    // Bend along its length: the tip falls further than the base.
-    const z = f.position[i + 2]
-    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * 0.35, z])
-  }
-  const moved = turn(pts, yaw, droop).map(([x, y, z]) => [x + crown[0], y + crown[1], z + crown[2]])
-  for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
+const SPRUCE_TIERS = [[2.6, 2.9, 2.2, 171], [4.6, 2.3, 2.1, 172], [6.5, 1.7, 1.9, 173], [8.2, 1.05, 1.9, 174]]
+const SPRUCE_CONE = [[3.66, 2.9, 6.44, 171]]
+
+function spruce(q, tiers) {
+  const crown = mesh()
+  for (const [y, radius, rise, seed] of tiers)
+    blob(crown, [0, y, 0], [radius, rise, radius], { subdivisions: q.cone, seed, lump: 0.05, flat: 0.25, taper: 0.8 })
+  return [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.38, 0.1, 0, 9) },
+    { role: 'foliage', ...crown },
+  ]
 }
 
 /**
@@ -1130,7 +1633,18 @@ const FAR = { crown: 1, cone: 1, sides: 4 }
  * A tree whose far variant is itself at lower detail, rather than a fitted
  * proxy — so a distant tree keeps its own silhouette and swapping is invisible.
  */
-const lod = make => Object.assign(() => make(NEAR), { far: () => make(FAR) })
+const CROWN = { crown: 2, cone: 2, sides: 3 }
+
+/**
+ * A tree's crown alone, for the inside of a wood where no trunk shows. Built at
+ * a step less detail and fitted with the whole tree, so it sits where its crown would.
+ */
+const crownOnly = (make, q) => () => make(q).filter(p => CANOPY.has(p.role))
+
+const palmLod = spec => Object.assign(() => palm(spec, false), { far: () => palm(spec, true) })
+
+const lod = make =>
+  Object.assign(() => make(NEAR), { far: () => make(FAR), crown: crownOnly(make, CROWN), crownFar: crownOnly(make, FAR) })
 
 const TREES = {
   // Each crown is one smooth, softly undulating solid rather than a cluster of
@@ -1176,48 +1690,277 @@ const TREES = {
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
     { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
   ]),
-  ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
-    `tree-palm-${k}`,
-    () => {
-      const bark = mesh()
-      // A gently curving trunk, in segments that thin towards the crown.
-      const r = rng(seed)
-      const lean = 0.06 + r() * 0.05
-      const segs = 6
-      for (let i = 0; i < segs; i++) {
-        const seg = mesh()
-        cylinder(seg, 8, 0.28 - i * 0.02, 0.26 - i * 0.02, 0, height / segs + 0.05)
-        for (let v = 0; v < seg.position.length; v += 3) {
-          const y = seg.position[v + 1] + (i * height) / segs
-          seg.position[v] += (y / height) ** 2 * height * lean
-          seg.position[v + 1] = y
-        }
-        const pts = []
-        for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
-        for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
-      }
-      const top = [height * lean, height, 0]
-      const leaves = mesh()
-      for (let i = 0; i < count; i++)
-        frond(leaves, top, 2.6 + r() * 0.6, (i / count) * Math.PI * 2 + r() * 0.3, -0.25 - r() * 0.35, seed + i)
-      blob(leaves, top, [0.45, 0.4, 0.45], { seed: seed + 50, subdivisions: 1 })
-      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
-    },
-  ])),
+  // Palms. Two feather palms after the royal and coconut palms — a crownshaft,
+  // long arching fronds — and a fan palm after Washingtonia and Sabal: a
+  // straighter trunk under a tighter, rounder crown of fans on stalks.
+  // `trees.ts` picks between them by id where OSM gives no genus to go on.
+  //
+  // Each frond's arch is set by its age, oldest last: climbing, spreading,
+  // hanging. The far LOD keeps a spread of them and three joints instead of seven.
+  'tree-palm-a': palmLod({
+    height: 12, lean: 0.05, base: 0.58, top: 0.34, kind: 'feather',
+    crownshaft: { length: 1.6, radius: 0.4 },
+    fronds: crownOf(15, 110, {
+      length: 5,
+      arch: [{ rise: 0.75, fall: -0.65, droop: 0.75 }, { rise: 0.35, fall: -1.2, droop: 0.8 }, { rise: 0.05, fall: -1.45, droop: 0.85 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  'tree-palm-b': palmLod({
+    height: 13, lean: 0.015, base: 0.56, top: 0.4, kind: 'fan',
+    hub: [0.45, 0.5, 0.45],
+    fronds: crownOf(24, 120, {
+      length: 2.75,
+      arch: [
+        { rise: 1.15, fall: 0.75, droop: 0.3 }, { rise: 0.7, fall: 0.25, droop: 0.3 }, { rise: 0.25, fall: -0.25, droop: 0.3 },
+        { rise: -0.2, fall: -0.7, droop: 0.3 }, { rise: -0.65, fall: -1.1, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  'tree-palm-c': palmLod({
+    height: 8, lean: 0.12, base: 0.46, top: 0.3, kind: 'feather',
+    crownshaft: { length: 1.1, radius: 0.36 },
+    fronds: crownOf(13, 130, {
+      length: 4.2,
+      arch: [{ rise: 0.65, fall: -0.7, droop: 0.75 }, { rise: 0.3, fall: -1.25, droop: 0.8 }, { rise: 0, fall: -1.55, droop: 0.85 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  // Fan palms after Washingtonia and Sabal, and date palms after Phoenix, for
+  // the trees whose genus names them (`trees.ts`, GENERA). Built as the palms
+  // above are, and as heavy: trunks a twentieth of their height across at the
+  // foot, and fronds at full width.
+  //
+  // A tall Washingtonia: a small round crown of fans high on a straight trunk,
+  // wearing a skirt of dead ones beneath it.
+  'tree-palm-fan-a': palmLod({
+    height: 16, lean: 0.02, base: 0.66, top: 0.44, kind: 'fan',
+    hub: [0.55, 0.6, 0.55],
+    skirt: { length: 0.2, radius: 0.85 },
+    fronds: crownOf(22, 140, {
+      length: 2.9,
+      arch: [
+        { rise: 1.1, fall: 0.7, droop: 0.3 }, { rise: 0.6, fall: 0.15, droop: 0.3 }, { rise: 0.15, fall: -0.35, droop: 0.3 },
+        { rise: -0.3, fall: -0.8, droop: 0.3 }, { rise: -0.75, fall: -1.2, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  // A Sabal: short and stout under a dense, rounded ball of fans that reaches
+  // nearly as far down as it does up.
+  'tree-palm-fan-b': palmLod({
+    height: 9, lean: 0.03, base: 0.52, top: 0.42, kind: 'fan',
+    hub: [0.6, 0.65, 0.6],
+    fronds: crownOf(28, 150, {
+      length: 2.6,
+      arch: [
+        { rise: 1.2, fall: 0.85, droop: 0.3 }, { rise: 0.65, fall: 0.25, droop: 0.3 }, { rise: 0.1, fall: -0.35, droop: 0.3 },
+        { rise: -0.45, fall: -0.9, droop: 0.3 }, { rise: -0.95, fall: -1.35, droop: 0.3 },
+      ],
+    }),
+    farEvery: 3, farStations: [0.7],
+  }),
+  // Date palms after Phoenix canariensis: a stout trunk under a dense crown of
+  // long, stiff fronds, the young ones climbing and the old arching to the
+  // ground. The squat one is the park specimen, the tall one the street palm.
+  'tree-palm-date-a': palmLod({
+    height: 9, lean: 0.02, base: 0.74, top: 0.6, kind: 'feather',
+    hub: [0.85, 0.75, 0.85],
+    fronds: crownOf(22, 160, {
+      length: 5.2,
+      arch: [{ rise: 1.05, fall: 0.25, droop: 0.6 }, { rise: 0.55, fall: -0.55, droop: 0.65 }, { rise: 0.15, fall: -1.15, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  'tree-palm-date-b': palmLod({
+    height: 13, lean: 0.04, base: 0.7, top: 0.52, kind: 'feather',
+    hub: [0.75, 0.7, 0.75],
+    fronds: crownOf(22, 165, {
+      length: 4.6,
+      arch: [{ rise: 0.95, fall: 0.15, droop: 0.6 }, { rise: 0.45, fall: -0.7, droop: 0.65 }, { rise: 0.05, fall: -1.3, droop: 0.7 }],
+    }),
+    farEvery: 2, farStations: [0.4],
+  }),
+  // Spruce in tiers: stacked skirts of branches, each with a flat underside.
+  // Far off the tiers merge, so one cone stands in for them.
+  // The cone spans the tiers top to bottom, flat underside and all, so the
+  // far tree hangs as low as the near one. Built through `lod` for the crown
+  // a wood's interior draws, since `forest.ts` plants this as a conifer.
+  'tree-conifer-e': lod(q => spruce(q, q === FAR ? SPRUCE_CONE : SPRUCE_TIERS)),
+  // Pines built from layered, drooping needle skirts: a tall pine with an
+  // open, ragged crown high on a bare trunk, and a full conical fir.
+  'tree-pine-a': lod(q => pine(q, 211, 15, [[6.8, 2.6, 1.45], [8.3, 3.1, 1.5], [9.8, 2.6, 1.45], [11.1, 2.5, 1.4], [12.3, 1.8, 1.35], [13.3, 1.1, 1.3], [14.1, 0.6, 0.9]], { trunk: 14, base: 0.38, stubs: 4, lobes: 6, ragged: 0.4 })),
+  'tree-pine-b': lod(q => pine(q, 221, 14, [[2.8, 4, 2.6], [4.3, 3.6, 2.6], [5.8, 3.2, 2.5], [7.3, 2.7, 2.4], [8.7, 2.1, 2.3], [10, 1.5, 2.2], [11.3, 0.9, 2.7]], { trunk: 12, base: 0.45 })),
+  // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
+  'tree-blossom-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
+    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 202, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
+  ]),
+  'tree-blossom-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.46, 0.3, 0, 3.2) },
+    { role: 'blossom', ...blob(mesh(), [0, 5.4, 0], [3.3, 3.2, 3.3], { subdivisions: q.crown, seed: 211, lump: 0.16, ripple: 0.14, flat: 0.7, taper: 0.06 }) },
+  ]),
 }
 
 // ---------------------------------------------------------------------------
+// Plantings and arrays
+// ---------------------------------------------------------------------------
+
+/** What scrub, flower beds and solar fields are planted with; see `areas.ts`. */
+const AREAS = {
+  'shrub-a': lod(q => [{ role: 'foliage', ...blob(mesh(), [0, 0.5, 0], [0.62, 0.5, 0.55], { seed: 41, lump: 0.22, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) }]),
+  'shrub-b': lod(q => [
+    { role: 'foliage', ...blob(mesh(), [-0.18, 0.42, 0.05], [0.5, 0.42, 0.48], { seed: 43, lump: 0.25, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) },
+    { role: 'foliage', ...blob(mesh(), [0.28, 0.36, -0.1], [0.38, 0.36, 0.36], { seed: 47, lump: 0.25, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.8 }) },
+  ]),
+  // A clipped shrub: square-cut sides and a flat top, set close in a planting.
+  'shrub-box': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.5], [0.5, 1, 0.5], 0.14, q.seg) }]),
+  // A clump of bedding plants: a low green mound studded with blooms.
+  flowers: lod(q => {
+    const blooms = mesh()
+    const r = rng(53)
+    for (let k = 0; k < (q.crown > 1 ? 5 : 3); k++) {
+      const a = r() * Math.PI * 2
+      const d = 0.15 + r() * 0.25
+      blob(blooms, [Math.cos(a) * d, 0.32 + r() * 0.06, Math.sin(a) * d], [0.1, 0.07, 0.1], { seed: 60 + k, lump: 0.1, subdivisions: 0 })
+    }
+    return [
+      { role: 'foliage', ...blob(mesh(), [0, 0.15, 0], [0.48, 0.18, 0.48], { seed: 51, lump: 0.2, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.9 }) },
+      { role: 'bloom', ...blooms },
+    ]
+  }),
+  // A 24 m length of panel row, 3 m up the slope and tilted 25° toward the
+  // south (-z), with no posts; the layer stretches it along its row. Fitted
+  // from the ground rather than the slab, so it keeps its clearance and size.
+  'solar-row': Object.assign(() => {
+    const tilt = (25 * Math.PI) / 180
+    const half = 1.5 * Math.cos(tilt)
+    const [low, high] = [0.6, 0.6 + 3 * Math.sin(tilt)]
+    return [{ role: 'pv', ...extrude(mesh(), [[-half, low], [half, high], [half, high + 0.06], [-half, low + 0.06]], -12, 12) }]
+  }, { fit: { scale: 1 / 2, cx: 0, cz: 0, base: 0 } }),
+}
+
+// ---------------------------------------------------------------------------
+
+/** A thin three-sided limb from `a` to `b`, capped at both ends. */
+function limb(m, a, b, r0, r1) {
+  const d = b.map((c, i) => c - a[i])
+  const len = Math.hypot(...d) || 1
+  const t = d.map(c => c / len)
+  const up = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+  const ul = Math.hypot(...u)
+  u.forEach((c, i) => { u[i] = c / ul })
+  const v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+  const at = (p, r, k) => {
+    const ang = (k / 3) * Math.PI * 2
+    return p.map((c, i) => c + (Math.cos(ang) * u[i] + Math.sin(ang) * v[i]) * r)
+  }
+  const lo = [0, 1, 2].map(k => at(a, r0, k))
+  const hi = [0, 1, 2].map(k => at(b, r1, k))
+  for (let k = 0; k < 3; k++) quad(m, lo[k], hi[k], hi[(k + 1) % 3], lo[(k + 1) % 3])
+  face(m, lo[2], lo[1], lo[0])
+  face(m, hi[0], hi[1], hi[2])
+  return m
+}
+
+/**
+ * One layer of needles: a closed star of drooping lobes around the trunk, each
+ * ridged down its middle, notched once along each edge, and lifting at the tip.
+ */
+function needleLayer(m, y, radius, rise, lobes, phase, { barbs = true, reach = () => 1 } = {}) {
+  const step = (Math.PI * 2) / lobes
+  const at = (r, a, h) => [Math.cos(a) * r, y + h, Math.sin(a) * r]
+  const apex = [0, y + rise, 0]
+  const under = [0, y + rise * 0.12, 0]
+  const valleys = Array.from({ length: lobes }, (_, i) => at(radius * 0.5, (i + phase + 0.5) * step, rise * 0.3))
+  for (let i = 0; i < lobes; i++) {
+    const a = (i + phase) * step
+    const R = radius * reach(i)
+    const [prev, next] = [valleys[(i + lobes - 1) % lobes], valleys[i]]
+    const m1 = at(R * 0.45, a, rise * 0.5)
+    const m2 = at(R * 0.8, a, -rise * 0.04)
+    const tip = at(R, a, rise * 0.04)
+    face(m, apex, m1, prev)
+    face(m, apex, next, m1)
+    if (barbs) {
+      const [bl, nl] = [at(R * 0.68, a - step * 0.33, -rise * 0.02), at(R * 0.76, a - step * 0.08, rise * 0.08)]
+      const [br, nr] = [at(R * 0.68, a + step * 0.33, -rise * 0.02), at(R * 0.76, a + step * 0.08, rise * 0.08)]
+      face(m, prev, m1, bl), face(m, bl, m1, nl), face(m, nl, m1, m2), face(m, nl, m2, tip)
+      face(m, m1, next, br), face(m, m1, br, nr), face(m, m1, nr, m2), face(m, m2, nr, tip)
+      for (const [u, v] of [[prev, bl], [bl, nl], [nl, tip], [tip, nr], [nr, br], [br, next]]) face(m, under, u, v)
+    } else {
+      face(m, prev, m1, m2), face(m, prev, m2, tip), face(m, m1, next, m2), face(m, m2, next, tip)
+      face(m, under, prev, tip), face(m, under, tip, next)
+    }
+  }
+  return m
+}
+
+/** A drooping tier for the far model: a star-pointed cone, notched between its points. */
+function skirt(m, y, radius, rise, points, phase) {
+  const rim = Array.from({ length: points * 2 }, (_, i) => {
+    const a = ((i + phase) / (points * 2)) * Math.PI * 2
+    const out = i % 2 ? radius * 0.62 : radius
+    return [Math.cos(a) * out, y - (i % 2 ? 0 : rise * 0.22), Math.sin(a) * out]
+  })
+  const apex = [0, y + rise, 0]
+  const under = [0, y + rise * 0.15, 0]
+  for (let i = 0; i < rim.length; i++) {
+    const j = (i + 1) % rim.length
+    face(m, rim[i], apex, rim[j])
+    face(m, rim[j], under, rim[i])
+  }
+  return m
+}
+
+/**
+ * A pine: a trunk with a few dead stubs below a crown of stacked needle layers,
+ * each [y, radius, rise], rotated so their lobes interleave. `ragged` varies
+ * lobe length and stunts the odd one. Far off, three star-pointed skirts.
+ */
+function pine(q, seed, height, layers, { trunk, base, stubs = 0, lobes = 7, ragged = 0 }) {
+  const r = rng(seed)
+  const bark = cylinder(mesh(), q.sides, base, 0.08, 0, trunk)
+  const needles = mesh()
+  const top = layers.at(-1)
+  const crownTop = top[0] + top[2]
+  if (q.crown <= 1) {
+    const picks = [0, Math.floor(layers.length / 3), Math.floor((layers.length * 2) / 3)]
+    picks.forEach((i, k) => {
+      const [y, radius] = layers[i]
+      const next = k === 2 ? crownTop : layers[picks[k + 1]][0] + layers[picks[k + 1]][2] * 0.6
+      // Based so its drooping points stop level with the layer's own.
+      const base = (y + 0.22 * next) / 1.22
+      skirt(needles, base, radius * 0.9, next - base, 6, k * 0.5)
+    })
+    return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+  }
+  for (let k = 0; k < stubs; k++) {
+    const y = layers[0][0] * (0.35 + (k / stubs) * 0.5)
+    const ang = k * 2.4 + r()
+    limb(bark, [0, y, 0], [Math.cos(ang) * (base + 0.2), y + 0.2, Math.sin(ang) * (base + 0.2)], 0.06, 0.02)
+  }
+  layers.forEach(([y, radius, rise], t) => {
+    const last = t === layers.length - 1
+    const stunted = [Math.floor(r() * lobes), Math.floor(r() * lobes)]
+    const reach = i => (ragged && stunted.includes(i) ? 0.5 : 1 - ragged * r())
+    needleLayer(needles, y, radius, rise, last ? 5 : lobes, t * 0.5 + r() * 0.3, { barbs: radius > 1.4, reach })
+  })
+  return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+}
 
 async function main() {
   await mkdir(OUT, { recursive: true })
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts, ownFar) => {
+  const emit = async (name, parts, ownFar, fixed, open = false) => {
     // A level of detail can leave a part out entirely; an empty part has no volume.
     parts = parts.filter(p => p.index.length)
     ownFar = ownFar?.filter(p => p.index.length)
-    const fit = toUnit(parts)
+    const fit = toUnit(parts, fixed)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
@@ -1227,10 +1970,10 @@ async function main() {
     const turned = parts.filter(part => orientFaces(part)).length
     // Before smoothing, so a cap's own hard edge is one of the creases the
     // smoothing pass considers rather than a normal it never sees.
-    const holes = parts.reduce((n, part) => n + capHoles(part), 0)
+    const holes = open ? 0 : parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
-    const foliage = parts.filter(p => p.role === 'foliage')
+    const foliage = parts.filter(p => CANOPY.has(p.role))
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
 
     const near = toGlb(name, parts)
@@ -1247,6 +1990,10 @@ async function main() {
     if (ownFar) {
       toUnit(ownFar, fit)
       far = ownFar
+      // Shaded as the near model is, or the switch between them is a pop
+      // from soft to faceted even where the outline holds.
+      const leaves = far.filter(p => p.role === 'foliage')
+      if (leaves.length) smoothNormals(leaves, CREASE_DEGREES)
     }
     // Oriented in its own right: these solids are built here rather than
     // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
@@ -1274,10 +2021,17 @@ async function main() {
         (holes ? `   capped ${holes}` : '') +
         (solid ? '' : '   NOT SOLID (drawn double-sided)'),
     )
+    return fit
   }
 
-  for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(TREES)) {
+    const fit = await emit(name, build(), build.far?.())
+    if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
+  }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
+  for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.(), build.fit)
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

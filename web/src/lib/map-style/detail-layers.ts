@@ -83,9 +83,15 @@ export const DETAIL_TILES = 'detail'
 export const PARKING_TILES = 'parking_areas'
 export const TREE_TILES = 'street_trees'
 export const TREE_ROW_TILES = 'tree_rows'
+export const WOOD_TILES = 'woods'
 export const FURNITURE_TILES = 'street_furniture'
 export const BUILDING_3D_TILES = 'buildings_3d'
 export const COASTER_TRACK_TILES = 'coaster_tracks'
+export const PITCH_TILES = 'sport_pitches'
+export const OBJECT_LINE_TILES = 'object_lines'
+export const OBJECT_AREA_TILES = 'object_areas'
+/** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
+export const BRIDGE_DECK_TILES = 'bridge_decks'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -94,6 +100,10 @@ export const TREE_ROW_LAYER = 'Tree rows'
 export const FURNITURE_LAYER = 'Street furniture'
 export const COASTER_TRACK_LAYER = 'Coaster track'
 export const COASTER_TRACK_CASING_LAYER = 'Coaster track casing'
+export const PITCH_SURFACE_LAYER = 'Pitch surface'
+export const SOLAR_LAYER = 'Solar array'
+export const FLOWERBED_LAYER = 'Flower bed'
+export const PITCH_MARKING_LAYER = 'Pitch markings'
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -129,6 +139,15 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     // darker than the paving so it reads as a structure standing on it.
     coaster: 'hsl(212, 10%, 52%)',
     coasterCasing: 'hsla(212, 14%, 98%, 0.85)',
+    courtHard: 'hsl(198, 28%, 66%)',
+    courtClay: 'hsl(16, 48%, 66%)',
+    courtSand: 'hsl(42, 48%, 82%)',
+    courtAsphalt: 'hsl(210, 8%, 74%)',
+    field: 'hsl(104, 36%, 70%)',
+    pitchLine: 'hsla(0, 0%, 100%, 0.95)',
+    solar: 'hsl(80, 12%, 84%)',
+    solarPanel: 'hsl(220, 30%, 40%)',
+    flowerbed: 'hsl(330, 38%, 84%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -137,6 +156,15 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     furniture: 'hsl(210, 12%, 44%)',
     coaster: 'hsl(212, 12%, 62%)',
     coasterCasing: 'hsla(216, 30%, 12%, 0.8)',
+    courtHard: 'hsl(205, 26%, 30%)',
+    courtClay: 'hsl(16, 30%, 30%)',
+    courtSand: 'hsl(40, 22%, 34%)',
+    courtAsphalt: 'hsl(216, 12%, 30%)',
+    field: 'hsl(112, 22%, 28%)',
+    pitchLine: 'hsla(0, 0%, 88%, 0.6)',
+    solar: 'hsl(222, 22%, 22%)',
+    solarPanel: 'hsl(222, 30%, 34%)',
+    flowerbed: 'hsl(330, 16%, 30%)',
   },
 }
 
@@ -219,6 +247,25 @@ export function landmarkLayers(): any[] {
       paint: { 'circle-opacity': 0, 'circle-radius': 1 },
     },
   ]
+}
+
+/** Detail layers the map only reads through `querySourceFeatures`, never draws. */
+export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DECK_TILES]
+
+/**
+ * Invisible layers that keep the read-only detail layers in every tile. Past
+ * the source's maxzoom MapLibre builds tiles from the parent and keeps only
+ * source layers some style layer uses, so without these they vanish above z16.
+ */
+export function readOnlyDetailLayers(): any[] {
+  return READ_ONLY_DETAIL_TILES.map(sourceLayer => ({
+    id: `Keep ${sourceLayer}`,
+    type: 'circle',
+    source: DETAIL_SOURCE,
+    'source-layer': sourceLayer,
+    minzoom: 14,
+    paint: { 'circle-opacity': 0, 'circle-radius': 1 },
+  }))
 }
 
 /** The paved surface and its edge, drawn beneath the pedestrian block. */
@@ -357,6 +404,102 @@ export function coasterTrackLayers(flavor: FlavorId): any[] {
       id: COASTER_TRACK_LAYER,
       layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
       paint: { 'line-color': color, 'line-width': width(0) },
+    },
+  ]
+}
+
+/**
+ * Sport surfaces and their markings, from barrelman's `sport_pitches`. Flat, so
+ * they drape over terrain with the rest of the ground; the nets and goals stand
+ * on them as 3D objects (see `map-objects/sports.ts`).
+ */
+export function pitchLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const surface = ['coalesce', ['get', 'surface'], '']
+  const sport = ['coalesce', ['get', 'sport'], '']
+  return [
+    {
+      id: PITCH_SURFACE_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 14,
+      filter: ['==', ['get', 'kind'], 'surface'],
+      paint: {
+        'fill-color': [
+          'case',
+          ['in', surface, ['literal', ['clay', 'dirt', 'tartan']]], c.courtClay,
+          ['==', surface, 'sand'], c.courtSand,
+          ['in', sport, ['literal', ['tennis', 'pickleball']]], c.courtHard,
+          ['in', sport, ['literal', ['beachvolleyball', 'beach_volleyball']]], c.courtSand,
+          ['==', sport, 'basketball'], c.courtAsphalt,
+          c.field,
+        ],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1],
+      },
+    },
+    {
+      id: PITCH_MARKING_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 15.5,
+      filter: ['==', ['get', 'kind'], 'lines'],
+      layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+      paint: {
+        'line-color': c.pitchLine,
+        // About 8 cm of paint at mid-US latitudes, never thinner than a hairline.
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 15.5, 0.6, 18, 1.2, 22, 8],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15.5, 0, 16.5, 1],
+      },
+    },
+  ]
+}
+
+/** The basemap's woodland fill, which turns to bare soil under the 3D forest. */
+export const WOOD_LAYER = 'Wood'
+
+const FOREST_FLOOR: Record<FlavorId, string> = {
+  light: 'hsl(32, 36%, 60%)',
+  dark: 'hsl(30, 22%, 22%)',
+}
+
+/** Fades from the wood's own colour to soil as the forest fills in at z15. */
+export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
+  return ['interpolate', ['linear'], ['zoom'], 14.5, wood, 15.5, FOREST_FLOOR[flavor]]
+}
+
+/** The colour `forestFloorColor` was built from, or the value unchanged. */
+export function woodColorOf(paint: unknown): any {
+  return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
+}
+
+/** Solar arrays and flower beds as flat ground, under the objects planted on them (see `map-objects/areas.ts`). */
+export function plantedAreaLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const kind = (k: string) => ['==', ['get', 'kind'], k]
+  return [
+    {
+      id: SOLAR_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 14,
+      filter: kind('solar'),
+      // Panel-coloured until the 3D rows take over at z17, then the ground between them.
+      paint: {
+        'fill-color': ['interpolate', ['linear'], ['zoom'], 16.5, c.solarPanel, 17, c.solar],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9],
+      },
+    },
+    {
+      id: FLOWERBED_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 15,
+      filter: kind('flowerbed'),
+      paint: { 'fill-color': c.flowerbed, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 1] },
     },
   ]
 }

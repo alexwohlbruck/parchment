@@ -8413,7 +8413,8 @@
     "symbol-spacing": [
      "interpolate",
      [
-      "linear"
+      "exponential",
+      1.6
      ],
      [
       "zoom"
@@ -8423,7 +8424,9 @@
      13,
      200,
      16,
-     150
+     200,
+     22,
+     3200
     ],
     "text-field": [
      "get",

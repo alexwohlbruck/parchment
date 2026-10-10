@@ -55,8 +55,8 @@ const appService = useAppService()
 const canvasesService = useCanvasesService()
 const { settings } = storeToRefs(mapStore)
 
-/** HD roads and indoor maps are Mapbox features; MapLibre has no
- *  answer to give, so a canvas can't override what isn't there. */
+/** Indoor maps are a Mapbox feature; MapLibre has no answer to give,
+ *  so a canvas can't override what isn't there. */
 const ROWS: {
   key: keyof CanvasMapSettings
   icon: typeof Building2Icon
@@ -65,7 +65,7 @@ const ROWS: {
 }[] = [
   { key: 'objects3d', icon: Building2Icon, label: '3dObjects' },
   { key: 'terrain3d', icon: MountainSnowIcon, label: '3dTerrain' },
-  { key: 'hdRoads', icon: RouteIcon, label: 'hdRoads', mapboxOnly: true },
+  { key: 'hdRoads', icon: RouteIcon, label: 'hdRoads' },
   { key: 'indoorMaps', icon: DoorOpenIcon, label: 'indoorMaps', mapboxOnly: true },
   { key: 'poiLabels', icon: InfoIcon, label: 'poiLabels' },
   { key: 'roadLabels', icon: SignpostIcon, label: 'roadLabels' },
@@ -83,7 +83,7 @@ const overriding = computed(() => !!props.mapSettings)
 
 /** Off, the switches report what the app is set to rather than going blank. */
 function valueOf(key: keyof CanvasMapSettings) {
-  return props.mapSettings?.[key] ?? settings.value[key]
+  return (props.mapSettings ?? currentMapSettings())[key]
 }
 
 function setOverriding(on: boolean) {

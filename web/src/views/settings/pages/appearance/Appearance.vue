@@ -187,7 +187,6 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.hdRoads')"
         :description="
           $t('settings.mapSettings.configuration.hdRoadsDescription')
@@ -196,7 +195,7 @@ const handleColorChange = (value: any) => {
         :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
-          :model-value="settings.hdRoads"
+          :model-value="mapStore.hdRoads"
           @update:model-value="mapService.toggleHdRoads()"
         />
       </SettingsItem>

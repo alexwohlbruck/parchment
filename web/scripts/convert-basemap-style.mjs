@@ -987,8 +987,10 @@ function shieldRoadClassFilter() {
 
 /**
  * The one route-marker layer, on Standard's geometry: markers appear as points
- * while the map is zoomed out and switch to riding the line at z11, spaced
- * further apart as they get closer.
+ * while the map is zoomed out and switch to riding the line at z11.
+ *
+ * Spacing grows past z16 because a tilted camera lays a whole tile out at the
+ * zoom of its nearest edge; a flat ramp packs the far end of it with markers.
  */
 function routeShieldLayer(layer, art) {
   const interstateMax = longestRef(art, 'us-interstate')
@@ -999,7 +1001,7 @@ function routeShieldLayer(layer, art) {
       'icon-image': shieldImageExpression(),
       'icon-rotation-alignment': 'viewport',
       'symbol-placement': ['step', ['zoom'], 'point', 11, 'line'],
-      'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 350, 13, 200, 16, 150],
+      'symbol-spacing': ['interpolate', ['exponential', 1.6], ['zoom'], 11, 350, 13, 200, 16, 200, 22, 3200],
       'icon-size': 1,
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],

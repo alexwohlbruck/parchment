@@ -22,7 +22,8 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES } from './detail-layers'
+import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -37,6 +38,7 @@ import { BUILDING_PASTELS, BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
+import { ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES } from './road-markings'
 import { ENGINE_PROJECTIONS, MapEngine, MapProjection } from '@/types/map.types'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -133,12 +135,9 @@ describe('terrain source', () => {
     expect(src.type).toBe('raster-dem')
   })
 
-  test('declares the tile size and zoom the dataset actually has', () => {
-    // Terrarium tiles are 256px where a DEM source otherwise assumes 512, and
-    // the dataset stops at 15. Both wrong by default, and both wrong quietly:
-    // the terrain just comes out garbled rather than erroring.
-    expect(src.tileSize).toBe(256)
-    expect(src.maxzoom).toBe(15)
+  test('declares the 512 px tiles the archive serves', () => {
+    // A wrong tile size does not error; the terrain just comes out garbled.
+    expect(src.tileSize).toBe(512)
   })
 
   test('needs no API key', () => {
@@ -1440,6 +1439,97 @@ describe('assembled styles', () => {
       })
     })
 
+    describe('monorails', () => {
+      const ids = [MONORAIL_CASING_LAYER, MONORAIL_LAYER]
+      const elevated = { class: 'transit', subclass: 'monorail', brunnel: 'bridge', layer: 2 }
+
+      const paint = (flavor: 'light' | 'dark', id: string, prop: string, zoom = 16, properties: Record<string, unknown> = elevated) => {
+        const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === id)
+        // The spec's rail layers still use legacy `stops` functions.
+        return expression
+          .normalizePropertyExpression(layer.paint[prop], `${id}.paint.${prop}`, (latest as any).paint_line[prop])
+          .evaluate({ zoom } as any, { properties } as any)
+      }
+      const lightness = (c: any) => (Math.max(c.r, c.g, c.b) + Math.min(c.r, c.g, c.b)) / 2
+      const matches = (layer: any, properties: Record<string, unknown>) =>
+        featureFilter(layer.filter as any, `${layer.id}.filter`)
+          .filter({ zoom: 16 } as any, { properties, type: 2 } as any, {} as any)
+
+      test('read the basemap\'s transportation layer from z14', () => {
+        for (const id of ids) {
+          const layer = style.layers.find(l => l.id === id) as any
+          expect(layer, id).toBeTruthy()
+          expect(layer.type).toBe('line')
+          expect(layer.source).toBe(SOURCE)
+          expect(layer['source-layer']).toBe('transportation')
+          expect(layer.minzoom).toBe(14)
+        }
+      })
+
+      test('take monorails and no other transit line', () => {
+        const layer = style.layers.find(l => l.id === MONORAIL_LAYER)
+        expect(matches(layer, elevated)).toBe(true)
+        expect(matches(layer, { class: 'transit', subclass: 'monorail' })).toBe(true)
+        for (const subclass of ['light_rail', 'tram', 'subway']) {
+          expect(matches(layer, { class: 'transit', subclass }), subclass).toBe(false)
+        }
+        expect(matches(layer, { class: 'rail', subclass: 'rail' })).toBe(false)
+      })
+
+      test('are drawn by these two layers alone', () => {
+        const drawing = style.layers
+          .filter(l => (l as any)['source-layer'] === 'transportation' && l.type === 'line')
+          .filter(l => matches(l, elevated))
+          .map(l => l.id)
+        expect(drawing.sort()).toEqual([...ids].sort())
+      })
+
+      test('draw over every road and bridge deck, under the buildings and labels', () => {
+        const firstBuilding = style.layers.findIndex(l => (l as any)['source-layer'] === 'building')
+        const firstLabel = style.layers.findIndex(l => l.type === 'symbol' && !!(l.layout as any)?.['text-field'])
+        expect(at(MONORAIL_CASING_LAYER)).toBeLessThan(at(MONORAIL_LAYER))
+        for (const id of ['Highway bridge', 'Major road bridge', 'Minor road bridge', 'Path bridge', 'Major rail bridge']) {
+          expect(at(MONORAIL_CASING_LAYER), id).toBeGreaterThan(at(id))
+        }
+        expect(at(MONORAIL_LAYER)).toBeLessThan(firstBuilding)
+        expect(at(MONORAIL_LAYER)).toBeLessThan(firstLabel)
+      })
+
+      test.each(['light', 'dark'] as const)('%s: a pale beam over a darker casing', flavor => {
+        const beam = paint(flavor, MONORAIL_LAYER, 'line-color')
+        const casing = paint(flavor, MONORAIL_CASING_LAYER, 'line-color')
+        expect(lightness(beam)).toBeGreaterThan(lightness(casing) + 0.2)
+        expect(paint(flavor, MONORAIL_CASING_LAYER, 'line-width')).toBeGreaterThan(
+          paint(flavor, MONORAIL_LAYER, 'line-width'),
+        )
+      })
+
+      test('each flavor has its own concrete', () => {
+        expect(paint('light', MONORAIL_LAYER, 'line-color')).not.toEqual(paint('dark', MONORAIL_LAYER, 'line-color'))
+        expect(paint('light', MONORAIL_CASING_LAYER, 'line-color')).not.toEqual(
+          paint('dark', MONORAIL_CASING_LAYER, 'line-color'),
+        )
+      })
+
+      test.each(['light', 'dark'] as const)('%s: reads apart from heavy rail and coaster track', flavor => {
+        const beamColor = paint(flavor, MONORAIL_LAYER, 'line-color')
+        const beamWidth = paint(flavor, MONORAIL_LAYER, 'line-width')
+        const rail = { class: 'rail', subclass: 'rail' }
+        expect(beamColor).not.toEqual(paint(flavor, 'Major rail', 'line-color', 16, rail))
+        expect(beamColor).not.toEqual(paint(flavor, 'Coaster track', 'line-color', 16, {}))
+        expect(beamWidth).toBeGreaterThan(paint(flavor, 'Major rail', 'line-width', 16, rail))
+        expect(beamWidth).toBeGreaterThan(paint(flavor, 'Coaster track', 'line-width', 16, {}))
+      })
+
+      test('yards and tunnels recede', () => {
+        const opacity = (properties: Record<string, unknown>) =>
+          paint('light', MONORAIL_LAYER, 'line-opacity', 16, properties)
+        expect(opacity(elevated)).toBe(1)
+        expect(opacity({ ...elevated, service: 'yard' })).toBeLessThan(1)
+        expect(opacity({ class: 'transit', subclass: 'monorail', brunnel: 'tunnel' })).toBeLessThan(1)
+      })
+    })
+
     test('trees stand above the buildings, where the models have to sit', () => {
       const lastBuilding = style.layers.map(l => (l as any)['source-layer']).lastIndexOf('building')
       expect(at('Trees')).toBeGreaterThan(lastBuilding)
@@ -2422,5 +2512,47 @@ describe('markings only offset from a carriageway', () => {
     expect(allowed).not.toContain('cycleway')
     expect(allowed).not.toContain('footway')
     expect(allowed).not.toContain('path')
+  })
+})
+
+describe('road markings', () => {
+  const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+  const ids = style.layers.map(l => l.id)
+  const at = (id: string) => ids.indexOf(id)
+
+  test('paint at grade goes over the ground roads and under every bridge', () => {
+    expect(at('Road line')).toBeGreaterThan(at('Highway'))
+    expect(at('Road line')).toBeLessThan(at('Minor road bridge'))
+    expect(at('Road line bridge')).toBeGreaterThan(at('Highway bridge'))
+  })
+
+  test('the basemap roads fade to the carriageway asphalt rather than vanish', () => {
+    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    expect(minor.paint['line-color'][0]).toBe('interpolate')
+    const surface = style.layers.find(l => l.id === 'Road surface') as any
+    expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
+  })
+})
+
+describe('HD roads off', () => {
+  const style = buildMapStyle({ ...opts, theme: 'light' })
+  const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
+
+  test('draws no lane geometry, at grade or on a deck', () => {
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']))).toEqual([])
+  })
+
+  test('leaves the basemap roads their own colour and casing', () => {
+    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    const casing = style.layers.find(l => l.id === 'Minor road outline') as any
+    expect(minor.paint['line-color'][0]).not.toBe('interpolate')
+    expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
+  })
+})
+
+describe('read-only detail layers', () => {
+  test('each has a style layer, so overzoomed tiles keep it', () => {
+    const used = new Set(buildMapStyle({ ...opts, theme: 'light' }).layers.map((l: any) => l['source-layer']))
+    for (const sourceLayer of READ_ONLY_DETAIL_TILES) expect(used.has(sourceLayer), sourceLayer).toBe(true)
   })
 })

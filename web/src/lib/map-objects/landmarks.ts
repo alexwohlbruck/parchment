@@ -18,6 +18,7 @@
  * lives in `landmark-layer.ts`.
  */
 import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-layers'
+import { coveredNear, type Coverage } from './landmark-coverage'
 
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
@@ -108,7 +109,12 @@ export type Landmark = {
   /** Degrees clockwise from north that the model's north is turned to. */
   bearing: number
   scale: number
-  /** Metres above the ground the model's origin sits. */
+  /**
+   * Metres the model is raised (positive) or sunk (negative) from where the
+   * layer grounds it: for a plinth or pier the map doesn't draw, or a field
+   * below the street. Sent beside the model rather than baked into it, so
+   * its own ground stays at y = 0. 0 for almost every landmark.
+   */
   elevation: number
   minzoom: number
   /**
@@ -205,9 +211,8 @@ function asExpression(filter: any): any {
  * so the flat line under it has to go too or it shows through the gaps
  * between the supports. Tracks are filtered by ref only, like `buildings_3d`,
  * and never by footprint (`buildingSources` in the strategy leaves them out).
- * A coaster's footprint is a box hundreds of metres across, and the track of
- * every smaller ride standing inside it would vanish with no model drawn for
- * it.
+ * Coasters cross and run alongside one another, and a smaller ride's track
+ * lying under a big coaster's would vanish with no model drawn for it.
  */
 export const REPLACEABLE_SOURCE_LAYERS: readonly string[] = ['building', BUILDING_3D_TILES, COASTER_TRACK_TILES]
 
@@ -241,25 +246,35 @@ export function withoutReplaced(base: any, sourceLayer: string, refs: string[], 
 /** A model's plan extent, in its own metres: glTF x east, z south. */
 export type Footprint = { minX: number; maxX: number; minZ: number; maxZ: number }
 
-/** How far outside the model's footprint a building may reach and still be inside it. */
+/**
+ * How far outside what the model covers a building may reach and still be
+ * inside it: a wall drawn a little off the OSM outline. About one cell of
+ * the coverage grid.
+ */
 const FOOTPRINT_TOLERANCE_M = 1.5
 
 /**
- * Whether a building lies wholly inside a landmark model's footprint, and so
- * is part of what the model stands in for.
+ * Whether a building lies wholly on what a landmark model covers in plan, and
+ * so is part of what the model stands in for.
  *
  * The fallback for when ids don't match, which on this basemap is often:
  * Planetiler's building ids are not reliably the OSM id, so a building that
  * `replaces` names correctly can still arrive under an unrelated number — the
  * Washington Square Arch comes through as 33574370, which as an OSM ref is a
  * building on Jones Street. Mapbox hides buildings by footprint for the same
- * reason. Requiring the *whole* building to be inside is what keeps it safe:
+ * reason. Requiring the *whole* building to be covered is what keeps it safe:
  * the star-shaped fort under the Statue of Liberty reaches well past her
  * pedestal, so it stays, while the pedestal's own blocks go.
+ *
+ * Covered, not inside the model's bounding box: a coaster's box is hundreds
+ * of metres of mostly open ground, and every building standing in it went —
+ * see `landmark-coverage.ts`. The whole outline is walked, edges included, so
+ * a building whose corners happen to land on a coaster's track with open
+ * ground between them stays too.
  */
 export function insideFootprint(
   landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
-  footprint: Footprint,
+  coverage: Coverage,
   rings: number[][][],
 ): boolean {
   const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
@@ -267,22 +282,51 @@ export function insideFootprint(
   const [c, s] = [Math.cos(b), Math.sin(b)]
   const tol = FOOTPRINT_TOLERANCE_M / landmark.scale
   let any = false
-  for (const ring of rings)
+  for (const ring of rings) {
+    let last: [number, number] | null = null
     for (const [lng, lat] of ring) {
       const east = (lng - landmark.lng) * k
       const south = -(lat - landmark.lat) * 110574
       // Undo `localMatrix`'s turn and scale: map (east, south) → model (x, z).
       const x = (c * east + s * south) / landmark.scale
       const z = (-s * east + c * south) / landmark.scale
-      if (x < footprint.minX - tol || x > footprint.maxX + tol || z < footprint.minZ - tol || z > footprint.maxZ + tol)
-        return false
+      // The first vertex is tested before any edge, so most buildings are
+      // ruled out by a single lookup.
+      if (!coveredNear(coverage, x, z, tol)) return false
+      if (last) {
+        const [lx, lz] = last
+        const steps = Math.floor(Math.hypot(x - lx, z - lz) / coverage.cell)
+        for (let i = 1; i <= steps; i++) {
+          const f = i / (steps + 1)
+          if (!coveredNear(coverage, lx + (x - lx) * f, lz + (z - lz) * f, tol)) return false
+        }
+      }
+      last = [x, z]
       any = true
     }
+  }
   return any
 }
 
 /** Samples per side of the grid the ground under a landmark is read on. */
 export const GROUND_GRID = 7
+
+/**
+ * Where a point in a placed model's plan lands on the map: model (x, z) in its
+ * own units, turned and scaled as `localMatrix` does, to lng/lat. The inverse
+ * of `insideFootprint`'s turn.
+ */
+export function modelToLngLat(
+  landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
+  x: number,
+  z: number,
+): [number, number] {
+  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
+  const b = (landmark.bearing * Math.PI) / 180
+  const east = landmark.scale * (Math.cos(b) * x - Math.sin(b) * z)
+  const south = landmark.scale * (Math.sin(b) * x + Math.cos(b) * z)
+  return [landmark.lng + east / k, landmark.lat - south / 110574]
+}
 
 /**
  * Points to read the terrain at under a placed footprint: a GROUND_GRID ×
@@ -293,21 +337,12 @@ export function groundGrid(
   landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
   footprint: Footprint,
 ): [number, number][] {
-  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
-  const b = (landmark.bearing * Math.PI) / 180
-  const [c, s] = [Math.cos(b), Math.sin(b)]
   const { minX, maxX, minZ, maxZ } = footprint
   const n = GROUND_GRID - 1
   const points: [number, number][] = []
   for (let j = 0; j <= n; j++)
-    for (let i = 0; i <= n; i++) {
-      const x = minX + ((maxX - minX) * i) / n
-      const z = minZ + ((maxZ - minZ) * j) / n
-      // The inverse of `insideFootprint`'s turn: model (x, z) → map (east, south).
-      const east = landmark.scale * (c * x - s * z)
-      const south = landmark.scale * (s * x + c * z)
-      points.push([landmark.lng + east / k, landmark.lat - south / 110574])
-    }
+    for (let i = 0; i <= n; i++)
+      points.push(modelToLngLat(landmark, minX + ((maxX - minX) * i) / n, minZ + ((maxZ - minZ) * j) / n))
   return points
 }
 

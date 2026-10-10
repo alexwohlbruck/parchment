@@ -10,15 +10,21 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
-import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
+import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS, type TreeFamily } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
+import { sportPropInstance, SPORT_MODELS } from './sports'
+import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLine } from './lines'
+import { AREA_MODELS, areaObject } from './areas'
+import { SOLAR_MODELS } from './solar'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel, unproject } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
+/** The roles a crown is made of. */
+const CANOPY = new Set(['foliage', 'blossom'])
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -69,15 +75,16 @@ describe('models', () => {
    * the upper one is how the first attempt went too far the other way and left
    * every crown floating on a stick.
    *
-   * Measured at the widest point, which on these models is the flare where the
-   * trunk meets the ground; the shaft above it comes out around half this.
+   * Measured near the ground, at the flare where the trunk meets it; the
+   * shaft above comes out around half this.
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
-    const reach = (role: string, below = Infinity) => {
+    const canopy = (material: string) => CANOPY.has(material)
+    const reach = (matches: (material: string) => boolean, below = Infinity) => {
       let radius = 0
       for (const p of model.primitives) {
-        if (p.material !== role) continue
+        if (!matches(p.material)) continue
         for (const v of p.index) {
           if (p.position[v * 3 + 1] > below) continue
           radius = Math.max(radius, Math.hypot(p.position[v * 3], p.position[v * 3 + 2]))
@@ -87,13 +94,12 @@ describe('models', () => {
     }
     let crownBottom = Infinity
     for (const p of model.primitives) {
-      if (p.material !== 'foliage') continue
+      if (!canopy(p.material)) continue
       for (const v of p.index) crownBottom = Math.min(crownBottom, p.position[v * 3 + 1])
     }
-    const crown = reach('foliage')
-    // Only the length of trunk anyone can see; branches inside the crown are
-    // behind the foliage they hold up.
-    const trunk = reach('bark', crownBottom)
+    const crown = reach(canopy)
+    // Near the ground, below any limbs reaching out under the crown.
+    const trunk = reach(m => m === 'bark' || m === 'palm-bark', Math.min(crownBottom, 0.3))
     expect(crown).toBeGreaterThan(0)
     const ratio = trunk / crown
     const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`
@@ -174,13 +180,19 @@ describe('models', () => {
     '%s presents its outward faces as FRONT_FACE claims',
     name => {
       let tested = 0
-      for (const primitive of load(name).primitives) {
+      const model = load(name)
+      const upOf = (p: (typeof model.primitives)[number], i: number) =>
+        [0, 1, 2].reduce((sum, k) => sum + p.normal[p.index[i + k] * 3 + 1], 0) / 3
+      let steepest = -1
+      for (const p of model.primitives) for (let i = 0; i < p.index.length; i += 3) steepest = Math.max(steepest, upOf(p, i))
+      // A cone or a lumpy crown never faces straight up; its most upward faces stand in.
+      const floor = Math.min(0.9, steepest - 0.05)
+      for (const primitive of model.primitives) {
         for (let i = 0; i < primitive.index.length; i += 3) {
           const triangle = [primitive.index[i], primitive.index[i + 1], primitive.index[i + 2]]
           // Only the faces a plan view can see. Those are the ones that have to
           // survive the cull, so they are the ones worth asking about.
-          const up = triangle.reduce((sum, v) => sum + primitive.normal[v * 3 + 1], 0) / 3
-          if (up < 0.9) continue
+          if (upOf(primitive, i) < floor) continue
           const screen = triangle.map(v => {
             const [x, y, z] = [0, 1, 2].map(c => primitive.position[v * 3 + c])
             // Model space to the map's, mirroring the swap in `VS`, and then to
@@ -217,8 +229,13 @@ describe('models', () => {
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
     // glTF is Y-up; the layer swaps to Z-up on the way into the shader.
-    expect(model.min[1]).toBeCloseTo(0, 4)
-    expect(model.max[1]).toBeCloseTo(1, 3)
+    if ([...HUNG_MODELS, ...Object.keys(SOLAR_MODELS)].includes(name)) {
+      expect(model.min[1]).toBeGreaterThan(0)
+      expect(model.max[1]).toBeLessThanOrEqual(1.0001)
+    } else {
+      expect(model.min[1]).toBeCloseTo(0, 4)
+      expect(model.max[1]).toBeCloseTo(1, 3)
+    }
     // Centred, so a heading rotates it about itself rather than swinging it.
     expect(Math.abs(model.min[0] + model.max[0])).toBeLessThan(0.02)
     expect(Math.abs(model.min[2] + model.max[2])).toBeLessThan(0.02)
@@ -286,6 +303,105 @@ describe('models', () => {
       expect(b.top, `${name} ${role} top`).toBeLessThanOrEqual(a.top + 0.01)
       expect(b.bottom, `${name} ${role} bottom`).toBeGreaterThanOrEqual(a.bottom - 0.01)
     }
+  })
+
+  /**
+   * A far model keeps its near model's silhouette, so the switch between them
+   * is a drop in detail and not a change of tree.
+   *
+   * The test above only bounds the far model from outside, which a lozenge
+   * passes: palms had no far model of their own, so each was stood in for by a
+   * ball on a straight post — as wide as its fronds, but round where they
+   * spread and upright where the trunk leaned. Three things pin that down: the
+   * crown reaches as far, hangs as low, and sits on a trunk that leans the same.
+   */
+  test.each(Object.keys(TREE_MODELS))('%s keeps its silhouette at the far LOD', name => {
+    expect(OBJECT_MODELS, `${name} has no far model`).toHaveProperty(`${name}${FAR_SUFFIX}`)
+    const shape = (model: ReturnType<typeof load>) => {
+      let reach = 0
+      let bottom = Infinity
+      let top = -Infinity
+      // Where the trunk ends, measured as the centre of its highest vertices.
+      let trunkTop = -Infinity
+      for (const p of model.primitives)
+        for (let i = 0; i < p.position.length; i += 3) {
+          const [x, y, z] = [p.position[i], p.position[i + 1], p.position[i + 2]]
+          if (CANOPY.has(p.material)) {
+            reach = Math.max(reach, Math.hypot(x, z))
+            bottom = Math.min(bottom, y)
+            top = Math.max(top, y)
+          } else trunkTop = Math.max(trunkTop, y)
+        }
+      let lean = 0
+      let n = 0
+      for (const p of model.primitives) {
+        if (CANOPY.has(p.material)) continue
+        for (let i = 0; i < p.position.length; i += 3)
+          if (p.position[i + 1] > trunkTop - 0.01) {
+            lean += p.position[i]
+            n++
+          }
+      }
+      return { reach, bottom, top, lean: lean / n }
+    }
+    const near = shape(load(name))
+    const far = shape(load(`${name}${FAR_SUFFIX}`))
+    expect(far.reach / near.reach, `${name} crown reach`).toBeGreaterThan(0.9)
+    expect(Math.abs(far.bottom - near.bottom), `${name} crown bottom`).toBeLessThan(0.06)
+    expect(Math.abs(far.top - near.top), `${name} crown top`).toBeLessThan(0.03)
+    expect(Math.abs(far.lean - near.lean), `${name} trunk lean`).toBeLessThan(0.02)
+  })
+
+  /**
+   * A distant palm is a star of fronds from above, not a disc.
+   *
+   * Seen from the map, a crown is its outline, and the outline is what told a
+   * palm from a broadleaf tree: until palms had far models of their own, each
+   * was stood in for by a lozenge fitted to its fronds, and every waterfront
+   * in Florida turned into a row of lollipops past the first screenful.
+   *
+   * Measured by walking out from the crown's centre in every direction and
+   * noting how far the foliage reaches. A disc reaches about as far whichever
+   * way you go; a star reaches far along its fronds and hardly at all between
+   * them. The lozenges scored 0.85 or more here.
+   */
+  const PALMS = [...new Set([...TREE_FAMILIES.palm, ...TREE_FAMILIES.fanPalm, ...TREE_FAMILIES.datePalm])]
+  test.each(PALMS.map(name => `${name}${FAR_SUFFIX}`))('%s is a star from above', name => {
+    const triangles: Array<Array<[number, number]>> = []
+    for (const p of load(name).primitives) {
+      if (p.material !== 'foliage') continue
+      for (let i = 0; i < p.index.length; i += 3)
+        triangles.push([0, 1, 2].map(k => [p.position[p.index[i + k] * 3], p.position[p.index[i + k] * 3 + 2]] as [number, number]))
+    }
+    const xs = triangles.flat().map(([x]) => x)
+    const zs = triangles.flat().map(([, z]) => z)
+    const [cx, cz] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2]
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))
+    const cross = (a: number[], b: number[], c: number[]) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    const covered = (x: number, z: number) =>
+      triangles.some(([a, b, c]) => {
+        const d = [cross(a, b, [x, z]), cross(b, c, [x, z]), cross(c, a, [x, z])]
+        return !(d.some(v => v < 0) && d.some(v => v > 0))
+      })
+    const reach = Array.from({ length: 72 }, (_, k) => {
+      const angle = (k / 72) * Math.PI * 2
+      let furthest = 0
+      for (let j = 1; j <= 80; j++) {
+        const t = (j / 80) * span
+        if (covered(cx + Math.cos(angle) * t, cz + Math.sin(angle) * t)) furthest = t
+      }
+      return furthest
+    }).sort((a, b) => a - b)
+    // The tenth percentile, so one frond pointing between two samples cannot pass a disc.
+    const ratio = reach[Math.floor(reach.length * 0.1)] / reach[reach.length - 1]
+    expect(ratio, `${name} reaches ${(ratio * 100).toFixed(0)}% as far between fronds as along them`).toBeLessThan(0.7)
+  })
+
+  test('a far model is sized as the model it stands in for', () => {
+    expect(nearOf(`tree-palm-a${FAR_SUFFIX}`)).toBe('tree-palm-a')
+    expect(nearOf('tree-palm-a')).toBe('tree-palm-a')
+    // Only the suffix, not a name that happens to contain it.
+    expect(nearOf('far-bench')).toBe('far-bench')
   })
 
   test.each(ALL)('%s has unit-length normals', name => {
@@ -356,10 +472,16 @@ describe('trees', () => {
   })
 
   test('family comes from the taxon first, then the leaf type', () => {
-    expect(treeFamily({ genus: 'Pinus' })).toBe('conifer')
-    expect(treeFamily({ genus: 'Washingtonia' })).toBe('palm')
-    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('palm')
+    expect(treeFamily({ genus: 'Pinus' })).toBe('pine')
+    expect(treeFamily({ genus: 'Washingtonia' })).toBe('fanPalm')
+    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('datePalm')
+    expect(treeFamily({ genus: 'Roystonea' })).toBe('palm')
+    expect(treeFamily({ species: 'Prunus serrulata' })).toBe('blossom')
+    expect(treeFamily({ genus: 'Sabal' })).toBe('fanPalm')
+    expect(treeFamily({ genus: 'Cocos' })).toBe('palm')
     expect(treeFamily({ leaf_type: 'needleleaved' })).toBe('conifer')
+    // Most palms carry only a leaf type; the id picks one from the mixed family.
+    expect(treeFamily({ leaf_type: 'palm' })).toBe('palm')
     expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
     // A genus that names a conifer wins over a leaf type that disagrees.
     expect(treeFamily({ genus: 'Picea', leaf_type: 'broadleaved' })).toBe('conifer')
@@ -367,11 +489,20 @@ describe('trees', () => {
   })
 
   test('a family only ever draws its own models', () => {
-    for (const [family, models] of Object.entries(TREE_FAMILIES)) {
+    const genus: Record<TreeFamily, string> = {
+      broadleaf: '',
+      conifer: 'Picea',
+      pine: 'Pinus',
+      palm: 'Roystonea',
+      fanPalm: 'Washingtonia',
+      datePalm: 'Phoenix',
+      blossom: 'Prunus',
+    }
+    for (const [family, models] of Object.entries(TREE_FAMILIES) as [TreeFamily, readonly string[]][]) {
       const drawn = new Set(
         Array.from({ length: 60 }, (_, i) =>
           treeInstance(
-            { properties: { id: `node/${i}`, genus: family === 'palm' ? 'Phoenix' : family === 'conifer' ? 'Pinus' : '' } },
+            { properties: { id: `node/${i}`, genus: genus[family] } },
             -73.97,
             40.76,
           )!.model,
@@ -472,13 +603,9 @@ describe('street furniture', () => {
     }
   })
 
-  /**
-   * A bench pointed the wrong way reads as a mistake in a way a wrong tree does
-   * not — it is furniture, and furniture faces something.
-   */
-  test('a bench without a direction is skipped', () => {
-    expect(at({ kind: 'bench' })).toBeNull()
-    expect(at({ kind: 'bench', direction: '180' })!.model).toBe('bench')
+  test.each(['bench', 'picnic_table', 'billboard'])('a %s without a direction is skipped', kind => {
+    expect(at({ kind })).toBeNull()
+    expect(at({ kind, direction: '180' })).not.toBeNull()
   })
 
   test('bins take a hashed angle, since a drum has no front', () => {
@@ -487,13 +614,18 @@ describe('street furniture', () => {
     expect(bin.heading).toBeGreaterThanOrEqual(0)
   })
 
+  test('a fountain in a pond is a jet, not a basin', () => {
+    expect(at({ kind: 'fountain_jet' })!.model).toBe('fountain-jet')
+    expect(at({ kind: 'fountain' })!.model).toBe('fountain')
+  })
+
   test('waste disposal shares the recycling model', () => {
     expect(at({ kind: 'waste_disposal' })!.model).toBe('recycling')
     expect(at({ kind: 'recycling' })!.model).toBe('recycling')
   })
 
   test('an amenity with no model is skipped rather than guessed at', () => {
-    expect(at({ kind: 'drinking_water' })).toBeNull()
+    expect(at({ kind: 'vending_machine' })).toBeNull()
   })
 
   test('furniture is drawn at its real size', () => {
@@ -506,6 +638,105 @@ describe('street furniture', () => {
       }
     expect((high - low) * bench.spread).toBeCloseTo(1.8, 1)
     expect(bench.height).toBeLessThan(1.3)
+  })
+})
+
+describe('sports props', () => {
+  const at = (props: Record<string, unknown>) =>
+    sportPropInstance({ properties: { id: 'way/1', ...props } }, -80.84, 35.19)
+
+  test('a net spans the width barrelman measured', () => {
+    const net = at({ kind: 'tennis-net', direction: '90', width: 12.8 })!
+    expect(net.model).toBe('tennis-net')
+    expect(net.width).toBe(12.8)
+    expect(headingToBearing(net.heading)).toBeCloseTo(90, 6)
+  })
+
+  test('surfaces, markings and unfaced props draw no object', () => {
+    expect(at({ kind: 'surface', sport: 'tennis' })).toBeNull()
+    expect(at({ kind: 'lines', sport: 'tennis' })).toBeNull()
+    expect(at({ kind: 'basketball-hoop' })).toBeNull()
+  })
+})
+
+describe('lines', () => {
+  const wire = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.838, 35.2], [-80.838, 35.202]] }
+
+  test('a power line puts a tower at every vertex and a wire span on every segment', () => {
+    const placed = placeLine('power_line', wire, null)
+    expect(placed.filter(p => p.model === 'power-tower')).toHaveLength(3)
+    const spans = placed.filter(p => p.model === 'power-wires')
+    expect(spans).toHaveLength(2)
+    expect(spans[0].bearing).toBeCloseTo(90, 0)
+    expect(spans[0].length).toBeCloseTo(measure([-80.84, 35.2], [-80.838, 35.2]).length, 3)
+  })
+
+  test('a tower at a bend turns halfway between its two spans', () => {
+    const corner = placeLine('power_line', wire, null).filter(p => p.model === 'power-tower')[1]
+    expect(corner.bearing).toBeCloseTo(45, 0)
+  })
+
+  test('a span runs along its segment', () => {
+    const span = placeLine('wall', wire, null)[0]
+    const wall = lineInstance('wall', '2.5', span)
+    expect(wall.height).toBe(2.5)
+    expect(wall.length).toBeCloseTo(span.length!, 6)
+    // The model's x runs 90° clockwise of the way it faces.
+    expect(headingToBearing(wall.heading)).toBeCloseTo((span.bearing + 90) % 360, 6)
+  })
+
+  test('each tile piece places only what is inside its own tile', () => {
+    const east = { minLng: -80.839, maxLng: -80.83, minLat: 35, maxLat: 36 }
+    const towers = placeLine('power_line', wire, east).filter(p => p.model === 'power-tower')
+    expect(towers).toHaveLength(2)
+  })
+
+  test('a long barrier is cut into pieces that fill its segment', () => {
+    const pieces = placeLine('fence', wire, null).filter(p => p.model === 'fence-span' && p.seed === 0)
+    const length = measure([-80.84, 35.2], [-80.838, 35.2]).length
+    expect(pieces.length).toBe(Math.ceil(length / LONGEST_PIECE))
+    for (const p of pieces) expect(p.length).toBeLessThanOrEqual(LONGEST_PIECE)
+    expect(pieces.reduce((sum, p) => sum + p.length!, 0)).toBeCloseTo(length, 6)
+  })
+
+  /** The layer finds a span's ends from its heading, so they must land on the towers it hangs from. */
+  test('a wire span\'s ends, as the layer finds them, are its towers', () => {
+    const placed = placeLine('power_line', wire, null)
+    const towers = placed.filter(p => p.model === 'power-tower')
+    placed.filter(p => p.model === 'power-wires').forEach((span, k) => {
+      const instance = lineInstance('power_line', undefined, span)
+      const at = { x: 0, y: 0, z: 0, perMetre: 0 }
+      project(instance.lng, instance.lat, 0, at)
+      const half = (instance.length! / 2) * at.perMetre
+      const [c, s] = [Math.cos(instance.heading), Math.sin(instance.heading)]
+      for (const [sign, tower] of [[-1, towers[k]], [1, towers[k + 1]]] as const) {
+        const [lng, lat] = unproject(at.x + sign * c * half, at.y + sign * s * half)
+        expect(lng).toBeCloseTo(tower.lng, 7)
+        expect(lat).toBeCloseTo(tower.lat, 7)
+      }
+    })
+  })
+
+  test('masts stand along electrified track at an even spacing', () => {
+    const track = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.83, 35.2]] }
+    const masts = placeLine('catenary', track, null).filter(p => p.model === 'catenary-mast')
+    const length = measure([-80.84, 35.2], [-80.83, 35.2]).length
+    expect(masts.length).toBe(Math.floor((length - 27.5) / 55) + 1)
+  })
+})
+
+describe('planted areas', () => {
+  test('a mapped shrub stands taller than scrub undergrowth may', () => {
+    const heights = Array.from({ length: 50 }, (_, i) => areaObject('shrub', -80, 35, i, 7)!.height)
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(1.5)
+  })
+
+  test('box-shaped shrubbery is clipped square, set in rows', () => {
+    const boxes = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3, 'box')!)
+    expect(new Set(boxes.map(b => b.model))).toEqual(new Set(['shrub-box']))
+    expect(new Set(boxes.map(b => b.heading))).toEqual(new Set([0]))
+    const loose = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3)!.model)
+    expect(loose).not.toContain('shrub-box')
   })
 })
 
@@ -539,6 +770,41 @@ describe('projection', () => {
   })
 })
 
+describe('ground plane', () => {
+  const slope = (east: number, south: number) => 40 + 0.3 * east - 0.1 * south
+
+  test('recovers a planar slope from any heading when sampled both ways', () => {
+    for (const heading of [0, 0.7, 2, -2.5]) {
+      const plane = groundPlane(heading, 20, 4, slope)
+      expect(plane.elevation).toBeCloseTo(40, 9)
+      expect(plane.gx).toBeCloseTo(0.3, 9)
+      expect(plane.gy).toBeCloseTo(-0.1, 9)
+    }
+  })
+
+  test('sampled along only, it keeps the rise along the object and ignores the cross slope', () => {
+    const plane = groundPlane(0, 20, 0, slope)
+    expect(plane.gx).toBeCloseTo(0.3, 9)
+    expect(plane.gy).toBe(0)
+  })
+
+  test('meets the ground at both ends however the ground curves between them', () => {
+    const hill = (east: number, south: number) => 100 - 0.01 * (east * east + south * south) + 0.2 * east
+    const heading = 0.4
+    const along = 60
+    const plane = groundPlane(heading, along, 0, hill)
+    for (const sign of [-1, 1]) {
+      const east = sign * Math.cos(heading) * (along / 2)
+      const south = sign * Math.sin(heading) * (along / 2)
+      expect(plane.elevation + plane.gx * east + plane.gy * south).toBeCloseTo(hill(east, south), 9)
+    }
+  })
+
+  test('flat ground has no slope', () => {
+    expect(groundPlane(1, 30, 5, () => 12)).toEqual({ elevation: 12, gx: 0, gy: 0 })
+  })
+})
+
 describe('flavors', () => {
   test('both flavors colour every role', () => {
     expect(Object.keys(OBJECT_PALETTE.dark).sort()).toEqual(Object.keys(OBJECT_PALETTE.light).sort())
@@ -550,5 +816,17 @@ describe('flavors', () => {
       const sum = (c: [number, number, number]) => c[0] + c[1] + c[2]
       expect(sum(OBJECT_PALETTE.dark[role]), role).toBeLessThan(sum(OBJECT_PALETTE.light[role]))
     }
+  })
+})
+
+describe('object shadows', () => {
+  const models = new Set(Object.keys(OBJECT_MODELS))
+  test('cast with the far variant where the manifest has one', () => {
+    expect(shadowModel({ model: 'tree-broadleaf-a', stretched: false }, models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
+    expect(shadowModel({ model: `tree-broadleaf-a${FAR_SUFFIX}`, stretched: false }, models)).toBe(`tree-broadleaf-a${FAR_SUFFIX}`)
+  })
+
+  test('a stretched batch keeps its own model, whose length sets its scale', () => {
+    expect(shadowModel({ model: 'tree-broadleaf-a', stretched: true }, models)).toBe('tree-broadleaf-a')
   })
 })

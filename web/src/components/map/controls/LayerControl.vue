@@ -12,7 +12,7 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     side="left"
     align="end"
     :side-offset="12"
-    desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] max-h-[min(460px,calc(100vh-10rem))] overflow-y-auto rounded-md p-0 shadow-xl"
+    desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] max-h-[calc(var(--reka-hover-card-content-available-height)-1rem)] overflow-y-auto rounded-md p-0 shadow-xl"
     mobile-content-class="p-0"
     :custom-snap-points="['400px', 1]"
     dynamic-peek

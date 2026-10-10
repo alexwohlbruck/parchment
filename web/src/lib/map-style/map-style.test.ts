@@ -2547,6 +2547,16 @@ describe('road markings', () => {
     }
   })
 
+  test('underground road tunnels give way to the street above them', () => {
+    const tunnel = style.layers.find(l => l.id === 'Tunnel') as any
+    const parsed = expression.createPropertyExpression(
+      tunnel.paint['line-opacity'], 'Tunnel.paint.line-opacity', (latest as any).paint_line['line-opacity'])
+    expect(parsed.result).toBe('success')
+    const evaluate = (layer: number) => (parsed as any).value.evaluate({ zoom: 18 }, { properties: { layer } })
+    expect(evaluate(-1)).toBe(0)
+    expect(evaluate(0)).toBeGreaterThan(0)
+    expect(buildMapStyle({ ...opts, theme: 'light' }).layers.find(l => l.id === 'Tunnel')).toMatchObject({ paint: { 'line-opacity': 0.6 } })
+  })
 })
 
 describe('HD roads off', () => {

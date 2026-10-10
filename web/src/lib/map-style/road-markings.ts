@@ -52,6 +52,10 @@ const edgeFadeIn = ['interpolate', ['linear'], ['zoom'], TO, 0, TO + 0.4, 1]
 const ROAD_FILLS = ['Minor road', 'Major road', 'Highway', 'Minor road bridge', 'Major road bridge', 'Highway bridge']
 const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline', 'Minor road outline bridge', 'Major road outline bridge', 'Highway outline bridge']
 
+/** The basemap's flat road tunnels, whose dashes would read as crosswalks over the street above. */
+const ROAD_TUNNELS = ['Tunnel', 'Tunnel outline']
+const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
+
 /**
  * Turn the basemap's roads to asphalt and drop their casings over the hand-off,
  * so the true-width carriageways read as the same road.
@@ -59,6 +63,10 @@ const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outli
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   const asphalt = COLORS[flavor].asphalt
   return layers.map(layer => {
+    if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
+      const opacity = layer.paint?.['line-opacity'] ?? 1
+      return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }
+    }
     if (ROAD_FILLS.includes(layer.id) && typeof layer.paint?.['line-color'] !== 'object') {
       const color = layer.paint['line-color']
       return { ...layer, paint: { ...layer.paint, 'line-color': ['interpolate', ['linear'], ['zoom'], FROM, color, TO, asphalt] } }

@@ -2,12 +2,16 @@
 
 ### Added
 
+* Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+
 ### Changed
 
+* Footpaths are drawn with a finer edge.
 * 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
 
 ### Fixed
 
+* Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
 
 ## [0.14.0] - 2026-10-09

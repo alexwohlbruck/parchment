@@ -40,7 +40,7 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
   band: 0.24,
-  shadowBlur: 2,
+  shadowBlur: 1,
   /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
   fadeZoom: 1.2,
   /** What the cast shadow drops to looking straight down, where it reads as a stain. */
@@ -61,7 +61,7 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.16, aoIntensity: 0.23, strength: 0.04, edge: 0.18 },
+  light: { shadowAlpha: 0.16, aoIntensity: 0.18, strength: 0.04, edge: 0.18 },
   dark: { shadowAlpha: 0.07, aoIntensity: 0.18, strength: 0.035, edge: 0.2 },
 }
 
@@ -235,7 +235,7 @@ const MAX_SHADOW_LENGTH = 2.2
 
 /** Ambient occlusion holds steady; only the cast shadow follows the sun. */
 export type SunShadow = {
-  /** Ground-plane direction the shadow falls, +x east and +y south. */
+  /** Ground-plane direction the shadow falls, +x east and +y north. */
   offset: [number, number]
   /** Radians above the horizon, for the style light's polar angle. */
   altitude: number
@@ -267,9 +267,9 @@ export function isSunOverridden(): boolean {
  * sun — and its altitude gives the length, long at dawn and short at noon, so a
  * morning map and an afternoon map no longer look identical.
  *
- * The layer wants a ground-plane vector with +y pointing *south*, where a
+ * The layer wants a ground-plane vector with +y pointing *north*, where a
  * compass bearing has north at 0 going clockwise. A sun at bearing `a` sits at
- * `(sin a, -cos a)`; the shadow is the negative of that.
+ * `(sin a, cos a)`; the shadow is the negative of that.
  */
 export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
   const { azimuth, altitude } = sunOverride ?? sunPosition(date, lat, lng)
@@ -283,7 +283,7 @@ export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
     : MAX_SHADOW_LENGTH
 
   return {
-    offset: [-Math.sin(azimuth), Math.cos(azimuth)],
+    offset: [-Math.sin(azimuth), -Math.cos(azimuth)],
     altitude,
     heightScale: length,
     daylight,

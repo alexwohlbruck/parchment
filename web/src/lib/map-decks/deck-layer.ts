@@ -35,6 +35,7 @@ import {
   onEdge,
   parseLine,
   parseProfile,
+  parseShape,
   deckMesh,
   onDeck,
   solve,
@@ -408,7 +409,7 @@ export class DeckLayer {
       const kind = props.kind === 'rail' || props.kind === 'path' ? props.kind : 'road'
       const edges: [number, number] = [Number(props.left_edge) || 3, Number(props.right_edge) || 3]
       const chain: Chain = { points, kind, layer: Math.max(1, Number(props.layer) || 1), width: edges[0] + edges[1], edges,
-        grounded: [props.start_grounded !== false, props.end_grounded !== false] }
+        grounded: [props.start_grounded !== false, props.end_grounded !== false], ...parseShape(props, points.length) }
       return [{ id: String(props.id), chain, z, groundAt, piers: parseProfile(props.piers) }]
     })
   }

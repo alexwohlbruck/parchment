@@ -48,8 +48,19 @@ export function dedupe(pieces: Piece[]): Piece[] {
 export type Chain = Piece & {
   /** Whether each end meets a way on the ground. */
   grounded: [boolean, boolean]
-  /** Metres from the centreline to the deck's left and right edges. */
+  /** Metres from the centreline to the deck's left and right edges: the widest, where they vary. */
   edges: [number, number]
+  /** Metres from the centreline to the left and right edges at each vertex, for a deck following its outline. */
+  sides?: [number[], number[]]
+  /** Metres each side stops short of the start and end: [start left, start right, end left, end right], negative running on past. */
+  caps?: [number, number, number, number]
+}
+
+/** Metres from a deck's centreline to one side (0 left, 1 right) at a vertex, or `t` of the way to the next. */
+export function sideAt(chain: Pick<Chain, 'edges' | 'sides'>, side: 0 | 1, i: number, t = 0): number {
+  const s = chain.sides?.[side]
+  if (!s) return chain.edges[side]
+  return t ? s[i] + (s[Math.min(i + 1, s.length - 1)] - s[i]) * t : s[i]
 }
 
 export type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
@@ -225,12 +236,15 @@ export const MAX_REACH = 16
 /**
  * Where a point lies beside a line: metres from it, which side (left in the
  * sense of `deckMesh`), and whether it falls alongside a segment rather than
- * off either end of the line.
+ * off either end of the line. `segments`, by the index of their second
+ * point, limits the search to those.
  */
-export function beside(points: Point[], q: Point): { distance: number; left: boolean; alongside: boolean; segment: number; t: number } {
+export function beside(points: Point[], q: Point, segments?: number[]): { distance: number; left: boolean; alongside: boolean; segment: number; t: number } {
   let best = { distance: Infinity, left: true, alongside: false, segment: 1, t: 0 }
   const scale = metresPerUnit(q[1])
-  for (let i = 1; i < points.length; i++) {
+  const count = segments ? segments.length : points.length - 1
+  for (let k = 0; k < count; k++) {
+    const i = segments ? segments[k] : k + 1
     const [a, b] = [points[i - 1], points[i]]
     const dx = b[0] - a[0]
     const dy = b[1] - a[1]
@@ -347,6 +361,41 @@ export function heightAt(d: number[], z: number[], at: number): number {
   return z[z.length - 1]
 }
 
+/** A line's segments by grid cell, each by the index of its second point. */
+type SegmentIndex = { cell: number; cells: Map<number, number[]> }
+
+/** Metres across a cell of a segment index. */
+const INDEX_CELL = 24
+
+const cellKey = (x: number, y: number) => x * 4194304 + y
+
+function segmentIndex(points: Point[]): SegmentIndex {
+  const cell = INDEX_CELL / metresPerUnit(points[0][1])
+  const cells = new Map<number, number[]>()
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1], points[i]]
+    for (let x = Math.floor(Math.min(a[0], b[0]) / cell); x <= Math.floor(Math.max(a[0], b[0]) / cell); x++)
+      for (let y = Math.floor(Math.min(a[1], b[1]) / cell); y <= Math.floor(Math.max(a[1], b[1]) / cell); y++) {
+        const list = cells.get(cellKey(x, y))
+        if (list) list.push(i)
+        else cells.set(cellKey(x, y), [i])
+      }
+  }
+  return { cell, cells }
+}
+
+/** The segments of an indexed line that may lie within `metres` of a point; a segment can appear more than once. */
+function nearSegments({ cell, cells }: SegmentIndex, p: Point, metres: number): number[] {
+  const r = metres / metresPerUnit(p[1])
+  const out: number[] = []
+  for (let x = Math.floor((p[0] - r) / cell); x <= Math.floor((p[0] + r) / cell); x++)
+    for (let y = Math.floor((p[1] - r) / cell); y <= Math.floor((p[1] + r) / cell); y++) {
+      const list = cells.get(cellKey(x, y))
+      if (list) for (const i of list) out.push(i)
+    }
+  return out
+}
+
 /** Per vertex, whether each side of a deck (left, right) runs against another deck. */
 export type Sides = [boolean[], boolean[]]
 
@@ -373,8 +422,9 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
     const [a, b] = [pts[Math.max(0, i - 1)], pts[Math.min(n - 1, i + 1)]]
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
     const [nx, ny] = [-(b[1] - a[1]) / len * scale, (b[0] - a[0]) / len * scale]
-    left.push([p[0] + nx * chain.edges[0], p[1] + ny * chain.edges[0]])
-    right.push([p[0] - nx * chain.edges[1], p[1] - ny * chain.edges[1]])
+    const [l, r] = [sideAt(chain, 0, i), sideAt(chain, 1, i)]
+    left.push([p[0] + nx * l, p[1] + ny * l])
+    right.push([p[0] - nx * r, p[1] - ny * r])
   })
   return [left, right]
 }
@@ -425,11 +475,16 @@ export function smooth(z: number[], d: number[], ground: number[], span = 24): n
 export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?: boolean }>, gap = 1.5, step = 1.5): Sides[] {
   const open: Sides[] = decks.map(({ chain }) => [chain.points.map(() => false), chain.points.map(() => false)])
   const bounds = decks.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges) + gap))
+  const indexes = decks.map(({ chain }) => segmentIndex(chain.points))
   for (const [a, A] of decks.entries())
     for (const [b, B] of decks.entries()) {
       if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail' || !meets(bounds[a], bounds[b])) continue
+      // Farthest a point of one may lie from the other and still meet it.
+      const reach = Math.max(...A.chain.edges) + Math.max(...B.chain.edges) + gap
       A.chain.points.forEach((p, i) => {
-        const near = beside(B.chain.points, p)
+        const candidates = nearSegments(indexes[b], p, reach)
+        if (!candidates.length) return
+        const near = beside(B.chain.points, p, candidates)
         if (!near.alongside) return
         const [j, t] = [near.segment, near.t]
         const zb = B.z[j - 1] + (B.z[j] - B.z[j - 1]) * t
@@ -438,8 +493,8 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
           B.chain.points[j - 1][0] + (B.chain.points[j][0] - B.chain.points[j - 1][0]) * t,
           B.chain.points[j - 1][1] + (B.chain.points[j][1] - B.chain.points[j - 1][1]) * t,
         ]
-        const facing = beside(A.chain.points, q).left ? 0 : 1
-        if (near.distance > A.chain.edges[facing] + B.chain.edges[near.left ? 0 : 1] + gap) return
+        const facing = beside(A.chain.points, q, nearSegments(indexes[a], q, reach)).left ? 0 : 1
+        if (near.distance > sideAt(A.chain, facing, i) + sideAt(B.chain, near.left ? 0 : 1, j - 1, t) + gap) return
         open[a][facing][i] = true
         if (!A.fixed) A.z[i] = Math.max(A.z[i], zb)
       })
@@ -468,10 +523,10 @@ export function deckMesh(
   const pts = chain.points
   const n = pts.length
   const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
-  const [toLeft, toRight] = chain.edges.map(e => e * scale)
   const span = chain.edges[0] + chain.edges[1]
+  const tangents: Point[] = []
   // Mitred sides, the mitre capped so a hairpin does not spike.
-  const sides = pts.map((p, i) => {
+  const raw = pts.map((p, i) => {
     const a = pts[Math.max(0, i - 1)]
     const b = pts[Math.min(n - 1, i + 1)]
     let tx = b[0] - a[0]
@@ -479,6 +534,7 @@ export function deckMesh(
     const len = Math.hypot(tx, ty) || 1
     tx /= len
     ty /= len
+    tangents.push([tx, ty])
     let nx = -ty
     let ny = tx
     let m = 1
@@ -488,13 +544,34 @@ export function deckMesh(
       const dot = nx * -uy + ny * ux
       m = 1 / Math.max(0.5, Math.abs(dot))
     }
-    nx *= m
-    ny *= m
+    const [toLeft, toRight] = [sideAt(chain, 0, i) * scale * m, sideAt(chain, 1, i) * scale * m]
     return {
       left: [p[0] + nx * toLeft - origin[0], p[1] + ny * toLeft - origin[1]] as Point,
       right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
     }
   })
+  const d = along(pts)
+  const caps = chain.caps ?? [0, 0, 0, 0]
+  // Each side moved along the deck to its end caps: run on straight past an end, or drawn in to where its cap falls.
+  const capped = (side: 'left' | 'right', start: number, end: number) => {
+    const total = d[n - 1]
+    return raw.map((_, i) => {
+      const a = i === 0 ? start : i === n - 1 ? total - end : Math.min(Math.max(d[i], start), total - end)
+      if (a === d[i]) return { p: raw[i][side], z: z[i] }
+      if (a <= 0 || a >= total) {
+        const k = a <= 0 ? 0 : n - 1
+        const by = (a <= 0 ? a : a - total) * scale
+        return { p: [raw[k][side][0] + tangents[k][0] * by, raw[k][side][1] + tangents[k][1] * by] as Point, z: z[k] }
+      }
+      let k = 1
+      while (k < n - 1 && d[k] < a) k++
+      const t = (a - d[k - 1]) / (d[k] - d[k - 1] || 1)
+      const [p0, p1] = [raw[k - 1][side], raw[k][side]]
+      return { p: [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] as Point, z: z[k - 1] + (z[k] - z[k - 1]) * t }
+    })
+  }
+  const lefts = capped('left', caps[0], caps[2])
+  const rights = capped('right', caps[1], caps[3])
   const h = (m: number) => m * scale
   const push = (a: number[], b: number[], c: number[], color: number[]) => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
@@ -512,37 +589,35 @@ export function deckMesh(
     push(a, c, d, color)
   }
   const at = (p: Point, metres: number) => [p[0], p[1], h(metres)]
-  const inset = (s: { left: Point; right: Point }, side: 'left' | 'right', by: number): Point => {
-    const other = side === 'left' ? s.right : s.left
-    const p = s[side]
-    const k = by / (span || 1)
+  /** A side's point `by` metres in toward the other side. */
+  const inset = (i: number, side: 'left' | 'right', by: number): Point => {
+    const [p, other] = side === 'left' ? [lefts[i].p, rights[i].p] : [rights[i].p, lefts[i].p]
+    const k = by / ((sideAt(chain, 0, i) + sideAt(chain, 1, i)) || 1)
     return [p[0] + (other[0] - p[0]) * k, p[1] + (other[1] - p[1]) * k]
   }
   for (let i = 1; i < n; i++) {
-    const [s0, s1] = [sides[i - 1], sides[i]]
-    const [z0, z1] = [z[i - 1], z[i]]
-    quad(at(s0.left, z0), at(s0.right, z0), at(s1.right, z1), at(s1.left, z1), colors.surface)
+    const [l0, l1, r0, r1] = [lefts[i - 1], lefts[i], rights[i - 1], rights[i]]
+    quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface)
     // Where the deck runs at the ground it is just road: no slab or parapets.
-    if (z0 - groundAt[i - 1] < BOX_MIN && z1 - groundAt[i] < BOX_MIN) continue
-    quad(at(s0.right, z0), at(s0.right, z0 - SLAB), at(s1.right, z1 - SLAB), at(s1.right, z1), colors.concrete)
-    quad(at(s1.left, z1), at(s1.left, z1 - SLAB), at(s0.left, z0 - SLAB), at(s0.left, z0), colors.concrete)
-    quad(at(s0.left, z0 - SLAB), at(s1.left, z1 - SLAB), at(s1.right, z1 - SLAB), at(s0.right, z0 - SLAB), colors.concrete)
+    if (z[i - 1] - groundAt[i - 1] < BOX_MIN && z[i] - groundAt[i] < BOX_MIN) continue
+    quad(at(r0.p, r0.z), at(r0.p, r0.z - SLAB), at(r1.p, r1.z - SLAB), at(r1.p, r1.z), colors.concrete)
+    quad(at(l1.p, l1.z), at(l1.p, l1.z - SLAB), at(l0.p, l0.z - SLAB), at(l0.p, l0.z), colors.concrete)
+    quad(at(l0.p, l0.z - SLAB), at(l1.p, l1.z - SLAB), at(r1.p, r1.z - SLAB), at(r0.p, r0.z - SLAB), colors.concrete)
     // Parapets along both edges.
     for (const side of ['left', 'right'] as const) {
       const shared = open[side === 'left' ? 0 : 1]
       if (shared[i - 1] && shared[i]) continue
-      const [o0, o1] = [s0[side], s1[side]]
-      const [i0, i1] = [inset(s0, side, 0.3), inset(s1, side, 0.3)]
+      const [s0, s1] = side === 'left' ? [l0, l1] : [r0, r1]
+      const [i0, i1] = [inset(i - 1, side, 0.3), inset(i, side, 0.3)]
       const flip = side === 'left'
       const face = (a: number[], b: number[], c: number[], d: number[]) =>
         flip ? quad(a, b, c, d, colors.parapet) : quad(d, c, b, a, colors.parapet)
-      face(at(o0, z0), at(o0, z0 + PARAPET), at(o1, z1 + PARAPET), at(o1, z1))
-      face(at(i1, z1), at(i1, z1 + PARAPET), at(i0, z0 + PARAPET), at(i0, z0))
-      face(at(o0, z0 + PARAPET), at(i0, z0 + PARAPET), at(i1, z1 + PARAPET), at(o1, z1 + PARAPET))
+      face(at(s0.p, s0.z), at(s0.p, s0.z + PARAPET), at(s1.p, s1.z + PARAPET), at(s1.p, s1.z))
+      face(at(i1, s1.z), at(i1, s1.z + PARAPET), at(i0, s0.z + PARAPET), at(i0, s0.z))
+      face(at(s0.p, s0.z + PARAPET), at(i0, s0.z + PARAPET), at(i1, s1.z + PARAPET), at(s1.p, s1.z + PARAPET))
     }
   }
   // Piers where given, else wherever the deck stands high enough to need them.
-  const d = along(pts)
   const total = d[n - 1]
   const spaced: number[] = []
   for (let s = PIER_SPACING / 2; s < total; s += PIER_SPACING) spaced.push(s)
@@ -611,6 +686,19 @@ export function parseLine(text: unknown): Array<[number, number]> {
     ;[x, y] = [x + dx, y + dy]
     return [x / 1e7, y / 1e7] as [number, number]
   })
+}
+
+/**
+ * A served deck's shape where it follows its bridge outline (format 2): each
+ * side's edge at every sample, and its end caps. Nothing for an older row, or
+ * one that does not match its samples.
+ */
+export function parseShape(props: Record<string, any>, samples: number): Pick<Chain, 'sides' | 'caps'> {
+  if (Number(props.format) < 2) return {}
+  const sides = [parseProfile(props.left_edges), parseProfile(props.right_edges)] as [number[], number[]]
+  const caps = parseProfile(props.caps)
+  if (sides.some(s => s.length !== samples)) return {}
+  return { sides, ...(caps.length === 4 ? { caps: caps as [number, number, number, number] } : {}) }
 }
 
 /** Whether most of a piece lies on one of the given decks, so it is drawn already. */

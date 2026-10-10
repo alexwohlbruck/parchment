@@ -27,6 +27,7 @@
 * 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
 * 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
+* 3D bridges now take the shape of the bridge drawn on the map, widening, narrowing and ending where it does, and bridges near large interchanges build faster.
 
 ### Fixed
 

@@ -17,9 +17,25 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 const FROM = 16
 const TO = FROM + 0.6
 
-const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string; green: string; red: string }> = {
-  light: { asphalt: 'hsl(36, 4%, 70%)', white: 'hsl(40, 30%, 98%)', yellow: 'hsl(43, 72%, 60%)', green: 'hsl(148, 26%, 60%)', red: 'hsl(9, 42%, 62%)' },
-  dark: { asphalt: 'hsl(222, 5%, 25%)', white: 'hsla(40, 10%, 80%, 0.7)', yellow: 'hsla(43, 50%, 52%, 0.75)', green: 'hsl(148, 20%, 33%)', red: 'hsl(9, 26%, 33%)' },
+const COLORS: Record<FlavorId, { asphalt: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+  light: {
+    asphalt: 'hsl(200, 3%, 57%)',
+    white: 'hsl(40, 20%, 97%)',
+    crosswalk: 'hsl(40, 6%, 91%)',
+    yellow: 'hsl(52, 88%, 56%)',
+    green: 'hsl(150, 30%, 58%)',
+    red: 'hsl(9, 48%, 62%)',
+  },
+  // Muted paint, mixed with the asphalt rather than see-through, so a fill
+  // and its edge hairline do not double up.
+  dark: {
+    asphalt: 'hsl(222, 5%, 25%)',
+    white: '#a4a29f',
+    crosswalk: '#8f8e8c',
+    yellow: '#bca83d',
+    green: 'hsl(148, 20%, 33%)',
+    red: 'hsl(9, 26%, 33%)',
+  },
 }
 
 /** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
@@ -99,7 +115,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       'source-layer': ROAD_MARKING_TILES,
       minzoom: FROM,
       filter: ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
-      paint: { 'fill-color': c.white, 'fill-opacity': fadeIn },
+      paint: { 'fill-color': ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white], 'fill-opacity': fadeIn },
     },
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of

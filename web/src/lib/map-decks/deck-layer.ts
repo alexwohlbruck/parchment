@@ -13,7 +13,6 @@
  * the map pans.
  */
 import { MercatorCoordinate } from 'maplibre-gl'
-import earcut from 'earcut'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
@@ -48,8 +47,14 @@ import {
   type Mesh,
   type Piece,
   type Point,
+  linesOf,
+  mercator,
+  tileBounds,
 } from './decks'
-import { GroundSampler, fetchHeights } from './ground'
+import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
+import { layPaint, paintOf, strip, type Paint } from './paint'
+import { idle, queryFeatures } from './map-query'
+import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -83,66 +88,11 @@ export type DeckSources = {
   routes: () => string[]
 }
 
-const VS = `
-  uniform mat4 u_matrix;
-  uniform vec3 u_light;
-  attribute vec3 a_position;
-  attribute vec3 a_normal;
-  attribute vec3 a_color;
-  varying vec3 v_color;
-  void main() {
-    float sun = dot(normalize(a_normal), u_light) * 0.5 + 0.5;
-    float sky = normalize(a_normal).z * 0.5 + 0.5;
-    v_color = a_color * mix(0.62, 1.0, mix(sun, sky, 0.6));
-    gl_Position = u_matrix * vec4(a_position, 1.0);
-  }`
-
-const FS = `
-  precision mediump float;
-  varying vec3 v_color;
-  void main() { gl_FragColor = vec4(v_color, 1.0); }`
-
-/** Paint widths in metres, and the dash for a dashed line. */
-const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45 }
-const DASH = { on: 3, off: 9 }
-/** Metres between height samples along a deck, and along paint laid on one. */
+/** Metres between height samples along a deck. */
 const SAMPLE = 6
-const PAINT_SAMPLE = 3
 /** Decks whose ground is kept, and how far the map may pan before vertices are re-based (mercator units). */
 const PROFILE_CACHE = 4000
 const REBASE = 1e-3
-
-const tileBounds = (feature: any): Bounds | null => {
-  const { _x: x, _y: y, _z: z } = feature
-  if (typeof x !== 'number' || typeof z !== 'number') return null
-  const n = 2 ** z
-  return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
-}
-
-const mercator = ([lng, lat]: number[]): Point => {
-  const s = Math.sin((lat * Math.PI) / 180)
-  return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
-}
-
-/** Run when the main thread is idle, or soon where the browser cannot say; returns a cancel. */
-const idle = (run: () => void): (() => void) => {
-  if (typeof requestIdleCallback === 'function') {
-    const handle = requestIdleCallback(run, { timeout: 1000 })
-    return () => cancelIdleCallback(handle)
-  }
-  const handle = setTimeout(run, 0)
-  return () => clearTimeout(handle)
-}
-
-const polygonsOf = (geometry: any): number[][][][] =>
-  geometry?.type === 'Polygon' ? [geometry.coordinates]
-  : geometry?.type === 'MultiPolygon' ? geometry.coordinates
-  : []
-
-const linesOf = (geometry: any): number[][][] =>
-  geometry?.type === 'LineString' ? [geometry.coordinates]
-  : geometry?.type === 'MultiLineString' ? geometry.coordinates
-  : []
 
 export class DeckLayer {
   id: string
@@ -151,14 +101,13 @@ export class DeckLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer } | null = null
-  private count = 0
+  private buffers: MeshBuffers | null = null
   private paintFrom = 0
   private origin: [number, number] = [0, 0]
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
   private pending: Mesh | null = null
-  private sampler: { source: string; ground: GroundSampler } | null = null
+  private sampler: TerrainSampler | null = null
   /** Each served deck's datum offset at its ends, by id. */
   private offsets = new Map<string, [number, number]>()
   /** Each deck's ground in true metres, keyed by its outline. */
@@ -180,7 +129,7 @@ export class DeckLayer {
 
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
-    this.program = link(gl, VS, FS)
+    this.program = linkMeshProgram(gl)
     const tiled = () => new Set([this.sources.basemap, this.sources.paint?.source, this.sources.surfaces?.source, this.sources.profiles?.source])
     // A build reads every loaded tile, so it waits for a source to finish
     // loading rather than running once per tile as they stream in. A pan
@@ -211,7 +160,7 @@ export class DeckLayer {
     if (this.onTerrain) map.off('terrain', this.onTerrain)
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
-    if (this.buffers) for (const b of Object.values(this.buffers)) gl.deleteBuffer(b)
+    deleteMesh(gl, this.buffers)
     gl.deleteProgram(this.program)
     this.map = null
   }
@@ -239,22 +188,13 @@ export class DeckLayer {
 
   /** The terrain source's elevation tiles, read at its most detailed zoom. */
   private groundSampler(): GroundSampler | null {
-    const id = this.map.getTerrain?.()?.source
-    const source = id ? this.map.getSource(id) : null
-    const template = source?.tiles?.[0]
-    if (!template) return null
-    if (this.sampler && this.sampler.source === template) return this.sampler.ground
-    const zoom = Math.min(source.maxzoom ?? 15, 15)
-    const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
-      zoom,
-      minZoom: Math.max(0, zoom - 5),
-      capacity: 24,
-      onLoad: () => this.invalidate(),
-    })
-    this.sampler = { source: template, ground }
-    this.grounds.clear()
-    this.offsets.clear()
-    return ground
+    const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
+    if (sampler !== this.sampler) {
+      this.grounds.clear()
+      this.offsets.clear()
+    }
+    this.sampler = sampler
+    return sampler?.ground ?? null
   }
 
   /**
@@ -280,12 +220,9 @@ export class DeckLayer {
   }
 
   private query(source: string, sourceLayer?: string, filter?: any[]): any[] {
-    try {
-      return this.map.querySourceFeatures(source, { ...(sourceLayer ? { sourceLayer } : {}), ...(filter ? { filter } : {}) })
-    } catch {
-      return []
-    }
+    return queryFeatures(this.map, source, sourceLayer, filter)
   }
+
 
   /** Whether the served decks for this view are still on their way, so solving bridges here would be wasted. */
   private awaitingServed(): boolean {
@@ -379,21 +316,13 @@ export class DeckLayer {
       return { points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width) }
     })
     this.paintFrom = mesh.position.length / 3
-    for (const { props, runs, areas } of paint) {
-      const color = props.color === 'yellow' ? p.yellow : props.color === 'red' ? p.red : props.color === 'green' ? p.green : p.white
-      // Coloured lanes lie under the lines; white bars over them.
-      for (const rings of areas) this.fill(mesh, rings, surfaces, color, props.color === 'white' ? 0.03 : 0.02)
-      const width = PAINT_WIDTH[props.kind] ?? 0.12
-      for (const run of runs)
-        for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
-          this.strip(mesh, run, surfaces, width, color, 0.04, offset, String(props.pattern).startsWith('dashed'))
-    }
+    layPaint(mesh, paint, surfaces, p, this.origin)
     for (const id of this.sources.routes())
       for (const f of this.query(id))
         for (const line of linesOf(f.geometry)) {
           const points = line.map(mercator)
-          this.strip(mesh, points, surfaces, 4.4, p.routeCasing, 0.06, 0, false)
-          this.strip(mesh, points, surfaces, 3, p.route, 0.08, 0, false)
+          strip(mesh, points, surfaces, 4.4, p.routeCasing, 0.06, 0, false, this.origin)
+          strip(mesh, points, surfaces, 3, p.route, 0.08, 0, false, this.origin)
         }
     this.version++
     return mesh
@@ -445,15 +374,7 @@ export class DeckLayer {
   /** The bridges' own lane paint, as runs clipped to their tiles. */
   private paint(): Paint[] {
     if (!this.sources.paint) return []
-    return this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true]).flatMap(f => {
-      const props = f.properties ?? {}
-      if (!props.bridge) return []
-      const tile = tileBounds(f)
-      // A crosswalk line is dashed into bars by the style; only its filled form draws here.
-      const runs = props.kind === 'crosswalk' ? [] : linesOf(f.geometry).flatMap(line => (tile ? clip(line.map(mercator), tile) : [line.map(mercator)]))
-      const areas = polygonsOf(f.geometry).map(rings => rings.map(ring => densify(ring.map(mercator), PAINT_SAMPLE)))
-      return [{ props, runs, areas }]
-    })
+    return this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true]).map(paintOf)
   }
 
   /** The outlines of the bridges' own carriageways. */
@@ -467,122 +388,32 @@ export class DeckLayer {
     })
   }
 
-  /** A painted area laid on the decks, where every corner of a triangle is on one. */
-  private fill(mesh: Mesh, rings: Point[][], decks: any[], color: number[], lift: number) {
-    const flat = rings.flat()
-    const z = onDeck(flat, decks, lift)
-    const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
-    const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
-    for (let t = 0; t < index.length; t += 3) {
-      const corners = [index[t], index[t + 1], index[t + 2]]
-      if (corners.some(k => z[k] === null)) continue
-      for (const k of corners) {
-        mesh.position.push(flat[k][0] - this.origin[0], flat[k][1] - this.origin[1], z[k]! * scale)
-        mesh.normal.push(0, 0, 1)
-        mesh.color.push(color[0], color[1], color[2])
-      }
-    }
-  }
-
-  /** Paint along a line, lifted onto the decks under it, as flat quads. */
-  private strip(mesh: Mesh, line: Point[], decks: any[], width: number, color: number[], lift: number, offset: number, dashed: boolean) {
-    const points = densify(line, PAINT_SAMPLE)
-    const z = onDeck(points, decks, lift)
-    let travelled = 0
-    for (let i = 1; i < points.length; i++) {
-      const [a, b] = [points[i - 1], points[i]]
-      const scale = 1 / metresPerUnit(a[1])
-      const seg = Math.hypot(b[0] - a[0], b[1] - a[1])
-      const metres = seg / scale
-      const za = z[i - 1]
-      const zb = z[i]
-      if (za === null || zb === null || seg === 0) {
-        travelled += metres
-        continue
-      }
-      const ux = (b[0] - a[0]) / seg
-      const uy = (b[1] - a[1]) / seg
-      const nx = -uy * scale
-      const ny = ux * scale
-      const pieces: Array<[number, number]> = []
-      if (dashed) {
-        const period = DASH.on + DASH.off
-        for (let s = -(travelled % period); s < metres; s += period) pieces.push([Math.max(0, s), Math.min(metres, s + DASH.on)])
-      } else pieces.push([0, metres])
-      for (const [s0, s1] of pieces) {
-        if (s1 <= s0) continue
-        const at = (s: number, side: number) => {
-          const t = s / metres
-          return [
-            a[0] + (b[0] - a[0]) * t + nx * (offset + side * width / 2) - this.origin[0],
-            a[1] + (b[1] - a[1]) * t + ny * (offset + side * width / 2) - this.origin[1],
-            (za + (zb - za) * t) * scale,
-          ]
-        }
-        const corners = [at(s0, 1), at(s0, -1), at(s1, -1), at(s1, 1)]
-        for (const tri of [[0, 1, 2], [0, 2, 3]])
-          for (const k of tri) {
-            mesh.position.push(...corners[k])
-            mesh.normal.push(0, 0, 1)
-            mesh.color.push(color[0], color[1], color[2])
-          }
-      }
-      travelled += metres
-    }
-  }
-
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
-      if (this.buffers) for (const b of Object.values(this.buffers)) gl.deleteBuffer(b)
-      const upload = (data: number[]) => {
-        const buffer = gl.createBuffer()!
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
-        return buffer
-      }
-      this.buffers = { position: upload(this.pending.position), normal: upload(this.pending.normal), color: upload(this.pending.color) }
-      this.count = this.pending.position.length / 3
+      deleteMesh(gl, this.buffers)
+      this.buffers = uploadMesh(gl, this.pending)
       this.pending = null
     }
-    if (!this.buffers || !this.count) return
+    if (!this.buffers?.count) return
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
-    const shifted = translate(matrix, [this.origin[0], this.origin[1], 0])
-    gl.useProgram(this.program)
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'u_matrix'), false, shifted)
     const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
-    const l = Math.hypot(light[0], light[1], light[2]) || 1
-    gl.uniform3f(gl.getUniformLocation(this.program, 'u_light'), light[0] / l, light[1] / l, light[2] / l)
-    gl.bindVertexArray(null)
-    const attach = (name: string, buffer: WebGLBuffer) => {
-      const loc = gl.getAttribLocation(this.program, name)
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-      gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0)
-      return loc
-    }
-    const locs = [
-      attach('a_position', this.buffers.position),
-      attach('a_normal', this.buffers.normal),
-      attach('a_color', this.buffers.color),
-    ]
+    const mesh = bindMesh(gl, this.program, this.buffers, translate(matrix, [this.origin[0], this.origin[1], 0]), light)
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
     gl.depthMask(true)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
-    gl.drawArrays(gl.TRIANGLES, 0, this.paintFrom)
+    mesh.draw(0, this.paintFrom)
     // Paint and routes sit a few centimetres over the asphalt; the offset keeps
     // them in front of it at any distance.
     gl.enable(gl.POLYGON_OFFSET_FILL)
     gl.polygonOffset(-2, -2)
-    gl.drawArrays(gl.TRIANGLES, this.paintFrom, this.count - this.paintFrom)
+    mesh.draw(this.paintFrom)
     gl.disable(gl.POLYGON_OFFSET_FILL)
-    for (const loc of locs) gl.disableVertexAttribArray(loc)
+    mesh.unbind()
   }
 }
-
-type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
 type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }
 
@@ -610,17 +441,4 @@ function filled(ground: number[]): number[] | null {
   return ground.map((g, i) =>
     Number.isNaN(g) ? known.reduce((best, k) => (Math.abs(k[1] - i) < Math.abs(best[1] - i) ? k : best))[0] : g,
   )
-}
-
-function link(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram {
-  const program = gl.createProgram()!
-  for (const [type, source] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]] as const) {
-    const shader = gl.createShader(type)!
-    gl.shaderSource(shader, source)
-    gl.compileShader(shader)
-    gl.attachShader(program, shader)
-  }
-  gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) console.error('[decks] link:', gl.getProgramInfoLog(program))
-  return program
 }

@@ -840,3 +840,80 @@ export function covered(piece: Piece, decks: Array<{ chain: Chain; bounds: Bound
 
 /** How far beyond a served deck's edge a basemap bridge may lie and still be the same bridge, in metres. */
 export const COVER = 3
+
+/**
+ * A line's left and right edges, `edges` metres out, relative to `origin`.
+ * Mitred at each vertex, the mitre capped so a hairpin does not spike.
+ */
+export function outline(pts: Point[], edges: [number, number], origin: Point): Array<{ left: Point; right: Point }> {
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const [toLeft, toRight] = edges.map(e => e * scale)
+  return pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)]
+    const b = pts[Math.min(n - 1, i + 1)]
+    let tx = b[0] - a[0]
+    let ty = b[1] - a[1]
+    const len = Math.hypot(tx, ty) || 1
+    tx /= len
+    ty /= len
+    let nx = -ty
+    let ny = tx
+    let m = 1
+    if (i > 0 && i < n - 1) {
+      const ux = (p[0] - a[0]) / (Math.hypot(p[0] - a[0], p[1] - a[1]) || 1)
+      const uy = (p[1] - a[1]) / (Math.hypot(p[0] - a[0], p[1] - a[1]) || 1)
+      const dot = nx * -uy + ny * ux
+      m = 1 / Math.max(0.5, Math.abs(dot))
+    }
+    nx *= m
+    ny *= m
+    return {
+      left: [p[0] + nx * toLeft - origin[0], p[1] + ny * toLeft - origin[1]] as Point,
+      right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
+    }
+  })
+}
+
+/** A triangle onto a mesh, flat-shaded by its winding. */
+export function triangle(out: Mesh, a: number[], b: number[], c: number[], color: number[]) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+  const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+  const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
+  for (const p of [a, b, c]) {
+    out.position.push(p[0], p[1], p[2])
+    out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
+    out.color.push(color[0], color[1], color[2])
+  }
+}
+
+/** Two triangles, a-b-c and a-c-d. */
+export function quad(out: Mesh, a: number[], b: number[], c: number[], d: number[], color: number[]) {
+  triangle(out, a, b, c, color)
+  triangle(out, a, c, d, color)
+}
+
+/** A web-mercator point, 0-1 across the world, for a longitude and latitude. */
+export function mercator([lng, lat]: number[]): Point {
+  const s = Math.sin((lat * Math.PI) / 180)
+  return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
+}
+
+/** The bounds of the tile a queried feature came from, or null if it does not say. */
+export function tileBounds(feature: any): Bounds | null {
+  const { _x: x, _y: y, _z: z } = feature
+  if (typeof x !== 'number' || typeof z !== 'number') return null
+  const n = 2 ** z
+  return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
+}
+
+export const polygonsOf = (geometry: any): number[][][][] =>
+  geometry?.type === 'Polygon' ? [geometry.coordinates]
+  : geometry?.type === 'MultiPolygon' ? geometry.coordinates
+  : []
+
+export const linesOf = (geometry: any): number[][][] =>
+  geometry?.type === 'LineString' ? [geometry.coordinates]
+  : geometry?.type === 'MultiLineString' ? geometry.coordinates
+  : []

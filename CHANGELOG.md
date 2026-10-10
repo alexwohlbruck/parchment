@@ -33,6 +33,7 @@
 * Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
 * Points of interest can now be switched on and off from the layer selector.
 * Street and place labels can now be switched on and off from the layer selector.
+* With 3D terrain and objects on, tunnels for roads, paths, cycleways and railways now run underground: up close, each entrance is cut into the ground with retaining walls, a headwall and a dark mouth.
 
 ### Changed
 

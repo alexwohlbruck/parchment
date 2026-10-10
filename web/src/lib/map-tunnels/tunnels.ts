@@ -8,7 +8,7 @@
  *
  * Pure functions, in Web Mercator units for position and metres for height.
  */
-import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, triangle, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, type Mesh, type Point } from '@/lib/map-decks/decks'
 
 /** Clear height inside a road's bore, and the roof over any bore, in metres. */
 export const HEADROOM = 4.6
@@ -40,8 +40,6 @@ export const COVER_AT = [10, 15, 20]
 export const BORE = 40
 /** Farthest any cut runs out from its portal, in metres. */
 export const CUT_MAX = Math.max(...Object.values(PROFILES).map(p => p.reach))
-/** How much steeper than its grade a cut may climb to meet a junction. */
-export const STEEPEST = 2
 /** How far the hole's lid stands over the ground, in metres, so the terrain does not cover it. */
 export const LID = 0.3
 /** The most a headwall rises over a portal's roof, in metres; above it the hillside carries on. */
@@ -50,12 +48,10 @@ export const FACADE = 4
 export const FORECOURT = 9
 /** The least the ground must stand over a portal, beside it or above the bore, for a cut to be dug, in metres. */
 export const RELIEF = 2
-/** How far the roof stands over the ground it was read from, in metres: just clear, so the ground hides its slab but not its face. */
-export const RISE = 0.2
-/** How far the earth over a portal's roof slopes away beside and behind it, and how far down, in metres. */
-export const SKIRT = [5, 3]
-/** How far back over the bore its roof is built, in metres, until the ground covers it. */
-export const ROOF_SPAN = [4, 15]
+/** How fast a wall's top climbs from where the cut opens, in metres per metre, so it rises out of the ground like a wing wall. */
+export const WING = 0.3
+/** How far behind a headwall the ground its top meets is read, in metres. */
+const BEHIND = 6
 /** Metres a wall's top is averaged over, so the ground's noise does not show in it. */
 const RIM_SPAN = 9
 /** Sharpest turn, in radians, from one way onto the next that still carries the same road. */
@@ -203,8 +199,6 @@ export type Cut = {
   open: number
   /** The top of the headwall over the portal. */
   crown: number
-  /** The vertex in the bore the roof over it runs back to. */
-  roof: number
   /** Clear height inside the bore. */
   headroom: number
 }
@@ -220,10 +214,10 @@ export type Cut = {
  *
  * The portal sits low enough to keep headroom under the cover, or lower where
  * the ground already dips. From it the floor climbs no steeper than a road may
- * until it meets the ground, and more steeply only where the road reaches a
- * `junction` first. The cut opens where the floor has met the ground and is
- * nearly level with the higher rim, and no nearer than a forecourt's length.
- * The roof runs back over the bore until the ground stands as high as the crown.
+ * until it meets the ground, and more steeply where the road reaches a
+ * `junction` first, so it meets the ground there. The cut opens where the
+ * floor has met the ground and is nearly level with the higher rim, and no
+ * nearer than a forecourt's length. The headwall stops at the ground behind it.
  */
 export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true, profile = PROFILES.road): Cut | null {
   const { headroom, grade } = profile
@@ -240,33 +234,31 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   // Still in the cut while the floor is below the road's ground or either wall is high.
   const deep = (floor: number[], i: number) => floor[i] < ground[i] - 0.05 || Math.max(rims[0][i], rims[1][i]) - floor[i] >= OPEN
   let floor = floorAt(grade)
-  if (junction && at > 0 && deep(floor, 0)) floor = floorAt(Math.min(grade * STEEPEST, Math.max(grade, (ground[0] - portal) / (out(0) || 1))))
+  if (junction && at > 0 && deep(floor, 0)) floor = floorAt(Math.max(grade, (ground[0] - portal) / (out(0) || 1)))
   let open = at
   while (open > 0 && deep(floor, open)) open--
-  const crown = Math.min(Math.max(cover, rims[0][at], rims[1][at], portal + headroom + ROOF), portal + headroom + ROOF + FACADE)
-  if (crown - portal >= headroom + ROOF) while (open > 0 && d[at] - d[open] < FORECOURT) open--
-  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
-  let roof = at
-  while (roof < d.length - 1 && d[roof] - d[at] < ROOF_SPAN[1] && (d[roof] - d[at] < ROOF_SPAN[0] || ground[roof] < crown)) roof++
-  return { floor, walls, open, crown, roof, headroom }
+  const behind = Math.min(...ground.filter((_, i) => i > at && d[i] - d[at] <= BEHIND))
+  const crown = Math.max(portal + headroom + ROOF, Math.min(behind, portal + headroom + ROOF + FACADE))
+  if (portal === ground[at]) while (open > 0 && d[at] - d[open] < FORECOURT) open--
+  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : f + Math.max(0, Math.min(rim[i] - f, WING * (d[i] - d[open])))))) as [number[], number[]]
+  return { floor, walls, open, crown, headroom }
 }
 
-/** `ground` is what the map draws around the portal, for the earth over the bore to take on. */
-export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[]; ground: number[] }
+export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }
 
 export type PortalMesh = {
   /** Drawn only within the hole: the cut, the headwall and the bore. */
   inside: Mesh
   /** The hole's lid, level with the wall tops. */
   lid: Mesh
-  /** Drawn over the terrain: the headwall again, where it stands above the ground, and the copings. */
+  /** Drawn over the terrain: the copings. */
   outside: Mesh
-  /** The earth over each bore, drawn over the terrain but never over a cut. */
-  earth: Mesh
 }
 
+/** How far a wall must stand over the floor for the cut there to be drawn, in metres. */
+const SHOWN = 0.5
 /** Coping width and how far it stands over a wall, in metres. */
-const COPING = [0.35, 0.6]
+const COPING = [0.3, 0.25]
 
 /**
  * The triangles of one portal, relative to `origin`, with heights in metres as
@@ -302,8 +294,8 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
         quad(out.inside, kerb[3], kerb[2], kerb[1], kerb[0], colors.concrete)
         quad(out.inside, face[3], face[2], face[1], face[0], colors.concrete)
       }
-      // A coping along the top, low where the wall is.
-      const rise = [a, b].map(j => Math.min(COPING[1], (top[j] - floor[j]) / 2))
+      // A coping along the top, where the wall stands high enough to need one.
+      const rise = [a, b].map(j => (top[j] - floor[j] < 1 ? 0 : COPING[1]))
       if (rise[0] <= 0.05 && rise[1] <= 0.05) continue
       const [w0, w1, c0, c1] = [wall[a][side], wall[b][side], coping[a][side], coping[b][side]]
       const [t0, t1] = [top[a] + LID + rise[0], top[b] + LID + rise[1]]
@@ -314,37 +306,13 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
       ]
       for (const f of box) side === 'left' ? quad(out.outside, f[0], f[1], f[2], f[3], colors.parapet) : quad(out.outside, f[3], f[2], f[1], f[0], colors.parapet)
     }
+    // Where the walls barely stand, the map's own ground and paths show instead of the cut.
+    if (Math.max(walls[0][b], walls[1][b]) - floor[b] < SHOWN) continue
     quad(out.lid, at3(wall[a].left, walls[0][a] + LID), at3(wall[a].right, walls[1][a] + LID), at3(wall[b].right, walls[1][b] + LID), at3(wall[b].left, walls[0][b] + LID), colors.concrete)
   }
-  // The headwall, and behind it the earth over the bore: a roof just over the
-  // ground, sloping away on every side so it settles into the terrain.
   const mouth = floor[at] + cut.headroom
-  const top = cut.crown + RISE
-  const low = top - SKIRT[1]
-  const skirt = outline(points, [edges[0] + KERB + COPING[0] + SKIRT[0], edges[1] + KERB + COPING[0] + SKIRT[0]], origin)
-  const front = [at3(coping[at].right, mouth), at3(coping[at].left, mouth), at3(coping[at].left, top), at3(coping[at].right, top)]
+  const front = [at3(coping[at].right, mouth), at3(coping[at].left, mouth), at3(coping[at].left, cut.crown + LID), at3(coping[at].right, cut.crown + LID)]
   for (const mesh of [out.inside, out.outside]) quad(mesh, front[0], front[1], front[2], front[3], colors.concrete)
-  const earth = (...corners: number[][]) => {
-    const [a, b, c] = corners
-    const up = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-    const faced = up > 0 ? corners : [...corners].reverse()
-    if (faced.length === 3) triangle(out.earth, faced[0], faced[1], faced[2], colors.ground)
-    else quad(out.earth, faced[0], faced[1], faced[2], faced[3], colors.ground)
-  }
-  for (let i = at + 1; i <= cut.roof; i++) {
-    const [a, b, sa, sb] = [coping[i - 1], coping[i], skirt[i - 1], skirt[i]]
-    earth(at3(a.left, top), at3(a.right, top), at3(b.right, top), at3(b.left, top))
-    earth(at3(sa.left, low), at3(a.left, top), at3(b.left, top), at3(sb.left, low))
-    earth(at3(a.right, top), at3(sa.right, low), at3(sb.right, low), at3(b.right, top))
-  }
-  let back = cut.roof
-  while (back < n - 1 && d[back] - d[cut.roof] < SKIRT[0]) back++
-  const [end, behind, edge] = [coping[cut.roof], coping[back], skirt[cut.roof]]
-  earth(at3(end.left, top), at3(end.right, top), at3(behind.right, low), at3(behind.left, low))
-  earth(at3(edge.left, low), at3(end.left, top), at3(behind.left, low))
-  earth(at3(end.right, top), at3(edge.right, low), at3(behind.right, low))
-  earth(at3(skirt[at].left, low), at3(coping[at].left, top), at3(coping[at].left, low))
-  earth(at3(coping[at].right, top), at3(skirt[at].right, low), at3(coping[at].right, low))
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]

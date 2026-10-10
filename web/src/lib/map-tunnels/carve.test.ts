@@ -55,6 +55,14 @@ describe('carveTile', () => {
     expect(t.data.filter(h => h === 10).length).toBeLessThan(t.data.length / 4)
   })
 
+  test('fills the ground up to a fill\'s floor, and never lowers it', () => {
+    const t = tile()
+    const over = footprint([at(0), at(40)], [25, 25], [[25, 25], [25, 25]], [4, 4], [4, 4], [6, 6], true)
+    expect(carveTile(t, id(at(20)), [over])).toBe(true)
+    expect(Math.max(...t.data)).toBe(25)
+    expect(Math.min(...t.data)).toBe(20)
+  })
+
   test('never raises the ground', () => {
     const t = tile()
     expect(carveTile(t, id(at(20)), [footprint([at(0), at(40)], [30, 30], [[30, 30], [30, 30]], [4, 4], [4, 4], [4, 4])])).toBe(false)

@@ -13,13 +13,13 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
-import { carveTile, footprint, type Elevation, type Footprint } from './carve'
+import { BANK, carveTile, footprint, type Elevation, type Footprint } from './carve'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, HEADWALL, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
 const WIDTH: Record<string, number> = {
@@ -77,25 +77,29 @@ function elevation(dem: any): Elevation {
 
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
-/** How far behind a headwall's face the floor is carved, so the ground rises behind it rather than in front. */
+/** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
 const SILL = 0.5
+
+/** How far back over a bore the ground is filled to its headwall's top, in metres, before it falls away. */
+const BACKFILL = [1.5, 6]
 
 /**
  * The ground carved for a cut: down to the floor between its walls, out to
- * just behind the headwall, and to each wall's top beside them, banking up
- * past its coping; behind the headwall, down to its top.
+ * just behind the headwall's face, and to each wall's top beside them,
+ * banking up past its coping; and filled over the bore behind the headwall.
  */
-function carvings({ points, at, edges, cut }: Solved): Array<[string, Footprint]> {
-  const beyond = (m: number) => truncate(points.slice(at), m).at(-1)!
-  const [sill, back] = [beyond(SILL), beyond(HEADWALL)]
+function carving({ points, at, edges, cut }: Solved): Footprint[] {
+  const sill = truncate(points.slice(at), SILL).at(-1)!
   const wall = edges.map(e => e + KERB)
   const out = (m: number) => wall.map(w => w + m) as [number, number]
   const lane = cut.floor.slice(cut.open, at + 1)
   const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
-  const crown = [cut.crown, cut.crown]
+  const over = [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
+  const crown = along(over).map(m => cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK)
   return [
-    ['cut', footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1]))],
-    ['headwall', footprint([sill, back], crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN))],
+    footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1])),
+    // The ground over the bore, filled up to meet the headwall's top from behind.
+    footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true),
   ]
 }
 
@@ -257,7 +261,7 @@ export class TunnelLayer {
     for (const s of solved) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration }
       portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh)
-      for (const [k, f] of carvings(s)) mesh.footprints.set(`${s.key}|${k}`, f)
+      carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
     return mesh
   }

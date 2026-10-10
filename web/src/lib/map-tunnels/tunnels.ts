@@ -292,7 +292,7 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
       sided(side, [at3(back[a][side], t0), at3(back[b][side], t1), at3(back[b][side], top[b] - 1), at3(back[a][side], top[a] - 1)], colors.parapet)
     }
   }
-  // The headwall: its face over the mouth and beside it, and its top back to where the carving stops.
+  // The headwall: its face over the mouth and beside it, and its top.
   const mouth = floor[at] + cut.headroom
   const crown = cut.crown + CAP
   const next = Math.min(n - 1, at + 1)
@@ -304,6 +304,11 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   for (const side of ['left', 'right'] as const)
     sided(side, [at3(back[at][side], floor[at] - FOOT), at3(wall[at][side], floor[at] - FOOT), at3(wall[at][side], mouth), at3(back[at][side], mouth)], colors.concrete)
   quad(out.walls, at3(l, crown), at3(r, crown), at3(br, crown), at3(bl, crown), colors.parapet)
+  // Its back and sides, down into the ground, so it stands solid from behind.
+  const base = floor[at] - FOOT
+  quad(out.walls, at3(br, base), at3(bl, base), at3(bl, crown), at3(br, crown), colors.concrete)
+  quad(out.walls, at3(l, base), at3(bl, base), at3(bl, crown), at3(l, crown), colors.concrete)
+  quad(out.walls, at3(br, base), at3(r, base), at3(r, crown), at3(br, crown), colors.concrete)
   quad(out.mouth, at3(wall[at].left, floor[at] - FOOT), at3(wall[at].right, floor[at] - FOOT), at3(wall[at].right, mouth), at3(wall[at].left, mouth), colors.bore)
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {

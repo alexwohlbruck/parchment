@@ -61,6 +61,9 @@ const draws = (layer: BrunnelLayer, brunnel: 'bridge' | 'tunnel') =>
   (asserts(layer.filter, 'brunnel', brunnel) ||
     asserts(layer.filter, brunnel, true))
 
+/** Whether a layer draws ways in tunnels, whichever source and syntax it states that in. */
+export const drawsTunnel = (layer: BrunnelLayer) => draws(layer, 'tunnel')
+
 const bandEnd = (
   layers: readonly BrunnelLayer[],
   brunnel: 'bridge' | 'tunnel',

@@ -439,6 +439,8 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
+    // Overlays such as the cycling network add tunnel layers of their own later.
+    this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -952,12 +954,19 @@ export class MaplibreStrategy extends MapStrategy {
         this.mutedBridges.delete(layer.id)
       }
     }
+    this.muteFlatTunnels()
+  }
+
+  /** Mute the flat tunnels under the tunnel layer, including any layer added since it was drawn. */
+  private muteFlatTunnels() {
+    const map = this.mapInstance
+    const active = !!this.tunnelLayer
     for (const layer of map.getStyle()?.layers ?? []) {
       if (!isFlatTunnel(layer as any)) continue
       if (active && !this.mutedTunnels.has(layer.id)) {
         const value = map.getPaintProperty(layer.id, 'line-opacity')
         this.mutedTunnels.set(layer.id, value)
-        map.setPaintProperty(layer.id, 'line-opacity', mutedTunnelOpacity(value) as any)
+        map.setPaintProperty(layer.id, 'line-opacity', mutedTunnelOpacity(value, layer as any) as any)
       } else if (!active && this.mutedTunnels.has(layer.id)) {
         map.setPaintProperty(layer.id, 'line-opacity', this.mutedTunnels.get(layer.id) as any)
         this.mutedTunnels.delete(layer.id)

@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { MAX_GRADE, along, outline, type Mesh, type Point } from '@/lib/map-decks/decks'
-import { FACADE, FORECOURT, HEADROOM, ROOF, STEEPEST, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
+import { FACADE, FORECOURT, HEADROOM, PROFILES, ROOF, STEEPEST, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, type PortalMesh } from './tunnels'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -93,6 +93,15 @@ describe('solveCut', () => {
     expect(solveCut(d, at, ground, [flat(d, 2.8), flat(d, 2.8)], 2.8)).not.toBeNull()
   })
 
+  test('gives a path less headroom and a steeper climb than a road', () => {
+    const { d, at } = line(160)
+    const road = solveCut(d, at, flat(d, 10), [flat(d, 10), flat(d, 10)], 13)!
+    const path = solveCut(d, at, flat(d, 10), [flat(d, 10), flat(d, 10)], 13, true, PROFILES.path)!
+    expect(path.floor[at]).toBeCloseTo(13 - PROFILES.path.headroom - ROOF)
+    expect(path.floor[at]).toBeGreaterThan(road.floor[at])
+    expect(d[at] - d[path.open]).toBeLessThan(d[at] - d[road.open])
+  })
+
   test('digs nothing where the road goes in at grade, under a building or a deck', () => {
     const { d, at } = line(160)
     expect(solveCut(d, at, flat(d, 10), [flat(d, 10.5), flat(d, 10.5)], 10.5)).toBeNull()
@@ -110,7 +119,7 @@ describe('solveCut', () => {
     const cut = solveCut(d, at, flat(d, 10), [flat(d, 10), flat(d, 10)], 13)!
     expect(cut.floor[0]).toBeGreaterThan(cut.floor[at] + MAX_GRADE * 30)
     expect(cut.floor[0]).toBeCloseTo(10)
-    expect((cut.floor[0] - cut.floor[at]) / 30).toBeLessThanOrEqual(STEEPEST + 1e-9)
+    expect((cut.floor[0] - cut.floor[at]) / 30).toBeLessThanOrEqual(MAX_GRADE * STEEPEST + 1e-9)
   })
 
   test('keeps a road grade where the road runs on past what is loaded', () => {

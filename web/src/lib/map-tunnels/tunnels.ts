@@ -10,9 +10,24 @@
  */
 import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, triangle, type Mesh, type Point } from '@/lib/map-decks/decks'
 
-/** Clear height inside a bore, and the roof over it, in metres. */
+/** Clear height inside a road's bore, and the roof over any bore, in metres. */
 export const HEADROOM = 4.6
 export const ROOF = 0.8
+
+export type BoreKind = 'road' | 'path' | 'rail'
+
+/**
+ * What goes through a bore sets its section: headroom in metres, the steepest
+ * its approach climbs as a grade, and how far out a cut to it may run.
+ */
+export type BoreProfile = { headroom: number; grade: number; reach: number }
+
+export const PROFILES: Record<BoreKind, BoreProfile> = {
+  road: { headroom: HEADROOM, grade: MAX_GRADE, reach: 160 },
+  path: { headroom: 2.6, grade: 0.08, reach: 100 },
+  // Room for overhead wire, and the gentle climb a train can take.
+  rail: { headroom: 5.5, grade: 0.035, reach: 300 },
+}
 /** The kerb between a carriageway and the wall beside it, in metres. */
 export const KERB = 0.6
 /** The least depth a cut is drawn at, in metres; shallower, the road is at grade. */
@@ -23,9 +38,10 @@ export const RIM = [2, 4, 6]
 export const COVER_AT = [10, 15, 20]
 /** Metres of bore drawn in from a portal, past where any light reaches. */
 export const BORE = 40
-/** Farthest a cut runs out from its portal, in metres, and the steepest it climbs. */
-export const CUT_MAX = 160
-export const STEEPEST = 0.12
+/** Farthest any cut runs out from its portal, in metres. */
+export const CUT_MAX = Math.max(...Object.values(PROFILES).map(p => p.reach))
+/** How much steeper than its grade a cut may climb to meet a junction. */
+export const STEEPEST = 2
 /** How far the hole's lid stands over the ground, in metres, so the terrain does not cover it. */
 export const LID = 0.3
 /** The most a headwall rises over a portal's roof, in metres; above it the hillside carries on. */
@@ -189,6 +205,8 @@ export type Cut = {
   crown: number
   /** The vertex in the bore the roof over it runs back to. */
   roof: number
+  /** Clear height inside the bore. */
+  headroom: number
 }
 
 /**
@@ -207,29 +225,30 @@ export type Cut = {
  * nearly level with the higher rim, and no nearer than a forecourt's length.
  * The roof runs back over the bore until the ground stands as high as the crown.
  */
-export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true): Cut | null {
+export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true, profile = PROFILES.road): Cut | null {
+  const { headroom, grade } = profile
   const rims = beside.map(rim => rim.map((_, i) => {
     const near = rim.filter((__, k) => Math.abs(d[k] - d[i]) <= RIM_SPAN / 2)
     return near.reduce((a, b) => a + b, 0) / near.length
   }))
   // Read off the ground just out from the portal too: the sample at it can land on the slope into the bore.
   const mouth = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= RIM_SPAN))
-  if (Math.max(cover, rims[0][at], rims[1][at]) - mouth < RELIEF) return null
-  const portal = Math.min(ground[at], cover - HEADROOM - ROOF)
+  if (Math.max(cover, rims[0][at], rims[1][at]) - mouth < Math.min(RELIEF, (headroom + ROOF) / 2)) return null
+  const portal = Math.min(ground[at], cover - headroom - ROOF)
   const out = (i: number) => d[at] - d[i]
   const floorAt = (grade: number) => ground.map((g, i) => (i > at ? portal : Math.min(g, portal + grade * out(i))))
   // Still in the cut while the floor is below the road's ground or either wall is high.
   const deep = (floor: number[], i: number) => floor[i] < ground[i] - 0.05 || Math.max(rims[0][i], rims[1][i]) - floor[i] >= OPEN
-  let floor = floorAt(MAX_GRADE)
-  if (junction && at > 0 && deep(floor, 0)) floor = floorAt(Math.min(STEEPEST, Math.max(MAX_GRADE, (ground[0] - portal) / (out(0) || 1))))
+  let floor = floorAt(grade)
+  if (junction && at > 0 && deep(floor, 0)) floor = floorAt(Math.min(grade * STEEPEST, Math.max(grade, (ground[0] - portal) / (out(0) || 1))))
   let open = at
   while (open > 0 && deep(floor, open)) open--
-  const crown = Math.min(Math.max(cover, rims[0][at], rims[1][at], portal + HEADROOM + ROOF), portal + HEADROOM + ROOF + FACADE)
-  if (crown - portal >= HEADROOM + ROOF) while (open > 0 && d[at] - d[open] < FORECOURT) open--
-  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + HEADROOM + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
+  const crown = Math.min(Math.max(cover, rims[0][at], rims[1][at], portal + headroom + ROOF), portal + headroom + ROOF + FACADE)
+  if (crown - portal >= headroom + ROOF) while (open > 0 && d[at] - d[open] < FORECOURT) open--
+  const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
   let roof = at
   while (roof < d.length - 1 && d[roof] - d[at] < ROOF_SPAN[1] && (d[roof] - d[at] < ROOF_SPAN[0] || ground[roof] < crown)) roof++
-  return { floor, walls, open, crown, roof }
+  return { floor, walls, open, crown, roof, headroom }
 }
 
 /** `ground` is what the map draws around the portal, for the earth over the bore to take on. */
@@ -299,7 +318,7 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   }
   // The headwall, and behind it the earth over the bore: a roof just over the
   // ground, sloping away on every side so it settles into the terrain.
-  const mouth = floor[at] + HEADROOM
+  const mouth = floor[at] + cut.headroom
   const top = cut.crown + RISE
   const low = top - SKIRT[1]
   const skirt = outline(points, [edges[0] + KERB + COPING[0] + SKIRT[0], edges[1] + KERB + COPING[0] + SKIRT[0]], origin)
@@ -330,7 +349,7 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]
     const [fa, fb] = [floor[a], floor[b]]
-    const [ca, cb] = [fa + HEADROOM, fb + HEADROOM]
+    const [ca, cb] = [fa + cut.headroom, fb + cut.headroom]
     const [la, lb, ra, rb] = [wall[a].left, wall[b].left, wall[a].right, wall[b].right]
     quad(out.inside, at3(la, fa), at3(ra, fa), at3(rb, fb), at3(lb, fb), shade(a, colors.surface))
     quad(out.inside, at3(la, fa), at3(lb, fb), at3(lb, cb), at3(la, ca), shade(a, colors.bore))
@@ -338,7 +357,7 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     quad(out.inside, at3(la, ca), at3(lb, cb), at3(rb, cb), at3(ra, ca), shade(a, colors.bore))
   }
   const last = n - 1
-  if (last > at) quad(out.inside, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + HEADROOM), at3(wall[last].left, floor[last] + HEADROOM), shade(last, colors.bore))
+  if (last > at) quad(out.inside, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + cut.headroom), at3(wall[last].left, floor[last] + cut.headroom), shade(last, colors.bore))
 }
 
 /** A portal's line: the approach from its far end to the portal, then the bore, each sampled every `step` metres. */

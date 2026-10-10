@@ -19,11 +19,22 @@ import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } f
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, KERB, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, type Approach, type Cut } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, RIM, approach, emerge, inside, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut } from './tunnels'
 
-/** Carriageway widths by OpenMapTiles class, in metres, for a road with no surface to measure. */
-const WIDTH: Record<string, number> = { motorway: 11, trunk: 10, primary: 9, secondary: 8, tertiary: 7, minor: 6, service: 4 }
-const ROAD_CLASSES = Object.keys(WIDTH)
+/** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
+const WIDTH: Record<string, number> = {
+  motorway: 11, trunk: 10, primary: 9, secondary: 8, tertiary: 7, minor: 6, service: 4,
+  path: 3, pedestrian: 4, rail: 5, transit: 5,
+}
+const CLASSES: Record<BoreKind, string[]> = {
+  road: ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service'],
+  path: ['path', 'pedestrian'],
+  rail: ['rail', 'transit'],
+}
+const kindOf = (cls: string): BoreKind => (CLASSES.path.includes(cls) ? 'path' : CLASSES.rail.includes(cls) ? 'rail' : 'road')
+/** Half the distance between a track's rails, and a rail's width, in metres. */
+const GAUGE = 0.72
+const RAIL = 0.1
 
 /** Metres between samples along a cut, and how far down the approach its width is measured. */
 const SAMPLE = 3
@@ -45,7 +56,7 @@ export type TunnelSources = {
   buildings: () => Array<{ source: string; sourceLayer: string }>
 }
 
-type Solved = { points: Point[]; at: number; edges: [number, number]; cut: Cut }
+type Solved = { points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind }
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -138,9 +149,9 @@ export class TunnelLayer {
   }
 
 
-  /** Basemap roads of the drawn classes as lines clipped to their tiles, one copy each. */
-  private roads(brunnel: 'tunnel' | null): Piece[] {
-    const filter = ['all', ['in', ['get', 'class'], ['literal', ROAD_CLASSES]],
+  /** Basemap ways of the given kinds as lines clipped to their tiles, one copy each. */
+  private roads(brunnel: 'tunnel' | null, kinds: BoreKind[]): Piece[] {
+    const filter = ['all', ['in', ['get', 'class'], ['literal', kinds.flatMap(k => CLASSES[k])]],
       ...(brunnel ? [['==', ['get', 'brunnel'], brunnel], UNDERGROUND] : [['!', ['has', 'brunnel']]])]
     const pieces: Piece[] = []
     for (const f of this.query(this.sources.basemap, this.sources.roads, filter)) {
@@ -148,7 +159,7 @@ export class TunnelLayer {
       const tile = tileBounds(f)
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: 1, width: WIDTH[props.class] ?? 6, kind: 'road', zoom: f._z, tile: tile ?? undefined })
+          pieces.push({ points: run, layer: 1, width: WIDTH[props.class] ?? 6, kind: kindOf(props.class), zoom: f._z, tile: tile ?? undefined })
     }
     return dedupe(pieces)
   }
@@ -156,7 +167,7 @@ export class TunnelLayer {
   private build(): Built | null {
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
     const zoom = this.map.getZoom()
-    const tunnels = zoom >= TUNNEL_MIN_ZOOM ? this.roads('tunnel') : []
+    const tunnels = zoom >= TUNNEL_MIN_ZOOM ? this.roads('tunnel', ['road', 'path', 'rail']) : []
     const read = `${tunnels.map(t => `${t.zoom}:${t.points[0]}`).sort().join(' ')}|${zoom >= TUNNEL_MIN_ZOOM}`
     const close = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && close && read === this.built) return null
@@ -173,41 +184,47 @@ export class TunnelLayer {
     const bores = chains(tunnels, p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
     const portals = bores.flatMap(bore => [0, 1].filter(e => bore.grounded[e]).map(e => {
       const line = e ? [...bore.points].reverse() : bore.points
-      return { line, width: bore.width, bounds: boundsOf([line[0]], CUT_MAX) }
+      return { line, width: bore.width, kind: bore.kind, bounds: boundsOf([line[0]], CUT_MAX) }
     }))
     if (!portals.length) return empty
     const area = portals.slice(1).reduce((u, { bounds: b }) =>
       ({ minX: Math.min(u.minX, b.minX), minY: Math.min(u.minY, b.minY), maxX: Math.max(u.maxX, b.maxX), maxY: Math.max(u.maxY, b.maxY) }), portals[0].bounds)
-    const roads = this.roads(null).map(p => p.points).filter(line => meets(boundsOf(line), area))
+    const kinds = [...new Set(portals.map(p => p.kind))]
+    const atGrade = Object.fromEntries(kinds.map(k => [k, this.roads(null, [k]).map(p => p.points).filter(line => meets(boundsOf(line), area))]))
     const rings = this.surfaceRings(area)
     const footprints = this.footprints(area)
     const covered = (q: Point) => footprints.some(f => holds(f.bounds, q) && inside(q, f.rings))
 
     const solved: Solved[] = []
-    for (const { line, width } of portals) {
-      const found = approach(line[0], line[1], roads, tolerance)
+    for (const { line, width, kind } of portals) {
+      const found = approach(line[0], line[1], atGrade[kind], tolerance, PROFILES[kind].reach)
       const moved = found.points.length > 1 ? emerge(found.points, line, covered) : null
       if (!moved || moved.out.length < 2) continue
       const out = { ...found, points: moved.out }
-      const edges = measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) ?? [width / 2, width / 2]
-      const cut = this.solve(out, truncate(moved.bore, BORE), edges)
+      const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) : null
+      const cut = this.solve(out, truncate(moved.bore, BORE), measured ?? [width / 2, width / 2], kind)
       if (cut) solved.push(cut)
     }
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     const p = this.palette
     const colors = { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete, ground: p.parapet }
+    const floors: Record<BoreKind, number[]> = { road: p.surface, path: p.concrete, rail: p.concrete.map(c => c * 0.8) }
+    const steel = p.surface.map(c => c * 0.55)
     const mesh = emptyBuilt()
-    const surfaces: Surface[] = []
+    const surfaces: Array<Surface & { kind: BoreKind; through: Point[] }> = []
     for (const s of solved) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]] }
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { ...colors, ground: this.groundColor(s.points[s.cut.roof]) ?? colors.ground }, mesh)
-      const points = s.points.slice(s.cut.open, s.at + 1)
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { ...colors, surface: floors[s.kind], ground: this.groundColor(s.points[s.cut.roof]) ?? colors.ground }, mesh)
+      const points = s.points.slice(s.cut.open)
       const width = 2 * Math.max(...s.edges)
-      if (points.length > 1) surfaces.push({ points, z: scaled.floor.slice(s.cut.open, s.at + 1), d: along(points), width, bounds: boundsOf(points, width) })
+      surfaces.push({ points, z: scaled.floor.slice(s.cut.open), d: along(points), width, bounds: boundsOf(points, width), kind: s.kind, through: points })
     }
     mesh.paintFrom = mesh.inside.position.length / 3
-    layPaint(mesh.inside, this.paint(surfaces), surfaces, p, this.origin)
+    const roads = surfaces.filter(s => s.kind === 'road')
+    layPaint(mesh.inside, this.paint(roads), roads, p, this.origin)
+    for (const track of surfaces.filter(s => s.kind === 'rail'))
+      for (const side of [-GAUGE, GAUGE]) strip(mesh.inside, track.through, [track], RAIL, steel, 0.12, side, false, this.origin)
     for (const id of this.sources.routes())
       for (const f of this.query(id))
         for (const line of linesOf(f.geometry)) {
@@ -219,12 +236,12 @@ export class TunnelLayer {
   }
 
   /** A portal's cut, from the ground along it; kept once read, null while the ground loads. */
-  private solve(out: Approach, bore: Point[], edges: [number, number]): Solved | null {
+  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind): Solved | null {
     const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
     if (sampler !== this.sampler) this.cuts.clear()
     this.sampler = sampler
     if (!sampler) return null
-    const key = `${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
+    const key = `${kind}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
     const known = this.cuts.get(key)
     if (known) return known
     const { points, at } = portalLine(out.points, bore, SAMPLE)
@@ -248,9 +265,9 @@ export class TunnelLayer {
     if (ground.some(Number.isNaN)) return null
     const fill = (rim: Array<number | null>) => rim.map((g, i) => (Number.isFinite(g) ? (g as number) : ground[i]))
     const over = cover.filter(g => !Number.isNaN(g)) as number[]
-    const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction)
+    const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction, PROFILES[kind])
     if (!cut || cut.open >= at) return null
-    const solved = { points, at, edges, cut }
+    const solved = { points, at, edges, cut, kind }
     if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
     this.cuts.set(key, solved)
     return solved

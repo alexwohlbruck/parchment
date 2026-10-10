@@ -8,8 +8,8 @@ const ORIGIN = [-80.84, 35.2]
 const LNG_METRES = METRES_PER_DEGREE * Math.cos((ORIGIN[1] * Math.PI) / 180)
 const at = (east: number, north: number) => [ORIGIN[0] + east / LNG_METRES, ORIGIN[1] + north / METRES_PER_DEGREE]
 
-const line = (coordinates: number[][], kind = 'power_line', tile = {}) =>
-  ({ id: 7, properties: { kind }, geometry: { type: 'LineString', coordinates }, ...tile })
+const line = (coordinates: number[][], kind = 'power_line', tile = {}, properties = {}) =>
+  ({ id: 7, properties: { kind, ...properties }, geometry: { type: 'LineString', coordinates }, ...tile })
 
 const placed = (features: any[]) => [...powerNetwork(features).values()].flat()
 const isConductor = (p: PowerPlacement) => 'length' in p
@@ -51,6 +51,19 @@ describe('power lines', () => {
     const yard = placed([line([at(0, 0), at(30, 0), at(60, 10)])])
     expect(new Set(yard.filter(p => !isConductor(p)).map(p => p.model))).toEqual(new Set(['power-portal']))
     expect(new Set(yard.filter(isConductor).map(p => p.model))).toEqual(new Set(['power-busbar']))
+  })
+
+  test('a busbar is held by gantries however long its span, and a line running into it ends on one', () => {
+    const busbar = { ...line([at(0, 0), at(120, 0)], 'power_line', {}, { line: 'busbar' }), id: 8 }
+    const feeder = line([at(-300, 0), at(0, 0)])
+    const all = placed([busbar, feeder])
+    const at0 = all.find(p => !isConductor(p) && measure([p.lng, p.lat], at(0, 0)).length < 0.01)!
+    expect(at0.model).toBe('power-portal')
+    const far = all.find(p => !isConductor(p) && measure([p.lng, p.lat], at(-300, 0)).length < 0.01)!
+    expect(far.model).toBe('power-tower')
+    const spans = all.filter(isConductor)
+    expect(spans.filter(p => p.lng > at(0, 0)[0]).every(p => p.model === 'power-busbar')).toBe(true)
+    expect(spans.filter(p => p.lng < at(0, 0)[0]).every(p => p.model === 'power-conductor')).toBe(true)
   })
 
   test('a minor line stands on poles', () => {

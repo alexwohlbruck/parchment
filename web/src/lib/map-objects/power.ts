@@ -28,14 +28,17 @@ export const CONDUCTORS: Conductor[] = ['power-conductor', 'power-busbar', 'pole
 
 export const POWER_KINDS = new Set(['power_line', 'power_minor_line'])
 
-/** Transmission spans this short are inside a substation, held by gantries and strung taut. */
+/** Wiring inside a substation, by its `line` tag: held by gantries and strung taut. */
+const YARD_LINES = new Set(['busbar', 'bay'])
+
+/** Untagged transmission spans this short are taken to be inside a substation too. */
 export const SUBSTATION_SPAN = 80
 
 export type PowerPlacement =
   | { model: Structure; lng: number; lat: number; bearing: number }
   | { model: Conductor; lng: number; lat: number; bearing: number; length: number; height: number; rise: number }
 
-type Arm = { bearing: number; length: number; kind: string }
+type Arm = { bearing: number; length: number; kind: string; yard: boolean }
 
 type Standing = { model: Structure; bearing: number }
 
@@ -56,6 +59,7 @@ function axisOf(arms: Arm[]): number {
 }
 
 function structureFor(arms: Arm[]): Structure {
+  if (arms.some(a => a.yard)) return 'power-portal'
   if (!arms.some(a => a.kind === 'power_line')) return 'power-pole'
   return Math.max(...arms.map(a => a.length)) < SUBSTATION_SPAN ? 'power-portal' : 'power-tower'
 }
@@ -85,7 +89,8 @@ function pairs(from: Attachment[], to: Attachment[]): Array<[Attachment, Attachm
   return f.length >= t.length ? f.map(x => [x.a, nearest(x.at, t)]) : t.map(x => [nearest(x.at, f), x.a])
 }
 
-function conductorFor(kind: string, length: number): Conductor {
+function conductorFor({ kind, yard, length }: Arm): Conductor {
+  if (yard) return 'power-busbar'
   if (kind !== 'power_line') return 'pole-conductor'
   return length < SUBSTATION_SPAN ? 'power-busbar' : 'power-conductor'
 }
@@ -95,7 +100,13 @@ function conductorFor(kind: string, length: number): Conductor {
  * piece that places it, so each is drawn once however many tiles the line crosses.
  */
 export function powerNetwork(features: any[]): Map<string, PowerPlacement[]> {
-  const edges = stitch(features).map(e => ({ ...e, ...measure([e.from.lng, e.from.lat], [e.to.lng, e.to.lat]) }))
+  const edges = stitch(features)
+    .map(e => ({
+      ...e,
+      ...measure([e.from.lng, e.from.lat], [e.to.lng, e.to.lat]),
+      kind: e.properties.kind,
+      yard: YARD_LINES.has(e.properties.line),
+    }))
     .filter(e => e.length > 0.2)
   const arms = new Map<LineNode, Arm[]>()
   const arm = (node: LineNode, a: Arm) => {
@@ -104,8 +115,8 @@ export function powerNetwork(features: any[]): Map<string, PowerPlacement[]> {
     else arms.set(node, [a])
   }
   for (const e of edges) {
-    arm(e.from, { bearing: e.bearing, length: e.length, kind: e.kind })
-    arm(e.to, { bearing: (e.bearing + 180) % 360, length: e.length, kind: e.kind })
+    arm(e.from, e)
+    arm(e.to, { ...e, bearing: (e.bearing + 180) % 360 })
   }
 
   const out = new Map<string, PowerPlacement[]>()
@@ -123,7 +134,7 @@ export function powerNetwork(features: any[]): Map<string, PowerPlacement[]> {
   for (const e of edges) {
     const from = attachments(e.from, standing.get(e.from)!, e.bearing)
     const to = attachments(e.to, standing.get(e.to)!, e.bearing)
-    const model = conductorFor(e.kind, e.length)
+    const model = conductorFor(e)
     for (const [a, b] of pairs(from, to)) {
       const { bearing, length } = measure([a.lng, a.lat], [b.lng, b.lat])
       place(e.from.piece, {

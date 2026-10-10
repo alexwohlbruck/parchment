@@ -50,10 +50,10 @@ export function linesOf(geometry: any): number[][][] {
 /** A real vertex of a line, held by the one tile piece it falls inside. */
 export type LineNode = { lng: number; lat: number; piece: string }
 
-export type LineEdge = { from: LineNode; to: LineNode; kind: string }
+export type LineEdge = { from: LineNode; to: LineNode; properties: Record<string, any> }
 
 /** Consecutive vertices inside one tile, and the vertices either side of them that are not. */
-type Run = { verts: number[][]; before?: number[]; after?: number[]; piece: string; kind: string }
+type Run = { verts: number[][]; before?: number[]; after?: number[]; piece: string; properties: Record<string, any> }
 
 /** How far off a segment's bearing a cut piece may point and still be taken for the same segment. */
 const CUT_ANGLE = (3 * Math.PI) / 180
@@ -73,14 +73,14 @@ export function stitch(features: any[]): LineEdge[] {
     if (feature.id === undefined || feature.id === null) continue
     const bounds = tileBounds(feature)
     const piece = pieceKey(feature)
-    const kind = feature.properties?.kind
+    const properties = feature.properties ?? {}
     const group = `${feature.id}/${feature._z}`
     for (const line of linesOf(feature.geometry)) {
       let run: Run | null = null
       line.forEach((p, k) => {
         if (inside(bounds, p[0], p[1])) {
           if (!run) {
-            run = { verts: [], before: line[k - 1], piece, kind }
+            run = { verts: [], before: line[k - 1], piece, properties }
             const list = runs.get(group)
             if (list) list.push(run)
             else runs.set(group, [run])
@@ -104,11 +104,11 @@ export function stitch(features: any[]): LineEdge[] {
   const edges: LineEdge[] = []
   for (const group of runs.values()) {
     for (const run of group) {
-      run.verts.slice(1).forEach((b, k) => edges.push({ from: node(run.verts[k], run.piece), to: node(b, run.piece), kind: run.kind }))
+      run.verts.slice(1).forEach((b, k) => edges.push({ from: node(run.verts[k], run.piece), to: node(b, run.piece), properties: run.properties }))
       const v = run.verts.at(-1)!
       if (!run.after) continue
       const next = continuation(v, run.after, group)
-      if (next) edges.push({ from: node(v, run.piece), to: node(next.verts[0], next.piece), kind: run.kind })
+      if (next) edges.push({ from: node(v, run.piece), to: node(next.verts[0], next.piece), properties: run.properties })
     }
   }
   return edges

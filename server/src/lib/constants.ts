@@ -22,6 +22,7 @@ export const SOURCE = {
   GEOAPIFY: 'geoapify',
   TRANSITLAND: 'transitland',
   OVERTURE: 'overture',
+  MANGROVE: 'mangrove',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -50,6 +51,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.YELP]: 50,
   [SOURCE.FOURSQUARE]: 40,
   [SOURCE.TRIPADVISOR]: 40,
+  [SOURCE.MANGROVE]: 35,
   [SOURCE.OPENTABLE]: 30,
 } as const
 
@@ -72,6 +74,7 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for routing
   [IntegrationId.OVERPASS]: 50, // Slowest, free, supports any OSM tags (fallback)
   [IntegrationId.WIKIMEDIA]: 45, // Free, images, depends on Wikidata
+  [IntegrationId.MANGROVE]: 35, // Free, open reviews; sparse, so ranks below Foursquare
 } as const
 
 // TODO: Refactor business status to common schema

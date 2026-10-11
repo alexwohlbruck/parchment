@@ -6,6 +6,7 @@ import {
   inject,
   onUnmounted,
   nextTick,
+  toRef,
   type Ref,
 } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,6 +25,7 @@ import PlaceActions from './header/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import ReviewsSection from './reviews/ReviewsSection.vue'
+import { useCanReviewPlace } from '@/composables/place/useCanReviewPlace'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import PlaceVisitHistoryWidget from '@/components/timeline/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './details/NearbyCategories.vue'
@@ -95,7 +97,10 @@ const coordinates = computed(() => {
 // (Related / Visits / Departures) register their own tab at runtime. The
 // active tab lives in the URL as `?tab=` so it's shareable; we use `replace`
 // so switching tabs doesn't pile up browser-history entries.
-const hasReviews = computed(() => (props.place?.reviews?.length ?? 0) > 0)
+const { canReview } = useCanReviewPlace(toRef(props, 'place'))
+const hasReviewsTab = computed(
+  () => (props.place?.reviews?.length ?? 0) > 0 || canReview.value,
+)
 
 function setTab(id: string) {
   const tab = id === 'overview' ? undefined : id
@@ -107,7 +112,7 @@ const { tabs: widgetTabs } = providePlaceTabs({ activate: setTab })
 
 const validTabIds = computed(() => [
   'overview',
-  ...(hasReviews.value ? ['reviews'] : []),
+  ...(hasReviewsTab.value ? ['reviews'] : []),
   ...widgetTabs.value.map((tab) => tab.id),
 ])
 // Falls back to overview when the URL points at a tab that isn't present
@@ -119,7 +124,7 @@ const activeTab = computed(() => {
   return validTabIds.value.includes(id) ? id : 'overview'
 })
 const showTabs = computed(
-  () => hasReviews.value || widgetTabs.value.length > 0,
+  () => hasReviewsTab.value || widgetTabs.value.length > 0,
 )
 
 // Opt the sheet into its "chrome bar" while the sticky tab bar is shown: this
@@ -358,10 +363,10 @@ function handleBrandLogoError() {
                       {{ t('place.tabs.overview') }}
                     </TabsTrigger>
                     <TabsTrigger
-                      v-if="hasReviews"
+                      v-if="hasReviewsTab"
                       variant="linear"
                       value="reviews"
-                      :count="place.reviews?.length ?? null"
+                      :count="place.reviews?.length || null"
                     >
                       {{ t('place.tabs.reviews') }}
                     </TabsTrigger>
@@ -390,7 +395,7 @@ function handleBrandLogoError() {
                 <NearbyCategories :place="place" />
               </TabsContent>
 
-              <TabsContent v-if="hasReviews" value="reviews" class="mt-3">
+              <TabsContent v-if="hasReviewsTab" value="reviews" class="mt-3">
                 <ReviewsSection :place="place" expanded />
               </TabsContent>
 

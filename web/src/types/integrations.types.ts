@@ -26,6 +26,15 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  mangroveSchema: {
+    fieldConfig: {
+      signerClientId: {
+        label: 'Signer client ID',
+        description:
+          'Lets people sign in with Mangrove to write reviews. Request one from the Mangrove project with this app’s /oauth/mangrove.html redirect URIs.',
+      },
+    },
+  },
   firmsMapKeySchema: {
     fieldConfig: {
       apiKey: {
@@ -216,6 +225,10 @@ export const configSchemas: Record<
 
   wikimediaSchema: z.object({
     // Wikimedia Commons doesn't require any configuration
+  }),
+
+  mangroveSchema: z.object({
+    signerClientId: z.string().optional().describe('public'),
   }),
 
   barrelmanSchema: z.object({

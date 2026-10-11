@@ -2568,6 +2568,19 @@ describe('road markings', () => {
     expect(at('Road island')).toBeLessThan(at('Road line'))
   })
 
+  test('draws hatching bars on their own layer, wider than lane lines', () => {
+    const matches = (id: string, properties: Record<string, string>) => {
+      const layer = style.layers.find(l => l.id === id) as any
+      return featureFilter(layer.filter, `${id}.filter`).filter({ zoom: 18 } as any, { type: 2, properties } as any)
+    }
+    const hatch = { kind: 'hatch', pattern: 'solid', color: 'yellow' }
+    expect(matches('Road hatch', hatch)).toBe(true)
+    expect(matches('Road line', hatch)).toBe(false)
+    expect(matches('Road line', { kind: 'restriction', pattern: 'solid', color: 'yellow' })).toBe(true)
+    const width = (id: string) => (style.layers.find(l => l.id === id) as any).paint['line-width'].at(-1)
+    expect(width('Road hatch')).toBeGreaterThan(width('Road line'))
+  })
+
   test('every lane fill is edged, just above it, by a hairline of its own colour', () => {
     const fills = style.layers.filter((l: any) => l.type === 'fill' && laneSourceLayers.includes(l['source-layer'])) as any[]
     expect(fills.length).toBeGreaterThan(0)

@@ -1,7 +1,8 @@
 /**
  * Lane-level roads at street zoom, from barrelman's road geometry: carriageways
- * at their real width with rounded kerb corners, lane and edge lines, stop
- * lines, crosswalks, and turn arrows and bike symbols from the sprite.
+ * at their real width with rounded kerb corners, lane and edge lines, stop and
+ * yield lines, crosswalks, hatched medians and gores, speed hump chevrons, and
+ * turn arrows and bike symbols from the sprite.
  *
  * The basemap's own roads fade to the same asphalt underneath, so against a
  * barrelman without this geometry a street still draws, only unpainted.
@@ -117,7 +118,9 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       ['match', ['get', 'color'], 'red', c.red, c.green]),
     ...fill('Road paint fill', ROAD_MARKING_TILES, ['all', band, pattern('fill'), ['==', ['get', 'color'], 'white']],
       ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white]),
-    line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
+    line('Road line', [['!', ['in', ['get', 'kind'], ['literal', ['crosswalk', 'stop', 'hatch']]]], pattern('solid')], 0.15),
+    // The bars across a hatched median, gore or bike buffer.
+    line('Road hatch', [kind('hatch')], 0.2),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
     // gap, on motorways the highway's 3 m and 9 m.
     line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 50] }),

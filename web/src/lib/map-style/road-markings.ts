@@ -120,7 +120,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       ['match', ['get', 'kind'], 'crosswalk', c.crosswalk, c.white]),
     line('Road line', [['!', ['in', ['get', 'kind'], ['literal', ['crosswalk', 'stop', 'hatch']]]], pattern('solid')], 0.15),
     // The bars across a hatched median, gore or bike buffer.
-    line('Road hatch', [kind('hatch')], 0.2),
+    line('Road hatch', [kind('hatch'), pattern('solid')], 0.2),
     // Dashes are measured in line widths: on streets 3 m of paint and 6 m of
     // gap, on motorways the highway's 3 m and 9 m.
     line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 50] }),

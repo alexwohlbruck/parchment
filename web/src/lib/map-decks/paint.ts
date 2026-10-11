@@ -13,7 +13,7 @@ export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[
 export type PaintColors = { white: number[]; yellow: number[]; green: number[]; red: number[] }
 
 /** Paint widths in metres, and the dash for a dashed line. */
-const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45 }
+const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45, hatch: 0.2 }
 const DASH = { on: 3, off: 9 }
 /** Metres between height samples along paint. */
 const PAINT_SAMPLE = 3
@@ -31,6 +31,8 @@ export function paintOf(feature: any): Paint {
 /** Every marking laid on the surfaces beneath it; what lies on none is left out. */
 export function layPaint(mesh: Mesh, paint: Paint[], surfaces: Surface[], colors: PaintColors, origin: Point) {
   for (const { props, runs, areas } of paint) {
+    // Kept only so replication can find it; no layer draws it.
+    if (props.pattern === 'none') continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green : colors.white
     // Coloured lanes lie under the lines; white bars over them.
     for (const rings of areas) fill(mesh, rings, surfaces, color, props.color === 'white' ? 0.03 : 0.02, origin)

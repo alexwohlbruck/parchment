@@ -4,7 +4,7 @@
 
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
-* Detailed roads paint hatched medians and gores, center turn lanes with their solid and dashed yellow edges and paired arrows, solid lane lines where lane changes are barred, hatched bike lane buffers, yield lines and speed hump chevrons.
+* Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
 
 ### Changed
 

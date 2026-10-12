@@ -3,10 +3,10 @@
  * tunnel's cut — as flat quads a few centimetres over the asphalt.
  */
 import earcut from 'earcut'
-import { clip, densify, linesOf, mercator, metresPerUnit, onDeck, polygonsOf, tileBounds, type Mesh, type Point } from './decks'
+import { clip, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, type DeckSurface, type Mesh, type Point } from './decks'
 
 /** A surface paint can lie on: a centreline, its heights, distances along it, and its width in metres. */
-export type Surface = Parameters<typeof onDeck>[1][number]
+export type Surface = DeckSurface
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -15,6 +15,8 @@ export type PaintColors = { white: number[]; yellow: number[]; green: number[]; 
 /** Paint widths in metres, and the dash for a dashed line. */
 const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45, hatch: 0.2 }
 const DASH = { on: 3, off: 9 }
+/** Marks painted across their road rather than along it. */
+const ACROSS = new Set(['stop', 'yield'])
 /** Metres between height samples along paint. */
 const PAINT_SAMPLE = 3
 
@@ -35,7 +37,7 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: Surface[], colors
     if (props.pattern === 'none') continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green : colors.white
     // Coloured lanes lie under the lines; white bars over them.
-    for (const rings of areas) fill(mesh, rings, surfaces, color, props.color === 'white' ? 0.03 : 0.02, origin)
+    for (const rings of areas) fill(mesh, rings, surfaces, color, props.color === 'white' ? 0.03 : 0.02, origin, ACROSS.has(props.kind))
     const width = PAINT_WIDTH[props.kind] ?? 0.12
     for (const run of runs)
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
@@ -44,9 +46,9 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: Surface[], colors
 }
 
 /** A painted area laid on the surfaces, where every corner of a triangle is on one. */
-export function fill(mesh: Mesh, rings: Point[][], surfaces: Surface[], color: number[], lift: number, origin: Point) {
+export function fill(mesh: Mesh, rings: Point[][], surfaces: Surface[], color: number[], lift: number, origin: Point, across = false) {
   const flat = rings.flat()
-  const z = onDeck(flat, surfaces, lift)
+  const z = onOwnDeck(flat, surfaces, lift, across)
   const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
   for (let t = 0; t < index.length; t += 3) {
@@ -63,7 +65,7 @@ export function fill(mesh: Mesh, rings: Point[][], surfaces: Surface[], color: n
 /** Paint along a line, lifted onto the surfaces under it, as flat quads. */
 export function strip(mesh: Mesh, line: Point[], surfaces: Surface[], width: number, color: number[], lift: number, offset: number, dashed: boolean, origin: Point) {
   const points = densify(line, PAINT_SAMPLE)
-  const z = onDeck(points, surfaces, lift)
+  const z = onOwnDeck(points, surfaces, lift)
   let travelled = 0
   for (let i = 1; i < points.length; i++) {
     const [a, b] = [points[i - 1], points[i]]

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
+import { absorbPaths, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -79,6 +79,43 @@ describe('deck mesh and paint', () => {
     const lifted = onDeck([...line(40), [0.2789 + 40 * M, y0 + 50 * M]], [{ points: c.points, z, d: along(c.points), width: 10 }], 0.05)
     expect(lifted[0]).toBeCloseTo(z[1] + 0.05, 6)
     expect(lifted[1]).toBeNull()
+  })
+})
+
+describe('paint where decks cross', () => {
+  const across = (x: number, ...ys: number[]): Point[] => ys.map(y => [0.2789 + x * M, y0 + y * M])
+  const surface = (points: Point[], height: number, width: number) => ({ points, z: points.map(() => height), d: along(points), width })
+  const fdr = surface(densify(line(0, 200), 6), 8, 20)
+  const bridge = surface(densify(across(100, -60, 60), 6), 16, 30)
+  const heights = (z: Array<number | null>) => [...new Set(z.map(v => v?.toFixed(2)))]
+
+  test('the lower road keeps its paint under the deck that crosses it', () => {
+    const lane = densify(offset(6, 0, 200), 3)
+    expect(heights(onDeck(lane, [fdr, bridge], 0))).toContain('16.00')
+    expect(heights(onOwnDeck(lane, [fdr, bridge], 0))).toEqual(['8.00'])
+  })
+
+  test('the upper deck keeps its paint over the road beneath', () => {
+    const edge = densify(across(112, -60, 60), 3)
+    expect(heights(onDeck(edge, [fdr, bridge], 0))).toContain('8.00')
+    expect(heights(onOwnDeck(edge, [bridge, fdr], 0))).toEqual(['16.00'])
+  })
+
+  test('a stop bar across the lower road stays on it', () => {
+    const bar = [...across(99.8, -4, 4), ...across(100.2, 4, -4), across(99.8, -4)[0]]
+    expect(heights(onOwnDeck(bar, [bridge, fdr], 0, true))).toEqual(['8.00'])
+  })
+
+  test('a wide twin deck overlapping a road does not take its paint', () => {
+    const twin = surface(densify(offset(-10, 0, 200), 6), 13, 31)
+    const own = surface(densify(line(0, 200), 6), 9, 12)
+    expect(heights(onOwnDeck(densify(offset(3, 0, 200), 3), [twin, own], 0))).toEqual(['9.00'])
+  })
+
+  test('paint on one of two stacked decks stays on its own level', () => {
+    const upper = surface(densify(line(100, 300), 6), 16, 20)
+    expect(heights(onOwnDeck(densify(offset(3, 0, 190), 3), [upper, fdr], 0))).toEqual(['8.00'])
+    expect(heights(onOwnDeck(densify(offset(3, 110, 300), 3), [fdr, upper], 0))).toEqual(['16.00'])
   })
 })
 

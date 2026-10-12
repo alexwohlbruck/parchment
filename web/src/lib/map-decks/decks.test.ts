@@ -89,7 +89,7 @@ describe('paint where decks cross', () => {
   const bridge = surface(at([100, -60], [100, 60]), 16, 30)
   const levels = (lines: Point[][], decks: ReturnType<typeof surface>[], across = false, rings: Point[][] = []) => {
     const orders = [decks, [...decks].reverse()].map(order => {
-      const { lines: z, rings: zr } = onOwnDeck(lines.map(l => densify(l, 3)), rings, order, across)
+      const { lines: z, rings: zr } = onOwnDeck(lines.map(l => densify(l, 3)), rings, order, { across })
       return [...new Set([...z, ...zr].flat().map(v => v?.toFixed(2)))]
     })
     expect(orders[0]).toEqual(orders[1])
@@ -120,8 +120,20 @@ describe('paint where decks cross', () => {
 
   test('a route mostly over the bridge stays on the road where it passes under', () => {
     const route = at([100, 60], [100, 15], [80, 0], [150, 0])
-    const under = onOwnDeck([densify(route, 3)], [], [fdr, bridge]).lines[0].filter((_, i, all) => i > all.length - 15)
+    const under = onOwnDeck([densify(route, 3)], [], [fdr, bridge], { centred: true }).lines[0].filter((_, i, all) => i > all.length - 15)
     expect(new Set(under)).toEqual(new Set([8]))
+  })
+
+  test('a route turning onto a climbing ramp follows the ramp up without a step', () => {
+    const turn = 0.07
+    const ramp = densify(at([200, 0], [200 + 200 * Math.cos(turn), 200 * Math.sin(turn)]), 6)
+    const climbing = { points: ramp, z: along(ramp).map(d => 8 + (8 * d) / along(ramp).at(-1)!), d: along(ramp), width: 10 }
+    const main = surface(line(-600, 600), 8, 20)
+    const route = densify([...line(-600, 200), ramp.at(-1)!], 3)
+    const z = onOwnDeck([route], [], [main, climbing], { centred: true }).lines[0] as number[]
+    const steps = z.slice(1).map((v, i) => Math.abs(v - z[i]))
+    expect(Math.max(...steps)).toBeLessThan(0.5)
+    expect(z.at(-1)).toBeCloseTo(16, 0)
   })
 
   test('a wide twin deck overlapping a road does not take its paint', () => {

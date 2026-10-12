@@ -826,11 +826,20 @@ function runningWith(hits: Hit[], decks: DeckSurface[], dx: number, dy: number, 
   return hits.filter((_, i) => off[i] <= best + ALIGNED)
 }
 
+/** Metres within which a line that follows a centreline counts two decks as equally near. */
+const CENTRED_TIE = 0.25
+
 /**
  * One mark's lines and rings lifted onto the deck it belongs to where decks
  * cross or stack: the nearest deck running its way, never a jump between levels.
+ * A `centred` line, such as a route, follows whichever centreline it is on.
  */
-export function onOwnDeck(lines: Point[][], rings: Point[][], decks: DeckSurface[], across = false): Record<'lines' | 'rings', Array<Array<number | null>>> {
+export function onOwnDeck(
+  lines: Point[][],
+  rings: Point[][],
+  decks: DeckSurface[],
+  { across = false, centred = false }: { across?: boolean; centred?: boolean } = {},
+): Record<'lines' | 'rings', Array<Array<number | null>>> {
   const all = [...lines, ...rings]
   const hits = all.map(line => hitsUnder(line, decks))
   const split = (z: Array<Array<number | null>>) => ({ lines: z.slice(0, lines.length), rings: z.slice(lines.length) })
@@ -852,8 +861,12 @@ export function onOwnDeck(lines: Point[][], rings: Point[][], decks: DeckSurface
     })
     const z: Array<number | null> = line.map(() => null)
     const lay = (i: number, last: number | null) => {
-      const here = candidates[i]
+      let here = candidates[i]
       if (!here.length) return last
+      if (centred) {
+        const closest = nearest(here).distance
+        here = here.filter(h => h.distance <= closest + CENTRED_TIE)
+      }
       const own = here.find(h => h.deck === owner)
       z[i] = (own ?? (last === null ? nearest(here) : here.reduce((a, b) => (Math.abs(b.z - last) < Math.abs(a.z - last) ? b : a)))).z
       return z[i]

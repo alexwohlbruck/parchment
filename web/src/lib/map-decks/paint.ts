@@ -34,7 +34,7 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
     if (props.pattern === 'none') continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
-    const heights = onOwnDeck(lines, areas.flat(), surfaces, ACROSS.has(props.kind))
+    const heights = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) })
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
     for (const rings of areas) fill(mesh, rings, heights.rings.slice(next, (next += rings.length)).flat(), color, props.color === 'white' ? 0.03 : 0.02, origin)
@@ -48,7 +48,7 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
 /** A route laid over the surfaces beneath it, on a darker casing. */
 export function layRoute(mesh: Mesh, lines: Point[][], surfaces: DeckSurface[], colors: { route: number[]; routeCasing: number[] }, origin: Point) {
   const dense = lines.map(line => densify(line, PAINT_SAMPLE))
-  const heights = onOwnDeck(dense, [], surfaces).lines
+  const heights = onOwnDeck(dense, [], surfaces, { centred: true }).lines
   for (const [k, line] of dense.entries()) {
     strip(mesh, line, heights[k], 4.4, colors.routeCasing, 0.06, 0, false, origin)
     strip(mesh, line, heights[k], 3, colors.route, 0.08, 0, false, origin)

@@ -83,39 +83,61 @@ describe('deck mesh and paint', () => {
 })
 
 describe('paint where decks cross', () => {
-  const across = (x: number, ...ys: number[]): Point[] => ys.map(y => [0.2789 + x * M, y0 + y * M])
-  const surface = (points: Point[], height: number, width: number) => ({ points, z: points.map(() => height), d: along(points), width })
-  const fdr = surface(densify(line(0, 200), 6), 8, 20)
-  const bridge = surface(densify(across(100, -60, 60), 6), 16, 30)
-  const heights = (z: Array<number | null>) => [...new Set(z.map(v => v?.toFixed(2)))]
+  const at = (...xy: Array<[number, number]>): Point[] => xy.map(([x, y]) => [0.2789 + x * M, y0 + y * M])
+  const surface = (points: Point[], height: number, width: number) => ({ points: densify(points, 6), z: densify(points, 6).map(() => height), d: along(densify(points, 6)), width })
+  const fdr = surface(line(0, 200), 8, 20)
+  const bridge = surface(at([100, -60], [100, 60]), 16, 30)
+  const levels = (lines: Point[][], decks: ReturnType<typeof surface>[], across = false, rings: Point[][] = []) => {
+    const orders = [decks, [...decks].reverse()].map(order => {
+      const { lines: z, rings: zr } = onOwnDeck(lines.map(l => densify(l, 3)), rings, order, across)
+      return [...new Set([...z, ...zr].flat().map(v => v?.toFixed(2)))]
+    })
+    expect(orders[0]).toEqual(orders[1])
+    return orders[0]
+  }
 
   test('the lower road keeps its paint under the deck that crosses it', () => {
-    const lane = densify(offset(6, 0, 200), 3)
-    expect(heights(onDeck(lane, [fdr, bridge], 0))).toContain('16.00')
-    expect(heights(onOwnDeck(lane, [fdr, bridge], 0))).toEqual(['8.00'])
+    const lane = offset(6, 0, 200)
+    expect(new Set(onDeck(densify(lane, 3), [fdr, bridge], 0))).toContain(16)
+    expect(levels([lane], [fdr, bridge])).toEqual(['8.00'])
   })
 
   test('the upper deck keeps its paint over the road beneath', () => {
-    const edge = densify(across(112, -60, 60), 3)
-    expect(heights(onDeck(edge, [fdr, bridge], 0))).toContain('8.00')
-    expect(heights(onOwnDeck(edge, [bridge, fdr], 0))).toEqual(['16.00'])
+    const edge = at([112, -60], [112, 60])
+    expect(new Set(onDeck(densify(edge, 3), [fdr, bridge], 0))).toContain(8)
+    expect(levels([edge], [fdr, bridge])).toEqual(['16.00'])
   })
 
-  test('a stop bar across the lower road stays on it', () => {
-    const bar = [...across(99.8, -4, 4), ...across(100.2, 4, -4), across(99.8, -4)[0]]
-    expect(heights(onOwnDeck(bar, [bridge, fdr], 0, true))).toEqual(['8.00'])
+  test('a stop line across the lower road stays on it, drawn or filled', () => {
+    expect(levels([at([100, -4], [100, 4])], [fdr, bridge], true)).toEqual(['8.00'])
+    expect(levels([], [fdr, bridge], true, [at([99.8, -4], [99.8, 4], [100.2, 4], [100.2, -4], [99.8, -4])])).toEqual(['8.00'])
+  })
+
+  test('a short piece of lane stays on its road under a shallow crossing', () => {
+    const shallow = surface(at([100 - 60 * Math.cos(0.35), -60 * Math.sin(0.35)], [100 + 60 * Math.cos(0.35), 60 * Math.sin(0.35)]), 16, 20)
+    expect(levels([offset(6, 90, 110)], [fdr, shallow])).toEqual(['8.00'])
+  })
+
+  test('a route mostly over the bridge stays on the road where it passes under', () => {
+    const route = at([100, 60], [100, 15], [80, 0], [150, 0])
+    const under = onOwnDeck([densify(route, 3)], [], [fdr, bridge]).lines[0].filter((_, i, all) => i > all.length - 15)
+    expect(new Set(under)).toEqual(new Set([8]))
   })
 
   test('a wide twin deck overlapping a road does not take its paint', () => {
-    const twin = surface(densify(offset(-10, 0, 200), 6), 13, 31)
-    const own = surface(densify(line(0, 200), 6), 9, 12)
-    expect(heights(onOwnDeck(densify(offset(3, 0, 200), 3), [twin, own], 0))).toEqual(['9.00'])
+    expect(levels([offset(3, 0, 200)], [surface(offset(-10, 0, 200), 13, 31), surface(line(0, 200), 9, 12)])).toEqual(['9.00'])
   })
 
   test('paint on one of two stacked decks stays on its own level', () => {
-    const upper = surface(densify(line(100, 300), 6), 16, 20)
-    expect(heights(onOwnDeck(densify(offset(3, 0, 190), 3), [upper, fdr], 0))).toEqual(['8.00'])
-    expect(heights(onOwnDeck(densify(offset(3, 110, 300), 3), [fdr, upper], 0))).toEqual(['16.00'])
+    const upper = surface(line(100, 300), 16, 20)
+    expect(levels([offset(3, 0, 190)], [fdr, upper])).toEqual(['8.00'])
+    expect(levels([offset(3, 110, 300)], [fdr, upper])).toEqual(['16.00'])
+  })
+
+  test('paint leading in from a joined deck keeps to its level ahead of the deck that wins it', () => {
+    const joined = surface(offset(0, -40, 0), 8, 12)
+    const stacked = surface(offset(6, -40, -10), 16, 12)
+    expect(levels([offset(6, -38, 200)], [fdr, joined, stacked])).toEqual(['8.00'])
   })
 })
 

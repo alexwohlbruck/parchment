@@ -18,6 +18,7 @@
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Where one 3D bridge crosses another, each keeps its own lane markings instead of the lower road's lines streaking across the upper deck.
 
 ## [0.14.0] - 2026-10-09
 

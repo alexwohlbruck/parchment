@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { Switch } from '@/components/ui/switch'
 import ItemIcon from '@/components/ui/item-icon/ItemIcon.vue'
-import { ChevronRightIcon } from 'lucide-vue-next'
+import { GroupDisclosure } from '@/components/ui/group-row'
 import type { SelectorNode } from '@/components/map/layers/layer-selector.types'
 import type { ThemeColor } from '@/lib/utils'
 
@@ -62,11 +62,7 @@ function onRowClick() {
     >
       <!-- Disclosure. Leaf rows get an equivalent spacer so every icon in the
            list stays on the same vertical line. -->
-      <ChevronRightIcon
-        v-if="hasChildren"
-        class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150"
-        :class="{ 'rotate-90': isExpanded }"
-      />
+      <GroupDisclosure v-if="hasChildren" :expanded="isExpanded" />
       <span v-else class="size-3.5 shrink-0" />
 
       <!-- Saved-places rows carry the collection's own icon and colour, so the

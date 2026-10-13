@@ -56,7 +56,8 @@
       "keepEditing": "Seguir editando"
     },
     "expand": "Expandir",
-    "collapse": "Contraer"
+    "collapse": "Contraer",
+    "rename": "Renombrar"
   },
   "weather": {
     "title": "Condiciones del tiempo",
@@ -768,7 +769,6 @@
       "groups": {
         "create": "Nuevo grupo",
         "createNested": "Nuevo grupo anidado",
-        "edit": "Editar grupo",
         "remove": "Eliminar grupo",
         "removeDescription": "Las colecciones y los grupos anidados se moverán al grupo superior. No se eliminará ninguna colección.",
         "moveCollection": "Mover a un grupo",
@@ -778,7 +778,8 @@
         "actions": "Acciones para {name}",
         "saveError": "No se pudieron guardar los grupos. Inténtalo de nuevo.",
         "conflict": "Tus grupos cambiaron en otro dispositivo. Se han actualizado; inténtalo de nuevo.",
-        "loadError": "No se pudieron cargar los grupos. Vuelve a abrir las colecciones para intentarlo de nuevo."
+        "loadError": "No se pudieron cargar los grupos. Vuelve a abrir las colecciones para intentarlo de nuevo.",
+        "moveGroup": "Mover grupo"
       }
     },
     "actions": {
@@ -2513,7 +2514,6 @@
     "groups": {
       "add": "Nuevo grupo",
       "untitled": "Grupo",
-      "rename": "Renombrar grupo",
       "remove": "Desagrupar",
       "empty": "Arrastra capas y marcas aquí",
       "drawingHere": "Las nuevas marcas van aquí",

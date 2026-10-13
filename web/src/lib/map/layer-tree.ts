@@ -2,6 +2,11 @@
  * Shaping a flat layer + group list into the trees and orderings the layer
  * settings panel renders. All pure — the store supplies the two lists.
  */
+import {
+  buildGroupHierarchy,
+  groupItemCounts,
+  type GroupNode,
+} from '@/lib/group-tree'
 import type { Layer, LayerGroup } from '@/types/map.types'
 
 export interface GroupTreeNode extends LayerGroup {
@@ -23,19 +28,22 @@ export function buildGroupTree(
   layers: Layer[],
   groups: LayerGroup[],
 ): GroupTreeNode[] {
-  const node = (group: LayerGroup): GroupTreeNode => ({
-    ...group,
-    layers: layersIn(layers, group.id),
-    children: groups
-      .filter(g => g.parentGroupId === group.id)
-      .sort(byOrder)
-      .map(node),
+  const layersByGroup = new Map<string, Layer[]>()
+  for (const layer of [...layers].sort(byOrder)) {
+    if (!layer.groupId) continue
+    const children = layersByGroup.get(layer.groupId) ?? []
+    children.push(layer)
+    layersByGroup.set(layer.groupId, children)
+  }
+  const node = (entry: GroupNode<LayerGroup>): GroupTreeNode => ({
+    ...entry.value,
+    layers: layersByGroup.get(entry.value.id) ?? [],
+    children: entry.children.map(node),
   })
-
-  return groups
-    .filter(g => !g.parentGroupId)
-    .sort(byOrder)
-    .map(node)
+  return buildGroupHierarchy(
+    [...groups].sort(byOrder),
+    group => group.parentGroupId,
+  ).map(node)
 }
 
 /**
@@ -53,33 +61,10 @@ export function buildGroupLayerCounts(
     direct.set(layer.groupId, (direct.get(layer.groupId) ?? 0) + 1)
   }
 
-  const childrenByParent = new Map<string, string[]>()
-  for (const group of groups) {
-    if (!group.parentGroupId) continue
-    const list = childrenByParent.get(group.parentGroupId) ?? []
-    list.push(group.id)
-    childrenByParent.set(group.parentGroupId, list)
-  }
-
-  const totals = new Map<string, number>()
-  const inProgress = new Set<string>()
-
-  function total(groupId: string): number {
-    const cached = totals.get(groupId)
-    if (cached !== undefined) return cached
-    if (inProgress.has(groupId)) return 0
-    inProgress.add(groupId)
-    let sum = direct.get(groupId) ?? 0
-    for (const childId of childrenByParent.get(groupId) ?? []) {
-      sum += total(childId)
-    }
-    inProgress.delete(groupId)
-    totals.set(groupId, sum)
-    return sum
-  }
-
-  for (const group of groups) total(group.id)
-  return totals
+  return groupItemCounts(
+    new Map(groups.map(group => [group.id, group.parentGroupId ?? null])),
+    direct,
+  )
 }
 
 export function ungroupedLayers(layers: Layer[]): Layer[] {

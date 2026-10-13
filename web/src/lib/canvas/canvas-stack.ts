@@ -17,6 +17,8 @@
  * document (a group that holds itself, however it got that way) terminates.
  */
 
+import { descendantIds } from '@/lib/group-tree'
+
 import type {
   CanvasAnnotation,
   CanvasBody,
@@ -192,17 +194,7 @@ export interface StackChange {
 
 /** The groups inside this one, at every depth. */
 function descendantGroups(body: CanvasBody, id: string): Set<string> {
-  const groups = new Map((body.groups ?? []).map(g => [g.id, g]))
-  const found = new Set<string>()
-  const walk = (groupId: string) => {
-    for (const child of groups.get(groupId)?.children ?? []) {
-      if (!groups.has(child) || found.has(child)) continue
-      found.add(child)
-      walk(child)
-    }
-  }
-  walk(id)
-  return found
+  return descendantIds(new Map((body.groups ?? []).map(group => [group.id, group.children ?? []])), id)
 }
 
 /**

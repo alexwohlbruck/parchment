@@ -5,6 +5,8 @@ export {
   organizationError,
 } from '@server/lib/library/collection-groups'
 
+import { ancestorIds } from '@/lib/group-tree'
+
 import type {
   CollectionGroup,
   CollectionPlacement,
@@ -25,11 +27,8 @@ export function filterCollectionGroups(
     ...matchingGroupIds,
   ]
   const parents = new Map(groups.map(group => [group.id, group.parentId]))
-  for (let id of targets) {
-    while (id && !visible.has(id)) {
-      visible.add(id)
-      id = parents.get(id) ?? ''
-    }
+  for (const id of targets) {
+    for (const ancestor of ancestorIds(parents, id)) visible.add(ancestor)
   }
   return groups.filter(group => visible.has(group.id))
 }

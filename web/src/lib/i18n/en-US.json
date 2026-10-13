@@ -57,7 +57,8 @@
       "keepEditing": "Keep editing"
     },
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "rename": "Rename"
   },
   "weather": {
     "title": "Weather Conditions",
@@ -804,7 +805,6 @@
       "groups": {
         "create": "New group",
         "createNested": "New nested group",
-        "edit": "Edit group",
         "remove": "Remove group",
         "removeDescription": "Collections and nested groups will move to the parent group. No collections will be deleted.",
         "moveCollection": "Move to group",
@@ -814,7 +814,8 @@
         "actions": "Actions for {name}",
         "saveError": "Could not save collection groups. Try again.",
         "conflict": "Your groups changed on another device. They have been refreshed; please try again.",
-        "loadError": "Could not load collection groups. Reopen collections to try again."
+        "loadError": "Could not load collection groups. Reopen collections to try again.",
+        "moveGroup": "Move group"
       }
     },
     "actions": {
@@ -2635,7 +2636,6 @@
     "groups": {
       "add": "New group",
       "untitled": "Group",
-      "rename": "Rename group",
       "remove": "Ungroup",
       "empty": "Drag layers and marks in here",
       "drawingHere": "New marks land here",

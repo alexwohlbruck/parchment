@@ -136,3 +136,15 @@ it('does not apply an old account’s response to a newly signed-in account', as
   auth.me = { id: 'alice' }
   expect(store.organization).toEqual(value)
 })
+
+it('renames and moves one group without changing its collection placements', async () => {
+  const service = useCollectionGroupsService()
+  const store = useCollectionGroupsStore()
+  await service.fetchOrganization()
+  await service.updateGroup('ny', { name: 'New York City', parentId: null })
+  expect(store.organization.groups).toEqual([
+    { id: 'ny', name: 'New York City', parentId: null },
+  ])
+  expect(store.organization.placements).toEqual(value.placements)
+  expect(await service.updateGroup('missing', { name: 'Nowhere' })).toBe(false)
+})

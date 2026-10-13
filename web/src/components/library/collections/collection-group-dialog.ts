@@ -9,67 +9,73 @@ import CollectionGroupForm from './CollectionGroupForm.vue'
 
 const t = (i18n.global as unknown as { t: (key: string) => string }).t
 
-export async function editCollectionGroup(
-  groupId?: string,
-  parentId: string | null = null,
+async function groupForm(
+  title: string,
+  props: {
+    groupId?: string
+    parentId: string | null
+    destinationOnly?: boolean
+  },
+  creating = false,
 ) {
-  const store = useCollectionGroupsStore()
-  if (!store.editable) return
-  const group = store.organization.groups.find(group => group.id === groupId)
-  const result = await useAppService().componentDialog({
+  if (!useCollectionGroupsStore().editable) return null
+  return useAppService().componentDialog({
     component: markRaw(CollectionGroupForm),
-    title: t(
-      group
-        ? 'library.collections.groups.edit'
-        : 'library.collections.groups.create',
-    ),
-    continueText: t(group ? 'general.save' : 'general.create'),
-    props: {
-      groupId,
-      name: group?.name,
-      parentId: group?.parentId ?? parentId,
-    },
+    title: t(title),
+    continueText: t(creating ? 'general.create' : 'general.save'),
+    props,
   })
+}
+
+export async function createCollectionGroup(parentId: string | null = null) {
+  const result = await groupForm(
+    'library.collections.groups.create',
+    { parentId },
+    true,
+  )
   if (!result) return
-  const updated = {
-    id: groupId ?? crypto.randomUUID(),
-    name: result.name,
-    parentId: result.parentId,
-  }
+  const store = useCollectionGroupsStore()
   await useCollectionGroupsService().saveOrganization({
     ...store.organization,
-    groups: group
-      ? store.organization.groups.map(item =>
-          item.id === groupId ? updated : item,
-        )
-      : [...store.organization.groups, updated],
+    groups: [
+      ...store.organization.groups,
+      { id: crypto.randomUUID(), name: result.name, parentId: result.parentId },
+    ],
   })
+}
+
+export async function moveCollectionGroup(groupId: string) {
+  const group = useCollectionGroupsStore().organization.groups.find(
+    group => group.id === groupId,
+  )
+  if (!group) return
+  const result = await groupForm('library.collections.groups.moveGroup', {
+    groupId,
+    parentId: group.parentId,
+    destinationOnly: true,
+  })
+  if (result)
+    await useCollectionGroupsService().updateGroup(groupId, {
+      parentId: result.parentId,
+    })
 }
 
 export async function moveCollectionToGroup(collectionId: string) {
   const store = useCollectionGroupsStore()
-  if (!store.editable) return
-  const result = await useAppService().componentDialog({
-    component: markRaw(CollectionGroupForm),
-    title: t('library.collections.groups.moveCollection'),
-    continueText: t('general.save'),
-    props: {
-      destinationOnly: true,
-      parentId:
-        store.organization.placements.find(
-          item => item.collectionId === collectionId,
-        )?.groupId ?? null,
-    },
+  const result = await groupForm('library.collections.groups.moveCollection', {
+    parentId: store.collectionGroupIds.get(collectionId) ?? null,
+    destinationOnly: true,
   })
-  if (!result) return
-  await useCollectionGroupsService().placeCollection(
-    collectionId,
-    result.parentId,
-  )
+  if (result)
+    await useCollectionGroupsService().placeCollection(
+      collectionId,
+      result.parentId,
+    )
 }
 
 export async function deleteCollectionGroup(groupId: string) {
   const store = useCollectionGroupsStore()
+  if (!store.editable) return
   const confirmed = await useAppService().confirm({
     title: t('library.collections.groups.remove'),
     description: t('library.collections.groups.removeDescription'),
@@ -83,6 +89,7 @@ export async function deleteCollectionGroup(groupId: string) {
 }
 
 export async function createCollectionInGroup(groupId: string) {
+  if (!useCollectionGroupsStore().editable) return
   const collection = await createCollectionFromDialog()
   if (collection)
     await useCollectionGroupsService().placeCollection(collection.id, groupId)

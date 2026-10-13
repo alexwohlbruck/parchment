@@ -27,10 +27,15 @@ vi.mock('@/stores/library/collection-groups.store', () => ({
   useCollectionGroupsStore: () => store,
 }))
 vi.mock('./collection-group-dialog', () => ({
-  editCollectionGroup: vi.fn(),
+  createCollectionGroup: vi.fn(),
+  moveCollectionGroup: vi.fn(),
   deleteCollectionGroup: vi.fn(),
   createCollectionInGroup: vi.fn(),
 }))
+vi.mock('@/services/library/collection-groups.service', () => ({
+  useCollectionGroupsService: () => ({ updateGroup: vi.fn() }),
+}))
+
 const i18n = createI18n({
   legacy: false,
   locale: 'en-US',
@@ -74,6 +79,29 @@ describe('collection group tree', () => {
     expect(wrapper.findAll('.collection-card')).toHaveLength(1)
     await wrapper.setProps({ searching: true })
     expect(wrapper.find('[aria-label="Coffee"]').text()).toContain('Cafes')
+  })
+
+  it('keeps a nested group collapsed when its parent is reopened', async () => {
+    const wrapper = mount(CollectionGroupList, {
+      props: { collections, groups: store.organization.groups },
+      global,
+    })
+    await wrapper
+      .find('[aria-label="Food"] button[aria-expanded]')
+      .trigger('click')
+    expect(wrapper.find('[aria-label="Coffee"]').exists()).toBe(false)
+    await wrapper
+      .find('[aria-label="New York"] button[aria-expanded]')
+      .trigger('click')
+    await wrapper
+      .find('[aria-label="New York"] button[aria-expanded]')
+      .trigger('click')
+    expect(
+      wrapper
+        .find('[aria-label="Food"] button[aria-expanded]')
+        .attributes('aria-expanded'),
+    ).toBe('false')
+    expect(wrapper.find('[aria-label="Coffee"]').exists()).toBe(false)
   })
 
   it('shows an empty group and treats missing placements as ungrouped', () => {

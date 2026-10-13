@@ -21,7 +21,7 @@ import {
 } from 'lucide-vue-next'
 import LibraryEmptyState from '@/components/library/LibraryEmptyState.vue'
 import CollectionGroupList from './CollectionGroupList.vue'
-import { editCollectionGroup } from './collection-group-dialog'
+import { createCollectionGroup } from './collection-group-dialog'
 import { useCollectionGroupsStore } from '@/stores/library/collection-groups.store'
 import { useCollectionGroupsService } from '@/services/library/collection-groups.service'
 import {
@@ -240,7 +240,7 @@ async function createCollection() {
           :disabled="!collectionGroupsStore.editable"
           :aria-label="t('library.collections.groups.create')"
           :title="t('library.collections.groups.create')"
-          @click="editCollectionGroup()"
+          @click="createCollectionGroup()"
         >
           <FolderPlusIcon class="h-4 w-4" />
         </Button>

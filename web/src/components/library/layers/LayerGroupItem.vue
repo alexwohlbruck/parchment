@@ -1,25 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
-import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
+import type { LayerGroup, Layer } from '@/types/map.types'
+import type { GroupTreeNode } from '@/lib/map/layer-tree'
 import { groupSubtreeMatches, matchesQuery } from '@/lib/map/layer-search'
 import { useDragAndDrop } from '@/composables/map/useDragAndDrop'
 import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
 import LayerGroupConfiguration from './LayerGroupConfiguration.vue'
 import { Switch } from '@/components/ui/switch'
+import { GroupRow } from '@/components/ui/group-row'
 import { Button } from '@/components/ui/button'
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  MoreHorizontalIcon,
-  FolderIcon,
-  PencilIcon,
-  TrashIcon,
-} from 'lucide-vue-next'
+import { MoreHorizontalIcon, PencilIcon, TrashIcon } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,33 +22,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import draggable from 'vuedraggable'
-import { useMapService } from '@/services/map/map.service'
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip'
 
-interface GroupTreeNode extends LayerGroupWithLayers {
-  children?: GroupTreeNode[]
-}
-
 interface Props {
   group: GroupTreeNode
   expandedGroups: Set<string>
-  depth?: number
   filter?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  depth: 0,
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   toggleExpanded: [groupId: string]
@@ -63,7 +45,6 @@ const { t } = useI18n()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const appService = useAppService()
-const mapService = useMapService()
 
 const query = computed(() => (props.filter ?? '').trim().toLowerCase())
 const isFiltering = computed(() => query.value.length > 0)
@@ -83,7 +64,7 @@ const childGroups = computed(() => props.group.children ?? [])
 // `deep: true` was forcing Vue to traverse every layer/group proxy per
 // LayerGroupItem instance on every reactive tick and was a major source
 // of UI hangs when many groups were mounted.
-const mixedItems = ref<(Layer | LayerGroup)[]>([])
+const mixedItems = shallowRef<(Layer | LayerGroup)[]>([])
 
 watch(
   [() => props.group.layers, () => props.group.children],
@@ -217,143 +198,114 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
 </script>
 
 <template>
-  <div
-    class="border rounded-lg bg-background transition-colors select-none"
-    :class="depth > 0 ? 'mt-1' : ''"
+  <GroupRow
+    :name="group.name"
+    :expanded="expanded"
+    :count="layersStore.getGroupTotalLayerCount(group.id)"
+    :renameable="isUserOwned"
+    @rename="layersStore.updateLayerGroup(group.id, { name: $event })"
+    @update:expanded="handleToggleExpanded"
   >
-    <Collapsible :open="expanded">
-      <div class="flex items-center p-2 rounded-t-lg">
-        <!-- Expand/Collapse Button -->
-        <CollapsibleTrigger
-          @click.stop="handleToggleExpanded"
-          class="flex items-center gap-2 flex-1 text-left cursor-pointer"
-        >
-          <ChevronRightIcon
-            v-if="!expanded"
-            class="size-3 text-muted-foreground shrink-0"
+    <template v-if="getIconComponent(group.icon)" #icon>
+      <component
+        :is="getIconComponent(group.icon)"
+        class="size-4 shrink-0 text-muted-foreground"
+      />
+    </template>
+    <template #details>
+      <Tooltip v-if="isUserOwned">
+        <TooltipTrigger as-child>
+          <span
+            class="inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
           />
-          <ChevronDownIcon v-else class="size-3 text-muted-foreground shrink-0" />
-
-          <!-- Group Icon & Name -->
-          <component
-            v-if="getIconComponent(group.icon)"
-            :is="getIconComponent(group.icon)"
-            class="size-4 shrink-0"
-          />
-          <FolderIcon v-else class="size-4 shrink-0" />
-          <span class="text-sm font-medium truncate">{{ group.name }}</span>
-          <div class="ml-auto flex items-center gap-2 shrink-0">
-            <span
-              class="inline-flex items-center justify-center h-5 w-6 rounded bg-muted text-muted-foreground text-xs tabular-nums"
-            >
-              {{ layersStore.getGroupTotalLayerCount(group.id) }}
-            </span>
-            <Tooltip v-if="isUserOwned">
-              <TooltipTrigger as-child>
-                <span
-                  class="inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
-                />
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>{{ t('layers.badges.custom') }}</span>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </CollapsibleTrigger>
-
-        <!-- Group "Show in layer selector" toggle (NOT on-map visibility). -->
-        <Switch
-          :model-value="getGroupEnabledForSelector()"
-          @update:model-value="updateGroupEnabledForSelector"
-          @click.stop
-          @mousedown.stop
-          class="mx-2"
-        />
-
-        <!-- Group Actions -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 w-6 p-0"
-              @click.stop
-              @mousedown.stop
-            >
-              <MoreHorizontalIcon class="size-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <template v-if="isUserOwned">
-              <DropdownMenuItem @click="openLayerGroupConfigDialog">
-                <PencilIcon class="size-3 mr-2" />
-                {{ t('layers.actions.editGroup') }}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </template>
-            <DropdownMenuItem
-              v-if="!isVirtual"
-              @click="deleteGroup"
-              class="text-destructive"
-            >
-              <TrashIcon class="size-3 mr-2" />
-              {{ t('layers.actions.deleteGroup') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <!-- Group Content: Mixed draggable of layers + child groups -->
-      <CollapsibleContent>
-        <div class="border-t">
-          <draggable
-            v-model="mixedItems"
-            v-bind="groupDragOptions"
-            :disabled="isFiltering"
-            @start="onDragStart"
-            @end="onDragEnd"
-            @move="onDragMove"
-            @change="handleMixedChange"
-            :item-key="getItemKey"
-            class="min-h-[32px] draggable-container p-1 space-y-1"
-            tag="div"
+        </TooltipTrigger>
+        <TooltipContent>{{ t('layers.badges.custom') }}</TooltipContent>
+      </Tooltip>
+    </template>
+    <template #actions="{ startRename, onMenuClose }">
+      <Switch
+        :model-value="getGroupEnabledForSelector()"
+        @update:model-value="updateGroupEnabledForSelector"
+        @click.stop
+        @mousedown.stop
+        class="mx-1"
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7"
+            :aria-label="t('general.more')"
+            @click.stop
+            @mousedown.stop
           >
-            <template #item="{ element }">
-              <div v-show="itemMatches(element)" class="draggable-item">
-                <!-- Child Group (recursive) -->
-                <LayerGroupItem
-                  v-if="isGroup(element)"
-                  :group="findChildTreeNode(element)"
-                  :expanded-groups="expandedGroups"
-                  :depth="depth + 1"
-                  :filter="filter"
-                  @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
-                />
-
-                <!-- Layer -->
-                <LayerItemComponent
-                  v-else
-                  :key="getLayerKey(element)"
-                  :layer="element"
-                  :group-id="group.id"
-                  :compact="true"
-                  :show-ungroup-action="true"
-                  @ungroup="handleUngroupLayer"
-                />
-              </div>
-            </template>
-          </draggable>
+            <MoreHorizontalIcon class="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" @close-auto-focus="onMenuClose">
+          <template v-if="isUserOwned">
+            <DropdownMenuItem @click="startRename">
+              <PencilIcon class="size-3.5" />
+              {{ t('general.rename') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="openLayerGroupConfigDialog">
+              <PencilIcon class="size-3.5" />
+              {{ t('layers.actions.editGroup') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </template>
+          <DropdownMenuItem
+            v-if="!isVirtual"
+            @click="deleteGroup"
+            class="text-destructive"
+          >
+            <TrashIcon class="size-3.5" />
+            {{ t('layers.actions.deleteGroup') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </template>
+    <draggable
+      v-model="mixedItems"
+      v-bind="groupDragOptions"
+      :disabled="isFiltering"
+      @start="onDragStart"
+      @end="onDragEnd"
+      @move="onDragMove"
+      @change="handleMixedChange"
+      :item-key="getItemKey"
+      class="min-h-[32px] draggable-container space-y-1.5"
+      tag="div"
+    >
+      <template #item="{ element }">
+        <div v-show="itemMatches(element)" class="draggable-item">
+          <LayerGroupItem
+            v-if="isGroup(element)"
+            :group="findChildTreeNode(element)"
+            :expanded-groups="expandedGroups"
+            :filter="filter"
+            @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
+          />
+          <LayerItemComponent
+            v-else
+            :key="getLayerKey(element)"
+            :layer="element"
+            :group-id="group.id"
+            :compact="true"
+            :show-ungroup-action="true"
+            @ungroup="handleUngroupLayer"
+          />
         </div>
-      </CollapsibleContent>
-    </Collapsible>
-  </div>
+      </template>
+    </draggable>
+  </GroupRow>
 </template>
 
 <style scoped>
 .draggable-container {
   -webkit-overflow-scrolling: touch;
 }
-
 .drag-chosen {
   user-select: none;
 }

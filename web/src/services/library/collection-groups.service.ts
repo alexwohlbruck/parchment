@@ -79,5 +79,18 @@ export function useCollectionGroupsService() {
     })
   }
 
-  return { fetchOrganization, saveOrganization, placeCollection }
+  async function updateGroup(
+    id: string,
+    updates: { name?: string; parentId?: string | null },
+  ) {
+    if (!store.organization.groups.some(group => group.id === id)) return false
+    return saveOrganization({
+      ...store.organization,
+      groups: store.organization.groups.map(group =>
+        group.id === id ? { ...group, ...updates } : group,
+      ),
+    })
+  }
+
+  return { fetchOrganization, saveOrganization, placeCollection, updateGroup }
 }

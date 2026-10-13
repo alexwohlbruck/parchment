@@ -800,6 +800,21 @@
         "all": "All collections",
         "mine": "My collections",
         "shared": "Shared with me"
+      },
+      "groups": {
+        "create": "New group",
+        "createNested": "New nested group",
+        "edit": "Edit group",
+        "remove": "Remove group",
+        "removeDescription": "Collections and nested groups will move to the parent group. No collections will be deleted.",
+        "moveCollection": "Move to group",
+        "location": "Location",
+        "root": "All collections",
+        "empty": "No collections in this group yet. Move a collection here from its menu.",
+        "actions": "Actions for {name}",
+        "saveError": "Could not save collection groups. Try again.",
+        "conflict": "Your groups changed on another device. They have been refreshed; please try again.",
+        "loadError": "Could not load collection groups. Reopen collections to try again."
       }
     },
     "actions": {

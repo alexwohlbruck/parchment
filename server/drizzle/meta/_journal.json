@@ -421,6 +421,13 @@
       "when": 1790906508760,
       "tag": "0059_collection_cleartext_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791854629583,
+      "tag": "0060_collection_organization",
+      "breakpoints": true
     }
   ]
 }

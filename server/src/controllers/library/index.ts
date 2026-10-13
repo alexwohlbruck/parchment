@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import bookmarks from './bookmarks.controller'
 import canvases from './canvases.controller'
 import collections from './collections.controller'
+import collectionOrganization from './collection-organization.controller'
 import layers from './layers.controller'
 import routes from './routes.controller'
 
@@ -9,6 +10,7 @@ const app = new Elysia({ prefix: '/library' })
   .use(bookmarks)
   .use(canvases)
   .use(collections)
+  .use(collectionOrganization)
   .use(layers)
   .use(routes)
 

@@ -5,6 +5,7 @@
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 * Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
+* Organize collections into groups and nested groups, with names and locations that sync across devices.
 
 ### Changed
 

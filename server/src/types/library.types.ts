@@ -48,3 +48,20 @@ export type CreateCollectionParams = CollectionMetadata & {
   isPublic?: boolean
   userId: string
 }
+
+export interface CollectionGroup {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+export interface CollectionPlacement {
+  collectionId: string
+  groupId: string
+}
+
+export interface CollectionOrganization {
+  groups: CollectionGroup[]
+  placements: CollectionPlacement[]
+  revision: number
+}

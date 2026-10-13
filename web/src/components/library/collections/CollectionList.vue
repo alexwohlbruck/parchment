@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
@@ -16,8 +16,19 @@ import {
   PlusIcon,
   FilterIcon,
   CheckIcon,
+  FolderPlusIcon,
+  FolderIcon,
 } from 'lucide-vue-next'
-import CollectionCard from '@/components/library/collections/CollectionCard.vue'
+import LibraryEmptyState from '@/components/library/LibraryEmptyState.vue'
+import CollectionGroupList from './CollectionGroupList.vue'
+import { editCollectionGroup } from './collection-group-dialog'
+import { useCollectionGroupsStore } from '@/stores/library/collection-groups.store'
+import { useCollectionGroupsService } from '@/services/library/collection-groups.service'
+import {
+  groupPath,
+  filterCollectionGroups,
+} from '@/lib/library/collection-groups'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { createCollectionFromDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
 import { fuzzyFilter } from '@/lib/utils'
@@ -29,7 +40,11 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const localCollections = ref<Collection[]>([...props.collections])
+const collectionGroupsStore = useCollectionGroupsStore()
+const collectionGroupsService = useCollectionGroupsService()
+const { onReconnected } = useConnectivity()
+onMounted(collectionGroupsService.fetchOrganization)
+onReconnected(collectionGroupsService.fetchOrganization)
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
@@ -39,32 +54,34 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 type OwnershipFilter = 'all' | 'mine' | 'shared'
 const ownershipFilter = ref<OwnershipFilter>('all')
 
-watch(
-  () => props.collections,
-  newCollections => {
-    localCollections.value = [...newCollections]
-  },
-  { deep: true },
-)
-
 const sharedCount = computed(
-  () => localCollections.value.filter((c) => c.role && c.role !== 'owner').length,
+  () => props.collections.filter(c => c.role && c.role !== 'owner').length,
 )
 
 const filteredCollections = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localCollections.value, searchQuery.value, {
-        keys: ['name', 'description'],
-        preserveOrder: true,
-      })
-    : localCollections.value
+    ? fuzzyFilter(
+        props.collections.map(collection => ({
+          ...collection,
+          groupPath: groupPath(
+            collectionGroupsStore.organization.groups,
+            collectionGroupsStore.collectionGroupIds.get(collection.id) ?? null,
+          ),
+        })),
+        searchQuery.value,
+        {
+          keys: ['name', 'description', 'groupPath'],
+          preserveOrder: true,
+        },
+      )
+    : props.collections
 
   // Ownership filter runs after search so users can still find anything by
   // name even when "Shared with me" is active.
   if (ownershipFilter.value === 'mine') {
-    result = result.filter((c) => !c.role || c.role === 'owner')
+    result = result.filter(c => !c.role || c.role === 'owner')
   } else if (ownershipFilter.value === 'shared') {
-    result = result.filter((c) => c.role && c.role !== 'owner')
+    result = result.filter(c => c.role && c.role !== 'owner')
   }
 
   result = [...result].sort((a, b) => {
@@ -84,6 +101,28 @@ const filteredCollections = computed(() => {
   })
 
   return result
+})
+
+const visibleGroups = computed(() => {
+  const groups = collectionGroupsStore.organization.groups
+  if (!searchQuery.value && ownershipFilter.value === 'all') return groups
+  const matchingGroups =
+    searchQuery.value && ownershipFilter.value === 'all'
+      ? fuzzyFilter(
+          groups.map(group => ({
+            ...group,
+            path: groupPath(groups, group.id),
+          })),
+          searchQuery.value,
+          { keys: ['path'] },
+        )
+      : []
+  return filterCollectionGroups(
+    groups,
+    collectionGroupsStore.organization.placements,
+    filteredCollections.value.map(collection => collection.id),
+    matchingGroups.map(group => group.id),
+  )
 })
 
 function toggleSortOrder() {
@@ -136,10 +175,7 @@ async function createCollection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem @click="ownershipFilter = 'all'">
-              <CheckIcon
-                v-if="ownershipFilter === 'all'"
-                class="size-4 mr-2"
-              />
+              <CheckIcon v-if="ownershipFilter === 'all'" class="size-4 mr-2" />
               <span v-else class="inline-block size-4 mr-2" />
               {{ t('library.collections.filter.all') }}
             </DropdownMenuItem>
@@ -201,6 +237,18 @@ async function createCollection() {
           variant="outline"
           size="icon"
           class="h-10 w-10"
+          :disabled="!collectionGroupsStore.editable"
+          :aria-label="t('library.collections.groups.create')"
+          :title="t('library.collections.groups.create')"
+          @click="editCollectionGroup()"
+        >
+          <FolderPlusIcon class="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon"
+          class="h-10 w-10"
           :aria-label="t('library.actions.newCollection')"
           :title="t('library.actions.newCollection')"
           @click="createCollection"
@@ -217,8 +265,21 @@ async function createCollection() {
       <Spinner />
     </div>
 
+    <LibraryEmptyState
+      v-else-if="
+        !collections.length &&
+        !visibleGroups.length &&
+        !searchQuery &&
+        ownershipFilter === 'all'
+      "
+      :icon="FolderIcon"
+      entity-id="collections"
+      class="flex-1"
+      @add="createCollection"
+    />
+
     <div
-      v-else-if="filteredCollections.length === 0"
+      v-else-if="filteredCollections.length === 0 && visibleGroups.length === 0"
       class="flex-1 flex items-center justify-center"
     >
       <div class="text-center">
@@ -238,11 +299,10 @@ async function createCollection() {
     </div>
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">
-      <CollectionCard
-        v-for="collection in filteredCollections"
-        :key="collection.id"
-        :collection="collection"
-        class="w-full"
+      <CollectionGroupList
+        :collections="filteredCollections"
+        :groups="visibleGroups"
+        :searching="!!searchQuery"
       />
     </div>
   </div>

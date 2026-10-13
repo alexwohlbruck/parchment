@@ -7,10 +7,13 @@ import {
   Pencil,
   Trash,
   Share2Icon,
+  FolderInputIcon,
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
 import { openCollectionDialog } from './collection-dialog'
+import { moveCollectionToGroup } from './collection-group-dialog'
+import { useCollectionGroupsStore } from '@/stores/library/collection-groups.store'
 import ShareDialog from '@/components/sharing/ShareDialog.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
@@ -48,6 +51,7 @@ async function onShareChanged() {
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
 const appService = useAppService()
+const collectionGroupsStore = useCollectionGroupsStore()
 
 async function editCollection() {
   const params = await openCollectionDialog(props.collection)
@@ -95,6 +99,15 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
           },
         },
       ]
+
+  items.push({
+    type: 'item',
+    id: 'move-group',
+    label: t('library.collections.groups.moveCollection'),
+    icon: markRaw(FolderInputIcon),
+    disabled: !collectionGroupsStore.editable,
+    onSelect: () => moveCollectionToGroup(props.collection.id),
+  })
 
   items.push({
     type: 'item',

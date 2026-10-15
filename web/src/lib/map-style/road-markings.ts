@@ -101,7 +101,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
   const kind = (k: string) => ['==', ['get', 'kind'], k]
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
   const style = (...s: string[]) => ['in', ['get', 'style'], ['literal', s]]
-  const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow'], 0.55, 1]
+  const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow', 'road-walk'], 0.55, 1]
   // Fills draw without antialiasing; a hairline of the fill's own colour round
   // each one gives its edge a smooth one.
   const fill = (id: string, sourceLayer: string, filter: any, color: any) => [
@@ -145,7 +145,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
         // A glyph is 40 px tall in the sprite and about 6 m on the road.
-        // Bike symbols are drawn at a rider's scale, to fit inside a 1.5 m lane.
+        // Bike and walker symbols are drawn at a person's scale, to fit inside a 1.5 m lane.
         'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
           FROM, ['*', glyphScale, (6 * 2 ** FROM) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
       },

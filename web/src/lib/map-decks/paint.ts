@@ -5,7 +5,7 @@
  * as lines.
  */
 import earcut from 'earcut'
-import { atHit, BOX_MIN, clip, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
+import { atHit, BOX_MIN, clip, halfPlane, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -100,11 +100,45 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
-    if (corners.some(k => !laid.under[k])) continue
+    if (corners.some(k => !laid.under[k])) {
+      const decks = [...new Set(corners.flatMap(k => (laid.under[k] ? [laid.under[k]!.deck] : [])))]
+      for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
+      continue
+    }
     for (const k of corners) {
       const hit = laid.under[k]!
       laidVertex(mesh, [flat[k][0] - origin[0], flat[k][1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
     }
+  }
+}
+
+/** The part of a painted triangle over one deck, cut to each segment of its surface it overlaps, so paint ends square at the deck's edge. */
+function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: number[], lift: number, origin: Point) {
+  const deck = laid.surfaces[k]
+  if (!deck.edges) return
+  const [left, right] = deck.edges
+  const scale = 1 / metresPerUnit(triangle[0][1])
+  const box = { minX: Math.min(...triangle.map(p => p[0])), maxX: Math.max(...triangle.map(p => p[0])), minY: Math.min(...triangle.map(p => p[1])), maxY: Math.max(...triangle.map(p => p[1])) }
+  for (let i = 1; i < deck.points.length; i++) {
+    const quad = [left[i - 1], left[i], right[i], right[i - 1]]
+    if (quad.every(p => p[0] < box.minX) || quad.every(p => p[0] > box.maxX) || quad.every(p => p[1] < box.minY) || quad.every(p => p[1] > box.maxY)) continue
+    const centre: Point = [quad.reduce((a, p) => a + p[0], 0) / 4, quad.reduce((a, p) => a + p[1], 0) / 4]
+    let piece = triangle
+    for (let e = 0; e < 4 && piece.length >= 3; e++) {
+      const [a, b] = [quad[e], quad[(e + 1) % 4]]
+      let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
+      if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
+      piece = halfPlane(piece, a, n)
+    }
+    if (piece.length < 3) continue
+    const hits = piece.map(p => {
+      const [a, b] = [deck.points[i - 1], deck.points[i]]
+      const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+      return { deck: k, distance: 0, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+    })
+    for (let v = 1; v < piece.length - 1; v++)
+      for (const j of [0, v, v + 1]) laidVertex(mesh, [piece[j][0] - origin[0], piece[j][1] - origin[1], (hits[j].z + lift) * scale], hits[j], laid, color)
   }
 }
 

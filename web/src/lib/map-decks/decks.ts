@@ -850,6 +850,22 @@ export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain
 /** Shortest stretch, in metres, a deck is carried on past its end as road. */
 const RUN_ON_MIN = 0.5
 
+/** A polygon cut to the side of a line through `o` that `n` points to (Sutherland-Hodgman). */
+export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {
+  const side = (p: Point) => (p[0] - o[0]) * n[0] + (p[1] - o[1]) * n[1]
+  const out: Point[] = []
+  for (let i = 0; i < poly.length; i++) {
+    const [a, b] = [poly[i], poly[(i + 1) % poly.length]]
+    const [sa, sb] = [side(a), side(b)]
+    if (sa >= 0) out.push(a)
+    if ((sa >= 0) !== (sb >= 0)) {
+      const t = sa / (sa - sb)
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+    }
+  }
+  return out
+}
+
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180
 /** Most pieces a segment is split into to round a curve. */
@@ -904,7 +920,7 @@ export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain:
 }
 
 /** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */
-export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind'] }
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]] }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
 export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }

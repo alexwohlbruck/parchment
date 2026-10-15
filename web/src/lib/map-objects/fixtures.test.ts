@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { fixtureInstance, FIXTURE_HEIGHTS } from './fixtures'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fixtureInstance } from './fixtures'
+import { FIXTURE_HEIGHTS } from './fixture-sizes.mjs'
+import { parseGlb } from './glb.mjs'
 import { headingToBearing } from './furniture'
 import models from './models.json'
 
@@ -20,7 +24,16 @@ describe('fixtureInstance', () => {
     expect(at({ glyph: 'signal-1' })).toBeNull()
   })
 
-  test('has a built model for every glyph it draws', () => {
-    for (const name of Object.keys(FIXTURE_HEIGHTS)) expect(models, name).toHaveProperty(name)
+  test('leaves a glyph whose direction did not come through as a number', () => {
+    expect(at({ glyph: 'signal-1', direction: null })).toBeNull()
+  })
+
+  test('has a model for every glyph, built a unit tall so its height scales it back', () => {
+    for (const name of Object.keys(FIXTURE_HEIGHTS)) {
+      expect(models, name).toHaveProperty(name)
+      const bytes = readFileSync(resolve(__dirname, '../../../public/models', `${name}.glb`))
+      const { max } = parseGlb(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
+      expect(max[1], name).toBeCloseTo(1, 2)
+    }
   })
 })

@@ -19,7 +19,7 @@
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
-* Railway tracks are drawn across the road at level crossings instead of disappearing under it.
+* Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 
 ## [0.14.0] - 2026-10-09
 

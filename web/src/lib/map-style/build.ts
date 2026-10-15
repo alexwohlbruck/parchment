@@ -19,7 +19,7 @@ import {
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
 import { stepsLayers } from './steps-layers'
-import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers } from './road-markings'
+import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -635,15 +635,16 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   }
 
 
-  // Lane geometry sits on top of each band of the road network: the ground's
-  // under the first bridge and the track at grade, which crosses the road over
-  // it; the bridges' over the last.
+  // Lane geometry goes on each band of the road network: the ground's under the
+  // first bridge and under the track crossing it, the bridges' over the last.
   const bridges = bridgeBandIndex(out)
-  // Signals and crossing gear stand on their glyphs whether or not the lanes are drawn.
-  if (!hdRoads || bridges === undefined) return [...out, keepDetailLayer(ROAD_GLYPH_TILES)]
-  const rails = out.findIndex(l => RAIL_AT_GRADE.includes(l.id))
-  const ground = rails >= 0 && rails < bridges ? rails : bridges
-  const roads = asphaltRoads(out, flavor)
+  // The signals' 3D masts stand on their glyphs whether or not the lanes are drawn.
+  if (!hdRoads || bridges === undefined) return [...out, signalLayer(flavor), keepDetailLayer(ROAD_GLYPH_TILES)]
+  const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
+  const tunnels = tunnelledTrack(out)
+  out.splice(rails, 0, ...tunnels)
+  const ground = rails + tunnels.length
+  const roads = asphaltRoads(liftedTrack(out), flavor)
   const decks = aboveBridgesIndex(roads)
   if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
   roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
@@ -652,6 +653,19 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
 
 /** The basemap's railway lines at grade, the first of which the lane geometry goes under. */
 const RAIL_AT_GRADE = ['Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching']
+/** Of those, the ones that also draw light rail and trams in tunnels, which stay under the road. */
+const RAIL_WITH_TUNNELS = ['Minor rail', 'Minor rail hatching']
+const IN_TUNNEL = ['==', ['get', 'brunnel'], 'tunnel']
+
+/** Copies of the track layers that draw tunnels, for tunnels alone, to stay under the lane geometry. */
+function tunnelledTrack(layers: any[]): any[] {
+  return layers.filter(l => RAIL_WITH_TUNNELS.includes(l.id)).map(l => ({ ...l, id: `${l.id} tunnel`, filter: ['all', l.filter, IN_TUNNEL] }))
+}
+
+/** The track layers lifted over the lane geometry, tunnels left to their copies under it. */
+function liftedTrack(layers: any[]): any[] {
+  return layers.map(l => (RAIL_WITH_TUNNELS.includes(l.id) ? { ...l, filter: ['all', l.filter, ['!', IN_TUNNEL]] } : l))
+}
 
 /** The plan-view outline, rounded exactly as far as the extrusion it traces. */
 function withRoundedRoofEdge(layers: any[]): any[] {

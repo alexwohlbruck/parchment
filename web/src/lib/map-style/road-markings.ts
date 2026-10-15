@@ -17,10 +17,10 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 /** Where the basemap hands roads over to the lane geometry; every lane layer fades in over the same span. */
 const FROM = 16
 const TO = FROM + 0.6
-/** Where a signal's symbol has given way to the 3D signals at its approaches. */
+/** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
 const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(200, 3%, 57%)',
     island: 'hsl(88, 26%, 83%)',
@@ -29,6 +29,8 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: 'hsl(52, 88%, 56%)',
     green: 'hsl(150, 30%, 58%)',
     red: 'hsl(9, 48%, 62%)',
+    signal: 'hsl(210, 8%, 30%)',
+    signalHalo: 'hsl(40, 20%, 97%)',
   },
   // Muted paint, mixed with the asphalt rather than see-through, so a fill
   // and its edge hairline do not double up.
@@ -40,6 +42,8 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: '#bca83d',
     green: 'hsl(148, 20%, 33%)',
     red: 'hsl(9, 26%, 33%)',
+    signal: 'hsl(45, 10%, 78%)',
+    signalHalo: 'hsl(222, 5%, 20%)',
   },
 }
 
@@ -158,10 +162,10 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
 }
 
 /** Glyphs painted on the road; the rest name what stands beside it (see `map-objects/fixtures.ts`). */
-const PAINTED_GLYPH = ['==', ['slice', ['get', 'glyph'], 0, 5], 'road-']
+const PAINTED_GLYPH = ['==', ['slice', ['to-string', ['get', 'glyph']], 0, 5], 'road-']
 
 /** A traffic signal as a symbol, until its 3D signals stand in for it up close. */
-function signalLayer(flavor: FlavorId): any {
+export function signalLayer(flavor: FlavorId): any {
   return {
     id: 'Traffic signal',
     type: 'symbol',
@@ -177,8 +181,8 @@ function signalLayer(flavor: FlavorId): any {
       'icon-padding': 4,
     },
     paint: {
-      'icon-color': flavor === 'dark' ? 'hsl(45, 10%, 78%)' : 'hsl(210, 8%, 30%)',
-      'icon-halo-color': flavor === 'dark' ? 'hsl(222, 5%, 20%)' : 'hsl(40, 20%, 97%)',
+      'icon-color': COLORS[flavor].signal,
+      'icon-halo-color': COLORS[flavor].signalHalo,
       'icon-halo-width': 1.5,
       'icon-opacity': ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1, SIGNAL_UNTIL - 0.5, 1, SIGNAL_UNTIL, 0],
     },

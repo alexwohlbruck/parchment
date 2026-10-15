@@ -2612,6 +2612,16 @@ describe('HD roads and railways', () => {
     expect(ids.indexOf('Minor rail')).toBeGreaterThan(ids.indexOf('Stop line'))
   })
 
+  test('keeps light rail and trams in tunnels under the road', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light', hdRoads: true }).layers as any[]
+    const tunnel = layers.find(l => l.id === 'Minor rail tunnel')
+    expect(layers.indexOf(tunnel)).toBeLessThan(ids.indexOf('Road surface'))
+    const tram = { properties: { class: 'transit', subclass: 'tram', brunnel: 'tunnel' }, type: 2 } as any
+    const lifted = layers.find(l => l.id === 'Minor rail')
+    expect(featureFilter(lifted.filter, 'lifted.filter').filter({ zoom: 17 } as any, tram)).toBe(false)
+    expect(featureFilter(tunnel.filter, 'tunnel.filter').filter({ zoom: 17 } as any, tram)).toBe(true)
+  })
+
   test('keeps a bridge deck over the track it crosses', () => {
     expect(ids.indexOf('Major road bridge')).toBeGreaterThan(ids.indexOf('Major rail'))
   })
@@ -2629,11 +2639,12 @@ describe('HD roads off', () => {
   const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
 
   test('draws no lane geometry, at grade or on a deck', () => {
-    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']) && !l.id.startsWith('Keep '))).toEqual([])
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']) && l.type !== 'symbol' && !l.id.startsWith('Keep '))).toEqual([])
   })
 
-  test('still keeps the glyphs that signals and crossing gear stand on', () => {
+  test('still keeps the glyphs that signals and crossing gear stand on, and their symbol', () => {
     expect(style.layers.some(l => l.id === `Keep ${ROAD_GLYPH_TILES}`)).toBe(true)
+    expect(style.layers.some(l => l.id === 'Traffic signal')).toBe(true)
   })
 
   test('leaves the basemap roads their own colour and casing', () => {

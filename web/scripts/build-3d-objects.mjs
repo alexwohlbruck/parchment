@@ -33,7 +33,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import POWER from '../src/lib/map-objects/power-structures.json' with { type: 'json' }
-import SIZES from '../src/lib/map-objects/fixture-sizes.json' with { type: 'json' }
+import { BELL, CROSSBUCK_POST, CROSSING_POLE, FIXTURE_HEIGHTS, GATE_PIVOT, LANE_WIDTH, SIGNAL_POLE, gateArm } from '../src/lib/map-objects/fixture-sizes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(HERE, '../public/models')
@@ -1173,19 +1173,14 @@ const FURNITURE = {
 // Signals and level crossings
 // ---------------------------------------------------------------------------
 
-/**
- * What stands beside the road at a signal or a railway crossing, after US
- * practice. Each faces the traffic it controls (-z) from beside the right
- * kerb, its pole at the origin, and reaches out over the lanes along -x, to
- * the driver's left. Built at real size and kept there, pole and all, rather
- * than centred: the pole is the point barrelman places.
- */
-const rooted = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 } })
+/** Signal masts and crossing gear: each faces its traffic (-z) from its pole at the origin, reaching over the lanes along -x. */
+const rooted = (make, name) => Object.assign(make, { fit: { scale: 1 / FIXTURE_HEIGHTS[name], cx: 0, cz: 0, base: 0 } })
 
-/** A three-lens head hung with its top at `top`, `x` along the arm: red over amber over green, on a backplate. */
+/** A three-lens head hung with its top at `top`, `x` along the arm, on a backplate; far off, a plain box. */
 function signalHead(parts, x, top, q) {
   box(parts.housing, [x - 0.18, top - 1.05, -0.15], [x + 0.18, top, 0.15])
-  if (q.seg) box(parts.housing, [x - 0.3, top - 1.15, 0.15], [x + 0.3, top + 0.1, 0.18])
+  if (!q.seg) return
+  box(parts.housing, [x - 0.3, top - 1.15, 0.15], [x + 0.3, top + 0.1, 0.18])
   for (const [role, k] of [['lens-red', 0], ['lens-amber', 1], ['lens-green', 2]])
     box(parts[role], [x - 0.11, top - 0.31 - k * 0.33, -0.19], [x + 0.11, top - 0.09 - k * 0.33, -0.15])
 }
@@ -1193,24 +1188,22 @@ function signalHead(parts, x, top, q) {
 const fixtureParts = () => Object.fromEntries(['metal', 'housing', 'lens-red', 'lens-amber', 'lens-green', 'sign', 'tape'].map(r => [r, mesh()]))
 const fixtureRoles = parts => Object.entries(parts).filter(([, m]) => m.position.length).map(([role, m]) => ({ role, ...m }))
 
-/** A mast arm over `heads` lanes, a head over the middle of each, the first lane starting a metre from the pole. */
+/** A mast arm over `heads` lanes, a head over the middle of each, the first lane a metre from the pole. */
 const signalMast = heads => rooted(furnLod(q => {
   const parts = fixtureParts()
-  const sides = q.seg ? 10 : 6
-  const pole = SIZES.signalPole
-  const arm = pole - 0.9
-  const reach = 1 + (heads - 0.5) * SIZES.laneWidth + 0.6
-  cylinder(parts.metal, sides, 0.17, 0.12, 0, pole)
+  const arm = SIGNAL_POLE - 0.9
+  const reach = 1 + (heads - 0.5) * LANE_WIDTH + 0.6
+  cylinder(parts.metal, q.seg ? 10 : 6, 0.17, 0.12, 0, SIGNAL_POLE)
   box(parts.metal, [-reach, arm - 0.09, -0.09], [-0.1, arm + 0.09, 0.09])
-  // A tie from the top of the pole that holds a long arm up.
-  if (heads > 1) strut(parts.metal, [0, pole - 0.15, 0], [-Math.min(reach, 4), arm + 0.09, 0], 0.03, false)
+  // A tie from the top of the pole holds a long arm up.
+  if (heads > 1 && q.seg) strut(parts.metal, [0, SIGNAL_POLE - 0.15, 0], [-Math.min(reach, 4), arm + 0.09, 0], 0.03)
   for (let k = 0; k < heads; k++) {
-    const x = -1 - (k + 0.5) * SIZES.laneWidth
-    box(parts.metal, [x - 0.03, arm - 0.4, -0.03], [x + 0.03, arm - 0.09, 0.03])
-    signalHead(parts, x, arm - 0.4, q)
+    const x = -1 - (k + 0.5) * LANE_WIDTH
+    if (q.seg) box(parts.metal, [x - 0.03, arm - 0.4, -0.03], [x + 0.03, arm - 0.09, 0.03])
+    signalHead(parts, x, q.seg ? arm - 0.4 : arm - 0.09, q)
   }
   return fixtureRoles(parts)
-}), SIZES.signalPole)
+}), `signal-${heads}`)
 
 /** A crossbuck: two white boards crossed at right angles, centred `y` up. */
 function crossbuck(parts, y, q) {
@@ -1222,6 +1215,7 @@ function crossbuck(parts, y, q) {
     const back = p => [p[0], p[1], -0.1]
     quad(parts.sign, a, b, d, e)
     quad(parts.sign, back(e), back(d), back(b), back(a))
+    if (!q.seg) continue
     quad(parts.sign, a, back(a), back(b), b)
     quad(parts.sign, b, back(b), back(d), d)
     quad(parts.sign, d, back(d), back(e), e)
@@ -1229,36 +1223,32 @@ function crossbuck(parts, y, q) {
   }
 }
 
-/** The post every crossing signal stands on: flashing lights on a crossarm under a crossbuck, and a bell on top. */
+/** The post crossing gear stands on: a crossbuck, and with `lights`, flashers on a crossarm and a bell on top. */
 function crossingPost(parts, q, { lights }) {
-  const pole = lights ? SIZES.crossingPole : SIZES.crossbuckPost
+  const pole = lights ? CROSSING_POLE : CROSSBUCK_POST
   cylinder(parts.metal, q.seg ? 8 : 5, 0.09, 0.08, 0, pole)
   crossbuck(parts, pole - 0.75, q)
   if (!lights) return
   const y = pole - 1.75
   box(parts.metal, [-0.55, y - 0.04, -0.06], [0.55, y + 0.04, 0.02])
   for (const x of [-0.42, 0.42]) {
-    box(parts.housing, [x - 0.26, y - 0.26, -0.12], [x + 0.26, y + 0.26, -0.06])
+    if (q.seg) box(parts.housing, [x - 0.26, y - 0.26, -0.12], [x + 0.26, y + 0.26, -0.06])
     box(parts['lens-red'], [x - 0.13, y - 0.13, -0.16], [x + 0.13, y + 0.13, -0.12])
   }
-  cylinder(parts.housing, q.seg ? 8 : 5, 0.14, 0.1, pole, 0.2)
+  cylinder(parts.housing, q.seg ? 8 : 4, 0.14, 0.1, pole, BELL)
 }
 
-/** Gate arm length over `lanes`, from its pivot beside the post. */
-const gateArm = lanes => Math.min(SIZES.gateLongest, lanes * SIZES.laneWidth + 0.8)
-
-/** A gate across `lanes`, its arm raised, striped red and white, on the lights' post. */
+/** A gate across `lanes`, its arm raised and striped red and white, beside the lights' post. */
 const crossingGate = lanes => rooted(furnLod(q => {
   const parts = fixtureParts()
   crossingPost(parts, q, { lights: true })
-  const pivot = SIZES.gatePivot
-  box(parts.housing, [-0.5, pivot - 0.45, -0.2], [-0.15, pivot + 0.2, 0.2])
+  box(parts.housing, [-0.45, GATE_PIVOT - 0.45, -0.2], [-0.09, GATE_PIVOT + 0.2, 0.2])
   const length = gateArm(lanes)
   const stripe = q.seg ? 0.6 : length / 2
   for (let y = 0, k = 0; y < length; y += stripe, k++)
-    box(k % 2 ? parts['lens-red'] : parts.tape, [-0.62, pivot + y, -0.05], [-0.52, pivot + Math.min(length, y + stripe), 0.05])
+    box(k % 2 ? parts['lens-red'] : parts.tape, [-0.58, GATE_PIVOT + y, 0.03], [-0.48, GATE_PIVOT + Math.min(length, y + stripe), 0.13])
   return fixtureRoles(parts)
-}), SIZES.gatePivot + gateArm(lanes))
+}), `crossing-gate-${lanes}`)
 
 const FIXTURES = {
   'signal-1': signalMast(1),
@@ -1268,17 +1258,16 @@ const FIXTURES = {
   'crossing-gate-1': crossingGate(1),
   'crossing-gate-2': crossingGate(2),
   'crossing-gate-3': crossingGate(3),
-  'crossing-gate-4': crossingGate(4),
   'crossing-lights': rooted(furnLod(q => {
     const parts = fixtureParts()
     crossingPost(parts, q, { lights: true })
     return fixtureRoles(parts)
-  }), SIZES.crossingPole + 0.2),
+  }), 'crossing-lights'),
   crossbuck: rooted(furnLod(q => {
     const parts = fixtureParts()
     crossingPost(parts, q, { lights: false })
     return fixtureRoles(parts)
-  }), SIZES.crossbuckPost),
+  }), 'crossbuck'),
 }
 
 // ---------------------------------------------------------------------------

@@ -2087,8 +2087,8 @@ async function main() {
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
-  tokens.light.path_surface = 'hsl(44, 40%, 96%)'
-  tokens.light.path_casing = 'hsl(42, 16%, 81%)'
+  tokens.light.path_surface = 'hsl(40, 20%, 90.5%)'
+  tokens.light.path_casing = 'hsl(40, 14%, 80%)'
   tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'

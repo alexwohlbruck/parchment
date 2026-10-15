@@ -46,6 +46,7 @@ import {
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
+import { tileBounds } from './tile-lines'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -835,6 +836,26 @@ export class LandmarkLayer {
       return { refs: [], featureIds: [] }
     }
     const verdict = new Map<string | number, string | false>()
+    const reaches = drawn.map(({ p, coverage }) => {
+      const { minX, maxX, minZ, maxZ } = coverage.bounds
+      const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
+      return { p, coverage, reach, k: Math.cos((p.lat * Math.PI) / 180) * 111320 }
+    })
+    const nearTile = new Map<string, boolean>()
+    // A piece in a tile no landmark reaches lies outside them all, so its
+    // geometry, the costly part of a query, is never read.
+    const near = (feature: any) => {
+      const tile = `${feature._z}/${feature._x}/${feature._y}`
+      let hit = nearTile.get(tile)
+      if (hit === undefined) {
+        const b = tileBounds(feature)
+        hit = !b || reaches.some(({ p, reach, k }) =>
+          p.lng + reach / k >= b.minLng && p.lng - reach / k <= b.maxLng &&
+          p.lat + reach / 110574 >= b.minLat && p.lat - reach / 110574 <= b.maxLat)
+        nearTile.set(tile, hit)
+      }
+      return hit
+    }
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
       let features: any[] = []
       try {
@@ -845,14 +866,15 @@ export class LandmarkLayer {
       for (const feature of features) {
         const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
         if (key === undefined || key === null || verdict.get(key) === false) continue
+        if (!near(feature)) {
+          verdict.set(key, false)
+          continue
+        }
         const rings = polygonRings(feature.geometry)
         const first = rings[0]?.[0]
         // The first vertex rules almost every building out without the full
         // test, which matters on a Manhattan tile with thousands of them.
-        const inside = !!first && drawn.find(({ p, coverage }) => {
-          const { minX, maxX, minZ, maxZ } = coverage.bounds
-          const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
-          const k = Math.cos((p.lat * Math.PI) / 180) * 111320
+        const inside = !!first && reaches.find(({ p, coverage, reach, k }) => {
           if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
           return insideFootprint(p, coverage, rings)
         })

@@ -659,8 +659,7 @@ export function deckMesh(
     return { left: at(l), right: at(-r), leftOut: at(l + SEAM), rightOut: at(-r - SEAM) }
   })
   const d = along(pts)
-  // An end that joins another deck is never drawn short of it, which would leave a wedge between the two.
-  const caps = (chain.caps ?? [0, 0, 0, 0]).map((c, k) => (chain.grounded?.[k >> 1] === false ? Math.min(c, 0) : c))
+  const caps = chain.caps ?? [0, 0, 0, 0]
   // Each side moved along the deck to its end caps: run on straight past an end, or drawn in to where its cap falls.
   const capped = (side: 'left' | 'right' | 'leftOut' | 'rightOut', start: number, end: number) => {
     const total = d[n - 1]
@@ -877,14 +876,14 @@ export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {
   return out
 }
 
-/** Whether a point lies inside a ring. */
-export function insideRing([x, y]: Point, ring: Point[]): boolean {
+/** Whether a point lies inside a polygon's rings, by the even-odd rule. */
+export function inside([x, y]: Point, rings: Point[][]): boolean {
   let hit = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
-  }
+  for (const ring of rings)
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [[xi, yi], [xj, yj]] = [ring[i], ring[j]]
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
+    }
   return hit
 }
 
@@ -909,7 +908,8 @@ export function kerbsOf(chain: Chain, kerbs: Point[]): [number[], number[]] {
   return out.map((k, side) => k.map((v, i) => {
     if (!Number.isNaN(v)) return Math.min(v, sideAt(chain, side as 0 | 1, i))
     let best = -1
-    for (let j = 0; j < n; j++) if (!Number.isNaN(k[j]) && Math.abs(d[j] - d[i]) <= KERB_REACH && (best < 0 || Math.abs(d[j] - d[i]) < Math.abs(d[best] - d[i]))) best = j
+    const reach = i === 0 || i === n - 1 ? Infinity : KERB_REACH
+    for (let j = 0; j < n; j++) if (!Number.isNaN(k[j]) && Math.abs(d[j] - d[i]) <= reach && (best < 0 || Math.abs(d[j] - d[i]) < Math.abs(d[best] - d[i]))) best = j
     return best < 0 ? sideAt(chain, side as 0 | 1, i) : Math.min(k[best], sideAt(chain, side as 0 | 1, i))
   })) as [number[], number[]]
 }

@@ -8,7 +8,7 @@
  *
  * Pure functions, in Web Mercator units for position and metres for height.
  */
-import { MAX_GRADE, along, densify, metresPerUnit, outline, quad, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { MAX_GRADE, along, densify, inside, metresPerUnit, outline, quad, type Mesh, type Point } from '@/lib/map-decks/decks'
 
 /** Clear height inside a road's bore, and the roof over any bore, in metres. */
 export const HEADROOM = 4.6
@@ -164,16 +164,7 @@ export function measureEdges(line: Point[], rings: Point[][], reach = 12): [numb
   return [median(lefts), median(rights)]
 }
 
-/** Whether a point lies inside a polygon's rings, by the even-odd rule. */
-export function inside([x, y]: Point, rings: Point[][]): boolean {
-  let hit = false
-  for (const ring of rings)
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [[xi, yi], [xj, yj]] = [ring[i], ring[j]]
-      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
-    }
-  return hit
-}
+export { inside }
 
 /**
  * A portal moved out along its approach to where the approach leaves the

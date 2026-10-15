@@ -22,6 +22,8 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
+
+const centroid = (p: Point[]): Point => [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3]
 /** How far below its lift on a deck paint on the ground beside one is laid, so the deck's own wins where both are. */
 const GROUND_UNDER = 0.05
 /** Metres apart in height two decks under one painted triangle may be and still both carry it. */
@@ -47,10 +49,10 @@ type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean;
  */
 export type Ground = { at: (p: Point) => number | null; near: Bounds[]; low: number[] }
 
-/** A point laid on the ground beside a deck's end, as a hit on no deck; null where none may be. */
-function onGround(laid: Laid, p: Point): Hit | null {
+/** A point on the ground as a hit on no deck: null where the ground is not known, or, `nearEnd`, away from every deck's end. */
+function onGround(laid: Laid, p: Point, nearEnd = true): Hit | null {
   const g = laid.ground
-  if (!g || !g.near.some(b => holds(b, p))) return null
+  if (!g || (nearEnd && !g.near.some(b => holds(b, p)))) return null
   const z = g.at(p)
   return z === null || Number.isNaN(z) ? null : { deck: -1, distance: 0, z, segment: 1, t: 0 }
 }
@@ -121,21 +123,23 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   const flat = rings.flat()
   const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
+  // The level of the mark: the highest deck any of its corners lies on; with none, it is cut to no deck.
+  const onAny = laid.under.filter((h): h is Hit => !!h)
+  const level = onAny.length ? Math.max(...onAny.map(h => h.z)) : null
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
     if (corners.some(k => !laid.under[k])) {
       // Only decks at the level of the paint: a corner can lie over a deck stacked under it. A triangle
       // with no corner on any deck can still cross one.
-      const hits = corners.flatMap(k => (laid.under[k] ? [laid.under[k]!] : []))
-      const top = Math.max(...hits.map(h => h.z))
       const tri = corners.map(k => flat[k])
-      const box = boundsOf(tri)
-      const centre: Point = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3]
-      const decks = laid.surfaces.flatMap((d, k) =>
-        d.bounds && meets(d.bounds, box) && (!hits.length || Math.abs(hitOn(laid, k, centre).z - top) <= LEVEL) ? [k] : [])
-      if (!laid.offDeck) for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
-      // Beside a deck's end the rest lies on the ground, under where the deck covers it.
-      const below = corners.map(k => onGround(laid, flat[k]))
+      if (!laid.offDeck && level !== null) {
+        const box = boundsOf(tri)
+        const centre = centroid(tri)
+        for (const [k, d] of laid.surfaces.entries())
+          if (d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) clipped(mesh, tri, k, laid, color, lift, origin)
+      }
+      // Beside a deck's end the rest lies on the ground.
+      const below = corners.map(k => onGround(laid, flat[k], false))
       if (below.every(Boolean)) split(mesh, corners.map((k, c) => ({ p: flat[k], hit: below[c]! })), laid, color, lift - GROUND_UNDER, origin, scale)
       continue
     }
@@ -144,8 +148,8 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
 }
 
 /** A deck's height under a point, from its nearest segment. */
-function hitOn(laid: Laid, k: number, p: Point): Hit {
-  if (k < 0) return onGround(laid, p) ?? { deck: -1, distance: 0, z: laid.ground?.at(p) ?? 0, segment: 1, t: 0 }
+function hitOn(laid: Laid, k: number, p: Point): Hit | null {
+  if (k < 0) return onGround(laid, p, false)
   const deck = laid.surfaces[k]
   let best: Hit = { deck: k, distance: Infinity, z: deck.z[0], segment: 1, t: 0 }
   for (let i = 1; i < deck.points.length; i++) {
@@ -168,15 +172,17 @@ function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, c
   const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
   const e = sides.indexOf(Math.max(...sides))
   if (sides[e] <= PAINT_SAMPLE || depth > 12) {
-    // On the ground only beside a deck, never under one.
-    const centre: Point = [(corners[0].p[0] + corners[1].p[0] + corners[2].p[0]) / 3, (corners[0].p[1] + corners[1].p[1] + corners[2].p[1]) / 3]
-    if (corners[0].hit.deck < 0 && onDeck([centre], laid.surfaces, 0)[0] !== null) return
+    // On the ground only beside a deck's end, never under the deck.
+    const centre = centroid(corners.map(c => c.p))
+    if (corners[0].hit.deck < 0 && (!onGround(laid, centre) || onDeck([centre], laid.surfaces, 0)[0] !== null)) return
     for (const { p, hit } of corners) laidVertex(mesh, [p[0] - origin[0], p[1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
     return
   }
   const [a, b, c] = [corners[e], corners[(e + 1) % 3], corners[(e + 2) % 3]]
   const mid: Point = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2]
-  const m = { p: mid, hit: hitOn(laid, a.hit.deck, mid) }
+  const hit = hitOn(laid, a.hit.deck, mid)
+  if (!hit) return
+  const m = { p: mid, hit }
   split(mesh, [a, m, c], laid, color, lift, origin, scale, depth + 1)
   split(mesh, [m, b, c], laid, color, lift, origin, scale, depth + 1)
 }

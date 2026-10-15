@@ -127,9 +127,11 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
       // with no corner on any deck can still cross one.
       const hits = corners.flatMap(k => (laid.under[k] ? [laid.under[k]!] : []))
       const top = Math.max(...hits.map(h => h.z))
-      const box = boundsOf(corners.map(k => flat[k]))
-      const decks = hits.length ? [...new Set(hits.filter(h => top - h.z <= LEVEL).map(h => h.deck))]
-        : laid.surfaces.flatMap((d, k) => (d.bounds && meets(d.bounds, box) ? [k] : []))
+      const tri = corners.map(k => flat[k])
+      const box = boundsOf(tri)
+      const centre: Point = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3]
+      const decks = laid.surfaces.flatMap((d, k) =>
+        d.bounds && meets(d.bounds, box) && (!hits.length || Math.abs(hitOn(laid, k, centre).z - top) <= LEVEL) ? [k] : [])
       for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
       // Beside a deck's end the rest lies on the ground, under where the deck covers it.
       const below = corners.map(k => onGround(laid, flat[k]))

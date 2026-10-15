@@ -41,9 +41,12 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
   },
 }
 
-/** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
+/** Pixels per metre at a zoom, at mid-US latitudes, exact enough for paint. */
+export const pxPerMetre = (z: number) => 2 ** z / 63330
+
+/** Pixels for a length in metres; see {@link pxPerMetre}. */
 export function metres(m: number, minimum = 0): any {
-  const at = (z: number) => Math.max(minimum, (m * 2 ** z) / 63330)
+  const at = (z: number) => Math.max(minimum, m * pxPerMetre(z))
   return ['interpolate', ['exponential', 2], ['zoom'], FROM, at(FROM), 22, at(22)]
 }
 

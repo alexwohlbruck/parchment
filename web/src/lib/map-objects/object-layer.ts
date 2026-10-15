@@ -349,7 +349,7 @@ type ModelBuffers = {
     /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
     flutter: [number, number, number]
   }>
-  /** Whether any part flutters, so the layer keeps frames coming while one is in view. */
+  /** Whether any part flutters, so a flag in view can start a flutter; see `startFlutter`. */
   flutters: boolean
 }
 
@@ -480,6 +480,8 @@ export class ObjectLayer {
   private flutterArmed = true
   private onIdle?: () => void
   private onMoveStart?: () => void
+  private flutterTimer = 0
+  private onStillness = () => this.stopFlutter()
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private shadowProgram!: WebGLProgram
@@ -547,6 +549,7 @@ export class ObjectLayer {
     this.uniforms = uniformsOf(gl, this.program,
       ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+    this.stillness?.addEventListener('change', this.onStillness)
     this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
     this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
 
@@ -688,17 +691,26 @@ export class ObjectLayer {
     return buffer
   }
 
-  onRemove(map: any, gl: WebGL2RenderingContext) {
+  /**
+   * Stop listening and animating. `onRemove` does it, but a full `setStyle`
+   * drops a custom layer without calling `onRemove`, so the owner calls this then.
+   */
+  detach(map: any) {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
     if (this.onMoveStart) map.off('movestart', this.onMoveStart)
     if (this.onIdle) map.off('idle', this.onIdle)
+    this.stillness?.removeEventListener('change', this.onStillness)
     this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
     this.scheduled = 0
     this.gathering = null
     this.map = null
+  }
+
+  onRemove(map: any, gl: WebGL2RenderingContext) {
+    this.detach(map)
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.shadowProgram)
     for (const model of this.models.values())
@@ -1013,11 +1025,14 @@ export class ObjectLayer {
     this.flutterArmed = false
     this.flutterUntil = performance.now() + FLUTTER_MS
     this.map.repaint = true
+    // Ends it even if no frame gets there, say when every batch has gone.
+    this.flutterTimer = setTimeout(() => this.stopFlutter(), FLUTTER_MS + 100) as unknown as number
   }
 
   private stopFlutter() {
     if (!this.flutterUntil) return
     this.flutterUntil = 0
+    clearTimeout(this.flutterTimer)
     if (this.map) this.map.repaint = false
   }
 

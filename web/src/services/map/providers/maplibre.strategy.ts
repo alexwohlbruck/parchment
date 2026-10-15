@@ -463,7 +463,10 @@ export class MaplibreStrategy extends MapStrategy {
       // A style swap drops custom layers with it, and rebuilds the flat form's
       // visibility from the stylesheet. A dropped layer must stop casting too:
       // its buffers went with the old style.
-      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
+      if (this.objectLayer) {
+        shadowCasters.delete(this.objectLayer)
+        this.objectLayer.detach(this.mapInstance)
+      }
       this.objectLayer = null
       void this.applyMapObjects()
       // The new style has its own building filters and no landmark layer.

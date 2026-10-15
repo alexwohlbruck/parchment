@@ -2647,8 +2647,9 @@ describe('golf courses', () => {
     })
   }
 
-  test('hole numbers and pins follow the POI label toggle', () => {
-    expect(layerGroups.poi).toEqual(expect.arrayContaining([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER]))
+  test('hole numbers and pins are labels, not clickable places', () => {
+    expect(layerGroups.golfLabels).toEqual([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER])
+    for (const id of layerGroups.golfLabels) expect(layerGroups.poi).not.toContain(id)
   })
 
   test('the pin icon is in the sprite', () => {

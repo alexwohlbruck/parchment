@@ -16,6 +16,7 @@
  * generated too.
  */
 import type { FlavorId } from './build'
+import { SDF_BUFFER } from './sdf.mjs'
 
 /**
  * One source for every detail overlay a client reads at z≤16.
@@ -622,8 +623,9 @@ export function golfLabelLayers(flavor: FlavorId): any[] {
       layout: {
         'icon-image': 'golf-pin',
         'icon-anchor': 'bottom',
+        // Down past the SDF padding, so the cup at the foot of the flag sits on the pin.
+        'icon-offset': [0, SDF_BUFFER + 1],
         'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.8, 19, 1.25],
-        'icon-optional': false,
       },
       paint: {
         'icon-color': c.golfFlag,

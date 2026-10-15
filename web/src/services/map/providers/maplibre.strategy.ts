@@ -659,7 +659,7 @@ export class MaplibreStrategy extends MapStrategy {
 
 
   setPoiLabels(value: boolean) {
-    this.setLayerGroupVisibility('poi', layerGroups.poi, value)
+    this.setLayerGroupVisibility('poi', [...layerGroups.poi, ...layerGroups.golfLabels], value)
   }
 
   setRoadLabels(value: boolean) {

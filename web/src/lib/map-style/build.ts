@@ -334,9 +334,9 @@ export const layerGroups = {
     ...idsWhere(
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
-    GOLF_HOLE_LABEL_LAYER,
-    GOLF_PIN_LAYER,
   ],
+  /** Hidden with the POI labels, but not clickable as places: their ids are not Planetiler's. */
+  golfLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER],
   roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
   /**
    * Transit stop labels, not the rails under them. The transit overlay redraws

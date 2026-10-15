@@ -19,6 +19,7 @@
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
 * 3D tunnel portals on paths and culverts fit the path's width, face along mapped headwalls, and no longer show a dark wedge or a step across the opening.
+* A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
 
 ## [0.14.0] - 2026-10-09
 

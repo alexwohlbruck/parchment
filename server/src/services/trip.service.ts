@@ -2072,6 +2072,27 @@ export class TripService {
    * Rideshare combinations are derived from the walk-access results since
    * rideshare isn't a MOTIS-routable mode.
    */
+  /** Barrelman's ceiling on itineraries per transit query. */
+  private static readonly WALK_QUERY_ITINERARIES = 10
+
+  /**
+   * What makes two itineraries the same ride: the vehicles boarded, not just
+   * the lines. Two departures of one routing are different options, and the
+   * queries list them in no useful order, so a line-only key kept whichever
+   * came first and could discard the train leaving half an hour sooner.
+   */
+  static itineraryRideSignature(
+    itin: import('../types/integration.types').TransitItinerary,
+  ): string {
+    return itin.legs
+      .filter(l => l.mode !== 'WALK')
+      .map(l => {
+        const run = l.transitLeg ? `@${l.tripId ?? l.startTime}` : ''
+        return `${l.routeId ?? l.mode}${run}:${l.from?.stopId ?? ''}→${l.to?.stopId ?? ''}`
+      })
+      .join('|')
+  }
+
   private async planIntermodalTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
@@ -2131,8 +2152,14 @@ export class TripService {
         })
     }
 
+    // Barrelman ranks by ride duration and returns each departure once per
+    // access-walk variant, so a short page is spent on later trains with
+    // quicker rides and drops the one leaving first. Ask for its maximum.
     const walkFetch = fetchMotis('walk', {
       ...baseRequest,
+      numItineraries: isContinuation || isMulti
+        ? baseRequest.numItineraries
+        : TripService.WALK_QUERY_ITINERARIES,
       preTransitModes: ['WALK'],
       postTransitModes: ['WALK'],
       maxPreTransitTime: maxWalkSec,
@@ -2243,10 +2270,7 @@ export class TripService {
     const seen = new Set<string>()
     const uniqueItineraries: import('../types/integration.types').TransitItinerary[] = []
     for (const itin of [...walkItins, ...fewTransfersItins, ...rentalItins]) {
-      const sig = itin.legs
-        .filter(l => l.mode !== 'WALK')
-        .map(l => `${l.routeId ?? l.mode}:${l.from?.stopId ?? ''}→${l.to?.stopId ?? ''}`)
-        .join('|')
+      const sig = TripService.itineraryRideSignature(itin)
       if (!seen.has(sig)) {
         seen.add(sig)
         uniqueItineraries.push(itin)

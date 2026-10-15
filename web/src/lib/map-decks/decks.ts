@@ -647,7 +647,9 @@ export function deckMesh(
       const dot = nx * -uy + ny * ux
       m = 1 / Math.max(0.5, Math.abs(dot))
     }
-    const [toLeft, toRight] = [sideAt(chain, 0, i) * scale * m, sideAt(chain, 1, i) * scale * m]
+    // A side shared with a neighbour reaches a little under it, so the two leave no seam where their edges are sampled apart.
+    const reach = (side: 0 | 1) => (sideAt(chain, side, i) + (open[side][i] ? SEAM : 0)) * scale * m
+    const [toLeft, toRight] = [reach(0), reach(1)]
     return {
       left: [p[0] + nx * toLeft - origin[0], p[1] + ny * toLeft - origin[1]] as Point,
       right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
@@ -761,6 +763,9 @@ export function deckMesh(
   }
   return out
 }
+
+/** Metres a deck reaches under a neighbour it is joined to. */
+export const SEAM = 0.3
 
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180

@@ -9,6 +9,7 @@ import {
   treeLayers,
   landmarkLayers,
   readOnlyDetailLayers,
+  keepDetailLayer,
   coasterTrackLayers,
   pitchLayers,
   plantedAreaLayers,
@@ -18,7 +19,7 @@ import {
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
 import { stepsLayers } from './steps-layers'
-import { asphaltRoads, roadMarkingLayers } from './road-markings'
+import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers } from './road-markings'
 import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -638,7 +639,8 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   // under the first bridge and the track at grade, which crosses the road over
   // it; the bridges' over the last.
   const bridges = bridgeBandIndex(out)
-  if (!hdRoads || bridges === undefined) return out
+  // Signals and crossing gear stand on their glyphs whether or not the lanes are drawn.
+  if (!hdRoads || bridges === undefined) return [...out, keepDetailLayer(ROAD_GLYPH_TILES)]
   const rails = out.findIndex(l => RAIL_AT_GRADE.includes(l.id))
   const ground = rails >= 0 && rails < bridges ? rails : bridges
   const roads = asphaltRoads(out, flavor)

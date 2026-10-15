@@ -2604,12 +2604,36 @@ describe('road markings', () => {
   })
 })
 
+describe('HD roads and railways', () => {
+  const ids = buildMapStyle({ ...opts, theme: 'light', hdRoads: true }).layers.map(l => l.id)
+
+  test('draws track at grade over the lane-level road, where the two cross', () => {
+    expect(ids.indexOf('Major rail')).toBeGreaterThan(ids.indexOf('Road surface'))
+    expect(ids.indexOf('Minor rail')).toBeGreaterThan(ids.indexOf('Stop line'))
+  })
+
+  test('keeps a bridge deck over the track it crosses', () => {
+    expect(ids.indexOf('Major road bridge')).toBeGreaterThan(ids.indexOf('Major rail'))
+  })
+
+  test('paints only road glyphs on the road, and gives a signal its own symbol', () => {
+    const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+    const glyphs = style.layers.find(l => l.id === 'Road glyph') as any
+    expect(JSON.stringify(glyphs.filter)).toContain('road-')
+    expect(style.layers.find(l => l.id === 'Traffic signal')).toMatchObject({ layout: { 'icon-image': 'traffic-signals' } })
+  })
+})
+
 describe('HD roads off', () => {
   const style = buildMapStyle({ ...opts, theme: 'light' })
   const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
 
   test('draws no lane geometry, at grade or on a deck', () => {
-    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']))).toEqual([])
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']) && !l.id.startsWith('Keep '))).toEqual([])
+  })
+
+  test('still keeps the glyphs that signals and crossing gear stand on', () => {
+    expect(style.layers.some(l => l.id === `Keep ${ROAD_GLYPH_TILES}`)).toBe(true)
   })
 
   test('leaves the basemap roads their own colour and casing', () => {

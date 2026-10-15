@@ -397,11 +397,14 @@ export class DeckLayer {
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
-    layPaint(mesh, paved, surfaces, tar, this.origin)
-    layPaint(mesh, this.carriageways(false, touchdowns(surfaces)), surfaces, tar, this.origin, { atGrade: true })
+    const ends = touchdowns(surfaces)
+    const sampler = this.groundSampler()
+    const ground = { at: (q: Point) => { const g = sampler?.at(q); return g === null || g === undefined ? null : g * exaggeration }, near: ends, low: p.lowRoad }
+    layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
+    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
-    layPaint(mesh, paint, surfaces, p, this.origin)
-    layPaint(mesh, this.paintAtGrade(touchdowns(surfaces)), surfaces, p, this.origin, { atGrade: true })
+    layPaint(mesh, paint, surfaces, p, this.origin, { ground })
+    layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3

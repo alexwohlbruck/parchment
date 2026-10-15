@@ -22,6 +22,8 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
+/** Farthest a painted corner may lie off a deck and still be laid on it, in metres. */
+const OFF_DECK = 4
 
 /** A served road marking as runs and areas, clipped to its tile. */
 export function paintOf(feature: any): Paint {
@@ -100,9 +102,12 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
-    if (corners.some(k => !laid.under[k])) continue
-    for (const k of corners) {
-      const hit = laid.under[k]!
+    // A corner just off a deck's end or edge takes the deck under a near one, so the triangle is not dropped whole.
+    const near = (k: number) => corners.find(j => laid.under[j] && Math.hypot(flat[j][0] - flat[k][0], flat[j][1] - flat[k][1]) / scale <= OFF_DECK)
+    const hits = corners.map(k => laid.under[k] ?? (near(k) !== undefined ? laid.under[near(k)!] : null))
+    if (hits.some(h => !h)) continue
+    for (const [c, k] of corners.entries()) {
+      const hit = hits[c]!
       laidVertex(mesh, [flat[k][0] - origin[0], flat[k][1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
     }
   }
@@ -116,7 +121,7 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     const scale = 1 / metresPerUnit(a[1])
     const seg = Math.hypot(b[0] - a[0], b[1] - a[1])
     const metres = seg / scale
-    const [ha, hb] = [laid.under[i - 1], laid.under[i]]
+    const [ha, hb] = [laid.under[i - 1] ?? laid.under[i], laid.under[i] ?? laid.under[i - 1]]
     if (!ha || !hb || seg === 0) {
       travelled += metres
       continue

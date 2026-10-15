@@ -678,6 +678,7 @@ export function deckMesh(
       return { p: [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] as Point, z: z[k - 1] + (z[k] - z[k - 1]) * t }
     })
   }
+  const bare = ([0, 1] as const).map(side => bareSegments(open[side], d)) as [boolean[], boolean[]]
   const lefts = capped('left', caps[0], caps[2])
   const rights = capped('right', caps[1], caps[3])
   // A side shared with a neighbour runs on under it, dipping, so the two leave no seam and neither shows through the other.
@@ -722,8 +723,7 @@ export function deckMesh(
     quad(at(l0.p, l0.z - SLAB), at(l1.p, l1.z - SLAB), at(r1.p, r1.z - SLAB), at(r0.p, r0.z - SLAB), colors.concrete)
     // Parapets along both edges.
     for (const side of ['left', 'right'] as const) {
-      const shared = open[side === 'left' ? 0 : 1]
-      if (shared[i - 1] && shared[i]) continue
+      if (bare[side === 'left' ? 0 : 1][i]) continue
       const [s0, s1] = side === 'left' ? [l0, l1] : [r0, r1]
       const [i0, i1] = [inset(i - 1, side, 0.3), inset(i, side, 0.3)]
       const flip = side === 'left'
@@ -777,6 +777,30 @@ export function deckMesh(
   }
   return out
 }
+
+/**
+ * Per segment, by the index of its second point, whether a side has no
+ * parapet: where it is shared, and on a stub shorter than PARAPET_RUN that a
+ * shared stretch leaves at an end, as when twin decks part at an abutment.
+ */
+export function bareSegments(shared: boolean[], d: number[]): boolean[] {
+  const n = d.length
+  const out = d.map((_, i) => i > 0 && !!shared[i - 1] && !!shared[i])
+  let i = 1
+  while (i < n) {
+    if (out[i]) { i++; continue }
+    let j = i
+    while (j < n && !out[j]) j++
+    const touches = (i > 1 && out[i - 1]) || (j < n && out[j])
+    const atEnd = i === 1 || j === n
+    if (touches && atEnd && d[j - 1] - d[i - 1] < PARAPET_RUN) for (let k = i; k < j; k++) out[k] = true
+    i = j
+  }
+  return out
+}
+
+/** Shortest parapet left at a deck's end beside a shared stretch, in metres. */
+export const PARAPET_RUN = 15
 
 /** Metres a deck reaches under a neighbour it is joined to, and how far below its surface that edge lies. */
 export const SEAM = 0.3

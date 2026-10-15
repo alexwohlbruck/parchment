@@ -22,8 +22,8 @@ const VS = `
     float sun = dot(normalize(a_normal), u_light) * 0.5 + 0.5;
     float sky = normalize(a_normal).z * 0.5 + 0.5;
     float lit = mix(0.62, 1.0, mix(sun, sky, 0.6));
-    // Below street zoom a deck's top is the flat map's colour, unshaded.
-    v_color = mix(a_low, a_color, u_hd) * mix(max(lit, normalize(a_normal).z), lit, u_hd);
+    // A deck's top is the flat road's colour, unshaded, so it meets the road it carries.
+    v_color = mix(a_low, a_color, u_hd) * max(lit, normalize(a_normal).z);
     vec3 p = a_position;
     if (a_bias > 0.0) p += normalize(u_eye - p) * a_bias * u_per_metre;
     gl_Position = u_matrix * vec4(p, 1.0);

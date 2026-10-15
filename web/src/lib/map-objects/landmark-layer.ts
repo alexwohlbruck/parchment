@@ -46,7 +46,7 @@ import {
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
-import { tileBounds } from './tile-lines'
+import { tileBounds, type Bounds } from './tile-lines'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -496,6 +496,8 @@ export class LandmarkLayer {
    * and so re-lays out every building — on every zoom step.
    */
   private hiddenFor = new Map<string | number, string>()
+  /** Per loaded building tile: the placements it has been judged against, and which pieces lie on which. */
+  private tileJudgements = new Map<string, { judged: Set<string>; inside: Map<number, string[]> }>()
   /**
    * The ground each placed model was built on, by placement, once every
    * contact has been read off loaded terrain — it does not change after, and
@@ -835,27 +837,17 @@ export class LandmarkLayer {
       this.hiddenFor.clear()
       return { refs: [], featureIds: [] }
     }
-    const verdict = new Map<string | number, string | false>()
-    const reaches = drawn.map(({ p, coverage }) => {
+    const reaches: Reach[] = drawn.map(({ p, coverage }) => {
       const { minX, maxX, minZ, maxZ } = coverage.bounds
       const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
-      return { p, coverage, reach, k: Math.cos((p.lat * Math.PI) / 180) * 111320 }
+      return { p, coverage, reach, k: Math.cos((p.lat * Math.PI) / 180) * 111320, id: placementKey(p) }
     })
-    const nearTile = new Map<string, boolean>()
-    // A piece in a tile no landmark reaches lies outside them all, so its
-    // geometry, the costly part of a query, is never read.
-    const near = (feature: any) => {
-      const tile = `${feature._z}/${feature._x}/${feature._y}`
-      let hit = nearTile.get(tile)
-      if (hit === undefined) {
-        const b = tileBounds(feature)
-        hit = !b || reaches.some(({ p, reach, k }) =>
-          p.lng + reach / k >= b.minLng && p.lng - reach / k <= b.maxLng &&
-          p.lat + reach / 110574 >= b.minLat && p.lat - reach / 110574 <= b.maxLat)
-        nearTile.set(tile, hit)
-      }
-      return hit
-    }
+    // A loaded tile's pieces never change, so a tile is judged against each
+    // placement once; reading geometry is the costly part of a query.
+    const rank = new Map(reaches.map((r, i) => [r.id, i]))
+    const previous = this.tileJudgements
+    this.tileJudgements = new Map()
+    const verdict = new Map<string | number, string | false>()
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
       let features: any[] = []
       try {
@@ -863,22 +855,27 @@ export class LandmarkLayer {
       } catch {
         continue
       }
-      for (const feature of features) {
-        const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
-        if (key === undefined || key === null || verdict.get(key) === false) continue
-        if (!near(feature)) {
-          verdict.set(key, false)
-          continue
+      for (const [tile, pieces] of groupByTile(source, features)) {
+        const judgement = previous.get(tile) ?? { judged: new Set<string>(), inside: new Map<number, string[]>() }
+        this.tileJudgements.set(tile, judgement)
+        const fresh = reaches.filter(r => !judgement.judged.has(r.id))
+        const bounds = tileBounds(pieces[0])
+        const near = bounds ? fresh.filter(r => reachesTile(r, bounds)) : fresh
+        if (near.length) {
+          pieces.forEach((feature, i) => {
+            const hits = landmarksUnder(feature, near)
+            if (hits.length) judgement.inside.set(i, [...(judgement.inside.get(i) ?? []), ...hits])
+          })
         }
-        const rings = polygonRings(feature.geometry)
-        const first = rings[0]?.[0]
-        // The first vertex rules almost every building out without the full
-        // test, which matters on a Manhattan tile with thousands of them.
-        const inside = !!first && reaches.find(({ p, coverage, reach, k }) => {
-          if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
-          return insideFootprint(p, coverage, rings)
+        for (const r of fresh) judgement.judged.add(r.id)
+        pieces.forEach((feature, i) => {
+          const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
+          if (key === undefined || key === null || verdict.get(key) === false) return
+          // The first placement holding it, in the order they were placed.
+          let first = Infinity
+          for (const id of judgement.inside.get(i) ?? []) first = Math.min(first, rank.get(id) ?? Infinity)
+          verdict.set(key, first < Infinity ? reaches[first].p.id : false)
         })
-        verdict.set(key, inside ? inside.p.id : false)
       }
     }
     // A key goes back on show only on evidence: a loaded piece of it outside
@@ -1306,6 +1303,40 @@ export class LandmarkLayer {
     }
     return { position: [x, y, z], intensity: light?.properties?.get?.('intensity') ?? 0.5 }
   }
+}
+
+type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: string }
+
+/** What a building piece's verdict depends on: the placement's model and where and how it stands. */
+const placementKey = (p: Placement) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
+
+function groupByTile(source: string, features: any[]): Map<string, any[]> {
+  const tiles = new Map<string, any[]>()
+  for (const f of features) {
+    const tile = `${source}/${f._z}/${f._x}/${f._y}`
+    const pieces = tiles.get(tile)
+    if (pieces) pieces.push(f)
+    else tiles.set(tile, [f])
+  }
+  return tiles
+}
+
+const reachesTile = ({ p, reach, k }: Reach, b: Bounds) =>
+  p.lng + reach / k >= b.minLng && p.lng - reach / k <= b.maxLng &&
+  p.lat + reach / 110574 >= b.minLat && p.lat - reach / 110574 <= b.maxLat
+
+/** The placements, by key, a building piece lies wholly on. */
+function landmarksUnder(feature: any, reaches: Reach[]): string[] {
+  const rings = polygonRings(feature.geometry)
+  const first = rings[0]?.[0]
+  if (!first) return []
+  // The first vertex rules almost every building out without the full
+  // test, which matters on a Manhattan tile with thousands of them.
+  return reaches
+    .filter(({ p, coverage, reach, k }) =>
+      Math.abs(first[0] - p.lng) * k <= reach && Math.abs(first[1] - p.lat) * 110574 <= reach &&
+      insideFootprint(p, coverage, rings))
+    .map(r => r.id)
 }
 
 /**

@@ -92,6 +92,11 @@ describe('faceWall', () => {
     expect(split.out.map(p => Math.round((p[0] - x0) / M))).toEqual([-2, -1, 0])
     expect(split.bore.map(p => Math.round((p[0] - x0) / M))).toEqual([-2, -40])
   })
+
+  test('keeps a bore to draw on a culvert shorter than the gap round its headwall', () => {
+    const split = splitAtFace([at(0), at(-2.2)], { metres: 2, point: at(-2), along: [0, 1] })
+    expect(split.bore.length).toBe(2)
+  })
 })
 
 describe('solveCut', () => {
@@ -225,13 +230,20 @@ describe('emerge', () => {
 
 describe('portalMesh', () => {
   const mesh = (): Mesh => ({ position: [], normal: [], color: [] })
-  const build = () => {
+  const build = (face?: Point, edges: [number, number] = [4, 4]) => {
     const { points, at: portal } = portalLine([at(0), at(120)], [at(0), at(-40)], 3)
     const d = along(points)
     const cut = solveCut(d, portal, d.map(() => 10), [d.map(() => 10), d.map(() => 10)], 13)!
     const out: PortalMesh = { walls: mesh(), mouth: mesh(), lid: mesh(), floor: mesh(), bore: mesh() }
-    portalMesh(points, portal, [4, 4], cut, [0, 0], { surface: [1, 0, 0], concrete: [0, 1, 0], parapet: [0, 0, 1], bore: [1, 1, 0] }, out)
+    portalMesh(points, portal, edges, cut, [0, 0], { surface: [1, 0, 0], concrete: [0, 1, 0], parapet: [0, 0, 1], bore: [1, 1, 0] }, out, face)
     return { out, points, portal, cut }
+  }
+  /** How far each corner of the mouth lies off the line through the portal along `dir`, in metres. */
+  const offLine = (out: PortalMesh, p: Point, dir: Point) => {
+    const off: number[] = []
+    for (let i = 0; i < out.mouth.position.length; i += 3)
+      off.push(Math.abs((out.mouth.position[i] - p[0]) * dir[1] - (out.mouth.position[i + 1] - p[1]) * dir[0]) / M)
+    return Math.max(...off)
   }
   /** Each vertex of a colour, with its position and normal. */
   const vertices = (m: Mesh, color: number[]) => {
@@ -247,6 +259,19 @@ describe('portalMesh', () => {
     const walls = vertices(out.walls, [0, 1, 0]).filter(v => Math.abs(v.n[2]) < 0.01 && Math.abs(v.n[1]) > 0.9)
     expect(walls.length).toBeGreaterThan(0)
     expect(walls.every(v => Math.sign(v.n[1]) === -Math.sign(v.p[1] - y0))).toBe(true)
+  })
+
+  test('the headwall runs along a wall mapped a little askew across the bore', () => {
+    const angle = (80 * Math.PI) / 180
+    const face: Point = [Math.cos(angle), Math.sin(angle)]
+    const { out, points, portal } = build(face, [1, 1])
+    expect(offLine(out, points[portal], face)).toBeLessThan(0.01)
+  })
+
+  test('stands square when the mapped wall is too far askew for the walls beside it to follow', () => {
+    const angle = Math.PI / 4
+    const { out, points, portal } = build([Math.cos(angle), Math.sin(angle)])
+    expect(offLine(out, points[portal], [0, 1])).toBeLessThan(0.01)
   })
 
   test('the mouth stands across the road at the portal, from the floor to the bore\'s roof', () => {

@@ -50,8 +50,6 @@ export const RELIEF = 2
 const BEHIND = 6
 /** Metres along which a wall's top follows the lowest ground beside it. */
 const RIM_SPAN = 4
-/** How far out from a portal the floor may not stand above the ground, in metres. */
-const SILL_SPAN = 4
 /** How far out from a portal the ground it opens onto is read, in metres. */
 const MOUTH_SPAN = 9
 /** Sharpest turn, in radians, from one way onto the next that still carries the same road. */
@@ -190,11 +188,7 @@ export function emerge(out: Point[], bore: Point[], covered: (p: Point) => boole
   return { out: dense.slice(k), bore: [...dense.slice(0, k + 1).reverse(), ...bore.slice(1)] }
 }
 
-/**
- * How far in from a tunnel's end a wall mapped across it is taken for its
- * headwall, in metres. Further in, a wall across the bore is more often the
- * parapet along the road on top.
- */
+/** How far in from a tunnel's end a wall across it is its headwall, in metres; further in it is the parapet on top. */
 export const FACE_REACH = 3
 /** The least a wall may turn from a bore, in radians, and still stand across it. */
 const ACROSS = Math.PI / 4
@@ -202,11 +196,7 @@ const ACROSS = Math.PI / 4
 /** A headwall mapped across a bore: how far in from the way's end it stands, where, and the unit direction it runs in. */
 export type Face = { metres: number; point: Point; along: Point }
 
-/**
- * The nearest wall mapped across a bore within `reach` metres of its end: the
- * headwall, which sets where the bore opens and which way the portal faces,
- * often askew to the way. `bore` runs from the way's end inward.
- */
+/** The nearest wall mapped across a bore near its end, which sets where it opens and which way it faces. `bore` runs inward. */
 export function faceWall(bore: Point[], walls: Point[][], reach = FACE_REACH): Face | null {
   const d = along(bore)
   let best: Face | null = null
@@ -222,7 +212,7 @@ export function faceWall(bore: Point[], walls: Point[][], reach = FACE_REACH): F
         if (!lengths || Math.abs(det) / lengths < Math.sin(ACROSS)) continue
         const t = ((c[0] - a[0]) * fy - (c[1] - a[1]) * fx) / det
         const u = ((c[0] - a[0]) * ey - (c[1] - a[1]) * ex) / det
-        if (t < 0 || t > 1 || u < 0 || u > 1) continue
+        if (t < 0 || t > 1 || u <= 0 || u >= 1) continue
         const metres = d[i - 1] + (d[i] - d[i - 1]) * t
         if (metres > reach || (best && metres >= best.metres)) continue
         const l = Math.hypot(fx, fy)
@@ -237,7 +227,7 @@ export function splitAtFace(bore: Point[], face: Face, gap = 0.5): { out: Point[
   const d = along(bore)
   const outside = bore.filter((_, i) => d[i] < face.metres - gap)
   const inside = bore.filter((_, i) => d[i] > face.metres + gap)
-  return { out: [face.point, ...outside.reverse()], bore: [face.point, ...inside] }
+  return { out: [face.point, ...outside.reverse()], bore: [face.point, ...(inside.length ? inside : [bore.at(-1)!])] }
 }
 
 /** A portal ready to be solved: the approach out from it, the bore in from it, its carriageway's edges in metres, and the direction of a headwall mapped across it. */
@@ -329,7 +319,8 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   const mouth = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= MOUTH_SPAN))
   if (Math.max(cover, rims[0][at], rims[1][at]) - mouth < Math.min(RELIEF, (headroom + ROOF) / 2)) return null
   // No higher than the ground just out from it either, so the floor never steps up into the mouth.
-  const portal = Math.min(...ground.filter((_, i) => i <= at && d[at] - d[i] <= SILL_SPAN), cover - headroom - ROOF)
+  const sill = Math.min(ground[at], ground[Math.max(0, at - 1)])
+  const portal = Math.min(sill, cover - headroom - ROOF)
   const out = (i: number) => d[at] - d[i]
   const floorAt = (grade: number) => ground.map((g, i) => (i > at ? portal : Math.min(g, portal + grade * out(i))))
   // Still in the cut while the floor is below the road's ground or either wall is high.
@@ -340,7 +331,7 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   while (open > 0 && deep(floor, open)) open--
   const behind = Math.min(...ground.filter((_, i) => i > at && d[i] - d[at] <= BEHIND))
   const crown = Math.max(portal + headroom + ROOF, Math.min(behind, portal + headroom + ROOF + FACADE))
-  if (portal === ground[at]) while (open > 0 && d[at] - d[open] < FORECOURT) open--
+  if (portal === sill) while (open > 0 && d[at] - d[open] < FORECOURT) open--
   const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + headroom + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
   return { floor, walls, open, crown, headroom, base: Math.min(portal, rims[0][at], rims[1][at]) }
 }
@@ -352,16 +343,15 @@ export type PortalMesh = {
   walls: Mesh
   /** The opening in the headwall, through which the bore is drawn. */
   mouth: Mesh
-  /**
-   * Over each cut at its walls' tops, and the floor beneath: the walls are drawn again inside the lid, over the floor, so the terrain cannot cover their feet.
-   * The floor is the road's own colour, shown where the terrain is too coarse to carve it.
-   */
+  /** Over each cut at its walls' tops, and the floor beneath: the walls are drawn again inside the lid, over the floor, so the terrain cannot cover their feet. */
   lid: Mesh
   floor: Mesh
   /** The bore going dark, drawn only through its mouth. */
   bore: Mesh
 }
 
+/** The furthest, in metres, a skewed headwall's corner may stand along the bore from where a square one would. */
+const SKEW_LIMIT = 1.5
 /** How far past each wall its top runs, in metres. */
 export const MARGIN = 0.9
 /** How deep the headwall's top runs back over the bore, in metres. */
@@ -374,7 +364,7 @@ const FOOT = 0.5
 /**
  * The triangles of one portal, relative to `origin`, with heights in metres as
  * they are to be drawn (exaggeration applied). `edges` are the carriageway's.
- * The cut's floor is the terrain itself, carved by `carveFootprint`.
+ * The cut's floor is the terrain, carved by `carveTile`; `out.floor` covers it where the terrain is too coarse to.
  */
 export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh, face?: Point) {
   const n = points.length
@@ -384,9 +374,12 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   const back = outline(points, [edges[0] + KERB + MARGIN, edges[1] + KERB + MARGIN], origin)
   // The headwall runs along a wall mapped across the bore, else square to it, however the way turns outside.
   const [tx, ty] = heading(points[Math.min(at, n - 2)], points[Math.min(at + 1, n - 1)])
-  const lean = face ? Math.sign(face[1] * tx - face[0] * ty) || 1 : 1
-  const [wx, wy] = face ? [face[0] * lean, face[1] * lean] : [-ty, tx]
-  const skew = Math.max(0.5, wy * tx - wx * ty)
+  const across = face ? Math.abs(face[1] * tx - face[0] * ty) : 1
+  // Askew by more than the samples either side can follow, the walls beside it would cross; it stands square instead.
+  const askew = face && (Math.max(...edges) + KERB + MARGIN) * Math.sqrt(1 - across * across) / across <= SKEW_LIMIT
+  const lean = askew && face ? Math.sign(face[1] * tx - face[0] * ty) : 1
+  const [wx, wy] = askew && face ? [face[0] * lean, face[1] * lean] : [-ty, tx]
+  const skew = wy * tx - wx * ty
   const square = (left: number, right: number) => ({
     left: [points[at][0] + (wx * left * scale) / skew - origin[0], points[at][1] + (wy * left * scale) / skew - origin[1]] as Point,
     right: [points[at][0] - (wx * right * scale) / skew - origin[0], points[at][1] - (wy * right * scale) / skew - origin[1]] as Point,
@@ -420,11 +413,9 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   // The headwall: its face over the mouth and beside it, and its top.
   const mouth = floor[at] + cut.headroom
   const crown = cut.crown + CAP
-  const next = Math.min(n - 1, at + 1)
-  const t = Math.min(1, HEADWALL / (d[next] - d[at] || 1))
-  const lerp = (p: Point, q: Point): Point => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]
+  const behind = (p: Point): Point => [p[0] + tx * h(HEADWALL), p[1] + ty * h(HEADWALL)]
   const [l, r] = [back[at].left, back[at].right]
-  const [bl, br] = [lerp(l, back[next].left), lerp(r, back[next].right)]
+  const [bl, br] = [behind(l), behind(r)]
   quad(out.walls, at3(r, mouth), at3(l, mouth), at3(l, crown), at3(r, crown), colors.concrete)
   // Down to the lowest ground beside it, so a headwall over a falling bank does not hang in the air.
   const base = Math.min(floor[at], cut.base) - FOOT
@@ -432,7 +423,7 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     sided(side, [at3(back[at][side], base), at3(wall[at][side], base), at3(wall[at][side], mouth), at3(back[at][side], mouth)], colors.concrete)
   quad(out.walls, at3(l, crown), at3(r, crown), at3(br, crown), at3(bl, crown), colors.parapet)
   // Its back and sides, down into the ground, so it stands solid from behind; the bore runs through.
-  const [wl, wr] = [lerp(wall[at].left, wall[next].left), lerp(wall[at].right, wall[next].right)]
+  const [wl, wr] = [behind(wall[at].left), behind(wall[at].right)]
   quad(out.walls, at3(br, mouth), at3(bl, mouth), at3(bl, crown), at3(br, crown), colors.concrete)
   quad(out.walls, at3(bl, base), at3(wl, base), at3(wl, mouth), at3(bl, mouth), colors.concrete)
   quad(out.walls, at3(wr, base), at3(br, base), at3(br, mouth), at3(wr, mouth), colors.concrete)

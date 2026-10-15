@@ -19,6 +19,7 @@ import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } f
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
+import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'
 import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, inside, splitAtFace, measureEdges, mergeTwins, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
@@ -58,19 +59,15 @@ type Solved = { key: string; points: Point[]; at: number; edges: [number, number
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
-/** Each cut's floor on its own, with its portal, so it can be shown wherever the terrain under it is too coarse to carve. */
-type Floor<T> = { mesh: T; portal: Point }
+/** Each cut's vertices in the floor mesh, and its ends, to show it wherever the terrain there is too coarse to carve. */
+type FloorRange = { from: number; to: number; ends: Point[] }
 
-type Built = { walls: Mesh; mouth: Mesh; lid: Mesh; bore: Mesh; floors: Floor<Mesh>[]; footprints: Map<string, Footprint> }
+type Built = { walls: Mesh; mouth: Mesh; lid: Mesh; floor: Mesh; bore: Mesh; floors: FloorRange[]; footprints: Map<string, Footprint> }
 
-const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: emptyMesh(), bore: emptyMesh(), floors: [], footprints: new Map() })
+const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: emptyMesh(), floor: emptyMesh(), bore: emptyMesh(), floors: [], footprints: new Map() })
 
-/**
- * The coarsest elevation tile a cut is carved into well: about half a metre a
- * pixel. Coarser, its floor blurs into a ramp that rises across the mouth, so
- * the floor is drawn over it instead.
- */
-const CARVED_ZOOM = 17
+/** The coarsest elevation tile a cut carves into cleanly; coarser, the floor blurs into a ramp across the mouth. */
+const CARVED_ZOOM = FINE_TERRAIN_MAXZOOM - 1
 
 /** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
 function elevation(dem: any): Elevation {
@@ -127,8 +124,11 @@ export class TunnelLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: Record<'walls' | 'mouth' | 'lid' | 'bore', MeshBuffers> | null = null
-  private floors: Floor<MeshBuffers>[] = []
+  private buffers: Record<'walls' | 'mouth' | 'lid' | 'floor' | 'bore', MeshBuffers> | null = null
+  private floors: FloorRange[] = []
+  /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
+  private exposed: FloorRange[] = []
+  private exposedFor = ''
   private pending: Built | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
@@ -293,10 +293,10 @@ export class TunnelLayer {
     const floors: Record<BoreKind, number[]> = { road: p.surface, path: p.concrete, rail: p.concrete.map(c => c * 0.8) }
     const mesh = emptyBuilt()
     for (const s of solved) {
-      const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration }
-      const floor = emptyMesh()
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, { ...mesh, floor }, s.face)
-      mesh.floors.push({ mesh: floor, portal: s.points[s.at] })
+      const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration, base: s.cut.base * exaggeration }
+      const from = mesh.floor.position.length / 3
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face)
+      mesh.floors.push({ from, to: mesh.floor.position.length / 3, ends: [s.points[s.cut.open], s.points[s.at]] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
     return mesh
@@ -371,8 +371,9 @@ export class TunnelLayer {
   }
 
   private release(gl: WebGL2RenderingContext) {
-    for (const floor of this.floors) deleteMesh(gl, floor.mesh)
     this.floors = []
+    this.exposed = []
+    this.exposedFor = ''
     if (!this.buffers) return
     for (const buffers of Object.values(this.buffers)) deleteMesh(gl, buffers)
     this.buffers = null
@@ -399,13 +400,19 @@ export class TunnelLayer {
     }
   }
 
-  /** The bounds of the loaded elevation tiles fine enough to carve a cut into. */
-  private carvedTiles(): Bounds[] {
-    return this.demTiles().filter(t => t.dem && t.tileID.canonical.z >= CARVED_ZOOM).map(t => {
+  /** The floors with an end on no elevation tile both fine enough and carved this round. */
+  private exposedFloors(): FloorRange[] {
+    const tiles = this.demTiles().filter(t => t.dem && t.tileID.canonical.z >= CARVED_ZOOM && this.carved.get(t.dem) === this.round)
+    const key = `${this.round}|${tiles.map(t => t.tileID.key).join()}`
+    if (key === this.exposedFor) return this.exposed
+    const bounds = tiles.map(t => {
       const { z, x, y } = t.tileID.canonical
       const n = 2 ** z
       return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
     })
+    this.exposedFor = key
+    this.exposed = this.floors.filter(f => !f.ends.every(p => bounds.some(b => holds(b, p))))
+    return this.exposed
   }
 
   private demTiles(): any[] {
@@ -439,9 +446,9 @@ export class TunnelLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
-      const { walls, mouth, lid, floors, bore, footprints } = this.pending
-      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), bore: uploadMesh(gl, bore) }
-      this.floors = floors.map(f => ({ mesh: uploadMesh(gl, f.mesh), portal: f.portal }))
+      const { walls, mouth, lid, floor, floors, bore, footprints } = this.pending
+      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
+      this.floors = floors
       this.carve(footprints)
       this.pending = null
     }
@@ -458,12 +465,12 @@ export class TunnelLayer {
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
-    const drawMesh = (buffers: MeshBuffers) => {
-      const mesh = bindMesh(gl, this.program, buffers, matrix, light)
-      mesh.draw()
+    const draw = (name: keyof NonNullable<typeof this.buffers>, ranges?: FloorRange[]) => {
+      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light)
+      if (ranges) for (const { from, to } of ranges) mesh.draw(from, to)
+      else mesh.draw()
       mesh.unbind()
     }
-    const draw = (name: keyof NonNullable<typeof this.buffers>) => drawMesh(this.buffers![name])
     draw('walls')
 
     gl.enable(gl.STENCIL_TEST)
@@ -487,14 +494,14 @@ export class TunnelLayer {
     draw('mouth')
     gl.depthRange(near, far)
     gl.depthFunc(gl.LEQUAL)
-    for (const floor of this.floors) drawMesh(floor.mesh)
+    draw('floor')
     // …then stand the walls on it, and draw the bore under the ground.
     gl.colorMask(true, true, true, true)
     draw('walls')
     draw('bore')
     // Where the terrain could not take the carving, the floor shows instead of the ground blurred over it.
-    const carved = this.carvedTiles()
-    for (const floor of this.floors) if (!carved.some(t => holds(t, floor.portal))) drawMesh(floor.mesh)
+    const exposed = this.exposedFloors()
+    if (exposed.length) draw('floor', exposed)
     gl.clear(gl.STENCIL_BUFFER_BIT)
     gl.disable(gl.STENCIL_TEST)
   }

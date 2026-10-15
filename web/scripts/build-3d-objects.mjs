@@ -1190,6 +1190,34 @@ function courtNet(q, span, bottom, top, post) {
 }
 
 /**
+ * A triangular pennant flying along +x from `x0`, `t` thick, cut into columns so
+ * the layer's flutter can bend it (see `FLUTTER` in `object-layer.ts`).
+ */
+function pennant(m, x0, x1, yTop, yBottom, t, cols) {
+  const mid = (yTop + yBottom) / 2
+  const half = (yTop - yBottom) / 2
+  const col = i => {
+    const f = i / cols
+    return [x0 + (x1 - x0) * f, mid + half * (1 - f), mid - half * (1 - f)]
+  }
+  for (let i = 0; i < cols; i++) {
+    const [xa, ta, ba] = col(i)
+    const [xb, tb, bb] = col(i + 1)
+    if (i < cols - 1) {
+      quad(m, [xa, ba, t], [xb, bb, t], [xb, tb, t], [xa, ta, t])
+      quad(m, [xb, bb, -t], [xa, ba, -t], [xa, ta, -t], [xb, tb, -t])
+    } else {
+      face(m, [xa, ba, t], [xb, bb, t], [xa, ta, t])
+      face(m, [xb, bb, -t], [xa, ba, -t], [xa, ta, -t])
+    }
+    quad(m, [xa, ta, t], [xb, tb, t], [xb, tb, -t], [xa, ta, -t])
+    quad(m, [xa, ba, -t], [xb, bb, -t], [xb, bb, t], [xa, ba, t])
+  }
+  quad(m, [x0, yBottom, -t], [x0, yBottom, t], [x0, yTop, t], [x0, yTop, -t])
+  return m
+}
+
+/**
  * Nets, hoops and goals for the courts and fields barrelman lays out. Each faces
  * -z like the furniture: a net's span runs across x, and a hoop or a goal looks
  * out over the court in front of it.
@@ -1231,12 +1259,12 @@ const SPORTS = {
       { role: 'frame', ...frame },
     ]
   }),
-  // A flagstick in its cup: a 2.13 m pole (7 ft, the usual stick) with the
-  // pennant flying along +x from its top.
+  // A flagstick in its cup: a 2.13 m pole (7 ft, the usual stick) with a
+  // triangular pennant flying along +x from its top.
   'golf-flag': furnLod(q => [
     { role: 'interior', ...cylinder(mesh(), half(q), 0.11, 0.11, 0, 0.02) },
     { role: 'frame', ...cylinder(mesh(), half(q), 0.025, 0.025, 0.021, 2.11) },
-    { role: 'pennant', ...box(mesh(), [0.026, 1.7, -0.01], [0.56, 2.1, 0.01]) },
+    { role: 'pennant', ...pennant(mesh(), 0.026, 0.6, 2.1, 1.68, 0.008, q.seg ? 6 : 2) },
   ]),
   'football-goalpost': furnLod(q => [
     { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.1, 0.09, 0, 2.94), [0, 0, 1.5]) },

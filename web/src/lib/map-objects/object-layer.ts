@@ -112,6 +112,9 @@ const VS = `
   uniform vec3 u_color_alt;
   /** Model-space y of the part's bottom and top, and how much darker its bottom is. */
   uniform vec3 u_occlusion;
+  /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
+  uniform vec3 u_flutter;
+  uniform float u_time;
 
   attribute vec3 a_position;
   attribute vec3 a_normal;
@@ -136,7 +139,13 @@ const VS = `
     // orientation so it opens correctly in any viewer; the swap happens here.
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
-    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
+    vec3 m = a_position;
+    if (u_flutter.x > 0.0) {
+      // A wave running out along the cloth, still at the pole; the heading staggers instances.
+      float along = clamp((m.x - u_flutter.y) / u_flutter.z, 0.0, 1.0);
+      m.z += u_flutter.x * along * sin(u_time * 6.0 - along * 5.0 + a_shape.z * 7.0);
+    }
+    vec3 p = vec3(m.x * a_shape.w, -m.z, m.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
@@ -176,6 +185,24 @@ const FS = `
   precision mediump float;
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
+
+/**
+ * Roles that flutter in the wind, by amplitude as a share of the model's height.
+ * Animated in the vertex shader, so a flapping flag costs a uniform per frame.
+ */
+const FLUTTER: Record<string, number> = { pennant: 0.035 }
+
+function flutterOf(role: string, position: Float32Array): [number, number, number] {
+  const amplitude = FLUTTER[role]
+  if (!amplitude) return [0, 0, 1]
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.length; i += 3) {
+    min = Math.min(min, position[i])
+    max = Math.max(max, position[i])
+  }
+  return [amplitude, min, Math.max(max - min, 1e-4)]
+}
 
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
@@ -312,7 +339,11 @@ type ModelBuffers = {
     colorAlt: [number, number, number]
     /** Model-space y bounds and occlusion strength; see `u_occlusion`. */
     occlusion: [number, number, number]
+    /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
+    flutter: [number, number, number]
   }>
+  /** Whether any part flutters, so the layer keeps frames coming while one is in view. */
+  flutters: boolean
 }
 
 type Batch = {
@@ -434,6 +465,8 @@ export class ObjectLayer {
   renderingMode = '3d' as const
 
   private map: any
+  /** `prefers-reduced-motion`; when it matches, fluttering parts hold still. */
+  private stillness: MediaQueryList | null = null
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private shadowProgram!: WebGLProgram
@@ -499,16 +532,13 @@ export class ObjectLayer {
 
     this.program = link(gl, VS, FS)
     this.uniforms = uniformsOf(gl, this.program,
-      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion'])
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
+    this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
     this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
 
     for (const [name, model] of Object.entries(this.sources)) {
-      this.models.set(name, {
-        cullable: this.solid[name] ?? false,
-        width: modelWidth(model),
-        length: modelLength(model),
-        primitives: model.primitives.map(p => {
+      const primitives = model.primitives.map(p => {
           const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
           return {
             position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
@@ -520,8 +550,15 @@ export class ObjectLayer {
             color,
             colorAlt: this.palette[`${p.material}-alt`] ?? color,
             occlusion: crownOcclusion(p.material, p.position),
+            flutter: flutterOf(p.material, p.position),
           }
-        }),
+        })
+      this.models.set(name, {
+        cullable: this.solid[name] ?? false,
+        width: modelWidth(model),
+        length: modelLength(model),
+        primitives,
+        flutters: primitives.some(p => p.flutter[0] > 0),
       })
     }
 
@@ -873,7 +910,7 @@ export class ObjectLayer {
     gl.cullFace(gl.BACK)
     gl.frontFace(FRONT_FACE === 'cw' ? gl.CW : gl.CCW)
 
-    this.drawObjects(gl, shifted)
+    const fluttering = this.drawObjects(gl, shifted)
 
     for (const loc of Object.values(LOC)) {
       gl.vertexAttribDivisor(loc, 0)
@@ -890,11 +927,19 @@ export class ObjectLayer {
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
         'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace'])
         if (context[key]) context[key].dirty = true
+
+    // A flag flutters only while one is in view: with none, the map stays idle between gestures.
+    if (fluttering) this.map.triggerRepaint?.()
   }
 
-  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
+  /** Whether a frame drew something fluttering inside the viewport; see `render`. */
+  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array): boolean {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
+    const still = this.stillness?.matches ?? false
+    // Wrapped so the float keeps its precision over a long session.
+    gl.uniform1f(this.uniforms.u_time, still ? 0 : (performance.now() / 1000) % 3600)
+    let fluttering = false
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
 
@@ -910,17 +955,37 @@ export class ObjectLayer {
       // danger of fighting itself, since there is no second surface behind it.
       if (model.cullable) gl.enable(gl.CULL_FACE)
       else gl.disable(gl.CULL_FACE)
+      if (model.flutters && !still && !fluttering) fluttering = this.anyInView(batch)
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
+        gl.uniform3fv(this.uniforms.u_flutter, primitive.flutter)
         bindVec3(gl, LOC.a_position, primitive.position)
         bindVec3(gl, LOC.a_normal, primitive.normal)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
+    return fluttering
+  }
+
+  /** Whether any instance of a batch stands inside the current viewport. */
+  private anyInView(batch: Batch): boolean {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return true
+    const corner: Placed = { instance: null as any, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
+    project(bounds.getWest(), bounds.getNorth(), 0, corner)
+    const [x0, y0] = [corner.x, corner.y]
+    project(bounds.getEast(), bounds.getSouth(), 0, corner)
+    const [x1, y1] = [corner.x, corner.y]
+    for (let i = 0; i < batch.count; i++) {
+      const x = batch.offset[i * 3] + this.origin[0]
+      const y = batch.offset[i * 3 + 1] + this.origin[1]
+      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true
+    }
+    return false
   }
 
   /**

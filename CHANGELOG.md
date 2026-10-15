@@ -18,6 +18,7 @@
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Tapping a subway stop inside a large station, like the 4/5/6 at Grand Central, shows every line's departures instead of only a neighbouring platform's.
 
 ## [0.14.0] - 2026-10-09
 

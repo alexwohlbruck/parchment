@@ -8,7 +8,7 @@ import { IntegrationCapabilityId } from '../types/integration.types'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
 import { resolveBarrelmanConfig } from './barrelman.service'
-import { isTransitStop, getGTFSRouteTypesFromTags } from '../lib/transit-utils'
+import { isTransitStop, getGTFSRouteTypesFromTags, isRailStopWithinStation } from '../lib/transit-utils'
 import { getPlaceOsmTags } from '../lib/place-tags'
 import { resolveBoardWindow, shapeBoard } from '../lib/departure-board'
 import { matchTags } from '../lib/osm-presets'
@@ -129,7 +129,8 @@ export function resolveWidgetDescriptors(
     if (center) {
       // The mode the place's own tags claim, so the stop search prefers a stop
       // of that mode over whatever happens to be closest.
-      const routeTypes = getGTFSRouteTypesFromTags(getPlaceOsmTags(place))
+      const tags = getPlaceOsmTags(place)
+      const routeTypes = getGTFSRouteTypesFromTags(tags)
       const stationName = transitInfo?.name || place.name?.value
 
       descriptors.push({
@@ -147,6 +148,7 @@ export function resolveWidgetDescriptors(
           // belong to. Nearest-wins gets it wrong wherever a neighbouring
           // station's platforms sit closer to the node than the station's own.
           ...(stationName ? { name: stationName } : {}),
+          ...(isRailStopWithinStation(tags) ? { complex: '1' } : {}),
           // Keep onestopIds for backwards compatibility with cached data
           ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
         },

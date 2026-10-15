@@ -191,6 +191,7 @@ const FS = `
  * Animated in the vertex shader, so a flapping flag costs a uniform per frame.
  */
 const FLUTTER: Record<string, number> = { pennant: 0.035 }
+const FLUTTER_MIN_PITCH = 30
 
 function flutterOf(role: string, position: Float32Array): [number, number, number] {
   const amplitude = FLUTTER[role]
@@ -936,7 +937,8 @@ export class ObjectLayer {
   private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array): boolean {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
-    const still = this.stillness?.matches ?? false
+    // From overhead a flag is a dot, so it is not worth a frame a vsync.
+    const still = (this.stillness?.matches ?? false) || (this.map.getPitch?.() ?? 90) < FLUTTER_MIN_PITCH
     // Wrapped so the float keeps its precision over a long session.
     gl.uniform1f(this.uniforms.u_time, still ? 0 : (performance.now() / 1000) % 3600)
     let fluttering = false

@@ -33,6 +33,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
+import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -112,6 +113,9 @@ const VS = `
   uniform vec3 u_color_alt;
   /** Model-space y of the part's bottom and top, and how much darker its bottom is. */
   uniform vec3 u_occlusion;
+  /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
+  uniform vec3 u_flutter;
+  uniform float u_time;
 
   attribute vec3 a_position;
   attribute vec3 a_normal;
@@ -136,7 +140,13 @@ const VS = `
     // orientation so it opens correctly in any viewer; the swap happens here.
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
-    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
+    vec3 m = a_position;
+    if (u_flutter.x > 0.0) {
+      // A wave running out along the cloth, still at the pole; the heading staggers instances.
+      float along = clamp((m.x - u_flutter.y) / u_flutter.z, 0.0, 1.0);
+      m.z += u_flutter.x * along * sin(u_time * 6.0 - along * 5.0 + a_shape.z * 7.0);
+    }
+    vec3 p = vec3(m.x * a_shape.w, -m.z, m.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
@@ -176,6 +186,30 @@ const FS = `
   precision mediump float;
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
+
+/**
+ * Roles that flutter in the wind, by amplitude as a share of the model's height.
+ * The wave is in the vertex shader; it runs for `FLUTTER_MS` once the map
+ * settles, then holds still so the map goes idle again.
+ */
+const FLUTTER: Record<string, number> = { pennant: 0.035 }
+const FLUTTER_MS = 8000
+const FLUTTER_FADE_IN_MS = 600
+const FLUTTER_FADE_OUT_MS = 1500
+/** A whole number of the shader's `sin(6t)` periods, so wrapping the clock never jumps. */
+const FLUTTER_CLOCK_WRAP = 1200 * Math.PI
+
+function flutterOf(role: string, position: Float32Array, far: boolean): [number, number, number] {
+  const amplitude = far ? 0 : FLUTTER[role]
+  if (!amplitude) return [0, 0, 1]
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.length; i += 3) {
+    min = Math.min(min, position[i])
+    max = Math.max(max, position[i])
+  }
+  return [amplitude, min, Math.max(max - min, 1e-4)]
+}
 
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
@@ -292,7 +326,12 @@ export type ObjectSourceSpec = {
   followsView?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
+  /** Whether an instance may stand on a bridge deck: `along` one it runs with, as a wire does, or at a `point` on one. */
+  deck?: (instance: ObjectInstance) => 'along' | 'point' | null
 }
+
+/** The height a deck gives an object at a point, in the terrain's metres; `along` is a linear object's direction, east and south. Null for the ground. */
+export type StandOn = (lng: number, lat: number, along?: [number, number]) => number | null
 
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
@@ -312,7 +351,11 @@ type ModelBuffers = {
     colorAlt: [number, number, number]
     /** Model-space y bounds and occlusion strength; see `u_occlusion`. */
     occlusion: [number, number, number]
+    /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
+    flutter: [number, number, number]
   }>
+  /** Whether any part flutters, so a flag in view can start a flutter; see `startFlutter`. */
+  flutters: boolean
 }
 
 type Batch = {
@@ -434,6 +477,16 @@ export class ObjectLayer {
   renderingMode = '3d' as const
 
   private map: any
+  /** `prefers-reduced-motion`; when it matches, fluttering parts hold still. */
+  private stillness: MediaQueryList | null = null
+  /** When the current flutter ends; 0 when none is running. */
+  private flutterUntil = 0
+  /** Cleared when a flutter starts and set again by a camera move, so one settle flutters once. */
+  private flutterArmed = true
+  private onIdle?: () => void
+  private onMoveStart?: () => void
+  private flutterTimer = 0
+  private onStillness = () => this.stopFlutter()
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private shadowProgram!: WebGLProgram
@@ -461,10 +514,18 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean> } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn } = {},
   ) {
     this.id = options.id ?? 'map-objects'
     this.solid = options.solid ?? {}
+    this.standOn = options.standOn
+  }
+
+  private standOn?: StandOn
+
+  /** Place everything again, as when what it stands on has changed. */
+  refresh() {
+    if (this.map) this.invalidate(true)
   }
 
   /**
@@ -499,16 +560,14 @@ export class ObjectLayer {
 
     this.program = link(gl, VS, FS)
     this.uniforms = uniformsOf(gl, this.program,
-      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion'])
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
+    this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+    this.stillness?.addEventListener('change', this.onStillness)
     this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
     this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
 
     for (const [name, model] of Object.entries(this.sources)) {
-      this.models.set(name, {
-        cullable: this.solid[name] ?? false,
-        width: modelWidth(model),
-        length: modelLength(model),
-        primitives: model.primitives.map(p => {
+      const primitives = model.primitives.map(p => {
           const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
           return {
             position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
@@ -520,8 +579,15 @@ export class ObjectLayer {
             color,
             colorAlt: this.palette[`${p.material}-alt`] ?? color,
             occlusion: crownOcclusion(p.material, p.position),
+            flutter: flutterOf(p.material, p.position, name.endsWith(FAR_SUFFIX)),
           }
-        }),
+        })
+      this.models.set(name, {
+        cullable: this.solid[name] ?? false,
+        width: modelWidth(model),
+        length: modelLength(model),
+        primitives,
+        flutters: primitives.some(p => p.flutter[0] > 0),
       })
     }
 
@@ -543,6 +609,13 @@ export class ObjectLayer {
     this.onMoveEnd = () => this.invalidate(followsView || this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
     map.on('moveend', this.onMoveEnd)
+    this.onMoveStart = () => {
+      this.flutterArmed = true
+      this.stopFlutter()
+    }
+    this.onIdle = () => this.startFlutter()
+    map.on('movestart', this.onMoveStart)
+    map.on('idle', this.onIdle)
     // The tiles are usually already loaded when the layer is added — turning
     // the setting on mid-session is the common case — and neither event would
     // fire again on their own.
@@ -604,7 +677,17 @@ export class ObjectLayer {
     if (!steps || !this.map) return
     const until = performance.now() + (this.map.isMoving?.() ? SLICE : RESTING_SLICE)
     while (performance.now() < until) {
-      if (!steps.next().done) continue
+      let done: boolean | undefined
+      try {
+        done = steps.next().done
+      } catch {
+        // `queryTerrainElevation` throws for a point whose DEM tile has not loaded
+        // yet. Drop this gather and try again, rather than leave it stuck forever.
+        this.gathering = null
+        this.invalidate(true)
+        return
+      }
+      if (!done) continue
       this.gathering = null
       this.arrange()
       this.map.triggerRepaint?.()
@@ -621,14 +704,26 @@ export class ObjectLayer {
     return buffer
   }
 
-  onRemove(map: any, gl: WebGL2RenderingContext) {
+  /**
+   * Stop listening and animating. `onRemove` does it, but a full `setStyle`
+   * drops a custom layer without calling `onRemove`, so the owner calls this then.
+   */
+  detach(map: any) {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
+    if (this.onMoveStart) map.off('movestart', this.onMoveStart)
+    if (this.onIdle) map.off('idle', this.onIdle)
+    this.stillness?.removeEventListener('change', this.onStillness)
+    this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
     this.scheduled = 0
     this.gathering = null
     this.map = null
+  }
+
+  onRemove(map: any, gl: WebGL2RenderingContext) {
+    this.detach(map)
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.shadowProgram)
     for (const model of this.models.values())
@@ -730,15 +825,20 @@ export class ObjectLayer {
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
         project(lng, lat, 0, placed)
+        const onDeck = terrain && this.standOn ? spec.deck?.(instance) : null
+        const along: [number, number] | undefined = onDeck === 'along' ? [Math.cos(instance.heading), Math.sin(instance.heading)] : undefined
+        const deckAt = (lng: number, lat: number) => (onDeck ? this.standOn!(lng, lat, along) : null)
         if (terrain && instance.conform && instance.length) {
           const { x, y, perMetre } = placed
           const across = instance.conform === true ? 0 : instance.conform.across
-          const plane = groundPlane(instance.heading, instance.length, across,
-            (east, south) => heightAt(...unproject(x + east * perMetre, y + south * perMetre)))
+          const plane = groundPlane(instance.heading, instance.length, across, (east, south) => {
+            const at = unproject(x + east * perMetre, y + south * perMetre)
+            return deckAt(...at) ?? heightAt(...at)
+          })
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy
-        } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        } else if (terrain) placed.z = (deckAt(lng, lat) ?? terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
         if (instance.rise && instance.length) {
           const run = instance.rise / instance.length
           placed.gx += run * Math.cos(instance.heading)
@@ -880,11 +980,16 @@ export class ObjectLayer {
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
         'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace'])
         if (context[key]) context[key].dirty = true
+
+    if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
   }
 
   private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
+    const now = performance.now()
+    gl.uniform1f(this.uniforms.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
+    const gain = this.flutterGain(now)
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
 
@@ -905,12 +1010,68 @@ export class ObjectLayer {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
+        const [amplitude, held, run] = primitive.flutter
+        gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
         bindVec3(gl, LOC.a_position, primitive.position)
         bindVec3(gl, LOC.a_normal, primitive.normal)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
+  }
+
+  /** The flutter's strength now: eased in as it starts and out before it stops, 0 between. */
+  private flutterGain(now: number): number {
+    if (!this.flutterUntil) return 0
+    const rise = (now - (this.flutterUntil - FLUTTER_MS)) / FLUTTER_FADE_IN_MS
+    const fall = (this.flutterUntil - now) / FLUTTER_FADE_OUT_MS
+    const t = Math.max(0, Math.min(1, rise, fall))
+    return t * t * (3 - 2 * t)
+  }
+
+  /**
+   * Flutter for a while after the map settles, if a fluttering object is in view.
+   *
+   * `map.repaint` keeps frames coming without the map firing `idle` on each
+   * one, which a custom layer's own `triggerRepaint` would; everything waiting
+   * on idle has already had it, since this starts from one.
+   */
+  private startFlutter() {
+    if (!this.flutterArmed || !this.map) return
+    if (this.stillness?.matches || (this.map.getPitch?.() ?? 0) < FLUTTER_MIN_PITCH) return
+    if (!this.flutteringInView()) return
+    this.flutterArmed = false
+    this.flutterUntil = performance.now() + FLUTTER_MS
+    this.map.repaint = true
+    // Ends it even if no frame gets there, say when every batch has gone.
+    this.flutterTimer = setTimeout(() => this.stopFlutter(), FLUTTER_MS + 100) as unknown as number
+  }
+
+  private stopFlutter() {
+    if (!this.flutterUntil) return
+    this.flutterUntil = 0
+    clearTimeout(this.flutterTimer)
+    if (this.map) this.map.repaint = false
+  }
+
+  /** Whether any fluttering object stands inside the current viewport. */
+  private flutteringInView(): boolean {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return false
+    const corner: Placed = { instance: null as any, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
+    project(bounds.getWest(), bounds.getNorth(), 0, corner)
+    const [x0, y0] = [corner.x, corner.y]
+    project(bounds.getEast(), bounds.getSouth(), 0, corner)
+    const [x1, y1] = [corner.x, corner.y]
+    for (const batch of this.batches) {
+      if (!this.models.get(batch.model)?.flutters) continue
+      for (let i = 0; i < batch.count; i++) {
+        const x = batch.offset[i * 3] + this.origin[0]
+        const y = batch.offset[i * 3 + 1] + this.origin[1]
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true
+      }
+    }
+    return false
   }
 
   /**

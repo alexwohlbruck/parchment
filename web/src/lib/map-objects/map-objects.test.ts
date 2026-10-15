@@ -18,13 +18,14 @@ import { measure } from './tile-lines'
 import { CONDUCTORS, POWER_MODELS } from './power'
 import { AREA_MODELS, areaObject } from './areas'
 import { SOLAR_MODELS } from './solar'
+import { GOLF_MODELS } from './golf'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
 /** The roles a crown is made of. */
 const CANOPY = new Set(['foliage', 'blossom'])
 

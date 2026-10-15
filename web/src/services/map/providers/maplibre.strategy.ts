@@ -87,6 +87,9 @@ import {
 } from '@/lib/map-style/barrelman-buildings'
 import {
   OBJECT_FLAT_LAYERS,
+  GOLF_PIN_LAYER,
+  golfPinOpacity,
+  golfFlagStanding,
   TREE_OPACITY,
   DETAIL_TILES,
   BUILDING_3D_TILES,
@@ -94,6 +97,7 @@ import {
   LANDMARK_TILES,
   DETAIL_SOURCE,
   BRIDGE_DECK_TILES,
+  OBJECT_LINE_TILES,
   WOOD_LAYER,
   forestFloorColor,
   woodColorOf,
@@ -423,6 +427,7 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    this.mapInstance.on('pitch', () => this.updateGolfPins())
     // The plan view's clip planes are scaled by a camera distance that moves
     // with the viewport height, so a resize has to recompute them.
     this.mapInstance.on('resize', () => this.updateCameraProjection())
@@ -459,7 +464,10 @@ export class MaplibreStrategy extends MapStrategy {
       // A style swap drops custom layers with it, and rebuilds the flat form's
       // visibility from the stylesheet. A dropped layer must stop casting too:
       // its buffers went with the old style.
-      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
+      if (this.objectLayer) {
+        shadowCasters.delete(this.objectLayer)
+        this.objectLayer.detach(this.mapInstance)
+      }
       this.objectLayer = null
       void this.applyMapObjects()
       // The new style has its own building filters and no landmark layer.
@@ -660,7 +668,7 @@ export class MaplibreStrategy extends MapStrategy {
 
 
   setPoiLabels(value: boolean) {
-    this.setLayerGroupVisibility('poi', layerGroups.poi, value)
+    this.setLayerGroupVisibility('poi', [...layerGroups.poi, ...layerGroups.detailLabels], value)
   }
 
   setRoadLabels(value: boolean) {
@@ -843,6 +851,19 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyDecks()
   }
 
+  private golfPinsStanding: boolean | null = null
+
+  /** Hands the flat pin over to the 3D flagstick, only when pitched enough for it to read. */
+  private updateGolfPins(force = false) {
+    const map = this.mapInstance
+    const standing = golfFlagStanding(this.map3dObjects, map.getPitch())
+    if (!force && standing === this.golfPinsStanding) return
+    this.golfPinsStanding = standing
+    if (map.getLayer(GOLF_PIN_LAYER)) {
+      map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(standing))
+    }
+  }
+
   private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
@@ -856,6 +877,7 @@ export class MaplibreStrategy extends MapStrategy {
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
       }
+      this.updateGolfPins(true)
       if (map.getLayer(WOOD_LAYER)) {
         const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))
         const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
@@ -904,6 +926,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
+      standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides
@@ -937,7 +960,7 @@ export class MaplibreStrategy extends MapStrategy {
     const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
@@ -945,10 +968,12 @@ export class MaplibreStrategy extends MapStrategy {
     }
     if (active && !this.deckLayer) {
       this.deckLayer = new DeckLayer(
-        { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes },
+        { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, hd: () => !!this.builtHdRoads },
         DECK_PALETTE[flavor],
       )
-      map.addLayer(this.deckLayer as any, firstLabelLayer(map))
+      this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
+      // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
+      map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
     } else if (!active && this.deckLayer) {
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null

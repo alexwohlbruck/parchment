@@ -28,7 +28,7 @@
  "railway_tunnel_line_color": "hsl(0,0%,73%)",
  "footway_tunnel_outline_line_color": "hsl(0,0%,100%)",
  "footway_tunnel_line_color": "hsl(0,0%,63%)",
- "pier_fill_color": "hsl(44, 44%, 94%)",
+ "pier_fill_color": "hsl(40, 20%, 90.5%)",
  "bridge_outline_line_color": "hsl(44, 44%, 94%)",
  "major_rail_line_color": "hsl(0,0%,72%)",
  "major_rail_line_color_2": "hsl(0,0%,70%)",

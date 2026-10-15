@@ -29,6 +29,7 @@ import { rideshareService } from './rideshare.service'
 import { searchByCategory } from './search.service'
 import { logError, logWarn } from '../lib/logger'
 import { TransitPriority } from '../lib/transit/transit-gate'
+import { routeTypeForMotisMode } from '../lib/transit/motis-mode'
 
 /**
  * Simplified multimodal trip planning service
@@ -622,6 +623,7 @@ export class TripService {
     )
     survivor.segments = survivor.segments.map((seg, idx) => {
       if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
+      if (!TripService.offersRouteOptions(seg.details.transitDetails.route.type)) return seg
       const byKey = new Map<string, TransitRoute>()
       // Dedupe by shortName, NOT id: the GTFS-derived set carries raw route ids
       // ("2") while a MOTIS leg's route id is feed-prefixed ("5_2"), so keying
@@ -652,6 +654,14 @@ export class TripService {
       }
     })
     return survivor
+  }
+
+  /**
+   * Commuter rail branches share a trunk but not a destination, and their
+   * short names are train numbers, so a rail leg names the one train boarded.
+   */
+  private static offersRouteOptions(type: TransitRouteType | undefined): boolean {
+    return type !== 'rail'
   }
 
   /**
@@ -3969,7 +3979,7 @@ export class TripService {
       }),
     )
 
-    const routeType = this.mapMotisMode(leg.mode)
+    const routeType = routeTypeForMotisMode(leg.mode)
 
     const transitDetails: TransitDetails = {
       route: {
@@ -4003,9 +4013,9 @@ export class TripService {
     // MOTIS's time-optimal search only surfaced one of them. Applied to every
     // transit leg so an un-merged single trip still advertises its alternates.
     const interchange: any[] = Array.isArray(leg.interchangeableRoutes)
-      ? leg.interchangeableRoutes
+      ? leg.interchangeableRoutes.filter((r: any) => r.shortName)
       : []
-    if (interchange.length > 1) {
+    if (interchange.length > 1 && TripService.offersRouteOptions(routeType)) {
       transitDetails.routeOptions = interchange
         .map((r) => ({
           id: r.routeId || '',
@@ -4069,23 +4079,6 @@ export class TripService {
       instructions: [],
       co2: distance * TripService.CO2_PER_METER.transit,
       details: { transitDetails },
-    }
-  }
-
-  /**
-   * Map MOTIS mode strings to our TransitRouteType enum.
-   */
-  private mapMotisMode(mode: string): TransitRouteType {
-    switch (mode) {
-      case 'TRAM': return 'tram' as TransitRouteType
-      case 'SUBWAY': return 'subway' as TransitRouteType
-      case 'RAIL': return 'rail' as TransitRouteType
-      case 'BUS': return 'bus' as TransitRouteType
-      case 'FERRY': return 'ferry' as TransitRouteType
-      case 'CABLE_CAR': return 'cable_car' as TransitRouteType
-      case 'GONDOLA': return 'gondola' as TransitRouteType
-      case 'FUNICULAR': return 'funicular' as TransitRouteType
-      default: return 'bus' as TransitRouteType
     }
   }
 

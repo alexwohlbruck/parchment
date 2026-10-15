@@ -285,36 +285,6 @@ describe('TripService — mode generation', () => {
 
 
 describe('TripService — buildTransitSegment', () => {
-  test('maps MOTIS BUS mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('BUS')
-    expect(mode).toBe('bus')
-  })
-
-  test('maps MOTIS RAIL mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('RAIL')
-    expect(mode).toBe('rail')
-  })
-
-  test('maps MOTIS SUBWAY mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('SUBWAY')
-    expect(mode).toBe('subway')
-  })
-
-  test('maps MOTIS TRAM mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('TRAM')
-    expect(mode).toBe('tram')
-  })
-
-  test('maps MOTIS FERRY mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('FERRY')
-    expect(mode).toBe('ferry')
-  })
-
-  test('maps unknown MOTIS mode to bus', () => {
-    const mode = (tripService as any).mapMotisMode('UNKNOWN_MODE')
-    expect(mode).toBe('bus')
-  })
-
   test('builds transit segment with CO2 estimate', () => {
     const leg = {
       mode: 'BUS',

@@ -3024,7 +3024,7 @@ describe('TripService — in-station transfers', () => {
 
 describe('TripService — applyDurationDominance', () => {
   const cand = (durationSec: number, overall: number) => ({
-    trip: { tripStats: { totalDuration: durationSec } },
+    trip: { segments: [], tripStats: { totalDuration: durationSec } },
     score: { overall },
   })
 
@@ -3053,11 +3053,24 @@ describe('TripService — applyDurationDominance', () => {
     expect(only.score.overall).toBe(0.5)
   })
 
+  test('a street transfer ranks behind an in-system trip a few minutes slower', () => {
+    const ref = '2026-06-12T16:00:00Z'
+    const trip = (durMin: number, streetTransfer = false) => ({
+      segments: [{ mode: 'walking', streetTransfer }],
+      tripStats: { totalDuration: durMin * 60 },
+      latestEndTime: new Date(new Date(ref).getTime() + durMin * 60000).toISOString(),
+    })
+    const outside = (tripService as any).scoreTime(trip(30, true), ref)
+    const inside = (tripService as any).scoreTime(trip(36), ref)
+    expect(inside).toBeGreaterThan(outside)
+  })
+
   test('cost counts as time: paid last-mile loses to free walking', () => {
     // Same transit spine; one ends with a $7.86 shared bike saving 5 min.
     // Generalized: 50min + 7.86*200s ≈ 76min vs 55min — walking wins.
     const ref = '2026-06-12T16:00:00Z'
     const trip = (durMin: number, cost?: number) => ({
+      segments: [],
       tripStats: { totalDuration: durMin * 60, totalCost: cost ? { value: cost, currency: 'USD' } : undefined },
       latestEndTime: new Date(new Date(ref).getTime() + durMin * 60000).toISOString(),
     })

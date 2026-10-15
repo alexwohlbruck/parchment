@@ -37,6 +37,7 @@ import {
   servedRouteOptions,
   type StopBoard,
 } from '../lib/transit/route-options'
+import { dropAvoidableStreetTransfers, transferChecks } from '../lib/transit/street-transfer'
 
 /**
  * Simplified multimodal trip planning service
@@ -2157,6 +2158,45 @@ export class TripService {
    * Rideshare combinations are derived from the walk-access results since
    * rideshare isn't a MOTIS-routable mode.
    */
+  /** What leaving the paid area costs a transfer, as time: a second fare
+   *  at the value of time plus finding the other station's entrance. */
+  private static readonly STREET_TRANSFER_PENALTY_SEC = 600
+
+  /** Lines reachable in-system from a station; static GTFS, cached for the process. */
+  private inSystemRouteCache = new Map<string, Promise<Set<string> | null>>()
+  private static readonly IN_SYSTEM_ROUTE_CACHE_MAX = 2000
+
+  private inSystemRoutes(feedId: string, stopId: string): Promise<Set<string> | null> {
+    const key = `${feedId}|${stopId}`
+    let hit = this.inSystemRouteCache.get(key)
+    if (!hit) {
+      hit = transitRoutingService.getRoutesForStop(feedId, stopId)
+        .then((routes) => new Set(
+          routes.filter((r) => r.via !== 'nearby').map((r) => r.routeId),
+        ))
+        .catch(() => null)
+      this.inSystemRouteCache.set(key, hit)
+      hit.then((routes) => { if (!routes) this.inSystemRouteCache.delete(key) })
+      if (this.inSystemRouteCache.size > TripService.IN_SYSTEM_ROUTE_CACHE_MAX) {
+        const oldest = this.inSystemRouteCache.keys().next().value
+        if (oldest) this.inSystemRouteCache.delete(oldest)
+      }
+    }
+    return hit
+  }
+
+  /** Mark transfer walks that leave the paid area. Unknown counts as inside. */
+  private async flagStreetTransfers(trips: TripResponse[]): Promise<void> {
+    await Promise.all(trips.flatMap((trip) =>
+      transferChecks(trip.segments).map(async (check) => {
+        const reachable = await this.inSystemRoutes(check.feedId, check.alightStopId)
+        if (reachable?.size && !reachable.has(check.boardRouteId)) {
+          trip.segments[check.walkIndex].streetTransfer = true
+        }
+      }),
+    ))
+  }
+
   /** Barrelman's ceiling on itineraries per transit query. */
   private static readonly WALK_QUERY_ITINERARIES = 10
 
@@ -2372,7 +2412,12 @@ export class TripService {
       extraPromise,
     ])
 
-    const transitTrips = adapted.filter((t): t is TripResponse => t !== null)
+    const adaptedTrips = adapted.filter((t): t is TripResponse => t !== null)
+    await this.flagStreetTransfers(adaptedTrips)
+    const transitTrips = dropAvoidableStreetTransfers(
+      adaptedTrips,
+      TripService.STREET_TRANSFER_PENALTY_SEC * 1000,
+    )
 
     let rideshareTrips: TripResponse[] = []
     if (rideshareService.isRideshareAvailable() && needs.rideshare) {
@@ -4520,10 +4565,16 @@ export class TripService {
    * ("faster" and "only ~$8") look acceptable in isolation.
    */
   private generalizedDurationSec(trip: TripResponse): number {
-    const costPenalty =
-      (trip.tripStats.totalCost?.value ?? 0) *
-      TripService.VALUE_OF_TIME_SEC_PER_DOLLAR
-    return trip.tripStats.totalDuration + costPenalty
+    return trip.tripStats.totalDuration + TripService.costPenaltySec(trip)
+  }
+
+  /** Money, and the extra fare a street transfer implies, as equivalent seconds. */
+  private static costPenaltySec(trip: TripResponse): number {
+    const streetTransfers = trip.segments.filter((s) => s.streetTransfer).length
+    return (
+      (trip.tripStats.totalCost?.value ?? 0) * TripService.VALUE_OF_TIME_SEC_PER_DOLLAR +
+      streetTransfers * TripService.STREET_TRANSFER_PENALTY_SEC
+    )
   }
 
   private scoreTime(trip: TripResponse, referenceTime: string): number {
@@ -4537,8 +4588,7 @@ export class TripService {
     // Monetary cost is added as equivalent time (generalized cost).
     const effective =
       Math.max(arrivalOffset, trip.tripStats.totalDuration) +
-      (trip.tripStats.totalCost?.value ?? 0) *
-        TripService.VALUE_OF_TIME_SEC_PER_DOLLAR
+      TripService.costPenaltySec(trip)
     if (effective <= 0) return 1
 
     // Ratio-preserving: trips ≤10 min all score 1.0. Longer trips scale

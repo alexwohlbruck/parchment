@@ -454,6 +454,8 @@ export interface StopRouteResult {
   routeColor: string | null
   routeTextColor: string | null
   agencyName: string | null
+  /** `station` calls here; `transfer` is reached in-system via transfers.txt. */
+  via?: 'station' | 'transfer' | 'nearby'
 }
 
 export interface WeatherData {

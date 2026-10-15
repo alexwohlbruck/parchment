@@ -292,7 +292,16 @@ export type ObjectSourceSpec = {
   followsView?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
+  /**
+   * Whether an instance may stand on a bridge deck rather than the ground
+   * under it: `along` a deck it runs with (a span of overhead wire), or at a
+   * `point` on one. Null keeps it on the ground.
+   */
+  deck?: (instance: ObjectInstance) => 'along' | 'point' | null
 }
+
+/** The height a deck gives an object at a point, in the terrain's metres; `along` is a linear object's direction, east and south. Null for the ground. */
+export type StandOn = (lng: number, lat: number, along?: [number, number]) => number | null
 
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
@@ -461,10 +470,18 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean> } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn } = {},
   ) {
     this.id = options.id ?? 'map-objects'
     this.solid = options.solid ?? {}
+    this.standOn = options.standOn
+  }
+
+  private standOn?: StandOn
+
+  /** Place everything again, as when what it stands on has changed. */
+  refresh() {
+    if (this.map) this.invalidate(true)
   }
 
   /**
@@ -730,15 +747,20 @@ export class ObjectLayer {
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
         project(lng, lat, 0, placed)
+        const onDeck = terrain && this.standOn ? spec.deck?.(instance) : null
+        const along: [number, number] | undefined = onDeck === 'along' ? [Math.cos(instance.heading), Math.sin(instance.heading)] : undefined
+        const deckAt = (lng: number, lat: number) => (onDeck ? this.standOn!(lng, lat, along) : null)
         if (terrain && instance.conform && instance.length) {
           const { x, y, perMetre } = placed
           const across = instance.conform === true ? 0 : instance.conform.across
-          const plane = groundPlane(instance.heading, instance.length, across,
-            (east, south) => heightAt(...unproject(x + east * perMetre, y + south * perMetre)))
+          const plane = groundPlane(instance.heading, instance.length, across, (east, south) => {
+            const at = unproject(x + east * perMetre, y + south * perMetre)
+            return deckAt(...at) ?? heightAt(...at)
+          })
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy
-        } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        } else if (terrain) placed.z = (deckAt(lng, lat) ?? terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
         if (instance.rise && instance.length) {
           const run = instance.rise / instance.length
           placed.gx += run * Math.cos(instance.heading)

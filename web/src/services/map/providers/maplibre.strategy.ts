@@ -903,6 +903,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
+      standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides
@@ -942,9 +943,10 @@ export class MaplibreStrategy extends MapStrategy {
     }
     if (active && !this.deckLayer) {
       this.deckLayer = new DeckLayer(
-        { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes },
+        { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, hd: () => !!this.builtHdRoads },
         DECK_PALETTE[flavor],
       )
+      this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
       map.addLayer(this.deckLayer as any, firstLabelLayer(map))
     } else if (!active && this.deckLayer) {
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)

@@ -114,6 +114,9 @@ export function lineInstance(kind: string, tagHeight: unknown, p: Placement): Ob
   }
 }
 
+/** What runs along a bridge with it: its overhead wire and masts, and the rails and fences at its edges. */
+const ON_DECKS = new Set<string>(['catenary-mast', 'catenary-wires', 'guard-rail-span', 'fence-span', 'fence-post'])
+
 const current = new WeakMap<object, Placement[]>()
 
 let power = new Map<string, PowerPlacement[]>()
@@ -146,6 +149,7 @@ export const LINE_OBJECTS: ObjectSourceSpec = {
   distinct: false,
   budget: 8000,
   prepare: map => { power = powerNetwork(powerIn(map)) },
+  deck: instance => (ON_DECKS.has(instance.model) ? 'along' : null),
   positions: feature => placementsOf(feature).map(p => [p.lng, p.lat] as [number, number]),
   toInstance(feature, _lng, _lat, index) {
     const p = placementsOf(feature)[index]

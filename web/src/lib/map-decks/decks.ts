@@ -203,7 +203,8 @@ export function chains(pieces: Piece[], cut: (p: Point) => boolean, tolerance: n
         else if (near(tail, last, tolerance)) points = [...chain.points, ...[...other.points].reverse().slice(1)]
         else if (near(head, last, tolerance)) points = [...other.points, ...chain.points.slice(1)]
         else if (near(head, first, tolerance)) points = [...[...other.points].reverse(), ...chain.points.slice(1)]
-        if (points) {
+        const at = points && (points[chain.points.length - 1] === chain.points[chain.points.length - 1] ? chain.points.length - 1 : other.points.length - 1)
+        if (points && !folds(points, at!)) {
           chain.points = points
           chain.width = Math.max(chain.width, other.width)
           open.splice(i, 1)
@@ -237,6 +238,13 @@ export function chains(pieces: Piece[], cut: (p: Point) => boolean, tolerance: n
     const [a, b] = ends.map(p => !cut(p) && !elsewhere(p, id))
     return { ...c, grounded: [a, b] as [boolean, boolean], edges: [c.width / 2, c.width / 2] as [number, number] }
   })
+}
+
+/** Whether two lines joined at `points[at]` turn back on each other there, as a carriageway and its slip road do at a gore. */
+function folds(points: Point[], at: number): boolean {
+  const [a, b, c] = [points[at - 1], points[at], points[at + 1]]
+  if (!a || !c) return false
+  return (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]) < 0
 }
 
 /** Farthest a kerb or sidewalk may lie from a deck's centreline and still be part of it, in metres. */
@@ -315,6 +323,18 @@ export function absorbPaths(decks: Chain[]): Chain[] {
   }
   return [...roads, ...kept]
 }
+
+/** Tracks laid in a road bridge's carriageway (a street-running tram), dropped as decks of their own: they are drawn on the road's. */
+export function absorbTracks(decks: Chain[]): Chain[] {
+  const roads = decks.filter(d => d.kind === 'road')
+  return decks.filter(track => track.kind !== 'rail' || !roads.some(road => road.layer === track.layer && track.points.every(q => {
+    const near = beside(road.points, q)
+    return near.distance <= (near.alongside ? road.edges[near.left ? 0 : 1] : RUN_PAST)
+  })))
+}
+
+/** Farthest a track folded into a road may run on past the road's end, in metres. */
+export const RUN_PAST = 3
 
 /** Whether a point lies on the edge of a box, within `tolerance`. */
 export function onEdge(p: Point, b: Bounds, tolerance: number): boolean {
@@ -525,7 +545,7 @@ export function smooth(z: number[], d: number[], ground: number[], span = VERTIC
 /**
  * Decks that run side by side as one: where a deck's edge meets another's
  * within `gap` metres and at about its height, both take the higher height
- * there and lose the parapet between them. Heights are updated in place,
+ * there and lose the parapet between them. Track joins track, and road or path the others. Heights are updated in place,
  * except a `fixed` deck's, whose were joined where they were solved.
  */
 export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?: boolean }>, gap = 1.5, step = 1.5): Sides[] {
@@ -534,7 +554,7 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
   const indexes = decks.map(({ chain }) => segmentIndex(chain.points))
   for (const [a, A] of decks.entries())
     for (const [b, B] of decks.entries()) {
-      if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail' || !meets(bounds[a], bounds[b])) continue
+      if (a === b || (A.chain.kind === 'rail') !== (B.chain.kind === 'rail') || !meets(bounds[a], bounds[b])) continue
       // Farthest a point of one may lie from the other and still meet it.
       const reach = Math.max(...A.chain.edges) + Math.max(...B.chain.edges) + gap
       A.chain.points.forEach((p, i) => {
@@ -558,9 +578,37 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
   return open
 }
 
-export type Mesh = { position: number[]; normal: number[]; color: number[] }
+/**
+ * Triangles for the GPU. Where `low` and `bias` are kept, every vertex has
+ * them: its colour below street zoom, and metres it is drawn toward the eye.
+ */
+export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[] }
 
-export type DeckColors = { surface: number[]; concrete: number[]; parapet: number[] }
+/** A mesh that keeps low colours and biases. */
+export const deckMeshOut = (): Required<Mesh> => ({ position: [], normal: [], color: [], low: [], bias: [] })
+
+/** One vertex onto a mesh, with its low colour and bias where the mesh keeps them. */
+export function vertex(out: Mesh, p: ArrayLike<number>, n: ArrayLike<number>, color: ArrayLike<number>, low: ArrayLike<number> = color, bias = 0) {
+  out.position.push(p[0], p[1], p[2])
+  out.normal.push(n[0], n[1], n[2])
+  out.color.push(color[0], color[1], color[2])
+  out.low?.push(low[0], low[1], low[2])
+  out.bias?.push(bias)
+}
+
+/**
+ * How far toward the eye a deck's surface is drawn where it lies on the
+ * ground (metres), fading to none `fade` metres up. The terrain is drawn from
+ * coarser samples than the deck was solved on, and a road crowns and falls
+ * across its width; without it the ground shows through a deck's ends in tatters.
+ */
+export const TOUCHDOWN = { bias: 1.5, fade: 3 }
+
+/** The bias for a surface `height` metres over the ground. */
+export const touchdown = (height: number) => TOUCHDOWN.bias * Math.max(0, Math.min(1, 1 - height / TOUCHDOWN.fade))
+
+/** A deck's colours: `low` is its surface's below street zoom, where roads are drawn in the basemap's colours. */
+export type DeckColors = { surface: number[]; concrete: number[]; parapet: number[]; low?: number[] }
 
 /**
  * The triangles of one solved chain, in mercator units relative to `origin`,
@@ -628,20 +676,17 @@ export function deckMesh(
   const lefts = capped('left', caps[0], caps[2])
   const rights = capped('right', caps[1], caps[3])
   const h = (m: number) => m * scale
-  const push = (a: number[], b: number[], c: number[], color: number[]) => {
+  const push = (a: number[], b: number[], c: number[], color: number[], low = color, bias: number[] = [0, 0, 0]) => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
     const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
     const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
     const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
-    for (const p of [a, b, c]) {
-      out.position.push(p[0], p[1], p[2])
-      out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
-      out.color.push(color[0], color[1], color[2])
-    }
+    const normal = [nn[0] / l, nn[1] / l, nn[2] / l]
+    ;[a, b, c].forEach((p, k) => vertex(out, p, normal, color, low, bias[k]))
   }
-  const quad = (a: number[], b: number[], c: number[], d: number[], color: number[]) => {
-    push(a, b, c, color)
-    push(a, c, d, color)
+  const quad = (a: number[], b: number[], c: number[], d: number[], color: number[], low = color, bias = [0, 0, 0, 0]) => {
+    push(a, b, c, color, low, [bias[0], bias[1], bias[2]])
+    push(a, c, d, color, low, [bias[0], bias[2], bias[3]])
   }
   const at = (p: Point, metres: number) => [p[0], p[1], h(metres)]
   /** A side's point `by` metres in toward the other side. */
@@ -652,7 +697,8 @@ export function deckMesh(
   }
   for (let i = 1; i < n; i++) {
     const [l0, l1, r0, r1] = [lefts[i - 1], lefts[i], rights[i - 1], rights[i]]
-    quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface)
+    const [b0, b1] = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i])]
+    quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
     // Where the deck runs at the ground it is just road: no slab or parapets.
     if (z[i - 1] - groundAt[i - 1] < BOX_MIN && z[i] - groundAt[i] < BOX_MIN) continue
     quad(at(r0.p, r0.z), at(r0.p, r0.z - SLAB), at(r1.p, r1.z - SLAB), at(r1.p, r1.z), colors.concrete)
@@ -769,10 +815,11 @@ export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain:
   return { chain: { ...chain, points: out.points, ...(chain.sides ? { sides: out.sides } : {}) }, z: out.z, groundAt: out.groundAt }
 }
 
-export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds }
+/** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[] }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
-type Hit = { deck: number; distance: number; z: number; segment: number }
+export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }
 
 function over(decks: DeckSurface[], k: number, p: Point): Hit | null {
   const deck = decks[k]
@@ -786,7 +833,7 @@ function over(decks: DeckSurface[], k: number, p: Point): Hit | null {
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
     const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * scale
     if (distance < deck.width / 2 + 0.5 && distance < (best?.distance ?? Infinity))
-      best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i }
+      best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
   }
   return best
 }
@@ -803,6 +850,12 @@ function hitsUnder(points: Point[], decks: DeckSurface[]): Hit[][] {
 }
 
 const nearest = (hits: Hit[]) => hits.reduce((a, b) => (b.distance < a.distance ? b : a))
+
+/** A value kept per point of a deck (its bias, its ground), where a hit lies. */
+export function atHit(values: number[] | undefined, hit: Hit): number {
+  if (!values) return 0
+  return values[hit.segment - 1] + (values[hit.segment] - values[hit.segment - 1]) * hit.t
+}
 
 /** Points lifted `lift` metres onto the deck nearest beneath each, or null off every deck. */
 export function onDeck(points: Point[], decks: DeckSurface[], lift: number): Array<number | null> {
@@ -833,17 +886,19 @@ const CENTRED_TIE = 0.25
  * One mark's lines and rings lifted onto the deck it belongs to where decks
  * cross or stack: the nearest deck running its way, never a jump between levels.
  * A `centred` line, such as a route, follows whichever centreline it is on.
+ * `under` says which deck each point was laid on, and where.
  */
 export function onOwnDeck(
   lines: Point[][],
   rings: Point[][],
   decks: DeckSurface[],
   { across = false, centred = false }: { across?: boolean; centred?: boolean } = {},
-): Record<'lines' | 'rings', Array<Array<number | null>>> {
+): Record<'lines' | 'rings', Array<Array<number | null>>> & { under: Record<'lines' | 'rings', Array<Array<Hit | null>>> } {
   const all = [...lines, ...rings]
   const hits = all.map(line => hitsUnder(line, decks))
-  const split = (z: Array<Array<number | null>>) => ({ lines: z.slice(0, lines.length), rings: z.slice(lines.length) })
-  if (hits.every(line => line.every(h => h.length < 2))) return split(hits.map(line => line.map(h => h[0]?.z ?? null)))
+  const split = <T>(v: T[]) => ({ lines: v.slice(0, lines.length), rings: v.slice(lines.length) })
+  const result = (laid: Array<Array<Hit | null>>) => ({ ...split(laid.map(line => line.map(h => h?.z ?? null))), under: split(laid) })
+  if (hits.every(line => line.every(h => h.length < 2))) return result(hits.map(line => line.map(h => h[0] ?? null)))
   const votes = new Map<number, number>()
   for (const [l, line] of all.entries())
     for (let i = 1; i < line.length; i++) {
@@ -853,13 +908,13 @@ export function onOwnDeck(
       votes.set(deck, (votes.get(deck) ?? 0) + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]))
     }
   const owner = votes.size ? [...votes].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : -1
-  return split(all.map((line, l) => {
+  return result(all.map((line, l) => {
     // A ring's corners have no heading of their own; a line's points keep to the decks running their way.
     const candidates = l >= lines.length ? hits[l] : hits[l].map((h, i) => {
       const [a, b] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]]
       return runningWith(h, decks, b[0] - a[0], b[1] - a[1], across)
     })
-    const z: Array<number | null> = line.map(() => null)
+    const laid: Array<Hit | null> = line.map(() => null)
     const lay = (i: number, last: number | null) => {
       let here = candidates[i]
       if (!here.length) return last
@@ -868,15 +923,15 @@ export function onOwnDeck(
         here = here.filter(h => h.distance <= closest + CENTRED_TIE)
       }
       const own = here.find(h => h.deck === owner)
-      z[i] = (own ?? (last === null ? nearest(here) : here.reduce((a, b) => (Math.abs(b.z - last) < Math.abs(a.z - last) ? b : a)))).z
-      return z[i]
+      laid[i] = own ?? (last === null ? nearest(here) : here.reduce((a, b) => (Math.abs(b.z - last) < Math.abs(a.z - last) ? b : a)))
+      return laid[i]!.z
     }
     const start = Math.max(0, candidates.findIndex(here => here.some(h => h.deck === owner)))
     let last: number | null = null
     for (let i = start; i < line.length; i++) last = lay(i, last)
-    last = z[start]
+    last = laid[start]?.z ?? null
     for (let i = start - 1; i >= 0; i--) last = lay(i, last)
-    return z
+    return laid
   }))
 }
 
@@ -912,8 +967,12 @@ export function parseShape(props: Record<string, any>, samples: number): Pick<Ch
 /** Whether most of a piece lies on one of the given decks, so it is drawn already. */
 export function covered(piece: Piece, decks: Array<{ chain: Chain; bounds: Bounds }>): boolean {
   const rail = piece.kind === 'rail'
-  const on = piece.points.filter(p => decks.some(({ chain: d, bounds }) =>
-    (d.kind === 'rail') === rail && holds(bounds, p) && beside(d.points, p).distance < Math.max(...d.edges) + COVER))
+  const on = piece.points.filter(p => decks.some(({ chain: d, bounds }) => {
+    if (!holds(bounds, p)) return false
+    if ((d.kind === 'rail') === rail) return beside(d.points, p).distance < Math.max(...d.edges) + COVER
+    // A tram in a road bridge's carriageway is carried on its deck.
+    return rail && d.kind === 'road' && d.layer === piece.layer && beside(d.points, p).distance <= Math.max(...d.edges)
+  }))
   return on.length * 2 >= piece.points.length
 }
 
@@ -960,11 +1019,7 @@ export function triangle(out: Mesh, a: number[], b: number[], c: number[], color
   const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
   const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
   const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
-  for (const p of [a, b, c]) {
-    out.position.push(p[0], p[1], p[2])
-    out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
-    out.color.push(color[0], color[1], color[2])
-  }
+  for (const p of [a, b, c]) vertex(out, p, [nn[0] / l, nn[1] / l, nn[2] / l], color)
 }
 
 /** Two triangles, a-b-c and a-c-d. */

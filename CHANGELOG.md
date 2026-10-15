@@ -16,6 +16,7 @@
 
 ### Fixed
 
+* 3D bridges meet the road as one surface: paved like the street, with no notch at skewed ends and no gap between joined decks.
 * Where one 3D bridge crosses another, each keeps its own lane markings instead of the lower road's lines streaking across the upper deck.
 * 3D bridges meet the road cleanly at their ends and carry their sidewalks, tram and rail tracks, overhead wires and street furniture; zoomed out, they take the road colours.
 * 3D tunnel portals on paths and culverts fit the path's width, face along mapped headwalls, and no longer show a dark wedge or a step across the opening.

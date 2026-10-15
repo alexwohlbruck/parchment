@@ -635,15 +635,21 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
 
 
   // Lane geometry sits on top of each band of the road network: the ground's
-  // under the first bridge, the bridges' over the last.
-  const ground = bridgeBandIndex(out)
-  if (!hdRoads || ground === undefined) return out
+  // under the first bridge and the track at grade, which crosses the road over
+  // it; the bridges' over the last.
+  const bridges = bridgeBandIndex(out)
+  if (!hdRoads || bridges === undefined) return out
+  const rails = out.findIndex(l => RAIL_AT_GRADE.includes(l.id))
+  const ground = rails >= 0 && rails < bridges ? rails : bridges
   const roads = asphaltRoads(out, flavor)
   const decks = aboveBridgesIndex(roads)
   if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
   roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
   return roads
 }
+
+/** The basemap's railway lines at grade, the first of which the lane geometry goes under. */
+const RAIL_AT_GRADE = ['Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching']
 
 /** The plan-view outline, rounded exactly as far as the extrusion it traces. */
 function withRoundedRoofEdge(layers: any[]): any[] {

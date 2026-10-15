@@ -45,3 +45,26 @@ describe('the road\'s paint over a deck end', () => {
     expect(xs.some(x => x > 20 && x < 80)).toBe(false)
   })
 })
+
+describe('painted areas on an arched deck', () => {
+  test('never dip under the surface between their corners', () => {
+    const points = line(...Array.from({ length: 21 }, (_, k) => k * 6))
+    const z = points.map((_, k) => 100 + 6 - ((k - 10) ** 2) * 0.06)
+    const deck = { points, z, d: along(points), width: 15, bounds: boundsOf(points, 8) }
+    const lane = [[...line(0, 120), ...line(120, 0).map(([x, y]) => [x, y + 1.5 * M] as Point)].map(p => p)]
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'bike_lane', pattern: 'fill', color: 'green' }, runs: [], areas: [lane] }], [deck], { white: [1, 1, 1], yellow: [1, 1, 0], green: [0, 1, 0], red: [1, 0, 0] }, points[0])
+    const s = metresPerUnit(y0)
+    const surface = (x: number) => {
+      const metres = (x - 0) / (M * s) * s * M
+      const k = Math.min(19, Math.floor(metres / 6))
+      const t = metres / 6 - k
+      return z[k] + (z[k + 1] - z[k]) * t
+    }
+    const p = mesh.position
+    for (let t = 0; t < p.length; t += 9) {
+      const [cx, cz] = [(p[t] + p[t + 3] + p[t + 6]) / 3, (p[t + 2] + p[t + 5] + p[t + 8]) / 3 * s]
+      expect(cz).toBeGreaterThan(surface(cx / M) - 0.01)
+    }
+  })
+})

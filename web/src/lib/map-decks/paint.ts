@@ -105,11 +105,42 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
       for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
       continue
     }
-    for (const k of corners) {
-      const hit = laid.under[k]!
-      laidVertex(mesh, [flat[k][0] - origin[0], flat[k][1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
-    }
+    split(mesh, corners.map(k => ({ p: flat[k], hit: laid.under[k]! })), laid, color, lift, origin, scale)
   }
+}
+
+/** A deck's height under a point, from its nearest segment. */
+function hitOn(laid: Laid, k: number, p: Point): Hit {
+  const deck = laid.surfaces[k]
+  let best: Hit = { deck: k, distance: Infinity, z: deck.z[0], segment: 1, t: 0 }
+  for (let i = 1; i < deck.points.length; i++) {
+    const [a, b] = [deck.points[i - 1], deck.points[i]]
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+    const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1])
+    if (distance < best.distance) best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+  }
+  return best
+}
+
+/**
+ * A painted triangle laid in pieces no longer a side than PAINT_SAMPLE: a deck
+ * arches, and a long triangle drawn straight between its corners would dip
+ * under the surface between them.
+ */
+function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, color: number[], lift: number, origin: Point, scale: number, depth = 0) {
+  const length = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]) / scale
+  const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
+  const e = sides.indexOf(Math.max(...sides))
+  if (sides[e] <= PAINT_SAMPLE || depth > 12) {
+    for (const { p, hit } of corners) laidVertex(mesh, [p[0] - origin[0], p[1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
+    return
+  }
+  const [a, b, c] = [corners[e], corners[(e + 1) % 3], corners[(e + 2) % 3]]
+  const mid: Point = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2]
+  const m = { p: mid, hit: hitOn(laid, a.hit.deck, mid) }
+  split(mesh, [a, m, c], laid, color, lift, origin, scale, depth + 1)
+  split(mesh, [m, b, c], laid, color, lift, origin, scale, depth + 1)
 }
 
 /** The part of a painted triangle over one deck, cut to each segment of its surface it overlaps, so paint ends square at the deck's edge. */
@@ -138,7 +169,7 @@ function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: nu
       return { deck: k, distance: 0, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
     })
     for (let v = 1; v < piece.length - 1; v++)
-      for (const j of [0, v, v + 1]) laidVertex(mesh, [piece[j][0] - origin[0], piece[j][1] - origin[1], (hits[j].z + lift) * scale], hits[j], laid, color)
+      split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j] })), laid, color, lift, origin, scale)
   }
 }
 

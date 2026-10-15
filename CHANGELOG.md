@@ -6,6 +6,33 @@
 
 ### Fixed
 
+## [0.15.0] - 2026-10-15
+
+### Added
+
+* Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+* Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
+* Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
+
+### Changed
+
+* Footpaths are drawn with a finer edge.
+* 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
+* Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
+* Power towers and poles are sturdier and easier to see, wires are a softer grey, and substations are drawn with low gantries and taut busbars instead of full-height towers.
+
+### Fixed
+
+* Power lines stay joined at every tower, including through bends and across map tile edges.
+* Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
+* Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Transit directions no longer drop the earliest train when a later one on the same lines rides faster.
+* A transit leg lists only the lines that stop at both ends at that hour, and Long Island Rail Road and Metro-North legs name just the train you board.
+* Transfers that mean leaving one station and paying again at another are ranked behind, or replaced by, a comparable in-station transfer.
+* Walking directions lead to a subway entrance for your direction of travel, not one signed for the opposite platform.
+* Transit searches no longer lose options when the routing service is busy.
+* Tapping a subway stop inside a large station, like the 4/5/6 at Grand Central, shows every line's departures instead of only a neighbouring platform's.
+
 ## [0.14.0] - 2026-10-09
 
 ### Added
@@ -20,6 +47,8 @@
 * Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
 * Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
 * Points of interest can now be switched on and off from the layer selector.
+* Street and place labels can now be switched on and off from the layer selector.
+* With 3D terrain and objects on, tunnels for roads, paths, cycleways and railways now run underground: up close, each entrance is cut into the ground with retaining walls, a headwall and a dark mouth.
 
 ### Changed
 

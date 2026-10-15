@@ -14,6 +14,7 @@ import {
   isTransitStopType,
   isTransitStop,
   getGTFSRouteTypesFromTags,
+  isRailStopWithinStation,
 } from './transit-utils'
 
 describe('isTransitStopFromTags', () => {
@@ -135,5 +136,27 @@ describe('isTransitStop', () => {
 
   test('rejects a place matched by neither', () => {
     expect(isTransitStop('Cafe', { amenity: 'cafe' })).toBe(false)
+  })
+})
+
+describe('isRailStopWithinStation', () => {
+  test('matches a subway stop position', () => {
+    expect(
+      isRailStopWithinStation({ public_transport: 'stop_position', railway: 'stop', subway: 'yes' }),
+    ).toBe(true)
+  })
+
+  test('matches a rail platform', () => {
+    expect(isRailStopWithinStation({ railway: 'platform', train: 'yes' })).toBe(true)
+  })
+
+  test('leaves the station itself alone', () => {
+    expect(isRailStopWithinStation({ public_transport: 'station', station: 'subway' })).toBe(false)
+  })
+
+  test('leaves a bus stop alone', () => {
+    expect(
+      isRailStopWithinStation({ public_transport: 'platform', highway: 'bus_stop', bus: 'yes' }),
+    ).toBe(false)
   })
 })

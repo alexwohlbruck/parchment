@@ -13,16 +13,18 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS, type TreeFamily } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
-import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, measure, placeLine } from './lines'
+import { HUNG_MODELS, LINE_MODELS, LONGEST_PIECE, lineInstance, placeLine } from './lines'
+import { measure } from './tile-lines'
+import { CONDUCTORS, POWER_MODELS } from './power'
 import { AREA_MODELS, areaObject } from './areas'
 import { SOLAR_MODELS } from './solar'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel, unproject } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
 /** The roles a crown is made of. */
 const CANOPY = new Set(['foliage', 'blossom'])
 
@@ -229,7 +231,7 @@ describe('models', () => {
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
     // glTF is Y-up; the layer swaps to Z-up on the way into the shader.
-    if ([...HUNG_MODELS, ...Object.keys(SOLAR_MODELS)].includes(name)) {
+    if ([...HUNG_MODELS, ...CONDUCTORS, ...Object.keys(SOLAR_MODELS)].includes(name)) {
       expect(model.min[1]).toBeGreaterThan(0)
       expect(model.max[1]).toBeLessThanOrEqual(1.0001)
     } else {
@@ -662,20 +664,6 @@ describe('sports props', () => {
 describe('lines', () => {
   const wire = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.838, 35.2], [-80.838, 35.202]] }
 
-  test('a power line puts a tower at every vertex and a wire span on every segment', () => {
-    const placed = placeLine('power_line', wire, null)
-    expect(placed.filter(p => p.model === 'power-tower')).toHaveLength(3)
-    const spans = placed.filter(p => p.model === 'power-wires')
-    expect(spans).toHaveLength(2)
-    expect(spans[0].bearing).toBeCloseTo(90, 0)
-    expect(spans[0].length).toBeCloseTo(measure([-80.84, 35.2], [-80.838, 35.2]).length, 3)
-  })
-
-  test('a tower at a bend turns halfway between its two spans', () => {
-    const corner = placeLine('power_line', wire, null).filter(p => p.model === 'power-tower')[1]
-    expect(corner.bearing).toBeCloseTo(45, 0)
-  })
-
   test('a span runs along its segment', () => {
     const span = placeLine('wall', wire, null)[0]
     const wall = lineInstance('wall', '2.5', span)
@@ -687,8 +675,8 @@ describe('lines', () => {
 
   test('each tile piece places only what is inside its own tile', () => {
     const east = { minLng: -80.839, maxLng: -80.83, minLat: 35, maxLat: 36 }
-    const towers = placeLine('power_line', wire, east).filter(p => p.model === 'power-tower')
-    expect(towers).toHaveLength(2)
+    const posts = placeLine('fence', wire, east).filter(p => p.model === 'fence-post')
+    expect(posts).toHaveLength(2)
   })
 
   test('a long barrier is cut into pieces that fill its segment', () => {
@@ -697,24 +685,6 @@ describe('lines', () => {
     expect(pieces.length).toBe(Math.ceil(length / LONGEST_PIECE))
     for (const p of pieces) expect(p.length).toBeLessThanOrEqual(LONGEST_PIECE)
     expect(pieces.reduce((sum, p) => sum + p.length!, 0)).toBeCloseTo(length, 6)
-  })
-
-  /** The layer finds a span's ends from its heading, so they must land on the towers it hangs from. */
-  test('a wire span\'s ends, as the layer finds them, are its towers', () => {
-    const placed = placeLine('power_line', wire, null)
-    const towers = placed.filter(p => p.model === 'power-tower')
-    placed.filter(p => p.model === 'power-wires').forEach((span, k) => {
-      const instance = lineInstance('power_line', undefined, span)
-      const at = { x: 0, y: 0, z: 0, perMetre: 0 }
-      project(instance.lng, instance.lat, 0, at)
-      const half = (instance.length! / 2) * at.perMetre
-      const [c, s] = [Math.cos(instance.heading), Math.sin(instance.heading)]
-      for (const [sign, tower] of [[-1, towers[k]], [1, towers[k + 1]]] as const) {
-        const [lng, lat] = unproject(at.x + sign * c * half, at.y + sign * s * half)
-        expect(lng).toBeCloseTo(tower.lng, 7)
-        expect(lat).toBeCloseTo(tower.lat, 7)
-      }
-    })
   })
 
   test('masts stand along electrified track at an even spacing', () => {

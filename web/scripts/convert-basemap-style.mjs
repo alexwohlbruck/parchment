@@ -696,16 +696,16 @@ const PATH_SURFACE_WIDTH = [
  * The casing straddling the surface's edges.
  *
  * `line-width` is the whole stroke and it is centred on the edge, so half of
- * this lands on the pavement and half on the ground beside it — a 3px casing
- * reads as a 1.5px line either side.
+ * this lands on the pavement and half on the ground beside it — a 1.8px casing
+ * reads as a 0.9px line either side.
  */
 const PATH_CASING_WIDTH = [
-  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 3, 22, 4.5,
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 0.8, 18, 1.8, 22, 2.7,
 ]
 
 /** Half again the path's, so a deck reads as one without changing its width. */
 const BRIDGE_CASING_WIDTH = [
-  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.8, 18, 4.5, 22, 6.8,
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 2.7, 22, 4,
 ]
 
 /**

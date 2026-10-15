@@ -35,13 +35,28 @@ export type TerrainSourceSpec = {
   attribution: string
 }
 
-export function terrainSource(): TerrainSourceSpec {
+export const TERRAIN_TILES = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'
+
+/**
+ * The same terrain served finer at street zoom, upsampled from the most
+ * detailed tiles, so features carved into it (a tunnel's cut) keep their edges.
+ */
+export const FINE_TERRAIN_PROTOCOL = 'fine-terrain'
+export const FINE_TERRAIN_TILES = `${FINE_TERRAIN_PROTOCOL}://{z}/{x}/{y}`
+export const FINE_TERRAIN_MAXZOOM = 18
+
+export function terrainSource(fine = false): TerrainSourceSpec {
   return {
     type: 'raster-dem',
-    tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
+    tiles: [fine ? FINE_TERRAIN_TILES : TERRAIN_TILES],
     encoding: 'terrarium',
     tileSize: TERRAIN_TILE_SIZE,
-    maxzoom: TERRAIN_MAXZOOM,
+    maxzoom: fine ? FINE_TERRAIN_MAXZOOM : TERRAIN_MAXZOOM,
     attribution: TERRAIN_ATTRIBUTION,
   }
+}
+
+/** The tiles a terrain source's template is served from, at their own most detailed zoom. */
+export function rawTerrainTiles(template: string, maxzoom: number): { tiles: string; maxzoom: number } {
+  return template === FINE_TERRAIN_TILES ? { tiles: TERRAIN_TILES, maxzoom: TERRAIN_MAXZOOM } : { tiles: template, maxzoom }
 }

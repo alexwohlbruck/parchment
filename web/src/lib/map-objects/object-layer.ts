@@ -266,6 +266,8 @@ export type ObjectInstance = {
    * than standing level at one height. For spans long enough to cross a slope.
    */
   conform?: true | { across: number }
+  /** Metres the +x end of `length` stands above the other, on top of any slope in the ground. */
+  rise?: number
 }
 
 export type ObjectSourceSpec = {
@@ -737,6 +739,11 @@ export class ObjectLayer {
           placed.gx = plane.gx
           placed.gy = plane.gy
         } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        if (instance.rise && instance.length) {
+          const run = instance.rise / instance.length
+          placed.gx += run * Math.cos(instance.heading)
+          placed.gy += run * Math.sin(instance.heading)
+        }
         placedNow.push(placed)
       }
     }
@@ -970,13 +977,17 @@ export class ObjectLayer {
     }
   }
 
-  /** The style's own light, so objects agree with the buildings beside them. */
+  /**
+   * The style's own light, so objects agree with the buildings beside them.
+   * MapLibre dots it with inward-facing extrusion normals, so for our outward
+   * normals the horizontal part is reversed.
+   */
   private lightDirection(): [number, number, number] {
     const light = this.map.style?.light
     const position = light?.getCartesianPosition?.() ?? light?.properties?.get?.('position')
     const [x, y, z] = Array.isArray(position) ? position : [0.4, -0.6, 0.7]
     const length = Math.hypot(x, y, z) || 1
-    return [x / length, y / length, z / length]
+    return [-x / length, -y / length, z / length]
   }
 }
 

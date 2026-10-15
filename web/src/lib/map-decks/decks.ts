@@ -69,9 +69,18 @@ export type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
 export const MAX_GRADE = 0.06
 /** Height per OSM layer that a deck stands clear of the ground beneath it. */
 export const LAYER_CLEARANCE = 6
+/** Length of the vertical curve a deck's grades are eased into, in metres. */
+export const VERTICAL_CURVE = 90
+/** Metres each side of a vertex whose ground is read together, so a lone tree or stray pixel does not lift a deck. */
+export const GROUND_SPAN = 12
 /** Slab depth below the road surface, and parapet height above it, in metres. */
-export const SLAB = 1.1
+export const SLAB = 0.8
 export const PARAPET = 0.9
+/** A pier's columns: radius and sides, a column to every BENT metres of deck width, under a cap beam CAP deep, in metres. */
+export const COLUMN = 0.55
+export const COLUMN_SIDES = 8
+export const BENT = 11
+export const CAP = 0.7
 /** Distance between piers, in metres, and the least height worth a pier. */
 export const PIER_SPACING = 28
 export const PIER_MIN = 2.5
@@ -325,13 +334,53 @@ export function along(points: Point[]): number[] {
 }
 
 /**
+ * Ground with lone spikes taken out: at each vertex, the median of those
+ * within GROUND_SPAN of it, the span shrinking toward the ends so a slope
+ * reads true and each end keeps its own.
+ */
+export function steady(ground: number[], d: number[]): number[] {
+  const total = d[d.length - 1] ?? 0
+  return ground.map((_, i) => {
+    const half = Math.min(GROUND_SPAN, d[i], total - d[i])
+    const near: number[] = []
+    for (let k = i; k >= 0 && d[i] - d[k] <= half; k--) near.push(ground[k])
+    for (let k = i + 1; k < ground.length && d[k] - d[i] <= half; k++) near.push(ground[k])
+    near.sort((a, b) => a - b)
+    return near[near.length >> 1]
+  })
+}
+
+/**
+ * The lowest concave profile on or over `lower`, through its first and last
+ * values: a line drawn taut across the tops of what a deck must clear. It
+ * has crests and no sags, as a bridge's grade line does.
+ */
+export function arch(d: number[], lower: number[]): number[] {
+  const hull: number[] = []
+  for (let i = 0; i < lower.length; i++) {
+    while (hull.length >= 2) {
+      const [a, b] = [hull[hull.length - 2], hull[hull.length - 1]]
+      if ((d[b] - d[a]) * (lower[i] - lower[a]) - (lower[b] - lower[a]) * (d[i] - d[a]) < 0) break
+      hull.pop()
+    }
+    hull.push(i)
+  }
+  let k = 0
+  return d.map(s => {
+    while (k < hull.length - 2 && d[hull[k + 1]] < s) k++
+    const [a, b] = [hull[k], hull[Math.min(k + 1, hull.length - 1)]]
+    return a === b ? lower[a] : lower[a] + ((lower[b] - lower[a]) * (s - d[a])) / (d[b] - d[a] || 1)
+  })
+}
+
+/**
  * Deck height, in metres above the datum the ground is measured in, at every
  * vertex of a chain.
  *
  * Each end on the ground sits on it, and an end that is not stays a layer's
- * clearance up. Between, the deck runs straight from end to end, lifted to its
- * clearance over the ground below, and held to `MAX_GRADE` from each grounded
- * end so a short bridge over a creek is a gentle hump, not a ramp.
+ * clearance up. Between, the deck arches a layer's clearance over the ground
+ * below, held to `MAX_GRADE` from each grounded end so a short bridge over a
+ * creek is a gentle hump, not a ramp, and never sags between what it clears.
  */
 export function solve(chain: Chain, groundAt: number[], resting: [number | null, number | null] = [null, null]): number[] {
   const d = along(chain.points)
@@ -340,16 +389,20 @@ export function solve(chain: Chain, groundAt: number[], resting: [number | null,
   const n = groundAt.length
   // An end rests on the ground, on another deck at the height given, or is
   // left a layer up.
-  const end = (i: 0 | 1, g: number) => resting[i] ?? (chain.grounded[i] ? g : g + clearance)
+  const end = (i: 0 | 1, g: number) => {
+    const rest = resting[i]
+    return rest !== null ? Math.max(rest, g) : chain.grounded[i] ? g : g + clearance
+  }
   const anchored = [chain.grounded[0] || resting[0] !== null, chain.grounded[1] || resting[1] !== null]
-  const za = end(0, groundAt[0])
-  const zb = end(1, groundAt[n - 1])
-  return groundAt.map((g, i) => {
-    const straight = za + ((zb - za) * d[i]) / total
-    let z = Math.max(straight, g + clearance)
+  const [za, zb] = [end(0, groundAt[0]), end(1, groundAt[n - 1])]
+  const floor = steady(groundAt, d)
+  const lower = floor.map(g => g + clearance)
+  lower[0] = za
+  lower[n - 1] = zb
+  return arch(d, lower).map((z, i) => {
     if (anchored[0]) z = Math.min(z, za + MAX_GRADE * d[i])
     if (anchored[1]) z = Math.min(z, zb + MAX_GRADE * (total - d[i]))
-    return Math.max(z, Math.max(straight, g))
+    return Math.max(z, za + ((zb - za) * d[i]) / total, floor[i])
   })
 }
 
@@ -446,21 +499,24 @@ export function besideGround(centre: number[], left: number[], right: number[], 
 }
 
 /**
- * A deck's profile eased into a vertical curve: each interior height averaged
- * over `span` metres around it, the ends kept, and never below the ground.
+ * A deck's profile eased into vertical curves `span` metres long, never below
+ * the ground. Each height is averaged over a window that shrinks toward the
+ * ends, so the ends stay put and a straight grade stays straight.
  */
-export function smooth(z: number[], d: number[], ground: number[], span = 24): number[] {
+export function smooth(z: number[], d: number[], ground: number[], span = VERTICAL_CURVE): number[] {
   const n = z.length
+  const total = d[n - 1] ?? 0
+  let lo = 0
   return z.map((_, i) => {
-    if (i === 0 || i === n - 1) return z[i]
+    const half = Math.min(span / 2, d[i], total - d[i])
+    if (half <= 0) return z[i]
+    while (d[i] - d[lo] >= half) lo++
     let sum = 0
     let weight = 0
-    for (let k = 0; k < n; k++) {
-      const w = span / 2 - Math.abs(d[k] - d[i])
-      if (w > 0) {
-        sum += z[k] * w
-        weight += w
-      }
+    for (let k = lo; k < n && d[k] - d[i] < half; k++) {
+      const w = half - Math.abs(d[k] - d[i])
+      sum += z[k] * w
+      weight += w
     }
     return Math.max(sum / weight, ground[i])
   })
@@ -523,7 +579,6 @@ export function deckMesh(
   const pts = chain.points
   const n = pts.length
   const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
-  const span = chain.edges[0] + chain.edges[1]
   const tangents: Point[] = []
   // Mitred sides, the mitre capped so a hairpin does not spike.
   const raw = pts.map((p, i) => {
@@ -617,27 +672,101 @@ export function deckMesh(
       face(at(s0.p, s0.z + PARAPET), at(i0, s0.z + PARAPET), at(i1, s1.z + PARAPET), at(s1.p, s1.z + PARAPET))
     }
   }
-  // Piers where given, else wherever the deck stands high enough to need them.
+  // Piers where given, else wherever the deck stands high enough to need them:
+  // a bent of round columns under a cap beam, a column to every BENT metres of width.
   const total = d[n - 1]
   const spaced: number[] = []
   for (let s = PIER_SPACING / 2; s < total; s += PIER_SPACING) spaced.push(s)
   for (const at_ of piers ?? spaced) {
     const top = heightAt(d, z, at_) - SLAB
     const bottom = heightAt(d, groundAt, at_) - FOOTING
-    if (top - bottom < (piers ? FOOTING : PIER_MIN + FOOTING)) continue
+    if (top - bottom < (piers ? FOOTING + CAP : PIER_MIN + FOOTING)) continue
     let k = 1
     while (k < n - 1 && d[k] < at_) k++
     const t = (at_ - d[k - 1]) / (d[k] - d[k - 1] || 1)
-    const cx = pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * t - origin[0]
-    const cy = pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * t - origin[1]
-    const r = Math.min(0.9, span / 6) * scale
-    const corners: Point[] = [[cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r]]
+    const [tx, ty] = tangents[k]
+    const [l, r] = [sideAt(chain, 0, k - 1, t), sideAt(chain, 1, k - 1, t)]
+    // The deck's middle, between its edges, and its width there.
+    const mid = (l - r) / 2
+    const width = l + r
+    const cx = pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * t - ty * mid * scale - origin[0]
+    const cy = pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * t + tx * mid * scale - origin[1]
+    const across = (m: number): Point => [cx - ty * m * scale, cy + tx * m * scale]
+    const columns = Math.max(1, Math.round(width / BENT))
+    const reach = Math.max(0, width / 2 - COLUMN * 2)
+    for (let c = 0; c < columns; c++) {
+      const [px, py] = across(columns > 1 ? -reach + (2 * reach * c) / (columns - 1) : 0)
+      for (let e = 0; e < COLUMN_SIDES; e++) {
+        const [a0, a1] = [(e / COLUMN_SIDES) * 2 * Math.PI, ((e + 1) / COLUMN_SIDES) * 2 * Math.PI]
+        const [ax, ay, bx, by] = [Math.cos(a0), Math.sin(a0), Math.cos(a1), Math.sin(a1)].map(v => v * COLUMN * scale)
+        quad([px + ax, py + ay, h(bottom)], [px + bx, py + by, h(bottom)], [px + bx, py + by, h(top)], [px + ax, py + ay, h(top)], colors.concrete)
+      }
+    }
+    // The cap: a beam across under the slab, as wide as the deck less a little each side.
+    const half = Math.max(COLUMN, width / 2 - 0.4)
+    const [fx, fy] = [tx * (CAP / 2) * scale, ty * (CAP / 2) * scale]
+    const [e0, e1] = [across(-half), across(half)]
+    const corners = [[e0[0] - fx, e0[1] - fy], [e1[0] - fx, e1[1] - fy], [e1[0] + fx, e1[1] + fy], [e0[0] + fx, e0[1] + fy]]
     for (let c = 0; c < 4; c++) {
       const [a, b] = [corners[c], corners[(c + 1) % 4]]
-      quad([a[0], a[1], h(bottom)], [b[0], b[1], h(bottom)], [b[0], b[1], h(top)], [a[0], a[1], h(top)], colors.concrete)
+      quad([a[0], a[1], h(top - CAP)], [b[0], b[1], h(top - CAP)], [b[0], b[1], h(top)], [a[0], a[1], h(top)], colors.concrete)
     }
+    quad([...corners[3], h(top - CAP)], [...corners[2], h(top - CAP)], [...corners[1], h(top - CAP)], [...corners[0], h(top - CAP)], colors.concrete)
   }
   return out
+}
+
+/** Most a curve turns between two vertices of a drawn deck, in radians. */
+export const ROUND_TURN = (3 * Math.PI) / 180
+/** Most pieces a segment is split into to round a curve. */
+const ROUND_MAX = 4
+
+/**
+ * A deck with its curves filled in, for drawing: each segment beside a vertex
+ * where the deck turns is split into pieces turning no more than ROUND_TURN,
+ * along a cubic through its vertices with each one's tangent taken from its
+ * neighbours by distance, so a short chord beside a long one does not
+ * overshoot. Heights follow the same curve; ground and edges run straight
+ * between vertices.
+ */
+export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain: Chain; z: number[]; groundAt: number[] } {
+  const pts = chain.points
+  const n = pts.length
+  if (n < 3) return { chain, z, groundAt }
+  const turn = pts.map((p, i) => {
+    if (i === 0 || i === n - 1) return 0
+    const [a, b] = [pts[i - 1], pts[i + 1]]
+    const [ux, uy, vx, vy] = [p[0] - a[0], p[1] - a[1], b[0] - p[0], b[1] - p[1]]
+    return Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy))
+  })
+  const pieces = pts.slice(1).map((_, i) => Math.min(ROUND_MAX, Math.max(1, Math.ceil(Math.max(turn[i], turn[i + 1]) / ROUND_TURN))))
+  if (pieces.every(k => k === 1)) return { chain, z, groundAt }
+  const d = along(pts)
+  // Change per metre along the deck at each vertex, from its neighbours.
+  const slope = (values: (i: number) => number, i: number) => {
+    const [a, b] = [Math.max(0, i - 1), Math.min(n - 1, i + 1)]
+    return (values(b) - values(a)) / (d[b] - d[a] || 1)
+  }
+  const channels = [(i: number) => pts[i][0], (i: number) => pts[i][1], (i: number) => z[i]]
+  const tangents = channels.map(values => pts.map((_, i) => slope(values, i)))
+  const hermite = (c: number, i: number, t: number) => {
+    const length = d[i + 1] - d[i]
+    const [v0, v1] = [channels[c](i), channels[c](i + 1)]
+    const [m0, m1] = [tangents[c][i] * length, tangents[c][i + 1] * length]
+    const [t2, t3] = [t * t, t * t * t]
+    return (2 * t3 - 3 * t2 + 1) * v0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * v1 + (t3 - t2) * m1
+  }
+  const out = { points: [pts[0]] as Point[], z: [z[0]], groundAt: [groundAt[0]], sides: [[sideAt(chain, 0, 0)], [sideAt(chain, 1, 0)]] as [number[], number[]] }
+  pieces.forEach((k, i) => {
+    for (let j = 1; j <= k; j++) {
+      const t = j / k
+      out.points.push(j === k ? pts[i + 1] : [hermite(0, i, t), hermite(1, i, t)])
+      out.z.push(j === k ? z[i + 1] : hermite(2, i, t))
+      out.groundAt.push(groundAt[i] + (groundAt[i + 1] - groundAt[i]) * t)
+      for (const side of [0, 1] as const) out.sides[side].push(sideAt(chain, side, i, t))
+    }
+  })
+  return { chain: { ...chain, points: out.points, ...(chain.sides ? { sides: out.sides } : {}) }, z: out.z, groundAt: out.groundAt }
 }
 
 /**
@@ -711,3 +840,80 @@ export function covered(piece: Piece, decks: Array<{ chain: Chain; bounds: Bound
 
 /** How far beyond a served deck's edge a basemap bridge may lie and still be the same bridge, in metres. */
 export const COVER = 3
+
+/**
+ * A line's left and right edges, `edges` metres out, relative to `origin`.
+ * Mitred at each vertex, the mitre capped so a hairpin does not spike.
+ */
+export function outline(pts: Point[], edges: [number, number], origin: Point): Array<{ left: Point; right: Point }> {
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const [toLeft, toRight] = edges.map(e => e * scale)
+  return pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)]
+    const b = pts[Math.min(n - 1, i + 1)]
+    let tx = b[0] - a[0]
+    let ty = b[1] - a[1]
+    const len = Math.hypot(tx, ty) || 1
+    tx /= len
+    ty /= len
+    let nx = -ty
+    let ny = tx
+    let m = 1
+    if (i > 0 && i < n - 1) {
+      const ux = (p[0] - a[0]) / (Math.hypot(p[0] - a[0], p[1] - a[1]) || 1)
+      const uy = (p[1] - a[1]) / (Math.hypot(p[0] - a[0], p[1] - a[1]) || 1)
+      const dot = nx * -uy + ny * ux
+      m = 1 / Math.max(0.5, Math.abs(dot))
+    }
+    nx *= m
+    ny *= m
+    return {
+      left: [p[0] + nx * toLeft - origin[0], p[1] + ny * toLeft - origin[1]] as Point,
+      right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
+    }
+  })
+}
+
+/** A triangle onto a mesh, flat-shaded by its winding. */
+export function triangle(out: Mesh, a: number[], b: number[], c: number[], color: number[]) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+  const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+  const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
+  for (const p of [a, b, c]) {
+    out.position.push(p[0], p[1], p[2])
+    out.normal.push(nn[0] / l, nn[1] / l, nn[2] / l)
+    out.color.push(color[0], color[1], color[2])
+  }
+}
+
+/** Two triangles, a-b-c and a-c-d. */
+export function quad(out: Mesh, a: number[], b: number[], c: number[], d: number[], color: number[]) {
+  triangle(out, a, b, c, color)
+  triangle(out, a, c, d, color)
+}
+
+/** A web-mercator point, 0-1 across the world, for a longitude and latitude. */
+export function mercator([lng, lat]: number[]): Point {
+  const s = Math.sin((lat * Math.PI) / 180)
+  return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
+}
+
+/** The bounds of the tile a queried feature came from, or null if it does not say. */
+export function tileBounds(feature: any): Bounds | null {
+  const { _x: x, _y: y, _z: z } = feature
+  if (typeof x !== 'number' || typeof z !== 'number') return null
+  const n = 2 ** z
+  return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
+}
+
+export const polygonsOf = (geometry: any): number[][][][] =>
+  geometry?.type === 'Polygon' ? [geometry.coordinates]
+  : geometry?.type === 'MultiPolygon' ? geometry.coordinates
+  : []
+
+export const linesOf = (geometry: any): number[][][] =>
+  geometry?.type === 'LineString' ? [geometry.coordinates]
+  : geometry?.type === 'MultiLineString' ? geometry.coordinates
+  : []

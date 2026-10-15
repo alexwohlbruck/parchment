@@ -23,6 +23,7 @@
 * Transfers that mean leaving one station and paying again at another are ranked behind, or replaced by, a comparable in-station transfer.
 * Walking directions lead to a subway entrance for your direction of travel, not one signed for the opposite platform.
 * Transit searches no longer lose options when the routing service is busy.
+* Tapping a subway stop inside a large station, like the 4/5/6 at Grand Central, shows every line's departures instead of only a neighbouring platform's.
 
 ## [0.14.0] - 2026-10-09
 

@@ -4,10 +4,8 @@
  */
 import type { Mesh } from './decks'
 
-// `a_low` is the colour below street zoom, mixed toward `a_color` by `u_hd`.
-// `a_bias` moves a vertex toward the eye along its own sight line, so it keeps
-// its place on screen but wins the depth test against ground within that many
-// metres: a deck end lying on the terrain is not torn by it.
+// `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
+// sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
 const VS = `
   uniform mat4 u_matrix;
   uniform vec3 u_light;
@@ -23,7 +21,9 @@ const VS = `
   void main() {
     float sun = dot(normalize(a_normal), u_light) * 0.5 + 0.5;
     float sky = normalize(a_normal).z * 0.5 + 0.5;
-    v_color = mix(a_low, a_color, u_hd) * mix(0.62, 1.0, mix(sun, sky, 0.6));
+    float lit = mix(0.62, 1.0, mix(sun, sky, 0.6));
+    // Below street zoom a deck's top is the flat map's colour, unshaded.
+    v_color = mix(a_low, a_color, u_hd) * mix(max(lit, normalize(a_normal).z), lit, u_hd);
     vec3 p = a_position;
     if (a_bias > 0.0) p += normalize(u_eye - p) * a_bias * u_per_metre;
     gl_Position = u_matrix * vec4(p, 1.0);
@@ -118,7 +118,8 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   const eye = view.eye ?? null
   gl.uniform3f(at.uniforms.eye, eye?.[0] ?? 0, eye?.[1] ?? 0, eye?.[2] ?? 0)
   // No eye, no bias: a zero scale leaves every vertex where it is.
-  gl.uniform1f(at.uniforms.perMetre, eye ? (view.perMetre ?? 0) : 0)
+  const biased = eye ? (view.perMetre ?? 0) : 0
+  gl.uniform1f(at.uniforms.perMetre, biased)
   gl.bindVertexArray(null)
   const [position, normal, color, low, bias] = at.attributes
   const enabled: number[] = []
@@ -139,6 +140,8 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
     draw: (from = 0, to = buffers.count) => {
       if (to > from) gl.drawArrays(gl.TRIANGLES, from, to - from)
     },
+    /** Draw the biased vertices where they are biased to, or where they are. */
+    bias: (on: boolean) => gl.uniform1f(at!.uniforms.perMetre, on ? biased : 0),
     unbind: () => {
       for (const loc of enabled) gl.disableVertexAttribArray(loc)
     },

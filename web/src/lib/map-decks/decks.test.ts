@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, TOUCHDOWN, SEAM, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
+import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, underWay, TOUCHDOWN, SEAM, UNDER_SLACK, metresPerUnit, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -37,8 +37,18 @@ describe('chains', () => {
   test('a carriageway never folds back onto the slip road it meets at a gore', () => {
     const main = line(60, 0)
     const slip: Point[] = [main[0], [main[1][0], y0 + 12 * M]]
-    const joined = chains([main, slip].map(points => ({ points, layer: 1, width: 10, kind: 'road' as const })), () => false, 0.5 * M)
+    const joined = chains([
+      { points: main, layer: 1, width: 10, kind: 'road', road: 'secondary' },
+      { points: slip, layer: 1, width: 10, kind: 'road', road: 'secondary_link' },
+    ], () => false, 0.5 * M)
     expect(joined).toHaveLength(2)
+  })
+
+  test('a footbridge that doubles back at a landing is still one deck', () => {
+    const up = line(0, 40)
+    const back: Point[] = [up[1], [up[0][0], y0 + 4 * M]]
+    const joined = chains([up, back].map(points => ({ points, layer: 1, width: 3, kind: 'path' as const })), () => false, 0.5 * M)
+    expect(joined).toHaveLength(1)
   })
 
   test('an end cut at the edge of the loaded tiles stays in the air', () => {
@@ -270,6 +280,18 @@ describe('neighbouring decks', () => {
     expect(reach(ys([[true, true, true], [false, false, false]])) - reach(ys())).toBeCloseTo(SEAM, 1)
   })
 
+  test('only the part under a neighbour dips, so the shared edge stays level with it', () => {
+    const c = chain(line(0, 40, 80), [false, false])
+    const out = deckMeshOut()
+    deckMesh(c, [106, 106, 106], [100, 100, 100], c.points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1] }, out, [[true, true, true], [false, false, false]])
+    const top = out.position.flatMap((_, k) => (k % 3 === 0 && out.normal[k + 2] > 0.99 ? [[out.position[k + 1] / M, out.position[k + 2] * metresPerUnit(y0)]] : []))
+      .filter(([, z]) => z > 105.9 && z < 106.5)
+    const level = top.filter(([y]) => y <= 5.01).map(([, z]) => z)
+    const under = top.filter(([y]) => y > 5.01).map(([, z]) => z)
+    expect(Math.min(...level)).toBeCloseTo(106, 2)
+    expect(Math.max(...under)).toBeLessThan(106)
+  })
+
   test('a deck crossing over another keeps its parapets', () => {
     const open = joinNeighbours([twin(0, 100), twin(10.5, 112)])
     expect(open.flat(2).some(Boolean)).toBe(false)
@@ -401,6 +423,51 @@ describe('standing on decks', () => {
   test('a wire stands on a deck it runs with, not one it passes under', () => {
     expect(standing(decks, line(50)[0], [1, 0])?.z).toBe(107)
     expect(standing(decks, line(50)[0], [0, 1])).toBeNull()
+  })
+})
+
+describe('ways under a deck', () => {
+  const road = { points: line(0, 100), half: 5, bounds: boundsOf(line(0, 100), 5 + UNDER_SLACK) }
+
+  test('a lamp beside a road under a deck is the road\'s; one over the road is the deck\'s', () => {
+    expect(underWay([road], offset(6.5, 50)[0])).toBe(true)
+    expect(underWay([road], offset(2, 50)[0])).toBe(false)
+    expect(underWay([road], offset(5 + UNDER_SLACK + 1, 50)[0])).toBe(false)
+  })
+
+  test('a wire running with a road under a deck is the road\'s, one crossing it is not', () => {
+    expect(underWay([road], offset(1, 50)[0], [1, 0])).toBe(true)
+    expect(underWay([road], offset(1, 50)[0], [0, 1])).toBe(false)
+  })
+})
+
+describe('the decks under a point', () => {
+  test('the grid finds what a scan of every segment finds, at cell edges and across decks', () => {
+    const decks = [0, 7, 30].map(north => {
+      const points = offset(north, ...Array.from({ length: 30 }, (_, k) => k * 6.5))
+      return { points, z: points.map((_, k) => 100 + k), d: along(points), width: 9 }
+    })
+    const scan = (p: Point) => {
+      let best: number | null = null
+      let distance = Infinity
+      for (const deck of decks)
+        for (let i = 1; i < deck.points.length; i++) {
+          const [a, b] = [deck.points[i - 1], deck.points[i]]
+          const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+          const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)))
+          const off = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * metresPerUnit(p[1])
+          if (off < deck.width / 2 + 0.5 && off < distance) [best, distance] = [deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, off]
+        }
+      return best
+    }
+    const points: Point[] = []
+    for (let x = -10; x < 200; x += 3.7) for (let y = -8; y < 40; y += 1.3) points.push(offset(y, x)[0])
+    const lifted = onDeck(points, decks, 0)
+    points.forEach((p, k) => {
+      const want = scan(p)
+      if (want === null) expect(lifted[k]).toBeNull()
+      else expect(lifted[k]).toBeCloseTo(want, 6)
+    })
   })
 })
 

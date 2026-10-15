@@ -19,7 +19,11 @@ import {
   absorbTracks,
   deckMeshOut,
   standing,
+  standKey,
+  underWay,
   touchdown,
+  type UnderWay,
+  UNDER_SLACK,
   besideGround,
   dedupe,
   densify,
@@ -79,8 +83,10 @@ export type DeckPalette = {
   parapet: Rgb
   /** A rail deck's surface. */
   track: Rgb
-  /** Below street zoom, a road deck's and a path deck's surface: the basemap's. */
+  /** Below street zoom, a deck's surface: the basemap's colour for its minor, major and highway roads, and paths. */
   lowRoad: Rgb
+  lowMajor: Rgb
+  lowHighway: Rgb
   lowPath: Rgb
   /** A sidewalk or footpath laid on a deck, and a rail. */
   walkway: Rgb
@@ -112,13 +118,21 @@ export type DeckSources = {
 /** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
 function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   return surfaces.flatMap(s => {
-    const low = s.points.filter((_, i) => s.z[i] - (s.ground?.[i] ?? -Infinity) < BOX_MIN)
-    return low.length ? [boundsOf(low, s.width / 2 + COVER)] : []
+    const low = (i: number) => s.z[i] - (s.ground?.[i] ?? -Infinity) < BOX_MIN
+    const n = s.points.length
+    let [head, tail] = [0, n - 1]
+    while (head < n && low(head)) head++
+    while (tail >= head && low(tail)) tail--
+    return [s.points.slice(0, head), s.points.slice(tail + 1)].flatMap(run => (run.length ? [boundsOf(run, s.width / 2 + COVER)] : []))
   })
 }
 
-/** Metres beside a way passing under a deck that are its, not the deck's. */
-const UNDER_SLACK = 3
+
+/** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
+const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)
+
+/** Zoom from which a deck's rails are drawn: thinner than a pixel before it. */
+const RAILS_FROM = 17.5
 
 /** Metres between height samples along a deck. */
 const SAMPLE = 6
@@ -134,7 +148,8 @@ export class DeckLayer {
   private map: any
   private program!: WebGLProgram
   private buffers: MeshBuffers | null = null
-  private paintFrom = 0
+  /** Where the mesh's paint, rails and routes begin. */
+  private ranges = { paintFrom: 0, railsFrom: 0, routesFrom: 0 }
   private origin: [number, number] = [0, 0]
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
@@ -149,11 +164,12 @@ export class DeckLayer {
   private stale = true
   /** Bumped when the decks change, for anything that caches what they cover. */
   version = 0
-  /** Runs after each build, for anything standing on the decks. */
+  /** Runs after a build that moved the decks, for anything standing on them. */
   onBuilt?: () => void
+  private stood = ''
   /** The last build's decks, for `standOn`, and the ground ways passing under them, worked out when first asked. */
   private stands: Array<{ chain: Chain; surface: DeckSurface }> = []
-  private under: Array<{ points: Point[]; reach: number; bounds: Bounds }> | null = null
+  private under: UnderWay[] | null = null
 
   constructor(private sources: DeckSources, private palette: DeckPalette, options: { id?: string } = {}) {
     this.id = options.id ?? 'map-decks'
@@ -294,12 +310,13 @@ export class DeckLayer {
       const kind = props.class === 'rail' || props.class === 'transit' ? 'rail' : props.class === 'path' ? 'path' : 'road'
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined })
+          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined, road: roadClass(props) })
     }
     // Pieces are cut to their own tiles, so each stretch of a way is drawn once.
     const deduped = dedupe(pieces)
     const ways = deduped.flatMap(({ kind, points }) => (kind === 'road' ? [] : [{ kind, points }]))
-    const placed = served.flatMap(d => this.place(d))
+    const roads = deduped.flatMap(piece => (piece.kind === 'road' && piece.road ? [{ piece, bounds: boundsOf(piece.points, MAX_REACH) }] : []))
+    const placed = served.flatMap(d => this.place({ ...d, chain: { ...d.chain, road: classUnder(d.chain, roads) } }))
     if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
     // A cut where a tile meets another loaded one joins back up; one at the
@@ -348,28 +365,33 @@ export class DeckLayer {
 
     const p = this.palette
     const mesh = deckMeshOut()
-    const colors = (kind: Chain['kind']) =>
-      kind === 'rail' ? { surface: p.track, low: p.track } : kind === 'path' ? { surface: p.walkway, low: p.lowPath } : { surface: p.surface, low: p.lowRoad }
+    const colors = ({ kind, road }: Chain) =>
+      kind === 'rail' ? { surface: p.track, low: p.track } : kind === 'path' ? { surface: p.walkway, low: p.lowPath } : { surface: p.surface, low: lowRoad(p, road) }
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain.kind), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }) => {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain.kind).low, ground: groundAt,
+        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind,
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
     this.under = null
-    this.paintFrom = mesh.position.length / 3
-    layWays(mesh, ways, surfaces, p, this.origin)
+    const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
+    layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin)
     layPaint(mesh, this.paintAtGrade(touchdowns(surfaces)), surfaces, p, this.origin, { atGrade: true })
+    ranges.railsFrom = mesh.position.length / 3
+    layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
+    ranges.routesFrom = mesh.position.length / 3
     for (const id of this.sources.routes())
       for (const f of this.query(id)) layRoute(mesh, linesOf(f.geometry).map(line => line.map(mercator)), surfaces, p, this.origin)
     this.version++
-    this.onBuilt?.()
+    const stood = standKey(this.stands)
+    if (stood !== this.stood) this.onBuilt?.()
+    this.stood = stood
     return mesh
   }
 
@@ -383,24 +405,24 @@ export class DeckLayer {
     const p = mercator([lng, lat])
     const stand = standing(this.stands, p, along)
     if (!stand) return null
-    if (!along && stand.height >= BOX_MIN && this.passesUnder(p)) return null
+    if (stand.height >= BOX_MIN && this.passesUnder(p, along)) return null
     return stand.z
   }
 
-  /** Whether a point lies beside a way on the ground that passes under a deck. */
-  private passesUnder(p: Point): boolean {
+  /** Whether an object belongs to a way on the ground passing under a deck: see `underWay`. */
+  private passesUnder(p: Point, along?: [number, number]): boolean {
     if (!this.under) {
       const decks = this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : []))
       const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
       this.under = ground.flatMap(f => linesOf(f.geometry).flatMap(line => {
         const points = line.map(mercator)
         if (points.length < 2) return []
-        const reach = (WIDTH[f.properties?.class] ?? 6) / 2 + UNDER_SLACK
-        const bounds = boundsOf(points, reach)
-        return decks.some(d => meets(d, bounds)) ? [{ points, reach, bounds }] : []
+        const half = (WIDTH[f.properties?.class] ?? 6) / 2
+        const bounds = boundsOf(points, half + UNDER_SLACK)
+        return decks.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
       }))
     }
-    return this.under.some(w => holds(w.bounds, p) && beside(w.points, p).distance <= w.reach)
+    return underWay(this.under, p, along)
   }
 
   /** Barrelman's decks in view, one copy each: every tile a deck crosses carries all of it, exactly. */
@@ -457,6 +479,8 @@ export class DeckLayer {
     if (!this.sources.paint || !ends.length) return []
     return this.query(this.sources.paint.source, this.sources.paint.layer, ['!=', ['get', 'bridge'], true])
       .filter(f => {
+        const tile = tileBounds(f)
+        if (tile && !ends.some(end => meets(end, tile))) return false
         const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
         if (!coords.length) return false
         const box = boundsOf(coords)
@@ -491,24 +515,55 @@ export class DeckLayer {
     const hd = this.sources.hd?.() === false ? 0 : Math.max(0, Math.min(1, (this.map.getZoom() - from) / (to - from)))
     const eye = eyeOf(projection)
     const relative: [number, number, number] | null = eye && [eye[0] - this.origin[0], eye[1] - this.origin[1], eye[2]]
-    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: 1 / metresPerUnit(this.origin[1]) })
+    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]) })
+    const { paintFrom, railsFrom, routesFrom } = this.ranges
+    const draw = () => {
+      mesh.draw(0, paintFrom)
+      // Paint and routes sit a few centimetres over the asphalt; the offset keeps them in front of it at any distance.
+      gl.enable(gl.POLYGON_OFFSET_FILL)
+      gl.polygonOffset(-2, -2)
+      if (hd > 0) mesh.draw(paintFrom, railsFrom)
+      if (this.map.getZoom() >= RAILS_FROM) mesh.draw(railsFrom, routesFrom)
+      mesh.draw(routesFrom)
+      gl.disable(gl.POLYGON_OFFSET_FILL)
+    }
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
-    gl.depthMask(true)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
-    mesh.draw(0, this.paintFrom)
-    // Paint and routes sit a few centimetres over the asphalt; the offset keeps
-    // them in front of it at any distance. Below street zoom they are the deck's colour.
-    gl.enable(gl.POLYGON_OFFSET_FILL)
-    gl.polygonOffset(-2, -2)
-    if (hd > 0) mesh.draw(this.paintFrom)
-    gl.disable(gl.POLYGON_OFFSET_FILL)
+    // Colour first, drawn toward the eye where a deck lies on the ground and so
+    // over terrain a little too high; then the true depth, which is what anything drawn later meets.
+    mesh.bias(true)
+    gl.depthMask(false)
+    draw()
+    mesh.bias(false)
+    gl.depthMask(true)
+    draw()
     mesh.unbind()
   }
 }
 
 type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }
+
+/** The basemap's colour below street zoom for a road deck of a class. */
+function lowRoad(p: DeckPalette, road?: string): Rgb {
+  const base = road?.replace(/_link$/, '')
+  return base === 'motorway' ? p.lowHighway : base === 'trunk' || base === 'primary' ? p.lowMajor : p.lowRoad
+}
+
+/** The class of the basemap road a served deck carries: the nearest road piece to its middle, within MAX_REACH. */
+function classUnder(chain: Chain, roads: Array<{ piece: Piece; bounds: Bounds }>): string | undefined {
+  if (chain.kind !== 'road') return undefined
+  const middle = chain.points[chain.points.length >> 1]
+  let best: { road?: string; distance: number } = { distance: Math.min(MAX_REACH, Math.max(...chain.edges) + COVER) }
+  for (const { piece, bounds } of roads) {
+    if (!holds(bounds, middle)) continue
+    const { distance } = beside(piece.points, middle)
+    if (distance < best.distance) best = { road: piece.road, distance }
+  }
+  return best.road
+}
 
 /** Each road deck fitted to the kerbs nearest it, so a deck and its twin do not take each other's. */
 function fitted(decks: Chain[], kerbs: Point[]): Chain[] {

@@ -292,11 +292,7 @@ export type ObjectSourceSpec = {
   followsView?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
-  /**
-   * Whether an instance may stand on a bridge deck rather than the ground
-   * under it: `along` a deck it runs with (a span of overhead wire), or at a
-   * `point` on one. Null keeps it on the ground.
-   */
+  /** Whether an instance may stand on a bridge deck: `along` one it runs with, as a wire does, or at a `point` on one. */
   deck?: (instance: ObjectInstance) => 'along' | 'point' | null
 }
 

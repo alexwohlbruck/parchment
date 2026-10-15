@@ -79,7 +79,9 @@ export type WayColors = { walkway: number[]; rail: number[] }
 export function layWays(mesh: Mesh, ways: Array<{ kind: 'path' | 'rail'; points: Point[] }>, surfaces: DeckSurface[], colors: WayColors, origin: Point) {
   for (const { kind, points } of ways) {
     const line = densify(points, PAINT_SAMPLE)
-    const laid = { under: onOwnDeck([line], [], surfaces).under.lines[0], surfaces }
+    const under = onOwnDeck([line], [], surfaces).under.lines[0]
+    // A footbridge is walkway already.
+    const laid = { under: kind === 'path' ? under.map(h => (h && surfaces[h.deck].kind === 'path' ? null : h)) : under, surfaces }
     if (kind === 'path') strip(mesh, line, laid, WALKWAY, colors.walkway, 0.01, 0, null, origin)
     else for (const side of [-1, 1]) strip(mesh, line, laid, RAIL, colors.rail, 0.03, (side * GAUGE) / 2, null, origin)
   }

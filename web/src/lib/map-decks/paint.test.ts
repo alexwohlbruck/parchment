@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { along, boundsOf, deckMeshOut, metresPerUnit, type Point } from './decks'
-import { layWays } from './paint'
+import { layPaint, layWays } from './paint'
 
 const M = 1 / 32780000
 const y0 = 0.4012
@@ -29,5 +29,19 @@ describe('layWays', () => {
     const ys = new Set(rails.position.filter((_, k) => k % 3 === 1).map(y => Math.round(y / M * 100) / 100))
     expect(ys.size).toBe(4)
     expect(off.position).toHaveLength(0)
+  })
+})
+
+describe('the road\'s paint over a deck end', () => {
+  const points = line(0, 50, 100)
+  const deck = { points, z: [100, 108, 100.2], d: along(points), width: 15, bounds: boundsOf(points, 8), ground: [100, 100, 100] }
+  const colors = { white: [1, 1, 1], yellow: [1, 1, 0], green: [0, 1, 0], red: [1, 0, 0] }
+
+  test('is laid where the deck lies on the ground, never where it stands over a road', () => {
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [line(0, 100)], areas: [] }], [deck], colors, points[0], { atGrade: true })
+    const xs = mesh.position.filter((_, k) => k % 3 === 0).map(x => x / M)
+    expect(xs.length).toBeGreaterThan(0)
+    expect(xs.some(x => x > 20 && x < 80)).toBe(false)
   })
 })

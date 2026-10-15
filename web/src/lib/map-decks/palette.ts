@@ -23,7 +23,7 @@ const TOKENS: Record<FlavorId, Record<string, string>> = { light: lightTokens, d
 /** The basemap's own road and path colours, which a deck takes below street zoom and for the walkways it carries. */
 const basemap = (flavor: FlavorId) => {
   const t = TOKENS[flavor]
-  return { lowRoad: hsl(t.road_minor), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface) }
+  return { lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface) }
 }
 
 /** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */

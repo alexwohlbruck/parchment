@@ -231,8 +231,8 @@ export function splitAtFace(bore: Point[], face: Face, gap = 0.5): { out: Point[
 }
 
 /**
- * A portal ready to be solved: the approach out from it, the bore in from it, its carriageway's edges in metres, and the direction of a headwall mapped across it.
- * `piers` are the walls between the bores of one portal, as spans in metres left of its centreline.
+ * A portal ready to be solved: its approach, bore, edges in metres, and mapped headwall.
+ * `piers` are the walls between its bores, as spans in metres left of its centreline.
  */
 export type Opening = { out: Approach; bore: Point[]; edges: [number, number]; kind: BoreKind; layer: number; face?: Point; piers?: Array<[number, number]> }
 
@@ -282,8 +282,17 @@ export function groupPortals(openings: Opening[]): Opening[] {
   const axes = openings.map(axis)
   const root = openings.map((_, i) => i)
   const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])))
+  const kinds = openings.map(o => new Set([o.kind]))
   for (let i = 0; i < openings.length; i++)
-    for (let j = i + 1; j < openings.length; j++) if (sideBySide(openings[i], openings[j], axes[i], axes[j])) root[find(j)] = find(i)
+    for (let j = i + 1; j < openings.length; j++) {
+      const [a, b] = [find(i), find(j)]
+      if (a === b || !sideBySide(openings[i], openings[j], axes[i], axes[j])) continue
+      // Not even through a path between them: a road and a railway are separate structures.
+      const both = new Set([...kinds[a], ...kinds[b]])
+      if (both.has('road') && both.has('rail')) continue
+      root[b] = a
+      kinds[a] = both
+    }
   const groups = new Map<number, Opening[]>()
   openings.forEach((o, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), o]))
   return [...groups.values()].map(group => (group.length === 1 ? group[0] : merge(group)))

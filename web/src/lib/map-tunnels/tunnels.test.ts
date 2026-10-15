@@ -249,6 +249,7 @@ describe('groupPortals', () => {
     expect(groupPortals([bore('road', 0, 3.5), bore('road', 18, 3.5)])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('road', 7, 3.5, { layer: -2 })])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('rail', 8, 2.5)])).toHaveLength(2)
+    expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1), bore('rail', 10, 2.5)])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1, { east: 15 })])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1, { bearing: 0.5 })])).toHaveLength(2)
   })

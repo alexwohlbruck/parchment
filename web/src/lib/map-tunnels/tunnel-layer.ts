@@ -253,7 +253,15 @@ export class TunnelLayer {
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
     // One tunnel's ways may step between layers; each portal reads its own way's layer.
-    const layerAt = (q: Point, kind: BoreKind) => tunnels.find(t => t.kind === kind && [t.points[0], t.points.at(-1)!].some(e => Math.hypot(e[0] - q[0], e[1] - q[1]) < tolerance))?.layer ?? -1
+    const layerAt = (q: Point, kind: BoreKind) => {
+      let best = { layer: -1, apart: tolerance }
+      for (const t of tunnels)
+        for (const e of [t.points[0], t.points.at(-1)!]) {
+          const apart = Math.hypot(e[0] - q[0], e[1] - q[1])
+          if (t.kind === kind && apart < best.apart) best = { layer: t.layer, apart }
+        }
+      return best.layer
+    }
     const bores = chains(tunnels.map(t => ({ ...t, layer: -1 })), p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
     const portals = bores.flatMap(bore => [0, 1].filter(e => bore.grounded[e]).map(e => {
       const line = e ? [...bore.points].reverse() : bore.points

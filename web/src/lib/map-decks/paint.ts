@@ -38,7 +38,7 @@ export function paintOf(feature: any): Paint {
 }
 
 /** What a mark is laid on: the deck under each point, and whether it keeps its colour below street zoom. */
-type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground }
+type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground; offDeck?: boolean }
 
 /**
  * The ground beside a deck's ends, where a bridge's own road and paint carry on
@@ -60,7 +60,7 @@ function onGround(laid: Laid, p: Point): Hit | null {
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
  * lies on the ground and so would hide it.
  */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground }: { atGrade?: boolean; ground?: Ground } = {}) {
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, offDeck = false }: { atGrade?: boolean; ground?: Ground; offDeck?: boolean } = {}) {
   const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < BOX_MIN ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
@@ -69,11 +69,12 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
     const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
-    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) } : laid
+    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) }
+      : offDeck ? { lines: laid.lines.map(l => l.map(() => null)), rings: laid.rings.map(r => r.map(() => null)) } : laid
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
-    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground }, color, lift, origin)
+    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground, offDeck }, color, lift, origin)
     const width = PAINT_WIDTH[props.kind] ?? 0.12
     for (const [k, line] of lines.entries())
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
@@ -132,7 +133,7 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
       const centre: Point = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3]
       const decks = laid.surfaces.flatMap((d, k) =>
         d.bounds && meets(d.bounds, box) && (!hits.length || Math.abs(hitOn(laid, k, centre).z - top) <= LEVEL) ? [k] : [])
-      for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
+      if (!laid.offDeck) for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
       // Beside a deck's end the rest lies on the ground, under where the deck covers it.
       const below = corners.map(k => onGround(laid, flat[k]))
       if (below.every(Boolean)) split(mesh, corners.map((k, c) => ({ p: flat[k], hit: below[c]! })), laid, color, lift - GROUND_UNDER, origin, scale)

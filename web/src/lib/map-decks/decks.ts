@@ -888,6 +888,61 @@ export function insideRing([x, y]: Point, ring: Point[]): boolean {
   return hit
 }
 
+/**
+ * Metres from a deck's centreline to the kerb on each side at every vertex,
+ * from points on the outlines of the carriageways it carries; its edge where
+ * none lies within a sample of a vertex.
+ */
+export function kerbsOf(chain: Chain, kerbs: Point[]): [number[], number[]] {
+  const n = chain.points.length
+  const out: [number[], number[]] = [new Array(n).fill(NaN), new Array(n).fill(NaN)]
+  const bounds = boundsOf(chain.points, Math.max(...chain.edges) + 1)
+  for (const q of kerbs) {
+    if (!holds(bounds, q)) continue
+    const near = beside(chain.points, q)
+    const side = near.left ? 0 : 1
+    const i = near.t < 0.5 ? near.segment - 1 : near.segment
+    if (!near.alongside || near.distance > sideAt(chain, side, i) + 1) continue
+    out[side][i] = Number.isNaN(out[side][i]) ? near.distance : Math.max(out[side][i], near.distance)
+  }
+  const d = along(chain.points)
+  return out.map((k, side) => k.map((v, i) => {
+    if (!Number.isNaN(v)) return Math.min(v, sideAt(chain, side as 0 | 1, i))
+    let best = -1
+    for (let j = 0; j < n; j++) if (!Number.isNaN(k[j]) && Math.abs(d[j] - d[i]) <= KERB_REACH && (best < 0 || Math.abs(d[j] - d[i]) < Math.abs(d[best] - d[i]))) best = j
+    return best < 0 ? sideAt(chain, side as 0 | 1, i) : Math.min(k[best], sideAt(chain, side as 0 | 1, i))
+  })) as [number[], number[]]
+}
+
+/** Farthest along a deck a kerb reading carries to vertices with none of their own, in metres. */
+const KERB_REACH = 9
+
+/** The walkway between each kerb and the deck's edge, a few millimetres over the asphalt. */
+export function kerbBands(chain: Chain, z: number[], groundAt: number[], kerbs: [number[], number[]], colors: { walkway: number[]; low: number[] }, origin: Point, out: Mesh) {
+  const pts = chain.points
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const normal = (i: number): Point => {
+    const [a, b] = [pts[Math.max(0, i - 1)], pts[Math.min(n - 1, i + 1)]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    return [-(b[1] - a[1]) / len, (b[0] - a[0]) / len]
+  }
+  const at = (i: number, by: number, lift: number) => {
+    const nn = normal(i)
+    return [pts[i][0] + nn[0] * by * scale - origin[0], pts[i][1] + nn[1] * by * scale - origin[1], (z[i] + lift) * scale]
+  }
+  for (const side of [0, 1] as const) {
+    const sign = side ? -1 : 1
+    for (let i = 1; i < n; i++) {
+      const [k0, k1, e0, e1] = [kerbs[side][i - 1], kerbs[side][i], sideAt(chain, side, i - 1), sideAt(chain, side, i)]
+      if (e0 - k0 < 0.2 && e1 - k1 < 0.2) continue
+      const corners = [at(i - 1, sign * k0, 0.005), at(i, sign * k1, 0.005), at(i, sign * e1, 0.005), at(i - 1, sign * e0, 0.005)]
+      const bias = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i]), touchdown(z[i] - groundAt[i]), touchdown(z[i - 1] - groundAt[i - 1])]
+      for (const t of [[0, 1, 2], [0, 2, 3]]) for (const c of t) vertex(out, corners[c], [0, 0, 1], colors.walkway, colors.low, bias[c])
+    }
+  }
+}
+
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180
 /** Most pieces a segment is split into to round a curve. */

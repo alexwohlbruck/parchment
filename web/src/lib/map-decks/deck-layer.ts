@@ -17,6 +17,8 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
+  kerbBands,
+  kerbsOf,
   insideRing,
   deckMeshOut,
   endsMade,
@@ -375,15 +377,19 @@ export class DeckLayer {
 
     const p = this.palette
     const mesh = deckMeshOut()
-    // A road deck under a carriageway outline is paved like the street: asphalt laid on it, the rest walkway.
+    // A road deck carrying a carriageway outline is paved like the street: walkway from its kerbs out to its edges.
     const paved = this.carriageways(true)
+    const kerbPoints = paved.flatMap(c => c.areas.flat(2))
     const rings = paved.flatMap(c => c.areas.map(rings => rings[0]))
-    const carries = (chain: Chain) => [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return rings.some(r => insideRing(q, r)) })
+    const carries = (chain: Chain) => chain.kind === 'road' && [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return rings.some(r => insideRing(q, r)) })
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
-      : { surface: carries(chain) ? p.walkway : p.surface, low: lowRoad(p, chain.road) }
+      : { surface: p.surface, low: lowRoad(p, chain.road) }
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
+
+    for (const { chain, z, groundAt } of solved)
+      if (carries(chain)) kerbBands(chain, z, groundAt, kerbsOf(chain, kerbPoints), { walkway: p.walkway, low: colors(chain).low }, this.origin, mesh)
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }) => {
       const width = 2 * Math.max(...chain.edges) + 1
@@ -400,8 +406,7 @@ export class DeckLayer {
     const ends = touchdowns(surfaces)
     const sampler = this.groundSampler()
     const ground = { at: (q: Point) => { const g = sampler?.at(q); return g === null || g === undefined ? null : g * exaggeration }, near: ends, low: p.lowRoad }
-    layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
-    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
+    layPaint(mesh, paved, surfaces, tar, this.origin, { ground, offDeck: true })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin, { ground })
     layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })

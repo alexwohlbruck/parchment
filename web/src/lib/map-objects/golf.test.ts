@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { golfFlagInstance, GOLF_OBJECTS } from './golf'
-import { golfPinOpacity, GOLF_FLAG_MINZOOM } from '@/lib/map-style/detail-layers'
+import { golfPinMaxzoom, GOLF_FLAG_MINZOOM } from '@/lib/map-style/detail-layers'
 
 describe('golf flags', () => {
   test('only pins get a flagstick', () => {
@@ -16,7 +16,7 @@ describe('golf flags', () => {
 
   test('the flat pin hides exactly where the 3D flag starts', () => {
     expect(GOLF_OBJECTS.minzoom).toBe(GOLF_FLAG_MINZOOM)
-    expect(golfPinOpacity(false)).toBe(1)
-    expect(golfPinOpacity(true)).toEqual(['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0])
+    expect(golfPinMaxzoom(true)).toBe(GOLF_OBJECTS.minzoom)
+    expect(golfPinMaxzoom(false)).toBeGreaterThan(GOLF_OBJECTS.minzoom)
   })
 })

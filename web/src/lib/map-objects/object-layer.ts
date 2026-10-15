@@ -604,7 +604,17 @@ export class ObjectLayer {
     if (!steps || !this.map) return
     const until = performance.now() + (this.map.isMoving?.() ? SLICE : RESTING_SLICE)
     while (performance.now() < until) {
-      if (!steps.next().done) continue
+      let done: boolean | undefined
+      try {
+        done = steps.next().done
+      } catch {
+        // `queryTerrainElevation` throws for a point whose DEM tile has not loaded
+        // yet. Drop this gather and try again, rather than leave it stuck forever.
+        this.gathering = null
+        this.invalidate(true)
+        return
+      }
+      if (!done) continue
       this.gathering = null
       this.arrange()
       this.map.triggerRepaint?.()
@@ -738,16 +748,7 @@ export class ObjectLayer {
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy
-        } else if (terrain) {
-          // Throws for a point whose DEM tile is not loaded; one such object must not end the gather.
-          let ground: number
-          try {
-            ground = terrain.queryTerrainElevation([lng, lat]) ?? 0
-          } catch {
-            continue
-          }
-          placed.z = ground * placed.perMetre
-        }
+        } else if (terrain) placed.z = (terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
         if (instance.rise && instance.length) {
           const run = instance.rise / instance.length
           placed.gx += run * Math.cos(instance.heading)

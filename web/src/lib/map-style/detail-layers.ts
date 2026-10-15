@@ -113,9 +113,9 @@ export const GOLF_PIN_LAYER = 'Golf pin'
 /** Where the 3D flagstick takes over from the flat pin icon. */
 export const GOLF_FLAG_MINZOOM = 17
 
-/** The pin icon's opacity: hidden where the 3D flagstick stands, when objects are on. */
-export function golfPinOpacity(objects3d: boolean): any {
-  return objects3d ? ['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0] : 1
+/** The pin icon's top zoom: it gives way to the 3D flagstick when objects are on. */
+export function golfPinMaxzoom(objects3d: boolean): number {
+  return objects3d ? GOLF_FLAG_MINZOOM : 24
 }
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */

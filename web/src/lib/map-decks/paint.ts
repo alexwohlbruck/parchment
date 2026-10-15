@@ -22,6 +22,8 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
+/** Metres apart in height two decks under one painted triangle may be and still both carry it. */
+const LEVEL = 1
 
 /** A served road marking as runs and areas, clipped to its tile. */
 export function paintOf(feature: any): Paint {
@@ -101,7 +103,10 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
     if (corners.some(k => !laid.under[k])) {
-      const decks = [...new Set(corners.flatMap(k => (laid.under[k] ? [laid.under[k]!.deck] : [])))]
+      // Only decks at the level of the paint: a corner can lie over a deck stacked under it.
+      const hits = corners.flatMap(k => (laid.under[k] ? [laid.under[k]!] : []))
+      const top = Math.max(...hits.map(h => h.z))
+      const decks = [...new Set(hits.filter(h => top - h.z <= LEVEL).map(h => h.deck))]
       for (const deck of decks) clipped(mesh, corners.map(k => flat[k]), deck, laid, color, lift, origin)
       continue
     }
@@ -181,7 +186,7 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     const scale = 1 / metresPerUnit(a[1])
     const seg = Math.hypot(b[0] - a[0], b[1] - a[1])
     const metres = seg / scale
-    const [ha, hb] = [laid.under[i - 1] ?? laid.under[i], laid.under[i] ?? laid.under[i - 1]]
+    const [ha, hb] = [laid.under[i - 1], laid.under[i]]
     if (!ha || !hb || seg === 0) {
       travelled += metres
       continue

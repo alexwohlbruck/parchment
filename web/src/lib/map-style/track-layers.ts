@@ -5,7 +5,7 @@
  */
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
-import { pxPerMetre } from './road-markings'
+import { metres } from './metres'
 
 export const TRACK_TILES = 'sport_tracks'
 
@@ -17,13 +17,13 @@ const COLORS: Record<FlavorId, Record<string, string>> = {
   light: {
     tartan: 'hsl(9, 56%, 68%)',
     lane: 'hsla(0, 0%, 100%, 0.9)',
-    asphalt: 'hsl(222, 6%, 74%)',
+    tarmac: 'hsl(222, 5%, 68%)',
     dirt: 'hsl(30, 32%, 70%)',
   },
   dark: {
     tartan: 'hsl(9, 28%, 36%)',
     lane: 'hsla(9, 20%, 80%, 0.55)',
-    asphalt: 'hsl(222, 6%, 38%)',
+    tarmac: 'hsl(222, 6%, 50%)',
     dirt: 'hsl(30, 18%, 34%)',
   },
 }
@@ -37,19 +37,16 @@ const MAX_LANE_LINES = 7
 
 const kind = ['get', 'kind']
 
-/** A width or offset of `metres` (an expression) in pixels, from z15 up. */
-function metresOf(metres: any, minimum = 0): any {
-  const at = (z: number) => ['max', minimum, ['*', metres, pxPerMetre(z)]]
-  return ['interpolate', ['exponential', 2], ['zoom'], 15, at(15), 22, at(22)]
-}
+/** `m` metres at this track's latitude, from z15 up. */
+const trackMetres = (m: unknown, minimum = 0) =>
+  metres(['*', m, ['coalesce', ['get', 'scale'], 1]], { from: 15, minimum })
 
-const lanes = (fallback: number) => ['coalesce', ['get', 'lanes'], fallback]
+const lanes = (fallback: number) => ['min', ['coalesce', ['get', 'lanes'], fallback], 10]
 
 /**
- * A track's surface and the lines between its lanes. An oval is mapped as its
- * outline with the infield still inside it, so its lanes are a band laid along
- * the inside of that outline: a polygon's outer ring winds clockwise, which puts
- * a positive line offset inside it.
+ * A track's surface and the lines between its lanes. An oval is mapped with its
+ * infield inside, so its lanes are a band laid along the inside of its outline,
+ * which barrelman winds so that a positive line offset falls inside.
  */
 export function trackLayers(flavor: FlavorId): any[] {
   const c = COLORS[flavor]
@@ -68,7 +65,7 @@ export function trackLayers(flavor: FlavorId): any[] {
     paint: {
       'line-color': c.lane,
       'line-width': ['interpolate', ['linear'], ['zoom'], 17, 0.5, 20, 1.5],
-      'line-offset': metresOf(n * LANE_M),
+      'line-offset': trackMetres(n * LANE_M),
       'line-opacity': ['interpolate', ['linear'], ['zoom'], 17, 0, 17.5, 1],
     },
   }))
@@ -88,8 +85,8 @@ export function trackLayers(flavor: FlavorId): any[] {
       layout: { 'line-join': 'round' },
       paint: {
         'line-color': c.tartan,
-        'line-width': metresOf(band),
-        'line-offset': metresOf(['/', band, 2]),
+        'line-width': trackMetres(band),
+        'line-offset': trackMetres(['/', band, 2]),
       },
     },
     {
@@ -100,7 +97,7 @@ export function trackLayers(flavor: FlavorId): any[] {
       layout: { 'line-join': 'round', 'line-cap': 'butt' },
       paint: {
         'line-color': c.tartan,
-        'line-width': metresOf(['*', lanes(1), LANE_M], 1),
+        'line-width': trackMetres(['*', lanes(1), LANE_M], 1),
       },
     },
     ...laneLines,
@@ -114,10 +111,10 @@ export function racewayLayer(flavor: FlavorId, minorRoad: any): any {
     ...minorRoad,
     id: RACEWAY_LAYER,
     minzoom: 12,
-    filter: ['all', ['==', ['get', 'class'], 'raceway'], ['!=', ['get', 'brunnel'], 'tunnel']],
+    filter: ['all', ['==', ['get', 'class'], 'raceway'], ['!', ['match', ['get', 'brunnel'], ['tunnel', 'bridge'], true, false]]],
     paint: {
       ...minorRoad.paint,
-      'line-color': ['match', ['get', 'surface'], 'unpaved', c.dirt, c.asphalt],
+      'line-color': ['match', ['get', 'surface'], 'unpaved', c.dirt, c.tarmac],
     },
   }
 }

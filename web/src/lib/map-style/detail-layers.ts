@@ -168,7 +168,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfBunker: 'hsl(45, 58%, 87%)',
     golfHole: 'hsl(105, 30%, 40%)',
     golfFlag: 'hsl(4, 72%, 52%)',
-    discBasket: 'hsl(48, 90%, 44%)',
+    discBasket: 'hsl(42, 85%, 36%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -222,8 +222,9 @@ export function detailSources(tileUrl: (source: string) => string) {
   return {
     /**
      * The bundle's window is the union of its members': `bicycle_ways` starts
-     * at 9, `parking_areas` at 13, `buildings_3d` and `coaster_tracks` at 14, the
-     * trees at 16, and
+     * at 9, `parking_areas` and `ski_features` at 13, `buildings_3d`,
+     * `coaster_tracks`, `golf_features` and `sport_tracks` at 14, the trees at
+     * 16, and
      * every one of them stops at 16. A member below its own floor contributes
      * nothing to the tile, so the low zooms cost only what the cycling layers
      * put there — and MapLibre asks for nothing at all until a *visible* layer
@@ -588,8 +589,8 @@ export function golfHoleLayers(flavor: FlavorId): any[] {
   ]
 }
 
-/** How the basemap writes a park's name, which hole numbers borrow. */
-export type GolfLabelStyle = {
+/** How the basemap writes a park's name, which golf and ski labels borrow. */
+export type DetailLabelStyle = {
   font: string[]
   color: string
   halo: string
@@ -598,7 +599,7 @@ export type GolfLabelStyle = {
 }
 
 /** Hole numbers, from the point barrelman serves at each hole's tee, and pins. */
-export function golfLabelLayers(flavor: FlavorId, label: GolfLabelStyle): any[] {
+export function golfLabelLayers(flavor: FlavorId, label: DetailLabelStyle): any[] {
   const c = DETAIL_COLORS[flavor]
   const par = ['to-number', ['get', 'par'], 0]
   return [

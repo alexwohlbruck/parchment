@@ -4,9 +4,9 @@
  * `transportation` as `class=aerialway`.
  */
 import type { FlavorId } from './build'
-import type { GolfLabelStyle } from './detail-layers'
+import type { DetailLabelStyle } from './detail-layers'
 import { DETAIL_SOURCE } from './detail-layers'
-import { pxPerMetre } from './road-markings'
+import { metres } from './metres'
 
 export const SKI_TILES = 'ski_features'
 
@@ -34,11 +34,11 @@ const COLORS: Record<FlavorId, Record<string, string>> = {
     red: 'hsl(356, 76%, 49%)',
     black: 'hsl(222, 22%, 14%)',
     orange: 'hsl(26, 92%, 50%)',
-    unknown: 'hsl(222, 8%, 56%)',
+    unknown: 'hsl(222, 6%, 64%)',
     snow: 'hsl(205, 45%, 98.5%)',
     area: 'hsl(205, 36%, 97%)',
     areaEdge: 'hsl(205, 30%, 86%)',
-    lift: 'hsl(222, 12%, 42%)',
+    lift: 'hsl(222, 24%, 26%)',
     liftHalo: 'hsla(0, 0%, 100%, 0.8)',
   },
   // Black runs turn light here: a black line disappears into a night map.
@@ -48,11 +48,11 @@ const COLORS: Record<FlavorId, Record<string, string>> = {
     red: 'hsl(356, 74%, 66%)',
     black: 'hsl(0, 0%, 97%)',
     orange: 'hsl(28, 88%, 60%)',
-    unknown: 'hsl(222, 8%, 62%)',
+    unknown: 'hsl(222, 6%, 50%)',
     snow: 'hsl(214, 26%, 31%)',
     area: 'hsl(214, 30%, 27%)',
     areaEdge: 'hsl(214, 22%, 34%)',
-    lift: 'hsl(222, 10%, 64%)',
+    lift: 'hsl(222, 16%, 74%)',
     liftHalo: 'hsla(216, 30%, 12%, 0.7)',
   },
 }
@@ -88,7 +88,7 @@ export function pisteColor(flavor: FlavorId): any {
 }
 
 /** North America signs its runs by shape as well as colour; elsewhere a disc carries the colour. */
-const PISTE_ICON = [
+export const PISTE_ICON = [
   'case',
   ['==', piste, 'snow_park'], 'piste-park',
   ['!=', scheme, 'na'], 'piste-circle',
@@ -101,7 +101,7 @@ const PISTE_ICON = [
   ],
 ]
 
-const isLine = ['==', kind, 'piste']
+const isLine = ['match', kind, ['piste', 'route'], true, false]
 const ofType = (types: string[]) => ['match', piste, types, true, false]
 
 /** A line's width ramp, scaled by a number or a per-feature expression. */
@@ -168,7 +168,7 @@ export function pisteLayers(flavor: FlavorId): any[] {
       paint: {
         'line-color': c.snow,
         // About 12 m of cleared slope.
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 13, 2, 22, 12 * pxPerMetre(22)],
+        'line-width': metres(12, { from: 13, minimum: 2 }),
         'line-blur': ['interpolate', ['linear'], ['zoom'], 13, 0.5, 17, 2],
       },
     },
@@ -212,7 +212,7 @@ export function pisteLayers(flavor: FlavorId): any[] {
 export function liftLayers(flavor: FlavorId, source: string): any[] {
   const c = COLORS[flavor]
   const SURFACE = ['t-bar', 'j-bar', 'platter', 'drag_lift', 'rope_tow', 'magic_carpet']
-  const aerialway = ['==', ['get', 'class'], 'aerialway']
+  const aerialway = ['all', ['==', ['get', 'class'], 'aerialway'], ['!=', ['get', 'subclass'], 'goods']]
   const surface = ['match', ['get', 'subclass'], SURFACE, true, false]
   const common = {
     type: 'line',
@@ -224,7 +224,7 @@ export function liftLayers(flavor: FlavorId, source: string): any[] {
     {
       ...common,
       id: LIFT_HALO_LAYER,
-      filter: aerialway,
+      filter: ['all', aerialway, ['!=', ['get', 'subclass'], 'zip_line']],
       paint: {
         'line-color': c.liftHalo,
         'line-width': width(2.2),
@@ -271,10 +271,9 @@ export function liftLayers(flavor: FlavorId, source: string): any[] {
 }
 
 /** Run difficulty signs and run and lift names, written the way the basemap names a park. */
-export function skiLabelLayers(flavor: FlavorId, label: GolfLabelStyle, source: string): any[] {
+export function skiLabelLayers(flavor: FlavorId, label: DetailLabelStyle, source: string, liftName: unknown): any[] {
   const c = COLORS[flavor]
   const color = pisteColor(flavor)
-  const name = ['coalesce', ['get', 'name:en'], ['get', 'name']]
   return [
     {
       id: PISTE_SYMBOL_LAYER,
@@ -303,7 +302,7 @@ export function skiLabelLayers(flavor: FlavorId, label: GolfLabelStyle, source: 
       source: DETAIL_SOURCE,
       'source-layer': SKI_TILES,
       minzoom: 14.5,
-      filter: ['all', ['match', kind, ['piste', 'route'], true, false], ['has', 'name']],
+      filter: ['all', ['match', kind, ['piste', 'route', 'route_name'], true, false], ['has', 'name']],
       layout: {
         'symbol-placement': 'line',
         'symbol-spacing': 400,
@@ -326,11 +325,11 @@ export function skiLabelLayers(flavor: FlavorId, label: GolfLabelStyle, source: 
       source,
       'source-layer': 'transportation_name',
       minzoom: 14,
-      filter: ['==', ['get', 'class'], 'aerialway'],
+      filter: ['all', ['==', ['get', 'class'], 'aerialway'], ['!=', ['get', 'subclass'], 'goods']],
       layout: {
         'symbol-placement': 'line',
         'symbol-spacing': 600,
-        'text-field': name,
+        'text-field': liftName,
         'text-font': label.font,
         'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11, 18, 13],
         'text-offset': [0, 0.8],

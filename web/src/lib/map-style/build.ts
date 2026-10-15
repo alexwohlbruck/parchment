@@ -14,7 +14,7 @@ import {
   golfSurfaceLayers,
   golfHoleLayers,
   golfLabelLayers,
-  type GolfLabelStyle,
+  type DetailLabelStyle,
   GOLF_HOLE_LABEL_LAYER,
   GOLF_PIN_LAYER,
   DISC_GOLF_BASKET_LAYER,
@@ -349,10 +349,8 @@ export const layerGroups = {
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
   ],
-  /** Hidden with the POI labels, but not clickable: a hole or pin is not a place the sheet can open. */
-  golfLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER],
-  /** Hidden with the POI labels, and not clickable either. */
-  skiLabels: [PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER],
+  /** Hidden with the POI labels, but not clickable: a hole, pin or run is not a place the sheet can open. */
+  detailLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER, PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER],
   roadLabels: [
     ...idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name' && !BASEMAP_AERIALWAY_LAYERS.includes(l.id)),
     LIFT_LABEL_LAYER,
@@ -506,7 +504,7 @@ export function buildLayers(options: {
     .map(l => localize(l, lang))
 
   const park = converted.find(l => l.id === 'Park')
-  const golfLabel: GolfLabelStyle = {
+  const detailLabel: DetailLabelStyle = {
     font: park?.layout?.['text-font'] ?? ['Geist SemiBold'],
     color: resolve('@poi_ink_park', tokens, categories, flavor),
     halo: resolve('@poi_halo', tokens, categories, flavor),
@@ -514,7 +512,7 @@ export function buildLayers(options: {
     haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
   }
 
-  return spliceDetailLayers(converted, flavor, hdRoads, golfLabel) as LayerSpecification[]
+  return spliceDetailLayers(converted, flavor, hdRoads, detailLabel) as LayerSpecification[]
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
@@ -605,16 +603,16 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, golfLabel: GolfLabelStyle): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
   if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...trackLayers(flavor), ...pitchLayers(flavor))
 
-  // A resort's snow lies under its woods, so only the cleared ground shows it;
+  // A resort's snow lies under its glaciers and woods, so only open ground shows it;
   // the runs are cut through those woods, and the rivers cross over them.
-  const wood = out.findIndex(l => l.id === 'Wood')
-  if (wood >= 0) out.splice(wood, 0, ...skiAreaLayers(flavor))
+  const glacier = out.findIndex(l => l.id === 'Glacier')
+  if (glacier >= 0) out.splice(glacier, 0, ...skiAreaLayers(flavor))
   const river = out.findIndex(l => l.id === 'River tunnel')
   if (river >= 0) out.splice(river, 0, ...pisteLayers(flavor))
 
@@ -628,6 +626,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, g
     if (at >= 0) out.splice(at, 1)
   }
   const roadLabels = out.findIndex(l => l.id === 'Road labels')
+  const roadName = out[roadLabels]?.layout?.['text-field'] ?? ['get', 'name']
   if (roadLabels >= 0) {
     const l = out[roadLabels]
     out[roadLabels] = { ...l, filter: combineFilters([l.filter, ['!=', ['get', 'class'], 'aerialway']]) }
@@ -668,7 +667,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, g
 
   // Hole numbers and pins sit under every basemap label.
   const firstLabel = out.findIndex(l => l.id === 'River labels')
-  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, golfLabel), ...skiLabelLayers(flavor, golfLabel, SOURCE))
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, detailLabel), ...skiLabelLayers(flavor, detailLabel, SOURCE, roadName))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.

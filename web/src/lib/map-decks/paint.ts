@@ -9,7 +9,7 @@ import { atHit, BOX_MIN, clip, halfPlane, densify, linesOf, mercator, metresPerU
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
-export type PaintColors = { white: number[]; yellow: number[]; green: number[]; red: number[] }
+export type PaintColors = { white: number[]; yellow: number[]; green: number[]; red: number[]; asphalt?: number[] }
 
 /** Paint widths in metres, and the dash for a dashed line. */
 const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45, hatch: 0.2 }
@@ -48,13 +48,15 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
     if (props.pattern === 'none') continue
-    const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green : colors.white
+    const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green
+      : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
     const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
     const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) } : laid
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
-    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces }, color, props.color === 'white' ? 0.03 : 0.02, origin)
+    const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
+    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces }, color, lift, origin)
     const width = PAINT_WIDTH[props.kind] ?? 0.12
     for (const [k, line] of lines.entries())
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])

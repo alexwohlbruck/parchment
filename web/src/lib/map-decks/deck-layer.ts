@@ -17,6 +17,7 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
+  insideRing,
   deckMeshOut,
   endsMade,
   standing,
@@ -374,8 +375,13 @@ export class DeckLayer {
 
     const p = this.palette
     const mesh = deckMeshOut()
-    const colors = ({ kind, road }: Chain) =>
-      kind === 'rail' ? { surface: p.track, low: p.track } : kind === 'path' ? { surface: p.walkway, low: p.lowPath } : { surface: p.surface, low: lowRoad(p, road) }
+    // A road deck under a carriageway outline is paved like the street: asphalt laid on it, the rest walkway.
+    const paved = this.carriageways(true)
+    const rings = paved.flatMap(c => c.areas.map(rings => rings[0]))
+    const carries = (chain: Chain) => [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return rings.some(r => insideRing(q, r)) })
+    const colors = (chain: Chain) =>
+      chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
+      : { surface: carries(chain) ? p.walkway : p.surface, low: lowRoad(p, chain.road) }
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
 
@@ -390,6 +396,9 @@ export class DeckLayer {
     this.tracks = ways.flatMap(w => (w.kind === 'rail' ? [{ points: w.points, half: 1, bounds: boundsOf(w.points, 3) }] : []))
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
+    const tar = { ...p, asphalt: p.surface }
+    layPaint(mesh, paved, surfaces, tar, this.origin)
+    layPaint(mesh, this.carriageways(false, touchdowns(surfaces)), surfaces, tar, this.origin, { atGrade: true })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin)
     layPaint(mesh, this.paintAtGrade(touchdowns(surfaces)), surfaces, p, this.origin, { atGrade: true })
@@ -499,6 +508,21 @@ export class DeckLayer {
         return ends.some(end => meets(end, box))
       })
       .map(paintOf)
+  }
+
+  /** Carriageways as asphalt to lay: the bridges' own, or those on the ground over the given boxes, where decks lie on it. */
+  private carriageways(bridge: boolean, over: Bounds[] = []): Paint[] {
+    if (!this.sources.surfaces || (!bridge && !over.length)) return []
+    const { source, layer } = this.sources.surfaces
+    return this.query(source, layer, ['all', ['==', ['coalesce', ['get', 'bridge'], false], bridge], ['!=', ['get', 'kind'], 'island']])
+      .filter(f => {
+        if (bridge) return true
+        const tile = tileBounds(f)
+        if (tile && !over.some(b => meets(b, tile))) return false
+        const coords = polygonsOf(f.geometry).flat(2).map(mercator)
+        return coords.length > 0 && over.some(b => meets(b, boundsOf(coords)))
+      })
+      .map(f => paintOf({ geometry: f.geometry, _x: f._x, _y: f._y, _z: f._z, properties: { kind: 'surface', pattern: 'fill', color: 'asphalt' } }))
   }
 
   /** The outlines of the bridges' own carriageways. */

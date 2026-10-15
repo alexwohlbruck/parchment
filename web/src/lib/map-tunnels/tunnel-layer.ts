@@ -252,12 +252,14 @@ export class TunnelLayer {
     const loaded = tunnels.reduce<Bounds | null>((u, { tile: t }) => !t ? u : u
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
-    const bores = chains(tunnels, p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
+    // One tunnel's ways may step between layers; each portal reads its own way's layer.
+    const layerAt = (q: Point, kind: BoreKind) => tunnels.find(t => t.kind === kind && [t.points[0], t.points.at(-1)!].some(e => Math.hypot(e[0] - q[0], e[1] - q[1]) < tolerance))?.layer ?? -1
+    const bores = chains(tunnels.map(t => ({ ...t, layer: -1 })), p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
     const portals = bores.flatMap(bore => [0, 1].filter(e => bore.grounded[e]).map(e => {
       const line = e ? [...bore.points].reverse() : bore.points
       // Where both ends open, each draws its bore halfway, so the two never overlap.
       const reach = bore.grounded[0] && bore.grounded[1] ? Math.min(BORE, along(line).at(-1)! / 2) : BORE
-      return { line, reach, width: bore.width, kind: bore.kind, layer: bore.layer, bounds: boundsOf([line[0]], CUT_MAX) }
+      return { line, reach, width: bore.width, kind: bore.kind, layer: layerAt(line[0], bore.kind), bounds: boundsOf([line[0]], CUT_MAX) }
     }))
     if (!portals.length) return empty
     const area = portals.slice(1).reduce((u, { bounds: b }) =>
@@ -279,10 +281,9 @@ export class TunnelLayer {
       const moved = outward.length > 1 ? emerge(outward, split.bore, covered) : null
       if (!moved || moved.out.length < 2) continue
       const out = { ...found, points: moved.out }
-      // Measured looking out from the portal, so its sides swap for the bore's, which runs in.
-      const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) : null
-      const edges: [number, number] = measured ? [measured[1], measured[0]] : [width / 2, width / 2]
-      openings.push({ out, bore: truncate(moved.bore, reach), edges, kind, layer, face: moved.out === outward ? face?.along : undefined })
+      // Measured running in, as the bore does, so its left is the bore's.
+      const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE).reverse(), rings) : null
+      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind, layer, face: moved.out === outward ? face?.along : undefined })
     }
     const solved: Solved[] = []
     for (const { out, bore, edges, kind, face, piers } of groupPortals(openings)) {

@@ -216,12 +216,26 @@ describe('groupPortals', () => {
   })
 
   test('stands a pier between two carriageways under one headwall', () => {
-    const [portal, ...rest] = groupPortals([bore('road', 0, 3.5), bore('road', 9, 3.5)])
+    const [portal, ...rest] = groupPortals([bore('road', 0, 3.5), bore('road', 10, 3.5)])
     expect(rest).toHaveLength(0)
     expect(portal.piers).toHaveLength(1)
-    const [from, to] = portal.piers![0]
-    expect(Math.abs((from + to) / 2)).toBeCloseTo(4.5, 1)
-    expect(to - from).toBeGreaterThan(0.7)
+    const [from, to] = portal.piers![0].map(Math.abs).sort((a, b) => a - b)
+    expect(from).toBeCloseTo(4.1, 1)
+    expect(to).toBeCloseTo(5.9, 1)
+  })
+
+  test('shares one bore between carriageways mapped on one surface', () => {
+    const [portal, ...rest] = groupPortals([bore('road', 0, 3.5), bore('road', 5, 3.5)])
+    expect(rest).toHaveLength(0)
+    expect(portal.piers).toEqual([])
+  })
+
+  test('takes a sidewalk mapped a layer off the road, and keeps a junction either approach meets', () => {
+    const road = bore('road', 0, 3.5)
+    const path = { ...bore('path', 5, 1, { layer: -2 }), out: { points: [at(0, 5), at(60, 5)], junction: true } }
+    const [portal, ...rest] = groupPortals([road, path])
+    expect(rest).toHaveLength(0)
+    expect(portal.out.junction).toBe(true)
   })
 
   test('keeps a railway\'s tracks in one opening', () => {
@@ -233,7 +247,8 @@ describe('groupPortals', () => {
 
   test('leaves apart bores too far apart, on another layer, staggered, or splaying away', () => {
     expect(groupPortals([bore('road', 0, 3.5), bore('road', 18, 3.5)])).toHaveLength(2)
-    expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1, { layer: -2 })])).toHaveLength(2)
+    expect(groupPortals([bore('road', 0, 3.5), bore('road', 7, 3.5, { layer: -2 })])).toHaveLength(2)
+    expect(groupPortals([bore('road', 0, 3.5), bore('rail', 8, 2.5)])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1, { east: 15 })])).toHaveLength(2)
     expect(groupPortals([bore('road', 0, 3.5), bore('path', 5, 1, { bearing: 0.5 })])).toHaveLength(2)
   })

@@ -63,11 +63,12 @@ const SETTLE = 80
 const MINZOOM_HYSTERESIS = 0.3
 
 /**
- * How long a model no placement wants stays on the GPU. Long enough that
- * zooming out and back in again does not refetch it; short enough that
- * touring a city full of landmarks does not keep every one of them.
+ * How long a model no placement wants stays on the GPU, so panning back to
+ * it does not refetch it. Past `MAX_IDLE_MODELS` the longest unwanted go
+ * sooner, so touring a city full of landmarks does not keep every one.
  */
-const EVICT_AFTER_MS = 60_000
+const EVICT_AFTER_MS = 600_000
+const MAX_IDLE_MODELS = 48
 
 /** How often to look for models to evict. */
 const EVICT_EVERY_MS = 5_000
@@ -1062,8 +1063,9 @@ export class LandmarkLayer {
     // drawn: a detailed landmark leaves its low model idle, but that is the
     // one its footprint and its fallback come from.
     const wanted = new Set(this.drawable().flatMap(p => p.detailed ? [p.model, p.detail!.model] : [p.model]))
-    for (const [file, model] of this.models) {
-      if (!model.batches || wanted.has(file) || now - model.used < EVICT_AFTER_MS) continue
+    const idle = [...this.models].filter(([file, model]) => model.batches && !wanted.has(file)).sort((a, b) => b[1].used - a[1].used)
+    for (const [i, [file, model]] of idle.entries()) {
+      if (i < MAX_IDLE_MODELS && now - model.used < EVICT_AFTER_MS) continue
       release(gl, model)
       // Forgotten rather than kept empty, so a return fetches it again —
       // from the HTTP cache, the name being content-addressed.

@@ -88,7 +88,8 @@ import {
 import {
   OBJECT_FLAT_LAYERS,
   GOLF_PIN_LAYER,
-  golfPinMaxzoom,
+  golfPinOpacity,
+  GOLF_FLAG_MIN_PITCH,
   TREE_OPACITY,
   DETAIL_TILES,
   BUILDING_3D_TILES,
@@ -425,6 +426,7 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    this.mapInstance.on('pitchend', () => this.updateGolfPins())
     // The plan view's clip planes are scaled by a camera distance that moves
     // with the viewport height, so a resize has to recompute them.
     this.mapInstance.on('resize', () => this.updateCameraProjection())
@@ -844,6 +846,19 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyDecks()
   }
 
+  private golfPinsStanding: boolean | null = null
+
+  /** Hands the flat pin over to the 3D flagstick, only when pitched enough for it to read. */
+  private updateGolfPins(force = false) {
+    const map = this.mapInstance
+    const standing = this.map3dObjects && map.getPitch() >= GOLF_FLAG_MIN_PITCH
+    if (!force && standing === this.golfPinsStanding) return
+    this.golfPinsStanding = standing
+    if (map.getLayer(GOLF_PIN_LAYER)) {
+      map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(this.map3dObjects, map.getPitch()))
+    }
+  }
+
   private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
@@ -857,10 +872,7 @@ export class MaplibreStrategy extends MapStrategy {
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
       }
-      const pin = map.getLayer(GOLF_PIN_LAYER)
-      if (pin) {
-        map.setLayerZoomRange(GOLF_PIN_LAYER, pin.minzoom, golfPinMaxzoom(this.map3dObjects))
-      }
+      this.updateGolfPins(true)
       if (map.getLayer(WOOD_LAYER)) {
         const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))
         const flavor = this.options.theme === 'dark' ? 'dark' : 'light'

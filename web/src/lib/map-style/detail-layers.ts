@@ -110,6 +110,7 @@ export const GOLF_SURFACE_LAYER = 'Golf surface'
 export const GOLF_HOLE_LAYER = 'Golf hole'
 export const GOLF_HOLE_LABEL_LAYER = 'Golf hole number'
 export const GOLF_PIN_LAYER = 'Golf pin'
+export const DISC_GOLF_BASKET_LAYER = 'Disc golf basket'
 /** Where the 3D flagstick takes over from the flat pin icon. */
 export const GOLF_FLAG_MINZOOM = 17
 
@@ -174,6 +175,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfGreen: 'hsl(80, 64%, 87%)',
     golfBunker: 'hsl(45, 58%, 87%)',
     golfHole: 'hsl(105, 30%, 40%)',
+    discBasket: 'hsl(42, 85%, 36%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -196,6 +198,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfGreen: 'hsl(96, 24%, 29%)',
     golfBunker: 'hsl(40, 14%, 34%)',
     golfHole: 'hsl(95, 24%, 66%)',
+    discBasket: 'hsl(48, 80%, 58%)',
   },
 }
 
@@ -225,8 +228,9 @@ export function detailSources(tileUrl: (source: string) => string) {
   return {
     /**
      * The bundle's window is the union of its members': `bicycle_ways` starts
-     * at 9, `parking_areas` at 13, `buildings_3d` and `coaster_tracks` at 14, the
-     * trees at 16, and
+     * at 9, `parking_areas` and `ski_features` at 13, `buildings_3d`,
+     * `coaster_tracks`, `golf_features` and `sport_tracks` at 14, the trees at
+     * 16, and
      * every one of them stops at 16. A member below its own floor contributes
      * nothing to the tile, so the low zooms cost only what the cycling layers
      * put there — and MapLibre asks for nothing at all until a *visible* layer
@@ -591,8 +595,8 @@ export function golfHoleLayers(flavor: FlavorId): any[] {
   ]
 }
 
-/** How the basemap writes a park's name, which hole numbers borrow. */
-export type GolfLabelStyle = {
+/** How the basemap writes a park's name, which golf and ski labels borrow. */
+export type DetailLabelStyle = {
   font: string[]
   color: string
   halo: string
@@ -601,7 +605,7 @@ export type GolfLabelStyle = {
 }
 
 /** Hole numbers, from the point barrelman serves at each hole's tee, and pins. */
-export function golfLabelLayers(flavor: FlavorId, label: GolfLabelStyle): any[] {
+export function golfLabelLayers(flavor: FlavorId, label: DetailLabelStyle): any[] {
   const c = DETAIL_COLORS[flavor]
   const par = ['to-number', ['get', 'par'], 0]
   return [
@@ -653,6 +657,25 @@ export function golfLabelLayers(flavor: FlavorId, label: GolfLabelStyle): any[] 
         'icon-color': label.color,
         'icon-halo-color': label.halo,
         'icon-halo-width': label.haloWidth,
+      },
+    },
+    {
+      id: DISC_GOLF_BASKET_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 16,
+      filter: ['==', ['get', 'kind'], 'basket'],
+      layout: {
+        'icon-image': 'disc-golf-basket',
+        'icon-anchor': 'bottom',
+        'icon-offset': [0, SDF_BUFFER + 1],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.8, 19, 1.25],
+      },
+      paint: {
+        'icon-color': c.discBasket,
+        'icon-halo-color': label.halo,
+        'icon-halo-width': 1,
       },
     },
   ]

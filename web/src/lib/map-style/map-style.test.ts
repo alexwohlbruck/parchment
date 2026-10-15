@@ -24,9 +24,14 @@ import {
 } from './build'
 import {
   DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
-  GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER,
+  GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER,
 } from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
+import {
+  pisteColor, PISTE_ICON, SKI_AREA_LAYER, PISTE_LAYER, PISTE_LABEL_LAYER, LIFT_LAYER, LIFT_LABEL_LAYER,
+  PISTE_SYMBOL_LAYER, BASEMAP_AERIALWAY_LAYERS,
+} from './ski-layers'
+import { TRACK_SURFACE_LAYER, TRACK_LANE_LAYER, RACEWAY_LAYER } from './track-layers'
 import { STEPS_LAYER, STEPS_BRIDGE_LAYER } from './steps-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
@@ -2657,12 +2662,132 @@ describe('golf courses', () => {
   }
 
   test('hole numbers and pins are labels, not clickable places', () => {
-    expect(layerGroups.golfLabels).toEqual([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER])
-    for (const id of layerGroups.golfLabels) expect(layerGroups.poi).not.toContain(id)
+    expect(layerGroups.detailLabels).toEqual(expect.arrayContaining([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER]))
+    for (const id of layerGroups.detailLabels) expect(layerGroups.poi).not.toContain(id)
   })
 
   test('the pin icon is in the sprite', () => {
     const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
     expect(sprite['golf-pin']?.sdf).toBe(true)
+  })
+})
+
+describe('ski areas', () => {
+  const evaluate = (value: unknown, spec: any, properties: Record<string, unknown>) => {
+    const parsed = expression.createPropertyExpression(value as any, 'value', spec)
+    expect(parsed.result).toBe('success')
+    return (parsed as any).value.evaluate({ zoom: 15 }, { properties })
+  }
+  const color = (flavor: 'light' | 'dark', properties: Record<string, unknown>) => {
+    const c = evaluate(pisteColor(flavor), (latest as any).paint_line['line-color'], properties)
+    return [c.r, c.g, c.b].map((v: number) => Math.round(v * 255)).join()
+  }
+  const run = (difficulty: string, scheme: string) => color('light', { piste: 'downhill', difficulty, scheme })
+
+  test('a run takes the colour its region signs it with', () => {
+    expect(run('easy', 'na')).toBe(run('novice', 'eu'))
+    expect(run('easy', 'eu')).toBe(run('intermediate', 'na'))
+    expect(run('intermediate', 'eu')).toBe(run('intermediate', 'jp'))
+    expect(run('easy', 'jp')).toBe(run('easy', 'na'))
+    expect(run('expert', 'na')).toBe(run('advanced', 'eu'))
+    expect(new Set([run('easy', 'na'), run('easy', 'eu'), run('intermediate', 'eu'), run('advanced', 'na')]).size).toBe(4)
+  })
+
+  test('terrain parks are orange whatever their difficulty', () => {
+    expect(color('light', { piste: 'snow_park', difficulty: 'easy', scheme: 'na' }))
+      .toBe(run('freeride', 'na'))
+  })
+
+  test('North America signs a run by shape, everywhere else by a disc', () => {
+    const icon = (difficulty: string, scheme: string, piste = 'downhill') =>
+      evaluate(PISTE_ICON, (latest as any).layout_symbol['icon-image'], { piste, difficulty, scheme }).name
+    expect(['easy', 'intermediate', 'advanced', 'expert'].map(d => icon(d, 'na')))
+      .toEqual(['piste-circle', 'piste-square', 'piste-diamond', 'piste-double-diamond'])
+    expect(['easy', 'intermediate', 'advanced', 'expert'].map(d => icon(d, 'eu'))).toEqual(Array(4).fill('piste-circle'))
+    expect(icon('intermediate', 'eu', 'snow_park')).toBe('piste-park')
+  })
+
+  for (const flavor of ['light', 'dark'] as const) {
+    const layers = buildLayers({ flavor }) as any[]
+    const ids = layers.map(l => l.id)
+    const at = (id: string) => ids.indexOf(id)
+
+    test(`${flavor}: the resort lies under its glaciers and woods, the runs over them and under the rivers`, () => {
+      expect(at(SKI_AREA_LAYER)).toBeLessThan(at('Glacier'))
+      expect(at(PISTE_LAYER)).toBeGreaterThan(at('Wood'))
+      expect(at(PISTE_LAYER)).toBeLessThan(at('River'))
+    })
+
+    test(`${flavor}: lifts replace the basemap's aerialways and leave the road labels`, () => {
+      for (const id of BASEMAP_AERIALWAY_LAYERS) expect(ids).not.toContain(id)
+      expect(at(LIFT_LAYER)).toBeGreaterThan(at('Building'))
+      const roadLabels = featureFilter(layers[at('Road labels')].filter, 'Road labels.filter')
+      const named = (properties: Record<string, unknown>) => roadLabels.filter({ zoom: 15 } as any, { type: 2, properties } as any)
+      expect(named({ class: 'aerialway', subclass: 'chair_lift', name: 'Summit Quad' })).toBe(false)
+      expect(named({ class: 'minor', name: 'Main Street' })).toBe(true)
+    })
+
+    test(`${flavor}: lift names follow the label language`, () => {
+      const lang = buildLayers({ flavor, lang: 'de' }) as any[]
+      const field = (id: string) => JSON.stringify(lang.find(l => l.id === id).layout['text-field'])
+      expect(field(LIFT_LABEL_LAYER)).toBe(field('Road labels'))
+    })
+
+    test(`${flavor}: a run's sign and name are labels, hidden with the POIs`, () => {
+      expect(at(PISTE_LABEL_LAYER)).toBeLessThan(at('River labels'))
+      for (const id of [PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER]) {
+        expect(layerGroups.detailLabels).toContain(id)
+        expect(layerGroups.poi).not.toContain(id)
+      }
+      expect(layerGroups.roadLabels).toContain(LIFT_LABEL_LAYER)
+    })
+  }
+
+  test('the run signs are in the sprite', () => {
+    const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
+    for (const icon of ['piste-circle', 'piste-square', 'piste-diamond', 'piste-double-diamond', 'piste-park']) {
+      expect(sprite[icon]?.sdf, icon).toBe(true)
+    }
+  })
+})
+
+describe('running tracks and circuits', () => {
+  for (const flavor of ['light', 'dark'] as const) {
+    const layers = buildLayers({ flavor }) as any[]
+    const ids = layers.map(l => l.id)
+    const at = (id: string) => ids.indexOf(id)
+    const drawn = (id: string, properties: Record<string, unknown>, type = 2) =>
+      featureFilter(layers[at(id)].filter, `${id}.filter`).filter({ zoom: 18 } as any, { type, properties } as any)
+
+    test(`${flavor}: tracks lie under the pitches inside them`, () => {
+      expect(at(TRACK_SURFACE_LAYER)).toBeLessThan(at('Pitch surface'))
+      expect(at(TRACK_LANE_LAYER)).toBeLessThan(at('Pitch surface'))
+    })
+
+    test(`${flavor}: an oval gets a line between each pair of lanes`, () => {
+      const laneLines = (properties: Record<string, unknown>) =>
+        ids.filter(id => id.startsWith(TRACK_LANE_LAYER) && drawn(id, properties)).length
+      expect(laneLines({ kind: 'oval' })).toBe(5)
+      expect(laneLines({ kind: 'oval', lanes: 8 })).toBe(7)
+      expect(laneLines({ kind: 'oval', lanes: 4 })).toBe(3)
+      expect(laneLines({ kind: 'surface', lanes: 8 })).toBe(0)
+    })
+
+    test(`${flavor}: circuits are drawn over the side streets, at grade only`, () => {
+      expect(at(RACEWAY_LAYER)).toBeGreaterThan(at('Minor road'))
+      expect(at(RACEWAY_LAYER)).toBeLessThan(at('Major road'))
+      expect(drawn(RACEWAY_LAYER, { class: 'raceway' })).toBe(true)
+      expect(drawn(RACEWAY_LAYER, { class: 'raceway', brunnel: 'bridge' })).toBe(false)
+      expect(drawn(RACEWAY_LAYER, { class: 'minor' })).toBe(false)
+    })
+  }
+})
+
+describe('disc golf', () => {
+  test('the basket is in the sprite, and a label rather than a place', () => {
+    const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
+    expect(sprite['disc-golf-basket']?.sdf).toBe(true)
+    expect(layerGroups.detailLabels).toContain(DISC_GOLF_BASKET_LAYER)
+    expect(layerGroups.poi).not.toContain(DISC_GOLF_BASKET_LAYER)
   })
 })

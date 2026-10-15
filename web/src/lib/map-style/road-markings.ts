@@ -9,6 +9,7 @@
  */
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
+import { metres } from './metres'
 
 export const ROAD_SURFACE_TILES = 'road_surfaces'
 export const ROAD_MARKING_TILES = 'road_markings'
@@ -40,12 +41,6 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     green: 'hsl(148, 20%, 33%)',
     red: 'hsl(9, 26%, 33%)',
   },
-}
-
-/** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
-export function metres(m: number, minimum = 0): any {
-  const at = (z: number) => Math.max(minimum, (m * 2 ** z) / 63330)
-  return ['interpolate', ['exponential', 2], ['zoom'], FROM, at(FROM), 22, at(22)]
 }
 
 const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
@@ -97,7 +92,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     minzoom: FROM,
     filter: ['all', band, ...filter],
     layout: { 'line-cap': 'butt', 'line-join': 'round', ...layout },
-    paint: { 'line-color': paint, 'line-width': metres(width, 0.6), 'line-opacity': fadeIn, ...extra },
+    paint: { 'line-color': paint, 'line-width': metres(width, { minimum: 0.6 }), 'line-opacity': fadeIn, ...extra },
   })
   const kind = (k: string) => ['==', ['get', 'kind'], k]
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
@@ -126,7 +121,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     // gap, on motorways the highway's 3 m and 9 m.
     line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 50] }),
     line('Road line dashed long', [pattern('dashed_long')], 0.12, { 'line-dasharray': [25, 75] }),
-    line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, 0.6) }),
+    line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, { minimum: 0.6 }) }),
     line('Stop line', [kind('stop'), pattern('solid')], 0.45),
     // A zebra is one wide line, dashed into bars that run with the traffic.
     line('Crosswalk zebra', [kind('crosswalk'), pattern('solid'), style('zebra', 'ladder')], 3, { 'line-dasharray': [0.2, 0.2], 'line-color': c.white }),

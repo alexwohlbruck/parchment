@@ -110,6 +110,7 @@ export const GOLF_SURFACE_LAYER = 'Golf surface'
 export const GOLF_HOLE_LAYER = 'Golf hole'
 export const GOLF_HOLE_LABEL_LAYER = 'Golf hole number'
 export const GOLF_PIN_LAYER = 'Golf pin'
+export const DISC_GOLF_BASKET_LAYER = 'Disc golf basket'
 /** Where the 3D flagstick takes over from the flat pin icon. */
 export const GOLF_FLAG_MINZOOM = 17
 
@@ -167,6 +168,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfBunker: 'hsl(45, 58%, 87%)',
     golfHole: 'hsl(105, 30%, 40%)',
     golfFlag: 'hsl(4, 72%, 52%)',
+    discBasket: 'hsl(48, 90%, 44%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -190,6 +192,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfBunker: 'hsl(40, 14%, 34%)',
     golfHole: 'hsl(95, 24%, 66%)',
     golfFlag: 'hsl(4, 62%, 62%)',
+    discBasket: 'hsl(48, 80%, 58%)',
   },
 }
 
@@ -643,6 +646,25 @@ export function golfLabelLayers(flavor: FlavorId, label: GolfLabelStyle): any[] 
       },
       paint: {
         'icon-color': c.golfFlag,
+        'icon-halo-color': label.halo,
+        'icon-halo-width': 1,
+      },
+    },
+    {
+      id: DISC_GOLF_BASKET_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 16,
+      filter: ['==', ['get', 'kind'], 'basket'],
+      layout: {
+        'icon-image': 'disc-golf-basket',
+        'icon-anchor': 'bottom',
+        'icon-offset': [0, SDF_BUFFER + 1],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.8, 19, 1.25],
+      },
+      paint: {
+        'icon-color': c.discBasket,
         'icon-halo-color': label.halo,
         'icon-halo-width': 1,
       },

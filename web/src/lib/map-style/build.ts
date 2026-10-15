@@ -17,12 +17,25 @@ import {
   type GolfLabelStyle,
   GOLF_HOLE_LABEL_LAYER,
   GOLF_PIN_LAYER,
+  DISC_GOLF_BASKET_LAYER,
   plantedAreaLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
+import { combineFilters } from './combine-filters'
+import {
+  skiAreaLayers,
+  pisteLayers,
+  liftLayers,
+  skiLabelLayers,
+  BASEMAP_AERIALWAY_LAYERS,
+  PISTE_SYMBOL_LAYER,
+  PISTE_LABEL_LAYER,
+  LIFT_LABEL_LAYER,
+} from './ski-layers'
+import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
 import { asphaltRoads, roadMarkingLayers } from './road-markings'
 import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
@@ -337,8 +350,13 @@ export const layerGroups = {
     ),
   ],
   /** Hidden with the POI labels, but not clickable: a hole or pin is not a place the sheet can open. */
-  golfLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER],
-  roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
+  golfLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER],
+  /** Hidden with the POI labels, and not clickable either. */
+  skiLabels: [PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER],
+  roadLabels: [
+    ...idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name' && !BASEMAP_AERIALWAY_LAYERS.includes(l.id)),
+    LIFT_LABEL_LAYER,
+  ],
   /**
    * Transit stop labels, not the rails under them. The transit overlay redraws
    * these stops itself, so the basemap's copies hide while it is on — but the
@@ -591,7 +609,29 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, g
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
-  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...pitchLayers(flavor))
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...trackLayers(flavor), ...pitchLayers(flavor))
+
+  // A resort's snow lies under its woods, so only the cleared ground shows it;
+  // the runs are cut through those woods, and the rivers cross over them.
+  const wood = out.findIndex(l => l.id === 'Wood')
+  if (wood >= 0) out.splice(wood, 0, ...skiAreaLayers(flavor))
+  const river = out.findIndex(l => l.id === 'River tunnel')
+  if (river >= 0) out.splice(river, 0, ...pisteLayers(flavor))
+
+  const minorRoad = out.findIndex(l => l.id === 'Minor road')
+  if (minorRoad >= 0) out.splice(minorRoad + 1, 0, racewayLayer(flavor, out[minorRoad]))
+
+  const cablecar = out.findIndex(l => l.id === 'Cablecar')
+  if (cablecar >= 0) out.splice(cablecar, 0, ...liftLayers(flavor, SOURCE))
+  for (const id of BASEMAP_AERIALWAY_LAYERS) {
+    const at = out.findIndex(l => l.id === id)
+    if (at >= 0) out.splice(at, 1)
+  }
+  const roadLabels = out.findIndex(l => l.id === 'Road labels')
+  if (roadLabels >= 0) {
+    const l = out[roadLabels]
+    out[roadLabels] = { ...l, filter: combineFilters([l.filter, ['!=', ['get', 'class'], 'aerialway']]) }
+  }
 
   // Golf surfaces go over the basemap's sand, which would otherwise paint
   // every bunker yellow, and the holes over its water, which they cross.
@@ -628,7 +668,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, g
 
   // Hole numbers and pins sit under every basemap label.
   const firstLabel = out.findIndex(l => l.id === 'River labels')
-  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, golfLabel))
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, golfLabel), ...skiLabelLayers(flavor, golfLabel, SOURCE))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.

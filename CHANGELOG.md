@@ -6,6 +6,9 @@
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 * Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
 * Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every pin, standing in 3D up close.
+* Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
+* Running tracks show their lanes, and race circuits no longer look like side streets.
+* Disc golf courses show each hole's line and number, and their baskets.
 
 ### Changed
 

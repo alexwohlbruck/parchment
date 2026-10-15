@@ -24,9 +24,14 @@ import {
 } from './build'
 import {
   DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
-  GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER,
+  GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER,
 } from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
+import {
+  pisteColor, SKI_AREA_LAYER, PISTE_LAYER, PISTE_LABEL_LAYER, LIFT_LAYER, LIFT_LABEL_LAYER, PISTE_SYMBOL_LAYER,
+  BASEMAP_AERIALWAY_LAYERS,
+} from './ski-layers'
+import { TRACK_SURFACE_LAYER, TRACK_LANE_LAYER, RACEWAY_LAYER } from './track-layers'
 import { STEPS_LAYER, STEPS_BRIDGE_LAYER } from './steps-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
@@ -2657,12 +2662,80 @@ describe('golf courses', () => {
   }
 
   test('hole numbers and pins are labels, not clickable places', () => {
-    expect(layerGroups.golfLabels).toEqual([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER])
+    expect(layerGroups.golfLabels).toEqual([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER])
     for (const id of layerGroups.golfLabels) expect(layerGroups.poi).not.toContain(id)
   })
 
   test('the pin icon is in the sprite', () => {
     const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
     expect(sprite['golf-pin']?.sdf).toBe(true)
+  })
+})
+
+describe('ski areas', () => {
+  const color = (flavor: 'light' | 'dark', properties: Record<string, unknown>) => {
+    const parsed = expression.createPropertyExpression(
+      pisteColor(flavor), 'pisteColor', (latest as any).paint_line['line-color'],
+    )
+    expect(parsed.result).toBe('success')
+    const c = (parsed as any).value.evaluate({ zoom: 15 }, { properties })
+    return [c.r, c.g, c.b].map(v => Math.round(v * 255)).join()
+  }
+
+  test('a run takes the colour its region signs it with', () => {
+    const run = (difficulty: string, scheme: string) => color('light', { piste: 'downhill', difficulty, scheme })
+    expect(run('easy', 'na')).toBe(run('novice', 'eu'))
+    expect(run('easy', 'eu')).toBe(run('intermediate', 'na'))
+    expect(run('intermediate', 'eu')).toBe(run('intermediate', 'jp'))
+    expect(run('easy', 'jp')).toBe(run('easy', 'na'))
+    expect(run('expert', 'na')).toBe(run('advanced', 'eu'))
+    expect(new Set([run('easy', 'na'), run('easy', 'eu'), run('intermediate', 'eu'), run('advanced', 'na')]).size).toBe(4)
+  })
+
+  test('terrain parks are orange whatever their difficulty', () => {
+    expect(color('light', { piste: 'snow_park', difficulty: 'easy', scheme: 'na' }))
+      .toBe(color('light', { piste: 'downhill', difficulty: 'freeride', scheme: 'na' }))
+  })
+
+  for (const flavor of ['light', 'dark'] as const) {
+    const layers = buildLayers({ flavor }) as any[]
+    const ids = layers.map(l => l.id)
+    const at = (id: string) => ids.indexOf(id)
+
+    test(`${flavor}: the resort lies under its woods, the runs over them and under the rivers`, () => {
+      expect(at(SKI_AREA_LAYER)).toBeLessThan(at('Wood'))
+      expect(at(PISTE_LAYER)).toBeGreaterThan(at('Wood'))
+      expect(at(PISTE_LAYER)).toBeLessThan(at('River'))
+    })
+
+    test(`${flavor}: lifts replace the basemap's aerialways, named once`, () => {
+      for (const id of BASEMAP_AERIALWAY_LAYERS) expect(ids).not.toContain(id)
+      expect(at(LIFT_LAYER)).toBeGreaterThan(at('Building'))
+      const roadLabels = layers[at('Road labels')]
+      const lift = { type: 2, properties: { class: 'aerialway', subclass: 'chair_lift', name: 'Summit Quad' } }
+      expect(featureFilter(roadLabels.filter, 'Road labels.filter').filter({ zoom: 15 } as any, lift as any)).toBe(false)
+      expect(at(LIFT_LABEL_LAYER)).toBeGreaterThan(-1)
+    })
+
+    test(`${flavor}: a run's sign and name are labels, hidden with the POIs`, () => {
+      expect(at(PISTE_LABEL_LAYER)).toBeLessThan(at('River labels'))
+      expect(layerGroups.skiLabels).toEqual([PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER])
+      for (const id of layerGroups.skiLabels) expect(layerGroups.poi).not.toContain(id)
+      expect(layerGroups.roadLabels).toContain(LIFT_LABEL_LAYER)
+    })
+
+    test(`${flavor}: tracks lie under the pitches inside them, circuits over the side streets`, () => {
+      expect(at(TRACK_SURFACE_LAYER)).toBeLessThan(at('Pitch surface'))
+      expect(at(TRACK_LANE_LAYER)).toBeLessThan(at('Pitch surface'))
+      expect(at(RACEWAY_LAYER)).toBeGreaterThan(at('Minor road'))
+      expect(at(RACEWAY_LAYER)).toBeLessThan(at('Major road'))
+    })
+  }
+
+  test('the run signs and the disc golf basket are in the sprite', () => {
+    const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
+    for (const icon of ['piste-circle', 'piste-square', 'piste-diamond', 'piste-double-diamond', 'piste-park', 'disc-golf-basket']) {
+      expect(sprite[icon]?.sdf, icon).toBe(true)
+    }
   })
 })

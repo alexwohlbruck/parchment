@@ -9,6 +9,7 @@ import {
   type StationEntrance,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
+import type { TransitPriority } from '../lib/transit/transit-gate'
 
 /**
  * Transit routing service — bridges the integration system to the
@@ -42,10 +43,11 @@ export class TransitRoutingService {
    */
   async getIntermodalRoute(
     request: IntermodalRouteRequest,
+    priority?: TransitPriority,
   ): Promise<TransitRouteResponse> {
     const capability = this.getTransitRoutingCapability()
     if (capability.getIntermodalRoute) {
-      return capability.getIntermodalRoute(request)
+      return capability.getIntermodalRoute(request, priority)
     }
     return capability.getTransitRoute(request)
   }

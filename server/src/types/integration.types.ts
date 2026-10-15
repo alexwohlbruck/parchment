@@ -1,3 +1,4 @@
+import type { TransitPriority } from '../lib/transit/transit-gate'
 import { Place, TransitDeparture } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
@@ -284,7 +285,10 @@ export interface StationEntrance {
 
 export interface TransitRoutingCapability {
   getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
-  getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
+  getIntermodalRoute?(
+    request: IntermodalRouteRequest,
+    priority?: TransitPriority,
+  ): Promise<TransitRouteResponse>
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
   getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>

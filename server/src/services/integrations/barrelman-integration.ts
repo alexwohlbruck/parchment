@@ -52,6 +52,7 @@ import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
+import { TransitGate, TransitPriority } from '../../lib/transit/transit-gate'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 import { peliasLayerLabel } from '../../lib/place-type-label'
@@ -165,6 +166,17 @@ const barrelmanHttp = createLimitedHttp(new Semaphore(BARRELMAN_MAX_CONCURRENCY)
 const barrelmanSearchHttp = createLimitedHttp(
   new Semaphore(BARRELMAN_INTERACTIVE_CONCURRENCY),
 )
+
+/**
+ * Barrelman's per-account cap on simultaneous `/transit` requests. Every
+ * transit call queues here and a 429 is retried, so a plan's fan-out degrades
+ * to waiting rather than to silently missing itineraries.
+ */
+const transitGate = new TransitGate({
+  concurrency: Number(process.env.BARRELMAN_TRANSIT_CONCURRENCY ?? 4),
+  maxRetries: 3,
+  maxRetryWaitMs: 3000,
+})
 
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
@@ -1375,13 +1387,15 @@ export class BarrelmanIntegration
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.post(
-        `${host}/transit/route`,
-        request,
-        {
-          headers: this.headers,
-          timeout: 25_000,
-        },
+      const response = await transitGate.run(TransitPriority.Core, () =>
+        barrelmanHttp.post(
+          `${host}/transit/route`,
+          request,
+          {
+            headers: this.headers,
+            timeout: 25_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1396,18 +1410,23 @@ export class BarrelmanIntegration
     }
   }
 
-  private async getIntermodalRoute(request: IntermodalRouteRequest): Promise<TransitRouteResponse> {
+  private async getIntermodalRoute(
+    request: IntermodalRouteRequest,
+    priority = TransitPriority.Core,
+  ): Promise<TransitRouteResponse> {
     const { host, apiKey } = this.config
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.post(
-        `${host}/transit/intermodal-route`,
-        request,
-        {
-          headers: this.headers,
-          timeout: 25_000,
-        },
+      const response = await transitGate.run(priority, () =>
+        barrelmanHttp.post(
+          `${host}/transit/intermodal-route`,
+          request,
+          {
+            headers: this.headers,
+            timeout: 25_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1434,12 +1453,14 @@ export class BarrelmanIntegration
     if (request.limit != null) params.set('limit', String(request.limit))
 
     try {
-      const response = await barrelmanHttp.get(
-        `${host}/transit/stops?${params}`,
-        {
-          headers: this.headers,
-          timeout: 10_000,
-        },
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(
+          `${host}/transit/stops?${params}`,
+          {
+            headers: this.headers,
+            timeout: 10_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1455,12 +1476,14 @@ export class BarrelmanIntegration
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.get(
-        `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
-        {
-          headers: this.headers,
-          timeout: 10_000,
-        },
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(
+          `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
+          {
+            headers: this.headers,
+            timeout: 10_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1486,12 +1509,14 @@ export class BarrelmanIntegration
         maxDistance: String(maxDistanceM),
         ...(wheelchair && { wheelchair: 'true' }),
       })
-      const response = await barrelmanHttp.get(
-        `${host}/transit/nearest-entrance?${params}`,
-        {
-          headers: this.headers,
-          timeout: 5_000,
-        },
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(
+          `${host}/transit/nearest-entrance?${params}`,
+          {
+            headers: this.headers,
+            timeout: 5_000,
+          },
+        ),
       )
       return response.data
     } catch {

@@ -28,6 +28,7 @@ import { transitRoutingService } from './transit-routing.service'
 import { rideshareService } from './rideshare.service'
 import { searchByCategory } from './search.service'
 import { logError, logWarn } from '../lib/logger'
+import { TransitPriority } from '../lib/transit/transit-gate'
 
 /**
  * Simplified multimodal trip planning service
@@ -2143,8 +2144,9 @@ export class TripService {
     const fetchMotis = (
       label: string,
       req: import('../types/integration.types').IntermodalRouteRequest,
+      priority = TransitPriority.Variant,
     ) => {
-      return transitRoutingService.getIntermodalRoute(req)
+      return transitRoutingService.getIntermodalRoute(req, priority)
         .then(r => r.itineraries ?? [])
         .catch(e => {
           logError(`Intermodal query (${label}) failed`, e)
@@ -2164,7 +2166,7 @@ export class TripService {
       postTransitModes: ['WALK'],
       maxPreTransitTime: maxWalkSec,
       maxPostTransitTime: maxWalkSec,
-    })
+    }, TransitPriority.Core)
 
     // Few-transfers sweep: time-optimal RAPTOR never returns a one-seat ride
     // that arrives after a transfer combo — a heavy per-interchange pad makes
@@ -2781,7 +2783,7 @@ export class TripService {
     preferences: any,
   ): Promise<TripResponse[]> {
     try {
-      const response = await transitRoutingService.getIntermodalRoute(query)
+      const response = await transitRoutingService.getIntermodalRoute(query, TransitPriority.Variant)
 
       // Only offer to take the bike aboard on a provider that says it checked.
       // An older one drops the flag silently, and its results would be ordinary
@@ -2987,7 +2989,7 @@ export class TripService {
     opts?: { deferSharedRideEnrichment?: boolean },
   ): Promise<TripResponse[]> {
     try {
-      const response = await transitRoutingService.getIntermodalRoute(request)
+      const response = await transitRoutingService.getIntermodalRoute(request, TransitPriority.Variant)
       if (!response.itineraries?.length) return []
 
       const adapted = await Promise.all(

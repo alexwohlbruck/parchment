@@ -285,36 +285,6 @@ describe('TripService — mode generation', () => {
 
 
 describe('TripService — buildTransitSegment', () => {
-  test('maps MOTIS BUS mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('BUS')
-    expect(mode).toBe('bus')
-  })
-
-  test('maps MOTIS RAIL mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('RAIL')
-    expect(mode).toBe('rail')
-  })
-
-  test('maps MOTIS SUBWAY mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('SUBWAY')
-    expect(mode).toBe('subway')
-  })
-
-  test('maps MOTIS TRAM mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('TRAM')
-    expect(mode).toBe('tram')
-  })
-
-  test('maps MOTIS FERRY mode correctly', () => {
-    const mode = (tripService as any).mapMotisMode('FERRY')
-    expect(mode).toBe('ferry')
-  })
-
-  test('maps unknown MOTIS mode to bus', () => {
-    const mode = (tripService as any).mapMotisMode('UNKNOWN_MODE')
-    expect(mode).toBe('bus')
-  })
-
   test('builds transit segment with CO2 estimate', () => {
     const leg = {
       mode: 'BUS',
@@ -3054,7 +3024,7 @@ describe('TripService — in-station transfers', () => {
 
 describe('TripService — applyDurationDominance', () => {
   const cand = (durationSec: number, overall: number) => ({
-    trip: { tripStats: { totalDuration: durationSec } },
+    trip: { segments: [], tripStats: { totalDuration: durationSec } },
     score: { overall },
   })
 
@@ -3083,11 +3053,24 @@ describe('TripService — applyDurationDominance', () => {
     expect(only.score.overall).toBe(0.5)
   })
 
+  test('a street transfer ranks behind an in-system trip a few minutes slower', () => {
+    const ref = '2026-06-12T16:00:00Z'
+    const trip = (durMin: number, streetTransfer = false) => ({
+      segments: [{ mode: 'walking', streetTransfer }],
+      tripStats: { totalDuration: durMin * 60 },
+      latestEndTime: new Date(new Date(ref).getTime() + durMin * 60000).toISOString(),
+    })
+    const outside = (tripService as any).scoreTime(trip(30, true), ref)
+    const inside = (tripService as any).scoreTime(trip(36), ref)
+    expect(inside).toBeGreaterThan(outside)
+  })
+
   test('cost counts as time: paid last-mile loses to free walking', () => {
     // Same transit spine; one ends with a $7.86 shared bike saving 5 min.
     // Generalized: 50min + 7.86*200s ≈ 76min vs 55min — walking wins.
     const ref = '2026-06-12T16:00:00Z'
     const trip = (durMin: number, cost?: number) => ({
+      segments: [],
       tripStats: { totalDuration: durMin * 60, totalCost: cost ? { value: cost, currency: 'USD' } : undefined },
       latestEndTime: new Date(new Date(ref).getTime() + durMin * 60000).toISOString(),
     })

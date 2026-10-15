@@ -205,6 +205,9 @@ export interface TripSegment {
    *  is 'enter' for an access walk into a station, 'exit' for an egress
    *  walk out of one. */
   stationEntrance?: StationEntranceRef
+  /** A transfer walk that leaves the paid area between two stations the
+   *  agency does not connect, so the next ride means paying again. */
+  streetTransfer?: boolean
 }
 
 export interface StationEntranceRef {

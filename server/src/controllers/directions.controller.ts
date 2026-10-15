@@ -223,7 +223,9 @@ app.post(
         + 'A request with more than two waypoints returns one whole journey per travel '
         + 'strategy, each carried from stop to stop — a journey that cycles to the first stop '
         + 'still has the bike at the second. Segments carry `legIndex` to say which hop they '
-        + 'belong to.',
+        + 'belong to. A transit leg\'s `routeOptions` lists the other lines running the same '
+        + 'stops at that time; a walking segment with `streetTransfer` leaves the paid area '
+        + 'between stations the agency does not connect, so the next ride is a new fare.',
       tags: ['Trip Planning'],
     },
   },

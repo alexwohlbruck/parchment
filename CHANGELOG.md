@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.15.0] - 2026-10-15
+
+### Added
+
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 * Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
@@ -20,6 +28,12 @@
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Transit directions no longer drop the earliest train when a later one on the same lines rides faster.
+* A transit leg lists only the lines that stop at both ends at that hour, and Long Island Rail Road and Metro-North legs name just the train you board.
+* Transfers that mean leaving one station and paying again at another are ranked behind, or replaced by, a comparable in-station transfer.
+* Walking directions lead to a subway entrance for your direction of travel, not one signed for the opposite platform.
+* Transit searches no longer lose options when the routing service is busy.
+* Tapping a subway stop inside a large station, like the 4/5/6 at Grand Central, shows every line's departures instead of only a neighbouring platform's.
 
 ## [0.14.0] - 2026-10-09
 

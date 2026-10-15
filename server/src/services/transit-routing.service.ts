@@ -7,8 +7,11 @@ import {
   type NearbyStopResult,
   type StopRouteResult,
   type StationEntrance,
+  type StopDeparturesQuery,
 } from '../types/integration.types'
+import type { StopBoard } from '../lib/transit/route-options'
 import { integrationManager } from './integrations'
+import type { TransitPriority } from '../lib/transit/transit-gate'
 
 /**
  * Transit routing service — bridges the integration system to the
@@ -42,10 +45,11 @@ export class TransitRoutingService {
    */
   async getIntermodalRoute(
     request: IntermodalRouteRequest,
+    priority?: TransitPriority,
   ): Promise<TransitRouteResponse> {
     const capability = this.getTransitRoutingCapability()
     if (capability.getIntermodalRoute) {
-      return capability.getIntermodalRoute(request)
+      return capability.getIntermodalRoute(request, priority)
     }
     return capability.getTransitRoute(request)
   }
@@ -90,6 +94,16 @@ export class TransitRoutingService {
         return await capability.getNearestEntrance(lat, lon, maxDistanceM, wheelchair)
       }
       return null
+    } catch {
+      return null
+    }
+  }
+
+  /** Departure boards for a stop, or null when they cannot be had. */
+  async getStopDepartures(query: StopDeparturesQuery): Promise<StopBoard[] | null> {
+    try {
+      const capability = this.getTransitRoutingCapability()
+      return (await capability.getStopDepartures?.(query)) ?? null
     } catch {
       return null
     }

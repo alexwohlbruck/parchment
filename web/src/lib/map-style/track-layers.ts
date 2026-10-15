@@ -39,7 +39,7 @@ const kind = ['get', 'kind']
 
 /** `m` metres at this track's latitude, from z15 up. */
 const trackMetres = (m: unknown, minimum = 0) =>
-  metres(['*', m, ['coalesce', ['get', 'scale'], 1]], { from: 15, minimum })
+  metres(['*', m, ['to-number', ['get', 'scale'], 1]], { from: 15, minimum })
 
 const lanes = (fallback: number) => ['min', ['coalesce', ['get', 'lanes'], fallback], 10]
 

@@ -18,8 +18,8 @@ import {
   absorbPaths,
   absorbTracks,
   deckMeshOut,
+  standing,
   touchdown,
-  sideAt,
   besideGround,
   dedupe,
   densify,
@@ -108,9 +108,7 @@ export type DeckSources = {
   hd?: () => boolean
 }
 
-/** Metres past a deck's edge an object may stand and still be on it; how closely a linear one runs with it, as a cosine; and metres beside a way under a deck that are its. */
-const STAND_SLACK = 0.5
-const STAND_ALIGNED = Math.cos((25 * Math.PI) / 180)
+/** Metres beside a way passing under a deck that are its, not the deck's. */
 const UNDER_SLACK = 3
 
 /** Metres between height samples along a deck. */
@@ -372,20 +370,10 @@ export class DeckLayer {
    */
   standOn(lng: number, lat: number, along?: [number, number]): number | null {
     const p = mercator([lng, lat])
-    let best: { z: number; height: number; distance: number } | null = null
-    for (const { chain, surface } of this.stands) {
-      if (!surface.bounds || !holds(surface.bounds, p)) continue
-      const near = beside(chain.points, p)
-      if (!near.alongside || near.distance > sideAt(chain, near.left ? 0 : 1, near.segment - 1, near.t) + STAND_SLACK) continue
-      const [a, b] = [chain.points[near.segment - 1], chain.points[near.segment]]
-      if (along && Math.abs(along[0] * (b[0] - a[0]) + along[1] * (b[1] - a[1])) < STAND_ALIGNED * (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1)) continue
-      if (best && near.distance >= best.distance) continue
-      const at = (v: number[]) => v[near.segment - 1] + (v[near.segment] - v[near.segment - 1]) * near.t
-      best = { z: at(surface.z), height: at(surface.z) - at(surface.ground ?? surface.z), distance: near.distance }
-    }
-    if (!best) return null
-    if (!along && best.height >= BOX_MIN && this.passesUnder(p)) return null
-    return best.z
+    const stand = standing(this.stands, p, along)
+    if (!stand) return null
+    if (!along && stand.height >= BOX_MIN && this.passesUnder(p)) return null
+    return stand.z
   }
 
   /** Whether a point lies beside a way on the ground that passes under a deck. */

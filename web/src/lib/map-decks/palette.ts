@@ -20,10 +20,10 @@ export function hsl(text: string): Rgb {
 
 const TOKENS: Record<FlavorId, Record<string, string>> = { light: lightTokens, dark: darkTokens }
 
-/** The basemap's own road, path and rail colours, which a deck takes below street zoom and for what it carries. */
+/** The basemap's own road and path colours, which a deck takes below street zoom and for the walkways it carries. */
 const basemap = (flavor: FlavorId) => {
   const t = TOKENS[flavor]
-  return { lowRoad: hsl(t.road_minor), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), rail: hsl(t.major_rail_line_color_2) }
+  return { lowRoad: hsl(t.road_minor), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface) }
 }
 
 /** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */
@@ -33,6 +33,7 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     concrete: [0.84, 0.83, 0.8],
     parapet: [0.91, 0.9, 0.87],
     track: [0.78, 0.77, 0.75],
+    rail: [0.5, 0.5, 0.5],
     white: [0.98, 0.97, 0.96],
     yellow: [0.95, 0.84, 0.17],
     green: [0.45, 0.71, 0.58],
@@ -46,6 +47,7 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     concrete: [0.31, 0.32, 0.34],
     parapet: [0.37, 0.38, 0.4],
     track: [0.3, 0.31, 0.32],
+    rail: [0.46, 0.46, 0.47],
     white: [0.64, 0.64, 0.62],
     yellow: [0.74, 0.66, 0.24],
     green: [0.26, 0.4, 0.33],

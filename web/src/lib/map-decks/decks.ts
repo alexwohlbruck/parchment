@@ -940,6 +940,30 @@ export function onOwnDeck(
   }))
 }
 
+/** Metres past a deck's edge an object may stand and still be on it, and how closely a linear one must run with it, as a cosine. */
+const STAND_SLACK = 0.5
+const STAND_ALIGNED = Math.cos((25 * Math.PI) / 180)
+
+/**
+ * The deck an object at `p` stands on: the surface's height there and how far
+ * it stands over the ground, from the deck whose centreline is nearest. A
+ * linear object (`along`, east and south) only stands on a deck it runs with.
+ */
+export function standing(decks: Array<{ chain: Chain; surface: DeckSurface }>, p: Point, along?: [number, number]): { z: number; height: number } | null {
+  let best: { z: number; height: number; distance: number } | null = null
+  for (const { chain, surface } of decks) {
+    if (surface.bounds && !holds(surface.bounds, p)) continue
+    const near = beside(chain.points, p)
+    if (!near.alongside || near.distance > sideAt(chain, near.left ? 0 : 1, near.segment - 1, near.t) + STAND_SLACK) continue
+    if (best && near.distance >= best.distance) continue
+    const [a, b] = [chain.points[near.segment - 1], chain.points[near.segment]]
+    if (along && Math.abs(along[0] * (b[0] - a[0]) + along[1] * (b[1] - a[1])) < STAND_ALIGNED * Math.hypot(along[0], along[1]) * (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1)) continue
+    const at = (v: number[]) => v[near.segment - 1] + (v[near.segment] - v[near.segment - 1]) * near.t
+    best = { z: at(surface.z), height: at(surface.z) - at(surface.ground ?? surface.z), distance: near.distance }
+  }
+  return best && { z: best.z, height: best.height }
+}
+
 /** A profile served as decimetres joined by commas, in metres. */
 export function parseProfile(text: unknown): number[] {
   return typeof text === 'string' && text ? text.split(',').map(v => Number(v) / 10) : []

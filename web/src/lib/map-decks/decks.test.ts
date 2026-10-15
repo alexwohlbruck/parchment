@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
+import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, TOUCHDOWN, SEAM, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -32,6 +32,13 @@ describe('chains', () => {
     ], () => false, 0.5 * M)
     const low = decks.find(d => d.layer === 1)!
     expect(low.grounded).toEqual([true, false])
+  })
+
+  test('a carriageway never folds back onto the slip road it meets at a gore', () => {
+    const main = line(60, 0)
+    const slip: Point[] = [main[0], [main[1][0], y0 + 12 * M]]
+    const joined = chains([main, slip].map(points => ({ points, layer: 1, width: 10, kind: 'road' as const })), () => false, 0.5 * M)
+    expect(joined).toHaveLength(2)
   })
 
   test('an end cut at the edge of the loaded tiles stays in the air', () => {
@@ -243,6 +250,26 @@ describe('neighbouring decks', () => {
     expect(decks[1].z).toEqual([106, 106, 106])
   })
 
+  test('twin tracks join each other but never a road beside them', () => {
+    const rail = (metres: number, z: number) => {
+      const t = twin(metres, z)
+      return { ...t, chain: { ...t.chain, kind: 'rail' as const, edges: [2.5, 2.5] as [number, number] } }
+    }
+    const tracks = [rail(0, 106), rail(4, 106.5)]
+    expect(joinNeighbours(tracks)[0][0]).toEqual([true, true, true])
+    expect(tracks[0].z).toEqual([106.5, 106.5, 106.5])
+    const road = { ...twin(7.5, 106.5), chain: { ...twin(7.5, 106.5).chain, edges: [2.5, 2.5] as [number, number] } }
+    expect(joinNeighbours([rail(0, 106.5), road]).flat(2).some(Boolean)).toBe(false)
+  })
+
+  test('a shared side reaches a little under its neighbour', () => {
+    const c = chain(line(0, 40, 80), [false, false])
+    const colors = { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1] }
+    const ys = (open?: [boolean[], boolean[]]) => deckMesh(c, [106, 106, 106], [100, 100, 100], c.points[0], colors, deckMeshOut(), open).position.filter((_, k) => k % 3 === 1)
+    const reach = (v: number[]) => Math.max(...v) / M
+    expect(reach(ys([[true, true, true], [false, false, false]])) - reach(ys())).toBeCloseTo(SEAM, 1)
+  })
+
   test('a deck crossing over another keeps its parapets', () => {
     const open = joinNeighbours([twin(0, 100), twin(10.5, 112)])
     expect(open.flat(2).some(Boolean)).toBe(false)
@@ -322,6 +349,57 @@ describe('covered', () => {
     const piece = (points: Point[]) => ({ points, layer: 1, width: 10, kind: 'road' as const })
     expect(covered(piece(offset(1, 0, 50, 100)), served)).toBe(true)
     expect(covered(piece(offset(20, 0, 50, 100)), served)).toBe(false)
+  })
+})
+
+describe('tracks in a road bridge', () => {
+  const road = chain(line(0, 100), [true, true])
+  const track = (metres: number, ...xs: number[]): Chain => ({ ...chain(offset(metres, ...xs), [true, true]), kind: 'rail', edges: [2.5, 2.5], width: 5 })
+
+  test('a tram in the carriageway is the road deck\'s, not a deck of its own', () => {
+    expect(absorbTracks([road, track(1.5, 0, 100)])).toEqual([road])
+    expect(absorbTracks([road, track(9, 0, 100)])).toHaveLength(2)
+    expect(absorbTracks([road, track(1.5, 0, 140)])).toHaveLength(2)
+  })
+
+  test('a served road deck covers the basemap tram that runs in it', () => {
+    const served = [{ chain: road, bounds: boundsOf(road.points, 8) }]
+    expect(covered({ points: offset(1.5, 0, 50, 100), layer: 1, width: 5, kind: 'rail' }, served)).toBe(true)
+    expect(covered({ points: offset(1.5, 0, 50, 100), layer: 2, width: 5, kind: 'rail' }, served)).toBe(false)
+  })
+})
+
+describe('deck touchdown', () => {
+  test('a surface on the ground is drawn toward the eye, one standing clear of it is not', () => {
+    expect(touchdown(0)).toBe(TOUCHDOWN.bias)
+    expect(touchdown(TOUCHDOWN.fade)).toBe(0)
+    expect(touchdown(8)).toBe(0)
+  })
+
+  test('every vertex keeps a low colour and a bias, and only the surface is biased', () => {
+    const c = chain(line(0, 40, 80), [true, true])
+    const out = deckMesh(c, [100, 104, 100], [100, 100, 100], c.points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1], low: [0.9, 0.9, 0.9] }, deckMeshOut())
+    expect(out.low.length).toBe(out.position.length)
+    expect(out.bias.length * 3).toBe(out.position.length)
+    const biased = out.bias.flatMap((b, k) => (b > 0 ? [k] : []))
+    expect(biased.length).toBeGreaterThan(0)
+    expect(biased.every(k => out.color[k * 3] === 0 && out.low[k * 3] === 0.9)).toBe(true)
+  })
+})
+
+describe('standing on decks', () => {
+  const deck = chain(line(0, 50, 100), [true, true])
+  const surface = { points: deck.points, z: [100, 107, 100], d: along(deck.points), width: 11, bounds: boundsOf(deck.points, 6), ground: [100, 100, 100] }
+  const decks = [{ chain: deck, surface }]
+
+  test('an object on a deck stands at its surface, one off it on the ground', () => {
+    expect(standing(decks, line(50)[0])).toEqual({ z: 107, height: 7 })
+    expect(standing(decks, offset(9, 50)[0])).toBeNull()
+  })
+
+  test('a wire stands on a deck it runs with, not one it passes under', () => {
+    expect(standing(decks, line(50)[0], [1, 0])?.z).toBe(107)
+    expect(standing(decks, line(50)[0], [0, 1])).toBeNull()
   })
 })
 

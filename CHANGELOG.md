@@ -7,8 +7,11 @@
 * Running tracks show their lanes, and race circuits no longer look like side streets.
 * Disc golf courses show each hole's line and number, and their baskets.
 * Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
+* Car-free park drives and greenways are drawn as full-width paved roads with their bike lanes, center lines and walker symbols, instead of thin footpaths.
 
 ### Changed
+
+* In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
 
 ### Fixed
 
@@ -25,11 +28,9 @@
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 * Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
-* Car-free park drives and greenways are drawn as full-width paved roads with their bike lanes, center lines and walker symbols, instead of thin footpaths.
 
 ### Changed
 
-* In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
 * Footpaths are drawn with a finer edge.
 * 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
 * Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.

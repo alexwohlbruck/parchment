@@ -21,6 +21,7 @@ import {
   standing,
   standKey,
   underWay,
+  runsWith,
   touchdown,
   type UnderWay,
   UNDER_SLACK,
@@ -149,11 +150,11 @@ export class DeckLayer {
   private program!: WebGLProgram
   private buffers: MeshBuffers | null = null
   /** Where the mesh's paint, rails and routes begin. */
-  private ranges = { paintFrom: 0, railsFrom: 0, routesFrom: 0 }
+  private ranges: Ranges = { paintFrom: 0, railsFrom: 0, routesFrom: 0 }
   private origin: [number, number] = [0, 0]
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
-  private pending: Mesh | null = null
+  private pending: { mesh: Mesh; ranges: Ranges } | null = null
   private sampler: TerrainSampler | null = null
   /** Each served deck's datum offset at its ends, by id. */
   private offsets = new Map<string, [number, number]>()
@@ -170,6 +171,8 @@ export class DeckLayer {
   /** The last build's decks, for `standOn`, and the ground ways passing under them, worked out when first asked. */
   private stands: Array<{ chain: Chain; surface: DeckSurface }> = []
   private under: UnderWay[] | null = null
+  /** The bridges' own tracks. */
+  private tracks: UnderWay[] = []
 
   constructor(private sources: DeckSources, private palette: DeckPalette, options: { id?: string } = {}) {
     this.id = options.id ?? 'map-decks'
@@ -229,9 +232,9 @@ export class DeckLayer {
     this.scheduled = setTimeout(() => {
       this.cancelIdle = idle(() => {
         if (!this.map) return
-        const mesh = this.build()
-        if (!mesh) return
-        this.pending = mesh
+        const built = this.build()
+        if (!built) return
+        this.pending = built
         this.map.triggerRepaint?.()
       })
     }, 200) as unknown as number
@@ -289,7 +292,7 @@ export class DeckLayer {
     }
   }
 
-  private build(): Mesh | null {
+  private build(): { mesh: Mesh; ranges: Ranges } | null {
     if (this.awaitingServed()) return null
     const pieces: Piece[] = []
     const tiles: Bounds[] = []
@@ -378,6 +381,7 @@ export class DeckLayer {
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
+    this.tracks = ways.flatMap(w => (w.kind === 'rail' ? [{ points: w.points, half: 1, bounds: boundsOf(w.points, 3) }] : []))
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
@@ -392,7 +396,7 @@ export class DeckLayer {
     const stood = standKey(this.stands)
     if (stood !== this.stood) this.onBuilt?.()
     this.stood = stood
-    return mesh
+    return { mesh, ranges }
   }
 
   /**
@@ -405,6 +409,8 @@ export class DeckLayer {
     const p = mercator([lng, lat])
     const stand = standing(this.stands, p, along)
     if (!stand) return null
+    // A wire over its own bridge track is the track's, whatever runs beneath.
+    if (along && runsWith(this.tracks, p, along, 1)) return stand.z
     if (stand.height >= BOX_MIN && this.passesUnder(p, along)) return null
     return stand.z
   }
@@ -503,7 +509,8 @@ export class DeckLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       deleteMesh(gl, this.buffers)
-      this.buffers = uploadMesh(gl, this.pending)
+      this.buffers = uploadMesh(gl, this.pending.mesh)
+      this.ranges = this.pending.ranges
       this.pending = null
     }
     if (!this.buffers?.count) return
@@ -545,6 +552,9 @@ export class DeckLayer {
 }
 
 type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }
+
+/** Where a built mesh's paint, rails and routes begin, in vertices. */
+type Ranges = { paintFrom: number; railsFrom: number; routesFrom: number }
 
 /** The basemap's colour below street zoom for a road deck of a class. */
 function lowRoad(p: DeckPalette, road?: string): Rgb {

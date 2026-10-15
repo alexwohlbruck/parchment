@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, underWay, TOUCHDOWN, SEAM, UNDER_SLACK, metresPerUnit, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
+import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, underWay, runsWith, TOUCHDOWN, SEAM, UNDER_SLACK, metresPerUnit, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -42,6 +42,12 @@ describe('chains', () => {
       { points: slip, layer: 1, width: 10, kind: 'road', road: 'secondary_link' },
     ], () => false, 0.5 * M)
     expect(joined).toHaveLength(2)
+  })
+
+  test('two tracks parting at a turnout are two decks', () => {
+    const main = line(60, 0)
+    const branch: Point[] = [main[0], [main[1][0], y0 + 6 * M]]
+    expect(chains([main, branch].map(points => ({ points, layer: 1, width: 5, kind: 'rail' as const })), () => false, 0.5 * M)).toHaveLength(2)
   })
 
   test('a footbridge that doubles back at a landing is still one deck', () => {
@@ -438,6 +444,12 @@ describe('ways under a deck', () => {
   test('a wire running with a road under a deck is the road\'s, one crossing it is not', () => {
     expect(underWay([road], offset(1, 50)[0], [1, 0])).toBe(true)
     expect(underWay([road], offset(1, 50)[0], [0, 1])).toBe(false)
+  })
+
+  test('a wire runs with the track it hangs over', () => {
+    const track = { points: line(0, 100), half: 1, bounds: boundsOf(line(0, 100), 3) }
+    expect(runsWith([track], offset(0.5, 50)[0], [1, 0], 1)).toBe(true)
+    expect(runsWith([track], offset(4, 50)[0], [1, 0], 1)).toBe(false)
   })
 })
 

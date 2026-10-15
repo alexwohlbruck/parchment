@@ -206,8 +206,7 @@ export function chains(pieces: Piece[], cut: (p: Point) => boolean, tolerance: n
         else if (near(head, last, tolerance)) points = [...other.points, ...chain.points.slice(1)]
         else if (near(head, first, tolerance)) points = [...[...other.points].reverse(), ...chain.points.slice(1)]
         const at = points && (points[chain.points.length - 1] === chain.points[chain.points.length - 1] ? chain.points.length - 1 : other.points.length - 1)
-        const gore = chain.kind === 'road' && !!chain.road && !!other.road && chain.road !== other.road
-        if (points && !(gore && folds(points, at!))) {
+        if (points && !(chain.kind !== 'path' && folds(points, at!))) {
           chain.points = points
           chain.width = Math.max(chain.width, other.width)
           open.splice(i, 1)
@@ -243,7 +242,7 @@ export function chains(pieces: Piece[], cut: (p: Point) => boolean, tolerance: n
   })
 }
 
-/** Whether two lines joined at `points[at]` turn back on each other there, as a carriageway and its slip road do at a gore. */
+/** Whether two lines joined at `points[at]` turn back on each other there, as roads part at a gore or tracks at a turnout. */
 function folds(points: Point[], at: number): boolean {
   const [a, b, c] = [points[at - 1], points[at], points[at + 1]]
   if (!a || !c) return false
@@ -327,11 +326,7 @@ export function absorbPaths(decks: Chain[]): Chain[] {
   return [...roads, ...kept]
 }
 
-/**
- * Tracks laid in a road bridge's carriageway (a street-running tram), dropped
- * as decks of their own: they are drawn on the road's. As barrelman's: most of
- * the track in the road, none off to one side, no more than RUN_PAST past its ends.
- */
+/** Tracks in a road bridge's carriageway (a street-running tram), dropped as decks of their own, by barrelman's rule. */
 export function absorbTracks(decks: Chain[]): Chain[] {
   const roads = decks.filter(d => d.kind === 'road')
   return decks.filter(track => {
@@ -1007,22 +1002,27 @@ export function standing(decks: Array<{ chain: Chain; surface: DeckSurface }>, p
   return best && { z: best.z, height: best.height }
 }
 
-/** A way on the ground passing under a deck, and its half width in metres. */
+/** A way near a deck, and its half width in metres. */
 export type UnderWay = { points: Point[]; half: number; bounds: Bounds }
 
-/**
- * Whether an object over a deck belongs to a way on the ground under it
- * instead: a linear one (`along`) running with that way, within UNDER_SLACK of
- * its edge; a point one beside it, though not over the way itself, where nothing stands.
- */
-export function underWay(ways: UnderWay[], p: Point, along?: [number, number]): boolean {
+/** Whether a linear object (`along`, east and south) runs with one of the ways, within `reach` metres of its edge. */
+export function runsWith(ways: UnderWay[], p: Point, along: [number, number], reach: number): boolean {
   return ways.some(w => {
     if (!holds(w.bounds, p)) return false
     const near = beside(w.points, p)
-    if (near.distance > w.half + UNDER_SLACK) return false
-    if (!along) return near.distance > w.half
+    if (near.distance > w.half + reach) return false
     const [a, b] = [w.points[near.segment - 1], w.points[near.segment]]
     return Math.abs(along[0] * (b[0] - a[0]) + along[1] * (b[1] - a[1])) >= STAND_ALIGNED * Math.hypot(along[0], along[1]) * (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1)
+  })
+}
+
+/** Whether an object over a deck is a way's under it: a linear one running with it, a point one beside it but not over it. */
+export function underWay(ways: UnderWay[], p: Point, along?: [number, number]): boolean {
+  if (along) return runsWith(ways, p, along, UNDER_SLACK)
+  return ways.some(w => {
+    if (!holds(w.bounds, p)) return false
+    const { distance } = beside(w.points, p)
+    return distance > w.half && distance <= w.half + UNDER_SLACK
   })
 }
 

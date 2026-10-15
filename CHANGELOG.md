@@ -12,6 +12,7 @@
 ### Changed
 
 * In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
+* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 
 ### Fixed
 
@@ -20,6 +21,7 @@
 * 3D tunnel portals on paths and culverts fit the path's width, face along mapped headwalls, and no longer show a dark wedge or a step across the opening.
 * A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
 * Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
+* Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
 
 ## [0.15.0] - 2026-10-15
 

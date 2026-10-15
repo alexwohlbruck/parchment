@@ -43,8 +43,10 @@ import {
   ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, modelToLngLat, parseLandmark,
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
+import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
+import { tileBounds, type Bounds } from './tile-lines'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -61,11 +63,12 @@ const SETTLE = 80
 const MINZOOM_HYSTERESIS = 0.3
 
 /**
- * How long a model no placement wants stays on the GPU. Long enough that
- * zooming out and back in again does not refetch it; short enough that
- * touring a city full of landmarks does not keep every one of them.
+ * How long a model no placement wants stays on the GPU, so panning back to
+ * it does not refetch it. Past `MAX_IDLE_MODELS` the longest unwanted go
+ * sooner, so touring a city full of landmarks does not keep every one.
  */
-const EVICT_AFTER_MS = 60_000
+const EVICT_AFTER_MS = 600_000
+const MAX_IDLE_MODELS = 48
 
 /** How often to look for models to evict. */
 const EVICT_EVERY_MS = 5_000
@@ -103,7 +106,7 @@ const GROUND_BLEND = 25
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
 
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
-const LOC = { a_position: 0, a_normal: 1, a_uv: 2 }
+const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3 }
 
 /**
  * The terrain under a landmark, as a GROUND_GRID² grid over its plan extent
@@ -151,7 +154,8 @@ const GROUND = `
 const ATTRIBUTES = `
   layout(location = 0) in vec3 a_position;
   layout(location = 1) in vec3 a_normal;
-  layout(location = 2) in vec2 a_uv;`
+  layout(location = 2) in vec2 a_uv;
+  layout(location = 3) in float a_material;`
 
 /**
  * Where a moving part stands this frame, in model space: its node's matrix
@@ -175,13 +179,21 @@ const DRAW_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
   uniform mat3 u_turn;
+  /** Per source primitive of the batch, by \`a_material\`: sRGB colour, and linear emission. */
+  uniform vec3 u_colors[${MAX_BATCH_MATERIALS}];
+  uniform vec3 u_emissions[${MAX_BATCH_MATERIALS}];
   ${NODE}
   ${GROUND}
   ${ATTRIBUTES}
   out vec3 v_normal;
   out vec2 v_uv;
   out float v_floor;
+  flat out vec3 v_color;
+  flat out vec3 v_emission;
   void main() {
+    int m = int(a_material);
+    v_color = u_colors[m];
+    v_emission = u_emissions[m];
     v_normal = u_turn * (mat3(u_node) * a_normal);
     v_uv = a_uv;
     vec3 p = (u_node * vec4(a_position, 1.0)).xyz;
@@ -232,14 +244,14 @@ const MASK = `
  */
 const DRAW_FS = `#version 300 es
   precision highp float;
-  uniform vec3 u_color;
+  flat in vec3 v_color;
   /** 1 when the primitive's texture paints its surface rather than only cutting it. */
   uniform float u_painted;
   uniform vec3 u_tint;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
   /** Emitted colour, linear, already scaled by its intensity. */
-  uniform vec3 u_emission;
+  flat in vec3 v_emission;
   /** 1 when a painted texture's alpha says where the panes are: 0 glass, 1 wall. */
   uniform float u_panes;
   in vec3 v_normal;
@@ -254,7 +266,7 @@ const DRAW_FS = `#version 300 es
     // material's — which is how a facade gets a grid of windows that
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
-    vec3 base = u_color * paint.rgb;
+    vec3 base = v_color * paint.rgb;
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -263,11 +275,11 @@ const DRAW_FS = `#version 300 es
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
     vec3 shaded = clamp((base + 0.03) * directional * sky * u_tint, 0.0, 1.0);
-    if (u_emission != vec3(0.0)) {
+    if (v_emission != vec3(0.0)) {
       // The mask's mip chain averages panes and wall, so a facade too far
       // off to show single windows still glows by the share that is glass.
       float glass = u_panes > 0.5 ? 1.0 - paint.a : 1.0;
-      vec3 lit = pow(shaded, vec3(2.2)) + u_emission * glass;
+      vec3 lit = pow(shaded, vec3(2.2)) + v_emission * glass;
       shaded = pow(clamp(lit, 0.0, 1.0), vec3(1.0 / 2.2));
     }
     fragColor = vec4(shaded, 1.0);
@@ -388,20 +400,26 @@ export type ShadowFrame = {
   shear: [number, number]
 }
 
-type Primitive = {
+type BatchLighting = { night: boolean; colors: Float32Array; emissions: Float32Array }
+
+/** One draw: a single textured primitive, or several untextured ones; see `batchPrimitives`. */
+type Batch = {
   vao: WebGLVertexArrayObject
   buffers: WebGLBuffer[]
   count: number
   indexType: number
-  /** sRGB, to match what the rest of the pipeline writes straight out. */
-  color: [number, number, number]
+  /** Per source primitive, in `a_material` order. */
+  materials: Array<{
+    /** sRGB, to match what the rest of the pipeline writes straight out. */
+    color: [number, number, number]
+    /** The glTF material's name, which is how windows and doors are found. */
+    name: string
+  }>
   texture: WebGLTexture | null
   /** Whether the texture paints colour (opaque), as opposed to only cutting with alpha. */
   painted: boolean
   cutoff: number
   doubleSided: boolean
-  /** The glTF material's name, which is how windows and doors are found. */
-  material: string
   /** The moving node it is drawn with, or -1; see `poseGlb`. */
   node: number
 }
@@ -409,7 +427,7 @@ type Primitive = {
 type Model = {
   /** Parsed and decoded, waiting for the next frame to put it on the GPU. */
   pending: { glb: GlbModel; images: Array<ImageBitmap | null> } | null
-  primitives: Primitive[] | null
+  batches: Batch[] | null
   /** Plan extent in the model's own metres, once it has loaded. */
   footprint: Footprint | null
   /** What it covers in plan, once it has loaded; see `insideFootprint`. */
@@ -479,6 +497,8 @@ export class LandmarkLayer {
    * and so re-lays out every building — on every zoom step.
    */
   private hiddenFor = new Map<string | number, string>()
+  /** Per loaded building tile: the placements it has been judged against, and which pieces lie on which. */
+  private tileJudgements = new Map<string, { judged: Set<string>; inside: Map<number, string[]> }>()
   /**
    * The ground each placed model was built on, by placement, once every
    * contact has been read off loaded terrain — it does not change after, and
@@ -525,8 +545,8 @@ export class LandmarkLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.draw = program(gl, DRAW_VS, DRAW_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emission', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
+      ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
+        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor'])
@@ -792,9 +812,9 @@ export class LandmarkLayer {
    */
   private drawnModel(p: Placement): Model | null {
     const low = this.models.get(p.model)
-    if (!low?.primitives) return null
+    if (!low?.batches) return null
     const detail = p.detailed ? this.models.get(p.detail!.model) : undefined
-    return detail?.primitives ? detail : low
+    return detail?.batches ? detail : low
   }
 
 
@@ -818,6 +838,16 @@ export class LandmarkLayer {
       this.hiddenFor.clear()
       return { refs: [], featureIds: [] }
     }
+    const reaches: Reach[] = drawn.map(({ p, coverage }) => {
+      const { minX, maxX, minZ, maxZ } = coverage.bounds
+      const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
+      return { p, coverage, reach, k: Math.cos((p.lat * Math.PI) / 180) * 111320, id: placementKey(p) }
+    })
+    // A loaded tile's pieces never change, so a tile is judged against each
+    // placement once; reading geometry is the costly part of a query.
+    const rank = new Map(reaches.map((r, i) => [r.id, i]))
+    const previous = this.tileJudgements
+    this.tileJudgements = new Map()
     const verdict = new Map<string | number, string | false>()
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
       let features: any[] = []
@@ -826,21 +856,27 @@ export class LandmarkLayer {
       } catch {
         continue
       }
-      for (const feature of features) {
-        const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
-        if (key === undefined || key === null || verdict.get(key) === false) continue
-        const rings = polygonRings(feature.geometry)
-        const first = rings[0]?.[0]
-        // The first vertex rules almost every building out without the full
-        // test, which matters on a Manhattan tile with thousands of them.
-        const inside = !!first && drawn.find(({ p, coverage }) => {
-          const { minX, maxX, minZ, maxZ } = coverage.bounds
-          const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
-          const k = Math.cos((p.lat * Math.PI) / 180) * 111320
-          if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
-          return insideFootprint(p, coverage, rings)
+      for (const [tile, pieces] of groupByTile(`${source}/${sourceLayer}`, features)) {
+        const judgement = previous.get(tile) ?? { judged: new Set<string>(), inside: new Map<number, string[]>() }
+        this.tileJudgements.set(tile, judgement)
+        const fresh = reaches.filter(r => !judgement.judged.has(r.id))
+        const bounds = tileBounds(pieces[0])
+        const near = bounds ? fresh.filter(r => reachesTile(r, bounds)) : fresh
+        if (near.length) {
+          pieces.forEach((feature, i) => {
+            const hits = landmarksUnder(feature, near)
+            if (hits.length) judgement.inside.set(i, [...(judgement.inside.get(i) ?? []), ...hits])
+          })
+        }
+        for (const r of fresh) judgement.judged.add(r.id)
+        pieces.forEach((feature, i) => {
+          const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
+          if (key === undefined || key === null || verdict.get(key) === false) return
+          // The first placement holding it, in the order they were placed.
+          let first = Infinity
+          for (const id of judgement.inside.get(i) ?? []) first = Math.min(first, rank.get(id) ?? Infinity)
+          verdict.set(key, first < Infinity ? reaches[first].p.id : false)
         })
-        verdict.set(key, inside ? inside.p.id : false)
       }
     }
     // A key goes back on show only on evidence: a loaded piece of it outside
@@ -890,7 +926,7 @@ export class LandmarkLayer {
 
   private ready(file: string) {
     const model = this.models.get(file)
-    return !!(model?.primitives || model?.pending)
+    return !!(model?.batches || model?.pending)
   }
 
   private load(file: string, now: number) {
@@ -900,7 +936,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, primitives: null, footprint: null, used: now, animation: null, pose: null, reach: 0, contacts: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, contacts: null,
     }
     this.models.set(file, model)
     void (async () => {
@@ -941,7 +977,8 @@ export class LandmarkLayer {
     for (const model of this.models.values()) {
       if (!model.pending) continue
       const { glb, images } = model.pending
-      model.primitives = glb.primitives.map((p, i) => {
+      const imageOf = new Map(glb.primitives.map((p, i) => [p, images[i]]))
+      model.batches = batchPrimitives(glb.primitives).map(batch => {
         const vao = gl.createVertexArray()!
         gl.bindVertexArray(vao)
         const buffers: WebGLBuffer[] = []
@@ -953,18 +990,20 @@ export class LandmarkLayer {
           gl.enableVertexAttribArray(loc)
           gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0)
         }
-        attribute(LOC.a_position, p.position, 3)
-        attribute(LOC.a_normal, p.normal, 3)
-        if (p.uv) attribute(LOC.a_uv, p.uv, 2)
+        attribute(LOC.a_position, batch.position, 3)
+        attribute(LOC.a_normal, batch.normal, 3)
+        if (batch.uv) attribute(LOC.a_uv, batch.uv, 2)
+        attribute(LOC.a_material, batch.material, 1)
         const index = gl.createBuffer()!
         buffers.push(index)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index)
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, p.index, gl.STATIC_DRAW)
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, batch.index, gl.STATIC_DRAW)
         gl.bindVertexArray(null)
 
-        const image = images[i]
+        const [p] = batch.primitives
+        const image = batch.uv ? imageOf.get(p) : null
         let texture: WebGLTexture | null = null
-        if (image && p.uv) {
+        if (image) {
           texture = gl.createTexture()
           gl.bindTexture(gl.TEXTURE_2D, texture)
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
@@ -981,7 +1020,6 @@ export class LandmarkLayer {
             const max = gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)
             gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max))
           }
-          image.close()
         }
 
         // glTF colours are linear and this pipeline writes colour straight to
@@ -991,19 +1029,22 @@ export class LandmarkLayer {
         return {
           vao,
           buffers,
-          count: p.index.length,
-          indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-          color: [srgb(p.color[0]), srgb(p.color[1]), srgb(p.color[2])],
+          count: batch.index.length,
+          indexType: batch.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+          materials: batch.primitives.map(({ color, material }) => ({
+            color: [srgb(color[0]), srgb(color[1]), srgb(color[2])] as [number, number, number],
+            name: material,
+          })),
           texture,
           painted: !!texture && p.alphaMode !== 'MASK',
           // A painted texture is drawn opaque whatever its alpha says: on a
           // facade the alpha is the window mask, not coverage.
           cutoff: texture && p.alphaMode === 'MASK' ? p.alphaCutoff : -1,
           doubleSided: p.doubleSided,
-          material: p.material,
           node: p.node,
         }
       })
+      for (const image of images) image?.close()
       model.pending = null
       this.version++
     }
@@ -1022,8 +1063,9 @@ export class LandmarkLayer {
     // drawn: a detailed landmark leaves its low model idle, but that is the
     // one its footprint and its fallback come from.
     const wanted = new Set(this.drawable().flatMap(p => p.detailed ? [p.model, p.detail!.model] : [p.model]))
-    for (const [file, model] of this.models) {
-      if (!model.primitives || wanted.has(file) || now - model.used < EVICT_AFTER_MS) continue
+    const idle = [...this.models].filter(([file, model]) => model.batches && !wanted.has(file)).sort((a, b) => b[1].used - a[1].used)
+    for (const [i, [file, model]] of idle.entries()) {
+      if (i < MAX_IDLE_MODELS && now - model.used < EVICT_AFTER_MS) continue
       release(gl, model)
       // Forgotten rather than kept empty, so a return fetches it again —
       // from the HTTP cache, the name being content-addressed.
@@ -1045,7 +1087,7 @@ export class LandmarkLayer {
     gl.disable(gl.CULL_FACE)
     for (const p of placements) {
       const model = this.drawnModel(p)
-      if (!model?.primitives) continue
+      if (!model?.batches) continue
       const { perMetre } = p.placed
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
@@ -1055,7 +1097,7 @@ export class LandmarkLayer {
       const b = (p.bearing * Math.PI) / 180
       gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
       this.groundUniforms(gl, u, p)
-      this.drawPrimitives(gl, model.primitives, u, false, this.poseOf(model))
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model))
     }
     gl.bindVertexArray(null)
   }
@@ -1095,14 +1137,14 @@ export class LandmarkLayer {
     let onScreen: ((p: Placement, reach: number) => boolean) | null = null
     for (const p of placements) {
       const model = this.drawnModel(p)
-      if (!model?.primitives) continue
+      if (!model?.batches) continue
       model.used = now
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       this.groundUniforms(gl, u, p)
       const pose = this.poseOf(model, now)
-      this.drawPrimitives(gl, model.primitives, u, true, pose)
+      this.drawBatches(gl, model.batches, u, true, pose)
       if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
     }
     if (this.options.flavor.night) this.drawEntrances(gl, matrix, placements)
@@ -1188,41 +1230,55 @@ export class LandmarkLayer {
     gl.disable(gl.BLEND)
   }
 
-  private drawPrimitives(
+  private drawBatches(
     gl: WebGL2RenderingContext,
-    primitives: Primitive[],
+    batches: Batch[],
     u: Record<string, WebGLUniformLocation | null>,
     shaded: boolean,
     pose: Map<number, Float32Array> | null,
   ) {
     let node: Float32Array | null = null
-    for (const primitive of primitives) {
+    for (const batch of batches) {
       // Set only when it changes: a static model sets the identity once.
-      const at = (primitive.node >= 0 && pose?.get(primitive.node)) || IDENTITY
+      const at = (batch.node >= 0 && pose?.get(batch.node)) || IDENTITY
       if (at !== node) gl.uniformMatrix4fv(u.u_node, false, (node = at))
       if (shaded) {
-        if (primitive.doubleSided) gl.disable(gl.CULL_FACE)
+        if (batch.doubleSided) gl.disable(gl.CULL_FACE)
         else gl.enable(gl.CULL_FACE)
-        const light = materialLight(primitive.material, this.options.flavor.night, primitive.painted)
-        gl.uniform3fv(u.u_color, light?.base ?? primitive.color)
-        gl.uniform1f(u.u_painted, primitive.painted ? 1 : 0)
-        // Linear, to be added in linear light; see DRAW_FS.
-        const glow = light?.glow ?? [0, 0, 0]
-        const k = light?.intensity ?? 0
-        gl.uniform3f(u.u_emission, Math.pow(glow[0], 2.2) * k, Math.pow(glow[1], 2.2) * k, Math.pow(glow[2], 2.2) * k)
+        const lit = this.lighting(batch)
+        gl.uniform3fv(u.u_colors, lit.colors)
+        gl.uniform3fv(u.u_emissions, lit.emissions)
+        gl.uniform1f(u.u_painted, batch.painted ? 1 : 0)
         // Only a painted window knows where its panes are; any other window
-        // is glass all over.
-        gl.uniform1f(u.u_panes, primitive.painted && isWindow(primitive.material) ? 1 : 0)
+        // is glass all over. A painted batch is always a single primitive.
+        gl.uniform1f(u.u_panes, batch.painted && isWindow(batch.materials[0].name) ? 1 : 0)
       }
-      gl.uniform1f(u.u_cutoff, primitive.cutoff)
-      if (primitive.texture) {
+      gl.uniform1f(u.u_cutoff, batch.cutoff)
+      if (batch.texture) {
         gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, primitive.texture)
+        gl.bindTexture(gl.TEXTURE_2D, batch.texture)
         gl.uniform1i(u.u_mask, 0)
       }
-      gl.bindVertexArray(primitive.vao)
-      gl.drawElements(gl.TRIANGLES, primitive.count, primitive.indexType, 0)
+      gl.bindVertexArray(batch.vao)
+      gl.drawElements(gl.TRIANGLES, batch.count, batch.indexType, 0)
     }
+  }
+
+  /** A batch's colour and emission tables for the current flavour, kept until it changes. */
+  private lighting(batch: Batch & { lit?: BatchLighting }): BatchLighting {
+    const night = this.options.flavor.night
+    if (batch.lit?.night === night) return batch.lit
+    const colors = new Float32Array(batch.materials.length * 3)
+    const emissions = new Float32Array(batch.materials.length * 3)
+    batch.materials.forEach(({ color, name }, i) => {
+      const light = materialLight(name, night, batch.painted)
+      colors.set(light?.base ?? color, i * 3)
+      // Linear, to be added in linear light; see DRAW_FS.
+      const glow = light?.glow ?? [0, 0, 0]
+      const k = light?.intensity ?? 0
+      emissions.set([Math.pow(glow[0], 2.2) * k, Math.pow(glow[1], 2.2) * k, Math.pow(glow[2], 2.2) * k], i * 3)
+    })
+    return (batch.lit = { night, colors, emissions })
   }
 
   /** MapLibre caches GL state; tell it what we touched. See `ObjectLayer.render`. */
@@ -1249,6 +1305,40 @@ export class LandmarkLayer {
     }
     return { position: [x, y, z], intensity: light?.properties?.get?.('intensity') ?? 0.5 }
   }
+}
+
+type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: string }
+
+/** What a building piece's verdict depends on: the placement's model and where and how it stands. */
+const placementKey = (p: Placement) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
+
+function groupByTile(layer: string, features: any[]): Map<string, any[]> {
+  const tiles = new Map<string, any[]>()
+  for (const f of features) {
+    const tile = `${layer}/${f._z}/${f._x}/${f._y}`
+    const pieces = tiles.get(tile)
+    if (pieces) pieces.push(f)
+    else tiles.set(tile, [f])
+  }
+  return tiles
+}
+
+const reachesTile = ({ p, reach, k }: Reach, b: Bounds) =>
+  p.lng + reach / k >= b.minLng && p.lng - reach / k <= b.maxLng &&
+  p.lat + reach / 110574 >= b.minLat && p.lat - reach / 110574 <= b.maxLat
+
+/** The placements, by key, a building piece lies wholly on. */
+function landmarksUnder(feature: any, reaches: Reach[]): string[] {
+  const rings = polygonRings(feature.geometry)
+  const first = rings[0]?.[0]
+  if (!first) return []
+  // The first vertex rules almost every building out without the full
+  // test, which matters on a Manhattan tile with thousands of them.
+  return reaches
+    .filter(({ p, coverage, reach, k }) =>
+      Math.abs(first[0] - p.lng) * k <= reach && Math.abs(first[1] - p.lat) * 110574 <= reach &&
+      insideFootprint(p, coverage, rings))
+    .map(r => r.id)
 }
 
 /**
@@ -1288,12 +1378,12 @@ export function localMatrix(bearingDeg: number, scale: number): Float32Array {
 
 /** Hand a model's buffers and textures back to the GPU. */
 function release(gl: WebGL2RenderingContext, model: Model) {
-  for (const p of model.primitives ?? []) {
+  for (const p of model.batches ?? []) {
     gl.deleteVertexArray(p.vao)
     for (const b of p.buffers) gl.deleteBuffer(b)
     if (p.texture) gl.deleteTexture(p.texture)
   }
-  model.primitives = null
+  model.batches = null
   for (const image of model.pending?.images ?? []) image?.close()
   model.pending = null
 }

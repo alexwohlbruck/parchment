@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import type { Point } from '@/lib/map-decks/decks'
-import { carveTile, carvedAt, footprint, type Elevation } from './carve'
+import { carveTile, carvedAt, footprint, tileUnder, type Elevation } from './carve'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -72,5 +72,21 @@ describe('carveTile', () => {
     const t = tile()
     expect(carveTile(t, id(at(20)), [footprint([at(0), at(40)], [30, 30], [[30, 30], [30, 30]], [4, 4], [4, 4], [4, 4])])).toBe(false)
     expect(t.data.every(h => h === 20)).toBe(true)
+  })
+})
+
+describe('tileUnder', () => {
+  const area = { minX: 0.30, minY: 0.40, maxX: 0.31, maxY: 0.41 }
+
+  test('finds the tiles an area falls in, at any zoom', () => {
+    expect(tileUnder([0, 0, 0], [area])).toBe(true)
+    expect(tileUnder([2, 1, 1], [area])).toBe(true)
+    expect(tileUnder([4, 4, 6], [area])).toBe(true)
+  })
+
+  test('leaves tiles elsewhere alone', () => {
+    expect(tileUnder([2, 2, 1], [area])).toBe(false)
+    expect(tileUnder([4, 5, 6], [area])).toBe(false)
+    expect(tileUnder([4, 4, 6], [])).toBe(false)
   })
 })

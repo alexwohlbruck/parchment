@@ -31,23 +31,41 @@ type Overlay = { raw: any; set: (data: any) => void; signature: string }
 
 type Ring = Array<[number, number]>
 
-function footprints(map: any): BuildingFootprint[] {
-  const layer = map.getLayer(layerGroups.building3d)
-  if (!layer) return []
-  const out: BuildingFootprint[] = []
-  for (const f of map.querySourceFeatures(layer.source, { sourceLayer: layer.sourceLayer })) {
-    const height = Number(f.properties?.render_height ?? f.properties?.height ?? 0)
-    if (!(height > 0) || f.properties?.hide_3d) continue
-    const g = f.geometry
-    const polygons: Ring[][] = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
-    for (const rings of polygons) out.push({ rings, height })
+/**
+ * The loaded tiles' building footprints. A tile's buildings never change once
+ * it has loaded, so each tile's geometry is read only on the first pass that
+ * sees it.
+ */
+function footprintReader() {
+  let byTile = new Map<string, BuildingFootprint[]>()
+  return (map: any): BuildingFootprint[] => {
+    const layer = map.getLayer(layerGroups.building3d)
+    if (!layer) return []
+    const previous = byTile
+    byTile = new Map()
+    for (const f of map.querySourceFeatures(layer.source, { sourceLayer: layer.sourceLayer })) {
+      const tile = `${layer.source}/${f._z}/${f._x}/${f._y}`
+      const known = previous.get(tile)
+      if (known) {
+        byTile.set(tile, known)
+        continue
+      }
+      const out = byTile.get(tile) ?? []
+      byTile.set(tile, out)
+      const height = Number(f.properties?.render_height ?? f.properties?.height ?? 0)
+      if (!(height > 0) || f.properties?.hide_3d) continue
+      const g = f.geometry
+      const polygons: Ring[][] = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
+      for (const rings of polygons) out.push({ rings, height })
+    }
+    return [...byTile.values()].flat()
   }
-  return out
 }
 
 export function attachPoiElevation(map: any, raised: () => boolean) {
   let signature = ''
   let queued = 0
+  const footprints = footprintReader()
 
   /** The basemap source the POIs come from, once the layers are moved off it. */
   let tiles: string | null = null

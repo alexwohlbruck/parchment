@@ -659,7 +659,8 @@ export function deckMesh(
     return { left: at(l), right: at(-r), leftOut: at(l + SEAM), rightOut: at(-r - SEAM) }
   })
   const d = along(pts)
-  const caps = chain.caps ?? [0, 0, 0, 0]
+  // An end that joins another deck is never drawn short of it, which would leave a wedge between the two.
+  const caps = (chain.caps ?? [0, 0, 0, 0]).map((c, k) => (chain.grounded?.[k >> 1] === false ? Math.min(c, 0) : c))
   // Each side moved along the deck to its end caps: run on straight past an end, or drawn in to where its cap falls.
   const capped = (side: 'left' | 'right' | 'leftOut' | 'rightOut', start: number, end: number) => {
     const total = d[n - 1]

@@ -38,6 +38,7 @@ import {
   type StopBoard,
 } from '../lib/transit/route-options'
 import { dropAvoidableStreetTransfers, transferChecks } from '../lib/transit/street-transfer'
+import { bearingDeg, entranceFacesAway, entranceHeading } from '../lib/transit/entrance-direction'
 
 /**
  * Simplified multimodal trip planning service
@@ -3447,6 +3448,98 @@ export class TripService {
     return hit
   }
 
+  /** Which way the train runs at the platform the rider uses. */
+  private static platformBearing(leg: TripSegment, end: 'board' | 'alight'): number | null {
+    const stops = leg.details?.transitDetails?.stops ?? []
+    if (stops.length < 2) return null
+    const [a, b] = end === 'board' ? [stops[0], stops[1]] : [stops[stops.length - 2], stops[stops.length - 1]]
+    return bearingDeg(a.location, b.location)
+  }
+
+  /**
+   * The nearest entrance to a platform that reaches it. An entrance signed
+   * for the opposite direction leads to the other platform, so the next
+   * nearest one that is not is used instead.
+   */
+  private async entranceFor(
+    platform: Coordinate,
+    travelBearing: number | null,
+    wheelchair: boolean,
+  ): Promise<import('../types/integration.types').StationEntrance | null> {
+    const radius = TripService.ENTRANCE_SNAP_RADIUS_M
+    const nearest = await this.cachedNearestEntrance(platform.lat, platform.lng, radius, wheelchair)
+    const facesAway = (e: { name: string | null; description: string | null }) =>
+      entranceFacesAway(entranceHeading(e.name, e.description), travelBearing)
+    if (!nearest || !facesAway(nearest)) return nearest
+    const nearby = await this.cachedEntrancesAround(platform, nearest.accessType, radius, wheelchair)
+    return nearby.find((e) => !facesAway(e)) ?? null
+  }
+
+  private entrancesAroundCache = new Map<
+    string,
+    Promise<import('../types/integration.types').StationEntrance[]>
+  >()
+
+  /** Every mapped entrance of one kind near a platform, nearest first. */
+  private cachedEntrancesAround(
+    platform: Coordinate,
+    accessType: string,
+    radiusM: number,
+    wheelchair: boolean,
+  ): Promise<import('../types/integration.types').StationEntrance[]> {
+    if (!TripService.LISTABLE_ENTRANCE_TYPES.has(accessType)) return Promise.resolve([])
+    const key = `${platform.lat.toFixed(5)},${platform.lng.toFixed(5)},${accessType},${radiusM},${wheelchair ? 'w' : ''}`
+    let hit = this.entrancesAroundCache.get(key)
+    if (!hit) {
+      const dLat = radiusM / 111320
+      const dLng = radiusM / (111320 * Math.cos((platform.lat * Math.PI) / 180))
+      hit = searchByCategory(`railway/${accessType}`, {
+        bounds: {
+          north: platform.lat + dLat,
+          south: platform.lat - dLat,
+          east: platform.lng + dLng,
+          west: platform.lng - dLng,
+        },
+        limit: 25,
+        sort: 'distance',
+      })
+        .then((places) => places
+          .map((p) => {
+            const center = p.geometry?.value?.center
+            if (!center) return null
+            return {
+              osmId: p.id,
+              name: p.name?.value ?? null,
+              description: p.tags?.description ?? null,
+              wheelchair: p.tags?.wheelchair ?? null,
+              level: p.tags?.level ?? null,
+              accessType,
+              lat: center.lat,
+              lon: center.lng,
+              distanceM: TripService.haversineDistance(platform, center),
+            }
+          })
+          .filter((e): e is NonNullable<typeof e> =>
+            e != null && e.distanceM <= radiusM && !(wheelchair && e.wheelchair === 'no'))
+          .sort((a, b) => a.distanceM - b.distanceM))
+        .catch(() => {
+          this.entrancesAroundCache.delete(key)
+          return []
+        })
+      this.entrancesAroundCache.set(key, hit)
+      if (this.entrancesAroundCache.size > TripService.ENTRANCE_CACHE_MAX) {
+        const oldest = this.entrancesAroundCache.keys().next().value
+        if (oldest) this.entrancesAroundCache.delete(oldest)
+      }
+    }
+    return hit
+  }
+
+  /** Entrance kinds the place search can list; vertical access is not signed by direction. */
+  private static readonly LISTABLE_ENTRANCE_TYPES = new Set([
+    'subway_entrance', 'train_station_entrance',
+  ])
+
   /**
    * Upgrade MOTIS walking legs in place (all legs in parallel):
    *
@@ -3528,10 +3621,10 @@ export class TripService {
 
         const [boardEntrance, alightEntrance] = await Promise.all([
           nextIsTransit
-            ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M, wheelchair)
+            ? this.entranceFor(seg.end.location, TripService.platformBearing(segments[i + 1], 'board'), wheelchair)
             : Promise.resolve(null),
           prevIsTransit
-            ? this.cachedNearestEntrance(seg.start.location.lat, seg.start.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M, wheelchair)
+            ? this.entranceFor(seg.start.location, TripService.platformBearing(segments[i - 1], 'alight'), wheelchair)
             : Promise.resolve(null),
         ])
 

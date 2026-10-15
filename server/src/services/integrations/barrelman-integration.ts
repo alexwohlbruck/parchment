@@ -22,6 +22,7 @@ import type {
   NearbyStopsRequest,
   NearbyStopResult,
   StopRouteResult,
+  StopDeparturesQuery,
   MapBounds,
 } from '../../types/integration.types'
 import {
@@ -53,6 +54,7 @@ import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
 import { TransitGate, TransitPriority } from '../../lib/transit/transit-gate'
+import type { StopBoard } from '../../lib/transit/route-options'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 import { peliasLayerLabel } from '../../lib/place-type-label'
@@ -353,6 +355,7 @@ export class BarrelmanIntegration
       getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
+      getStopDepartures: this.getStopDepartures.bind(this),
     } as TransitRoutingCapability,
   }
 
@@ -1491,6 +1494,27 @@ export class BarrelmanIntegration
         throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
       }
       throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getStopDepartures(query: StopDeparturesQuery): Promise<StopBoard[] | null> {
+    const params = new URLSearchParams({
+      feedId: query.feedId,
+      stopId: query.stopId,
+      time: query.time,
+      windowMinutes: String(query.windowMinutes),
+      n: String(query.n),
+    })
+    try {
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(`${this.config.host}/transit/departures?${params}`, {
+          headers: this.headers,
+          timeout: 10_000,
+        }),
+      )
+      return Array.isArray(response.data) ? response.data : null
+    } catch {
+      return null
     }
   }
 

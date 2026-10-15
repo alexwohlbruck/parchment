@@ -30,6 +30,13 @@ import { searchByCategory } from './search.service'
 import { logError, logWarn } from '../lib/logger'
 import { TransitPriority } from '../lib/transit/transit-gate'
 import { routeTypeForMotisMode } from '../lib/transit/motis-mode'
+import {
+  ROUTE_SERVICE_BOARD_EVENTS,
+  ROUTE_SERVICE_SLACK_MINUTES,
+  routesServingStop,
+  servedRouteOptions,
+  type StopBoard,
+} from '../lib/transit/route-options'
 
 /**
  * Simplified multimodal trip planning service
@@ -171,6 +178,7 @@ export class TripService {
       request.selectedMode === 'multi',
     )
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
+    await this.pruneUnservedRouteOptions(rankedTrips.map((c) => c.trip))
 
     return {
       request,
@@ -580,6 +588,72 @@ export class TripService {
       out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group))
     }
     return out
+  }
+
+  /**
+   * Narrow each transit leg's interchangeable routes to those running at both
+   * of its stops around the time it is ridden.
+   */
+  private async pruneUnservedRouteOptions(trips: TripResponse[]): Promise<void> {
+    const legs = trips.flatMap((t) => t.segments).filter(
+      (s) => (s.details?.transitDetails?.routeOptions?.length ?? 0) > 1,
+    )
+    await Promise.all(legs.map(async (seg) => {
+      const td = seg.details!.transitDetails!
+      const own = td.route.shortName
+      if (!own) return
+      const [boarding, alighting] = await Promise.all([
+        this.routesServingAt(td.departureStop.id, td.departureStop.departureTime, own, td.directionId),
+        this.routesServingAt(td.arrivalStop.id, td.arrivalStop.arrivalTime, own, td.directionId),
+      ])
+      const served = servedRouteOptions(td.routeOptions!, own, [boarding, alighting])
+      td.routeOptions = served.length > 1 ? served : undefined
+    }))
+  }
+
+  private async routesServingAt(
+    motisStopId: string,
+    time: string | undefined,
+    ownRoute: string,
+    directionId?: string | number,
+  ): Promise<Set<string> | null> {
+    const split = motisStopId.indexOf('_')
+    const atMs = Date.parse(time ?? '')
+    if (split <= 0 || Number.isNaN(atMs)) return null
+    const slackMs = ROUTE_SERVICE_SLACK_MINUTES * 60_000
+    const boards = await this.cachedStopBoards(
+      motisStopId.slice(0, split),
+      motisStopId.slice(split + 1),
+      atMs - slackMs,
+    )
+    return routesServingStop(boards, { fromMs: atMs - slackMs, toMs: atMs + slackMs }, ownRoute, directionId)
+  }
+
+  /** Boards are cached briefly per five-minute bucket, so nearby legs share one fetch. */
+  private stopBoardCache = new Map<string, { at: number; boards: Promise<StopBoard[] | null> }>()
+  private static readonly STOP_BOARD_BUCKET_MS = 5 * 60_000
+  private static readonly STOP_BOARD_TTL_MS = 60_000
+  private static readonly STOP_BOARD_CACHE_MAX = 300
+
+  private cachedStopBoards(feedId: string, stopId: string, fromMs: number): Promise<StopBoard[] | null> {
+    const bucket = Math.floor(fromMs / TripService.STOP_BOARD_BUCKET_MS) * TripService.STOP_BOARD_BUCKET_MS
+    const key = `${feedId}|${stopId}|${bucket}`
+    const hit = this.stopBoardCache.get(key)
+    if (hit && Date.now() - hit.at < TripService.STOP_BOARD_TTL_MS) return hit.boards
+    const boards = transitRoutingService.getStopDepartures({
+      feedId,
+      stopId,
+      time: new Date(bucket).toISOString(),
+      windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
+      n: ROUTE_SERVICE_BOARD_EVENTS,
+    })
+    this.stopBoardCache.delete(key)
+    this.stopBoardCache.set(key, { at: Date.now(), boards })
+    if (this.stopBoardCache.size > TripService.STOP_BOARD_CACHE_MAX) {
+      const oldest = this.stopBoardCache.keys().next().value
+      if (oldest) this.stopBoardCache.delete(oldest)
+    }
+    return boards
   }
 
   /**

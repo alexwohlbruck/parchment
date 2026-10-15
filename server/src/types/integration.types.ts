@@ -1,4 +1,5 @@
 import type { TransitPriority } from '../lib/transit/transit-gate'
+import type { StopBoard } from '../lib/transit/route-options'
 import { Place, TransitDeparture } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
@@ -292,6 +293,17 @@ export interface TransitRoutingCapability {
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
   getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
+  /** Departure boards for one stop's station, from `time` for `windowMinutes`. */
+  getStopDepartures?(query: StopDeparturesQuery): Promise<StopBoard[] | null>
+}
+
+export interface StopDeparturesQuery {
+  feedId: string
+  stopId: string
+  /** ISO 8601 start of the window. */
+  time: string
+  windowMinutes: number
+  n: number
 }
 
 export interface TransitRouteRequest {

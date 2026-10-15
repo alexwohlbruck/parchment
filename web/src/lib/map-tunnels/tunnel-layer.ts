@@ -20,7 +20,7 @@ import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'
-import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, inside, splitAtFace, measureEdges, mergeTwins, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, groupPortals, inside, splitAtFace, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
 const WIDTH: Record<string, number> = {
@@ -55,7 +55,7 @@ export type TunnelSources = {
   buildings: () => Array<{ source: string; sourceLayer: string }>
 }
 
-type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind; face?: Point }
+type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind; face?: Point; piers?: Array<[number, number]> }
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -230,7 +230,7 @@ export class TunnelLayer {
       const tile = tileBounds(f)
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: 1, width: WIDTH[props.class] ?? 6, kind: kindOf(props.class), zoom: f._z, tile: tile ?? undefined })
+          pieces.push({ points: run, layer: Number(props.layer ?? 0) || 0, width: WIDTH[props.class] ?? 6, kind: kindOf(props.class), zoom: f._z, tile: tile ?? undefined })
     }
     return dedupe(pieces)
   }
@@ -257,7 +257,7 @@ export class TunnelLayer {
       const line = e ? [...bore.points].reverse() : bore.points
       // Where both ends open, each draws its bore halfway, so the two never overlap.
       const reach = bore.grounded[0] && bore.grounded[1] ? Math.min(BORE, along(line).at(-1)! / 2) : BORE
-      return { line, reach, width: bore.width, kind: bore.kind, bounds: boundsOf([line[0]], CUT_MAX) }
+      return { line, reach, width: bore.width, kind: bore.kind, layer: bore.layer, bounds: boundsOf([line[0]], CUT_MAX) }
     }))
     if (!portals.length) return empty
     const area = portals.slice(1).reduce((u, { bounds: b }) =>
@@ -270,7 +270,7 @@ export class TunnelLayer {
     const walls = this.walls(area)
 
     const openings: Opening[] = []
-    for (const { line, reach, width, kind } of portals) {
+    for (const { line, reach, width, kind, layer } of portals) {
       const found = approach(line[0], line[1], atGrade[kind], tolerance, PROFILES[kind].reach)
       // A headwall mapped across the bore is where it opens, and which way it faces.
       const face = faceWall(line, walls)
@@ -279,12 +279,14 @@ export class TunnelLayer {
       const moved = outward.length > 1 ? emerge(outward, split.bore, covered) : null
       if (!moved || moved.out.length < 2) continue
       const out = { ...found, points: moved.out }
+      // Measured looking out from the portal, so its sides swap for the bore's, which runs in.
       const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) : null
-      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind, face: moved.out === outward ? face?.along : undefined })
+      const edges: [number, number] = measured ? [measured[1], measured[0]] : [width / 2, width / 2]
+      openings.push({ out, bore: truncate(moved.bore, reach), edges, kind, layer, face: moved.out === outward ? face?.along : undefined })
     }
     const solved: Solved[] = []
-    for (const { out, bore, edges, kind, face } of mergeTwins(openings)) {
-      const cut = this.solve(out, bore, edges, kind, face)
+    for (const { out, bore, edges, kind, face, piers } of groupPortals(openings)) {
+      const cut = this.solve(out, bore, edges, kind, face, piers)
       if (cut) solved.push(cut)
     }
 
@@ -295,7 +297,7 @@ export class TunnelLayer {
     for (const s of solved) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration, base: s.cut.base * exaggeration }
       const from = mesh.floor.position.length / 3
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face)
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers)
       mesh.floors.push({ from, to: mesh.floor.position.length / 3, ends: [s.points[s.cut.open], s.points[s.at]] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
@@ -303,12 +305,12 @@ export class TunnelLayer {
   }
 
   /** A portal's cut, from the ground along it; kept once read, null while the ground loads. */
-  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind, face?: Point): Solved | null {
+  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind, face?: Point, piers?: Array<[number, number]>): Solved | null {
     const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
     if (sampler !== this.sampler) this.cuts.clear()
     this.sampler = sampler
     if (!sampler) return null
-    const key = `${kind}|${face?.map(v => v.toFixed(3))}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
+    const key = `${kind}|${face?.map(v => v.toFixed(3))}|${piers?.flat().map(v => v.toFixed(1))}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
     const known = this.cuts.get(key)
     if (known) return known
     const { points, at } = portalLine(out.points, bore, SAMPLE)
@@ -334,7 +336,7 @@ export class TunnelLayer {
     const over = cover.filter(g => !Number.isNaN(g)) as number[]
     const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction, PROFILES[kind])
     if (!cut || cut.open >= at) return null
-    const solved = { key, points, at, edges, cut, kind, face }
+    const solved = { key, points, at, edges, cut, kind, face, piers }
     if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
     this.cuts.set(key, solved)
     return solved

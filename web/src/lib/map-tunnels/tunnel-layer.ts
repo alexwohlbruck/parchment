@@ -19,12 +19,12 @@ import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } f
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, inside, measureEdges, mergeTwins, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
+import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, inside, splitAtFace, measureEdges, mergeTwins, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
 const WIDTH: Record<string, number> = {
   motorway: 11, trunk: 10, primary: 9, secondary: 8, tertiary: 7, minor: 6, service: 4,
-  path: 3, pedestrian: 4, rail: 5, transit: 5,
+  path: 2, pedestrian: 4, rail: 5, transit: 5,
 }
 const CLASSES: Record<BoreKind, string[]> = {
   road: ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service'],
@@ -32,6 +32,9 @@ const CLASSES: Record<BoreKind, string[]> = {
   rail: ['rail', 'transit'],
 }
 const kindOf = (cls: string): BoreKind => (CLASSES.path.includes(cls) ? 'path' : CLASSES.rail.includes(cls) ? 'rail' : 'road')
+
+/** Object line kinds that may stand across a bore as its headwall. */
+const HEADWALLS = ['wall', 'retaining_wall', 'city_wall']
 
 /** Metres between samples along a cut, and how far down the approach its width is measured. */
 const SAMPLE = 3
@@ -45,17 +48,29 @@ export type TunnelSources = {
   roads: string
   /** Barrelman's carriageways at their real width, which the cuts are fitted to. */
   surfaces?: { source: string; layer: string }
+  /** Walls stood up from barrelman's object lines; one mapped across a bore is its headwall. */
+  walls?: { source: string; layer: string }
   /** Where the style draws buildings, whose faces a covered portal opens at. */
   buildings: () => Array<{ source: string; sourceLayer: string }>
 }
 
-type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind }
+type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind; face?: Point }
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
-type Built = { walls: Mesh; mouth: Mesh; lid: Mesh; floor: Mesh; bore: Mesh; footprints: Map<string, Footprint> }
+/** Each cut's floor on its own, with its portal, so it can be shown wherever the terrain under it is too coarse to carve. */
+type Floor<T> = { mesh: T; portal: Point }
 
-const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: emptyMesh(), floor: emptyMesh(), bore: emptyMesh(), footprints: new Map() })
+type Built = { walls: Mesh; mouth: Mesh; lid: Mesh; bore: Mesh; floors: Floor<Mesh>[]; footprints: Map<string, Footprint> }
+
+const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: emptyMesh(), bore: emptyMesh(), floors: [], footprints: new Map() })
+
+/**
+ * The coarsest elevation tile a cut is carved into well: about half a metre a
+ * pixel. Coarser, its floor blurs into a ramp that rises across the mouth, so
+ * the floor is drawn over it instead.
+ */
+const CARVED_ZOOM = 17
 
 /** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
 function elevation(dem: any): Elevation {
@@ -112,7 +127,8 @@ export class TunnelLayer {
 
   private map: any
   private program!: WebGLProgram
-  private buffers: Record<'walls' | 'mouth' | 'lid' | 'floor' | 'bore', MeshBuffers> | null = null
+  private buffers: Record<'walls' | 'mouth' | 'lid' | 'bore', MeshBuffers> | null = null
+  private floors: Floor<MeshBuffers>[] = []
   private pending: Built | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
@@ -251,19 +267,24 @@ export class TunnelLayer {
     const rings = this.surfaceRings(area)
     const footprints = this.footprints(area)
     const covered = (q: Point) => footprints.some(f => holds(f.bounds, q) && inside(q, f.rings))
+    const walls = this.walls(area)
 
     const openings: Opening[] = []
     for (const { line, reach, width, kind } of portals) {
       const found = approach(line[0], line[1], atGrade[kind], tolerance, PROFILES[kind].reach)
-      const moved = found.points.length > 1 ? emerge(found.points, line, covered) : null
+      // A headwall mapped across the bore is where it opens, and which way it faces.
+      const face = faceWall(line, walls)
+      const split = face ? splitAtFace(line, face) : { out: [line[0]], bore: line }
+      const outward = [...split.out, ...found.points.slice(1)]
+      const moved = outward.length > 1 ? emerge(outward, split.bore, covered) : null
       if (!moved || moved.out.length < 2) continue
       const out = { ...found, points: moved.out }
       const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE), rings) : null
-      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind })
+      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind, face: moved.out === outward ? face?.along : undefined })
     }
     const solved: Solved[] = []
-    for (const { out, bore, edges, kind } of mergeTwins(openings)) {
-      const cut = this.solve(out, bore, edges, kind)
+    for (const { out, bore, edges, kind, face } of mergeTwins(openings)) {
+      const cut = this.solve(out, bore, edges, kind, face)
       if (cut) solved.push(cut)
     }
 
@@ -273,19 +294,21 @@ export class TunnelLayer {
     const mesh = emptyBuilt()
     for (const s of solved) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration }
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh)
+      const floor = emptyMesh()
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, { ...mesh, floor }, s.face)
+      mesh.floors.push({ mesh: floor, portal: s.points[s.at] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
     return mesh
   }
 
   /** A portal's cut, from the ground along it; kept once read, null while the ground loads. */
-  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind): Solved | null {
+  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind, face?: Point): Solved | null {
     const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
     if (sampler !== this.sampler) this.cuts.clear()
     this.sampler = sampler
     if (!sampler) return null
-    const key = `${kind}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
+    const key = `${kind}|${face?.map(v => v.toFixed(3))}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
     const known = this.cuts.get(key)
     if (known) return known
     const { points, at } = portalLine(out.points, bore, SAMPLE)
@@ -311,7 +334,7 @@ export class TunnelLayer {
     const over = cover.filter(g => !Number.isNaN(g)) as number[]
     const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction, PROFILES[kind])
     if (!cut || cut.open >= at) return null
-    const solved = { key, points, at, edges, cut, kind }
+    const solved = { key, points, at, edges, cut, kind, face }
     if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
     this.cuts.set(key, solved)
     return solved
@@ -327,6 +350,16 @@ export class TunnelLayer {
       .filter(({ bounds }) => meets(bounds, area))
   }
 
+  /** Walls mapped around the portals, any of which may stand across a bore as its headwall. */
+  private walls(area: Bounds): Point[][] {
+    if (!this.sources.walls) return []
+    const { source, layer } = this.sources.walls
+    return this.query(source, layer, ['in', ['get', 'kind'], ['literal', HEADWALLS]])
+      .flatMap(f => linesOf(f.geometry))
+      .map(line => line.map(mercator))
+      .filter(line => line.length > 1 && meets(boundsOf(line), area))
+  }
+
   /** Outlines of the carriageways at grade around the portals. */
   private surfaceRings(area: Bounds): Point[][] {
     if (!this.sources.surfaces) return []
@@ -338,6 +371,8 @@ export class TunnelLayer {
   }
 
   private release(gl: WebGL2RenderingContext) {
+    for (const floor of this.floors) deleteMesh(gl, floor.mesh)
+    this.floors = []
     if (!this.buffers) return
     for (const buffers of Object.values(this.buffers)) deleteMesh(gl, buffers)
     this.buffers = null
@@ -362,6 +397,15 @@ export class TunnelLayer {
       const c = tile.tileID.canonical
       if (tile.dem && c.z === z && Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) this.carved.delete(tile.dem)
     }
+  }
+
+  /** The bounds of the loaded elevation tiles fine enough to carve a cut into. */
+  private carvedTiles(): Bounds[] {
+    return this.demTiles().filter(t => t.dem && t.tileID.canonical.z >= CARVED_ZOOM).map(t => {
+      const { z, x, y } = t.tileID.canonical
+      const n = 2 ** z
+      return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
+    })
   }
 
   private demTiles(): any[] {
@@ -395,8 +439,9 @@ export class TunnelLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
-      const { walls, mouth, lid, floor, bore, footprints } = this.pending
-      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
+      const { walls, mouth, lid, floors, bore, footprints } = this.pending
+      this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), bore: uploadMesh(gl, bore) }
+      this.floors = floors.map(f => ({ mesh: uploadMesh(gl, f.mesh), portal: f.portal }))
       this.carve(footprints)
       this.pending = null
     }
@@ -413,11 +458,12 @@ export class TunnelLayer {
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
-    const draw = (name: keyof NonNullable<typeof this.buffers>) => {
-      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light)
+    const drawMesh = (buffers: MeshBuffers) => {
+      const mesh = bindMesh(gl, this.program, buffers, matrix, light)
       mesh.draw()
       mesh.unbind()
     }
+    const draw = (name: keyof NonNullable<typeof this.buffers>) => drawMesh(this.buffers![name])
     draw('walls')
 
     gl.enable(gl.STENCIL_TEST)
@@ -441,11 +487,14 @@ export class TunnelLayer {
     draw('mouth')
     gl.depthRange(near, far)
     gl.depthFunc(gl.LEQUAL)
-    draw('floor')
+    for (const floor of this.floors) drawMesh(floor.mesh)
     // …then stand the walls on it, and draw the bore under the ground.
     gl.colorMask(true, true, true, true)
     draw('walls')
     draw('bore')
+    // Where the terrain could not take the carving, the floor shows instead of the ground blurred over it.
+    const carved = this.carvedTiles()
+    for (const floor of this.floors) if (!carved.some(t => holds(t, floor.portal))) drawMesh(floor.mesh)
     gl.clear(gl.STENCIL_BUFFER_BIT)
     gl.disable(gl.STENCIL_TEST)
   }

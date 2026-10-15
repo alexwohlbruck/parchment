@@ -360,7 +360,8 @@ export class DeckLayer {
     // Curves filled in before anything is laid along them.
     for (const s of solved) Object.assign(s, rounded(s.chain, s.z, s.groundAt))
     for (const s of solved.slice(local)) {
-      const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt)
+      const sampler = this.groundSampler()
+      const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt, q => sampler?.at(q) ?? null)
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)

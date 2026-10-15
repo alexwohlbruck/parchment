@@ -810,9 +810,9 @@ const SEAM_DIP = 0.03
  * A deck's ends made whole: an end on the ground reaches at least to its way's
  * end, where the road takes over, and where both sides run on past an end the
  * deck carries on to there as a level stretch of road, so what is laid on it
- * follows it out. `shift` is how far the start moved back, in metres.
+ * follows it out to the ground at its tip. `shift` is how far the start moved back, in metres.
  */
-export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain: Chain; z: number[]; groundAt: number[]; shift: number } {
+export function endsMade(chain: Chain, z: number[], groundAt: number[], ground?: (p: Point) => number | null): { chain: Chain; z: number[]; groundAt: number[]; shift: number } {
   if (!chain.caps || chain.points.length < 2) return { chain, z, groundAt, shift: 0 }
   const caps = chain.caps.map((c, k) => (chain.grounded[k >> 1] ? Math.min(c, 0) : c)) as [number, number, number, number]
   const runs = [Math.max(0, -Math.max(caps[0], caps[1])), Math.max(0, -Math.max(caps[2], caps[3]))]
@@ -820,6 +820,11 @@ export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain
   let [zs, gs, sides] = [z, groundAt, chain.sides]
   const n = points.length
   const scale = metresPerUnit(points[0][1])
+  // The tip meets the ground drawn there, within RUN_ON_STEP of the deck's end height.
+  const landed = (tip: Point, end: number) => {
+    const g = ground?.(tip)
+    return g === null || g === undefined || Number.isNaN(g) || Math.abs(g - end) > RUN_ON_STEP ? end : g
+  }
   const out = (end: 0 | 1) => {
     const [a, b] = end ? [points[n - 2], points[n - 1]] : [points[1], points[0]]
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]) * scale || 1
@@ -827,18 +832,22 @@ export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain
   }
   if (runs[1] >= RUN_ON_MIN) {
     const [b, dx, dy] = out(1)
-    points = [...points, [b[0] + dx, b[1] + dy]]
-    zs = [...zs, zs[n - 1]]
-    gs = [...gs, chain.grounded[1] ? zs[n - 1] : gs[n - 1]]
+    const tip: Point = [b[0] + dx, b[1] + dy]
+    const at = landed(tip, zs[n - 1])
+    points = [...points, tip]
+    zs = [...zs, at]
+    gs = [...gs, chain.grounded[1] ? at : gs[n - 1]]
     sides = sides && [[...sides[0], sides[0][n - 1]], [...sides[1], sides[1][n - 1]]]
     caps[2] += runs[1]
     caps[3] += runs[1]
   }
   if (runs[0] >= RUN_ON_MIN) {
     const [b, dx, dy] = out(0)
-    points = [[b[0] + dx, b[1] + dy], ...points]
-    zs = [zs[0], ...zs]
-    gs = [chain.grounded[0] ? zs[0] : gs[0], ...gs]
+    const tip: Point = [b[0] + dx, b[1] + dy]
+    const at = landed(tip, zs[0])
+    points = [tip, ...points]
+    zs = [at, ...zs]
+    gs = [chain.grounded[0] ? at : gs[0], ...gs]
     sides = sides && [[sides[0][0], ...sides[0]], [sides[1][0], ...sides[1]]]
     caps[0] += runs[0]
     caps[1] += runs[0]
@@ -847,8 +856,9 @@ export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain
   return { chain: { ...chain, points, caps, ...(sides ? { sides } : {}) }, z: zs, groundAt: gs, shift }
 }
 
-/** Shortest stretch, in metres, a deck is carried on past its end as road. */
+/** Shortest stretch, in metres, a deck is carried on past its end as road, and the most its tip moves to meet the ground. */
 const RUN_ON_MIN = 0.5
+const RUN_ON_STEP = 1.5
 
 /** A polygon cut to the side of a line through `o` that `n` points to (Sutherland-Hodgman). */
 export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {

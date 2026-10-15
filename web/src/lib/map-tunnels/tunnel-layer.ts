@@ -13,7 +13,7 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
-import { BANK, carveTile, footprint, type Elevation, type Footprint } from './carve'
+import { BANK, carveTile, footprint, tileUnder, type Elevation, type Footprint } from './carve'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
@@ -345,14 +345,27 @@ export class TunnelLayer {
 
   /** Take on a new set of floors: carved over what is there, or, where one has gone, into freshly loaded ground. */
   private carve(next: Map<string, Footprint>) {
-    const removed = [...this.carving.keys()].some(key => !next.has(key))
+    const removed = [...this.carving].filter(([key]) => !next.has(key)).map(([, f]) => f.bounds)
     const areas = [...next.values()].map(f => f.bounds)
-    const reached = areas.some(a => !this.focused.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
+    const reached = areas.filter(a => !this.focused.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
     this.carving = next
     this.focused = areas
     this.options.focusTerrain?.(areas)
     this.round++
-    if (removed || reached) this.map.terrain?.tileManager?.tileManager?.reload(true)
+    this.reloadTerrain([...removed, ...reached])
+  }
+
+  /**
+   * Load the elevation tiles under these areas afresh: uncarved where a floor
+   * has gone, finer where one has arrived. Only those tiles, so the rest of the
+   * terrain, and the tiles cached off screen, are kept.
+   */
+  private reloadTerrain(areas: Bounds[]) {
+    const manager = this.map?.terrain?.tileManager?.tileManager
+    if (!manager || !areas.length) return
+    const under = (tile: any) => tileUnder([tile.tileID.canonical.z, tile.tileID.canonical.x, tile.tileID.canonical.y], areas)
+    manager._outOfViewCache?.filter((tile: any) => !under(tile))
+    manager.refreshTiles(this.demTiles().filter(under).map(tile => tile.tileID.canonical))
   }
 
   /** Mark a tile and the loaded tiles beside it to be carved again. */

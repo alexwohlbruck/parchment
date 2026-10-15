@@ -11,6 +11,11 @@ import {
   readOnlyDetailLayers,
   coasterTrackLayers,
   pitchLayers,
+  golfSurfaceLayers,
+  golfHoleLayers,
+  golfLabelLayers,
+  GOLF_HOLE_LABEL_LAYER,
+  GOLF_PIN_LAYER,
   plantedAreaLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
@@ -329,6 +334,8 @@ export const layerGroups = {
     ...idsWhere(
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
+    GOLF_HOLE_LABEL_LAYER,
+    GOLF_PIN_LAYER,
   ],
   roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
   /**
@@ -576,6 +583,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   const stadium = out.findIndex(l => l.id === 'Stadium')
   if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...pitchLayers(flavor))
 
+  // Golf surfaces go over the basemap's sand, which would otherwise paint
+  // every bunker yellow, and the holes over its water, which they cross.
+  const sand = out.findIndex(l => l.id === 'Sand')
+  if (sand >= 0) out.splice(sand + 1, 0, ...golfSurfaceLayers(flavor))
+  const water = out.findIndex(l => l.id === 'Water')
+  if (water >= 0) out.splice(water + 1, 0, ...golfHoleLayers(flavor))
+
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
 
@@ -601,6 +615,10 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
     .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
     .lastIndexOf(true)
   out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers(), ...readOnlyDetailLayers())
+
+  // Hole numbers and pins sit under every basemap label.
+  const firstLabel = out.findIndex(l => l.id === 'River labels')
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.

@@ -90,6 +90,7 @@ export const COASTER_TRACK_TILES = 'coaster_tracks'
 export const PITCH_TILES = 'sport_pitches'
 export const OBJECT_LINE_TILES = 'object_lines'
 export const OBJECT_AREA_TILES = 'object_areas'
+export const GOLF_TILES = 'golf_features'
 /** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
 export const BRIDGE_DECK_TILES = 'bridge_decks'
 
@@ -104,6 +105,10 @@ export const PITCH_SURFACE_LAYER = 'Pitch surface'
 export const SOLAR_LAYER = 'Solar array'
 export const FLOWERBED_LAYER = 'Flower bed'
 export const PITCH_MARKING_LAYER = 'Pitch markings'
+export const GOLF_SURFACE_LAYER = 'Golf surface'
+export const GOLF_HOLE_LAYER = 'Golf hole'
+export const GOLF_HOLE_LABEL_LAYER = 'Golf hole number'
+export const GOLF_PIN_LAYER = 'Golf pin'
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -148,6 +153,14 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     solar: 'hsl(80, 12%, 84%)',
     solarPanel: 'hsl(220, 30%, 40%)',
     flowerbed: 'hsl(330, 38%, 84%)',
+    golfRough: 'hsl(102, 34%, 70%)',
+    golfFairway: 'hsl(86, 58%, 81%)',
+    golfGreen: 'hsl(80, 64%, 87%)',
+    golfBunker: 'hsl(45, 58%, 87%)',
+    golfHole: 'hsla(0, 0%, 100%, 0.95)',
+    golfInk: 'hsl(110, 40%, 22%)',
+    golfHalo: 'hsla(90, 58%, 92%, 0.9)',
+    golfFlag: 'hsl(4, 72%, 52%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -165,6 +178,14 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     solar: 'hsl(222, 22%, 22%)',
     solarPanel: 'hsl(222, 30%, 34%)',
     flowerbed: 'hsl(330, 16%, 30%)',
+    golfRough: 'hsl(112, 20%, 20%)',
+    golfFairway: 'hsl(104, 20%, 24%)',
+    golfGreen: 'hsl(96, 24%, 29%)',
+    golfBunker: 'hsl(40, 14%, 34%)',
+    golfHole: 'hsla(100, 20%, 85%, 0.55)',
+    golfInk: 'hsl(100, 24%, 82%)',
+    golfHalo: 'hsla(216, 30%, 12%, 0.85)',
+    golfFlag: 'hsl(4, 62%, 62%)',
   },
 }
 
@@ -500,6 +521,115 @@ export function plantedAreaLayers(flavor: FlavorId): any[] {
       minzoom: 15,
       filter: kind('flowerbed'),
       paint: { 'fill-color': c.flowerbed, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 1] },
+    },
+  ]
+}
+
+/**
+ * Golf course surfaces, from barrelman's `golf_features`. A course's rough,
+ * fairways and greens nest inside each other, so the sort key stacks them.
+ */
+export function golfSurfaceLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const kind = ['get', 'kind']
+  return [
+    {
+      id: GOLF_SURFACE_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 14,
+      filter: ['==', ['geometry-type'], 'Polygon'],
+      layout: {
+        'fill-sort-key': ['match', kind, 'rough', 0, ['fairway', 'driving_range'], 1, ['tee', 'green'], 2, 3],
+      },
+      paint: {
+        'fill-color': [
+          'match', kind,
+          'rough', c.golfRough,
+          ['fairway', 'driving_range'], c.golfFairway,
+          ['tee', 'green'], c.golfGreen,
+          'bunker', c.golfBunker,
+          'transparent',
+        ],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1],
+      },
+    },
+  ]
+}
+
+/** Each hole's line from tee to green, drawn over the water it often crosses. */
+export function golfHoleLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  return [
+    {
+      id: GOLF_HOLE_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 15,
+      filter: ['all', ['==', ['get', 'kind'], 'hole'], ['==', ['geometry-type'], 'LineString']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': c.golfHole,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1, 18, 1.6, 20, 2.4],
+        'line-dasharray': [2, 2.5],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.5, 1],
+      },
+    },
+  ]
+}
+
+/** Hole numbers, from the point barrelman serves at each hole's tee, and pins. */
+export function golfLabelLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const par = ['to-number', ['get', 'par'], 0]
+  return [
+    {
+      id: GOLF_HOLE_LABEL_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 15.5,
+      filter: ['all', ['==', ['get', 'kind'], 'hole'], ['==', ['geometry-type'], 'Point']],
+      layout: {
+        'text-field': [
+          'step', ['zoom'],
+          ['get', 'ref'],
+          17, ['case',
+            ['>', par, 0],
+            ['format', ['get', 'ref'], {}, '\n', {}, ['concat', 'Par ', ['get', 'par']], { 'font-scale': 0.8 }],
+            ['get', 'ref'],
+          ],
+        ],
+        'text-font': ['Geist SemiBold'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 15.5, 11, 18, 13],
+        'text-line-height': 1.1,
+      },
+      paint: {
+        'text-color': c.golfInk,
+        'text-halo-color': c.golfHalo,
+        'text-halo-width': 1.4,
+      },
+    },
+    {
+      id: GOLF_PIN_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 16,
+      filter: ['==', ['get', 'kind'], 'pin'],
+      layout: {
+        'icon-image': 'golf-pin',
+        'icon-anchor': 'bottom',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.8, 19, 1.25],
+        'icon-optional': false,
+      },
+      paint: {
+        'icon-color': c.golfFlag,
+        'icon-halo-color': c.golfHalo,
+        'icon-halo-width': 1,
+      },
     },
   ]
 }

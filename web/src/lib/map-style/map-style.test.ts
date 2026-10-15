@@ -22,7 +22,10 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES } from './detail-layers'
+import {
+  DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
+  GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER,
+} from './detail-layers'
 import { MONORAIL_LAYER, MONORAIL_CASING_LAYER } from './monorail-layers'
 import { STEPS_LAYER, STEPS_BRIDGE_LAYER } from './steps-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
@@ -2624,5 +2627,32 @@ describe('read-only detail layers', () => {
   test('each has a style layer, so overzoomed tiles keep it', () => {
     const used = new Set(buildMapStyle({ ...opts, theme: 'light' }).layers.map((l: any) => l['source-layer']))
     for (const sourceLayer of READ_ONLY_DETAIL_TILES) expect(used.has(sourceLayer), sourceLayer).toBe(true)
+  })
+})
+
+describe('golf courses', () => {
+  for (const flavor of ['light', 'dark'] as const) {
+    const ids = (buildLayers({ flavor }) as any[]).map(l => l.id)
+    const at = (id: string) => ids.indexOf(id)
+
+    test(`${flavor}: bunkers paint over basemap sand, holes over water`, () => {
+      expect(at(GOLF_SURFACE_LAYER)).toBeGreaterThan(at('Sand'))
+      expect(at(GOLF_SURFACE_LAYER)).toBeLessThan(at('Water'))
+      expect(at(GOLF_HOLE_LAYER)).toBeGreaterThan(at('Water'))
+    })
+
+    test(`${flavor}: hole numbers and pins sit under the basemap labels`, () => {
+      expect(at(GOLF_PIN_LAYER)).toBeLessThan(at('River labels'))
+      expect(at(GOLF_HOLE_LABEL_LAYER)).toBeLessThan(at('River labels'))
+    })
+  }
+
+  test('hole numbers and pins follow the POI label toggle', () => {
+    expect(layerGroups.poi).toEqual(expect.arrayContaining([GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER]))
+  })
+
+  test('the pin icon is in the sprite', () => {
+    const sprite = JSON.parse(readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'))
+    expect(sprite['golf-pin']?.sdf).toBe(true)
   })
 })

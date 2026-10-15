@@ -856,7 +856,7 @@ export class LandmarkLayer {
       } catch {
         continue
       }
-      for (const [tile, pieces] of groupByTile(source, features)) {
+      for (const [tile, pieces] of groupByTile(`${source}/${sourceLayer}`, features)) {
         const judgement = previous.get(tile) ?? { judged: new Set<string>(), inside: new Map<number, string[]>() }
         this.tileJudgements.set(tile, judgement)
         const fresh = reaches.filter(r => !judgement.judged.has(r.id))
@@ -1312,10 +1312,10 @@ type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: s
 /** What a building piece's verdict depends on: the placement's model and where and how it stands. */
 const placementKey = (p: Placement) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
 
-function groupByTile(source: string, features: any[]): Map<string, any[]> {
+function groupByTile(layer: string, features: any[]): Map<string, any[]> {
   const tiles = new Map<string, any[]>()
   for (const f of features) {
-    const tile = `${source}/${f._z}/${f._x}/${f._y}`
+    const tile = `${layer}/${f._z}/${f._x}/${f._y}`
     const pieces = tiles.get(tile)
     if (pieces) pieces.push(f)
     else tiles.set(tile, [f])

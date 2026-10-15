@@ -920,6 +920,7 @@ export class MaplibreStrategy extends MapStrategy {
   private tunnelLayer: TunnelLayer | null = null
   /** Flat tunnel layers muted from street zoom, with the opacity each had. */
   private mutedTunnels = new Map<string, unknown>()
+  /** Layers `muteFlatTunnels` has already judged. */
   private tunnelChecked = new Set<string>()
 
   /**
@@ -974,6 +975,12 @@ export class MaplibreStrategy extends MapStrategy {
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
       return
+    }
+    // A layer that has left the style is judged afresh if it comes back.
+    for (const id of this.tunnelChecked) {
+      if (map.getLayer(id)) continue
+      this.tunnelChecked.delete(id)
+      this.mutedTunnels.delete(id)
     }
     // Runs on every styledata, so each layer is judged once, from its own spec
     // rather than a serialisation of the whole style.

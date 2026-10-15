@@ -914,6 +914,9 @@ export function kerbsOf(chain: Chain, kerbs: Point[]): [number[], number[]] {
   })) as [number[], number[]]
 }
 
+/** Widest walkway band a deck draws beside its kerb, in metres. */
+const SIDEWALK_MAX = 4.5
+
 /** Farthest along a deck a kerb reading carries to vertices with none of their own, in metres. */
 const KERB_REACH = 9
 
@@ -935,7 +938,8 @@ export function kerbBands(chain: Chain, z: number[], groundAt: number[], kerbs: 
     const sign = side ? -1 : 1
     for (let i = 1; i < n; i++) {
       const [k0, k1, e0, e1] = [kerbs[side][i - 1], kerbs[side][i], sideAt(chain, side, i - 1), sideAt(chain, side, i)]
-      if (e0 - k0 < 0.2 && e1 - k1 < 0.2) continue
+      // Wider than a sidewalk is room between carriageways, which on a deck stays road.
+      if ((e0 - k0 < 0.2 && e1 - k1 < 0.2) || Math.max(e0 - k0, e1 - k1) > SIDEWALK_MAX) continue
       const corners = [at(i - 1, sign * k0, 0.005), at(i, sign * k1, 0.005), at(i, sign * e1, 0.005), at(i - 1, sign * e0, 0.005)]
       const bias = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i]), touchdown(z[i] - groundAt[i]), touchdown(z[i - 1] - groundAt[i - 1])]
       for (const t of [[0, 1, 2], [0, 2, 3]]) for (const c of t) vertex(out, corners[c], [0, 0, 1], colors.walkway, colors.low, bias[c])

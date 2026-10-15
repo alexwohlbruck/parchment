@@ -12,8 +12,6 @@
  *   mesh     slab, parapets and piers, ready for the GPU
  */
 
-import earcut from 'earcut'
-
 export type Point = [number, number]
 
 export type Piece = {
@@ -632,7 +630,6 @@ export function deckMesh(
   out: Mesh,
   open: Sides = [[], []],
   piers?: number[],
-  dip = 0,
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -710,15 +707,14 @@ export function deckMesh(
   for (let i = 1; i < n; i++) {
     const [l0, l1, r0, r1] = [lefts[i - 1], lefts[i], rights[i - 1], rights[i]]
     const [b0, b1] = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i])]
-    const sunk = (p: Point, z: number) => at(p, z - dip)
-    quad(sunk(l0.p, l0.z), sunk(r0.p, r0.z), sunk(r1.p, r1.z), sunk(l1.p, l1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
+    quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
     if (open[0][i - 1] || open[0][i]) {
       const [o0, o1] = [tongues[0][i - 1], tongues[0][i]]
-      quad(sunk(o0.p, o0.z), sunk(l0.p, l0.z), sunk(l1.p, l1.z), sunk(o1.p, o1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
+      quad(at(o0.p, o0.z), at(l0.p, l0.z), at(l1.p, l1.z), at(o1.p, o1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
     }
     if (open[1][i - 1] || open[1][i]) {
       const [o0, o1] = [tongues[1][i - 1], tongues[1][i]]
-      quad(sunk(r0.p, r0.z), sunk(o0.p, o0.z), sunk(o1.p, o1.z), sunk(r1.p, r1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
+      quad(at(r0.p, r0.z), at(o0.p, o0.z), at(o1.p, o1.z), at(r1.p, r1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
     }
     // Where the deck runs at the ground it is just road: no slab or parapets.
     if (z[i - 1] - groundAt[i - 1] < BOX_MIN && z[i] - groundAt[i] < BOX_MIN) continue
@@ -854,84 +850,6 @@ export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain
 /** Shortest stretch, in metres, a deck is carried on past its end as road. */
 const RUN_ON_MIN = 0.5
 
-/** Whether a point lies inside a ring. */
-export function insideRing([x, y]: Point, ring: Point[]): boolean {
-  let hit = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
-  }
-  return hit
-}
-
-/** Metres from a point to a ring's nearest side. */
-export function toRing(p: Point, ring: Point[]): number {
-  return beside([...ring, ring[0]], p).distance
-}
-
-/** A polygon cut to the side of a line through `o` that `n` points to (Sutherland-Hodgman). */
-export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {
-  const side = (p: Point) => (p[0] - o[0]) * n[0] + (p[1] - o[1]) * n[1]
-  const out: Point[] = []
-  for (let i = 0; i < poly.length; i++) {
-    const [a, b] = [poly[i], poly[(i + 1) % poly.length]]
-    const [sa, sb] = [side(a), side(b)]
-    if (sa >= 0) out.push(a)
-    if ((sa >= 0) !== (sb >= 0)) {
-      const t = sa / (sa - sb)
-      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
-    }
-  }
-  return out
-}
-
-export type Member = { chain: Chain; z: number[]; groundAt: number[] }
-
-/** Height and ground at a point, from the member deck whose centreline is nearest, held level past its ends. */
-function heightNear(members: Member[], p: Point): { z: number; g: number } {
-  let best = { distance: Infinity, z: 0, g: 0 }
-  for (const m of members) {
-    const near = beside(m.chain.points, p)
-    if (near.distance >= best.distance) continue
-    const j = near.segment
-    best = { distance: near.distance, z: m.z[j - 1] + (m.z[j] - m.z[j - 1]) * near.t, g: m.groundAt[j - 1] + (m.groundAt[j] - m.groundAt[j - 1]) * near.t }
-  }
-  return best
-}
-
-/**
- * One top over every deck of a bridge: its outline, drawn as one surface at
- * the heights of the decks it holds, so twin carriageways and the room between
- * and around them are one piece of road. Cut square to the longest deck at
- * each of its samples, so the top follows the decks' grade between them.
- */
-export function structureTop(ring: Point[], members: Member[], colors: { surface: number[]; low?: number[] }, origin: Point, out: Mesh) {
-  if (!members.length || ring.length < 3) return
-  const main = members.reduce((a, b) => (along(b.chain.points).at(-1)! > along(a.chain.points).at(-1)! ? b : a)).chain.points
-  const n = main.length
-  const normal = (i: number): Point => {
-    const [a, b] = [main[Math.max(0, i - 1)], main[Math.min(n - 1, i + 1)]]
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
-    return [(b[0] - a[0]) / len, (b[1] - a[1]) / len]
-  }
-  const scale = 1 / metresPerUnit(main[0][1])
-  const polygon = densify(ring[0] === ring[ring.length - 1] ? ring.slice(0, -1) : ring, 3)
-  for (let i = 0; i <= n; i++) {
-    let band = polygon
-    if (i > 0) band = halfPlane(band, main[i - 1], normal(i - 1))
-    if (i < n) band = halfPlane(band, main[i], normal(i).map(v => -v) as Point)
-    if (band.length < 3) continue
-    const at = band.map(p => heightNear(members, p))
-    const index = earcut(band.flat())
-    for (let t = 0; t < index.length; t += 3) {
-      const corners = [index[t], index[t + 1], index[t + 2]]
-      for (const k of corners)
-        vertex(out, [band[k][0] - origin[0], band[k][1] - origin[1], at[k].z * scale], [0, 0, 1], colors.surface, colors.low ?? colors.surface, touchdown(at[k].z - at[k].g))
-    }
-  }
-}
-
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180
 /** Most pieces a segment is split into to round a curve. */
@@ -986,7 +904,7 @@ export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain:
 }
 
 /** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */
-export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]] }
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind'] }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
 export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }

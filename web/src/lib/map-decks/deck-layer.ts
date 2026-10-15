@@ -18,9 +18,6 @@ import {
   absorbPaths,
   absorbTracks,
   deckMeshOut,
-  insideRing,
-  structureTop,
-  toRing,
   endsMade,
   standing,
   standKey,
@@ -118,36 +115,6 @@ export type DeckSources = {
   routes: () => string[]
   /** Whether the lane-level roads are drawn: without them a deck keeps the basemap's road colours at every zoom. */
   hd?: () => boolean
-}
-
-/** Metres from its bridge's outline beyond which a deck's edge is inside the structure and has no parapet; and how far a held deck's own top sinks under the structure's. */
-const PARAPET_EDGE = 1
-const TOP_DIP = 0.04
-
-/** Whether a deck belongs to a bridge outline: most of it within the outline's piece of a tile lies inside the outline. */
-function inStructure(chain: Chain, ring: Point[], tile: Bounds): boolean {
-  const here = densify(chain.points, 3).filter(q => holds(tile, q))
-  return here.length > 0 && here.filter(q => insideRing(q, ring)).length >= here.length * 0.6
-}
-
-/** A ring cut to a box. */
-function clipRing(ring: Point[], b: Bounds): Point[] {
-  const open = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? ring.slice(0, -1) : ring
-  const cut = (poly: Point[], inside: (p: Point) => number) => {
-    const out: Point[] = []
-    for (let i = 0; i < poly.length; i++) {
-      const [a, c] = [poly[i], poly[(i + 1) % poly.length]]
-      const [sa, sc] = [inside(a), inside(c)]
-      if (sa >= 0) out.push(a)
-      if ((sa >= 0) !== (sc >= 0)) {
-        const t = sa / (sa - sc)
-        out.push([a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t])
-      }
-    }
-    return out
-  }
-  return [(p: Point) => p[0] - b.minX, (p: Point) => b.maxX - p[0], (p: Point) => p[1] - b.minY, (p: Point) => b.maxY - p[1]]
-    .reduce((poly, f) => (poly.length ? cut(poly, f) : poly), open)
 }
 
 /** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
@@ -408,29 +375,14 @@ export class DeckLayer {
     const mesh = deckMeshOut()
     const colors = ({ kind, road }: Chain) =>
       kind === 'rail' ? { surface: p.track, low: p.track } : kind === 'path' ? { surface: p.walkway, low: p.lowPath } : { surface: p.surface, low: lowRoad(p, road) }
-    // Each bridge outline drawn as one top over the decks it holds; their own tops sink under it, and their parapets stay only at its edge.
-    const structures = this.outlines().flatMap(({ ring, tile }) => {
-      const members = solved.flatMap((s, k) => (holds(tile, s.chain.points[0]) || s.chain.points.some(q => holds(tile, q))) && inStructure(s.chain, ring, tile) ? [k] : [])
-      return members.length ? [{ ring, members }] : []
-    })
-    const sunk = new Set(structures.flatMap(t => t.members))
-    for (const { ring, members } of structures)
-      for (const k of members) {
-        const [left, right] = edgePoints(solved[k].chain)
-        ;[left, right].forEach((side, j) => side.forEach((q, i) => { if (toRing(q, ring) > PARAPET_EDGE) open[k][j][i] = true }))
-      }
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, sunk.has(k) ? TOP_DIP : 0)
-    for (const { ring, members } of structures) {
-      const held = members.map(k => solved[k])
-      structureTop(ring, held, colors(held.find(m => m.chain.kind === 'road')?.chain ?? held[0].chain), this.origin, mesh)
-    }
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }) => {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain),
+        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind,
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
@@ -546,20 +498,6 @@ export class DeckLayer {
         return ends.some(end => meets(end, box))
       })
       .map(paintOf)
-  }
-
-  /** Bridge outlines from the basemap, each piece cut to its own tile, from the most detailed tiles loaded. */
-  private outlines(): Array<{ ring: Point[]; tile: Bounds }> {
-    const found = this.query(this.sources.basemap, this.sources.roads, ['all', ['==', ['geometry-type'], 'Polygon'], ['==', ['get', 'brunnel'], 'bridge']])
-    const top = Math.max(-1, ...found.map(f => f._z ?? -1))
-    return found.flatMap(f => {
-      const tile = tileBounds(f)
-      if (!tile || f._z !== top) return []
-      return polygonsOf(f.geometry).flatMap(rings => {
-        const ring = clipRing(rings[0].map(mercator), tile)
-        return ring.length >= 3 ? [{ ring, tile }] : []
-      })
-    })
   }
 
   /** The outlines of the bridges' own carriageways. */

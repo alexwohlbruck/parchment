@@ -8,7 +8,9 @@ describe('flat tunnels', () => {
 
   test('are the road, footway and railway tunnels, and the ways drawn tunnel or not, but not waterways or ways at grade', () => {
     const ids = layers.filter(isFlatTunnel).map(l => l.id)
-    expect(ids).toEqual(expect.arrayContaining(['Footway tunnel', 'Railway tunnel', 'Tunnel', 'Minor rail', 'Minor rail hatching', 'Monorail']))
+    expect(ids).toEqual(expect.arrayContaining(['Footway tunnel', 'Railway tunnel', 'Tunnel', 'Minor rail tunnel', 'Minor rail hatching tunnel', 'Monorail']))
+    // Lifted over the lane-level roads, at grade only.
+    expect(ids).not.toContain('Minor rail')
     expect(ids).not.toContain('Minor road')
     expect(ids).not.toContain('River tunnel')
   })

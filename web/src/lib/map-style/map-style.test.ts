@@ -7,6 +7,7 @@
  * have no glyphs for, an icon the sprite lacks. Each of those still renders
  * *something*, which is exactly why they need asserting rather than eyeballing.
  */
+import { aboveTunnelsIndex } from './brunnel'
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
@@ -2610,6 +2611,20 @@ describe('HD roads and railways', () => {
   test('draws track at grade over the lane-level road, where the two cross', () => {
     expect(ids.indexOf('Major rail')).toBeGreaterThan(ids.indexOf('Road surface'))
     expect(ids.indexOf('Minor rail')).toBeGreaterThan(ids.indexOf('Stop line'))
+  })
+
+  test('leaves the tunnel slot where it was, under the roads at grade', () => {
+    const at = (hdRoads: boolean) => {
+      const layers = buildMapStyle({ ...opts, theme: 'light', hdRoads }).layers as any[]
+      return layers[aboveTunnelsIndex(layers)!].id
+    }
+    expect(at(true)).toBe(at(false))
+  })
+
+  test('shows the signal symbol under the labels without HD roads', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const signal = layers.findIndex(l => l.id === 'Traffic signal')
+    expect(signal).toBeLessThan(layers.findIndex(l => l.type === 'symbol' && l.id !== 'Traffic signal'))
   })
 
   test('keeps light rail and trams in tunnels under the road', () => {

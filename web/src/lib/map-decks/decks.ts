@@ -675,8 +675,10 @@ export function deckMesh(
       return { p: [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] as Point, z: z[k - 1] + (z[k] - z[k - 1]) * t }
     })
   }
-  const lefts = capped('left', caps[0], caps[2])
-  const rights = capped('right', caps[1], caps[3])
+  // A shared side dips under its neighbour, so where the two overlap the neighbour's own surface shows.
+  const dipped = (side: 0 | 1, edge: Array<{ p: Point; z: number }>) => edge.map((v, i) => (open[side][i] ? { ...v, z: v.z - SEAM_DIP } : v))
+  const lefts = dipped(0, capped('left', caps[0], caps[2]))
+  const rights = dipped(1, capped('right', caps[1], caps[3]))
   const h = (m: number) => m * scale
   const push = (a: number[], b: number[], c: number[], color: number[], low = color, bias: number[] = [0, 0, 0]) => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
@@ -764,8 +766,9 @@ export function deckMesh(
   return out
 }
 
-/** Metres a deck reaches under a neighbour it is joined to. */
+/** Metres a deck reaches under a neighbour it is joined to, and how far below its surface that edge lies. */
 export const SEAM = 0.3
+const SEAM_DIP = 0.03
 
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180

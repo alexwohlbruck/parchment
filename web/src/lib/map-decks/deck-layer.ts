@@ -55,6 +55,7 @@ import {
   type Piece,
   type Point,
   linesOf,
+  polygonsOf,
   mercator,
   tileBounds,
 } from './decks'
@@ -106,6 +107,14 @@ export type DeckSources = {
   routes: () => string[]
   /** Whether the lane-level roads are drawn: without them a deck keeps the basemap's road colours at every zoom. */
   hd?: () => boolean
+}
+
+/** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
+function touchdowns(surfaces: DeckSurface[]): Bounds[] {
+  return surfaces.flatMap(s => {
+    const low = s.points.filter((_, i) => s.z[i] - (s.ground?.[i] ?? -Infinity) < BOX_MIN)
+    return low.length ? [boundsOf(low, s.width / 2 + COVER)] : []
+  })
 }
 
 /** Metres beside a way passing under a deck that are its, not the deck's. */
@@ -356,6 +365,7 @@ export class DeckLayer {
     this.paintFrom = mesh.position.length / 3
     layWays(mesh, ways, surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin)
+    layPaint(mesh, this.paintAtGrade(touchdowns(surfaces)), surfaces, p, this.origin, { atGrade: true })
     for (const id of this.sources.routes())
       for (const f of this.query(id)) layRoute(mesh, linesOf(f.geometry).map(line => line.map(mercator)), surfaces, p, this.origin)
     this.version++
@@ -440,6 +450,19 @@ export class DeckLayer {
   private paint(): Paint[] {
     if (!this.sources.paint) return []
     return this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true]).map(paintOf)
+  }
+
+  /** The road's own paint where it runs on over the ends of decks lying on the ground, which would hide it. */
+  private paintAtGrade(ends: Bounds[]): Paint[] {
+    if (!this.sources.paint || !ends.length) return []
+    return this.query(this.sources.paint.source, this.sources.paint.layer, ['!=', ['get', 'bridge'], true])
+      .filter(f => {
+        const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
+        if (!coords.length) return false
+        const box = boundsOf(coords)
+        return ends.some(end => meets(end, box))
+      })
+      .map(paintOf)
   }
 
   /** The outlines of the bridges' own carriageways. */

@@ -378,7 +378,8 @@ describe('deck touchdown', () => {
 
   test('every vertex keeps a low colour and a bias, and only the surface is biased', () => {
     const c = chain(line(0, 40, 80), [true, true])
-    const out = deckMesh(c, [100, 104, 100], [100, 100, 100], c.points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1], low: [0.9, 0.9, 0.9] }, deckMeshOut())
+    const out = deckMeshOut()
+    deckMesh(c, [100, 104, 100], [100, 100, 100], c.points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1], low: [0.9, 0.9, 0.9] }, out)
     expect(out.low.length).toBe(out.position.length)
     expect(out.bias.length * 3).toBe(out.position.length)
     const biased = out.bias.flatMap((b, k) => (b > 0 ? [k] : []))

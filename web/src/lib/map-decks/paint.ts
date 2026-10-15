@@ -5,7 +5,7 @@
  * as lines.
  */
 import earcut from 'earcut'
-import { atHit, clip, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
+import { atHit, BOX_MIN, clip, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -36,14 +36,20 @@ export function paintOf(feature: any): Paint {
 /** What a mark is laid on: the deck under each point, and whether it keeps its colour below street zoom. */
 type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean }
 
-/** Every marking laid on the surfaces beneath it; what lies on none is left out. */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point) {
+/**
+ * Every marking laid on the surfaces beneath it; what lies on none is left
+ * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
+ * lies on the ground and so would hide it.
+ */
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false } = {}) {
+  const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < BOX_MIN ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
     if (props.pattern === 'none') continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
-    const { under } = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) })
+    const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
+    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) } : laid
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
     for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces }, color, props.color === 'white' ? 0.03 : 0.02, origin)

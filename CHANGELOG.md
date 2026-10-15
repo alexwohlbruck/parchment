@@ -7,6 +7,7 @@
 ### Fixed
 
 * Where one 3D bridge crosses another, each keeps its own lane markings instead of the lower road's lines streaking across the upper deck.
+* 3D bridges meet the road cleanly at their ends and carry their sidewalks, tram and rail tracks, overhead wires and street furniture; zoomed out, they take the road colours.
 
 ## [0.15.0] - 2026-10-15
 

@@ -17,6 +17,7 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 /** Where the basemap hands roads over to the lane geometry; every lane layer fades in over the same span. */
 const FROM = 16
 const TO = FROM + 0.6
+export const HD_FADE = [FROM, TO] as const
 
 const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
   light: {

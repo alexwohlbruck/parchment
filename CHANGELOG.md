@@ -6,6 +6,7 @@
 * Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
 * Running tracks show their lanes, and race circuits no longer look like side streets.
 * Disc golf courses show each hole's line and number, and their baskets.
+* Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
 
 ### Changed
 
@@ -15,6 +16,7 @@
 * 3D bridges meet the road cleanly at their ends and carry their sidewalks, tram and rail tracks, overhead wires and street furniture; zoomed out, they take the road colours.
 * 3D tunnel portals on paths and culverts fit the path's width, face along mapped headwalls, and no longer show a dark wedge or a step across the opening.
 * A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
+* Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 
 ## [0.15.0] - 2026-10-15
 

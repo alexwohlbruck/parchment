@@ -19,8 +19,10 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 const FROM = 16
 const TO = FROM + 0.6
 export const HD_FADE = [FROM, TO] as const
+/** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
+const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(200, 3%, 57%)',
     island: 'hsl(88, 26%, 83%)',
@@ -29,6 +31,8 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: 'hsl(52, 88%, 56%)',
     green: 'hsl(150, 30%, 58%)',
     red: 'hsl(9, 48%, 62%)',
+    signal: 'hsl(210, 8%, 30%)',
+    signalHalo: 'hsl(40, 20%, 97%)',
   },
   // Muted paint, mixed with the asphalt rather than see-through, so a fill
   // and its edge hairline do not double up.
@@ -40,6 +44,8 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: '#bca83d',
     green: 'hsl(148, 20%, 33%)',
     red: 'hsl(9, 26%, 33%)',
+    signal: 'hsl(45, 10%, 78%)',
+    signalHalo: 'hsl(222, 5%, 20%)',
   },
 }
 
@@ -132,7 +138,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       source: DETAIL_SOURCE,
       'source-layer': ROAD_GLYPH_TILES,
       minzoom: FROM,
-      filter: band,
+      filter: ['all', band, PAINTED_GLYPH],
       layout: {
         'icon-image': ['get', 'glyph'],
         'icon-rotate': ['get', 'direction'],
@@ -147,5 +153,34 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       },
       paint: { 'icon-color': c.white, 'icon-opacity': fadeIn },
     },
+    ...(bridge ? [] : [signalLayer(flavor)]),
   ]
+}
+
+/** Glyphs painted on the road; the rest name what stands beside it (see `map-objects/fixtures.ts`). */
+const PAINTED_GLYPH = ['==', ['slice', ['to-string', ['get', 'glyph']], 0, 5], 'road-']
+
+/** A traffic signal as a symbol, until its 3D signals stand in for it up close. */
+export function signalLayer(flavor: FlavorId): any {
+  return {
+    id: 'Traffic signal',
+    type: 'symbol',
+    source: DETAIL_SOURCE,
+    'source-layer': ROAD_GLYPH_TILES,
+    minzoom: FROM,
+    maxzoom: SIGNAL_UNTIL,
+    filter: ['==', ['get', 'glyph'], 'traffic-signals'],
+    layout: {
+      'icon-image': 'traffic-signals',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], FROM, 0.6, SIGNAL_UNTIL, 0.85],
+      'icon-allow-overlap': false,
+      'icon-padding': 4,
+    },
+    paint: {
+      'icon-color': COLORS[flavor].signal,
+      'icon-halo-color': COLORS[flavor].signalHalo,
+      'icon-halo-width': 1.5,
+      'icon-opacity': ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1, SIGNAL_UNTIL - 0.5, 1, SIGNAL_UNTIL, 0],
+    },
+  }
 }

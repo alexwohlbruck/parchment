@@ -18,6 +18,7 @@ import { LINE_MODELS, LINE_OBJECTS } from './lines'
 import { POWER_MODELS } from './power'
 import { AREA_MODELS, AREA_OBJECTS } from './areas'
 import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
+import { FIXTURE_MODELS, FIXTURE_OBJECTS } from './fixtures'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -29,6 +30,7 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
   LINE_OBJECTS,
   AREA_OBJECTS,
   SOLAR_OBJECTS,
+  FIXTURE_OBJECTS,
 ]
 
 /**
@@ -56,7 +58,7 @@ export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
 export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
-export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS }
+export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS, ...FIXTURE_MODELS }
 
 /**
  * Role colours, per flavor.
@@ -109,6 +111,13 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     'bloom-alt': [0.96, 0.82, 0.36],
     pv: [0.26, 0.34, 0.5],
     lattice: [0.66, 0.68, 0.7],
+    housing: [0.2, 0.21, 0.21],
+    steel: [0.36, 0.38, 0.4],
+    reflector: [0.96, 0.8, 0.22],
+    'lens-red': [0.9, 0.24, 0.2],
+    'lens-amber': [0.98, 0.7, 0.2],
+    'lens-green': [0.24, 0.78, 0.52],
+    sign: [0.97, 0.97, 0.95],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -142,6 +151,13 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     'bloom-alt': [0.46, 0.4, 0.18],
     pv: [0.22, 0.29, 0.45],
     lattice: [0.32, 0.34, 0.36],
+    housing: [0.1, 0.11, 0.11],
+    steel: [0.22, 0.23, 0.25],
+    reflector: [0.6, 0.5, 0.16],
+    'lens-red': [0.86, 0.22, 0.18],
+    'lens-amber': [0.92, 0.64, 0.18],
+    'lens-green': [0.2, 0.7, 0.46],
+    sign: [0.62, 0.62, 0.6],
   },
 }
 

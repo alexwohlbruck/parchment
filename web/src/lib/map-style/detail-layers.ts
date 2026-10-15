@@ -293,14 +293,19 @@ export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DEC
  * source layers some style layer uses, so without these they vanish above z16.
  */
 export function readOnlyDetailLayers(): any[] {
-  return READ_ONLY_DETAIL_TILES.map(sourceLayer => ({
+  return READ_ONLY_DETAIL_TILES.map(keepDetailLayer)
+}
+
+/** An invisible layer that keeps one detail source layer in overzoomed tiles. */
+export function keepDetailLayer(sourceLayer: string): any {
+  return {
     id: `Keep ${sourceLayer}`,
     type: 'circle',
     source: DETAIL_SOURCE,
     'source-layer': sourceLayer,
     minzoom: 14,
     paint: { 'circle-opacity': 0, 'circle-radius': 1 },
-  }))
+  }
 }
 
 /** The paved surface and its edge, drawn beneath the pedestrian block. */

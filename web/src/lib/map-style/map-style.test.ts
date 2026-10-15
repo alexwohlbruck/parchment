@@ -7,6 +7,7 @@
  * have no glyphs for, an icon the sprite lacks. Each of those still renders
  * *something*, which is exactly why they need asserting rather than eyeballing.
  */
+import { aboveTunnelsIndex } from './brunnel'
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
@@ -2612,12 +2613,61 @@ describe('road markings', () => {
   })
 })
 
+describe('HD roads and railways', () => {
+  const ids = buildMapStyle({ ...opts, theme: 'light', hdRoads: true }).layers.map(l => l.id)
+
+  test('draws track at grade over the lane-level road, where the two cross', () => {
+    expect(ids.indexOf('Major rail')).toBeGreaterThan(ids.indexOf('Road surface'))
+    expect(ids.indexOf('Minor rail')).toBeGreaterThan(ids.indexOf('Stop line'))
+  })
+
+  test('leaves the tunnel slot where it was, under the roads at grade', () => {
+    const at = (hdRoads: boolean) => {
+      const layers = buildMapStyle({ ...opts, theme: 'light', hdRoads }).layers as any[]
+      return layers[aboveTunnelsIndex(layers)!].id
+    }
+    expect(at(true)).toBe(at(false))
+  })
+
+  test('shows the signal symbol under the labels without HD roads', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const signal = layers.findIndex(l => l.id === 'Traffic signal')
+    expect(signal).toBeLessThan(layers.findIndex(l => l.type === 'symbol' && l.id !== 'Traffic signal'))
+  })
+
+  test('keeps light rail and trams in tunnels under the road', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light', hdRoads: true }).layers as any[]
+    const tunnel = layers.find(l => l.id === 'Minor rail tunnel')
+    expect(layers.indexOf(tunnel)).toBeLessThan(ids.indexOf('Road surface'))
+    const tram = { properties: { class: 'transit', subclass: 'tram', brunnel: 'tunnel' }, type: 2 } as any
+    const lifted = layers.find(l => l.id === 'Minor rail')
+    expect(featureFilter(lifted.filter, 'lifted.filter').filter({ zoom: 17 } as any, tram)).toBe(false)
+    expect(featureFilter(tunnel.filter, 'tunnel.filter').filter({ zoom: 17 } as any, tram)).toBe(true)
+  })
+
+  test('keeps a bridge deck over the track it crosses', () => {
+    expect(ids.indexOf('Major road bridge')).toBeGreaterThan(ids.indexOf('Major rail'))
+  })
+
+  test('paints only road glyphs on the road, and gives a signal its own symbol', () => {
+    const style = buildMapStyle({ ...opts, theme: 'light', hdRoads: true })
+    const glyphs = style.layers.find(l => l.id === 'Road glyph') as any
+    expect(JSON.stringify(glyphs.filter)).toContain('road-')
+    expect(style.layers.find(l => l.id === 'Traffic signal')).toMatchObject({ layout: { 'icon-image': 'traffic-signals' } })
+  })
+})
+
 describe('HD roads off', () => {
   const style = buildMapStyle({ ...opts, theme: 'light' })
   const laneTiles = [ROAD_SURFACE_TILES, ROAD_MARKING_TILES, ROAD_GLYPH_TILES]
 
   test('draws no lane geometry, at grade or on a deck', () => {
-    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']))).toEqual([])
+    expect(style.layers.filter(l => laneTiles.includes((l as any)['source-layer']) && l.type !== 'symbol' && !l.id.startsWith('Keep '))).toEqual([])
+  })
+
+  test('still keeps the glyphs that signals and crossing gear stand on, and their symbol', () => {
+    expect(style.layers.some(l => l.id === `Keep ${ROAD_GLYPH_TILES}`)).toBe(true)
+    expect(style.layers.some(l => l.id === 'Traffic signal')).toBe(true)
   })
 
   test('leaves the basemap roads their own colour and casing', () => {

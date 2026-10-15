@@ -230,54 +230,102 @@ export function splitAtFace(bore: Point[], face: Face, gap = 0.5): { out: Point[
   return { out: [face.point, ...outside.reverse()], bore: [face.point, ...(inside.length ? inside : [bore.at(-1)!])] }
 }
 
-/** A portal ready to be solved: the approach out from it, the bore in from it, its carriageway's edges in metres, and the direction of a headwall mapped across it. */
-export type Opening = { out: Approach; bore: Point[]; edges: [number, number]; kind: BoreKind; face?: Point }
-
-/** Points every `step` metres along a line, from its start. */
-export function resample(line: Point[], step: number): Point[] {
-  const d = along(line)
-  const out: Point[] = []
-  for (let m = 0, i = 1; m <= d.at(-1)! && i < line.length; m += step) {
-    while (i < line.length - 1 && d[i] < m) i++
-    const t = (m - d[i - 1]) / (d[i] - d[i - 1] || 1)
-    out.push([line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t])
-  }
-  return out
-}
-
-/** Two lines run side by side, as the line midway between them, as far as the shorter goes. */
-function midway(a: Point[], b: Point[]): Point[] {
-  const [ra, rb] = [resample(a, 3), resample(b, 3)]
-  return ra.slice(0, rb.length).map((p, i) => [(p[0] + rb[i][0]) / 2, (p[1] + rb[i][1]) / 2] as Point)
-}
+/**
+ * A portal ready to be solved: its approach, bore, edges in metres, and mapped headwall.
+ * `piers` are the walls between its bores, as spans in metres left of its centreline.
+ */
+export type Opening = { out: Approach; bore: Point[]; edges: [number, number]; kind: BoreKind; layer: number; face?: Point; piers?: Array<[number, number]> }
 
 /** Sharpest angle between two bores, in radians, that still run side by side. */
 const PARALLEL = Math.PI / 9
+/** How far one bore's portal may stand ahead of its neighbour's, in metres, for one headwall to take both. */
+const STAGGER = 8
+/** The widest ground between two bores' walls, in metres, that one headwall still spans. */
+const GAP = 3
+/** How far in from the portals two bores are compared, and how much their spacing may change by then, in metres. */
+const SPREAD_AT = 12
+const SPREAD = 3
+/** The narrowest wall between two carriageways' bores, in metres. */
+const PIER = 0.8
 
-/**
- * Openings side by side close enough that their cuts would overlap — a
- * railway's two tracks, or twin tubes — as one opening between them, wide
- * enough for both.
- */
-export function mergeTwins(openings: Opening[]): Opening[] {
-  const list = [...openings]
-  for (let i = 0; i < list.length; i++)
-    for (let j = i + 1; j < list.length; j++) {
-      const [a, b] = [list[i], list[j]]
-      if (a.kind !== b.kind || a.out.points.length < 2 || b.out.points.length < 2) continue
-      const [pa, pb] = [a.out.points[0], b.out.points[0]]
-      const apart = Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) * metresPerUnit(pa[1])
-      const reach = (o: Opening) => Math.max(...o.edges) + KERB
-      if (apart > reach(a) + reach(b) || turn(heading(pa, a.bore[1] ?? pa), heading(pb, b.bore[1] ?? pb)) > PARALLEL) continue
-      const half = apart / 2 + Math.max(...a.edges, ...b.edges)
-      const out = midway(a.out.points, b.out.points)
-      const bore = midway(a.bore, b.bore)
-      if (out.length < 2 || bore.length < 2) continue
-      list[i] = { out: { points: out, junction: a.out.junction || b.out.junction }, bore, edges: [half, half], kind: a.kind, face: a.face ?? b.face }
-      list.splice(j, 1)
-      j = i
+type Axis = { p: Point; h: Point; left: Point; scale: number; inner: Point }
+
+/** Where a bore runs from its portal: the portal, its inward heading and that heading's left, and a point a little way in. */
+function axis(o: Opening): Axis {
+  const p = o.bore[0]
+  const h = heading(p, truncate(o.bore, 6).at(-1)!)
+  return { p, h, left: [-h[1], h[0]], scale: metresPerUnit(p[1]), inner: truncate(o.bore, SPREAD_AT).at(-1)! }
+}
+
+/** Metres `q` lies along an axis from `from`, and to its left. */
+function offset(a: Axis, q: Point, from = a.p): [number, number] {
+  const [dx, dy] = [q[0] - from[0], q[1] - from[1]]
+  return [(dx * a.h[0] + dy * a.h[1]) * a.scale, (dx * a.left[0] + dy * a.left[1]) * a.scale]
+}
+
+/** Whether two openings are one structure: parallel bores side by side at their portals and still a little way in. */
+function sideBySide(a: Opening, b: Opening, x: Axis, y: Axis): boolean {
+  if (a.bore.length < 2 || b.bore.length < 2) return false
+  // A path may be mapped a layer off the road beside it; a road and a railway are separate structures.
+  const path = a.kind === 'path' || b.kind === 'path'
+  if (a.kind !== b.kind && !path) return false
+  if (a.layer !== b.layer && !(path && a.kind !== b.kind && Math.abs(a.layer - b.layer) <= 1)) return false
+  if (turn(x.h, y.h) > PARALLEL) return false
+  const [ahead, across] = offset(x, y.p)
+  if (Math.abs(ahead) > STAGGER) return false
+  const gap = Math.abs(across) - (across > 0 ? a.edges[0] + b.edges[1] : a.edges[1] + b.edges[0]) - 2 * KERB
+  return gap <= GAP && Math.abs(offset(x, y.inner, x.inner)[1] - across) <= SPREAD
+}
+
+/** Openings side by side, such as a road and its sidewalks mapped as tunnels of their own, as one portal; separate carriageways keep a pier between their bores. */
+export function groupPortals(openings: Opening[]): Opening[] {
+  const axes = openings.map(axis)
+  const root = openings.map((_, i) => i)
+  const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])))
+  const kinds = openings.map(o => new Set([o.kind]))
+  for (let i = 0; i < openings.length; i++)
+    for (let j = i + 1; j < openings.length; j++) {
+      const [a, b] = [find(i), find(j)]
+      if (a === b || !sideBySide(openings[i], openings[j], axes[i], axes[j])) continue
+      // Not even through a path between them: a road and a railway are separate structures.
+      const both = new Set([...kinds[a], ...kinds[b]])
+      if (both.has('road') && both.has('rail')) continue
+      root[b] = a
+      kinds[a] = both
     }
-  return list
+  const groups = new Map<number, Opening[]>()
+  openings.forEach((o, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), o]))
+  return [...groups.values()].map(group => (group.length === 1 ? group[0] : merge(group)))
+}
+
+/** Headroom first, then width to the metre, so a measurement wavering between rebuilds does not hand the lead to another bore. */
+const priority = (o: Opening) => PROFILES[o.kind].headroom * 100 + Math.round(o.edges[0] + o.edges[1])
+
+/** One portal led by the bore with most headroom, then widest, its edges taking in every bore beside it. */
+function merge(group: Opening[]): Opening {
+  // Ties go by position, so the order the tiles arrive in never picks the lead.
+  const lead = [...group].sort((a, b) => priority(b) - priority(a) || a.bore[0][0] - b.bore[0][0] || a.bore[0][1] - b.bore[0][1])[0]
+  const frame = axis(lead)
+  const spans = group
+    .map(o => {
+      const across = offset(frame, o.bore[0])[1]
+      return { right: across - o.edges[1], left: across + o.edges[0], road: o.kind === 'road' }
+    })
+    .sort((a, b) => a.right + a.left - b.right - b.left)
+  const piers: Array<[number, number]> = []
+  let bore = { left: -Infinity, road: false }
+  for (const span of spans) {
+    const [from, to] = [bore.left + KERB, span.right - KERB]
+    // Carriageways whose kerbs overlap share a bore: two ways mapped on one surface.
+    if (span.road && bore.road && to > from) {
+      const mid = (from + to) / 2
+      piers.push(to - from >= PIER ? [from, to] : [mid - PIER / 2, mid + PIER / 2])
+      bore = { left: span.left, road: true }
+    } else bore = { left: Math.max(bore.left, span.left), road: bore.road || span.road }
+  }
+  const edges: [number, number] = [Math.max(...spans.map(s => s.left)), Math.max(...spans.map(s => -s.right))]
+  const junction = group.some(o => o.out.junction)
+  return { ...lead, out: { ...lead.out, junction }, edges, face: lead.face ?? group.find(o => o.face)?.face, piers }
 }
 
 export type Cut = {
@@ -366,7 +414,7 @@ const FOOT = 0.5
  * they are to be drawn (exaggeration applied). `edges` are the carriageway's.
  * The cut's floor is the terrain, carved by `carveTile`; `out.floor` covers it where the terrain is too coarse to.
  */
-export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh, face?: Point) {
+export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh, face?: Point, piers: Array<[number, number]> = []) {
   const n = points.length
   const scale = 1 / metresPerUnit(points[at][1])
   const h = (m: number) => m * scale
@@ -380,10 +428,9 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   const lean = askew && face ? Math.sign(face[1] * tx - face[0] * ty) : 1
   const [wx, wy] = askew && face ? [face[0] * lean, face[1] * lean] : [-ty, tx]
   const skew = wy * tx - wx * ty
-  const square = (left: number, right: number) => ({
-    left: [points[at][0] + (wx * left * scale) / skew - origin[0], points[at][1] + (wy * left * scale) / skew - origin[1]] as Point,
-    right: [points[at][0] - (wx * right * scale) / skew - origin[0], points[at][1] - (wy * right * scale) / skew - origin[1]] as Point,
-  })
+  /** The point on the headwall's face `metres` left of the centreline. */
+  const onFace = (metres: number): Point => [points[at][0] + (wx * metres * scale) / skew - origin[0], points[at][1] + (wy * metres * scale) / skew - origin[1]]
+  const square = (left: number, right: number) => ({ left: onFace(left), right: onFace(-right) })
   wall[at] = square(edges[0] + KERB, edges[1] + KERB)
   back[at] = square(edges[0] + KERB + MARGIN, edges[1] + KERB + MARGIN)
   const at3 = (p: Point, m: number) => [p[0], p[1], h(m)]
@@ -429,7 +476,17 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   quad(out.walls, at3(wr, base), at3(br, base), at3(br, mouth), at3(wr, mouth), colors.concrete)
   quad(out.walls, at3(l, base), at3(bl, base), at3(bl, crown), at3(l, crown), colors.concrete)
   quad(out.walls, at3(br, base), at3(r, base), at3(r, crown), at3(br, crown), colors.concrete)
-  quad(out.mouth, at3(wall[at].left, floor[at] - FOOT), at3(wall[at].right, floor[at] - FOOT), at3(wall[at].right, mouth), at3(wall[at].left, mouth), colors.bore)
+  // One opening between each pier and the next; each pier's face stands in the headwall.
+  const bounds = [-(edges[1] + KERB), ...piers.flat(), edges[0] + KERB]
+  for (let k = 0; k < bounds.length; k += 2) {
+    const [r, l] = [onFace(bounds[k]), onFace(bounds[k + 1])]
+    quad(out.mouth, at3(l, floor[at] - FOOT), at3(r, floor[at] - FOOT), at3(r, mouth), at3(l, mouth), colors.bore)
+    if (k) quad(out.walls, at3(onFace(bounds[k - 1]), floor[at] - FOOT), at3(r, floor[at] - FOOT), at3(r, mouth), at3(onFace(bounds[k - 1]), mouth), colors.concrete)
+  }
+  const pierSides = piers.map(([from, to]) => {
+    const sides = outline(points, [to, -from], origin)
+    return [sides.map((s, i) => (i === at ? onFace(from) : s.right)), sides.map((s, i) => (i === at ? onFace(to) : s.left))]
+  })
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]
@@ -440,6 +497,10 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     quad(out.bore, at3(la, fa), at3(lb, fb), at3(lb, cb), at3(la, ca), shade(a, colors.bore))
     quad(out.bore, at3(ra, ca), at3(rb, cb), at3(rb, fb), at3(ra, fa), shade(a, colors.bore))
     quad(out.bore, at3(la, ca), at3(lb, cb), at3(rb, cb), at3(ra, ca), shade(a, colors.bore))
+    for (const [r, l] of pierSides) {
+      quad(out.bore, at3(r[a], fa), at3(r[b], fb), at3(r[b], cb), at3(r[a], ca), shade(a, colors.bore))
+      quad(out.bore, at3(l[a], ca), at3(l[b], cb), at3(l[b], fb), at3(l[a], fa), shade(a, colors.bore))
+    }
   }
   const last = n - 1
   if (last > at) quad(out.bore, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + cut.headroom), at3(wall[last].left, floor[last] + cut.headroom), shade(last, colors.bore))

@@ -826,32 +826,52 @@ export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: nu
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
 export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }
 
-function over(decks: DeckSurface[], k: number, p: Point): Hit | null {
-  const deck = decks[k]
-  if (deck.bounds && !holds(deck.bounds, p)) return null
+/** Every deck segment by grid cell, grown by its deck's half width: each point looks only in its own cell. */
+type SurfaceIndex = { cell: number; cells: Map<number, Array<[number, number]>> }
+
+const surfaceIndexes = new WeakMap<DeckSurface[], SurfaceIndex>()
+
+function surfaceIndex(decks: DeckSurface[]): SurfaceIndex {
+  let index = surfaceIndexes.get(decks)
+  if (index) return index
+  const cell = INDEX_CELL / metresPerUnit(decks[0]?.points[0]?.[1] ?? 0.5)
+  const cells = new Map<number, Array<[number, number]>>()
+  decks.forEach((deck, k) => {
+    const pad = (deck.width / 2 + 0.5) / metresPerUnit(deck.points[0][1])
+    for (let i = 1; i < deck.points.length; i++) {
+      const [a, b] = [deck.points[i - 1], deck.points[i]]
+      for (let x = Math.floor((Math.min(a[0], b[0]) - pad) / cell); x <= Math.floor((Math.max(a[0], b[0]) + pad) / cell); x++)
+        for (let y = Math.floor((Math.min(a[1], b[1]) - pad) / cell); y <= Math.floor((Math.max(a[1], b[1]) + pad) / cell); y++) {
+          const list = cells.get(cellKey(x, y))
+          if (list) list.push([k, i])
+          else cells.set(cellKey(x, y), [[k, i]])
+        }
+    }
+  })
+  surfaceIndexes.set(decks, (index = { cell, cells }))
+  return index
+}
+
+/** The decks under a point, each at its nearest segment. */
+function hitsAt(decks: DeckSurface[], p: Point): Hit[] {
+  const { cell, cells } = surfaceIndex(decks)
   const scale = metresPerUnit(p[1])
-  let best: Hit | null = null
-  for (let i = 1; i < deck.points.length; i++) {
+  const best = new Map<number, Hit>()
+  for (const [k, i] of cells.get(cellKey(Math.floor(p[0] / cell), Math.floor(p[1] / cell))) ?? []) {
+    const deck = decks[k]
     const [a, b] = [deck.points[i - 1], deck.points[i]]
     const dx = b[0] - a[0]
     const dy = b[1] - a[1]
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
     const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * scale
-    if (distance < deck.width / 2 + 0.5 && distance < (best?.distance ?? Infinity))
-      best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+    if (distance < deck.width / 2 + 0.5 && distance < (best.get(k)?.distance ?? Infinity))
+      best.set(k, { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t })
   }
-  return best
+  return [...best.values()].sort((a, b) => a.deck - b.deck)
 }
 
 function hitsUnder(points: Point[], decks: DeckSurface[]): Hit[][] {
-  return points.map(p => {
-    const hits: Hit[] = []
-    for (let k = 0; k < decks.length; k++) {
-      const hit = over(decks, k, p)
-      if (hit) hits.push(hit)
-    }
-    return hits
-  })
+  return decks.length ? points.map(p => hitsAt(decks, p)) : points.map(() => [])
 }
 
 const nearest = (hits: Hit[]) => hits.reduce((a, b) => (b.distance < a.distance ? b : a))
@@ -862,9 +882,12 @@ export function atHit(values: number[] | undefined, hit: Hit): number {
   return values[hit.segment - 1] + (values[hit.segment] - values[hit.segment - 1]) * hit.t
 }
 
-/** Points lifted `lift` metres onto the deck nearest beneath each, or null off every deck. */
-export function onDeck(points: Point[], decks: DeckSurface[], lift: number): Array<number | null> {
-  return hitsUnder(points, decks).map(hits => (hits.length ? nearest(hits).z + lift : null))
+/** Points lifted `lift` metres onto the deck nearest beneath each, other than `skip`, or null off every deck. */
+export function onDeck(points: Point[], decks: DeckSurface[], lift: number, skip = -1): Array<number | null> {
+  return hitsUnder(points, decks).map(all => {
+    const hits = all.filter(h => h.deck !== skip)
+    return hits.length ? nearest(hits).z + lift : null
+  })
 }
 
 /** Degrees past the best-aligned deck that another may stray from a mark's heading and still run its way. */

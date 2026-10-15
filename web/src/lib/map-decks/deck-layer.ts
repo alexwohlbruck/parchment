@@ -288,7 +288,8 @@ export class DeckLayer {
           pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined })
     }
     // Pieces are cut to their own tiles, so each stretch of a way is drawn once.
-    const ways = dedupe(pieces).flatMap(({ kind, points }) => (kind === 'road' ? [] : [{ kind, points }]))
+    const deduped = dedupe(pieces)
+    const ways = deduped.flatMap(({ kind, points }) => (kind === 'road' ? [] : [{ kind, points }]))
     const placed = served.flatMap(d => this.place(d))
     if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
@@ -298,7 +299,7 @@ export class DeckLayer {
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
     const servedBounds = served.map(({ chain }) => ({ chain, bounds: boundsOf(chain.points, Math.max(...chain.edges) + COVER) }))
-    const own = dedupe(pieces).filter(piece => !covered(piece, servedBounds))
+    const own = deduped.filter(piece => !covered(piece, servedBounds))
     const decks = absorbTracks(absorbPaths(fitted(chains(own, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs)))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
     const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean }> = decks.flatMap(chain => {
@@ -316,7 +317,7 @@ export class DeckLayer {
         const ends = [s.chain.points[0], s.chain.points[s.chain.points.length - 1]]
         const resting = ends.map((p, i) => {
           if (s.chain.grounded[i]) return null
-          const [z] = onDeck([p], others.filter((_, j) => j !== k), 0)
+          const [z] = onDeck([p], others, 0, k)
           return z
         }) as [number | null, number | null]
         if (resting[0] !== null || resting[1] !== null) s.z = solve(s.chain, s.groundAt, resting)

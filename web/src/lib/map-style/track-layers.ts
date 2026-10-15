@@ -82,7 +82,7 @@ export function trackLayers(flavor: FlavorId): any[] {
       id: `${TRACK_SURFACE_LAYER} oval`,
       type: 'line',
       filter: ['==', kind, 'oval'],
-      layout: { 'line-join': 'round' },
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': c.tartan,
         'line-width': trackMetres(band),

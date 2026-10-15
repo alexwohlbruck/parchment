@@ -5,7 +5,7 @@
  * as lines.
  */
 import earcut from 'earcut'
-import { atHit, BOX_MIN, boundsOf, clip, halfPlane, holds, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
+import { atHit, BOX_MIN, boundsOf, clip, halfPlane, holds, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onDeck, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -168,6 +168,9 @@ function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, c
   const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
   const e = sides.indexOf(Math.max(...sides))
   if (sides[e] <= PAINT_SAMPLE || depth > 12) {
+    // On the ground only beside a deck, never under one.
+    const centre: Point = [(corners[0].p[0] + corners[1].p[0] + corners[2].p[0]) / 3, (corners[0].p[1] + corners[1].p[1] + corners[2].p[1]) / 3]
+    if (corners[0].hit.deck < 0 && onDeck([centre], laid.surfaces, 0)[0] !== null) return
     for (const { p, hit } of corners) laidVertex(mesh, [p[0] - origin[0], p[1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
     return
   }
@@ -218,7 +221,8 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     const seg = Math.hypot(b[0] - a[0], b[1] - a[1])
     const metres = seg / scale
     const off = !laid.under[i - 1] || !laid.under[i]
-    const [ha, hb] = off ? [onGround(laid, a), onGround(laid, b)] : [laid.under[i - 1], laid.under[i]]
+    const beside = off && onDeck([[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]], laid.surfaces, 0)[0] === null
+    const [ha, hb] = !off ? [laid.under[i - 1], laid.under[i]] : beside ? [onGround(laid, a), onGround(laid, b)] : [null, null]
     if (!ha || !hb || seg === 0) {
       travelled += metres
       continue

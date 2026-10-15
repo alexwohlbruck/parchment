@@ -16,6 +16,7 @@
 
 ### Fixed
 
+* Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.

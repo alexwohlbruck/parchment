@@ -4,7 +4,11 @@
 
 ### Changed
 
+* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
+
 ### Fixed
+
+* Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
 
 ## [0.15.0] - 2026-10-15
 
@@ -16,7 +20,6 @@
 
 ### Changed
 
-* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 * Footpaths are drawn with a finer edge.
 * 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
 * Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
@@ -24,7 +27,6 @@
 
 ### Fixed
 
-* Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.

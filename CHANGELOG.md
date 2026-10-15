@@ -5,6 +5,7 @@
 * Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
 * Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
 * Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
+* Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
 
 ### Changed
 
@@ -18,6 +19,7 @@
 * Power lines stay joined at every tower, including through bends and across map tile edges.
 * Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
 * Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Railway tracks are drawn across the road at level crossings instead of disappearing under it.
 
 ## [0.14.0] - 2026-10-09
 

@@ -18,6 +18,7 @@ import {
   absorbPaths,
   absorbTracks,
   deckMeshOut,
+  endsMade,
   standing,
   standKey,
   underWay,
@@ -358,6 +359,10 @@ export class DeckLayer {
     }
     // Curves filled in before anything is laid along them.
     for (const s of solved) Object.assign(s, rounded(s.chain, s.z, s.groundAt))
+    for (const s of solved.slice(local)) {
+      const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt)
+      Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
+    }
     const open = joinNeighbours(solved)
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1

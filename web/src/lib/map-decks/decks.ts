@@ -782,6 +782,50 @@ export function deckMesh(
 export const SEAM = 0.3
 const SEAM_DIP = 0.03
 
+/**
+ * A deck's ends made whole: an end on the ground reaches at least to its way's
+ * end, where the road takes over, and where both sides run on past an end the
+ * deck carries on to there as a level stretch of road, so what is laid on it
+ * follows it out. `shift` is how far the start moved back, in metres.
+ */
+export function endsMade(chain: Chain, z: number[], groundAt: number[]): { chain: Chain; z: number[]; groundAt: number[]; shift: number } {
+  if (!chain.caps || chain.points.length < 2) return { chain, z, groundAt, shift: 0 }
+  const caps = chain.caps.map((c, k) => (chain.grounded[k >> 1] ? Math.min(c, 0) : c)) as [number, number, number, number]
+  const runs = [Math.max(0, -Math.max(caps[0], caps[1])), Math.max(0, -Math.max(caps[2], caps[3]))]
+  let { points } = chain
+  let [zs, gs, sides] = [z, groundAt, chain.sides]
+  const n = points.length
+  const scale = metresPerUnit(points[0][1])
+  const out = (end: 0 | 1) => {
+    const [a, b] = end ? [points[n - 2], points[n - 1]] : [points[1], points[0]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) * scale || 1
+    return [b, ((b[0] - a[0]) * runs[end]) / len, ((b[1] - a[1]) * runs[end]) / len] as const
+  }
+  if (runs[1] >= RUN_ON_MIN) {
+    const [b, dx, dy] = out(1)
+    points = [...points, [b[0] + dx, b[1] + dy]]
+    zs = [...zs, zs[n - 1]]
+    gs = [...gs, chain.grounded[1] ? zs[n - 1] : gs[n - 1]]
+    sides = sides && [[...sides[0], sides[0][n - 1]], [...sides[1], sides[1][n - 1]]]
+    caps[2] += runs[1]
+    caps[3] += runs[1]
+  }
+  if (runs[0] >= RUN_ON_MIN) {
+    const [b, dx, dy] = out(0)
+    points = [[b[0] + dx, b[1] + dy], ...points]
+    zs = [zs[0], ...zs]
+    gs = [chain.grounded[0] ? zs[0] : gs[0], ...gs]
+    sides = sides && [[sides[0][0], ...sides[0]], [sides[1][0], ...sides[1]]]
+    caps[0] += runs[0]
+    caps[1] += runs[0]
+  }
+  const shift = runs[0] >= RUN_ON_MIN ? runs[0] : 0
+  return { chain: { ...chain, points, caps, ...(sides ? { sides } : {}) }, z: zs, groundAt: gs, shift }
+}
+
+/** Shortest stretch, in metres, a deck is carried on past its end as road. */
+const RUN_ON_MIN = 0.5
+
 /** Most a curve turns between two vertices of a drawn deck, in radians. */
 export const ROUND_TURN = (3 * Math.PI) / 180
 /** Most pieces a segment is split into to round a curve. */

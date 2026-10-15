@@ -52,7 +52,7 @@ import {
   tileBounds,
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
-import { layPaint, paintOf, strip, type Paint } from './paint'
+import { layPaint, layRoute, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 
@@ -318,12 +318,7 @@ export class DeckLayer {
     this.paintFrom = mesh.position.length / 3
     layPaint(mesh, paint, surfaces, p, this.origin)
     for (const id of this.sources.routes())
-      for (const f of this.query(id))
-        for (const line of linesOf(f.geometry)) {
-          const points = line.map(mercator)
-          strip(mesh, points, surfaces, 4.4, p.routeCasing, 0.06, 0, false, this.origin)
-          strip(mesh, points, surfaces, 3, p.route, 0.08, 0, false, this.origin)
-        }
+      for (const f of this.query(id)) layRoute(mesh, linesOf(f.geometry).map(line => line.map(mercator)), surfaces, p, this.origin)
     this.version++
     return mesh
   }

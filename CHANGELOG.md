@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Where one 3D bridge crosses another, each keeps its own lane markings instead of the lower road's lines streaking across the upper deck.
+
 ## [0.15.0] - 2026-10-15
 
 ### Added

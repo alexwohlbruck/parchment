@@ -769,36 +769,115 @@ export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain:
   return { chain: { ...chain, points: out.points, ...(chain.sides ? { sides: out.sides } : {}) }, z: out.z, groundAt: out.groundAt }
 }
 
-/**
- * A line laid on solved decks: each vertex lifted to the deck beneath it, or
- * null where the line leaves every deck. `lift` is the height above the deck
- * surface, so paint does not fight the asphalt for the same depth.
- */
-export function onDeck(
-  points: Point[],
-  decks: Array<{ points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds }>,
-  lift: number,
-): Array<number | null> {
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds }
+
+/** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
+type Hit = { deck: number; distance: number; z: number; segment: number }
+
+function over(decks: DeckSurface[], k: number, p: Point): Hit | null {
+  const deck = decks[k]
+  if (deck.bounds && !holds(deck.bounds, p)) return null
+  const scale = metresPerUnit(p[1])
+  let best: Hit | null = null
+  for (let i = 1; i < deck.points.length; i++) {
+    const [a, b] = [deck.points[i - 1], deck.points[i]]
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+    const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * scale
+    if (distance < deck.width / 2 + 0.5 && distance < (best?.distance ?? Infinity))
+      best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i }
+  }
+  return best
+}
+
+function hitsUnder(points: Point[], decks: DeckSurface[]): Hit[][] {
   return points.map(p => {
-    let best: number | null = null
-    let bestDistance = Infinity
-    for (const deck of decks) {
-      if (deck.bounds && !holds(deck.bounds, p)) continue
-      const scale = metresPerUnit(p[1])
-      for (let i = 1; i < deck.points.length; i++) {
-        const [a, b] = [deck.points[i - 1], deck.points[i]]
-        const dx = b[0] - a[0]
-        const dy = b[1] - a[1]
-        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
-        const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * scale
-        if (distance < deck.width / 2 + 0.5 && distance < bestDistance) {
-          bestDistance = distance
-          best = deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t + lift
-        }
-      }
+    const hits: Hit[] = []
+    for (let k = 0; k < decks.length; k++) {
+      const hit = over(decks, k, p)
+      if (hit) hits.push(hit)
     }
-    return best
+    return hits
   })
+}
+
+const nearest = (hits: Hit[]) => hits.reduce((a, b) => (b.distance < a.distance ? b : a))
+
+/** Points lifted `lift` metres onto the deck nearest beneath each, or null off every deck. */
+export function onDeck(points: Point[], decks: DeckSurface[], lift: number): Array<number | null> {
+  return hitsUnder(points, decks).map(hits => (hits.length ? nearest(hits).z + lift : null))
+}
+
+/** Degrees past the best-aligned deck that another may stray from a mark's heading and still run its way. */
+const ALIGNED = 12
+
+/** The hits whose deck runs the way of the step (dx, dy), or across it. */
+function runningWith(hits: Hit[], decks: DeckSurface[], dx: number, dy: number, across: boolean): Hit[] {
+  const length = Math.hypot(dx, dy)
+  if (hits.length < 2 || !length) return hits
+  const off = hits.map(hit => {
+    const [a, b] = [decks[hit.deck].points[hit.segment - 1], decks[hit.deck].points[hit.segment]]
+    const cos = Math.min(1, Math.abs((dx * (b[0] - a[0]) + dy * (b[1] - a[1])) / (length * (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1))))
+    const angle = (Math.acos(cos) * 180) / Math.PI
+    return across ? 90 - angle : angle
+  })
+  const best = Math.min(...off)
+  return hits.filter((_, i) => off[i] <= best + ALIGNED)
+}
+
+/** Metres within which a line that follows a centreline counts two decks as equally near. */
+const CENTRED_TIE = 0.25
+
+/**
+ * One mark's lines and rings lifted onto the deck it belongs to where decks
+ * cross or stack: the nearest deck running its way, never a jump between levels.
+ * A `centred` line, such as a route, follows whichever centreline it is on.
+ */
+export function onOwnDeck(
+  lines: Point[][],
+  rings: Point[][],
+  decks: DeckSurface[],
+  { across = false, centred = false }: { across?: boolean; centred?: boolean } = {},
+): Record<'lines' | 'rings', Array<Array<number | null>>> {
+  const all = [...lines, ...rings]
+  const hits = all.map(line => hitsUnder(line, decks))
+  const split = (z: Array<Array<number | null>>) => ({ lines: z.slice(0, lines.length), rings: z.slice(lines.length) })
+  if (hits.every(line => line.every(h => h.length < 2))) return split(hits.map(line => line.map(h => h[0]?.z ?? null)))
+  const votes = new Map<number, number>()
+  for (const [l, line] of all.entries())
+    for (let i = 1; i < line.length; i++) {
+      const both = hits[l][i].filter(h => hits[l][i - 1].some(g => g.deck === h.deck))
+      if (!both.length) continue
+      const { deck } = nearest(runningWith(both, decks, line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1], across))
+      votes.set(deck, (votes.get(deck) ?? 0) + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]))
+    }
+  const owner = votes.size ? [...votes].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : -1
+  return split(all.map((line, l) => {
+    // A ring's corners have no heading of their own; a line's points keep to the decks running their way.
+    const candidates = l >= lines.length ? hits[l] : hits[l].map((h, i) => {
+      const [a, b] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]]
+      return runningWith(h, decks, b[0] - a[0], b[1] - a[1], across)
+    })
+    const z: Array<number | null> = line.map(() => null)
+    const lay = (i: number, last: number | null) => {
+      let here = candidates[i]
+      if (!here.length) return last
+      if (centred) {
+        const closest = nearest(here).distance
+        here = here.filter(h => h.distance <= closest + CENTRED_TIE)
+      }
+      const own = here.find(h => h.deck === owner)
+      z[i] = (own ?? (last === null ? nearest(here) : here.reduce((a, b) => (Math.abs(b.z - last) < Math.abs(a.z - last) ? b : a)))).z
+      return z[i]
+    }
+    const start = Math.max(0, candidates.findIndex(here => here.some(h => h.deck === owner)))
+    let last: number | null = null
+    for (let i = start; i < line.length; i++) last = lay(i, last)
+    last = z[start]
+    for (let i = start - 1; i >= 0; i--) last = lay(i, last)
+    return z
+  }))
 }
 
 /** A profile served as decimetres joined by commas, in metres. */

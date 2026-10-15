@@ -120,7 +120,7 @@ const lerp = (a: Point, b: Point, t: number): Point => [a[0] + (b[0] - a[0]) * t
 
 /** A line's bounds, grown by `metres` all round. */
 export function boundsOf(points: Point[], metres = 0): Bounds {
-  const pad = metres / metresPerUnit(points[0][1])
+  const pad = metres ? metres / metresPerUnit(points[0][1]) : 0
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
   for (const [x, y] of points) [minX, minY, maxX, maxY] = [Math.min(minX, x), Math.min(minY, y), Math.max(maxX, x), Math.max(maxY, y)]
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }

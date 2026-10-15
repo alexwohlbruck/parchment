@@ -469,6 +469,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mutedBridges.clear()
       this.tunnelLayer = null
       this.mutedTunnels.clear()
+      this.tunnelChecked.clear()
       this.buildingFilters.clear()
       this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
@@ -919,6 +920,7 @@ export class MaplibreStrategy extends MapStrategy {
   private tunnelLayer: TunnelLayer | null = null
   /** Flat tunnel layers muted from street zoom, with the opacity each had. */
   private mutedTunnels = new Map<string, unknown>()
+  private tunnelChecked = new Set<string>()
 
   /**
    * Bridges as 3D decks and tunnels as cuts down to their portals, with the
@@ -967,17 +969,24 @@ export class MaplibreStrategy extends MapStrategy {
   /** Mute the flat tunnels under the tunnel layer, including any layer added since it was drawn. */
   private muteFlatTunnels() {
     const map = this.mapInstance
-    const active = !!this.tunnelLayer
-    for (const layer of map.getStyle()?.layers ?? []) {
+    if (!this.tunnelLayer) {
+      for (const [id, value] of this.mutedTunnels) if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', value as any)
+      this.mutedTunnels.clear()
+      this.tunnelChecked.clear()
+      return
+    }
+    // Runs on every styledata, so each layer is judged once, from its own spec
+    // rather than a serialisation of the whole style.
+    for (const id of map.getLayersOrder()) {
+      if (this.tunnelChecked.has(id)) continue
+      this.tunnelChecked.add(id)
+      const style = map.getLayer(id)
+      if (style?.type !== 'line') continue
+      const layer = style.serialize()
       if (!isFlatTunnel(layer as any)) continue
-      if (active && !this.mutedTunnels.has(layer.id)) {
-        const value = map.getPaintProperty(layer.id, 'line-opacity')
-        this.mutedTunnels.set(layer.id, value)
-        map.setPaintProperty(layer.id, 'line-opacity', mutedTunnelOpacity(value, layer as any) as any)
-      } else if (!active && this.mutedTunnels.has(layer.id)) {
-        map.setPaintProperty(layer.id, 'line-opacity', this.mutedTunnels.get(layer.id) as any)
-        this.mutedTunnels.delete(layer.id)
-      }
+      const value = map.getPaintProperty(id, 'line-opacity')
+      this.mutedTunnels.set(id, value)
+      map.setPaintProperty(id, 'line-opacity', mutedTunnelOpacity(value, layer as any) as any)
     }
   }
 

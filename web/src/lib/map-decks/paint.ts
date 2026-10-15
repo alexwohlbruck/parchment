@@ -168,6 +168,9 @@ function hitOn(laid: Laid, k: number, p: Point): Hit | null {
  * under the surface between them.
  */
 function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, color: number[], lift: number, origin: Point, scale: number, depth = 0) {
+  // Ground is kept only beside a deck's end, so a piece of it away from every end is not split further.
+  const near = laid.ground?.near
+  if (corners[0].hit.deck < 0 && near && !near.some(b => meets(b, boundsOf(corners.map(c => c.p))))) return
   const length = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]) / scale
   const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
   const e = sides.indexOf(Math.max(...sides))

@@ -2,6 +2,8 @@
 
 ### Added
 
+* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every pin that stands and flutters in 3D up close.
+
 ### Changed
 
 ### Fixed

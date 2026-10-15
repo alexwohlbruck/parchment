@@ -87,6 +87,9 @@ import {
 } from '@/lib/map-style/barrelman-buildings'
 import {
   OBJECT_FLAT_LAYERS,
+  GOLF_PIN_LAYER,
+  golfPinOpacity,
+  golfFlagStanding,
   TREE_OPACITY,
   DETAIL_TILES,
   BUILDING_3D_TILES,
@@ -423,6 +426,7 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    this.mapInstance.on('pitch', () => this.updateGolfPins())
     // The plan view's clip planes are scaled by a camera distance that moves
     // with the viewport height, so a resize has to recompute them.
     this.mapInstance.on('resize', () => this.updateCameraProjection())
@@ -459,7 +463,10 @@ export class MaplibreStrategy extends MapStrategy {
       // A style swap drops custom layers with it, and rebuilds the flat form's
       // visibility from the stylesheet. A dropped layer must stop casting too:
       // its buffers went with the old style.
-      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
+      if (this.objectLayer) {
+        shadowCasters.delete(this.objectLayer)
+        this.objectLayer.detach(this.mapInstance)
+      }
       this.objectLayer = null
       void this.applyMapObjects()
       // The new style has its own building filters and no landmark layer.
@@ -659,7 +666,7 @@ export class MaplibreStrategy extends MapStrategy {
 
 
   setPoiLabels(value: boolean) {
-    this.setLayerGroupVisibility('poi', layerGroups.poi, value)
+    this.setLayerGroupVisibility('poi', [...layerGroups.poi, ...layerGroups.golfLabels], value)
   }
 
   setRoadLabels(value: boolean) {
@@ -842,6 +849,19 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyDecks()
   }
 
+  private golfPinsStanding: boolean | null = null
+
+  /** Hands the flat pin over to the 3D flagstick, only when pitched enough for it to read. */
+  private updateGolfPins(force = false) {
+    const map = this.mapInstance
+    const standing = golfFlagStanding(this.map3dObjects, map.getPitch())
+    if (!force && standing === this.golfPinsStanding) return
+    this.golfPinsStanding = standing
+    if (map.getLayer(GOLF_PIN_LAYER)) {
+      map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(standing))
+    }
+  }
+
   private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
@@ -855,6 +875,7 @@ export class MaplibreStrategy extends MapStrategy {
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
       }
+      this.updateGolfPins(true)
       if (map.getLayer(WOOD_LAYER)) {
         const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))
         const flavor = this.options.theme === 'dark' ? 'dark' : 'light'

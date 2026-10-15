@@ -14,6 +14,7 @@ import {
   golfSurfaceLayers,
   golfHoleLayers,
   golfLabelLayers,
+  type GolfLabelStyle,
   GOLF_HOLE_LABEL_LAYER,
   GOLF_PIN_LAYER,
   plantedAreaLayers,
@@ -486,7 +487,16 @@ export function buildLayers(options: {
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(converted, flavor, hdRoads) as LayerSpecification[]
+  const park = converted.find(l => l.id === 'Park')
+  const golfLabel: GolfLabelStyle = {
+    font: park?.layout?.['text-font'] ?? ['Geist SemiBold'],
+    color: resolve('@poi_ink_park', tokens, categories, flavor),
+    halo: resolve('@poi_halo', tokens, categories, flavor),
+    haloWidth: park?.paint?.['text-halo-width'] ?? 1.5,
+    haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
+  }
+
+  return spliceDetailLayers(converted, flavor, hdRoads, golfLabel) as LayerSpecification[]
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
@@ -577,7 +587,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, golfLabel: GolfLabelStyle): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
@@ -618,7 +628,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
 
   // Hole numbers and pins sit under every basemap label.
   const firstLabel = out.findIndex(l => l.id === 'River labels')
-  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor))
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, golfLabel))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.

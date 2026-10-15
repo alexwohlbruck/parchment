@@ -2641,6 +2641,15 @@ describe('golf courses', () => {
       expect(at(GOLF_HOLE_LAYER)).toBeGreaterThan(at('Water'))
     })
 
+    test(`${flavor}: hole numbers are written like park names`, () => {
+      const layers = buildLayers({ flavor }) as any[]
+      const park = layers.find(l => l.id === 'Park')
+      const hole = layers.find(l => l.id === GOLF_HOLE_LABEL_LAYER)
+      expect(hole.layout['text-font']).toEqual(park.layout['text-font'])
+      expect(hole.paint['text-halo-color']).toBe(park.paint['text-halo-color'])
+      expect(JSON.stringify(park.paint['text-color'])).toContain(hole.paint['text-color'])
+    })
+
     test(`${flavor}: hole numbers and pins sit under the basemap labels`, () => {
       expect(at(GOLF_PIN_LAYER)).toBeLessThan(at('River labels'))
       expect(at(GOLF_HOLE_LABEL_LAYER)).toBeLessThan(at('River labels'))

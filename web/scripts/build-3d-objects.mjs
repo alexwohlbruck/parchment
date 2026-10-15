@@ -73,6 +73,7 @@ const ROLE_COLOR = {
   rim: [0.86, 0.4, 0.16, 1],
   frame: [0.95, 0.95, 0.94, 1],
   goalpost: [0.95, 0.8, 0.2, 1],
+  pennant: [0.86, 0.2, 0.17, 1],
   wire: [0.36, 0.37, 0.39, 1],
   mesh: [0.68, 0.7, 0.7, 1],
   bloom: [0.86, 0.5, 0.66, 1],
@@ -1230,6 +1231,13 @@ const SPORTS = {
       { role: 'frame', ...frame },
     ]
   }),
+  // A flagstick in its cup: a 2.13 m pole (7 ft, the usual stick) with the
+  // pennant flying along +x from its top.
+  'golf-flag': furnLod(q => [
+    { role: 'interior', ...cylinder(mesh(), half(q), 0.11, 0.11, 0, 0.02) },
+    { role: 'frame', ...cylinder(mesh(), half(q), 0.025, 0.025, 0.021, 2.11) },
+    { role: 'pennant', ...box(mesh(), [0.026, 1.7, -0.01], [0.56, 2.1, 0.01]) },
+  ]),
   'football-goalpost': furnLod(q => [
     { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.1, 0.09, 0, 2.94), [0, 0, 1.5]) },
     { role: 'goalpost', ...box(mesh(), [-0.08, 2.95, 0.1], [0.08, 3.15, 1.45]) },

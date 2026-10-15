@@ -87,6 +87,8 @@ import {
 } from '@/lib/map-style/barrelman-buildings'
 import {
   OBJECT_FLAT_LAYERS,
+  GOLF_PIN_LAYER,
+  golfPinOpacity,
   TREE_OPACITY,
   DETAIL_TILES,
   BUILDING_3D_TILES,
@@ -854,6 +856,9 @@ export class MaplibreStrategy extends MapStrategy {
           layer.type === 'line' ? 'line-opacity' : 'circle-opacity',
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
+      }
+      if (map.getLayer(GOLF_PIN_LAYER)) {
+        map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(this.map3dObjects))
       }
       if (map.getLayer(WOOD_LAYER)) {
         const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))

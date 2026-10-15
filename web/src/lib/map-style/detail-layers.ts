@@ -110,6 +110,13 @@ export const GOLF_SURFACE_LAYER = 'Golf surface'
 export const GOLF_HOLE_LAYER = 'Golf hole'
 export const GOLF_HOLE_LABEL_LAYER = 'Golf hole number'
 export const GOLF_PIN_LAYER = 'Golf pin'
+/** Where the 3D flagstick takes over from the flat pin icon. */
+export const GOLF_FLAG_MINZOOM = 17
+
+/** The pin icon's opacity: hidden where the 3D flagstick stands, when objects are on. */
+export function golfPinOpacity(objects3d: boolean): any {
+  return objects3d ? ['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0] : 1
+}
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -158,9 +165,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfFairway: 'hsl(86, 58%, 81%)',
     golfGreen: 'hsl(80, 64%, 87%)',
     golfBunker: 'hsl(45, 58%, 87%)',
-    golfHole: 'hsla(0, 0%, 100%, 0.95)',
-    golfInk: 'hsl(110, 40%, 22%)',
-    golfHalo: 'hsla(90, 58%, 92%, 0.9)',
+    golfHole: 'hsl(105, 30%, 40%)',
     golfFlag: 'hsl(4, 72%, 52%)',
   },
   dark: {
@@ -183,9 +188,7 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     golfFairway: 'hsl(104, 20%, 24%)',
     golfGreen: 'hsl(96, 24%, 29%)',
     golfBunker: 'hsl(40, 14%, 34%)',
-    golfHole: 'hsla(100, 20%, 85%, 0.55)',
-    golfInk: 'hsl(100, 24%, 82%)',
-    golfHalo: 'hsla(216, 30%, 12%, 0.85)',
+    golfHole: 'hsl(95, 24%, 66%)',
     golfFlag: 'hsl(4, 62%, 62%)',
   },
 }
@@ -573,16 +576,26 @@ export function golfHoleLayers(flavor: FlavorId): any[] {
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': c.golfHole,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1, 18, 1.6, 20, 2.4],
-        'line-dasharray': [2, 2.5],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.5, 1],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1.4, 18, 2.6, 20, 3.6],
+        // Round dots: zero-length dashes drawn with round caps.
+        'line-dasharray': [0, 2.2],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 0.35, 18, 0.7],
       },
     },
   ]
 }
 
+/** How the basemap writes a park's name, which hole numbers borrow. */
+export type GolfLabelStyle = {
+  font: string[]
+  color: string
+  halo: string
+  haloWidth: number
+  haloBlur: number
+}
+
 /** Hole numbers, from the point barrelman serves at each hole's tee, and pins. */
-export function golfLabelLayers(flavor: FlavorId): any[] {
+export function golfLabelLayers(flavor: FlavorId, label: GolfLabelStyle): any[] {
   const c = DETAIL_COLORS[flavor]
   const par = ['to-number', ['get', 'par'], 0]
   return [
@@ -599,18 +612,19 @@ export function golfLabelLayers(flavor: FlavorId): any[] {
           ['get', 'ref'],
           17, ['case',
             ['>', par, 0],
-            ['format', ['get', 'ref'], {}, '\n', {}, ['concat', 'Par ', ['get', 'par']], { 'font-scale': 0.8 }],
+            ['format', ['get', 'ref'], {}, '\n', {}, ['concat', 'Par ', ['get', 'par']], { 'font-scale': 0.7 }],
             ['get', 'ref'],
           ],
         ],
-        'text-font': ['Geist SemiBold'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 15.5, 11, 18, 13],
-        'text-line-height': 1.1,
+        'text-font': label.font,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 15.5, 12, 18, 15],
+        'text-line-height': 1.05,
       },
       paint: {
-        'text-color': c.golfInk,
-        'text-halo-color': c.golfHalo,
-        'text-halo-width': 1.4,
+        'text-color': label.color,
+        'text-halo-color': label.halo,
+        'text-halo-width': label.haloWidth,
+        'text-halo-blur': label.haloBlur,
       },
     },
     {
@@ -629,7 +643,7 @@ export function golfLabelLayers(flavor: FlavorId): any[] {
       },
       paint: {
         'icon-color': c.golfFlag,
-        'icon-halo-color': c.golfHalo,
+        'icon-halo-color': label.halo,
         'icon-halo-width': 1,
       },
     },

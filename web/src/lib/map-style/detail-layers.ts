@@ -116,9 +116,14 @@ export const GOLF_FLAG_MINZOOM = 17
 /** Below this pitch a flagstick seen from above is a dot, so the flat pin stays. */
 export const GOLF_FLAG_MIN_PITCH = 30
 
-/** The pin icon's opacity: it gives way to the 3D flagstick once that stands up in view. */
-export function golfPinOpacity(objects3d: boolean, pitch: number): any {
-  return objects3d && pitch >= GOLF_FLAG_MIN_PITCH ? ['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0] : 1
+/** Whether the 3D flagstick stands up in view, so the flat pin should give way to it. */
+export function golfFlagStanding(objects3d: boolean, pitch: number): boolean {
+  return objects3d && pitch >= GOLF_FLAG_MIN_PITCH
+}
+
+/** The pin icon's opacity: hidden where a standing 3D flagstick takes over. */
+export function golfPinOpacity(standing: boolean): any {
+  return standing ? ['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0] : 1
 }
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */

@@ -89,7 +89,7 @@ import {
   OBJECT_FLAT_LAYERS,
   GOLF_PIN_LAYER,
   golfPinOpacity,
-  GOLF_FLAG_MIN_PITCH,
+  golfFlagStanding,
   TREE_OPACITY,
   DETAIL_TILES,
   BUILDING_3D_TILES,
@@ -426,7 +426,7 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
-    this.mapInstance.on('pitchend', () => this.updateGolfPins())
+    this.mapInstance.on('pitch', () => this.updateGolfPins())
     // The plan view's clip planes are scaled by a camera distance that moves
     // with the viewport height, so a resize has to recompute them.
     this.mapInstance.on('resize', () => this.updateCameraProjection())
@@ -851,11 +851,11 @@ export class MaplibreStrategy extends MapStrategy {
   /** Hands the flat pin over to the 3D flagstick, only when pitched enough for it to read. */
   private updateGolfPins(force = false) {
     const map = this.mapInstance
-    const standing = this.map3dObjects && map.getPitch() >= GOLF_FLAG_MIN_PITCH
+    const standing = golfFlagStanding(this.map3dObjects, map.getPitch())
     if (!force && standing === this.golfPinsStanding) return
     this.golfPinsStanding = standing
     if (map.getLayer(GOLF_PIN_LAYER)) {
-      map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(this.map3dObjects, map.getPitch()))
+      map.setPaintProperty(GOLF_PIN_LAYER, 'icon-opacity', golfPinOpacity(standing))
     }
   }
 

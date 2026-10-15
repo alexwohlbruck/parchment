@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { golfFlagInstance, GOLF_OBJECTS } from './golf'
-import { golfPinOpacity, GOLF_FLAG_MINZOOM, GOLF_FLAG_MIN_PITCH } from '@/lib/map-style/detail-layers'
+import { golfFlagStanding, golfPinOpacity, GOLF_FLAG_MINZOOM, GOLF_FLAG_MIN_PITCH } from '@/lib/map-style/detail-layers'
 import { expression, latest } from '@maplibre/maplibre-gl-style-spec'
 
 describe('golf flags', () => {
@@ -20,10 +20,12 @@ describe('golf flags', () => {
     const at = (value: any, zoom: number) =>
       (expression.createPropertyExpression(value, 'pin.icon-opacity', (latest as any).paint_symbol['icon-opacity']) as any)
         .value.evaluate({ zoom })
-    const pitched = golfPinOpacity(true, GOLF_FLAG_MIN_PITCH)
+    const pitched = golfPinOpacity(true)
     expect(at(pitched, GOLF_FLAG_MINZOOM - 0.01)).toBe(1)
     expect(at(pitched, GOLF_FLAG_MINZOOM)).toBe(0)
-    expect(at(golfPinOpacity(true, 0), 20)).toBe(1)
-    expect(at(golfPinOpacity(false, 60), 20)).toBe(1)
+    expect(at(golfPinOpacity(false), 20)).toBe(1)
+    expect(golfFlagStanding(true, GOLF_FLAG_MIN_PITCH)).toBe(true)
+    expect(golfFlagStanding(true, 0)).toBe(false)
+    expect(golfFlagStanding(false, 60)).toBe(false)
   })
 })

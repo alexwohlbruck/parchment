@@ -33,6 +33,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
+import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -188,13 +189,18 @@ const FS = `
 
 /**
  * Roles that flutter in the wind, by amplitude as a share of the model's height.
- * Animated in the vertex shader, so a flapping flag costs a uniform per frame.
+ * The wave is in the vertex shader; it runs for `FLUTTER_MS` once the map
+ * settles, then holds still so the map goes idle again.
  */
 const FLUTTER: Record<string, number> = { pennant: 0.035 }
-const FLUTTER_MIN_PITCH = 30
+const FLUTTER_MS = 8000
+const FLUTTER_FADE_IN_MS = 600
+const FLUTTER_FADE_OUT_MS = 1500
+/** A whole number of the shader's `sin(6t)` periods, so wrapping the clock never jumps. */
+const FLUTTER_CLOCK_WRAP = 1200 * Math.PI
 
-function flutterOf(role: string, position: Float32Array): [number, number, number] {
-  const amplitude = FLUTTER[role]
+function flutterOf(role: string, position: Float32Array, far: boolean): [number, number, number] {
+  const amplitude = far ? 0 : FLUTTER[role]
   if (!amplitude) return [0, 0, 1]
   let min = Infinity
   let max = -Infinity
@@ -468,6 +474,12 @@ export class ObjectLayer {
   private map: any
   /** `prefers-reduced-motion`; when it matches, fluttering parts hold still. */
   private stillness: MediaQueryList | null = null
+  /** When the current flutter ends; 0 when none is running. */
+  private flutterUntil = 0
+  /** Cleared when a flutter starts and set again by a camera move, so one settle flutters once. */
+  private flutterArmed = true
+  private onIdle?: () => void
+  private onMoveStart?: () => void
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private shadowProgram!: WebGLProgram
@@ -551,7 +563,7 @@ export class ObjectLayer {
             color,
             colorAlt: this.palette[`${p.material}-alt`] ?? color,
             occlusion: crownOcclusion(p.material, p.position),
-            flutter: flutterOf(p.material, p.position),
+            flutter: flutterOf(p.material, p.position, name.endsWith(FAR_SUFFIX)),
           }
         })
       this.models.set(name, {
@@ -581,6 +593,13 @@ export class ObjectLayer {
     this.onMoveEnd = () => this.invalidate(followsView || this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
     map.on('moveend', this.onMoveEnd)
+    this.onMoveStart = () => {
+      this.flutterArmed = true
+      this.stopFlutter()
+    }
+    this.onIdle = () => this.startFlutter()
+    map.on('movestart', this.onMoveStart)
+    map.on('idle', this.onIdle)
     // The tiles are usually already loaded when the layer is added — turning
     // the setting on mid-session is the common case — and neither event would
     // fire again on their own.
@@ -672,6 +691,9 @@ export class ObjectLayer {
   onRemove(map: any, gl: WebGL2RenderingContext) {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
+    if (this.onMoveStart) map.off('movestart', this.onMoveStart)
+    if (this.onIdle) map.off('idle', this.onIdle)
+    this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
     this.scheduled = 0
@@ -911,7 +933,7 @@ export class ObjectLayer {
     gl.cullFace(gl.BACK)
     gl.frontFace(FRONT_FACE === 'cw' ? gl.CW : gl.CCW)
 
-    const fluttering = this.drawObjects(gl, shifted)
+    this.drawObjects(gl, shifted)
 
     for (const loc of Object.values(LOC)) {
       gl.vertexAttribDivisor(loc, 0)
@@ -929,19 +951,15 @@ export class ObjectLayer {
         'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace'])
         if (context[key]) context[key].dirty = true
 
-    // A flag flutters only while one is in view: with none, the map stays idle between gestures.
-    if (fluttering) this.map.triggerRepaint?.()
+    if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
   }
 
-  /** Whether a frame drew something fluttering inside the viewport; see `render`. */
-  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array): boolean {
+  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
-    // From overhead a flag is a dot, so it is not worth a frame a vsync.
-    const still = (this.stillness?.matches ?? false) || (this.map.getPitch?.() ?? 90) < FLUTTER_MIN_PITCH
-    // Wrapped so the float keeps its precision over a long session.
-    gl.uniform1f(this.uniforms.u_time, still ? 0 : (performance.now() / 1000) % 3600)
-    let fluttering = false
+    const now = performance.now()
+    gl.uniform1f(this.uniforms.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
+    const gain = this.flutterGain(now)
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
 
@@ -957,35 +975,68 @@ export class ObjectLayer {
       // danger of fighting itself, since there is no second surface behind it.
       if (model.cullable) gl.enable(gl.CULL_FACE)
       else gl.disable(gl.CULL_FACE)
-      if (model.flutters && !still && !fluttering) fluttering = this.anyInView(batch)
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
-        gl.uniform3fv(this.uniforms.u_flutter, primitive.flutter)
+        const [amplitude, held, run] = primitive.flutter
+        gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
         bindVec3(gl, LOC.a_position, primitive.position)
         bindVec3(gl, LOC.a_normal, primitive.normal)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
-    return fluttering
   }
 
-  /** Whether any instance of a batch stands inside the current viewport. */
-  private anyInView(batch: Batch): boolean {
+  /** The flutter's strength now: eased in as it starts and out before it stops, 0 between. */
+  private flutterGain(now: number): number {
+    if (!this.flutterUntil) return 0
+    const rise = (now - (this.flutterUntil - FLUTTER_MS)) / FLUTTER_FADE_IN_MS
+    const fall = (this.flutterUntil - now) / FLUTTER_FADE_OUT_MS
+    const t = Math.max(0, Math.min(1, rise, fall))
+    return t * t * (3 - 2 * t)
+  }
+
+  /**
+   * Flutter for a while after the map settles, if a fluttering object is in view.
+   *
+   * `map.repaint` keeps frames coming without the map firing `idle` on each
+   * one, which a custom layer's own `triggerRepaint` would; everything waiting
+   * on idle has already had it, since this starts from one.
+   */
+  private startFlutter() {
+    if (!this.flutterArmed || !this.map) return
+    if (this.stillness?.matches || (this.map.getPitch?.() ?? 0) < FLUTTER_MIN_PITCH) return
+    if (!this.flutteringInView()) return
+    this.flutterArmed = false
+    this.flutterUntil = performance.now() + FLUTTER_MS
+    this.map.repaint = true
+  }
+
+  private stopFlutter() {
+    if (!this.flutterUntil) return
+    this.flutterUntil = 0
+    if (this.map) this.map.repaint = false
+  }
+
+  /** Whether any fluttering object stands inside the current viewport. */
+  private flutteringInView(): boolean {
     const bounds = this.map.getBounds?.()
-    if (!bounds) return true
+    if (!bounds) return false
     const corner: Placed = { instance: null as any, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
     project(bounds.getWest(), bounds.getNorth(), 0, corner)
     const [x0, y0] = [corner.x, corner.y]
     project(bounds.getEast(), bounds.getSouth(), 0, corner)
     const [x1, y1] = [corner.x, corner.y]
-    for (let i = 0; i < batch.count; i++) {
-      const x = batch.offset[i * 3] + this.origin[0]
-      const y = batch.offset[i * 3 + 1] + this.origin[1]
-      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true
+    for (const batch of this.batches) {
+      if (!this.models.get(batch.model)?.flutters) continue
+      for (let i = 0; i < batch.count; i++) {
+        const x = batch.offset[i * 3] + this.origin[0]
+        const y = batch.offset[i * 3 + 1] + this.origin[1]
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true
+      }
     }
     return false
   }

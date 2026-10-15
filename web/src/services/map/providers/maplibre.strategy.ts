@@ -97,6 +97,7 @@ import {
   LANDMARK_TILES,
   DETAIL_SOURCE,
   BRIDGE_DECK_TILES,
+  OBJECT_LINE_TILES,
   WOOD_LAYER,
   forestFloorColor,
   woodColorOf,
@@ -956,7 +957,7 @@ export class MaplibreStrategy extends MapStrategy {
     const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)

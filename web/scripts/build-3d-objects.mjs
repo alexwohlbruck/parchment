@@ -1200,12 +1200,13 @@ const FURNITURE = {
 //   at about 6 ft (1.9 m), counterweights on the short side of the pivot.
 // - Flasher mast (AREMA, typical): 5 in (0.13 m) aluminium pipe, lights
 //   centred near 8.5 ft (2.6 m), the crossbuck above, a bell on top.
-// Estimated: the bell (0.3 m dome) and cabinet bevels. Invented: nothing that
-// is not in the sources; ped heads and gate-arm lights are left out as
-// detail a phone cannot see.
+// Estimated: the arm at 6.4 m and its 0.3 m rise, the 0.32 m hangers, the
+// flashers at 2.6 m, the counterweights, the bell (a 0.3 m dome) and the
+// bevels. Left out as detail a phone cannot see: pedestrian heads, gate-arm
+// lights, and the flashers on a mast's far side.
 
 /** Shaded soft across bevels and round sections, crisp at real corners. */
-const SOFT_CREASE = 50
+const SOFT_CREASE = 75
 
 const rooted = (make, name) => Object.assign(make, { fit: { scale: 1 / FIXTURE_HEIGHTS[name], cx: 0, cz: 0, base: 0 }, soft: true })
 const fixtureParts = roles => Object.fromEntries(roles.map(r => [r, mesh()]))
@@ -1233,21 +1234,22 @@ const pipe = (sides, r0, r1, y0, y1, [x, z] = [0, 0]) => shift(cylinder(mesh(), 
 const softBox = (m, lo, hi, r, q) => roundedBox(m, lo, hi, Math.min(r, (hi[0] - lo[0]) / 2, (hi[2] - lo[2]) / 2), q.seg ? 1 : 0)
 
 /** One 12 in lens facing -z, centred at (x, y) on a face at `z`. */
-const lens = (m, x, y, z, q) => placed(m, p => cylinder(p, q.seg ? 6 : 4, 0.15, 0.15, 0, 0.04), { along: 'z', at: [x, y, z - 0.04] })
+const lens = (m, x, y, z, q) => placed(m, p => cylinder(p, q.seg ? 8 : 6, 0.15, 0.15, 0, 0.04), { along: 'z', at: [x, y, z - 0.04] })
 
 /** A three-section head hung from the arm at `x`, its top at `top`: housing, bordered backplate, lenses under visors. */
 function signalHead(parts, x, top, q) {
   const [w, h, d] = [0.36, 1.04, 0.23]
   softBox(parts.housing, [x - w / 2, top - h, -d / 2], [x + w / 2, top, d / 2], 0.05, q)
-  // The backplate, black on a yellow border, just behind the housing.
-  box(parts.reflector, [x - w / 2 - 0.13, top - h - 0.13, d / 2], [x + w / 2 + 0.13, top + 0.13, d / 2 + 0.02])
-  if (q.seg) box(parts.housing, [x - w / 2 - 0.08, top - h - 0.08, d / 2 + 0.02], [x + w / 2 + 0.08, top + 0.08, d / 2 + 0.035])
+  // The backplate behind the housing: black, its yellow border showing only to the traffic it faces.
+  box(parts.housing, [x - w / 2 - 0.08, top - h - 0.08, d / 2], [x + w / 2 + 0.08, top + 0.08, d / 2 + 0.015])
+  box(parts.reflector, [x - w / 2 - 0.13, top - h - 0.13, d / 2 + 0.015], [x + w / 2 + 0.13, top + 0.13, d / 2 + 0.035])
+  box(parts.housing, [x - w / 2 - 0.13, top - h - 0.13, d / 2 + 0.035], [x + w / 2 + 0.13, top + 0.13, d / 2 + 0.05])
   ;['lens-red', 'lens-amber', 'lens-green'].forEach((role, k) => {
     const y = top - 0.18 - k * 0.34
     lens(parts[role], x, y, -d / 2, q)
     if (q.seg) box(parts.housing, [x - 0.17, y + 0.15, -d / 2 - 0.24], [x + 0.17, y + 0.18, -d / 2])
   })
-  if (q.seg) box(parts.steel, [x - 0.04, top, -0.04], [x + 0.04, top + 0.2, 0.04])
+  box(parts.steel, [x - 0.04, top, -0.04], [x + 0.04, top + 0.32, 0.04])
 }
 
 /** A mast arm pole on the corner, its arm over `heads` lanes and a head over the middle of each. */
@@ -1291,7 +1293,8 @@ function crossingMast(parts, q, { lights }) {
   const top = lights ? CROSSING_POLE - 0.3 : CROSSBUCK_POST
   softBox(parts.steel, [-0.22, 0, -0.22], [0.22, 0.2, 0.22], 0.06, q)
   merge(parts.steel, pipe(q.seg ? 10 : 5, 0.065, 0.065, 0.2, top))
-  crossbuck(parts, top - 0.6, q)
+  crossbuck(parts, top - 0.5, q)
+  box(parts.steel, [-0.05, top - 0.55, -0.17], [0.05, top - 0.45, -0.03])
   if (!lights) return
   const y = 2.6
   box(parts.steel, [-0.5, y - 0.05, -0.12], [0.5, y + 0.05, -0.04])
@@ -1310,12 +1313,13 @@ const crossingGate = lanes => rooted(furnLod(q => {
   const parts = fixtureParts(['steel', 'housing', 'sign', 'lens-red', 'tape'])
   crossingMast(parts, q, { lights: true })
   softBox(parts.housing, [-0.62, GATE_PIVOT - 1.0, -0.2], [-0.12, GATE_PIVOT + 0.05, 0.2], 0.06, q)
+  for (const y of [GATE_PIVOT - 0.85, GATE_PIVOT - 0.15]) box(parts.steel, [-0.14, y, -0.06], [0, y + 0.1, 0.06])
   // Counterweights hang on the short side of the pivot, down beside the cabinet.
   softBox(parts.steel, [-0.95, GATE_PIVOT - 1.1, -0.15], [-0.65, GATE_PIVOT - 0.2, 0.15], 0.04, q)
   box(parts.steel, [-0.9, GATE_PIVOT - 0.2, -0.05], [-0.62, GATE_PIVOT + 0.05, 0.05])
   // The arm in 16 in bands, red and white; far off, two long halves.
   const length = gateArm(lanes)
-  const band = q.seg ? 0.41 : length / 2
+  const band = q.seg ? 0.41 : 1.2
   for (let y = 0, k = 0; y < length - 0.01; y += band, k++) {
     const [r0, r1] = [0.06 - (0.03 * y) / length, 0.06 - (0.03 * Math.min(length, y + band)) / length]
     merge(k % 2 ? parts['lens-red'] : parts.tape, pipe(4, r0, r1, GATE_PIVOT + y, GATE_PIVOT + Math.min(length, y + band), [-0.78, 0]))

@@ -1463,6 +1463,7 @@ function showSegmentChart(segment: any): boolean {
                     <RouteBullet
                       v-else
                       size="md"
+                      class="shrink-0 max-w-[60%]"
                       :label="entry.segment.lineName"
                       :color="entry.segment.lineColor"
                       :text-color="entry.segment.lineTextColor"

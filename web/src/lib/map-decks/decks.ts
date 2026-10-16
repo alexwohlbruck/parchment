@@ -120,7 +120,7 @@ const lerp = (a: Point, b: Point, t: number): Point => [a[0] + (b[0] - a[0]) * t
 
 /** A line's bounds, grown by `metres` all round. */
 export function boundsOf(points: Point[], metres = 0): Bounds {
-  const pad = metres / metresPerUnit(points[0][1])
+  const pad = metres ? metres / metresPerUnit(points[0][1]) : 0
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
   for (const [x, y] of points) [minX, minY, maxX, maxY] = [Math.min(minX, x), Math.min(minY, y), Math.max(maxX, x), Math.max(maxY, y)]
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
@@ -874,6 +874,77 @@ export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {
     }
   }
   return out
+}
+
+/** Whether a point lies inside a polygon's rings, by the even-odd rule. */
+export function inside([x, y]: Point, rings: Point[][]): boolean {
+  let hit = false
+  for (const ring of rings)
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [[xi, yi], [xj, yj]] = [ring[i], ring[j]]
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
+    }
+  return hit
+}
+
+/**
+ * Metres from a deck's centreline to the kerb on each side at every vertex,
+ * from points on the outlines of the carriageways it carries; its edge where
+ * none lies within a sample of a vertex.
+ */
+export function kerbsOf(chain: Chain, kerbs: Point[]): [number[], number[]] {
+  const n = chain.points.length
+  const out: [number[], number[]] = [new Array(n).fill(NaN), new Array(n).fill(NaN)]
+  const bounds = boundsOf(chain.points, Math.max(...chain.edges) + 1)
+  for (const q of kerbs) {
+    if (!holds(bounds, q)) continue
+    const near = beside(chain.points, q)
+    const side = near.left ? 0 : 1
+    const i = near.t < 0.5 ? near.segment - 1 : near.segment
+    if (!near.alongside || near.distance > sideAt(chain, side, i) + 1) continue
+    out[side][i] = Number.isNaN(out[side][i]) ? near.distance : Math.max(out[side][i], near.distance)
+  }
+  const d = along(chain.points)
+  return out.map((k, side) => k.map((v, i) => {
+    if (!Number.isNaN(v)) return Math.min(v, sideAt(chain, side as 0 | 1, i))
+    let best = -1
+    const reach = i === 0 || i === n - 1 ? Infinity : KERB_REACH
+    for (let j = 0; j < n; j++) if (!Number.isNaN(k[j]) && Math.abs(d[j] - d[i]) <= reach && (best < 0 || Math.abs(d[j] - d[i]) < Math.abs(d[best] - d[i]))) best = j
+    return best < 0 ? sideAt(chain, side as 0 | 1, i) : Math.min(k[best], sideAt(chain, side as 0 | 1, i))
+  })) as [number[], number[]]
+}
+
+/** Widest walkway band a deck draws beside its kerb, in metres. */
+const SIDEWALK_MAX = 4.5
+
+/** Farthest along a deck a kerb reading carries to vertices with none of their own, in metres. */
+const KERB_REACH = 9
+
+/** The walkway between each kerb and the deck's edge, a few millimetres over the asphalt. */
+export function kerbBands(chain: Chain, z: number[], groundAt: number[], kerbs: [number[], number[]], colors: { walkway: number[]; low: number[] }, origin: Point, out: Mesh) {
+  const pts = chain.points
+  const n = pts.length
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const normal = (i: number): Point => {
+    const [a, b] = [pts[Math.max(0, i - 1)], pts[Math.min(n - 1, i + 1)]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    return [-(b[1] - a[1]) / len, (b[0] - a[0]) / len]
+  }
+  const at = (i: number, by: number, lift: number) => {
+    const nn = normal(i)
+    return [pts[i][0] + nn[0] * by * scale - origin[0], pts[i][1] + nn[1] * by * scale - origin[1], (z[i] + lift) * scale]
+  }
+  for (const side of [0, 1] as const) {
+    const sign = side ? -1 : 1
+    for (let i = 1; i < n; i++) {
+      const [k0, k1, e0, e1] = [kerbs[side][i - 1], kerbs[side][i], sideAt(chain, side, i - 1), sideAt(chain, side, i)]
+      // Wider than a sidewalk is room between carriageways, which on a deck stays road.
+      if ((e0 - k0 < 0.2 && e1 - k1 < 0.2) || Math.max(e0 - k0, e1 - k1) > SIDEWALK_MAX) continue
+      const corners = [at(i - 1, sign * k0, 0.005), at(i, sign * k1, 0.005), at(i, sign * e1, 0.005), at(i - 1, sign * e0, 0.005)]
+      const bias = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i]), touchdown(z[i] - groundAt[i]), touchdown(z[i - 1] - groundAt[i - 1])]
+      for (const t of [[0, 1, 2], [0, 2, 3]]) for (const c of t) vertex(out, corners[c], [0, 0, 1], colors.walkway, colors.low, bias[c])
+    }
+  }
 }
 
 /** Most a curve turns between two vertices of a drawn deck, in radians. */

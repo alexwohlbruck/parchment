@@ -11,6 +11,8 @@
 
 ### Changed
 
+* 3D road bridges are concrete with the road laid on them at its own width, so streets no longer look wider on a bridge, and the road meets each bridge end without a seam.
+
 * In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
 * The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 

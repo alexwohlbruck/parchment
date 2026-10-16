@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { along, boundsOf, deckMeshOut, grownRing, inside, metresPerUnit, type Point } from './decks'
 import { layPaint } from './paint'
+import { testSurface } from './test-surface'
 
 const y0 = 0.4012
 const M = 1 / metresPerUnit(y0)
@@ -20,8 +21,7 @@ describe('inside', () => {
 
 describe('a carriageway past a deck\'s skewed end', () => {
   const points = line(0, 20, 40)
-  const surface = { points, z: [100, 100, 100], d: along(points), width: 13, bounds: boundsOf(points, 7), ground: [100, 100, 100],
-    edges: [points.map(([x, y]) => [x, y + 6 * M] as Point), points.map(([x, y]) => [x, y - 6 * M] as Point)] as [Point[], Point[]] }
+  const surface = testSurface(points, [100, 100, 100], [100, 100, 100])
   const area = [[at(-15, -5), at(40, -5), at(40, 5), at(-15, 5)]]
   const paint = [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: [area] }]
   const near = [boundsOf([at(-20, 0), at(0, 0)], 8)]
@@ -49,7 +49,9 @@ describe('a carriageway past a deck\'s skewed end', () => {
   test('is not laid beside the deck where the ground is not known', () => {
     const mesh = deckMeshOut()
     layPaint(mesh, paint, [surface], colors, points[0], { ground: { at: () => null, near, low: [0.9, 0.9, 0.9] } })
-    for (let k = 0; k < mesh.position.length; k += 3) expect(mesh.position[k] / M).toBeGreaterThan(-0.01)
+    expect(mesh.position.length).toBeGreaterThan(0)
+    // Only what lies on the deck, which runs a quarter metre past its drawn end.
+    for (let k = 0; k < mesh.position.length; k += 3) expect(mesh.position[k] / M).toBeGreaterThan(-0.26)
   })
 })
 
@@ -57,10 +59,7 @@ describe('a painted area with no corner on a deck', () => {
   test('is cut to decks at its own level and never onto one far below', () => {
     const upper = line(0, 30)
     const lower = line(0, 30).map(([x, y]) => [x, y + 20 * M] as Point)
-    const decks = [
-      { points: upper, z: [110, 110], d: along(upper), width: 9, bounds: boundsOf(upper, 5) },
-      { points: lower, z: [100, 100], d: along(lower), width: 9, bounds: boundsOf(lower, 5), edges: [lower.map(([x, y]) => [x, y + 4 * M] as Point), lower.map(([x, y]) => [x, y - 4 * M] as Point)] as [Point[], Point[]] },
-    ]
+    const decks = [testSurface(upper, [110, 110], [100, 100], 4), testSurface(lower, [100, 100], [92, 92], 4)]
     // A long thin hatch whose corners lie past both decks' sides, at the upper deck's level by its own corner on it.
     const ring = [at(10, 0), at(12, 0), at(12, 30), at(10, 30)]
     const mesh = deckMeshOut()
@@ -102,5 +101,15 @@ describe('an area on a deck\'s drawn top', () => {
       const expected = x <= 10 ? 100 + x / 10 : 101 + (Math.min(x, 20) - 10) / 10
       if (x < 20) expect(p[k + 2] * metresPerUnit(y0)).toBeCloseTo(expected + 0.01, 2)
     }
+  })
+})
+
+describe('subtractConvex', () => {
+  test('leaves exactly the area outside the hole, and ignores an edge of no length', async () => {
+    const { subtractConvex } = await import('./decks')
+    const tri = [at(0, 0), at(10, 0), at(0, 10)]
+    const hole = [at(0, 0), at(5, 0), at(5, 0), at(5, 5), at(0, 5)]
+    const area = (p: Point[]) => Math.abs(p.reduce((a, q, i) => a + q[0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * q[1], 0)) / 2 / (M * M)
+    expect(subtractConvex(tri, hole).reduce((a, p) => a + area(p), 0)).toBeCloseTo(50 - 25, 1)
   })
 })

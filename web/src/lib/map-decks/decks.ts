@@ -514,30 +514,6 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
   return [left, right]
 }
 
-/** A deck's drawn edges: `edgePoints` with each end corner moved along the deck to its cap, as `deckMesh` draws it. */
-export function cappedEdges(chain: Chain): [Point[], Point[]] {
-  const [left, right] = edgePoints(chain)
-  const caps = chain.caps
-  const pts = chain.points
-  const n = pts.length
-  if (!caps || n < 2) return [left, right]
-  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
-  const move = (side: Point[], i: number, cap: number) => {
-    const [a, b] = i ? [pts[n - 2], pts[n - 1]] : [pts[1], pts[0]]
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
-    const by = (-cap * scale) / len
-    side[i] = [side[i][0] + (b[0] - a[0]) * by, side[i][1] + (b[1] - a[1]) * by]
-  }
-  move(left, 0, caps[0] - END_OVERLAP)
-  move(right, 0, caps[1] - END_OVERLAP)
-  move(left, n - 1, caps[2] - END_OVERLAP)
-  move(right, n - 1, caps[3] - END_OVERLAP)
-  return [left, right]
-}
-
-/** Metres what is laid on a deck runs on past its drawn end, so no sliver of the deck's edge shows between it and the road beyond. */
-const END_OVERLAP = 0.25
-
 /** A ring grown outward by `metres`, each corner moved along its mitre. */
 export function grownRing(ring: Point[], metres: number): Point[] {
   const n = ring.length
@@ -999,25 +975,51 @@ export function topZ(deck: DeckSurface, i: number, p: Point): number | null {
     const q = deck.tops?.[j - 1]
     if (!q) continue
     for (const [a, b, c] of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
-      const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
-      if (!det) continue
-      const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det
-      const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det
-      if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) return u * a[2] + v * b[2] + (1 - u - v) * c[2]
+      const w = barycentric(a, b, c, p)
+      if (w && w[0] >= -1e-6 && w[1] >= -1e-6 && w[0] + w[1] <= 1 + 1e-6) return w[0] * a[2] + w[1] * b[2] + (1 - w[0] - w[1]) * c[2]
     }
   }
   return null
 }
 
+/** A point's weights on a triangle's first two corners (the third takes the rest); null for a flat triangle. */
+function barycentric(a: number[], b: number[], c: number[], p: Point): [number, number] | null {
+  const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+  if (!det) return null
+  return [((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det, ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det]
+}
+
+/** The height of the plane through three points (x, y, z) over a point. */
+export function planeOf(a: number[], b: number[], c: number[]): (p: Point) => number {
+  return p => {
+    const w = barycentric(a, b, c, p)
+    return w ? w[0] * a[2] + w[1] * b[2] + (1 - w[0] - w[1]) * c[2] : (a[2] + b[2] + c[2]) / 3
+  }
+}
+
+/** The inward normal of each edge of a convex polygon, by its first point; none for an edge of no length. */
+function insides(convex: Point[]): Array<[Point, Point]> {
+  const centre: Point = [convex.reduce((a, p) => a + p[0], 0) / convex.length, convex.reduce((a, p) => a + p[1], 0) / convex.length]
+  return convex.flatMap((a, e) => {
+    const b = convex[(e + 1) % convex.length]
+    let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
+    if (!n[0] && !n[1]) return []
+    if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
+    return [[a, n]]
+  })
+}
+
+/** A polygon cut to a convex one. */
+export function convexClip(poly: Point[], convex: Point[]): Point[] {
+  return insides(convex).reduce((out, [a, n]) => (out.length >= 3 ? halfPlane(out, a, n) : out), poly)
+}
+
 /** A convex polygon less a convex one, as convex pieces that do not overlap. */
 export function subtractConvex(poly: Point[], hole: Point[]): Point[][] {
-  const centre: Point = [hole.reduce((a, p) => a + p[0], 0) / hole.length, hole.reduce((a, p) => a + p[1], 0) / hole.length]
   const out: Point[][] = []
   let rest = poly
-  for (let e = 0; e < hole.length && rest.length >= 3; e++) {
-    const [a, b] = [hole[e], hole[(e + 1) % hole.length]]
-    let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
-    if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
+  for (const [a, n] of insides(hole)) {
+    if (rest.length < 3) break
     const outside = halfPlane(rest, a, [-n[0], -n[1]])
     if (outside.length >= 3) out.push(outside)
     rest = halfPlane(rest, a, n)

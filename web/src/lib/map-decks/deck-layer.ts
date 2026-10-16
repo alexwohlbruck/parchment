@@ -18,7 +18,6 @@ import {
   absorbPaths,
   absorbTracks,
   grownRing,
-  cappedEdges,
   inside,
   deckMeshOut,
   endsMade,
@@ -70,7 +69,7 @@ import {
   tileBounds,
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
-import { layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
+import { AT_GRADE, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 import { HD_FADE } from '@/lib/map-style/road-markings'
@@ -127,7 +126,7 @@ export type DeckSources = {
 function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   return surfaces.flatMap(s => {
     const total = s.d[s.d.length - 1]
-    const low = (i: number) => Math.min(s.d[i], total - s.d[i]) <= 15
+    const low = (i: number) => Math.min(s.d[i], total - s.d[i]) <= AT_GRADE.reach
     const n = s.points.length
     let [head, tail] = [0, n - 1]
     while (head < n && low(head)) head++
@@ -403,7 +402,7 @@ export class DeckLayer {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: cappedEdges(chain), tops: tops[k],
+        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k],
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))

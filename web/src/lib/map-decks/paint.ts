@@ -22,8 +22,19 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
-/** Highest a deck stands over the ground where the road beyond it is still laid on it, in metres: as far up as its end is drawn over the terrain. */
-const AT_GRADE = TOUCHDOWN.fade
+/**
+ * Where the road beyond a deck is laid on it: within AT_GRADE.reach metres of
+ * one of its ends, and no more than AT_GRADE.over over the ground, so a road
+ * passing under it is never lifted onto it.
+ */
+const AT_GRADE = { reach: 15, over: 6 }
+
+/** Whether a deck, `t` of the way along its segment ending at `i`, is near enough its end and low enough to carry the road beyond it. */
+function atGradeAt(deck: DeckSurface, i: number, t: number): boolean {
+  const at = (v: number[]) => v[i - 1] + (v[i] - v[i - 1]) * t
+  const d = at(deck.d)
+  return Math.min(d, deck.d[deck.d.length - 1] - d) <= AT_GRADE.reach && at(deck.z) - (deck.ground ? at(deck.ground) : -Infinity) < AT_GRADE.over
+}
 
 const centroid = (p: Point[]): Point => [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3]
 /** How far below its lift on a deck paint on the ground beside one is laid, so the deck's own wins where both are. */
@@ -65,7 +76,7 @@ function onGround(laid: Laid, p: Point, nearEnd = true): Hit | null {
  * lies on the ground and so would hide it.
  */
 export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground }: { atGrade?: boolean; ground?: Ground } = {}) {
-  const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < AT_GRADE ? hit : null)
+  const grounded = (hit: Hit | null) => (hit && atGradeAt(surfaces[hit.deck], hit.segment, hit.t) ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
     if (props.pattern === 'none') continue
@@ -199,7 +210,7 @@ function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: nu
   const scale = 1 / metresPerUnit(triangle[0][1])
   const box = { minX: Math.min(...triangle.map(p => p[0])), maxX: Math.max(...triangle.map(p => p[0])), minY: Math.min(...triangle.map(p => p[1])), maxY: Math.max(...triangle.map(p => p[1])) }
   for (let i = 1; i < deck.points.length; i++) {
-    if (laid.grounded && deck.ground && Math.max(deck.z[i - 1] - deck.ground[i - 1], deck.z[i] - deck.ground[i]) >= AT_GRADE) continue
+    if (laid.grounded && !atGradeAt(deck, i, 0) && !atGradeAt(deck, i, 1)) continue
     const quad = [left[i - 1], left[i], right[i], right[i - 1]]
     if (quad.every(p => p[0] < box.minX) || quad.every(p => p[0] > box.maxX) || quad.every(p => p[1] < box.minY) || quad.every(p => p[1] > box.maxY)) continue
     const centre: Point = [quad.reduce((a, p) => a + p[0], 0) / 4, quad.reduce((a, p) => a + p[1], 0) / 4]

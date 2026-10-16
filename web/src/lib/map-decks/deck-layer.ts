@@ -26,7 +26,6 @@ import {
   underWay,
   runsWith,
   touchdown,
-  TOUCHDOWN,
   type UnderWay,
   UNDER_SLACK,
   besideGround,
@@ -125,7 +124,8 @@ export type DeckSources = {
 /** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
 function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   return surfaces.flatMap(s => {
-    const low = (i: number) => s.z[i] - (s.ground?.[i] ?? -Infinity) < TOUCHDOWN.fade
+    const total = s.d[s.d.length - 1]
+    const low = (i: number) => Math.min(s.d[i], total - s.d[i]) <= 15
     const n = s.points.length
     let [head, tail] = [0, n - 1]
     while (head < n && low(head)) head++

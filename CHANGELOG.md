@@ -23,6 +23,7 @@
 * A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
 * Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 * Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
+* Commuter rail legs like the LIRR and Metro-North show the branch name, such as Port Washington Branch, with the train number beside the destination.
 
 ## [0.15.0] - 2026-10-15
 

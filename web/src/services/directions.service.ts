@@ -266,11 +266,12 @@ function directionsService() {
     const td = seg.details?.transitDetails
     if (!td) return {}
     return {
-      lineName: td.shortName || td.route?.shortName,
+      lineName: td.shortName || td.route?.shortName || td.route?.longName,
       lineColor: td.color || td.route?.color,
       lineTextColor: td.textColor || td.route?.textColor,
       lineLongName: td.route?.longName,
       headsign: td.headsign || td.trip?.headsign,
+      tripShortName: td.trip?.shortName,
       // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
       // (length > 1) on merged legs — render "4 or 5" and union the board.
       routeOptions: (td.routeOptions ?? []).map((r: any) => ({
@@ -279,7 +280,6 @@ function directionsService() {
         textColor: r.textColor,
       })),
       directionId: td.directionId,
-      vehicleNumber: td.shortName || td.route?.shortName,
       agencyName: td.route?.agency?.name,
       agencyId: td.route?.agency?.id,
       routeType: td.route?.type,

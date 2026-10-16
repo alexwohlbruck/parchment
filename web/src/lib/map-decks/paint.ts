@@ -135,18 +135,21 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   const flat = rings.flat()
   const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
-  // The level of the mark: the highest deck any of its corners lies on; with none, it is cut to no deck.
-  const onAny = laid.under.filter((h): h is Hit => !!h)
-  const level = onAny.length ? Math.max(...onAny.map(h => h.z)) : null
+  // The level of the mark about a point: the deck under its nearest corner on one; with none, it is cut to no deck.
+  const onAny = flat.flatMap((p, k) => (laid.under[k] ? [{ p, z: laid.under[k]!.z }] : []))
+  const levelNear = (q: Point) => onAny.length
+    ? onAny.reduce((a, b) => (Math.hypot(b.p[0] - q[0], b.p[1] - q[1]) < Math.hypot(a.p[0] - q[0], a.p[1] - q[1]) ? b : a)).z
+    : null
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
     if (corners.some(k => !laid.under[k])) {
       // Only decks at the level of the paint: a corner can lie over a deck stacked under it. A triangle
       // with no corner on any deck can still cross one.
       const tri = corners.map(k => flat[k])
+      const centre = centroid(tri)
+      const level = levelNear(centre)
       if (level !== null) {
         const box = boundsOf(tri)
-        const centre = centroid(tri)
         for (const [k, d] of laid.surfaces.entries())
           if (d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) clipped(mesh, tri, k, laid, color, lift, origin)
       }

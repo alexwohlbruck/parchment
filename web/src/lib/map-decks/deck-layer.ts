@@ -17,6 +17,8 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
+  jointAreas,
+  wayEnds,
   grownRing,
   inside,
   deckMeshOut,
@@ -332,6 +334,8 @@ export class DeckLayer {
     const ways = deduped.flatMap(({ kind, points }) => (kind === 'road' ? [] : [{ kind, points }]))
     const roads = deduped.flatMap(piece => (piece.kind === 'road' && piece.road ? [{ piece, bounds: boundsOf(piece.points, MAX_REACH) }] : []))
     const placed = served.flatMap(d => this.place({ ...d, chain: { ...d.chain, road: classUnder(d.chain, roads) } }))
+    // Where each deck's way meets the road on the ground, before its ends are carried on as road.
+    const joints = placed.flatMap(({ chain }) => wayEnds(chain))
     if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
     // A cut where a tile meets another loaded one joins back up; one at the
@@ -415,6 +419,10 @@ export class DeckLayer {
     const ground = { at: (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }, near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
+    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
+    const atGrade = this.carriageways(false, ends)
+    const wedges = jointAreas([...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))], [...paved, ...atGrade].flatMap(c => c.areas.map(rings => rings[0])))
+    layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin, { ground })
     layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })

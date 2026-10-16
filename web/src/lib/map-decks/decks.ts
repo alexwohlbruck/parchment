@@ -514,6 +514,56 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
   return [left, right]
 }
 
+/** A grounded deck's ends: where its way meets the road on the ground, and the way's direction out of it. */
+export function wayEnds(chain: Chain): Array<{ p: Point; out: Point; half: number }> {
+  const pts = chain.points
+  const n = pts.length
+  if (n < 2) return []
+  const unit = (a: Point, b: Point): Point => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l] }
+  return [
+    ...(chain.grounded[0] ? [{ p: pts[0], out: unit(pts[1], pts[0]), half: Math.max(...chain.edges) }] : []),
+    ...(chain.grounded[1] ? [{ p: pts[n - 1], out: unit(pts[n - 2], pts[n - 1]), half: Math.max(...chain.edges) }] : []),
+  ]
+}
+
+/** Metres along a way from its end within which carriageway corners make up the joint there. */
+const JOINT_ALONG = 1.2
+
+/**
+ * The joint at each way end: the convex hull of the carriageway corners lying
+ * at it within the deck's width, from both the road on the ground and the bridge's own, so the wedge
+ * between their square ends is paved. None where fewer than three corners lie there.
+ */
+export function jointAreas(ends: Array<{ p: Point; out: Point; half: number }>, rings: Point[][]): Point[][] {
+  return ends.flatMap(({ p, out, half }) => {
+    const scale = metresPerUnit(p[1])
+    const near: Point[] = []
+    for (const ring of rings)
+      for (const q of ring) {
+        const [dx, dy] = [(q[0] - p[0]) * scale, (q[1] - p[1]) * scale]
+        if (Math.abs(dx * out[0] + dy * out[1]) <= JOINT_ALONG && Math.abs(-dx * out[1] + dy * out[0]) <= half + 0.5) near.push(q)
+      }
+    const hull = convexHull(near)
+    return hull.length >= 3 ? [hull] : []
+  })
+}
+
+/** The convex hull of some points (monotone chain). */
+export function convexHull(points: Point[]): Point[] {
+  const ps = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  if (ps.length < 3) return ps
+  const cross = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const half = (list: Point[]) => {
+    const h: Point[] = []
+    for (const q of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop()
+      h.push(q)
+    }
+    return h.slice(0, -1)
+  }
+  return [...half(ps), ...half([...ps].reverse())]
+}
+
 /** A ring grown outward by `metres`, each corner moved along its mitre. */
 export function grownRing(ring: Point[], metres: number): Point[] {
   const n = ring.length

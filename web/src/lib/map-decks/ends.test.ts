@@ -113,3 +113,17 @@ describe('subtractConvex', () => {
     expect(subtractConvex(tri, hole).reduce((a, p) => a + area(p), 0)).toBeCloseTo(50 - 25, 1)
   })
 })
+
+describe('jointAreas', () => {
+  test('paves the wedge between two square ends that bend at a node', async () => {
+    const { jointAreas, inside } = await import('./decks')
+    // The bridge runs east from x=0, the road on the ground leaves it bent 5 degrees, each ending square to itself.
+    const t = Math.tan((5 * Math.PI) / 180)
+    const bridge = [at(0, -3), at(30, -3), at(30, 3), at(0, 3)]
+    const road = [at(0 + 3 * t, -3), at(0 - 3 * t, 3), at(-30, 3 - 30 * t), at(-30, -3 - 30 * t)]
+    const [joint] = jointAreas([{ p: at(0, 0), out: [-1, 0], half: 4 }], [bridge, road])
+    expect(joint).toBeDefined()
+    expect(inside(at(-0.1, 2.9), [joint])).toBe(true)
+    expect(inside(at(0, 6), [joint])).toBe(false)
+  })
+})

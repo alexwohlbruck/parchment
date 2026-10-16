@@ -1471,6 +1471,12 @@ function showSegmentChart(segment: any): boolean {
                     <span class="text-sm font-semibold text-foreground truncate">
                       {{ entry.segment.headsign || entry.segment.lineLongName }}
                     </span>
+                    <span
+                      v-if="entry.segment.tripShortName"
+                      class="text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
+                    >
+                      {{ translate('directions.trainNumber', { number: entry.segment.tripShortName }) }}
+                    </span>
                     <RealtimeIndicator
                       v-if="entry.segment.realTimeData"
                       :real-time="true"

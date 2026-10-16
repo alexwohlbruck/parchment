@@ -49,12 +49,14 @@ const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   metadata: { searchWindow: 3600 },
 }))
 const mockGetNearestEntrance = mock<AnyAsync>(async () => null)
+const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
     getTransitRoute: mockGetTransitRoute,
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
+    getRoutesForStop: mockGetRoutesForStop,
   },
 }))
 
@@ -223,6 +225,8 @@ beforeEach(() => {
   mockGetNearestEntrance.mockReset()
   mockGetNearestEntrance.mockImplementation(async () => null)
   mockSearchByCategory.mockReset()
+  mockGetRoutesForStop.mockReset()
+  mockGetRoutesForStop.mockImplementation(async () => [])
   tripService = new TripService()
 
   // Default transit mock — no itineraries (tests opt in)
@@ -627,6 +631,44 @@ describe('TripService — planTrip with transit', () => {
 
     // Should still have walking/driving/biking trips
     expect(response.trips.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('a rail leg reads by its branch, with the train number on the trip', async () => {
+    mockGetRoutesForStop.mockImplementation(async () => [
+      { routeId: '9', feedId: '38', routeShortName: null, routeLongName: 'Port Washington Branch', routeType: 2 },
+    ])
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [{
+          mode: 'REGIONAL_RAIL',
+          transitLeg: true,
+          from: { name: 'Penn Station', lat: 35.21, lng: -80.85, stopId: '38_237' },
+          to: { name: 'Flushing-Main St', lat: 35.225, lng: -80.845, stopId: '38_55' },
+          startTime: '2026-01-15T08:00:00Z',
+          endTime: '2026-01-15T08:20:00Z',
+          duration: 1200,
+          distance: 15000,
+          routeId: '38_9',
+          routeShortName: '354',
+          routeLongName: 'Port Washington Branch',
+          headsign: 'Port Washington',
+        }],
+      })],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const td = response.trips[0].trip.segments
+      .find((s) => s.mode === 'transit')!.details!.transitDetails!
+    expect(mockGetRoutesForStop).toHaveBeenCalledWith('38', '237')
+    expect(td.shortName).toBe('Port Washington Branch')
+    expect(td.route.shortName).toBeUndefined()
+    expect(td.trip.shortName).toBe('354')
   })
 
   test('ranks trips by duration (fastest first)', async () => {

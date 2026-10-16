@@ -994,16 +994,35 @@ export type Top = [number[], number[], number[], number[]]
 
 /** The height of a deck's drawn top over a point, from the two triangles of its segment `i` (as `deckMesh` splits it); null outside both. */
 export function topZ(deck: DeckSurface, i: number, p: Point): number | null {
-  const q = deck.tops?.[i - 1]
-  if (!q) return null
-  for (const [a, b, c] of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
-    const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
-    if (!det) continue
-    const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det
-    const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det
-    if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) return u * a[2] + v * b[2] + (1 - u - v) * c[2]
+  // The nearest centreline segment is not always the drawn one over a point at a bend or a skewed end.
+  for (const j of [i, i - 1, i + 1]) {
+    const q = deck.tops?.[j - 1]
+    if (!q) continue
+    for (const [a, b, c] of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
+      const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+      if (!det) continue
+      const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det
+      const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det
+      if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) return u * a[2] + v * b[2] + (1 - u - v) * c[2]
+    }
   }
   return null
+}
+
+/** A convex polygon less a convex one, as convex pieces that do not overlap. */
+export function subtractConvex(poly: Point[], hole: Point[]): Point[][] {
+  const centre: Point = [hole.reduce((a, p) => a + p[0], 0) / hole.length, hole.reduce((a, p) => a + p[1], 0) / hole.length]
+  const out: Point[][] = []
+  let rest = poly
+  for (let e = 0; e < hole.length && rest.length >= 3; e++) {
+    const [a, b] = [hole[e], hole[(e + 1) % hole.length]]
+    let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
+    if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
+    const outside = halfPlane(rest, a, [-n[0], -n[1]])
+    if (outside.length >= 3) out.push(outside)
+    rest = halfPlane(rest, a, n)
+  }
+  return out
 }
 
 /** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */

@@ -960,7 +960,7 @@ export class MaplibreStrategy extends MapStrategy {
     const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas, 'tunnels') })
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
@@ -970,6 +970,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.deckLayer = new DeckLayer(
         { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, hd: () => !!this.builtHdRoads },
         DECK_PALETTE[flavor],
+        { focusTerrain: areas => fineTerrain.focus(areas, 'decks') },
       )
       this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.

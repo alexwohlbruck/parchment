@@ -33,6 +33,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import POWER from '../src/lib/map-objects/power-structures.json' with { type: 'json' }
+import { CROSSBUCK_POST, CROSSING_POLE, FIXTURE_HEIGHTS, GATE_PIVOT, LANE_WIDTH, SIGNAL_ARM, SIGNAL_POLE, gateArm } from '../src/lib/map-objects/fixture-sizes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(HERE, '../public/models')
@@ -73,11 +74,19 @@ const ROLE_COLOR = {
   rim: [0.86, 0.4, 0.16, 1],
   frame: [0.95, 0.95, 0.94, 1],
   goalpost: [0.95, 0.8, 0.2, 1],
+  pennant: [0.86, 0.2, 0.17, 1],
   wire: [0.36, 0.37, 0.39, 1],
   mesh: [0.68, 0.7, 0.7, 1],
   bloom: [0.86, 0.5, 0.66, 1],
   pv: [0.16, 0.22, 0.34, 1],
   lattice: [0.62, 0.64, 0.66, 1],
+  housing: [0.16, 0.17, 0.17, 1],
+  steel: [0.33, 0.35, 0.37, 1],
+  reflector: [0.95, 0.8, 0.2, 1],
+  'lens-red': [0.86, 0.2, 0.16, 1],
+  'lens-amber': [0.95, 0.66, 0.15, 1],
+  'lens-green': [0.2, 0.75, 0.48, 1],
+  sign: [0.96, 0.96, 0.94, 1],
 }
 
 /** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
@@ -1164,6 +1173,182 @@ const FURNITURE = {
 }
 
 // ---------------------------------------------------------------------------
+// Signals and level crossings
+// ---------------------------------------------------------------------------
+//
+// Built to the landmark style guide (landmarks/STYLE.md): real proportions,
+// big readable forms with soft shading, a few broad materials, nothing a
+// phone cannot resolve at street zoom. Each faces its traffic (-z) from its
+// pole at the origin and reaches over the lanes along -x, the driver's left.
+//
+// Published dimensions:
+// - MUTCD 2009 4D.07, 4D.15: 12 in (0.30 m) lenses; the bottom of a head over
+//   the road 15 to 25.6 ft (4.6 to 7.8 m) up. 4D.12: a backplate's
+//   retroreflective yellow border, 1 to 3 in.
+// - Three-section 12 in vehicle head (McCain, Econolite catalogue sheets):
+//   about 14 x 41 x 9 in (0.36 x 1.04 x 0.23 m); tunnel visors 9.5 in
+//   (0.24 m); backplate border 5 in (0.13 m) round the housing.
+// - Mast arm pole (Valmont and NCDOT standard drawings): 18 to 25 ft
+//   (5.5 to 7.6 m), 12 to 14 in (0.33 m) at the base tapering about
+//   0.14 in/ft; arm 10 in (0.25 m) at the pole tapering to about 5 in at the
+//   tip, with a slight rise; anchor base with a bolt cover.
+// - MUTCD 2009 Table 8B-1, 8B.03: crossbuck R15-1 blades 48 x 9 in
+//   (1.22 x 0.23 m) at right angles. 8C.02, 8C.04: flashing light units of
+//   12 in lenses with 20 in (0.51 m) black backgrounds, about 30 in (0.76 m)
+//   apart; gate arms striped red and white in 16 in (0.41 m) bands.
+// - Gate mechanism (Siemens S-60, Western-Cullen-Hayes 3590 sheets): a cabinet
+//   about 20 x 16 x 40 in (0.5 x 0.4 x 1.0 m) on the mast, the arm turning
+//   at about 6 ft (1.9 m), counterweights on the short side of the pivot.
+// - Flasher mast (AREMA, typical): 5 in (0.13 m) aluminium pipe, lights
+//   centred near 8.5 ft (2.6 m), the crossbuck above, a bell on top.
+// Estimated: the arm at 6.4 m and its 0.3 m rise, the 0.32 m hangers, the
+// flashers at 2.6 m, the counterweights, the bell (a 0.3 m dome) and the
+// bevels. Left out as detail a phone cannot see: pedestrian heads, gate-arm
+// lights, and the flashers on a mast's far side.
+
+/** Shaded soft across bevels and round sections, crisp at real corners. */
+const SOFT_CREASE = 75
+
+const rooted = (make, name) => Object.assign(make, { fit: { scale: 1 / FIXTURE_HEIGHTS[name], cx: 0, cz: 0, base: 0 }, soft: true })
+const fixtureParts = roles => Object.fromEntries(roles.map(r => [r, mesh()]))
+const fixtureRoles = parts => Object.entries(parts).filter(([, m]) => m.position.length).map(([role, m]) => ({ role, ...m }))
+
+/** A part built upright about the origin, laid along an axis and moved into place. */
+function placed(into, build, { along = 'y', at = [0, 0, 0] }) {
+  const part = build(mesh())
+  const turn = ([x, y, z]) => (along === 'x' ? [-y, x, z] : along === 'z' ? [x, -z, y] : [x, y, z])
+  for (let i = 0; i < part.position.length; i += 3) {
+    const p = turn(part.position.slice(i, i + 3))
+    const n = turn(part.normal.slice(i, i + 3))
+    for (let k = 0; k < 3; k++) {
+      part.position[i + k] = p[k] + at[k]
+      part.normal[i + k] = n[k]
+    }
+  }
+  return merge(into, part)
+}
+
+/** A round pipe between two heights on the y axis, tapering, with `sides` facets shaded smooth. */
+const pipe = (sides, r0, r1, y0, y1, [x, z] = [0, 0]) => shift(cylinder(mesh(), sides, r0, r1, y0, y1 - y0), [x, 0, z])
+
+/** A box with its upright edges rounded by `r`, the cabinet and housing shape. */
+const softBox = (m, lo, hi, r, q) => roundedBox(m, lo, hi, Math.min(r, (hi[0] - lo[0]) / 2, (hi[2] - lo[2]) / 2), q.seg ? 1 : 0)
+
+/** One 12 in lens facing -z, centred at (x, y) on a face at `z`. */
+const lens = (m, x, y, z, q) => placed(m, p => cylinder(p, q.seg ? 8 : 6, 0.15, 0.15, 0, 0.04), { along: 'z', at: [x, y, z - 0.04] })
+
+/** A three-section head hung from the arm at `x`, its top at `top`: housing, bordered backplate, lenses under visors. */
+function signalHead(parts, x, top, q) {
+  const [w, h, d] = [0.36, 1.04, 0.23]
+  softBox(parts.housing, [x - w / 2, top - h, -d / 2], [x + w / 2, top, d / 2], 0.05, q)
+  // The backplate behind the housing: black, its yellow border showing only to the traffic it faces.
+  box(parts.housing, [x - w / 2 - 0.08, top - h - 0.08, d / 2], [x + w / 2 + 0.08, top + 0.08, d / 2 + 0.015])
+  box(parts.reflector, [x - w / 2 - 0.13, top - h - 0.13, d / 2 + 0.015], [x + w / 2 + 0.13, top + 0.13, d / 2 + 0.035])
+  box(parts.housing, [x - w / 2 - 0.13, top - h - 0.13, d / 2 + 0.035], [x + w / 2 + 0.13, top + 0.13, d / 2 + 0.05])
+  ;['lens-red', 'lens-amber', 'lens-green'].forEach((role, k) => {
+    const y = top - 0.18 - k * 0.34
+    lens(parts[role], x, y, -d / 2, q)
+    if (q.seg) box(parts.housing, [x - 0.17, y + 0.15, -d / 2 - 0.24], [x + 0.17, y + 0.18, -d / 2])
+  })
+  box(parts.steel, [x - 0.04, top, -0.04], [x + 0.04, top + 0.32, 0.04])
+}
+
+/** A mast arm pole on the corner, its arm over `heads` lanes and a head over the middle of each. */
+const signalMast = heads => rooted(furnLod(q => {
+  const parts = fixtureParts(['steel', 'housing', 'reflector', 'lens-red', 'lens-amber', 'lens-green'])
+  const sides = q.seg ? 12 : 6
+  softBox(parts.steel, [-0.3, 0, -0.3], [0.3, 0.35, 0.3], 0.08, q)
+  merge(parts.steel, pipe(sides, 0.165, 0.12, 0.35, SIGNAL_POLE - 0.04))
+  merge(parts.steel, pipe(sides, 0.13, 0.13, SIGNAL_POLE - 0.04, SIGNAL_POLE))
+  // The arm, 10 in at the pole to 5 in at the tip, rising 0.3 m over its length.
+  const reach = 1 + heads * LANE_WIDTH
+  const arm = placed(mesh(), p => cylinder(p, q.seg ? 8 : 5, 0.125, 0.065, 0, reach), { along: 'x', at: [0, SIGNAL_ARM, 0] })
+  for (let i = 0; i < arm.position.length; i += 3) arm.position[i + 1] += (-arm.position[i] / reach) * 0.3
+  merge(parts.steel, arm)
+  for (let k = 0; k < heads; k++) {
+    const x = -1 - (k + 0.5) * LANE_WIDTH
+    signalHead(parts, x, SIGNAL_ARM - 0.12 + (-x / reach) * 0.3 - 0.2, q)
+  }
+  return fixtureRoles(parts)
+}), `signal-${heads}`)
+
+/** A crossbuck centred `y` up the mast, its two blades crossed at right angles in front of it. */
+function crossbuck(parts, y, q) {
+  const [half, width, z0, z1] = [0.61, 0.115, -0.2, -0.17]
+  for (const lean of [Math.PI / 4, -Math.PI / 4]) {
+    const [c, s] = [Math.cos(lean), Math.sin(lean)]
+    const at = (u, v, z) => [u * c - v * s, y + u * s + v * c, z]
+    const front = [at(-half, -width, z0), at(half, -width, z0), at(half, width, z0), at(-half, width, z0)]
+    const back = front.map(([x, yy]) => [x, yy, z1])
+    quad(parts.sign, front[0], front[1], front[2], front[3])
+    quad(parts.sign, back[3], back[2], back[1], back[0])
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4
+      quad(parts.sign, front[i], back[i], back[j], front[j])
+    }
+  }
+}
+
+/** The flasher mast: a crossbuck, and with `lights` two flashing lights on a crossarm and a bell on top. */
+function crossingMast(parts, q, { lights }) {
+  const top = lights ? CROSSING_POLE - 0.3 : CROSSBUCK_POST
+  softBox(parts.steel, [-0.22, 0, -0.22], [0.22, 0.2, 0.22], 0.06, q)
+  merge(parts.steel, pipe(q.seg ? 10 : 5, 0.065, 0.065, 0.2, top))
+  crossbuck(parts, top - 0.5, q)
+  box(parts.steel, [-0.05, top - 0.55, -0.17], [0.05, top - 0.45, -0.03])
+  if (!lights) return
+  const y = 2.6
+  box(parts.steel, [-0.5, y - 0.05, -0.12], [0.5, y + 0.05, -0.04])
+  for (const x of [-0.38, 0.38]) {
+    // A 20 in round black background, the red lens under its hood.
+    placed(parts.housing, p => cylinder(p, q.seg ? 12 : 6, 0.255, 0.255, 0, 0.04), { along: 'z', at: [x, y, -0.16] })
+    lens(parts['lens-red'], x, y, -0.16, q)
+    if (q.seg) box(parts.housing, [x - 0.17, y + 0.15, -0.36], [x + 0.17, y + 0.18, -0.16])
+  }
+  // The bell, a squat dome on top of the mast.
+  merge(parts.housing, pipe(q.seg ? 10 : 5, 0.15, 0.08, top, CROSSING_POLE))
+}
+
+/** A gate across `lanes`, raised: the mechanism on the mast, counterweights below the pivot, the striped arm standing up from it. */
+const crossingGate = lanes => rooted(furnLod(q => {
+  const parts = fixtureParts(['steel', 'housing', 'sign', 'lens-red', 'tape'])
+  crossingMast(parts, q, { lights: true })
+  softBox(parts.housing, [-0.62, GATE_PIVOT - 1.0, -0.2], [-0.12, GATE_PIVOT + 0.05, 0.2], 0.06, q)
+  for (const y of [GATE_PIVOT - 0.85, GATE_PIVOT - 0.15]) box(parts.steel, [-0.14, y, -0.06], [0, y + 0.1, 0.06])
+  // Counterweights hang on the short side of the pivot, down beside the cabinet.
+  softBox(parts.steel, [-0.95, GATE_PIVOT - 1.1, -0.15], [-0.65, GATE_PIVOT - 0.2, 0.15], 0.04, q)
+  box(parts.steel, [-0.9, GATE_PIVOT - 0.2, -0.05], [-0.62, GATE_PIVOT + 0.05, 0.05])
+  // The arm in 16 in bands, red and white; far off, two long halves.
+  const length = gateArm(lanes)
+  const band = q.seg ? 0.41 : 1.2
+  for (let y = 0, k = 0; y < length - 0.01; y += band, k++) {
+    const [r0, r1] = [0.06 - (0.03 * y) / length, 0.06 - (0.03 * Math.min(length, y + band)) / length]
+    merge(k % 2 ? parts['lens-red'] : parts.tape, pipe(4, r0, r1, GATE_PIVOT + y, GATE_PIVOT + Math.min(length, y + band), [-0.78, 0]))
+  }
+  return fixtureRoles(parts)
+}), `crossing-gate-${lanes}`)
+
+const FIXTURES = {
+  'signal-1': signalMast(1),
+  'signal-2': signalMast(2),
+  'signal-3': signalMast(3),
+  'signal-4': signalMast(4),
+  'crossing-gate-1': crossingGate(1),
+  'crossing-gate-2': crossingGate(2),
+  'crossing-gate-3': crossingGate(3),
+  'crossing-lights': rooted(furnLod(q => {
+    const parts = fixtureParts(['steel', 'housing', 'sign', 'lens-red'])
+    crossingMast(parts, q, { lights: true })
+    return fixtureRoles(parts)
+  }), 'crossing-lights'),
+  crossbuck: rooted(furnLod(q => {
+    const parts = fixtureParts(['steel', 'sign'])
+    crossingMast(parts, q, { lights: false })
+    return fixtureRoles(parts)
+  }), 'crossbuck'),
+}
+
+// ---------------------------------------------------------------------------
 // Sports equipment
 // ---------------------------------------------------------------------------
 
@@ -1186,6 +1371,34 @@ function courtNet(q, span, bottom, top, post) {
     { role: 'net', ...box(mesh(), [-span + 0.05, bottom, -0.01], [span - 0.05, top, 0.01]) },
     { role: 'tape', ...box(mesh(), [-span + 0.05, top, -0.015], [span - 0.05, top + 0.06, 0.015]) },
   ]
+}
+
+/**
+ * A triangular pennant flying along +x from `x0`, `t` thick, cut into columns so
+ * the layer's flutter can bend it (see `FLUTTER` in `object-layer.ts`).
+ */
+function pennant(m, x0, x1, yTop, yBottom, t, cols) {
+  const mid = (yTop + yBottom) / 2
+  const half = (yTop - yBottom) / 2
+  const col = i => {
+    const f = i / cols
+    return [x0 + (x1 - x0) * f, mid + half * (1 - f), mid - half * (1 - f)]
+  }
+  for (let i = 0; i < cols; i++) {
+    const [xa, ta, ba] = col(i)
+    const [xb, tb, bb] = col(i + 1)
+    if (i < cols - 1) {
+      quad(m, [xa, ba, t], [xb, bb, t], [xb, tb, t], [xa, ta, t])
+      quad(m, [xb, bb, -t], [xa, ba, -t], [xa, ta, -t], [xb, tb, -t])
+    } else {
+      face(m, [xa, ba, t], [xb, bb, t], [xa, ta, t])
+      face(m, [xb, bb, -t], [xa, ba, -t], [xa, ta, -t])
+    }
+    quad(m, [xa, ta, t], [xb, tb, t], [xb, tb, -t], [xa, ta, -t])
+    quad(m, [xa, ba, -t], [xb, bb, -t], [xb, bb, t], [xa, ba, t])
+  }
+  quad(m, [x0, yBottom, -t], [x0, yBottom, t], [x0, yTop, t], [x0, yTop, -t])
+  return m
 }
 
 /**
@@ -1230,6 +1443,13 @@ const SPORTS = {
       { role: 'frame', ...frame },
     ]
   }),
+  // A flagstick in its cup: a 2.13 m pole (7 ft, the usual stick) with a
+  // triangular pennant flying along +x from its top.
+  'golf-flag': furnLod(q => [
+    { role: 'interior', ...cylinder(mesh(), half(q), 0.11, 0.11, 0, 0.02) },
+    { role: 'frame', ...cylinder(mesh(), half(q), 0.025, 0.025, 0.021, 2.11) },
+    { role: 'pennant', ...pennant(mesh(), 0.026, 0.6, 2.1, 1.68, 0.008, q.seg ? 6 : 2) },
+  ]),
   'football-goalpost': furnLod(q => [
     { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.1, 0.09, 0, 2.94), [0, 0, 1.5]) },
     { role: 'goalpost', ...box(mesh(), [-0.08, 2.95, 0.1], [0.08, 3.15, 1.45]) },
@@ -2012,7 +2232,7 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts, ownFar, fixed, open = false) => {
+  const emit = async (name, parts, ownFar, fixed, open = false, soft = false) => {
     // A level of detail can leave a part out entirely; an empty part has no volume.
     parts = parts.filter(p => p.index.length)
     ownFar = ownFar?.filter(p => p.index.length)
@@ -2031,6 +2251,7 @@ async function main() {
     // and smoothing a bench turns its slats into a ramp.
     const foliage = parts.filter(p => CANOPY.has(p.role))
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
+    if (soft) parts.forEach(p => smoothNormals([p], SOFT_CREASE))
 
     const near = toGlb(name, parts)
     await writeFile(join(OUT, `${name}.glb`), near)
@@ -2050,6 +2271,7 @@ async function main() {
       // from soft to faceted even where the outline holds.
       const leaves = far.filter(p => p.role === 'foliage')
       if (leaves.length) smoothNormals(leaves, CREASE_DEGREES)
+      if (soft) far.forEach(p => smoothNormals([p], SOFT_CREASE))
     }
     // Oriented in its own right: these solids are built here rather than
     // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
@@ -2086,6 +2308,7 @@ async function main() {
   }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(FIXTURES)) await emit(name, build(), build.far?.(), build.fit, false, build.soft)
   for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
   for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.(), build.fit)
 

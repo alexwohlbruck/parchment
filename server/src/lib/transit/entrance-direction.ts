@@ -2,12 +2,16 @@
  * Entrances that reach only one direction's platform.
  *
  * A station with side platforms and no crossover inside fare control has
- * entrances signed for one direction — "6 trains Uptown & The Bronx" at
- * 86 St. Mappers put that in the entrance's name or description; the words
- * are read as a compass heading and compared with the way the train leaves.
+ * entrances signed for one direction. Mappers put that in the entrance's name
+ * or description, either as a compass word ("6 trains Uptown & The Bronx") or
+ * as a destination ("R trains to Manhattan"), sometimes per line ("all F,G
+ * trains; R trains to Manhattan").
  */
 
 import type { Coordinate } from '../../types/unified-routing.types'
+
+/** What an entrance is signed for: a compass heading or a named destination. */
+export type EntranceSign = { heading: number } | { toward: string }
 
 const HEADING_TERMS: Array<[RegExp, number]> = [
   [/\b(uptown|north\s*-?bound)\b/i, 0],
@@ -16,11 +20,53 @@ const HEADING_TERMS: Array<[RegExp, number]> = [
   [/\b(west\s*-?bound)\b/i, 270],
 ]
 
-/** The single heading an entrance is signed for, or null when it serves any. */
-export function entranceHeading(...labels: Array<string | null | undefined>): number | null {
-  const text = labels.filter(Boolean).join(' ')
+const TRAINS_CLAUSE = /^\s*(?:all\s+)?(?:([\w<>]{1,4}(?:\s*,\s*[\w<>]{1,4})*)\s+)?trains?\b(.*)$/i
+const TOWARD = /^\s*to\s+(.+?)\s*$/i
+const BOUND = /^\s*(.+?)[\s-]+bound\b/i
+
+interface Clause {
+  routes: string[] | null
+  sign: EntranceSign | null
+}
+
+const routeKey = (route: string) => route.replace(/[<>]/g, '').trim().toLowerCase()
+
+function compassHeading(text: string): number | null {
   const headings = new Set(HEADING_TERMS.filter(([re]) => re.test(text)).map(([, h]) => h))
   return headings.size === 1 ? [...headings][0] : null
+}
+
+function parseClause(text: string): Clause {
+  const trains = TRAINS_CLAUSE.exec(text)
+  const routes = trains?.[1] ? trains[1].split(',').map(routeKey) : null
+  const heading = compassHeading(text)
+  if (heading != null) return { routes, sign: { heading } }
+  const toward = (trains ? TOWARD.exec(trains[2]) ?? BOUND.exec(trains[2]) : BOUND.exec(text))?.[1]
+  return { routes, sign: toward ? { toward } : null }
+}
+
+const signKey = (sign: EntranceSign) =>
+  'heading' in sign ? `h:${sign.heading}` : `t:${sign.toward.toLowerCase()}`
+
+/**
+ * The single direction an entrance is signed for on the given routes, or
+ * null when it serves either or the sign can't be read. A clause naming one
+ * of the routes decides; with none, every clause on the sign is considered.
+ */
+export function entranceSign(
+  routes: string[],
+  ...labels: Array<string | null | undefined>
+): EntranceSign | null {
+  const clauses = labels
+    .filter((l): l is string => !!l)
+    .flatMap((l) => l.split(';'))
+    .map(parseClause)
+  const wanted = new Set(routes.map(routeKey))
+  const own = clauses.filter((c) => c.routes?.some((r) => wanted.has(r)))
+  if (own.some((c) => c.sign == null)) return null
+  const signs = (own.length ? own : clauses).flatMap((c) => (c.sign ? [c.sign] : []))
+  const distinct = new Map(signs.map((s) => [signKey(s), s]))
+  return distinct.size === 1 ? [...distinct.values()][0] : null
 }
 
 /** Initial compass bearing from `a` to `b`, in degrees. */

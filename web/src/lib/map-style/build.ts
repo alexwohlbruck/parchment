@@ -9,17 +9,37 @@ import {
   treeLayers,
   landmarkLayers,
   readOnlyDetailLayers,
+  keepDetailLayer,
   coasterTrackLayers,
   pitchLayers,
+  golfSurfaceLayers,
+  golfHoleLayers,
+  golfLabelLayers,
+  type DetailLabelStyle,
+  GOLF_HOLE_LABEL_LAYER,
+  GOLF_PIN_LAYER,
+  DISC_GOLF_BASKET_LAYER,
   plantedAreaLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
+import { combineFilters } from './combine-filters'
+import {
+  skiAreaLayers,
+  pisteLayers,
+  liftLayers,
+  skiLabelLayers,
+  BASEMAP_AERIALWAY_LAYERS,
+  PISTE_SYMBOL_LAYER,
+  PISTE_LABEL_LAYER,
+  LIFT_LABEL_LAYER,
+} from './ski-layers'
+import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
-import { asphaltRoads, roadMarkingLayers } from './road-markings'
-import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
+import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
@@ -330,7 +350,12 @@ export const layerGroups = {
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
   ],
-  roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
+  /** Hidden with the POI labels, but not clickable: a hole, pin or run is not a place the sheet can open. */
+  detailLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER, PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER],
+  roadLabels: [
+    ...idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name' && !BASEMAP_AERIALWAY_LAYERS.includes(l.id)),
+    LIFT_LABEL_LAYER,
+  ],
   /**
    * Transit stop labels, not the rails under them. The transit overlay redraws
    * these stops itself, so the basemap's copies hide while it is on — but the
@@ -479,7 +504,16 @@ export function buildLayers(options: {
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(converted, flavor, hdRoads) as LayerSpecification[]
+  const park = converted.find(l => l.id === 'Park')
+  const detailLabel: DetailLabelStyle = {
+    font: park?.layout?.['text-font'] ?? ['Geist SemiBold'],
+    color: resolve('@poi_ink_park', tokens, categories, flavor),
+    halo: resolve('@poi_halo', tokens, categories, flavor),
+    haloWidth: park?.paint?.['text-halo-width'] ?? 1.5,
+    haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
+  }
+
+  return spliceDetailLayers(converted, flavor, hdRoads, detailLabel) as LayerSpecification[]
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
@@ -570,11 +604,41 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
-  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...pitchLayers(flavor))
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...trackLayers(flavor), ...pitchLayers(flavor))
+
+  // A resort's snow lies under its glaciers and woods, so only open ground shows it;
+  // the runs are cut through those woods, and the rivers cross over them.
+  const glacier = out.findIndex(l => l.id === 'Glacier')
+  if (glacier >= 0) out.splice(glacier, 0, ...skiAreaLayers(flavor))
+  const river = out.findIndex(l => l.id === 'River tunnel')
+  if (river >= 0) out.splice(river, 0, ...pisteLayers(flavor))
+
+  const minorRoad = out.findIndex(l => l.id === 'Minor road')
+  if (minorRoad >= 0) out.splice(minorRoad + 1, 0, racewayLayer(flavor, out[minorRoad]))
+
+  const cablecar = out.findIndex(l => l.id === 'Cablecar')
+  if (cablecar >= 0) out.splice(cablecar, 0, ...liftLayers(flavor, SOURCE))
+  for (const id of BASEMAP_AERIALWAY_LAYERS) {
+    const at = out.findIndex(l => l.id === id)
+    if (at >= 0) out.splice(at, 1)
+  }
+  const roadLabels = out.findIndex(l => l.id === 'Road labels')
+  const roadName = out[roadLabels]?.layout?.['text-field'] ?? ['get', 'name']
+  if (roadLabels >= 0) {
+    const l = out[roadLabels]
+    out[roadLabels] = { ...l, filter: combineFilters([l.filter, ['!=', ['get', 'class'], 'aerialway']]) }
+  }
+
+  // Golf surfaces go over the basemap's sand, which would otherwise paint
+  // every bunker yellow, and the holes over its water, which they cross.
+  const sand = out.findIndex(l => l.id === 'Sand')
+  if (sand >= 0) out.splice(sand + 1, 0, ...golfSurfaceLayers(flavor))
+  const water = out.findIndex(l => l.id === 'Water')
+  if (water >= 0) out.splice(water + 1, 0, ...golfHoleLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
@@ -601,6 +665,10 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
     .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
     .lastIndexOf(true)
   out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers(), ...readOnlyDetailLayers())
+
+  // Hole numbers and pins sit under every basemap label.
+  const firstLabel = out.findIndex(l => l.id === 'River labels')
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, detailLabel), ...skiLabelLayers(flavor, detailLabel, SOURCE, roadName))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.
@@ -634,15 +702,41 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean): 
   }
 
 
-  // Lane geometry sits on top of each band of the road network: the ground's
-  // under the first bridge, the bridges' over the last.
-  const ground = bridgeBandIndex(out)
-  if (!hdRoads || ground === undefined) return out
-  const roads = asphaltRoads(out, flavor)
+  // Lane geometry goes on each band of the road network: the ground's under the
+  // first bridge and under the track crossing it, the bridges' over the last.
+  const bridges = bridgeBandIndex(out)
+  // The signals' 3D masts stand on their glyphs whether or not the lanes are drawn.
+  if (!hdRoads || bridges === undefined) {
+    const labels = out.findIndex(l => l.type === 'symbol')
+    out.splice(labels < 0 ? out.length : labels, 0, signalLayer(flavor))
+    return [...out, keepDetailLayer(ROAD_GLYPH_TILES)]
+  }
+  const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
+  const tunnels = tunnelledTrack(out)
+  out.splice(rails, 0, ...tunnels)
+  const ground = rails + tunnels.length
+  const roads = asphaltRoads(liftedTrack(out), flavor)
   const decks = aboveBridgesIndex(roads)
   if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
   roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
   return roads
+}
+
+/** The basemap's railway lines at grade, the first of which the lane geometry goes under. */
+const RAIL_AT_GRADE = ['Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching']
+/** Of those, the ones that also draw light rail and trams in tunnels, which stay under the road. */
+const RAIL_WITH_TUNNELS = ['Minor rail', 'Minor rail hatching']
+const IN_TUNNEL = ['==', ['get', 'brunnel'], 'tunnel']
+
+/** Copies of the track layers that draw tunnels, for tunnels alone, to stay under the lane geometry. */
+function tunnelledTrack(layers: any[]): any[] {
+  return layers.filter(l => RAIL_WITH_TUNNELS.includes(l.id))
+    .map(l => ({ ...l, id: `${l.id} tunnel`, filter: ['all', l.filter, IN_TUNNEL], metadata: { ...l.metadata, [BELOW_LANES]: true } }))
+}
+
+/** The track layers lifted over the lane geometry, tunnels left to their copies under it. */
+function liftedTrack(layers: any[]): any[] {
+  return layers.map(l => (RAIL_WITH_TUNNELS.includes(l.id) ? { ...l, filter: ['all', l.filter, ['!', IN_TUNNEL]] } : l))
 }
 
 /** The plan-view outline, rounded exactly as far as the extrusion it traces. */

@@ -3,7 +3,7 @@
  * ground, paths and paint down each cut's floor, and the ground filled back
  * up over a bore to meet its headwall.
  */
-import { metresPerUnit, type Bounds, type Point } from '@/lib/map-decks/decks'
+import { meets, metresPerUnit, type Bounds, type Point } from '@/lib/map-decks/decks'
 
 /**
  * A cut carved into the ground: its centreline, the floor along it, and the
@@ -121,4 +121,10 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
       }
   }
   return changed
+}
+
+/** Whether tile z/x/y covers any of these mercator areas, so carving there changes it. */
+export function tileUnder([z, x, y]: [number, number, number], areas: Bounds[]): boolean {
+  const n = 2 ** z
+  return areas.some(a => meets({ minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }, a))
 }

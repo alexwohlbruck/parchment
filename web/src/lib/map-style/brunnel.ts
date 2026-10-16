@@ -20,7 +20,11 @@ export type BrunnelLayer = {
   source?: string
   filter?: unknown
   'source-layer'?: string
+  metadata?: unknown
 }
+
+/** Marks a copy of a layer that the lane-level roads keep under them, which no other mark should anchor on. */
+export const BELOW_LANES = 'parchment:below-lanes'
 
 /** The road network, and the layers that paint onto it. */
 const NETWORK_SOURCES = ['transportation', 'bicycle_ways']
@@ -69,7 +73,7 @@ const bandEnd = (
   brunnel: 'bridge' | 'tunnel',
 ): number | undefined => {
   for (let i = layers.length - 1; i >= 0; i--) {
-    if (draws(layers[i], brunnel)) return i + 1
+    if (draws(layers[i], brunnel) && !(layers[i].metadata as Record<string, unknown> | undefined)?.[BELOW_LANES]) return i + 1
   }
   return undefined
 }

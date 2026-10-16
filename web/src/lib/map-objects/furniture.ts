@@ -143,4 +143,5 @@ export const FURNITURE_OBJECTS: ObjectSourceSpec = {
   // the only thing showing, which is worse than its absence.
   minzoom: 17,
   toInstance: furnitureInstance,
+  deck: () => 'point',
 }

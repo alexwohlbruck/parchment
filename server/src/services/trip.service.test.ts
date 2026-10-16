@@ -49,12 +49,14 @@ const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   metadata: { searchWindow: 3600 },
 }))
 const mockGetNearestEntrance = mock<AnyAsync>(async () => null)
+const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
     getTransitRoute: mockGetTransitRoute,
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
+    getRoutesForStop: mockGetRoutesForStop,
   },
 }))
 
@@ -63,6 +65,12 @@ const mockSearchByCategory = mock<AnyAsync>(async () => [])
 
 mock.module('./search.service', () => ({
   searchByCategory: mockSearchByCategory,
+}))
+
+const mockForwardGeocode = mock<AnyAsync>(async () => ({ results: [], integrationId: null }))
+
+mock.module('./geocoding.service', () => ({
+  forwardGeocode: mockForwardGeocode,
 }))
 
 // ── Import under test (after mocks) ──────────────────────────────────────────
@@ -223,6 +231,10 @@ beforeEach(() => {
   mockGetNearestEntrance.mockReset()
   mockGetNearestEntrance.mockImplementation(async () => null)
   mockSearchByCategory.mockReset()
+  mockGetRoutesForStop.mockReset()
+  mockGetRoutesForStop.mockImplementation(async () => [])
+  mockForwardGeocode.mockReset()
+  mockForwardGeocode.mockImplementation(async () => ({ results: [], integrationId: null }))
   tripService = new TripService()
 
   // Default transit mock — no itineraries (tests opt in)
@@ -627,6 +639,44 @@ describe('TripService — planTrip with transit', () => {
 
     // Should still have walking/driving/biking trips
     expect(response.trips.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('a rail leg reads by its branch, with the train number on the trip', async () => {
+    mockGetRoutesForStop.mockImplementation(async () => [
+      { routeId: '9', feedId: '38', routeShortName: null, routeLongName: 'Port Washington Branch', routeType: 2 },
+    ])
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [{
+          mode: 'REGIONAL_RAIL',
+          transitLeg: true,
+          from: { name: 'Penn Station', lat: 35.21, lng: -80.85, stopId: '38_237' },
+          to: { name: 'Flushing-Main St', lat: 35.225, lng: -80.845, stopId: '38_55' },
+          startTime: '2026-01-15T08:00:00Z',
+          endTime: '2026-01-15T08:20:00Z',
+          duration: 1200,
+          distance: 15000,
+          routeId: '38_9',
+          routeShortName: '354',
+          routeLongName: 'Port Washington Branch',
+          headsign: 'Port Washington',
+        }],
+      })],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const td = response.trips[0].trip.segments
+      .find((s) => s.mode === 'transit')!.details!.transitDetails!
+    expect(mockGetRoutesForStop).toHaveBeenCalledWith('38', '237')
+    expect(td.shortName).toBe('Port Washington Branch')
+    expect(td.route.shortName).toBeUndefined()
+    expect(td.trip.shortName).toBe('354')
   })
 
   test('ranks trips by duration (fastest first)', async () => {
@@ -2781,6 +2831,75 @@ describe('TripService — fare gate delay', () => {
         metadata: { searchWindow: 0 },
       }) as any)
     }
+  })
+})
+
+describe('TripService — destination-signed entrances', () => {
+  // The ride runs north from Stop A to Stop B; one side of Stop B is signed
+  // for a place to the south, the other for a place to the north.
+  const SOUTH = { lat: 35.1, lng: -80.85 }
+  const NORTH = { lat: 35.35, lng: -80.84 }
+  const entrance = (osmId: string, description: string, distanceM: number) => ({
+    osmId, name: null, description, wheelchair: null, level: '0',
+    accessType: 'subway_entrance', lat: 35.2251, lon: -80.8451, distanceM,
+  })
+  const toSouth = entrance('n1', '1 trains to Southpark', 10)
+  const toNorth = entrance('n2', '1 trains to Northlake', 30)
+  const place = (center: { lat: number; lng: number }) => ({ geometry: { value: { center } } })
+
+  const planNorthboundRide = async () => {
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'stop-a' },
+            to: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:20:00Z',
+            duration: 1200, distance: 5000, routeShortName: '1', headsign: 'Northlake',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            to: { name: 'Destination', lat: 35.2304, lng: -80.8433 },
+            startTime: '2026-01-15T08:20:00Z', endTime: '2026-01-15T08:25:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+    const response = await tripService.planTrip({
+      waypoints: [{ location: { lat: 35.21, lng: -80.85 }, type: 'origin' }, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T07:55:00Z',
+    })
+    const ride = response.trips.find((t: any) => t.trip.segments.some((x: any) => x.mode === 'transit'))
+    return ride?.trip.segments.at(-1)?.stationEntrance
+  }
+
+  test('alights through the entrance signed for where the train is heading', async () => {
+    mockGetNearestEntrance.mockImplementation(async () => toSouth as any)
+    mockSearchByCategory.mockImplementation(async (preset: string) =>
+      preset === 'railway/subway_entrance'
+        ? [toSouth, toNorth].map((e) => ({
+            id: e.osmId, name: { value: e.name }, tags: { description: e.description },
+            geometry: { value: { center: { lat: e.lat, lng: e.lon } } },
+          }))
+        : [])
+    mockForwardGeocode.mockImplementation(async (q: string) => ({
+      results: [place(q === 'Southpark' ? SOUTH : NORTH)],
+      integrationId: 'barrelman',
+    }))
+
+    expect((await planNorthboundRide())?.description).toBe('1 trains to Northlake')
+  })
+
+  test('keeps the nearest entrance when its destination cannot be found', async () => {
+    mockGetNearestEntrance.mockImplementation(async () => toSouth as any)
+
+    expect((await planNorthboundRide())?.description).toBe('1 trains to Southpark')
   })
 })
 

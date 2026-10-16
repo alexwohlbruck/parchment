@@ -421,7 +421,7 @@ const LIGHT_LAND = {
   background_background_color_2: 'hsl(44, 46%, 94%)',
   residential_fill_color: 'hsl(43, 40%, 90%)',
   residential_fill_color_2: 'hsl(43, 44%, 92%)',
-  pier_fill_color: 'hsl(44, 44%, 94%)',
+  pier_fill_color: 'hsl(40, 20%, 90.5%)',
   bridge_outline_line_color: 'hsl(44, 44%, 94%)',
   // Industrial land is a neutral in MapTiler too, just a warm one; the two
   // translucent members keep their alpha, which is what they are for.
@@ -2068,11 +2068,6 @@ async function main() {
     flavor.shield_ink_reversed = 'hsl(0, 0%, 100%)'
   }
 
-  // Pedestrian surfaces. Light follows Standard: a near-white pavement with a
-  // grey casing. Dark cannot — Standard's values are for a light map — so it
-  // sits a few points above the night ground the way the pavement sits above
-  // the earth in daylight, with a casing darker than the surface rather than
-  // lighter, since at night the surface is the bright thing.
   // Transit blue. Its own token rather than a category colour: a stop is
   // wayfinding, not a category of place, and every transit system's own maps
   // agree it is blue.
@@ -2087,8 +2082,10 @@ async function main() {
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
-  tokens.light.path_surface = 'hsl(44, 40%, 96%)'
-  tokens.light.path_casing = 'hsl(42, 16%, 81%)'
+  // Pedestrian surfaces: paving a step darker than the daylight ground so plazas
+  // read, and a step lighter than the night ground, with the casing darker still.
+  tokens.light.path_surface = 'hsl(40, 20%, 90.5%)'
+  tokens.light.path_casing = 'hsl(40, 14%, 80%)'
   tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'

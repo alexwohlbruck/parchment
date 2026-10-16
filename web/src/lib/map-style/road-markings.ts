@@ -9,6 +9,7 @@
  */
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
+import { metres } from './metres'
 
 export const ROAD_SURFACE_TILES = 'road_surfaces'
 export const ROAD_MARKING_TILES = 'road_markings'
@@ -17,8 +18,11 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 /** Where the basemap hands roads over to the lane geometry; every lane layer fades in over the same span. */
 const FROM = 16
 const TO = FROM + 0.6
+export const HD_FADE = [FROM, TO] as const
+/** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
+const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(200, 3%, 57%)',
     island: 'hsl(88, 26%, 83%)',
@@ -27,6 +31,8 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: 'hsl(52, 88%, 56%)',
     green: 'hsl(150, 30%, 58%)',
     red: 'hsl(9, 48%, 62%)',
+    signal: 'hsl(210, 8%, 30%)',
+    signalHalo: 'hsl(40, 20%, 97%)',
   },
   // Muted paint, mixed with the asphalt rather than see-through, so a fill
   // and its edge hairline do not double up.
@@ -38,13 +44,9 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     yellow: '#bca83d',
     green: 'hsl(148, 20%, 33%)',
     red: 'hsl(9, 26%, 33%)',
+    signal: 'hsl(45, 10%, 78%)',
+    signalHalo: 'hsl(222, 5%, 20%)',
   },
-}
-
-/** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
-export function metres(m: number, minimum = 0): any {
-  const at = (z: number) => Math.max(minimum, (m * 2 ** z) / 63330)
-  return ['interpolate', ['exponential', 2], ['zoom'], FROM, at(FROM), 22, at(22)]
 }
 
 const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
@@ -96,12 +98,12 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     minzoom: FROM,
     filter: ['all', band, ...filter],
     layout: { 'line-cap': 'butt', 'line-join': 'round', ...layout },
-    paint: { 'line-color': paint, 'line-width': metres(width, 0.6), 'line-opacity': fadeIn, ...extra },
+    paint: { 'line-color': paint, 'line-width': metres(width, { minimum: 0.6 }), 'line-opacity': fadeIn, ...extra },
   })
   const kind = (k: string) => ['==', ['get', 'kind'], k]
   const pattern = (p: string) => ['==', ['get', 'pattern'], p]
   const style = (...s: string[]) => ['in', ['get', 'style'], ['literal', s]]
-  const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow'], 0.55, 1]
+  const glyphScale = ['match', ['get', 'glyph'], ['road-bike', 'road-sharrow', 'road-walk'], 0.55, 1]
   // Fills draw without antialiasing; a hairline of the fill's own colour round
   // each one gives its edge a smooth one.
   const fill = (id: string, sourceLayer: string, filter: any, color: any) => [
@@ -125,7 +127,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     // gap, on motorways the highway's 3 m and 9 m.
     line('Road line dashed', [pattern('dashed')], 0.12, { 'line-dasharray': [25, 50] }),
     line('Road line dashed long', [pattern('dashed_long')], 0.12, { 'line-dasharray': [25, 75] }),
-    line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, 0.6) }),
+    line('Road line double', [pattern('double')], 0.12, { 'line-gap-width': metres(0.15, { minimum: 0.6 }) }),
     line('Stop line', [kind('stop'), pattern('solid')], 0.45),
     // A zebra is one wide line, dashed into bars that run with the traffic.
     line('Crosswalk zebra', [kind('crosswalk'), pattern('solid'), style('zebra', 'ladder')], 3, { 'line-dasharray': [0.2, 0.2], 'line-color': c.white }),
@@ -136,7 +138,7 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       source: DETAIL_SOURCE,
       'source-layer': ROAD_GLYPH_TILES,
       minzoom: FROM,
-      filter: band,
+      filter: ['all', band, PAINTED_GLYPH],
       layout: {
         'icon-image': ['get', 'glyph'],
         'icon-rotate': ['get', 'direction'],
@@ -145,11 +147,40 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
         // A glyph is 40 px tall in the sprite and about 6 m on the road.
-        // Bike symbols are drawn at a rider's scale, to fit inside a 1.5 m lane.
+        // Bike and walker symbols are drawn at a person's scale, to fit inside a 1.5 m lane.
         'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
           FROM, ['*', glyphScale, (6 * 2 ** FROM) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
       },
       paint: { 'icon-color': c.white, 'icon-opacity': fadeIn },
     },
+    ...(bridge ? [] : [signalLayer(flavor)]),
   ]
+}
+
+/** Glyphs painted on the road; the rest name what stands beside it (see `map-objects/fixtures.ts`). */
+const PAINTED_GLYPH = ['==', ['slice', ['to-string', ['get', 'glyph']], 0, 5], 'road-']
+
+/** A traffic signal as a symbol, until its 3D signals stand in for it up close. */
+export function signalLayer(flavor: FlavorId): any {
+  return {
+    id: 'Traffic signal',
+    type: 'symbol',
+    source: DETAIL_SOURCE,
+    'source-layer': ROAD_GLYPH_TILES,
+    minzoom: FROM,
+    maxzoom: SIGNAL_UNTIL,
+    filter: ['==', ['get', 'glyph'], 'traffic-signals'],
+    layout: {
+      'icon-image': 'traffic-signals',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], FROM, 0.6, SIGNAL_UNTIL, 0.85],
+      'icon-allow-overlap': false,
+      'icon-padding': 4,
+    },
+    paint: {
+      'icon-color': COLORS[flavor].signal,
+      'icon-halo-color': COLORS[flavor].signalHalo,
+      'icon-halo-width': 1.5,
+      'icon-opacity': ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1, SIGNAL_UNTIL - 0.5, 1, SIGNAL_UNTIL, 0],
+    },
+  }
 }

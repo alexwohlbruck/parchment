@@ -59,6 +59,7 @@ import {
   type Bounds,
   type Chain,
   type DeckSurface,
+  type Top,
   type Mesh,
   type Piece,
   type Point,
@@ -390,14 +391,15 @@ export class DeckLayer {
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
       : { surface: carried(chain).length ? p.deck : p.surface, low: lowRoad(p, chain.road) }
+    const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k])
 
-    const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }) => {
+    const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }, k) => {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: cappedEdges(chain),
+        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: cappedEdges(chain), tops: tops[k],
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))

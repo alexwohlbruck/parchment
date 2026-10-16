@@ -5,7 +5,7 @@
  * as lines.
  */
 import earcut from 'earcut'
-import { atHit, BOX_MIN, boundsOf, clip, halfPlane, holds, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onDeck, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
+import { atHit, BOX_MIN, boundsOf, clip, halfPlane, holds, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onDeck, onOwnDeck, topZ, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -172,7 +172,7 @@ function hitOn(laid: Laid, k: number, p: Point): Hit | null {
     const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
     const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1])
-    if (distance < best.distance) best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+    if (distance < best.distance) best = { deck: k, distance, z: topZ(deck, i, p) ?? deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
   }
   return best
 }
@@ -229,7 +229,7 @@ function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: nu
       const [a, b] = [deck.points[i - 1], deck.points[i]]
       const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
       const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
-      return { deck: k, distance: 0, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+      return { deck: k, distance: 0, z: topZ(deck, i, p) ?? deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
     })
     for (let v = 1; v < piece.length - 1; v++)
       split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j] })), laid, color, lift, origin, scale)

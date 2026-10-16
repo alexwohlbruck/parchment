@@ -651,6 +651,7 @@ export function deckMesh(
   out: Mesh,
   open: Sides = [[], []],
   piers?: number[],
+  tops?: Top[],
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -729,6 +730,7 @@ export function deckMesh(
     const [l0, l1, r0, r1] = [lefts[i - 1], lefts[i], rights[i - 1], rights[i]]
     const [b0, b1] = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i])]
     quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
+    tops?.push([l0, r0, r1, l1].map(c => [c.p[0] + origin[0], c.p[1] + origin[1], c.z]) as Top)
     if (open[0][i - 1] || open[0][i]) {
       const [o0, o1] = [tongues[0][i - 1], tongues[0][i]]
       quad(at(o0.p, o0.z), at(l0.p, l0.z), at(l1.p, l1.z), at(o1.p, o1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
@@ -961,8 +963,25 @@ export function rounded(chain: Chain, z: number[], groundAt: number[]): { chain:
   return { chain: { ...chain, points: out.points, ...(chain.sides ? { sides: out.sides } : {}) }, z: out.z, groundAt: out.groundAt }
 }
 
+/** A drawn segment of a deck's top: its four corners, as mercator x, y and metres up. */
+export type Top = [number[], number[], number[], number[]]
+
+/** The height of a deck's drawn top over a point, from the two triangles of its segment `i` (as `deckMesh` splits it); null outside both. */
+export function topZ(deck: DeckSurface, i: number, p: Point): number | null {
+  const q = deck.tops?.[i - 1]
+  if (!q) return null
+  for (const [a, b, c] of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
+    const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+    if (!det) continue
+    const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det
+    const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det
+    if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) return u * a[2] + v * b[2] + (1 - u - v) * c[2]
+  }
+  return null
+}
+
 /** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */
-export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]] }
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]]; tops?: Top[] }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
 export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }
@@ -1006,7 +1025,7 @@ function hitsAt(decks: DeckSurface[], p: Point): Hit[] {
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
     const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) * scale
     if (distance < deck.width / 2 + 0.5 && distance < (best.get(k)?.distance ?? Infinity))
-      best.set(k, { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t })
+      best.set(k, { deck: k, distance, z: topZ(deck, i, p) ?? deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t })
   }
   return [...best.values()].sort((a, b) => a.deck - b.deck)
 }

@@ -307,7 +307,9 @@ export class DeckLayer {
     const kerbs = this.kerbs()
     const served = this.served()
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const read = [...new Set(bridges.map(f => `${f._z}/${f._x}/${f._y}`))].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
+    // The roads on the ground are laid over deck ends too, so their tiles arriving rebuilds.
+    const surfaceTiles = this.sources.surfaces ? this.query(this.sources.surfaces.source, this.sources.surfaces.layer).map(f => `${f._z}/${f._x}/${f._y}`) : []
+    const read = [...new Set([...bridges.map(f => `${f._z}/${f._x}/${f._y}`), ...surfaceTiles])].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
     const near = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && near && read === this.built) return null
     this.stale = false

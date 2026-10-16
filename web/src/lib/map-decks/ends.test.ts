@@ -80,3 +80,27 @@ describe('grownRing', () => {
     }
   })
 })
+
+describe('an area on a deck\'s drawn top', () => {
+  test('covers exactly its part of the deck, at the height of the top drawn there', async () => {
+    const { deckMesh } = await import('./decks')
+    const points = line(0, 10, 20, 30)
+    const chain = { points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 12, kind: 'road' as const, edges: [6, 6] as [number, number] }
+    const z = [100, 101, 102, 101]
+    const tops: any[] = []
+    deckMesh(chain, z, [99, 99, 99, 99], points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1] }, deckMeshOut(), undefined, undefined, tops)
+    const surface = { points, z, d: along(points), width: 13, bounds: boundsOf(points, 7), tops, edges: [points.map(([x, y]) => [x, y + 6 * M] as Point), points.map(([x, y]) => [x, y - 6 * M] as Point)] as [Point[], Point[]] }
+    const ring = [at(5, -3), at(25, -3), at(25, 3), at(5, 3)]
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: [[ring]] }], [surface], colors, points[0])
+    const p = mesh.position
+    let area = 0
+    for (let k = 0; k < p.length; k += 9) area += Math.abs((p[k + 3] - p[k]) * (p[k + 7] - p[k + 1]) - (p[k + 6] - p[k]) * (p[k + 4] - p[k + 1])) / 2 / (M * M)
+    expect(area).toBeCloseTo(120, 0)
+    for (let k = 0; k < p.length; k += 3) {
+      const x = p[k] / M
+      const expected = x <= 10 ? 100 + x / 10 : 101 + (Math.min(x, 20) - 10) / 10
+      if (x < 20) expect(p[k + 2] * metresPerUnit(y0)).toBeCloseTo(expected + 0.01, 2)
+    }
+  })
+})

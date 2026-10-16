@@ -136,8 +136,8 @@ function touchdowns(surfaces: DeckSurface[]): Bounds[] {
 }
 
 
-/** Metres a carriageway laid on a deck is grown by. */
-const SURFACE_OVERLAP = 0.15
+/** Metres a carriageway laid on a deck is grown by; none, so its kerbs meet the road's exactly. */
+const SURFACE_OVERLAP = 0
 
 /** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
 const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)
@@ -411,8 +411,8 @@ export class DeckLayer {
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
-    const sampler = this.groundSampler()
-    const ground = { at: (q: Point) => { const g = sampler?.at(q); return g === null || g === undefined ? null : g * exaggeration }, near: ends, low: p.lowRoad }
+    // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
+    const ground = { at: (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }, near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
@@ -642,4 +642,9 @@ function filled(ground: number[]): number[] | null {
   return ground.map((g, i) =>
     Number.isNaN(g) ? known.reduce((best, k) => (Math.abs(k[1] - i) < Math.abs(best[1] - i) ? k : best))[0] : g,
   )
+}
+
+/** Longitude and latitude of a mercator point. */
+function unprojected([x, y]: Point): [number, number] {
+  return [x * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI]
 }

@@ -545,7 +545,7 @@ export function grownRing(ring: Point[], metres: number): Point[] {
   const scale = metres / metresPerUnit(ring[0][1])
   let area = 0
   for (let i = 0; i < n; i++) area += ring[i][0] * ring[(i + 1) % n][1] - ring[(i + 1) % n][0] * ring[i][1]
-  const out = area > 0 ? -1 : 1
+  const out = area > 0 ? 1 : -1
   return ring.map((p, i) => {
     const [a, b] = [ring[(i - 1 + n) % n], ring[(i + 1) % n]]
     const n1 = norm([p[1] - a[1], a[0] - p[0]])

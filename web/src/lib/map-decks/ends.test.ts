@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, deckMeshOut, inside, metresPerUnit, type Point } from './decks'
+import { along, boundsOf, deckMeshOut, grownRing, inside, metresPerUnit, type Point } from './decks'
 import { layPaint } from './paint'
 
 const y0 = 0.4012
@@ -66,5 +66,17 @@ describe('a painted area with no corner on a deck', () => {
     const mesh = deckMeshOut()
     layPaint(mesh, [{ props: { kind: 'hatch', pattern: 'fill', color: 'white' }, runs: [], areas: [[ring]] }], decks, colors, upper[0])
     for (let k = 2; k < mesh.position.length; k += 3) expect(mesh.position[k] * metresPerUnit(y0)).toBeGreaterThan(105)
+  })
+})
+
+describe('grownRing', () => {
+  test('grows a ring outward whichever way it winds', () => {
+    const square = [at(0, 0), at(10, 0), at(10, 10), at(0, 10)]
+    for (const ring of [square, [...square].reverse()]) {
+      const grown = grownRing(ring, 1)
+      const xs = grown.map(p => (p[0] - at(0, 0)[0]) / M)
+      expect(Math.min(...xs)).toBeCloseTo(-1, 3)
+      expect(Math.max(...xs)).toBeCloseTo(11, 3)
+    }
   })
 })

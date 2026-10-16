@@ -40,11 +40,13 @@ const missing = () => Object.assign(new Error('No terrain here'), { status: 404 
 export class FineTerrain {
   private parents = new Map<string, Promise<Heights | null>>()
   private load = fetchHeights(TERRAIN_TILES, 'terrarium')
+  private owners = new Map<string, Bounds[]>()
   private areas: Bounds[] = []
 
-  /** Serve finer tiles over these areas only, in mercator units. */
-  focus(areas: Bounds[]) {
-    this.areas = areas
+  /** Serve finer tiles over these areas, in mercator units, as asked by one owner; another's areas are kept. */
+  focus(areas: Bounds[], owner = '') {
+    this.owners.set(owner, areas)
+    this.areas = [...this.owners.values()].flat()
   }
 
   /** The image for a `fine-terrain://z/x/y` tile: fetched as it is up to the source's zoom, upsampled past it. */

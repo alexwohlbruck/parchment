@@ -23,6 +23,7 @@
 * A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
 * Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 * Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
+* Transit directions no longer send you through a station entrance signed for trains to somewhere else, like "R trains to Manhattan" when you're heading to Bay Ridge.
 
 ## [0.15.0] - 2026-10-15
 

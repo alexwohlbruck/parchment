@@ -212,13 +212,22 @@ function onTops(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: num
       const piece = convexClip(triangle, [outline[a], outline[b], outline[c]])
       if (piece.length < 3) continue
       const plane = planeOf(top[a], top[b], top[c])
-      const hits = piece.map(p => ({ deck: k, distance: 0, z: plane(p), segment: i, t: 0 }))
+      // The deck's top is drawn toward the eye by its corners' bias; what lies on it must be too, or terrain shows through at its ends.
+      const bias = deck.bias ? [deck.bias[i - 1], deck.bias[i - 1], deck.bias[i], deck.bias[i]] : [0, 0, 0, 0]
+      const biasAt = planeOf([...top[a].slice(0, 2), bias[a]], [...top[b].slice(0, 2), bias[b]], [...top[c].slice(0, 2), bias[c]])
+      const hits = piece.map(p => ({ deck: k, distance: 0, z: plane(p), segment: i, t: biasT(deck, i, biasAt(p)) }))
       for (let v = 1; v < piece.length - 1; v++)
         for (const j of [0, v, v + 1]) laidVertex(mesh, [piece[j][0] - origin[0], piece[j][1] - origin[1], (hits[j].z + lift) * scale], hits[j], laid, color)
     }
   }
 }
 
+
+/** The `t` along segment `i` at which the deck's bias is `bias`, so `atHit` gives it back. */
+function biasT(deck: DeckSurface, i: number, bias: number): number {
+  const [b0, b1] = [deck.bias?.[i - 1] ?? 0, deck.bias?.[i] ?? 0]
+  return b1 === b0 ? 0 : Math.max(0, Math.min(1, (bias - b0) / (b1 - b0)))
+}
 
 /** A deck's height under a point, from its nearest segment. */
 function hitOn(laid: Laid, k: number, p: Point): Hit | null {

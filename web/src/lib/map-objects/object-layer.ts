@@ -190,12 +190,13 @@ const FS = `
 /**
  * Roles that flutter in the wind, by amplitude as a share of the model's height.
  * The wave is in the vertex shader; it runs for `FLUTTER_MS` once the map
- * settles, then holds still so the map goes idle again.
+ * settles, then holds still so the map goes idle again. Every flutter frame
+ * repaints the whole map, so it is kept short.
  */
 const FLUTTER: Record<string, number> = { pennant: 0.035 }
-const FLUTTER_MS = 8000
+const FLUTTER_MS = 3000
 const FLUTTER_FADE_IN_MS = 600
-const FLUTTER_FADE_OUT_MS = 1500
+const FLUTTER_FADE_OUT_MS = 1000
 /** A whole number of the shader's `sin(6t)` periods, so wrapping the clock never jumps. */
 const FLUTTER_CLOCK_WRAP = 1200 * Math.PI
 

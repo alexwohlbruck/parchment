@@ -93,4 +93,15 @@ describe('RouteBullet', () => {
     const two = mount(RouteBullet, { props: { label: '6X', color: '00933C' } })
     expect(two.attributes('class')).toContain('rounded-full')
   })
+
+  it('a long line name truncates inside its pill; a glyph bullet holds its size', () => {
+    const branch = mount(RouteBullet, { props: { label: 'Port Washington Branch' } })
+    expect(branch.classes()).toContain('min-w-0')
+    expect(branch.classes()).not.toContain('shrink-0')
+    expect(branch.find('span > span').classes()).toContain('truncate')
+
+    const six = mount(RouteBullet, { props: { label: '6' } })
+    expect(six.classes()).toContain('shrink-0')
+    expect(six.find('span > span').classes()).not.toContain('truncate')
+  })
 })

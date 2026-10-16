@@ -72,8 +72,9 @@ const clipped = computed(() => !!geometry.value.clipPath)
 
 <template>
   <span
-    class="route-bullet inline-flex items-center justify-center shrink-0 font-semibold leading-none"
+    class="route-bullet inline-flex items-center justify-center font-semibold leading-none"
     :class="[
+      compact ? 'shrink-0' : 'min-w-0 max-w-full',
       clipped ? '' : 'border border-white/15 depth-raised',
       shape === 'circle' && compact ? 'rounded-full' : '',
       size === 'lg' ? 'px-2.5 text-lg' : size === 'md' ? 'px-2 text-sm' : 'px-1.5 text-xs',
@@ -90,6 +91,7 @@ const clipped = computed(() => !!geometry.value.clipPath)
   >
     <span
       class="inline-block"
+      :class="!compact && 'truncate leading-normal'"
       :style="geometry.textShift !== '0px' ? { transform: `translateY(${geometry.textShift})` } : {}"
     >
       <slot>{{ label }}</slot>

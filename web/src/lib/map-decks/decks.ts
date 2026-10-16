@@ -528,11 +528,37 @@ export function cappedEdges(chain: Chain): [Point[], Point[]] {
     const by = (-cap * scale) / len
     side[i] = [side[i][0] + (b[0] - a[0]) * by, side[i][1] + (b[1] - a[1]) * by]
   }
-  move(left, 0, caps[0])
-  move(right, 0, caps[1])
-  move(left, n - 1, caps[2])
-  move(right, n - 1, caps[3])
+  move(left, 0, caps[0] - END_OVERLAP)
+  move(right, 0, caps[1] - END_OVERLAP)
+  move(left, n - 1, caps[2] - END_OVERLAP)
+  move(right, n - 1, caps[3] - END_OVERLAP)
   return [left, right]
+}
+
+/** Metres what is laid on a deck runs on past its drawn end, so no sliver of the deck's edge shows between it and the road beyond. */
+const END_OVERLAP = 0.25
+
+/** A ring grown outward by `metres`, each corner moved along its mitre. */
+export function grownRing(ring: Point[], metres: number): Point[] {
+  const n = ring.length
+  if (n < 3) return ring
+  const scale = metres / metresPerUnit(ring[0][1])
+  let area = 0
+  for (let i = 0; i < n; i++) area += ring[i][0] * ring[(i + 1) % n][1] - ring[(i + 1) % n][0] * ring[i][1]
+  const out = area > 0 ? -1 : 1
+  return ring.map((p, i) => {
+    const [a, b] = [ring[(i - 1 + n) % n], ring[(i + 1) % n]]
+    const n1 = norm([p[1] - a[1], a[0] - p[0]])
+    const n2 = norm([b[1] - p[1], p[0] - b[0]])
+    const m = norm([n1[0] + n2[0], n1[1] + n2[1]])
+    const k = 1 / Math.max(0.5, m[0] * n1[0] + m[1] * n1[1])
+    return [p[0] + m[0] * scale * k * out, p[1] + m[1] * scale * k * out] as Point
+  })
+}
+
+const norm = ([x, y]: number[]): Point => {
+  const l = Math.hypot(x, y) || 1
+  return [x / l, y / l]
 }
 
 /**

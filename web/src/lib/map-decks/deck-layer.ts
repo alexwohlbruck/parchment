@@ -17,6 +17,7 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
+  grownRing,
   cappedEdges,
   inside,
   deckMeshOut,
@@ -135,6 +136,9 @@ function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   })
 }
 
+
+/** Metres a carriageway laid on a deck is grown by. */
+const SURFACE_OVERLAP = 0.15
 
 /** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
 const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)
@@ -523,6 +527,8 @@ export class DeckLayer {
     return this.query(source, layer, ['all', ['==', ['coalesce', ['get', 'bridge'], false], bridge], ['!=', ['get', 'kind'], 'island']])
       .filter(f => bridge || this.meetsAny(f, over))
       .map(f => paintOf({ geometry: f.geometry, _x: f._x, _y: f._y, _z: f._z, properties: { kind: 'surface', pattern: 'fill', color: 'asphalt' } }))
+      // Grown a little, so a bridge's carriageway and the road beyond overlap where they meet rather than leave a crack.
+      .map(c => ({ ...c, areas: c.areas.map(rings => [grownRing(rings[0], SURFACE_OVERLAP), ...rings.slice(1)]) }))
   }
 
   /** Whether a feature's geometry meets one of the boxes, its tile tested first. */

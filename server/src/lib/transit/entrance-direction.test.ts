@@ -1,26 +1,51 @@
 import { describe, test, expect } from 'bun:test'
-import { bearingDeg, entranceFacesAway, entranceHeading } from './entrance-direction'
+import { bearingDeg, entranceFacesAway, entranceSign } from './entrance-direction'
 
 const LEX_86 = { lat: 40.779492, lng: -73.955589 }
 const LEX_77 = { lat: 40.77362, lng: -73.959874 }
 const LEX_96 = { lat: 40.785672, lng: -73.95107 }
 
-describe('entranceHeading', () => {
-  test('reads a one-direction entrance from its description', () => {
-    expect(entranceHeading('E 86th St & Lexington Av', '6,<6> trains Uptown & The Bronx')).toBe(0)
-    expect(entranceHeading(null, '6,<6> trains Downtown')).toBe(180)
-    expect(entranceHeading('Westbound platform')).toBe(270)
-    expect(entranceHeading('North-bound only')).toBe(0)
+describe('entranceSign', () => {
+  test('reads a compass word from the description', () => {
+    expect(entranceSign(['6'], 'E 86th St & Lexington Av', '6,<6> trains Uptown & The Bronx')).toEqual({ heading: 0 })
+    expect(entranceSign(['6'], null, '6,<6> trains Downtown')).toEqual({ heading: 180 })
+    expect(entranceSign([], 'Westbound platform')).toEqual({ heading: 270 })
+    expect(entranceSign([], 'North-bound only')).toEqual({ heading: 0 })
+  })
+
+  test('reads a destination the sign names', () => {
+    expect(entranceSign(['R'], null, 'R trains to Manhattan')).toEqual({ toward: 'Manhattan' })
+    expect(entranceSign(['R'], null, 'R trains to Bay Ridge–95th Street')).toEqual({ toward: 'Bay Ridge–95th Street' })
+    expect(entranceSign(['3'], null, '2,3 trains to Flatbush & New Lots')).toEqual({ toward: 'Flatbush & New Lots' })
+    expect(entranceSign(['Q'], 'Manhattan-bound trains')).toEqual({ toward: 'Manhattan' })
+  })
+
+  test('a line the entrance serves in both directions is not restricted by another line', () => {
+    const sign = 'all F,G trains; R trains to Manhattan'
+    expect(entranceSign(['F'], null, sign)).toBeNull()
+    expect(entranceSign(['R'], null, sign)).toEqual({ toward: 'Manhattan' })
+  })
+
+  test('the clause naming the route wins over the entrance name', () => {
+    expect(entranceSign(['R'], '4th Ave - 9th Street (R) to Queens', 'R trains to Manhattan'))
+      .toEqual({ toward: 'Manhattan' })
+  })
+
+  test('any of a merged leg\'s routes selects its clause', () => {
+    expect(entranceSign(['4', '5'], null, '5 trains Downtown; 6 trains Uptown')).toEqual({ heading: 180 })
   })
 
   test('an entrance naming no direction, or both, serves either', () => {
-    expect(entranceHeading('86th Street & 2nd Avenue', 'all Q trains')).toBeNull()
-    expect(entranceHeading('Uptown & Downtown')).toBeNull()
-    expect(entranceHeading(null, null)).toBeNull()
+    expect(entranceSign(['Q'], '86th Street & 2nd Avenue', 'all Q trains')).toBeNull()
+    expect(entranceSign(['R'], null, 'all D,N,R trains')).toBeNull()
+    expect(entranceSign([], 'Uptown & Downtown')).toBeNull()
+    expect(entranceSign(['R'], null, null)).toBeNull()
   })
 
-  test('does not read a direction out of a street name', () => {
-    expect(entranceHeading('Northern Blvd & 40 Rd')).toBeNull()
+  test('does not read a direction out of a street or place name', () => {
+    expect(entranceSign([], 'Northern Blvd & 40 Rd')).toBeNull()
+    expect(entranceSign([], 'Entrance to Macy\'s')).toBeNull()
+    expect(entranceSign([], 'Inbound platform')).toBeNull()
   })
 })
 

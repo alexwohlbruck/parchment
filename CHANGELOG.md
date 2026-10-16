@@ -24,6 +24,7 @@
 * Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 * Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
 * Commuter rail legs like the LIRR and Metro-North show the branch name, such as Port Washington Branch, with the train number beside the destination.
+* Transit directions no longer send you through a station entrance signed for trains to somewhere else, like "R trains to Manhattan" when you're heading to Bay Ridge.
 
 ## [0.15.0] - 2026-10-15
 

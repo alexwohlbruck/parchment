@@ -164,40 +164,79 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
     : null
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
-    if (corners.some(k => !laid.under[k])) {
-      // Only decks at the level of the paint: a corner can lie over a deck stacked under it. A triangle
-      // with no corner on any deck can still cross one.
-      const tri = corners.map(k => flat[k])
-      const centre = centroid(tri)
-      const level = levelNear(centre)
-      if (level !== null) {
-        const box = boundsOf(tri)
-        for (const [k, d] of laid.surfaces.entries())
-          if (d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) clipped(mesh, tri, k, laid, color, lift, origin)
-      }
-      // Beside a deck's end the rest lies on the ground: the triangle less every drawn deck segment it meets.
-      if (laid.ground) {
-        let rest = [tri]
-        const box = boundsOf(tri)
-        for (const d of laid.surfaces) {
-          if (!d.edges || !d.bounds || !meets(d.bounds, box)) continue
-          const [left, right] = d.edges
-          for (let i = 1; i < d.points.length && rest.length; i++) {
-            const quad = drawnQuad(d, i) ?? [left[i - 1], left[i], right[i], right[i - 1]]
-            if (!meets(boundsOf(quad), box)) continue
-            rest = rest.flatMap(piece => subtractConvex(piece, quad))
-          }
-        }
-        for (const piece of rest) {
-          const hits = piece.map(p => onGround(laid, p, false))
-          if (!hits.every(Boolean) || !onGround(laid, centroidOf(piece))) continue
-          for (let v = 1; v < piece.length - 1; v++)
-            split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j]! })), laid, color, lift - GROUND_UNDER, origin, scale)
+    const tri = corners.map(k => flat[k])
+    const box = boundsOf(tri)
+    const centre = centroid(tri)
+    // Cut to each deck at the mark's level, top triangle by top triangle and never subdivided, so neighbouring pieces meet exactly.
+    const level = levelNear(centre)
+    if (level !== null)
+      for (const [k, d] of laid.surfaces.entries())
+        if (d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL)
+          d.tops ? onTops(mesh, tri, k, laid, color, lift, origin) : clipped(mesh, tri, k, laid, color, lift, origin)
+    // Beside a deck's end the rest lies on the ground: the triangle less every drawn deck segment it meets.
+    if (laid.ground && corners.some(k => !laid.under[k])) {
+      let rest = [tri]
+      for (const d of laid.surfaces) {
+        if (!d.edges || !d.bounds || !meets(d.bounds, box)) continue
+        const [left, right] = d.edges
+        for (let i = 1; i < d.points.length && rest.length; i++) {
+          const quad = drawnQuad(d, i) ?? [left[i - 1], left[i], right[i], right[i - 1]]
+          if (!meets(boundsOf(quad), box)) continue
+          rest = rest.flatMap(piece => subtractConvex(piece, quad))
         }
       }
-      continue
+      for (const piece of rest) {
+        const hits = piece.map(p => onGround(laid, p, false))
+        if (!hits.every(Boolean) || !onGround(laid, centroidOf(piece))) continue
+        for (let v = 1; v < piece.length - 1; v++)
+          split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j]! })), laid, color, lift - GROUND_UNDER, origin, scale)
+      }
     }
-    split(mesh, corners.map(k => ({ p: flat[k], hit: laid.under[k]! })), laid, color, lift, origin, scale)
+  }
+}
+
+/** A triangle laid on a deck's drawn top: cut to each of its top triangles, each piece at that triangle's plane. */
+function onTops(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: number[], lift: number, origin: Point) {
+  const deck = laid.surfaces[k]
+  const scale = 1 / metresPerUnit(triangle[0][1])
+  const box = boundsOf(triangle)
+  for (let i = 1; i < deck.points.length; i++) {
+    if (laid.grounded && !atGradeAt(deck, i, 0) && !atGradeAt(deck, i, 1)) continue
+    const top = deck.tops![i - 1]
+    const outline = drawnQuad(deck, i)!
+    if (!meets(boundsOf(outline), box)) continue
+    for (const [a, b, c] of [[0, 1, 2], [0, 2, 3]]) {
+      const piece = convexClip(triangle, [outline[a], outline[b], outline[c]])
+      if (piece.length < 3) continue
+      const plane = planeOf(top[a], top[b], top[c])
+      const hits = piece.map(p => ({ deck: k, distance: 0, z: plane(p), segment: i, t: 0 }))
+      for (let v = 1; v < piece.length - 1; v++)
+        for (const j of [0, v, v + 1]) laidVertex(mesh, [piece[j][0] - origin[0], piece[j][1] - origin[1], (hits[j].z + lift) * scale], hits[j], laid, color)
+    }
+  }
+}
+
+/** A polygon cut to a convex one. */
+function convexClip(poly: Point[], convex: Point[]): Point[] {
+  const centre = centroidOf(convex)
+  let out = poly
+  for (let e = 0; e < convex.length && out.length >= 3; e++) {
+    const [a, b] = [convex[e], convex[(e + 1) % convex.length]]
+    let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
+    if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
+    out = halfPlane(out, a, n)
+  }
+  return out
+}
+
+/** The height of the plane through three points (x, y, z) over a point. */
+function planeOf(a: number[], b: number[], c: number[]): (p: Point) => number {
+  const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+  if (!det) return () => (a[2] + b[2] + c[2]) / 3
+  return p => {
+    const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / det
+    const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / det
+    return u * a[2] + v * b[2] + (1 - u - v) * c[2]
   }
 }
 

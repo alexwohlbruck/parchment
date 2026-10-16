@@ -136,8 +136,8 @@ function touchdowns(surfaces: DeckSurface[]): Bounds[] {
 }
 
 
-/** Metres a carriageway laid on a deck is grown by; none, so its kerbs meet the road's exactly. */
-const SURFACE_OVERLAP = 0
+/** Metres a bridge carriageway laid on a deck is grown by: enough to close the hairline where it meets the road beyond, too little to show as a kerb step. */
+const SURFACE_OVERLAP = 0.08
 
 /** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
 const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)

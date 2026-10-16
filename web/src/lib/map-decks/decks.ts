@@ -514,6 +514,27 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
   return [left, right]
 }
 
+/** A deck's drawn edges: `edgePoints` with each end corner moved along the deck to its cap, as `deckMesh` draws it. */
+export function cappedEdges(chain: Chain): [Point[], Point[]] {
+  const [left, right] = edgePoints(chain)
+  const caps = chain.caps
+  const pts = chain.points
+  const n = pts.length
+  if (!caps || n < 2) return [left, right]
+  const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
+  const move = (side: Point[], i: number, cap: number) => {
+    const [a, b] = i ? [pts[n - 2], pts[n - 1]] : [pts[1], pts[0]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const by = (-cap * scale) / len
+    side[i] = [side[i][0] + (b[0] - a[0]) * by, side[i][1] + (b[1] - a[1]) * by]
+  }
+  move(left, 0, caps[0])
+  move(right, 0, caps[1])
+  move(left, n - 1, caps[2])
+  move(right, n - 1, caps[3])
+  return [left, right]
+}
+
 /**
  * The ground a deck must clear: under its centreline, or higher under either
  * edge, but rising toward an edge no faster than the deck may climb from its

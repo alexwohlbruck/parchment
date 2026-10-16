@@ -17,6 +17,7 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
+  cappedEdges,
   inside,
   deckMeshOut,
   endsMade,
@@ -394,7 +395,7 @@ export class DeckLayer {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain),
+        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: cappedEdges(chain),
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))

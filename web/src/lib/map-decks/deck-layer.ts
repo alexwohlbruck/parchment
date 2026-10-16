@@ -17,8 +17,6 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
-  kerbBands,
-  kerbsOf,
   inside,
   deckMeshOut,
   endsMade,
@@ -27,6 +25,7 @@ import {
   underWay,
   runsWith,
   touchdown,
+  TOUCHDOWN,
   type UnderWay,
   UNDER_SLACK,
   besideGround,
@@ -88,6 +87,8 @@ export type DeckPalette = {
   parapet: Rgb
   /** A rail deck's surface. */
   track: Rgb
+  /** The top of a road deck that has its carriageway laid on it: concrete, a shade lighter than its sides. */
+  deck: Rgb
   /** Below street zoom, a deck's surface: the basemap's colour for its minor, major and highway roads, and paths. */
   lowRoad: Rgb
   lowMajor: Rgb
@@ -123,7 +124,7 @@ export type DeckSources = {
 /** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
 function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   return surfaces.flatMap(s => {
-    const low = (i: number) => s.z[i] - (s.ground?.[i] ?? -Infinity) < BOX_MIN
+    const low = (i: number) => s.z[i] - (s.ground?.[i] ?? -Infinity) < TOUCHDOWN.fade
     const n = s.points.length
     let [head, tail] = [0, n - 1]
     while (head < n && low(head)) head++
@@ -377,7 +378,7 @@ export class DeckLayer {
 
     const p = this.palette
     const mesh = deckMeshOut()
-    // A road deck carrying a carriageway outline is paved like the street: walkway from its kerbs out to its edges.
+    // A road deck carrying a carriageway outline is concrete, the carriageway laid on it in asphalt at its own width.
     const paved = this.carriageways()
     const outlines = paved.flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
     // The carriageways a deck carries: those its middle stretch lies in.
@@ -385,7 +386,7 @@ export class DeckLayer {
       [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return holds(o.bounds, q) && inside(q, o.rings) }))
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
-      : { surface: p.surface, low: lowRoad(p, chain.road) }
+      : { surface: carried(chain).length ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
 
@@ -400,15 +401,12 @@ export class DeckLayer {
     this.tracks = ways.flatMap(w => (w.kind === 'rail' ? [{ points: w.points, half: 1, bounds: boundsOf(w.points, 3) }] : []))
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
-    for (const { chain, z, groundAt } of solved) {
-      const own = carried(chain)
-      if (own.length) kerbBands(chain, z, groundAt, kerbsOf(chain, own.flatMap(o => o.rings.flat())), { walkway: p.walkway, low: colors(chain).low }, this.origin, mesh)
-    }
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
     const sampler = this.groundSampler()
     const ground = { at: (q: Point) => { const g = sampler?.at(q); return g === null || g === undefined ? null : g * exaggeration }, near: ends, low: p.lowRoad }
-    layPaint(mesh, paved, surfaces, tar, this.origin, { ground, offDeck: true })
+    layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
+    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin, { ground })
     layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })
@@ -509,23 +507,25 @@ export class DeckLayer {
   private paintAtGrade(ends: Bounds[]): Paint[] {
     if (!this.sources.paint || !ends.length) return []
     return this.query(this.sources.paint.source, this.sources.paint.layer, ['!=', ['get', 'bridge'], true])
-      .filter(f => {
-        const tile = tileBounds(f)
-        if (tile && !ends.some(end => meets(end, tile))) return false
-        const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
-        if (!coords.length) return false
-        const box = boundsOf(coords)
-        return ends.some(end => meets(end, box))
-      })
+      .filter(f => this.meetsAny(f, ends))
       .map(paintOf)
   }
 
-  /** The bridges' own carriageways, as asphalt to lay past a deck's end. */
-  private carriageways(): Paint[] {
-    if (!this.sources.surfaces) return []
+  /** Carriageways as asphalt to lay: the bridges' own, or the roads on the ground over the given boxes, where decks end on them. */
+  private carriageways(bridge = true, over: Bounds[] = []): Paint[] {
+    if (!this.sources.surfaces || (!bridge && !over.length)) return []
     const { source, layer } = this.sources.surfaces
-    return this.query(source, layer, ['all', ['==', ['get', 'bridge'], true], ['!=', ['get', 'kind'], 'island']])
+    return this.query(source, layer, ['all', ['==', ['coalesce', ['get', 'bridge'], false], bridge], ['!=', ['get', 'kind'], 'island']])
+      .filter(f => bridge || this.meetsAny(f, over))
       .map(f => paintOf({ geometry: f.geometry, _x: f._x, _y: f._y, _z: f._z, properties: { kind: 'surface', pattern: 'fill', color: 'asphalt' } }))
+  }
+
+  /** Whether a feature's geometry meets one of the boxes, its tile tested first. */
+  private meetsAny(f: any, boxes: Bounds[]): boolean {
+    const tile = tileBounds(f)
+    if (tile && !boxes.some(b => meets(b, tile))) return false
+    const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
+    return coords.length > 0 && boxes.some(b => meets(b, boundsOf(coords)))
   }
 
   /** The outlines of the bridges' own carriageways. */

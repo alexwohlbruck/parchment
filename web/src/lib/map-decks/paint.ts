@@ -22,6 +22,8 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
+/** Highest a deck stands over the ground where the road beyond it is still laid on it, in metres: as far up as its end is drawn over the terrain. */
+const AT_GRADE = TOUCHDOWN.fade
 
 const centroid = (p: Point[]): Point => [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3]
 /** How far below its lift on a deck paint on the ground beside one is laid, so the deck's own wins where both are. */
@@ -40,7 +42,7 @@ export function paintOf(feature: any): Paint {
 }
 
 /** What a mark is laid on: the deck under each point, and whether it keeps its colour below street zoom. */
-type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground; offDeck?: boolean }
+type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground }
 
 /**
  * The ground beside a deck's ends, where a bridge's own road and paint carry on
@@ -62,8 +64,8 @@ function onGround(laid: Laid, p: Point, nearEnd = true): Hit | null {
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
  * lies on the ground and so would hide it.
  */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, offDeck = false }: { atGrade?: boolean; ground?: Ground; offDeck?: boolean } = {}) {
-  const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < BOX_MIN ? hit : null)
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground }: { atGrade?: boolean; ground?: Ground } = {}) {
+  const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < AT_GRADE ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
     if (props.pattern === 'none') continue
@@ -71,12 +73,11 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
     const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
-    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) }
-      : offDeck ? { lines: laid.lines.map(l => l.map(() => null)), rings: laid.rings.map(r => r.map(() => null)) } : laid
+    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) } : laid
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
-    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground, offDeck }, color, lift, origin)
+    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground }, color, lift, origin)
     const width = PAINT_WIDTH[props.kind] ?? 0.12
     for (const [k, line] of lines.entries())
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
@@ -132,7 +133,7 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
       // Only decks at the level of the paint: a corner can lie over a deck stacked under it. A triangle
       // with no corner on any deck can still cross one.
       const tri = corners.map(k => flat[k])
-      if (!laid.offDeck && level !== null) {
+      if (level !== null) {
         const box = boundsOf(tri)
         const centre = centroid(tri)
         for (const [k, d] of laid.surfaces.entries())
@@ -198,7 +199,7 @@ function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: nu
   const scale = 1 / metresPerUnit(triangle[0][1])
   const box = { minX: Math.min(...triangle.map(p => p[0])), maxX: Math.max(...triangle.map(p => p[0])), minY: Math.min(...triangle.map(p => p[1])), maxY: Math.max(...triangle.map(p => p[1])) }
   for (let i = 1; i < deck.points.length; i++) {
-    if (laid.grounded && deck.ground && Math.max(deck.z[i - 1] - deck.ground[i - 1], deck.z[i] - deck.ground[i]) >= BOX_MIN) continue
+    if (laid.grounded && deck.ground && Math.max(deck.z[i - 1] - deck.ground[i - 1], deck.z[i] - deck.ground[i]) >= AT_GRADE) continue
     const quad = [left[i - 1], left[i], right[i], right[i - 1]]
     if (quad.every(p => p[0] < box.minX) || quad.every(p => p[0] > box.maxX) || quad.every(p => p[1] < box.minY) || quad.every(p => p[1] > box.maxY)) continue
     const centre: Point = [quad.reduce((a, p) => a + p[0], 0) / 4, quad.reduce((a, p) => a + p[1], 0) / 4]

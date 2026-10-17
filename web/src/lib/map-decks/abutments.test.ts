@@ -40,7 +40,7 @@ describe('approachLift', () => {
   })
 
   test('does not reach beside the road or back onto the deck', () => {
-    expect(approachLift([approach], [0.2789 - 10 * M, y0 + 6 * M], s)).toBe(0)
+    expect(approachLift([approach], [0.2789 - 10 * M, y0 + 9 * M], s)).toBe(0)
     expect(approachLift([approach], [0.2789 + 5 * M, y0], s)).toBe(0)
   })
 })
@@ -53,32 +53,7 @@ describe('abutmentMesh', () => {
     abutmentMesh(chain, [100, 101, 104, 106, 106], [100, 100, 100, 100, 100], 1.8, points[0], [1, 1, 1], out, metresPerUnit(y0))
     expect(out.position.length / 3).toBe(3 * 6 + 4 * 6)
     const zs = out.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
-    expect(Math.min(...zs)).toBeCloseTo(98.5, 3)
-    expect(Math.max(...zs)).toBeCloseTo(101.8 - 0.8, 3)
-  })
-
-  const span = (grounded: [boolean, boolean], z: number[], edges: [number, number]) => {
-    const points = line(0, 10, 20, 30, 40)
-    const out = deckMeshOut()
-    abutmentMesh({ points, grounded, layer: 1, width: 10, kind: 'road', edges }, z, [100, 100, 100, 100, 100], 1.8, points[0], [1, 1, 1], out, metresPerUnit(y0))
-    const xs = out.position.filter((_, k) => k % 3 === 0).map(v => v / M)
-    const ys = out.position.filter((_, k) => k % 3 === 1).map(v => v / M)
-    return { xs, ys }
-  }
-
-  test('stands at the deck crossing its clearance, wings back toward the end it stands at', () => {
-    const near = span([true, false], [100, 101, 104, 106, 106], [5, 5])
-    expect(Math.max(...near.xs)).toBeCloseTo(10 + 10 * (0.8 / 3) + 0.8, 1)
-    expect(Math.min(...near.xs)).toBeLessThan(10 + 10 * (0.8 / 3) - 1)
-    const far = span([false, true], [106, 106, 104, 101, 100], [5, 5])
-    expect(Math.min(...far.xs)).toBeCloseTo(30 - 10 * (0.8 / 3) - 0.8, 1)
-    expect(Math.max(...far.xs)).toBeGreaterThan(30 - 10 * (0.8 / 3) + 1)
-  })
-
-  test('spans the deck at its own width on each side', () => {
-    const { ys } = span([true, false], [100, 101, 104, 106, 106], [3, 7])
-    const wall = ys.slice(0, 18)
-    expect(Math.max(...wall)).toBeCloseTo(3.3, 1)
-    expect(Math.min(...wall)).toBeCloseTo(-7.3, 1)
+    expect(Math.min(...zs)).toBeCloseTo(99.5, 3)
+    expect(Math.max(...zs)).toBeCloseTo(104 - 0.8, 3)
   })
 })

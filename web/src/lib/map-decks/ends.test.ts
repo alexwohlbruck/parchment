@@ -240,3 +240,33 @@ describe('a bridge line past its deck\'s end', () => {
     expect(Math.min(...zs)).toBeCloseTo(99.04, 2)
   })
 })
+
+describe('paint at a deck end it owns', () => {
+  const points = line(0, 10, 20, 30, 40, 50, 60, 70, 80)
+  const zs = (mesh: ReturnType<typeof deckMeshOut>) => mesh.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
+  const lay = (surface: ReturnType<typeof testSurface>, run: Point[], g: number, past?: ReturnType<typeof boundsOf>[]) => {
+    const mesh = deckMeshOut()
+    const ground = { at: () => g, near: [boundsOf([at(-20), at(5)], 4)], low: [0, 0, 0] }
+    layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [run], areas: [] }], [surface], colors, points[0], { ground, past })
+    return zs(mesh)
+  }
+  const low = testSurface(points, points.map(() => 100), points.map(() => 99.5))
+
+  test('lies on the drawn ground where that stands over an at-grade end, never under the deck, and not mid-span', () => {
+    expect(Math.max(...lay(low, [at(2), at(8)], 100.5))).toBeCloseTo(100.54, 2)
+    expect(Math.max(...lay(low, [at(2), at(8)], 99))).toBeCloseTo(100.04, 2)
+    expect(Math.max(...lay(low, [at(35), at(45)], 100.5))).toBeCloseTo(100.04, 2)
+  })
+
+  test('steps down to the ground off an at-grade end, but not off a high one', () => {
+    expect(Math.min(...lay(low, [at(-10), at(6)], 99))).toBeCloseTo(99.04, 2)
+    const high = testSurface(points, points.map(() => 108), points.map(() => 100))
+    expect(lay(high, [at(-10), at(6)], 100).filter(z => z > 100.5 && z < 107.5)).toEqual([])
+  })
+
+  test('past a bridge\'s end leaves a deck high overhead alone', () => {
+    const over = testSurface(line(-20, -10, 0, 10), [108, 108, 108, 108], [100, 100, 100, 100])
+    const zsPast = lay(over, [at(-15), at(-5)], 100, [boundsOf([at(-20), at(0)], 4)])
+    expect(Math.max(...zsPast)).toBeLessThan(101)
+  })
+})

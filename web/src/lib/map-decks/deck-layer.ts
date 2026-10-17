@@ -469,6 +469,7 @@ export class DeckLayer {
       const scale = metresPerUnit(at[1])
       return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half + COVER)
     }))
+    const onward = { ...ground, near: [...ends, ...past] }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     const atGrade = this.carriageways(false, ends)
     layPaint(mesh, atGrade, surfaces, tar, this.origin, { atGrade: true })
@@ -482,7 +483,7 @@ export class DeckLayer {
     // Paint is drawn as a decal, last on top: coloured lanes, then white areas, then lines.
     const coloured = (f: Paint) => LANE_COLORS.includes(f.props.color)
     for (const tier of [coloured, (f: Paint) => !coloured(f)]) {
-      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: { ...ground, near: [...ends, ...past] }, parts: 'areas' })
+      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: onward, past, parts: 'areas' })
       layPaint(mesh, beyond.filter(tier), surfaces, p, this.origin, { atGrade: true, parts: 'areas' })
       if (tier !== coloured) continue
       // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
@@ -491,7 +492,7 @@ export class DeckLayer {
         if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
       }
     }
-    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: { ...ground, near: [...ends, ...past] }, parts: 'lines' })
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: onward, past, parts: 'lines' })
     layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
@@ -544,10 +545,12 @@ export class DeckLayer {
     }))
   }
 
-  /** The terrain as drawn at a point, null where none is drawn. */
+  /** The terrain as drawn at a point; where none is drawn yet, the fixed-zoom ground stretched as the terrain is. */
   private drawnGround(q: Point): number | null {
     const g = this.map.queryTerrainElevation?.(unprojected(q))
-    return typeof g === 'number' && g !== 0 ? g : null
+    if (typeof g === 'number' && g !== 0) return g
+    const read = this.groundSampler()?.at(q)
+    return read == null || Number.isNaN(read) ? null : read * (this.map.getTerrain?.()?.exaggeration ?? 1)
   }
 
   /** Whether a pier's bent `at` metres along a deck, edge to edge, keeps off the ways and carriageways on the ground. */

@@ -123,7 +123,7 @@ function runsAlong(surfaces: DeckSurface[], hit: Hit | null, line: Point[], i: n
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
  * lies on the ground and so would hide it.
  */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, parts = 'both' }: { atGrade?: boolean; ground?: Ground; parts?: 'areas' | 'lines' | 'both' } = {}) {
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, past, parts = 'both' }: { atGrade?: boolean; ground?: Ground; past?: Bounds[]; parts?: 'areas' | 'lines' | 'both' } = {}) {
   const grounded = (hit: Hit | null) => (hit && atGradeAt(surfaces[hit.deck], hit.segment, hit.t) ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
@@ -131,10 +131,14 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
-    const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
+    const flat = areas.flat()
+    const laid = onOwnDeck(lines, flat, surfaces, { across: ACROSS.has(props.kind) }).under
     // A road's lines are laid on a deck's end only where they run with it: a road crossing at the end is the deck's to cover.
+    // Past a bridge's end its paint lies at grade: a deck high overhead there is another road's.
+    const own = (h: Hit | null, q: Point) => (h && past?.some(b => holds(b, q)) && !atGradeAt(surfaces[h.deck], h.segment, h.t) ? null : h)
     const under = atGrade
       ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? grounded(h) : null))), rings: laid.rings.map(r => r.map(grounded)) }
+      : past ? { lines: laid.lines.map((l, k) => l.map((h, i) => own(h, lines[k][i]))), rings: laid.rings.map((r, k) => r.map((h, i) => own(h, flat[k][i]))) }
       : laid
     let next = 0
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
@@ -305,7 +309,8 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     const off = !laid.under[i - 1] || !laid.under[i]
     const beside = off && onDeck([[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]], laid.surfaces, 0)[0] === null
     // Where a line leaves a deck's end for the ground, the step between them is laid from the one to the other.
-    const leaving = off && !beside && !!laid.ground && (!!laid.under[i - 1] || !!laid.under[i])
+    const onEnd = (h: Hit | null) => !!h && h.deck >= 0 && atGradeAt(laid.surfaces[h.deck], h.segment, h.t)
+    const leaving = off && !beside && !!laid.ground && (onEnd(laid.under[i - 1]) || onEnd(laid.under[i]))
     const [ha, hb] = !off ? [laid.under[i - 1], laid.under[i]]
       : beside ? [onGround(laid, a), onGround(laid, b)]
       : leaving ? [laid.under[i - 1] ?? onGround(laid, a), laid.under[i] ?? onGround(laid, b)]

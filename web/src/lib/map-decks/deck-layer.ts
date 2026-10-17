@@ -161,7 +161,7 @@ const PAVED = 0.8
 const LANE_COLORS = ['green', 'red']
 const LANE_JOIN = 2.5
 /** Road classes whose decks are paved edge to edge, as the road beyond. */
-const HIGHWAY = /^(motorway|trunk)(_link)?$|_link$/
+const HIGHWAY = /^(motorway|trunk)$|_link$/
 
 /** Metres between height samples along a deck. */
 const SAMPLE = 6
@@ -461,16 +461,21 @@ export class DeckLayer {
     const wedges = jointAreas(meeting, outers([...paved, ...atGrade]))
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
-    const joined = joinedLines(paint, this.paintAtGrade(ends))
-    const beyond = joined.ground
-    layPaint(mesh, joined.bridge, surfaces, p, this.origin, { ground })
-    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true })
-    // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
-    for (const color of LANE_COLORS) {
-      const lanes = [...paint, ...beyond].filter(f => f.props.color === color && f.areas.length)
-      const joins = jointAreas(meeting, outers(lanes), LANE_JOIN)
-      if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
+    const { bridge: bridgePaint, ground: beyond } = joinedLines(paint, this.paintAtGrade(ends))
+    // Paint is drawn as a decal, last on top: coloured lanes, then white areas, then lines.
+    const coloured = (f: Paint) => LANE_COLORS.includes(f.props.color)
+    for (const tier of [coloured, (f: Paint) => !coloured(f)]) {
+      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground, parts: 'areas' })
+      layPaint(mesh, beyond.filter(tier), surfaces, p, this.origin, { atGrade: true, parts: 'areas' })
+      if (tier !== coloured) continue
+      // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
+      for (const color of LANE_COLORS) {
+        const joins = jointAreas(meeting, outers([...paint, ...beyond].filter(f => f.props.color === color && f.areas.length)), LANE_JOIN)
+        if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
+      }
     }
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground, parts: 'lines' })
+    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3

@@ -113,6 +113,9 @@ export function placedPiers(chain: Chain, z: number[], groundAt: number[], clear
   return out
 }
 
+/** 0 at 0, 1 at 1, level at both. */
+export const smoothstep = (u: number) => u * u * (3 - 2 * u)
+
 /** Metres per mercator unit at a mercator y. */
 export function metresPerUnit(y: number): number {
   const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y)))
@@ -564,7 +567,7 @@ export function jointAreas(ends: Array<{ p: Point; out: Point; half: number }>, 
         const [dx, dy] = [(q[0] - p[0]) * scale, (q[1] - p[1]) * scale]
         if (Math.abs(dx * out[0] + dy * out[1]) <= JOINT_ALONG && Math.abs(-dx * out[1] + dy * out[0]) <= half + 0.5) near.push(q)
       }
-    return clusters(near, cluster / scale).map(convexHull).filter(hull => hull.length >= 3)
+    return (cluster === Infinity ? [near] : clusters(near, cluster / scale)).map(convexHull).filter(hull => hull.length >= 3)
   })
 }
 
@@ -934,7 +937,7 @@ export function landedOn(chain: Chain, z: number[], ground: (p: Point) => number
       const from = end ? d[n - 1] - d[k] : d[k]
       if (from >= reach) continue
       const u = 1 - from / reach
-      out[k] += delta * u * u * (3 - 2 * u)
+      out[k] += delta * smoothstep(u)
     }
   }
   return out

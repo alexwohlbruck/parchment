@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, deckMeshOut, grownRing, inside, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
+import { along, boundsOf, deckMeshOut, grownRing, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint } from './paint'
 import { testSurface } from './test-surface'
 
@@ -181,14 +181,26 @@ describe('joinedLines', () => {
     const ground = [{ props, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
     const joined = joinedLines(bridge, ground)
     const run = joined.bridge[0].runs[0]
-    expect((run[3][1] - y0) / M).toBeCloseTo(0.8, 6)
+    expect((run[run.length - 1][1] - y0) / M).toBeCloseTo(0.8, 6)
     expect((run[0][1] - y0) / M).toBeCloseTo(0, 6)
     expect((joined.ground[0].runs[0][0][0] - at(0)[0]) / M).toBeCloseTo(30, 6)
   })
 
+  test('leaves a cross street whole', () => {
+    const ground = [{ props, runs: [[at(31, -40), at(31, 40)]], areas: [] }]
+    expect(joinedLines(bridge, ground).ground[0].runs[0]).toEqual(ground[0].runs[0])
+  })
+
+  test('eases a two-point bridge line over its last metres only', () => {
+    const ground = [{ props, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
+    const run = joinedLines([{ props, runs: [[at(0, 0), at(30, 0)]], areas: [] }], ground).bridge[0].runs[0]
+    expect((run[run.length - 1][1] - y0) / M).toBeCloseTo(0.8, 6)
+    expect(run.filter(q => (q[0] - at(0)[0]) / M < 20).every(q => Math.abs(q[1] - y0) < 1e-12)).toBe(true)
+  })
+
   test('leaves lines of another kind alone', () => {
     const ground = [{ props: { ...props, color: 'white' }, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
-    expect(joinedLines(bridge, ground).bridge[0].runs[0]).toEqual(bridge[0].runs[0])
+    expect(joinedLines(bridge, ground).bridge[0].runs[0].every(q => Math.abs(q[1] - y0) < 1e-12)).toBe(true)
   })
 })
 
@@ -203,5 +215,14 @@ describe('placedPiers', () => {
     const piers = placedPiers(chain, z, ground, at => Math.abs(at - 42) > 4)
     expect(piers).toContain(37)
     expect(piers.every(at => Math.abs(at - 42) > 4)).toBe(true)
+  })
+})
+
+describe('jointAreas', () => {
+  test('paves one wedge per lane when clustered', () => {
+    const end = { p: at(0), out: [1, 0] as Point, half: 8 }
+    const lane = (y: number) => [at(-1, y), at(0.5, y), at(0.5, y + 1.5), at(-1, y + 1.5)]
+    expect(jointAreas([end], [lane(-6), lane(5)]).length).toBe(1)
+    expect(jointAreas([end], [lane(-6), lane(5)], 2.5).length).toBe(2)
   })
 })

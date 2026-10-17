@@ -728,8 +728,9 @@ export function coveredSides(decks: Array<{ chain: Chain; z: number[] }>): Sides
   })
 }
 
-/** How far past a side, in metres, a mouth is looked for: the road that carries on from it. */
+/** How far past a side, in metres, a mouth is looked for: the road that carries on from it; and how often along it. */
 const MOUTH_PROBE = 2
+const MOUTH_STEP = 1.5
 
 /**
  * Per deck, the side points facing a carriageway's mouth: just past them lies
@@ -757,12 +758,17 @@ export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[]
         return Math.abs(zb - h) <= COVERED.step
       })
     }
-    const mid = (p: Point, q: Point): Point => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]
+    const lerp = (p: Point, q: Point, t: number): Point => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]
+    const d = along(chain.points)
     edgePoints(chain).forEach((side, s) => {
       for (let i = 0; i < n; i++) if (faces(chain.points[i], side[i], z[i])) out[s][i] = true
       // A mouth narrower than the samples are apart falls between two: its segment goes, both ends with it.
-      for (let i = 1; i < n; i++)
-        if (faces(mid(chain.points[i - 1], chain.points[i]), mid(side[i - 1], side[i]), (z[i - 1] + z[i]) / 2)) out[s][i - 1] = out[s][i] = true
+      for (let i = 1; i < n; i++) {
+        const k = Math.ceil((d[i] - d[i - 1]) / MOUTH_STEP)
+        for (let j = 1; j < k && !(out[s][i - 1] && out[s][i]); j++)
+          if (faces(lerp(chain.points[i - 1], chain.points[i], j / k), lerp(side[i - 1], side[i], j / k), z[i - 1] + (z[i] - z[i - 1]) * (j / k)))
+            out[s][i - 1] = out[s][i] = true
+      }
     })
     return out
   })

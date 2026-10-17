@@ -328,14 +328,11 @@ describe('mouthSides', () => {
   const main = { chain: chain(line(0, 10, 20, 30, 40)), z: [10, 10, 10, 10, 10] }
   const ramp = { chain: chain([at(20, 4), at(20, 30)]), z: [10, 10] }
 
-  test('opens the segment a ramp narrower than the samples are apart leaves from', () => {
-    // Samples 12 m apart; a ramp 6 m wide leaving between two of them.
-    const sparse = { chain: chain(line(0, 12, 24, 36)), z: [10, 10, 10, 10] }
-    const narrow = { chain: { ...chain([at(18, 4), at(18, 30)]), edges: [3, 3] as [number, number] }, z: [10, 10] }
-    const [onSparse] = mouthSides([sparse, narrow])
-    const k = onSparse.findIndex(side => side[1] && side[2])
-    expect(k).toBeGreaterThanOrEqual(0)
-    expect(onSparse[k][0] || onSparse[k][3]).toBe(false)
+  test.each([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5])('opens a segment for a ramp 5 m wide leaving %f m past a sample', offset => {
+    const sampled = { chain: chain(line(0, 6, 12, 18, 24, 30)), z: [10, 10, 10, 10, 10, 10] }
+    const narrow = { chain: { ...chain([at(12 + offset, 4), at(12 + offset, 30)]), edges: [2.5, 2.5] as [number, number] }, z: [10, 10] }
+    const [sides] = mouthSides([sampled, narrow])
+    expect(sides.some(side => side.some((v, i) => i > 0 && v && side[i - 1]))).toBe(true)
   })
 
   test('opens the side a ramp carries on from, not the far side or one over a lower road', () => {

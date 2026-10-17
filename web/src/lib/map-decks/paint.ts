@@ -172,11 +172,11 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
     const tri = corners.map(k => flat[k])
     const box = boundsOf(tri)
     const centre = centroidOf(tri)
-    // Cut to each deck at the mark's level, top triangle by top triangle and never subdivided, so neighbouring pieces meet exactly.
+    // Cut to each road deck at the mark's level, top triangle by top triangle and never subdivided, so neighbouring pieces meet exactly.
     const level = levelNear(centre)
     if (level !== null)
       for (const [k, d] of laid.surfaces.entries())
-        if (d.tops && d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
+        if (d.kind === 'road' && d.tops && d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
     // Beside a deck's end the rest lies on the ground: the triangle less every deck lying low here.
     const ground = laid.ground ? onGround(laid, centre, false) : null
     if (ground) {

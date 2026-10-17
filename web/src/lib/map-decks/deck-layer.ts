@@ -152,6 +152,8 @@ const RAILS_FROM = 17.5
 
 /** Zoom from which the ground is moulded to meet deck ends. */
 const MOULD_FROM = 16
+/** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
+const PAVED = 0.8
 
 /** Metres between height samples along a deck. */
 const SAMPLE = 6
@@ -410,12 +412,12 @@ export class DeckLayer {
     // A road deck carrying a carriageway outline is concrete, the carriageway laid on it in asphalt at its own width.
     const paved = this.carriageways()
     const outlines = paved.flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
-    // The carriageways a deck carries: those its middle stretch lies in.
-    const carried = (chain: Chain) => chain.kind !== 'road' ? [] : outlines.filter(o =>
-      [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return holds(o.bounds, q) && inside(q, o.rings) }))
+    // Concrete only under a carriageway that runs the deck's length; elsewhere the deck is the road itself, in asphalt.
+    const concrete = (chain: Chain) => chain.kind === 'road' &&
+      chain.points.filter(q => outlines.some(o => holds(o.bounds, q) && inside(q, o.rings))).length >= chain.points.length * PAVED
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
-      : { surface: carried(chain).length ? p.deck : p.surface, low: lowRoad(p, chain.road) }
+      : { surface: concrete(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k])

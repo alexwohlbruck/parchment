@@ -88,7 +88,7 @@ describe('an area on a deck\'s drawn top', () => {
     const z = [100, 101, 102, 101]
     const tops: any[] = []
     deckMesh(chain, z, [99, 99, 99, 99], points[0], { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [1, 1, 1] }, deckMeshOut(), undefined, undefined, tops)
-    const surface = { points, z, d: along(points), width: 13, bounds: boundsOf(points, 7), tops, edges: [points.map(([x, y]) => [x, y + 6 * M] as Point), points.map(([x, y]) => [x, y - 6 * M] as Point)] as [Point[], Point[]] }
+    const surface = { points, z, d: along(points), width: 13, bounds: boundsOf(points, 7), kind: 'road' as const, tops, edges: [points.map(([x, y]) => [x, y + 6 * M] as Point), points.map(([x, y]) => [x, y - 6 * M] as Point)] as [Point[], Point[]] }
     const ring = [at(5, -3), at(25, -3), at(25, 3), at(5, 3)]
     const mesh = deckMeshOut()
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: [[ring]] }], [surface], colors, points[0])
@@ -101,6 +101,14 @@ describe('an area on a deck\'s drawn top', () => {
       const expected = x <= 10 ? 100 + x / 10 : 101 + (Math.min(x, 20) - 10) / 10
       if (x < 20) expect(p[k + 2] * metresPerUnit(y0)).toBeCloseTo(expected + 0.01, 2)
     }
+  })
+
+  test('is never laid on a railway deck', () => {
+    const points = line(0, 10, 20, 30)
+    const surface = testSurface(points, [100, 101, 102, 101], [99, 99, 99, 99], 6, { kind: 'rail' })
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: [[[at(5, -3), at(25, -3), at(25, 3), at(5, 3)]]] }], [surface], colors, points[0])
+    expect(mesh.position.length).toBe(0)
   })
 })
 

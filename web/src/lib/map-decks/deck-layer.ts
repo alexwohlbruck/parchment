@@ -17,8 +17,6 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
-  topZ,
-  SLAB,
   jointAreas,
   wayEnds,
   grownRing,
@@ -79,7 +77,7 @@ import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuff
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import type { Footprint } from '@/lib/map-terrain/carve'
-import { abutmentMesh, abutments, approachLift, APPROACH_SLAB } from './abutments'
+import { abutments } from './abutments'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -419,10 +417,8 @@ export class DeckLayer {
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
       : { surface: carried(chain).length ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     const tops = solved.map(() => [] as Top[])
-    for (const [k, { chain, groundAt, z, piers }] of solved.entries()) {
+    for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k])
-      abutmentMesh(chain, z, groundAt, BOX_MIN * exaggeration + SLAB, this.origin, p.concrete, mesh, metresPerUnit(chain.points[0][1]))
-    }
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }, k) => {
       const width = 2 * Math.max(...chain.edges) + 1
@@ -436,27 +432,18 @@ export class DeckLayer {
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
-    const terrain = (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }
-    // The road beyond a deck that ends over the drawn ground eases up to meet it.
-    const scale = metresPerUnit(this.origin[1])
-    const approaches = solved.flatMap(({ chain }, k) => chain.kind !== 'road' ? [] : wayEnds(chain).flatMap(({ p: at, out, half }) => {
-      const top = topZ(surfaces[k], 1, at) ?? topZ(surfaces[k], chain.points.length - 1, at)
-      const g = terrain(at)
-      return top !== null && g !== null && top - g >= APPROACH_SLAB.least ? [{ p: at, out, half, rise: top - g }] : []
-    }))
-    const slabs = approaches.map(({ p: at, out, half }) => boundsOf([at, [at[0] + (out[0] * APPROACH_SLAB.length) / scale, at[1] + (out[1] * APPROACH_SLAB.length) / scale]], half + 3))
-    const ends = [...touchdowns(surfaces), ...slabs]
+    const ends = touchdowns(surfaces)
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
-    const ground = { at: (q: Point) => { const g = terrain(q); return g === null ? null : g + approachLift(approaches, q, scale) }, near: ends, low: p.lowRoad }
+    const ground = { at: (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }, near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
-    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true, ground: approaches.length ? { ...ground, near: slabs } : undefined })
+    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
     // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
     const atGrade = this.carriageways(false, ends)
     const wedges = jointAreas([...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))], [...paved, ...atGrade].flatMap(c => c.areas.map(rings => rings[0])))
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
     layPaint(mesh, paint, surfaces, p, this.origin, { ground })
-    layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true, ground: approaches.length ? { ...ground, near: slabs } : undefined })
+    layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3

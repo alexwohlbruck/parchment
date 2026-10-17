@@ -1,12 +1,12 @@
 /**
- * Where a deck meets the ground: the terrain cut down wherever it would poke
- * through a deck's end, the road beyond eased up to meet a deck that ends over
- * the ground, and an abutment with wing walls where the deck leaves the ground.
+ * The ground moulded to meet each deck where it lands: raised to the deck's
+ * top as an embankment where the deck stands a little over it, and cut down
+ * where it pokes through, banking out to the ground around on either side.
  */
-import { along, FOOTING, quad, SLAB, sideAt, type Chain, type Mesh, type Point } from './decks'
+import { along, sideAt, type Chain, type Point } from './decks'
 import { footprint, type Footprint } from '@/lib/map-terrain/carve'
 
-/** How high over the ground a deck may stand and still have the ground under it cut to it, and how far along from its end that may run, in metres. */
+/** How high over the ground a deck may stand and still be met by an embankment, and how far along from its end that may run, in metres. */
 export const EMBANK = { over: 2.5, reach: 30 }
 /** How far below a deck's top the ground is brought, so the deck is drawn over it; how far past its edges the ground runs level; and how far out it banks to meet the ground. */
 const SINK = 0.05
@@ -15,7 +15,7 @@ const BANK_OUT = 6
 /** How far the ground is moulded on along the road beyond a deck's end. */
 const APPROACH = 3
 
-/** The ground at each grounded end of the decks, as footprints cutting it down to just under the deck, keyed so an unchanged deck keeps its own. Heights in true metres. */
+/** The ground at each grounded end of the decks, as footprints to raise and to cut it, keyed so an unchanged deck keeps its own. Heights in true metres. */
 export function abutments(decks: Array<{ key: string; chain: Chain; z: number[]; groundAt: number[] }>): Map<string, Footprint> {
   const out = new Map<string, Footprint>()
   for (const { key, chain, z, groundAt } of decks) {
@@ -42,77 +42,9 @@ export function abutments(decks: Array<{ key: string; chain: Chain; z: number[];
       const inner: [number, number] = [sideAt(chain, sides[0], run[0]), sideAt(chain, sides[1], run[0])]
       const shoulder: [number, number] = [inner[0] + SHOULDER, inner[1] + SHOULDER]
       const outer: [number, number] = [shoulder[0] + BANK_OUT, shoulder[1] + BANK_OUT]
-      out.set(`${key}|${end}`, footprint(points, floor, [floor, floor], inner, shoulder, outer, false))
+      for (const fill of [true, false])
+        out.set(`${key}|${end}|${fill}`, footprint(points, floor, [floor, floor], inner, shoulder, outer, fill))
     }
   }
   return out
-}
-
-/** How far the road beyond a deck's end eases up to it, in metres, and the least rise worth easing. */
-export const APPROACH_SLAB = { length: 30, least: 0.1 }
-
-/** A road beyond a deck's end that eases up to meet it: the end, its outward direction (mercator, unit), its half width in metres and the rise to the deck there. */
-export type Approach = { p: Point; out: Point; half: number; rise: number }
-
-/** The height over the ground the road stands at a point, eased by a smooth vertical curve from each deck end's rise down to none; 0 away from every approach. */
-export function approachLift(approaches: Approach[], q: Point, metresPerUnit: number): number {
-  let lift = 0
-  for (const { p, out, half, rise } of approaches) {
-    const [dx, dy] = [(q[0] - p[0]) * metresPerUnit, (q[1] - p[1]) * metresPerUnit]
-    const along = dx * out[0] + dy * out[1]
-    const across = Math.abs(-dx * out[1] + dy * out[0])
-    if (along < -1 || along > APPROACH_SLAB.length || across > half + 3) continue
-    const u = 1 - Math.max(0, along) / APPROACH_SLAB.length
-    lift = Math.max(lift, rise * u * u * (3 - 2 * u))
-  }
-  return lift
-}
-
-/** How thick an abutment's wall is, how far its wing walls splay from square, and the shortest and longest wing, in metres and radians. */
-const ABUTMENT = { thick: 0.8, splay: Math.PI / 6, wingMin: 2, wingMax: 10 }
-
-/**
- * Abutments where a deck leaves the ground: at the first sample from each
- * grounded end where it stands clear enough to have a slab, a wall across it
- * from the slab's underside down into the ground, with wing walls splayed back
- * from its corners, their tops falling to the ground. Heights as drawn (the
- * map's metres), positions relative to `origin`.
- */
-export function abutmentMesh(chain: Chain, z: number[], groundAt: number[], clearance: number, origin: Point, color: number[], out: Mesh, metresPerUnit: number) {
-  const n = chain.points.length
-  if (n < 3 || chain.kind !== 'road') return
-  for (const end of [0, 1] as const) {
-    if (!chain.grounded[end]) continue
-    const order = end ? [...Array(n).keys()].reverse() : [...Array(n).keys()]
-    const i = order.find(k => z[k] - groundAt[k] >= clearance)
-    if (i === undefined || i === order[0] || i === order[order.length - 1]) continue
-    const p = chain.points[i]
-    const toward = chain.points[order[order.indexOf(i) - 1]]
-    const len = Math.hypot(p[0] - toward[0], p[1] - toward[1]) || 1
-    const back: Point = [(toward[0] - p[0]) / len, (toward[1] - p[1]) / len]
-    const left: Point = end ? [back[1], -back[0]] : [-back[1], back[0]]
-    const [l, r] = [sideAt(chain, end ? 1 : 0, i) + 0.3, sideAt(chain, end ? 0 : 1, i) + 0.3]
-    const top = z[i] - SLAB
-    const foot = groundAt[i] - FOOTING
-    const h = top - groundAt[i]
-    const at = (q: Point, metres: number) => [q[0] - origin[0], q[1] - origin[1], metres / metresPerUnit]
-    const off = (q: Point, d: Point, m: number): Point => [q[0] + (d[0] * m) / metresPerUnit, q[1] + (d[1] * m) / metresPerUnit]
-    const cornerL = off(p, left, l)
-    const cornerR = off(p, left, -r)
-    const thick = (q: Point) => off(q, back, -ABUTMENT.thick)
-    // The wall: its face toward the span, its back, and its top under the slab.
-    const face = (a: Point, b: Point) => quad(out, at(a, foot), at(b, foot), at(b, top), at(a, top), color)
-    face(thick(cornerR), thick(cornerL))
-    face(cornerL, cornerR)
-    quad(out, at(thick(cornerL), top), at(thick(cornerR), top), at(cornerR, top), at(cornerL, top), color)
-    // Wing walls back from each corner, splayed out, their tops sloping down to the ground.
-    const wing = Math.max(ABUTMENT.wingMin, Math.min(ABUTMENT.wingMax, h * 1.5))
-    for (const [corner, side] of [[cornerL, 1], [cornerR, -1]] as const) {
-      const dir: Point = [back[0] * Math.cos(ABUTMENT.splay) + left[0] * side * Math.sin(ABUTMENT.splay), back[1] * Math.cos(ABUTMENT.splay) + left[1] * side * Math.sin(ABUTMENT.splay)]
-      const tip = off(corner, dir, wing)
-      const tipTop = groundAt[i] + Math.max(0, h - wing / 1.5)
-      quad(out, at(corner, foot), at(tip, foot), at(tip, tipTop), at(corner, top), color)
-      quad(out, at(tip, foot), at(corner, foot), at(corner, top), at(tip, tipTop), color)
-    }
-  }
 }

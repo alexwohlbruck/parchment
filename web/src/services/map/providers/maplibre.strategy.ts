@@ -928,6 +928,7 @@ export class MaplibreStrategy extends MapStrategy {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
+      surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides

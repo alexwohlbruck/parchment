@@ -327,12 +327,21 @@ export type ObjectSourceSpec = {
   followsView?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
-  /** Whether an instance may stand on a bridge deck: `along` one it runs with, as a wire does, or at a `point` on one. */
-  deck?: (instance: ObjectInstance) => 'along' | 'point' | null
+  /**
+   * How an instance meets a bridge deck: stands on one it runs `along`, as a wire does, or at a `point` on one; or keeps
+   * `clear` of one, left out where a deck passes too close over it, as a wall under a low deck or beside one in the ground's data.
+   */
+  deck?: (instance: ObjectInstance) => 'along' | 'point' | 'clear' | null
 }
 
 /** The height a deck gives an object at a point, in the terrain's metres; `along` is a linear object's direction, east and south. Null for the ground. */
 export type StandOn = (lng: number, lat: number, along?: [number, number]) => number | null
+
+/** A deck's surface over a point, in the terrain's metres, or null. */
+export type SurfaceAt = (lng: number, lat: number) => number | null
+
+/** Least room under a deck, in metres, for an object that keeps `clear` of decks. */
+const DECK_CLEARANCE = 3
 
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
@@ -515,14 +524,16 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt } = {},
   ) {
     this.id = options.id ?? 'map-objects'
     this.solid = options.solid ?? {}
     this.standOn = options.standOn
+    this.surfaceAt = options.surfaceAt
   }
 
   private standOn?: StandOn
+  private surfaceAt?: SurfaceAt
 
   /** Place everything again, as when what it stands on has changed. */
   refresh() {
@@ -826,7 +837,20 @@ export class ObjectLayer {
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
         project(lng, lat, 0, placed)
-        const onDeck = terrain && this.standOn ? spec.deck?.(instance) : null
+        const meets = terrain ? spec.deck?.(instance) : null
+        if (meets === 'clear' && this.surfaceAt) {
+          // A span is tested at both ends as well as its middle: one lying beside a deck can reach under it.
+          const half = ((instance.length ?? 0) / 2) * placed.perMetre
+          const [dx, dy] = [Math.cos(instance.heading) * half, Math.sin(instance.heading) * half]
+          const room = DECK_CLEARANCE * (terrain!.getTerrain?.()?.exaggeration ?? 1)
+          const close = [[0, 0], [dx, dy], [-dx, -dy]].some(([ex, ey]) => {
+            const at = unproject(placed.x + ex, placed.y + ey)
+            const over = this.surfaceAt!(...at)
+            return over !== null && over - heightAt(...at) < room
+          })
+          if (close) continue
+        }
+        const onDeck = this.standOn && meets !== 'clear' ? meets : null
         const along: [number, number] | undefined = onDeck === 'along' ? [Math.cos(instance.heading), Math.sin(instance.heading)] : undefined
         const deckAt = (lng: number, lat: number) => (onDeck ? this.standOn!(lng, lat, along) : null)
         if (terrain && instance.conform && instance.length) {

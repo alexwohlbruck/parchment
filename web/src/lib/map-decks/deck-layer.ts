@@ -542,6 +542,11 @@ export class DeckLayer {
     return stand.z
   }
 
+  /** The surface of a deck over a point, in the terrain's metres, whatever passes beneath it; null where there is none. */
+  surfaceAt(lng: number, lat: number): number | null {
+    return standing(this.stands, mercator([lng, lat]))?.z ?? null
+  }
+
   /** Whether an object belongs to a way on the ground passing under a deck: see `underWay`. */
   private passesUnder(p: Point, along?: [number, number]): boolean {
     return underWay(this.groundWays(), p, along)

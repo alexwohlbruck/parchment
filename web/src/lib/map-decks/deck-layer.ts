@@ -43,6 +43,7 @@ import {
   joinNeighbours,
   coveredSides,
   innerSides,
+  mouthSides,
   smooth,
   steady,
   rounded,
@@ -435,7 +436,8 @@ export class DeckLayer {
     const open = joinNeighbours(solved)
     const bridgeAreas = bridges.filter(f => f.properties?.class === 'bridge').flatMap(f => polygonsOf(f.geometry).map(rings => rings.map(ring => ring.map(mercator)))).map(rings => ({ rings, bounds: boundsOf(rings[0]) }))
     const inner = innerSides(solved, bridgeAreas)
-    const onDecks = coveredSides(solved).map((sides, k) => sides.map((side, s) => side.map((c, i) => c || inner[k][s][i])) as Sides)
+    const mouths = mouthSides(solved)
+    const onDecks = coveredSides(solved).map((sides, k) => sides.map((side, s) => side.map((c, i) => c || inner[k][s][i] || mouths[k][s][i])) as Sides)
     // Decks built here stand their piers clear of the roads, railways and paths beneath.
     const unplaced = solved.filter(s => !s.piers)
     if (unplaced.length) {

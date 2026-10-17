@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, coveredSides, deckMeshOut, grownRing, innerSides, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
+import { along, boundsOf, coveredSides, deckMeshOut, grownRing, innerSides, inside, mouthSides, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint, type PastEnd } from './paint'
 import { testSurface } from './test-surface'
 
@@ -321,3 +321,23 @@ describe('innerSides', () => {
     expect(innerSides([{ chain: chain(line(0, 10, 20), 'rail') }], around)[0].flat().some(Boolean)).toBe(false)
   })
 })
+
+describe('mouthSides', () => {
+  const chain = (points: Point[]) => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 8, kind: 'road' as const, edges: [4, 4] as [number, number] })
+  // A deck running east; a ramp leaving its north side at x = 20.
+  const main = { chain: chain(line(0, 10, 20, 30, 40)), z: [10, 10, 10, 10, 10] }
+  const ramp = { chain: chain([at(20, 4), at(20, 30)]), z: [10, 10] }
+
+  test('opens the side a ramp carries on from, not the far side or one over a lower road', () => {
+    const north = (sides: boolean[][]) => sides.findIndex(side => side[2])
+    const [onMain] = mouthSides([main, ramp])
+    const k = north(onMain)
+    expect(k).toBeGreaterThanOrEqual(0)
+    expect(onMain[k][0]).toBe(false)
+    expect(onMain[1 - k].some(Boolean)).toBe(false)
+    const [over] = mouthSides([main, { ...ramp, z: [3, 3] }])
+    expect(over.flat().some(Boolean)).toBe(false)
+  })
+
+})
+

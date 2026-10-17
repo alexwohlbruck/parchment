@@ -728,6 +728,37 @@ export function coveredSides(decks: Array<{ chain: Chain; z: number[] }>): Sides
   })
 }
 
+/** How far past a side, in metres, a mouth is looked for: the road that carries on from it. */
+const MOUTH_PROBE = 2
+
+/**
+ * Per deck, the side points facing a carriageway's mouth: just past them lies
+ * another road deck at their height, the road carrying on from the deck. A
+ * parapet there would stand across it.
+ */
+export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[] {
+  const roads = decks.map(({ chain }, k) => ({ k, chain, bounds: boundsOf(chain.points, Math.max(...chain.edges)) })).filter(r => r.chain.kind === 'road' && r.chain.points.length > 1)
+  return decks.map(({ chain, z }, a) => {
+    if (chain.kind === 'rail') return [chain.points.map(() => false), chain.points.map(() => false)] as Sides
+    const scale = MOUTH_PROBE / metresPerUnit(chain.points[0][1])
+    const mine = boundsOf(chain.points, Math.max(...chain.edges) + MOUTH_PROBE)
+    const near = roads.filter(r => r.k !== a && meets(r.bounds, mine))
+    return edgePoints(chain).map(side => side.map((e, i) => {
+      const c = chain.points[i]
+      const len = Math.hypot(e[0] - c[0], e[1] - c[1])
+      if (!len) return false
+      const q: Point = [e[0] + ((e[0] - c[0]) / len) * scale, e[1] + ((e[1] - c[1]) / len) * scale]
+      return near.some(({ k, chain: other, bounds }) => {
+        if (!holds(bounds, q)) return false
+        const at = beside(other.points, q)
+        if (!at.alongside || at.distance > sideAt(other, at.left ? 0 : 1, at.segment - 1, at.t) - COVERED.inset) return false
+        const zb = decks[k].z[at.segment - 1] + (decks[k].z[at.segment] - decks[k].z[at.segment - 1]) * at.t
+        return Math.abs(zb - z[i]) <= COVERED.step
+      })
+    })) as Sides
+  })
+}
+
 /** How far inside a bridge's outline, in metres, a deck's side must lie for it to have no parapet: the outline is the structure's edge. */
 const OUTLINE_INSET = 2
 

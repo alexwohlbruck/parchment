@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
+  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
   REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
 } from './landmarks'
 import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
@@ -93,7 +93,7 @@ describe('parseLandmark', () => {
   })
 })
 
-describe('materialLight', () => {
+describe('materialEmission', () => {
   const night = LANDMARK_FLAVOR.dark.night
   const day = LANDMARK_FLAVOR.light.night
 
@@ -102,31 +102,21 @@ describe('materialLight', () => {
     expect(day).toBe(false)
   })
 
-  it('lights windows warm at night and barely by day, as Open Landmarks does', () => {
-    expect(materialLight('window', night, false)).toMatchObject({ intensity: 0.5 })
-    expect(materialLight('window', day, false)).toMatchObject({ intensity: 0.06, base: null })
-  })
-
-  it('turns plain windows slate at night, but never repaints a painted facade', () => {
-    const slate = [0x64 / 255, 0x79 / 255, 0x8a / 255]
-    expect(materialLight('window', night, false)?.base).toEqual(slate)
-    expect(materialLight('window', night, true)?.base).toBeNull()
-  })
-
   it('lights entrances at night only', () => {
-    expect(materialLight('entrance', night, false)?.intensity).toBe(2.4)
-    expect(materialLight('entrance', day, false)?.intensity).toBe(0)
+    expect(materialEmission('entrance', night)?.intensity).toBe(2.4)
+    expect(materialEmission('entrance', day)).toBeNull()
   })
 
+  it('leaves windows to the facade and every other material dark', () => {
+    expect(materialEmission('window', night)).toBeNull()
+    expect(materialEmission('stone', night)).toBeNull()
+  })
+})
+
+describe('isWindow', () => {
   it('treats every suffixed window as a window, and glass as glass', () => {
-    // A GLB cannot repeat a material name, so a second window colour is `window-2`.
-    expect(materialLight('window-2', night, true)).toMatchObject({ intensity: 0.5, base: null })
-    expect(materialLight('glass', night, false)).toBeNull()
-  })
-
-  it('leaves every other material alone', () => {
-    expect(materialLight('stone', night, false)).toBeNull()
-    expect(materialLight('', night, true)).toBeNull()
+    expect(isWindow('window-2')).toBe(true)
+    expect(isWindow('glass')).toBe(false)
   })
 })
 

@@ -49,7 +49,7 @@ export const FACADE_GLSL = `
     float curtain = step(36.0, height) * step(0.4, s1);
     float bay = mix(mix(2.6, 3.8, s2), 1.6, curtain);
     float dx = mix(mix(0.42, 0.68, s3), 0.9, curtain);
-    float dy = mix(mix(0.42, 0.56, s2), 0.66, curtain);
+    float dy = mix(mix(0.4, 0.52, s2), 0.55, curtain);
 
     float x = along / bay;
     // Raised a little off the floor slab, as windows sit on a sill.
@@ -105,7 +105,7 @@ export const FACADE_SHADE_GLSL = `
 
 /** Per flavor, the facade's colours. sRGB 0-1. */
 export const FACADE_FLAVOR = {
-  light: { glass: [0.58, 0.7, 0.84], glassMix: 0.75, night: 0, windowLight: [1, 0.8, 0.5], windowGlow: 1 },
+  light: { glass: [0.58, 0.7, 0.84], glassMix: 0.7, night: 0, windowLight: [1, 0.8, 0.5], windowGlow: 1 },
   dark: { glass: [0.12, 0.16, 0.24], glassMix: 0.7, night: 1, windowLight: [1, 0.78, 0.48], windowGlow: 0.95 },
 } as const
 

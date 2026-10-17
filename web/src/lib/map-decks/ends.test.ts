@@ -227,21 +227,16 @@ describe('jointAreas', () => {
   })
 })
 
-describe('lines draped at a deck end', () => {
-  const points = line(0, 10, 20, 30, 40, 50, 60, 70, 80)
-  const surface = testSurface(points, points.map(() => 100), points.map(() => 99.5))
-  const heights = (ground: number, from: number, to: number) => {
+describe('a bridge line past its deck\'s end', () => {
+  test('is laid on the ground there, where the deck owns it', () => {
+    const points = line(0, 10, 20, 30)
+    const surface = testSurface(points, [100, 100, 100, 100], [99.5, 99.5, 99.5, 99.5])
     const mesh = deckMeshOut()
-    layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [[at(from), at(to)]], areas: [] }], [surface], colors, points[0], { drape: () => ground })
-    return mesh.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
-  }
-
-  test('lifts a line near the end to the ground drawn a little above the deck', () => {
-    expect(Math.max(...heights(100.5, 2, 8))).toBeCloseTo(100.5 + 0.04, 3)
-  })
-
-  test('never lowers a line into the deck, nor drapes it mid-span', () => {
-    expect(Math.max(...heights(99.6, 2, 8))).toBeCloseTo(100.04, 3)
-    expect(Math.max(...heights(100.5, 35, 45))).toBeCloseTo(100.04, 3)
+    const ground = { at: () => 99, near: [boundsOf([at(-20), at(0)], 3)], low: [0, 0, 0] }
+    layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [[at(-15), at(10)]], areas: [] }], [surface], colors, points[0], { ground })
+    const xs = mesh.position.filter((_, k) => k % 3 === 0).map(v => v / M)
+    const zs = mesh.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
+    expect(Math.min(...xs)).toBeLessThan(-14)
+    expect(Math.min(...zs)).toBeCloseTo(99.04, 2)
   })
 })

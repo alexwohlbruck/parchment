@@ -158,6 +158,8 @@ const ABUTMENT_ROOM = 1
 
 /** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
 const PAVED = 0.8
+/** How far past a bridge's end its paint may run on the ground, in metres: Barrelman gives it the street's first 15. */
+const PAST_END = 18
 /** Coloured lanes joined across a bridge's ends, and how far apart two corners may lie and be one lane's, in metres. */
 const LANE_COLORS = ['green', 'red']
 const LANE_JOIN = 2.5
@@ -462,6 +464,11 @@ export class DeckLayer {
     const ends = touchdowns(surfaces)
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
     const ground = { at: (q: Point) => this.drawnGround(q), near: ends, low: p.lowRoad }
+    // A bridge's paint runs on past its ends onto the ground, where the deck draws it in the ground's place.
+    const past = solved.flatMap(({ chain }) => chain.kind !== 'road' ? [] : wayEnds(chain).map(({ p: at, out, half }) => {
+      const scale = metresPerUnit(at[1])
+      return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half + COVER)
+    }))
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     const atGrade = this.carriageways(false, ends)
     layPaint(mesh, atGrade, surfaces, tar, this.origin, { atGrade: true })
@@ -475,7 +482,7 @@ export class DeckLayer {
     // Paint is drawn as a decal, last on top: coloured lanes, then white areas, then lines.
     const coloured = (f: Paint) => LANE_COLORS.includes(f.props.color)
     for (const tier of [coloured, (f: Paint) => !coloured(f)]) {
-      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground, parts: 'areas' })
+      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: { ...ground, near: [...ends, ...past] }, parts: 'areas' })
       layPaint(mesh, beyond.filter(tier), surfaces, p, this.origin, { atGrade: true, parts: 'areas' })
       if (tier !== coloured) continue
       // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
@@ -484,8 +491,8 @@ export class DeckLayer {
         if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
       }
     }
-    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground, parts: 'lines', drape: ground.at })
-    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines', drape: ground.at })
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: { ...ground, near: [...ends, ...past] }, parts: 'lines' })
+    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3

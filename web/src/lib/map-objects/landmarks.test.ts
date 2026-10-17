@@ -94,12 +94,17 @@ describe('parseLandmark', () => {
 })
 
 describe('materialEmission', () => {
-  const night = LANDMARK_FLAVOR.dark.night
-  const day = LANDMARK_FLAVOR.light.night
+  const night = LANDMARK_FLAVOR.dark.facade.night > 0
+  const day = LANDMARK_FLAVOR.light.facade.night > 0
 
   it('is night on the dark map only', () => {
     expect(night).toBe(true)
     expect(day).toBe(false)
+  })
+
+  it("pulls landmarks toward each flavor's own building colour", () => {
+    expect(LANDMARK_FLAVOR.dark.palette[2]).toBeGreaterThan(LANDMARK_FLAVOR.dark.palette[0])
+    expect(Math.min(...LANDMARK_FLAVOR.light.palette)).toBeGreaterThan(0.8)
   })
 
   it('lights entrances at night only', () => {

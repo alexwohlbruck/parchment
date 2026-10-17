@@ -33,7 +33,7 @@
  */
 
 // PARCHMENT: procedural facades on the walls; see `map/facade-shader.ts`.
-import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader';
+import { FACADE_GLSL, FACADE_HASH_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader';
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
 const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10 };
@@ -148,7 +148,8 @@ const BUILD_VS = `
   varying float v_fade;      // PARCHMENT: 0 where the wall is too short to hold it
   // PARCHMENT: where on its facade a wall fragment sits; see FACADE_GLSL.
   uniform float u_unit_m;    // metres per tile unit
-  uniform vec2 u_tile_origin;
+  uniform vec2 u_tile_origin; // the tile's x and y, mod 64
+  ${FACADE_HASH_GLSL}
   varying vec3 v_wall;       // metres along the wall, metres up, roof height (0 on a roof)
   varying float v_seed;
   void main() {
@@ -160,7 +161,7 @@ const BUILD_VS = `
     float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
     // PARCHMENT: MapLibre's edge distance, the run along the footprint ring in tile units.
     v_wall = vec3(a_normal_ed.w * u_unit_m, elev, isWall * h);
-    v_seed = fract(sin(dot(a_centroid + u_tile_origin, vec2(12.9898, 78.233))) * 43758.5453);
+    v_seed = facadeHash(a_centroid / 8192.0 + u_tile_origin);
 
     // PARCHMENT: lift onto the terrain. The roof rises by the ground height at
     // the footprint's centroid; the floor drops a further 10m when it sits at
@@ -1060,7 +1061,7 @@ export class WallShadowLayer {
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
       const { z, x, y } = coord.canonical; // PARCHMENT
       gl.uniform1f(U.u_unit_m, tileUnitMetres(z, y));
-      gl.uniform2f(U.u_tile_origin, (x % 64) * 8192, (y % 64) * 8192);
+      gl.uniform2f(U.u_tile_origin, x % 64, y % 64);
       this._bindTerrain(gl, U, coord); // PARCHMENT
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);

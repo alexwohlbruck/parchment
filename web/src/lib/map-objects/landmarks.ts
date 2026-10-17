@@ -20,26 +20,26 @@
 import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-layers'
 import { coveredNear, type Coverage } from './landmark-coverage'
 import { FACADE_FLAVOR, type FacadeFlavor } from '@/lib/map/facade-shader'
+import { hsl } from '@/lib/map-decks/palette'
+import lightTokens from '@/lib/map-style/tokens.light.json'
+import darkTokens from '@/lib/map-style/tokens.dark.json'
 
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
-  /** Multiplied into a landmark's own colours, after `harmony`. */
-  tint: [number, number, number]
-  /** Whether doors are lit from inside; see `materialEmission`. */
-  night: boolean
   /** The extrusions' own colour (sRGB), which a landmark's materials are pulled toward. */
   palette: [number, number, number]
   /** How far: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
   harmony: number
-  /** Window glass and lit windows, shared with the extrusions so the two light up alike. */
+  /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
   facade: FacadeFlavor
 }
 
+const buildingColor = (tokens: Record<string, string>) => hsl(tokens.building_3d_fill_extrusion_color)
+
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  light: { tint: [1, 1, 1], night: false, palette: [0.908, 0.895, 0.872], harmony: 0.25, facade: FACADE_FLAVOR.light },
-  // Pulled most of the way into the dark map's blue, so a stone tower stands
-  // as one of its neighbours rather than a pale cut-out among them.
-  dark: { tint: [1, 1, 1], night: true, palette: [0.218, 0.29, 0.422], harmony: 0.75, facade: FACADE_FLAVOR.dark },
+  light: { palette: buildingColor(lightTokens), harmony: 0.25, facade: FACADE_FLAVOR.light },
+  // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
+  dark: { palette: buildingColor(darkTokens), harmony: 0.75, facade: FACADE_FLAVOR.dark },
 }
 
 /** sRGB hex to 0–1 channels. */

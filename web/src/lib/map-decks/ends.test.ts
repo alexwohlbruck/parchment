@@ -328,6 +328,16 @@ describe('mouthSides', () => {
   const main = { chain: chain(line(0, 10, 20, 30, 40)), z: [10, 10, 10, 10, 10] }
   const ramp = { chain: chain([at(20, 4), at(20, 30)]), z: [10, 10] }
 
+  test('opens the segment a ramp narrower than the samples are apart leaves from', () => {
+    // Samples 12 m apart; a ramp 6 m wide leaving between two of them.
+    const sparse = { chain: chain(line(0, 12, 24, 36)), z: [10, 10, 10, 10] }
+    const narrow = { chain: { ...chain([at(18, 4), at(18, 30)]), edges: [3, 3] as [number, number] }, z: [10, 10] }
+    const [onSparse] = mouthSides([sparse, narrow])
+    const k = onSparse.findIndex(side => side[1] && side[2])
+    expect(k).toBeGreaterThanOrEqual(0)
+    expect(onSparse[k][0] || onSparse[k][3]).toBe(false)
+  })
+
   test('opens the side a ramp carries on from, not the far side or one over a lower road', () => {
     const north = (sides: boolean[][]) => sides.findIndex(side => side[2])
     const [onMain] = mouthSides([main, ramp])

@@ -739,12 +739,13 @@ const MOUTH_PROBE = 2
 export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[] {
   const roads = decks.map(({ chain }, k) => ({ k, chain, bounds: boundsOf(chain.points, Math.max(...chain.edges)) })).filter(r => r.chain.kind === 'road' && r.chain.points.length > 1)
   return decks.map(({ chain, z }, a) => {
-    if (chain.kind === 'rail') return [chain.points.map(() => false), chain.points.map(() => false)] as Sides
+    const n = chain.points.length
+    const out: Sides = [chain.points.map(() => false), chain.points.map(() => false)]
+    if (chain.kind === 'rail') return out
     const scale = MOUTH_PROBE / metresPerUnit(chain.points[0][1])
-    const mine = boundsOf(chain.points, Math.max(...chain.edges) + MOUTH_PROBE)
-    const near = roads.filter(r => r.k !== a && meets(r.bounds, mine))
-    return edgePoints(chain).map(side => side.map((e, i) => {
-      const c = chain.points[i]
+    const near = roads.filter(r => r.k !== a && meets(r.bounds, boundsOf(chain.points, Math.max(...chain.edges) + MOUTH_PROBE)))
+    if (!near.length) return out
+    const faces = (c: Point, e: Point, h: number) => {
       const len = Math.hypot(e[0] - c[0], e[1] - c[1])
       if (!len) return false
       const q: Point = [e[0] + ((e[0] - c[0]) / len) * scale, e[1] + ((e[1] - c[1]) / len) * scale]
@@ -753,9 +754,17 @@ export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[]
         const at = beside(other.points, q)
         if (!at.alongside || at.distance > sideAt(other, at.left ? 0 : 1, at.segment - 1, at.t) - COVERED.inset) return false
         const zb = decks[k].z[at.segment - 1] + (decks[k].z[at.segment] - decks[k].z[at.segment - 1]) * at.t
-        return Math.abs(zb - z[i]) <= COVERED.step
+        return Math.abs(zb - h) <= COVERED.step
       })
-    })) as Sides
+    }
+    const mid = (p: Point, q: Point): Point => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]
+    edgePoints(chain).forEach((side, s) => {
+      for (let i = 0; i < n; i++) if (faces(chain.points[i], side[i], z[i])) out[s][i] = true
+      // A mouth narrower than the samples are apart falls between two: its segment goes, both ends with it.
+      for (let i = 1; i < n; i++)
+        if (faces(mid(chain.points[i - 1], chain.points[i]), mid(side[i - 1], side[i]), (z[i - 1] + z[i]) / 2)) out[s][i - 1] = out[s][i] = true
+    })
+    return out
   })
 }
 

@@ -154,3 +154,21 @@ describe('landedOn', () => {
     expect(landedOn({ ...chain, grounded: [false, false] }, z, () => 99.5)).toEqual(z)
   })
 })
+
+describe('the road beyond a deck laid on its end', () => {
+  const points = line(0, 10, 20, 30)
+  const surface = testSurface(points, [100, 100, 100, 100], [99.5, 99.5, 99.5, 99.5])
+  const laid = (run: Point[]) => {
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'lane', pattern: 'solid', color: 'white' }, runs: [run], areas: [] }], [surface], colors, points[0], { atGrade: true })
+    return mesh.position.length
+  }
+
+  test('takes the lines running with the deck', () => {
+    expect(laid([at(1, 2), at(12, 2)])).toBeGreaterThan(0)
+  })
+
+  test('leaves out a road crossing it', () => {
+    expect(laid([at(5, -5), at(5, 5)])).toBe(0)
+  })
+})

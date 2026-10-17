@@ -97,6 +97,20 @@ function onGround(laid: Laid, p: Point, nearEnd = true): Hit | null {
   return z === null || Number.isNaN(z) ? null : { deck: -1, distance: 0, z, segment: 1, t: 0 }
 }
 
+/** Least cosine between a line and the deck under it for the line to be laid on the deck's end. */
+const ALONG_COS = Math.cos(Math.PI / 6)
+
+/** Whether a line at its `i`th point runs with the deck segment under it. */
+function runsAlong(surfaces: DeckSurface[], hit: Hit | null, line: Point[], i: number): boolean {
+  if (!hit || line.length < 2) return false
+  const pts = surfaces[hit.deck].points
+  const [a, b] = [pts[hit.segment - 1], pts[hit.segment]]
+  const [p, q] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]]
+  const [dx, dy, lx, ly] = [b[0] - a[0], b[1] - a[1], q[0] - p[0], q[1] - p[1]]
+  const norm = Math.hypot(dx, dy) * Math.hypot(lx, ly)
+  return norm > 0 && Math.abs(dx * lx + dy * ly) / norm >= ALONG_COS
+}
+
 /**
  * Every marking laid on the surfaces beneath it; what lies on none is left
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
@@ -111,7 +125,10 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
     const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
-    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) } : laid
+    // A road's lines are laid on a deck's end only where they run with it: a road crossing at the end is the deck's to cover.
+    const under = atGrade
+      ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? grounded(h) : null))), rings: laid.rings.map(r => r.map(grounded)) }
+      : laid
     let next = 0
     // Coloured lanes lie under the lines; white bars over them.
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02

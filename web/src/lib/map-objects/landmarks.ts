@@ -19,25 +19,27 @@
  */
 import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-layers'
 import { coveredNear, type Coverage } from './landmark-coverage'
+import { FACADE_FLAVOR, type FacadeFlavor } from '@/lib/map/facade-shader'
+import { hsl } from '@/lib/map-decks/palette'
+import lightTokens from '@/lib/map-style/tokens.light.json'
+import darkTokens from '@/lib/map-style/tokens.dark.json'
 
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
-  /**
-   * Multiplied into a landmark's own colours. A landmark keeps its
-   * materials, so unlike the trees it cannot be repainted by role; at night
-   * it is dimmed and cooled toward the dark map's blue instead.
-   */
-  tint: [number, number, number]
-  /** Whether windows and doors are lit from inside; see `materialLight`. */
-  night: boolean
+  /** The extrusions' own colour (sRGB), which a landmark's materials are pulled toward. */
+  palette: [number, number, number]
+  /** How far: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
+  harmony: number
+  /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
+  facade: FacadeFlavor
 }
 
+const buildingColor = (tokens: Record<string, string>) => hsl(tokens.building_3d_fill_extrusion_color)
+
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  light: { tint: [1, 1, 1], night: false },
-  // Toward the dark map's blue, but not so far that copper stops reading as
-  // copper — the buildings around it are lit, and a landmark dimmer than
-  // them looks like a hole.
-  dark: { tint: [0.56, 0.62, 0.76], night: true },
+  light: { palette: buildingColor(lightTokens), harmony: 0.25, facade: FACADE_FLAVOR.light },
+  // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
+  dark: { palette: buildingColor(darkTokens), harmony: 0.85, facade: FACADE_FLAVOR.dark },
 }
 
 /** sRGB hex to 0–1 channels. */
@@ -45,57 +47,28 @@ const hex = (h: string): [number, number, number] =>
   [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number]
 
 /**
- * What a material emits, by name, as Open Landmarks lights it
- * (`rendering/lighting.js` and `lighting.json` there). Its models carry no
- * emissive of their own; the renderer is expected to recognise `window` and
- * `entrance` and light them for the time of day. Our own catalog uses the
- * same names, so one rule serves both.
+ * Doors glow at night, as Open Landmarks lights them (`rendering/lighting.js`
+ * there): its models carry no emissive of their own, only material names.
  */
-const LIGHTS = {
-  window: {
-    // The library's slate glass. Forced at night only: by day a model's own
-    // window colour is what its author chose, and on a painted facade the
-    // colour is the whole wall's.
-    nightBase: hex('#64798a'),
-    day: { glow: hex('#ffe6bf'), intensity: 0.06 },
-    night: { glow: hex('#ffc983'), intensity: 0.5 },
-  },
-  entrance: {
-    day: { glow: hex('#fff0cd'), intensity: 0 },
-    night: { glow: hex('#fff0cd'), intensity: 2.4 },
-  },
-}
+const ENTRANCE_LIGHT = { glow: hex('#fff0cd'), intensity: 2.4 }
 
 /** The soft light pooled in front of a lit door; drawn at night only. */
 export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }
 
 /**
- * Whether a material is window glass that lights up. By prefix, because a GLB
- * cannot repeat a material name: a model with two window colours names them
- * `window` and `window-2`. Self-supporting `glass` is not a window and stays
- * dark, as it does in Open Landmarks.
+ * Whether a material is window glass, which takes the procedural facade. By
+ * prefix, because a GLB cannot repeat a material name: a model with two window
+ * colours names them `window` and `window-2`. Self-supporting `glass` is not a
+ * window, as in Open Landmarks.
  */
 export const isWindow = (material: string) => material.startsWith('window')
 
-/**
- * How a primitive is lit for the time of day: a base colour to use instead of
- * its own (sRGB, or null to keep it), and an emitted colour (sRGB) and
- * intensity, added on top of the shading in linear light.
- */
-export function materialLight(
+/** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
+export function materialEmission(
   material: string,
   night: boolean,
-  painted: boolean,
-): { base: [number, number, number] | null; glow: [number, number, number]; intensity: number } | null {
-  if (isWindow(material)) {
-    const { glow, intensity } = night ? LIGHTS.window.night : LIGHTS.window.day
-    return { base: night && !painted ? LIGHTS.window.nightBase : null, glow, intensity }
-  }
-  if (material === 'entrance') {
-    const { glow, intensity } = night ? LIGHTS.entrance.night : LIGHTS.entrance.day
-    return { base: null, glow, intensity }
-  }
-  return null
+): { glow: [number, number, number]; intensity: number } | null {
+  return night && material === 'entrance' ? ENTRANCE_LIGHT : null
 }
 
 /** One placement, in the units the layer wants. */

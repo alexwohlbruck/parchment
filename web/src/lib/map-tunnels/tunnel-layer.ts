@@ -13,9 +13,13 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
-import { BANK, carveTile, footprint, tileUnder, type Elevation, type Footprint } from './carve'
+import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
+import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
+import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
+import { liveBuildingShade } from '@/lib/map/building-shade'
+import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
@@ -70,27 +74,8 @@ const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: 
 const CARVED_ZOOM = FINE_TERRAIN_MAXZOOM - 1
 
 /** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
-function elevation(dem: any): Elevation {
-  const bytes = new Uint8Array(dem.data.buffer, dem.data.byteOffset, dem.data.byteLength)
-  return {
-    dim: dem.dim,
-    border: 2,
-    get: (x, y) => dem.get(x, y),
-    set: (x, y, metres) => {
-      const { r, g, b } = dem.pack(metres)
-      const i = dem._idx(x, y) * 4
-      bytes[i] = r
-      bytes[i + 1] = g
-      bytes[i + 2] = b
-      dem.min = Math.min(dem.min, metres)
-    },
-  }
-}
-
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
-/** Milliseconds a frame may spend carving tiles. */
-const CARVE_BUDGET = 6
 /** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
 const SILL = 0.5
 
@@ -129,7 +114,7 @@ export class TunnelLayer {
   /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
   private exposed: FloorRange[] = []
   private exposedFor = ''
-  private pending: Built | null = null
+  private pending: (Built & { ground: Float32Array; exaggeration: number }) | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
   private cancelIdle?: () => void
@@ -140,13 +125,23 @@ export class TunnelLayer {
   private cuts = new Map<string, Solved>()
   private built = ''
   /** The floors carved into the terrain, keyed by their cut. */
-  private carving = new Map<string, Footprint>()
-  /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
-  private carved = new WeakMap<object, number>()
-  private round = 0
-  /** Where finer terrain has been asked for. */
-  private focused: Bounds[] = []
+  private carver: TerrainCarver
   private stale = true
+  /** The walls standing out of the ground cast as the buildings do; see `building-shade.ts`. */
+  private shadow = new MeshShadow()
+  private sun: SunFrame | null = null
+  get shadowVersion() {
+    return this.shadow.version
+  }
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    this.shadow.drawShadow(gl, frame)
+  }
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.shadow.drawSunDepth(gl, frame)
+  }
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
 
   /**
    * `focusTerrain` is told where cuts are carved, so finer terrain is served
@@ -154,6 +149,7 @@ export class TunnelLayer {
    */
   constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; focusTerrain?: (areas: Bounds[]) => void } = {}) {
     this.id = options.id ?? 'map-tunnels'
+    this.carver = new TerrainCarver(() => this.map, options.focusTerrain)
   }
 
   setPalette(palette: DeckPalette) {
@@ -168,7 +164,7 @@ export class TunnelLayer {
     this.onChange = event => {
       if (event?.tile && event.sourceId === this.map.getTerrain?.()?.source) {
         // A tile arriving fills its neighbours' borders from its own uncarved ground.
-        this.recarveAround(event.tile)
+        this.carver.recarveAround(event.tile)
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
@@ -193,9 +189,9 @@ export class TunnelLayer {
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
     this.release(gl)
+    this.shadow.delete(gl)
     gl.deleteProgram(this.program)
-    this.options.focusTerrain?.([])
-    if (this.carving.size) map.terrain?.tileManager?.tileManager?.reload(true)
+    this.carver.clear()
     this.map = null
   }
 
@@ -209,7 +205,10 @@ export class TunnelLayer {
         if (!this.map) return
         const mesh = this.build()
         if (!mesh) return
-        this.pending = mesh
+        // On the ground as it was before the cut, which is what the walls rise out of.
+        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+        const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
+        this.pending = { ...mesh, ground, exaggeration }
         this.map.triggerRepaint?.()
       })
     }, 200) as unknown as number
@@ -390,44 +389,10 @@ export class TunnelLayer {
     this.buffers = null
   }
 
-  /** Take on a new set of floors: carved over what is there, or, where one has gone, into freshly loaded ground. */
-  private carve(next: Map<string, Footprint>) {
-    const removed = [...this.carving].filter(([key]) => !next.has(key)).map(([, f]) => f.bounds)
-    const areas = [...next.values()].map(f => f.bounds)
-    const reached = areas.filter(a => !this.focused.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
-    this.carving = next
-    this.focused = areas
-    this.options.focusTerrain?.(areas)
-    this.round++
-    this.reloadTerrain([...removed, ...reached])
-  }
-
-  /**
-   * Load the elevation tiles under these areas afresh: uncarved where a floor
-   * has gone, finer where one has arrived. Only those tiles, so the rest of the
-   * terrain, and the tiles cached off screen, are kept.
-   */
-  private reloadTerrain(areas: Bounds[]) {
-    const manager = this.map?.terrain?.tileManager?.tileManager
-    if (!manager || !areas.length) return
-    const under = (tile: any) => tileUnder([tile.tileID.canonical.z, tile.tileID.canonical.x, tile.tileID.canonical.y], areas)
-    manager._outOfViewCache?.filter((tile: any) => !under(tile))
-    manager.refreshTiles(this.demTiles().filter(under).map(tile => tile.tileID.canonical))
-  }
-
-  /** Mark a tile and the loaded tiles beside it to be carved again. */
-  private recarveAround(loaded: any) {
-    const { z, x, y } = loaded.tileID.canonical
-    for (const tile of this.demTiles()) {
-      const c = tile.tileID.canonical
-      if (tile.dem && c.z === z && Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) this.carved.delete(tile.dem)
-    }
-  }
-
   /** The floors with an end on no elevation tile both fine enough and carved this round. */
   private exposedFloors(): FloorRange[] {
-    const tiles = this.demTiles().filter(t => t.dem && t.tileID.canonical.z >= CARVED_ZOOM && this.carved.get(t.dem) === this.round)
-    const key = `${this.round}|${tiles.map(t => t.tileID.key).join()}`
+    const tiles = this.carver.tiles().filter(t => t.dem && t.tileID.canonical.z >= CARVED_ZOOM && this.carver.current(t.dem))
+    const key = `${this.carver.round}|${tiles.map(t => t.tileID.key).join()}`
     if (key === this.exposedFor) return this.exposed
     const bounds = tiles.map(t => {
       const { z, x, y } = t.tileID.canonical
@@ -439,44 +404,19 @@ export class TunnelLayer {
     return this.exposed
   }
 
-  private demTiles(): any[] {
-    return this.map?.terrain?.tileManager?.tileManager?._inViewTiles?.getAllTiles?.() ?? []
-  }
-
-  /** Carve the floors into each loaded elevation tile not yet carved this round. */
-  private carveTiles() {
-    if (!this.carving.size) return
-    const tiles = this.demTiles()
-    const floors = [...this.carving.values()]
-    const start = performance.now()
-    let changed = false
-    for (const tile of tiles) {
-      if (!tile.dem || this.carved.get(tile.dem) === this.round) continue
-      // A few tiles a frame, so a burst of them arriving does not stall one.
-      if (performance.now() - start > CARVE_BUDGET) {
-        this.map.triggerRepaint()
-        break
-      }
-      this.carved.set(tile.dem, this.round)
-      const { z, x, y } = tile.tileID.canonical
-      if (!carveTile(elevation(tile.dem), [z, x, y], floors)) continue
-      tile.needsTerrainPrepare = true
-      tile.needsHillshadePrepare = true
-      changed = true
-    }
-    if (changed) this.map.triggerRepaint()
-  }
-
   render(gl: WebGL2RenderingContext, args: any) {
     if (this.pending) {
       this.release(gl)
       const { walls, mouth, lid, floor, floors, bore, footprints } = this.pending
       this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.floors = floors
-      this.carve(footprints)
+      this.carver.set(footprints)
+      this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
+      // The shade layer drew this frame's shadows before the walls changed.
+      this.map.triggerRepaint()
     }
-    this.carveTiles()
+    this.carver.carveTiles()
     if (!this.buffers?.walls.count) return
 
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
@@ -489,8 +429,12 @@ export class TunnelLayer {
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
+    const sun = this.sun
+    this.sun = null
+    const shade = liveBuildingShade()
+    const shading = { frame: sun, origin: this.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: null, gradeBias: 0 }
     const draw = (name: keyof NonNullable<typeof this.buffers>, ranges?: FloorRange[]) => {
-      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light)
+      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light, { sun: shading })
       if (ranges) for (const { from, to } of ranges) mesh.draw(from, to)
       else mesh.draw()
       mesh.unbind()

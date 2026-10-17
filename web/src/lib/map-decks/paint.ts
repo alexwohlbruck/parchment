@@ -5,7 +5,7 @@
  * as lines.
  */
 import earcut from 'earcut'
-import { atHit, BOX_MIN, boundsOf, clip, halfPlane, holds, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onDeck, onOwnDeck, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
+import { atHit, beside, boundsOf, smoothstep, clip, convexClip, holds, planeOf, meets, TOUCHDOWN, type Bounds, densify, linesOf, mercator, metresPerUnit, onDeck, onOwnDeck, subtractConvex, topZ, polygonsOf, tileBounds, vertex, type DeckSurface, type Hit, type Mesh, type Point } from './decks'
 
 export type Paint = { props: Record<string, any>; runs: Point[][]; areas: Point[][][] }
 
@@ -22,8 +22,48 @@ const PAINT_SAMPLE = 3
 const WALKWAY = 2.5
 const RAIL = 0.12
 const GAUGE = 1.435
+/**
+ * Where the road beyond a deck is laid on it: within AT_GRADE.reach metres of
+ * one of its ends, and no more than AT_GRADE.over over the ground, so a road
+ * passing under it is never lifted onto it.
+ */
+export const AT_GRADE = { reach: 15, over: 6 }
 
-const centroid = (p: Point[]): Point => [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3]
+/** Whether a deck, `t` of the way along its segment ending at `i`, is near enough its end and low enough to carry the road beyond it. */
+function atGradeAt(deck: DeckSurface, i: number, t: number): boolean {
+  const at = (v: number[]) => v[i - 1] + (v[i] - v[i - 1]) * t
+  const d = at(deck.d)
+  return Math.min(d, deck.d[deck.d.length - 1] - d) <= AT_GRADE.reach && at(deck.z) - (deck.ground ? at(deck.ground) : -Infinity) < AT_GRADE.over
+}
+
+/** A deck segment's drawn top, as `deckMesh` laid it, its corners at the deck's very ends run on a little past them. */
+function drawnQuad(deck: DeckSurface, i: number): Point[] | null {
+  const tops = deck.tops
+  const q = tops?.[i - 1]
+  if (!tops || !q) return null
+  const pts = deck.points
+  const n = pts.length
+  const scale = END_OVERLAP / metresPerUnit(pts[0][1])
+  const away = (a: Point, b: Point): Point => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    return [((b[0] - a[0]) / len) * scale, ((b[1] - a[1]) / len) * scale]
+  }
+  // A skewed end's corners can collapse onto one another along the last segments, so corners are matched by place.
+  const ends: Array<[number[], Point]> = [
+    [tops[0][0], away(pts[1], pts[0])], [tops[0][1], away(pts[1], pts[0])],
+    [tops[tops.length - 1][3], away(pts[n - 2], pts[n - 1])], [tops[tops.length - 1][2], away(pts[n - 2], pts[n - 1])],
+  ]
+  return q.map(c => {
+    const end = ends.find(([e]) => e[0] === c[0] && e[1] === c[1])
+    return (end ? [c[0] + end[1][0], c[1] + end[1][1]] : [c[0], c[1]]) as Point
+  })
+}
+
+/** Metres what is laid on a deck runs on past its drawn end. */
+const END_OVERLAP = 0.25
+
+const centroidOf = (p: Point[]): Point => [p.reduce((a, q) => a + q[0], 0) / p.length, p.reduce((a, q) => a + q[1], 0) / p.length]
+
 /** How far below its lift on a deck paint on the ground beside one is laid, so the deck's own wins where both are. */
 const GROUND_UNDER = 0.05
 /** Metres apart in height two decks under one painted triangle may be and still both carry it. */
@@ -40,7 +80,7 @@ export function paintOf(feature: any): Paint {
 }
 
 /** What a mark is laid on: the deck under each point, and whether it keeps its colour below street zoom. */
-type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground; offDeck?: boolean }
+type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground }
 
 /**
  * The ground beside a deck's ends, where a bridge's own road and paint carry on
@@ -57,30 +97,68 @@ function onGround(laid: Laid, p: Point, nearEnd = true): Hit | null {
   return z === null || Number.isNaN(z) ? null : { deck: -1, distance: 0, z, segment: 1, t: 0 }
 }
 
+/** Least cosine between a line and the deck under it for the line to be laid on the deck's end. */
+const ALONG_COS = Math.cos(Math.PI / 6)
+
+/** A mark's height on a deck's at-grade end: the deck's, or the drawn ground's where that stands higher and would hide it. */
+function onTop(ground: Ground | undefined, deck: DeckSurface, i: number, t: number, p: Point, z: number): number {
+  if (!ground || !atGradeAt(deck, i, t)) return z
+  const g = ground.at(p)
+  return g !== null && g > z ? g : z
+}
+
+/** The road beyond a bridge way's end: the end, its outward direction (unit), and how far along and across from it is past it, in metres. */
+export type PastEnd = { p: Point; out: Point; reach: number; half: number }
+
+/** Whether a point lies on the road beyond a bridge way's end. */
+function isPast({ p, out, reach, half }: PastEnd, q: Point): boolean {
+  const scale = metresPerUnit(p[1])
+  const [dx, dy] = [(q[0] - p[0]) * scale, (q[1] - p[1]) * scale]
+  const along = dx * out[0] + dy * out[1]
+  return along >= -1 && along <= reach && Math.abs(dy * out[0] - dx * out[1]) <= half
+}
+
+/** Whether a line at its `i`th point runs with the deck segment under it. */
+function runsAlong(surfaces: DeckSurface[], hit: Hit | null, line: Point[], i: number): boolean {
+  if (!hit || line.length < 2) return false
+  const pts = surfaces[hit.deck].points
+  const [a, b] = [pts[hit.segment - 1], pts[hit.segment]]
+  const [p, q] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]]
+  const [dx, dy, lx, ly] = [b[0] - a[0], b[1] - a[1], q[0] - p[0], q[1] - p[1]]
+  const norm = Math.hypot(dx, dy) * Math.hypot(lx, ly)
+  return norm > 0 && Math.abs(dx * lx + dy * ly) / norm >= ALONG_COS
+}
+
 /**
  * Every marking laid on the surfaces beneath it; what lies on none is left
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
  * lies on the ground and so would hide it.
  */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, offDeck = false }: { atGrade?: boolean; ground?: Ground; offDeck?: boolean } = {}) {
-  const grounded = (hit: Hit | null) => (hit && hit.z - atHit(surfaces[hit.deck].ground, hit) < BOX_MIN ? hit : null)
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, past, parts = 'both' }: { atGrade?: boolean; ground?: Ground; past?: PastEnd[]; parts?: 'areas' | 'lines' | 'both' } = {}) {
+  const grounded = (hit: Hit | null) => (hit && atGradeAt(surfaces[hit.deck], hit.segment, hit.t) ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
     if (props.pattern === 'none') continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
-    const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
-    const under = atGrade ? { lines: laid.lines.map(l => l.map(grounded)), rings: laid.rings.map(r => r.map(grounded)) }
-      : offDeck ? { lines: laid.lines.map(l => l.map(() => null)), rings: laid.rings.map(r => r.map(() => null)) } : laid
+    const flat = areas.flat()
+    const laid = onOwnDeck(lines, flat, surfaces, { across: ACROSS.has(props.kind) }).under
+    // A road's lines are laid on a deck's end only where they run with it: a road crossing at the end is the deck's to cover.
+    // A bridge's line or ring lying wholly past its end is at grade: a deck high overhead there is another road's.
+    const beyond = (points: Point[]) => !!past?.length && points.every(q => past.some(e => isPast(e, q)))
+    const own = (hits: Array<Hit | null>, points: Point[]) => (beyond(points) ? hits.map(h => (h && !atGradeAt(surfaces[h.deck], h.segment, h.t) ? null : h)) : hits)
+    const under = atGrade
+      ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? grounded(h) : null))), rings: laid.rings.map(r => r.map(grounded)) }
+      : past?.length ? { lines: laid.lines.map((l, k) => own(l, lines[k])), rings: laid.rings.map((r, k) => own(r, flat[k])) }
+      : laid
     let next = 0
-    // Coloured lanes lie under the lines; white bars over them.
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
-    for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground, offDeck }, color, lift, origin)
+    if (parts !== 'lines') for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground }, color, lift, origin)
     const width = PAINT_WIDTH[props.kind] ?? 0.12
-    for (const [k, line] of lines.entries())
+    if (parts !== 'areas') for (const [k, line] of lines.entries())
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
-        strip(mesh, line, { under: under.lines[k], surfaces, ground }, width, color, 0.04, offset, String(props.pattern).startsWith('dashed') ? DASH : null, origin)
+        strip(mesh, line, { under: under.lines[k].map((h, i) => (h && h.deck >= 0 ? { ...h, z: onTop(ground, surfaces[h.deck], h.segment, h.t, line[i], h.z) } : h)), surfaces, ground }, width, color, 0.04, offset, String(props.pattern).startsWith('dashed') ? DASH : null, origin)
   }
 }
 
@@ -104,18 +182,20 @@ export function layWays(mesh: Mesh, ways: Array<{ kind: 'path' | 'rail'; points:
   for (const { kind, points } of ways) {
     const line = densify(points, PAINT_SAMPLE)
     const under = onOwnDeck([line], [], surfaces).under.lines[0]
-    // A footbridge is walkway already.
-    const laid = { under: kind === 'path' ? under.map(h => (h && surfaces[h.deck].kind === 'path' ? null : h)) : under, surfaces }
+    // A footbridge, or a street deck's top beside its carriageway, is walkway already.
+    // A path crossing a street deck's carriageway is laid on it still.
+    const walkway = (h: Hit | null, i: number) => !!h && (surfaces[h.deck].kind === 'path' || (!!surfaces[h.deck].sidewalks && runsAlong(surfaces, h, line, i)))
+    const laid = { under: kind === 'path' ? under.map((h, i) => (walkway(h, i) ? null : h)) : under, surfaces }
     if (kind === 'path') strip(mesh, line, laid, WALKWAY, colors.walkway, 0.005, 0, null, origin)
     else for (const side of [-1, 1]) strip(mesh, line, laid, RAIL, colors.rail, 0.03, (side * GAUGE) / 2, null, origin)
   }
 }
 
 /** A vertex laid on the deck under it, at its colour there below street zoom and its bias. */
-function laidVertex(mesh: Mesh, p: number[], hit: Hit, { surfaces, keep, ground }: Laid, color: number[]) {
-  if (hit.deck < 0) return vertex(mesh, p, [0, 0, 1], color, keep ? color : (ground?.low ?? color), TOUCHDOWN.bias)
+function laidVertex(mesh: Mesh, p: number[], hit: Hit, { surfaces, keep, ground }: Laid, color: number[], spread?: number[]) {
+  if (hit.deck < 0) return vertex(mesh, p, [0, 0, 1], color, keep ? color : (ground?.low ?? color), TOUCHDOWN.bias, spread)
   const deck = surfaces[hit.deck]
-  vertex(mesh, p, [0, 0, 1], color, keep ? color : (deck.low ?? color), atHit(deck.bias, hit))
+  vertex(mesh, p, [0, 0, 1], color, keep ? color : (deck.low ?? color), atHit(deck.bias, hit), spread)
 }
 
 /** A painted area on the decks under its corners, where every corner of a triangle has one. */
@@ -123,28 +203,71 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
   const flat = rings.flat()
   const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)
-  // The level of the mark: the highest deck any of its corners lies on; with none, it is cut to no deck.
-  const onAny = laid.under.filter((h): h is Hit => !!h)
-  const level = onAny.length ? Math.max(...onAny.map(h => h.z)) : null
+  // The level of the mark about a point: the deck under its nearest corner on one; with none, it is cut to no deck.
+  const onAny = flat.flatMap((p, k) => (laid.under[k] ? [{ p, z: laid.under[k]!.z }] : []))
+  const levelNear = (q: Point) => onAny.length
+    ? onAny.reduce((a, b) => (Math.hypot(b.p[0] - q[0], b.p[1] - q[1]) < Math.hypot(a.p[0] - q[0], a.p[1] - q[1]) ? b : a)).z
+    : null
   for (let t = 0; t < index.length; t += 3) {
     const corners = [index[t], index[t + 1], index[t + 2]]
-    if (corners.some(k => !laid.under[k])) {
-      // Only decks at the level of the paint: a corner can lie over a deck stacked under it. A triangle
-      // with no corner on any deck can still cross one.
-      const tri = corners.map(k => flat[k])
-      if (!laid.offDeck && level !== null) {
-        const box = boundsOf(tri)
-        const centre = centroid(tri)
-        for (const [k, d] of laid.surfaces.entries())
-          if (d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) clipped(mesh, tri, k, laid, color, lift, origin)
+    const tri = corners.map(k => flat[k])
+    const box = boundsOf(tri)
+    const centre = centroidOf(tri)
+    // Cut to each road deck at the mark's level, top triangle by top triangle and never subdivided, so neighbouring pieces meet exactly.
+    const level = levelNear(centre)
+    if (level !== null)
+      for (const [k, d] of laid.surfaces.entries())
+        if (d.kind === 'road' && d.tops && d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
+    // Beside a deck's end the rest lies on the ground: the triangle less every stretch of deck lying low.
+    if (laid.ground && onGround(laid, centre, false)) {
+      let rest = [tri]
+      for (const d of laid.surfaces) {
+        if (!d.tops || !d.bounds || !meets(d.bounds, box)) continue
+        for (let i = 1; i < d.points.length && rest.length; i++) {
+          if (d.ground && Math.min(d.z[i - 1] - d.ground[i - 1], d.z[i] - d.ground[i]) >= AT_GRADE.over) continue
+          const quad = drawnQuad(d, i)!
+          if (meets(boundsOf(quad), box)) rest = rest.flatMap(piece => subtractConvex(piece, quad))
+        }
       }
-      // Beside a deck's end the rest lies on the ground.
-      const below = corners.map(k => onGround(laid, flat[k], false))
-      if (below.every(Boolean)) split(mesh, corners.map((k, c) => ({ p: flat[k], hit: below[c]! })), laid, color, lift - GROUND_UNDER, origin, scale)
-      continue
+      for (const piece of rest) {
+        const hits = piece.map(p => onGround(laid, p, false))
+        if (!hits.every(Boolean) || !onGround(laid, centroidOf(piece))) continue
+        for (let v = 1; v < piece.length - 1; v++)
+          split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j]! })), laid, color, lift - GROUND_UNDER, origin, scale)
+      }
     }
-    split(mesh, corners.map(k => ({ p: flat[k], hit: laid.under[k]! })), laid, color, lift, origin, scale)
   }
+}
+
+/** A triangle laid on a deck's drawn top: cut to each of its top triangles, each piece at that triangle's plane. */
+function onTops(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: number[], lift: number, origin: Point) {
+  const deck = laid.surfaces[k]
+  const scale = 1 / metresPerUnit(triangle[0][1])
+  const box = boundsOf(triangle)
+  for (let i = 1; i < deck.points.length; i++) {
+    if (laid.grounded && !atGradeAt(deck, i, 0) && !atGradeAt(deck, i, 1)) continue
+    const top = deck.tops![i - 1]
+    const outline = drawnQuad(deck, i)!
+    if (!meets(boundsOf(outline), box)) continue
+    for (const [a, b, c] of [[0, 1, 2], [0, 2, 3]]) {
+      const piece = convexClip(triangle, [outline[a], outline[b], outline[c]])
+      if (piece.length < 3) continue
+      const plane = planeOf(top[a], top[b], top[c])
+      // The deck's top is drawn toward the eye by its corners' bias; what lies on it must be too, or terrain shows through at its ends.
+      const bias = deck.bias ? [deck.bias[i - 1], deck.bias[i - 1], deck.bias[i], deck.bias[i]] : [0, 0, 0, 0]
+      const biasAt = planeOf([...top[a].slice(0, 2), bias[a]], [...top[b].slice(0, 2), bias[b]], [...top[c].slice(0, 2), bias[c]])
+      const hits = piece.map(p => ({ deck: k, distance: 0, z: onTop(laid.ground, deck, i, 0.5, p, plane(p)), segment: i, t: biasT(deck, i, biasAt(p)) }))
+      for (let v = 1; v < piece.length - 1; v++)
+        for (const j of [0, v, v + 1]) laidVertex(mesh, [piece[j][0] - origin[0], piece[j][1] - origin[1], (hits[j].z + lift) * scale], hits[j], laid, color)
+    }
+  }
+}
+
+
+/** The `t` along segment `i` at which the deck's bias is `bias`, so `atHit` gives it back. */
+function biasT(deck: DeckSurface, i: number, bias: number): number {
+  const [b0, b1] = [deck.bias?.[i - 1] ?? 0, deck.bias?.[i] ?? 0]
+  return b1 === b0 ? 0 : Math.max(0, Math.min(1, (bias - b0) / (b1 - b0)))
 }
 
 /** A deck's height under a point, from its nearest segment. */
@@ -157,7 +280,7 @@ function hitOn(laid: Laid, k: number, p: Point): Hit | null {
     const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
     const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
     const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1])
-    if (distance < best.distance) best = { deck: k, distance, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+    if (distance < best.distance) best = { deck: k, distance, z: topZ(deck, i, p) ?? deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
   }
   return best
 }
@@ -175,9 +298,7 @@ function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, c
   const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
   const e = sides.indexOf(Math.max(...sides))
   if (sides[e] <= PAINT_SAMPLE || depth > 12) {
-    // On the ground only beside a deck's end, never under the deck.
-    const centre = centroid(corners.map(c => c.p))
-    if (corners[0].hit.deck < 0 && (!onGround(laid, centre) || onDeck([centre], laid.surfaces, 0)[0] !== null)) return
+
     for (const { p, hit } of corners) laidVertex(mesh, [p[0] - origin[0], p[1] - origin[1], (hit.z + lift) * scale], hit, laid, color)
     return
   }
@@ -190,36 +311,6 @@ function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, c
   split(mesh, [m, b, c], laid, color, lift, origin, scale, depth + 1)
 }
 
-/** The part of a painted triangle over one deck, cut to each segment of its surface it overlaps, so paint ends square at the deck's edge. */
-function clipped(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: number[], lift: number, origin: Point) {
-  const deck = laid.surfaces[k]
-  if (!deck.edges) return
-  const [left, right] = deck.edges
-  const scale = 1 / metresPerUnit(triangle[0][1])
-  const box = { minX: Math.min(...triangle.map(p => p[0])), maxX: Math.max(...triangle.map(p => p[0])), minY: Math.min(...triangle.map(p => p[1])), maxY: Math.max(...triangle.map(p => p[1])) }
-  for (let i = 1; i < deck.points.length; i++) {
-    if (laid.grounded && deck.ground && Math.max(deck.z[i - 1] - deck.ground[i - 1], deck.z[i] - deck.ground[i]) >= BOX_MIN) continue
-    const quad = [left[i - 1], left[i], right[i], right[i - 1]]
-    if (quad.every(p => p[0] < box.minX) || quad.every(p => p[0] > box.maxX) || quad.every(p => p[1] < box.minY) || quad.every(p => p[1] > box.maxY)) continue
-    const centre: Point = [quad.reduce((a, p) => a + p[0], 0) / 4, quad.reduce((a, p) => a + p[1], 0) / 4]
-    let piece = triangle
-    for (let e = 0; e < 4 && piece.length >= 3; e++) {
-      const [a, b] = [quad[e], quad[(e + 1) % 4]]
-      let n: Point = [-(b[1] - a[1]), b[0] - a[0]]
-      if ((centre[0] - a[0]) * n[0] + (centre[1] - a[1]) * n[1] < 0) n = [-n[0], -n[1]]
-      piece = halfPlane(piece, a, n)
-    }
-    if (piece.length < 3) continue
-    const hits = piece.map(p => {
-      const [a, b] = [deck.points[i - 1], deck.points[i]]
-      const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
-      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
-      return { deck: k, distance: 0, z: deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
-    })
-    for (let v = 1; v < piece.length - 1; v++)
-      split(mesh, [0, v, v + 1].map(j => ({ p: piece[j], hit: hits[j] })), laid, color, lift, origin, scale)
-  }
-}
 
 /** Paint along a line on the decks under its points, as flat quads, dashed when given a dash. */
 function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: number[], lift: number, offset: number, dash: { on: number; off: number } | null, origin: Point) {
@@ -231,7 +322,13 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     const metres = seg / scale
     const off = !laid.under[i - 1] || !laid.under[i]
     const beside = off && onDeck([[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]], laid.surfaces, 0)[0] === null
-    const [ha, hb] = !off ? [laid.under[i - 1], laid.under[i]] : beside ? [onGround(laid, a), onGround(laid, b)] : [null, null]
+    // Where a line leaves a deck's end for the ground, the step between them is laid from the one to the other.
+    const onEnd = (h: Hit | null) => !!h && h.deck >= 0 && atGradeAt(laid.surfaces[h.deck], h.segment, h.t)
+    const leaving = off && !beside && !!laid.ground && (onEnd(laid.under[i - 1]) || onEnd(laid.under[i]))
+    const [ha, hb] = !off ? [laid.under[i - 1], laid.under[i]]
+      : beside ? [onGround(laid, a), onGround(laid, b)]
+      : leaving ? [laid.under[i - 1] ?? onGround(laid, a), laid.under[i] ?? onGround(laid, b)]
+      : [null, null]
     if (!ha || !hb || seg === 0) {
       travelled += metres
       continue
@@ -258,8 +355,67 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
       }
       const corners = [at(s0, 1), at(s0, -1), at(s1, -1), at(s1, 1)]
       const hits = [ha, ha, hb, hb]
-      for (const tri of [[0, 1, 2], [0, 2, 3]]) for (const k of tri) laidVertex(mesh, corners[k], hits[k], laid, color)
+      const out = [[nx, ny, width / 2], [-nx, -ny, width / 2]]
+      const spreads = [out[0], out[1], out[1], out[0]]
+      for (const tri of [[0, 1, 2], [0, 2, 3]]) for (const k of tri) laidVertex(mesh, corners[k], hits[k], laid, color, spreads[k])
     }
     travelled += metres
   }
+}
+
+/** How far beside a bridge line's end a ground line may run, and how near its own end, to carry it on; and how far the bridge's eases onto it, in metres. */
+const LINE_JOIN = { reach: 1.5, end: 6, ease: 8 }
+
+/** Bridge lines eased onto the same lines on the ground they run on into, those cut where the bridge's end, so neither steps nor doubles. */
+export function joinedLines(bridge: Paint[], ground: Paint[]): { bridge: Paint[]; ground: Paint[] } {
+  const same = (a: Paint, b: Paint) => a.props.kind === b.props.kind && a.props.color === b.props.color && a.props.pattern === b.props.pattern
+  const groundRuns = ground.map(g => g.runs.map(run => [...run]))
+  const bridgeOut = bridge.map(paint => {
+    if (!paint.runs.length) return paint
+    const runs = paint.runs.map(raw => {
+      if (raw.length < 2) return raw
+      let out = densify(raw, PAINT_SAMPLE)
+      for (const end of [0, 1] as const) {
+        const [tip, inner] = end ? [out[out.length - 1], out[out.length - 2]] : [out[0], out[1]]
+        const other = out[end ? 0 : out.length - 1]
+        let best: { g: number; r: number; p: Point; segment: number; distance: number } | null = null
+        for (const [g, paintG] of ground.entries()) {
+          if (!same(paintG, paint)) continue
+          for (const [r, line] of groundRuns[g].entries()) {
+            if (line.length < 2 || !holds(boundsOf(line, LINE_JOIN.reach), tip)) continue
+            const near = beside(line, tip)
+            if (near.distance > LINE_JOIN.reach || (best && near.distance >= best.distance)) continue
+            const [a, b] = [line[near.segment - 1], line[near.segment]]
+            const p: Point = [a[0] + (b[0] - a[0]) * near.t, a[1] + (b[1] - a[1]) * near.t]
+            const fromEnd = Math.min(...[line[0], line[line.length - 1]].map(q => Math.hypot(q[0] - p[0], q[1] - p[1]) * metresPerUnit(p[1])))
+            const along = Math.abs((b[0] - a[0]) * (tip[0] - inner[0]) + (b[1] - a[1]) * (tip[1] - inner[1])) / (Math.hypot(b[0] - a[0], b[1] - a[1]) * Math.hypot(tip[0] - inner[0], tip[1] - inner[1]) || 1)
+            if (fromEnd <= LINE_JOIN.end && along >= ALONG_COS) best = { g, r, p, segment: near.segment, distance: near.distance }
+          }
+        }
+        if (!best) continue
+        out = eased(out, end, best.p)
+        const line = groundRuns[best.g][best.r]
+        const [head, tail] = [[...line.slice(0, best.segment), best.p], [best.p, ...line.slice(best.segment)]]
+        const far = (part: Point[]) => Math.max(...part.map(q => Math.hypot(q[0] - other[0], q[1] - other[1])))
+        groundRuns[best.g][best.r] = far(tail) >= far(head) ? tail : head
+      }
+      return out
+    })
+    return { ...paint, runs }
+  })
+  return { bridge: bridgeOut, ground: ground.map((g, k) => (g.runs.length ? { ...g, runs: groundRuns[k] } : g)) }
+}
+
+/** A line with one end moved to `to`, the move fading out over LINE_JOIN.ease metres along it. */
+function eased(line: Point[], end: 0 | 1, to: Point): Point[] {
+  const pts = end ? [...line].reverse() : [...line]
+  const scale = metresPerUnit(pts[0][1])
+  const [dx, dy] = [to[0] - pts[0][0], to[1] - pts[0][1]]
+  let along = 0
+  const out = pts.map((p, i) => {
+    if (i) along += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) * scale
+    const w = smoothstep(Math.max(0, 1 - along / LINE_JOIN.ease))
+    return [p[0] + dx * w, p[1] + dy * w] as Point
+  })
+  return end ? out.reverse() : out
 }

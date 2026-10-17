@@ -473,8 +473,10 @@ export class MaplibreStrategy extends MapStrategy {
       // The new style has its own building filters and no landmark layer.
       if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
+      if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
+      if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
@@ -927,6 +929,7 @@ export class MaplibreStrategy extends MapStrategy {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
+      surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides
@@ -961,8 +964,10 @@ export class MaplibreStrategy extends MapStrategy {
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
       this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
+      shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
       this.tunnelLayer = null
     }
@@ -972,9 +977,11 @@ export class MaplibreStrategy extends MapStrategy {
         DECK_PALETTE[flavor],
       )
       this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
+      shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
     } else if (!active && this.deckLayer) {
+      shadowCasters.delete(this.deckLayer)
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null
     }

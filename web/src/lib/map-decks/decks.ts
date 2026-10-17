@@ -882,14 +882,9 @@ export const SEAM = 0.3
 const SEAM_DIP = 0.03
 
 /** How far a grounded end may drop and rise to meet the ground drawn under it, and over how many metres the deck eases into that. */
-export const LANDING = { down: 1, up: 2, ease: 20 }
+const LANDING = { down: 1, up: 2, ease: 20 }
 
-/**
- * A deck's heights with each grounded end brought to the ground drawn under
- * it, eased in along the deck, so the road on the ground meets it level. The
- * ground is the map's, in true metres; an end further from it than LANDING
- * allows stays where it is, as in a hollow the drawn ground does not show.
- */
+/** A deck's heights with each grounded end eased to the map's ground (true metres), unless that lies beyond LANDING, as in a hollow. */
 export function landedOn(chain: Chain, z: number[], ground: (p: Point) => number | null): number[] {
   const n = chain.points.length
   if (n < 2) return z

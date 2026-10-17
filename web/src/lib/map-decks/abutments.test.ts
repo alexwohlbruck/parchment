@@ -13,7 +13,7 @@ describe('abutmentMesh', () => {
   const ground = [100, 100, 100, 100, 100]
   const build = (c: Chain, heights = z, clear = () => true) => {
     const out = deckMeshOut()
-    abutmentMesh(c, heights, ground, { origin: points[0], metresPerUnit: metresPerUnit(y0), color: [1, 1, 1], out }, clear)
+    abutmentMesh(c, heights, ground, { origin: points[0], color: [1, 1, 1], out }, clear)
     return out
   }
   const xs = (out: ReturnType<typeof deckMeshOut>) => out.position.filter((_, k) => k % 3 === 0).map(v => v / M)

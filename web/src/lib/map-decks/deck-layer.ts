@@ -356,7 +356,7 @@ export class DeckLayer {
     const own = deduped.filter(piece => !covered(piece, servedBounds))
     const decks = absorbTracks(absorbPaths(fitted(chains(own, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs)))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
-    const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean }> = decks.flatMap(chain => {
+    const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean; wayEnds?: [Point, Point] }> = decks.flatMap(chain => {
       const groundAt = this.groundOf(chain)
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
@@ -385,9 +385,10 @@ export class DeckLayer {
     for (const s of solved) Object.assign(s, rounded(s.chain, s.z, s.groundAt))
     for (const s of solved.slice(local)) {
       const sampler = this.groundSampler()
+      s.z = landedOn(s.chain, s.z, q => sampler?.at(q) ?? null)
+      s.wayEnds = [s.chain.points[0], s.chain.points[s.chain.points.length - 1]]
       const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt, q => sampler?.at(q) ?? null)
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
-      s.z = landedOn(s.chain, s.z, q => sampler?.at(q) ?? null)
     }
     const open = joinNeighbours(solved)
     // Solved in true metres; drawn over terrain that is stretched.
@@ -405,9 +406,10 @@ export class DeckLayer {
     // Concrete only under a carriageway that runs the deck's length; elsewhere the deck is the road itself, in asphalt.
     const concrete = (chain: Chain) => chain.kind === 'road' &&
       chain.points.filter(q => outlines.some(o => holds(o.bounds, q) && inside(q, o.rings))).length >= chain.points.length * PAVED
+    const concreteAt = new Map(solved.map(({ chain }) => [chain, concrete(chain)]))
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
-      : { surface: concrete(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
+      : { surface: concreteAt.get(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
       deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k])
@@ -425,13 +427,11 @@ export class DeckLayer {
     const grounded = solved.filter(({ chain }) => chain.kind === 'road' && (chain.grounded[0] || chain.grounded[1]))
     const onGround = this.carriageways(false, grounded.map(({ chain }) => boundsOf(chain.points)))
       .flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
-    const frame = { origin: this.origin, metresPerUnit: metresPerUnit(this.origin[1]), color: p.concrete, out: mesh }
-    for (const { chain, z, groundAt } of grounded)
-      for (const end of [0, 1] as const) {
-        if (!chain.grounded[end]) continue
-        const at = chain.points[end ? chain.points.length - 1 : 0]
-        abutmentMesh({ ...chain, grounded: [end === 0, end === 1] }, z, groundAt, frame, this.abutmentClear(at, onGround), exaggeration)
-      }
+    const frame = { origin: this.origin, color: p.concrete, out: mesh }
+    for (const { chain, z, groundAt, wayEnds } of grounded) {
+      const clear = ([0, 1] as const).map(end => this.abutmentClear(wayEnds?.[end] ?? chain.points[end ? chain.points.length - 1 : 0], onGround))
+      abutmentMesh(chain, z, groundAt, frame, (end, footprint) => clear[end](footprint), exaggeration)
+    }
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
@@ -495,11 +495,7 @@ export class DeckLayer {
     return this.under
   }
 
-  /**
-   * Whether an abutment's footprint at a deck's end keeps off the roads,
-   * railways and paths on the ground, other than the road carrying on from
-   * that end itself.
-   */
+  /** Whether an abutment's footprint keeps off the ways and carriageways on the ground, but for the road carrying on from its way's end. */
   private abutmentClear(end: Point, rings: Array<{ rings: Point[][]; bounds: Bounds }>): (footprint: Point[]) => boolean {
     const scale = metresPerUnit(end[1])
     const touches = (q: Point) => Math.hypot(q[0] - end[0], q[1] - end[1]) * scale < OWN_ROAD

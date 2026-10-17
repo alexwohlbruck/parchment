@@ -178,10 +178,10 @@ export function layWays(mesh: Mesh, ways: Array<{ kind: 'path' | 'rail'; points:
 }
 
 /** A vertex laid on the deck under it, at its colour there below street zoom and its bias. */
-function laidVertex(mesh: Mesh, p: number[], hit: Hit, { surfaces, keep, ground }: Laid, color: number[]) {
-  if (hit.deck < 0) return vertex(mesh, p, [0, 0, 1], color, keep ? color : (ground?.low ?? color), TOUCHDOWN.bias)
+function laidVertex(mesh: Mesh, p: number[], hit: Hit, { surfaces, keep, ground }: Laid, color: number[], spread?: number[]) {
+  if (hit.deck < 0) return vertex(mesh, p, [0, 0, 1], color, keep ? color : (ground?.low ?? color), TOUCHDOWN.bias, spread)
   const deck = surfaces[hit.deck]
-  vertex(mesh, p, [0, 0, 1], color, keep ? color : (deck.low ?? color), atHit(deck.bias, hit))
+  vertex(mesh, p, [0, 0, 1], color, keep ? color : (deck.low ?? color), atHit(deck.bias, hit), spread)
 }
 
 /** A painted area on the decks under its corners, where every corner of a triangle has one. */
@@ -341,7 +341,9 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
       }
       const corners = [at(s0, 1), at(s0, -1), at(s1, -1), at(s1, 1)]
       const hits = [ha, ha, hb, hb]
-      for (const tri of [[0, 1, 2], [0, 2, 3]]) for (const k of tri) laidVertex(mesh, corners[k], hits[k], laid, color)
+      const out = [[nx, ny, width / 2], [-nx, -ny, width / 2]]
+      const spreads = [out[0], out[1], out[1], out[0]]
+      for (const tri of [[0, 1, 2], [0, 2, 3]]) for (const k of tri) laidVertex(mesh, corners[k], hits[k], laid, color, spreads[k])
     }
     travelled += metres
   }

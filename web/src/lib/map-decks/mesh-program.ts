@@ -12,7 +12,10 @@ const VS = `
   uniform float u_hd;
   uniform vec3 u_eye;
   uniform float u_per_metre;
+  uniform vec2 u_viewport;
+  uniform float u_min_px;
   attribute vec3 a_position;
+  attribute vec3 a_spread;
   attribute vec3 a_normal;
   attribute vec3 a_color;
   attribute vec3 a_low;
@@ -25,6 +28,13 @@ const VS = `
     // A deck's top is the flat road's colour, unshaded, so it meets the road it carries.
     v_color = mix(a_low, a_color, u_hd) * max(lit, normalize(a_normal).z);
     vec3 p = a_position;
+    // A painted line is widened to at least u_min_px across on screen, as the flat roads' lines are.
+    if (a_spread.z > 0.0) {
+      vec4 c0 = u_matrix * vec4(p, 1.0);
+      vec4 c1 = u_matrix * vec4(p + vec3(a_spread.xy, 0.0), 1.0);
+      float px = length((c1.xy / c1.w - c0.xy / c0.w) * u_viewport * 0.5);
+      p.xy += a_spread.xy * max(0.0, u_min_px * 0.5 / max(px, 1e-6) - a_spread.z);
+    }
     if (a_bias > 0.0) p += normalize(u_eye - p) * a_bias * u_per_metre;
     gl_Position = u_matrix * vec4(p, 1.0);
   }`
@@ -34,7 +44,7 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; count: number }
+export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; count: number }
 
 export function linkMeshProgram(gl: WebGL2RenderingContext): WebGLProgram {
   const program = gl.createProgram()!
@@ -63,12 +73,13 @@ export function uploadMesh(gl: WebGL2RenderingContext, mesh: Mesh): MeshBuffers 
     color: upload(mesh.color),
     low: mesh.low?.length === count * 3 ? upload(mesh.low) : null,
     bias: mesh.bias?.length === count ? upload(mesh.bias) : null,
+    spread: mesh.spread?.length === count * 3 ? upload(mesh.spread) : null,
     count,
   }
 }
 
 export function deleteMesh(gl: WebGL2RenderingContext, buffers: MeshBuffers | null) {
-  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias]) if (b) gl.deleteBuffer(b)
+  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread]) if (b) gl.deleteBuffer(b)
 }
 
 /**
@@ -90,14 +101,14 @@ export function eyeOf(m: ArrayLike<number>): [number, number, number] | null {
 }
 
 /** What a draw needs besides the matrix and light: how far toward street zoom it is (1 there) and the eye, for biased vertices. */
-export type MeshView = { hd?: number; eye?: [number, number, number] | null; perMetre?: number }
+export type MeshView = { hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number }
 
 /**
  * Bind the program with its matrix and the style's light, and the buffers to
  * its attributes; returns a draw for a range of vertices and an unbind. A mesh
  * without low colours or biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre', WebGLUniformLocation | null>; attributes: number[] }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx', WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
 
 export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buffers: MeshBuffers, matrix: Float32Array, light: number[], view: MeshView = {}) {
@@ -105,8 +116,8 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   if (!at) {
     const u = (name: string) => gl.getUniformLocation(program, name)
     at = {
-      uniforms: { matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre') },
-      attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias'].map(name => gl.getAttribLocation(program, name)),
+      uniforms: { matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px') },
+      attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread'].map(name => gl.getAttribLocation(program, name)),
     }
     locations.set(program, at)
   }
@@ -120,8 +131,10 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   // No eye, no bias: a zero scale leaves every vertex where it is.
   const biased = eye ? (view.perMetre ?? 0) : 0
   gl.uniform1f(at.uniforms.perMetre, biased)
+  gl.uniform2f(at.uniforms.viewport, gl.drawingBufferWidth, gl.drawingBufferHeight)
+  gl.uniform1f(at.uniforms.minPx, (view.minLinePx ?? 0) * (globalThis.devicePixelRatio || 1))
   gl.bindVertexArray(null)
-  const [position, normal, color, low, bias] = at.attributes
+  const [position, normal, color, low, bias, spread] = at.attributes
   const enabled: number[] = []
   const bind = (loc: number, buffer: WebGLBuffer, size: number) => {
     if (loc < 0) return
@@ -136,6 +149,8 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   bind(low, buffers.low ?? buffers.color, 3)
   if (buffers.bias) bind(bias, buffers.bias, 1)
   else if (bias >= 0) gl.vertexAttrib1f(bias, 0)
+  if (buffers.spread) bind(spread, buffers.spread, 3)
+  else if (spread >= 0) gl.vertexAttrib3f(spread, 0, 0, 0)
   return {
     draw: (from = 0, to = buffers.count) => {
       if (to > from) gl.drawArrays(gl.TRIANGLES, from, to - from)

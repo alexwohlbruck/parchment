@@ -702,19 +702,23 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
  * Triangles for the GPU. Where `low` and `bias` are kept, every vertex has
  * them: its colour below street zoom, and metres it is drawn toward the eye.
  */
-export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[] }
+/** `spread`: for a painted line's vertex, the way out from the line's middle (mercator units a metre) and its half width in metres; zero elsewhere. */
+export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[]; spread?: number[] }
 
 /** A mesh that keeps low colours and biases. */
-export const deckMeshOut = (): Required<Mesh> => ({ position: [], normal: [], color: [], low: [], bias: [] })
+export const deckMeshOut = (): Required<Mesh> => ({ position: [], normal: [], color: [], low: [], bias: [], spread: [] })
 
 /** One vertex onto a mesh, with its low colour and bias where the mesh keeps them. */
-export function vertex(out: Mesh, p: ArrayLike<number>, n: ArrayLike<number>, color: ArrayLike<number>, low: ArrayLike<number> = color, bias = 0) {
+export function vertex(out: Mesh, p: ArrayLike<number>, n: ArrayLike<number>, color: ArrayLike<number>, low: ArrayLike<number> = color, bias = 0, spread: ArrayLike<number> = NO_SPREAD) {
   out.position.push(p[0], p[1], p[2])
   out.normal.push(n[0], n[1], n[2])
   out.color.push(color[0], color[1], color[2])
   out.low?.push(low[0], low[1], low[2])
   out.bias?.push(bias)
+  out.spread?.push(spread[0], spread[1], spread[2])
 }
+
+const NO_SPREAD = [0, 0, 0]
 
 /** Metres toward the eye a deck's surface is drawn where it lies on the ground, fading to none `fade` metres up: the drawn terrain is coarser than the deck's. */
 export const TOUCHDOWN = { bias: 1.5, fade: 3 }

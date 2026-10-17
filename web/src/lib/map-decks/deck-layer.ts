@@ -158,6 +158,8 @@ const ABUTMENT_ROOM = 1
 
 /** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
 const PAVED = 0.8
+/** The least width a line on a deck is drawn at, in CSS pixels: a whole pixel, since unlike the flat roads' it is not antialiased. */
+const MIN_LINE_PX = 1
 /** How far past a bridge's end its paint may run on the ground, in metres: Barrelman gives it the street's first 15. */
 const PAST_END = 18
 /** Coloured lanes joined across a bridge's ends, and how far apart two corners may lie and be one lane's, in metres. */
@@ -686,7 +688,7 @@ export class DeckLayer {
     const eye = eyeOf(projection)
     const relative: [number, number, number] | null = eye && [eye[0] - this.origin[0], eye[1] - this.origin[1], eye[2]]
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]) })
+    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX })
     const { paintFrom, railsFrom, routesFrom } = this.ranges
     const draw = (writeDepth: boolean) => {
       mesh.draw(0, paintFrom)

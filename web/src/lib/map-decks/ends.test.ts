@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, coveredSides, deckMeshOut, grownRing, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
+import { along, boundsOf, coveredSides, deckMeshOut, grownRing, innerSides, inside, jointAreas, joinNeighbours, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint, type PastEnd } from './paint'
 import { testSurface } from './test-surface'
 
@@ -288,3 +288,37 @@ describe('coveredSides', () => {
     expect(onAcross[0][1]).toBe(false)
   })
 })
+
+describe('innerSides', () => {
+  const chain = (points: Point[], kind: 'road' | 'path' | 'rail' = 'road') => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind, edges: [5, 5] as [number, number] })
+  const outline = (rings: Point[][]) => ({ rings, bounds: boundsOf(rings[0]) })
+
+  test('leaves a parapet only where a side lies along its bridge\'s outline', () => {
+    // A road 5 m either side of y = 0, in an outline reaching 5 m to the south and 20 m to the north.
+    const deck = { chain: chain(line(0, 10, 20, 30, 40)) }
+    const [sides] = innerSides([deck], [outline([[at(-5, -5), at(45, -5), at(45, 20), at(-5, 20), at(-5, -5)]])])
+    const north = sides.findIndex(side => side.slice(1, -1).every(Boolean))
+    expect(north).toBeGreaterThanOrEqual(0)
+    expect(sides[1 - north].some(Boolean)).toBe(false)
+  })
+
+  test('keeps every parapet of a deck in no outline, and a rail deck\'s', () => {
+    const far = [outline([[at(100, 100), at(120, 100), at(120, 120), at(100, 120), at(100, 100)]])]
+    expect(innerSides([{ chain: chain(line(0, 10, 20)) }], far)[0].flat().some(Boolean)).toBe(false)
+    const around = [outline([[at(-20, -20), at(60, -20), at(60, 20), at(-20, 20), at(-20, -20)]])]
+    expect(innerSides([{ chain: chain(line(0, 10, 20), 'rail') }], around)[0].flat().some(Boolean)).toBe(false)
+  })
+})
+
+describe('joinNeighbours', () => {
+  test('meets a sidewalk deck across a wider gap than another road deck', () => {
+    const chain = (points: Point[], kind: 'road' | 'path') => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind, edges: kind === 'road' ? [5, 5] as [number, number] : [1, 1] as [number, number] })
+    // Edges 3 m apart: a kerb's width from a sidewalk, too far from a twin.
+    const road = { chain: chain(line(0, 10, 20, 30), 'road'), z: [10, 10, 10, 10] }
+    const walk = { chain: chain([at(0, 9), at(10, 9), at(20, 9), at(30, 9)], 'path'), z: [10, 10, 10, 10] }
+    const twin = { chain: chain([at(0, 13), at(10, 13), at(20, 13), at(30, 13)], 'road'), z: [10, 10, 10, 10] }
+    expect(joinNeighbours([road, walk])[0].flat().some(Boolean)).toBe(true)
+    expect(joinNeighbours([{ ...road, z: [10, 10, 10, 10] }, twin])[0].flat().some(Boolean)).toBe(false)
+  })
+})
+

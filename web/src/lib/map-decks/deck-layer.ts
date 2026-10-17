@@ -42,6 +42,7 @@ import {
   edgePoints,
   joinNeighbours,
   coveredSides,
+  innerSides,
   smooth,
   steady,
   rounded,
@@ -67,6 +68,7 @@ import {
   metresPerUnit,
   type Bounds,
   type Chain,
+  type Sides,
   type DeckSurface,
   type Top,
   type Mesh,
@@ -417,7 +419,10 @@ export class DeckLayer {
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
-    const onDecks = coveredSides(solved)
+    // Bridge outlines, tile pieces and all: a cut at a tile's edge only ever keeps a parapet.
+    const bridgeAreas = bridges.flatMap(f => polygonsOf(f.geometry).map(rings => rings.map(ring => ring.map(mercator)))).map(rings => ({ rings, bounds: boundsOf(rings[0]) }))
+    const inner = innerSides(solved, bridgeAreas)
+    const onDecks = coveredSides(solved).map((sides, k) => sides.map((side, s) => side.map((c, i) => c || inner[k][s][i])) as Sides)
     // Decks built here stand their piers clear of the roads, railways and paths beneath.
     const unplaced = solved.filter(s => !s.piers)
     if (unplaced.length) {

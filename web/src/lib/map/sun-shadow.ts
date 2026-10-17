@@ -58,7 +58,7 @@ export type SunView = {
  * as tight around the visible ground and everything standing on it as the
  * light direction allows.
  */
-export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: number } {
+export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: number; texelMetres: number } {
   const { center, perMetre, radius, ceiling, floor } = view
   const f = norm(view.toward)
   const r = norm(Math.abs(f[2]) > 0.999 ? [1, 0, 0] : cross(f, [0, 0, 1]))
@@ -99,7 +99,7 @@ export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: num
   const metric = new Float64Array([k, 0, 0, 0, 0, -k, 0, 0, 0, 0, k, 0, -center[0] * k, center[1] * k, 0, 1])
   const light = new Float64Array(16)
   for (let c = 0; c < 4; c++) for (let row = 0; row < 4; row++) light[c * 4 + row] = rows[row][c]
-  return { light: multiply(light, metric), depthPerMetre: 1 / (hi[2] - lo[2]) }
+  return { light: multiply(light, metric), depthPerMetre: 1 / (hi[2] - lo[2]), texelMetres: Math.max(hi[0] - lo[0], hi[1] - lo[1]) / SUN_SHADOW_SIZE }
 }
 
 /**
@@ -111,10 +111,13 @@ export const SUN_SHADOW_GLSL = `
   uniform float u_sunOn;
   uniform float u_sunTexel;
   uniform float u_sunBias; // depth per metre
-  float sunShade(vec4 p, float slope) {
-    if (u_sunOn < 0.5) return 0.0;
+  bool sunCovers(vec4 p) {
     vec3 c = p.xyz / p.w * 0.5 + 0.5;
-    if (any(lessThan(c.xy, vec2(0.0))) || any(greaterThan(c.xy, vec2(1.0))) || c.z > 1.0) return 0.0;
+    return u_sunOn > 0.5 && all(greaterThanEqual(c.xy, vec2(0.0))) && all(lessThanEqual(c.xy, vec2(1.0))) && c.z <= 1.0;
+  }
+  float sunShade(vec4 p, float slope) {
+    if (!sunCovers(p)) return 0.0;
+    vec3 c = p.xyz / p.w * 0.5 + 0.5;
     float z = c.z - (0.4 + 1.2 * min(slope, 4.0)) * u_sunBias;
     float t = 0.75 * u_sunTexel;
     // Lod, not plain texture: callers sample inside a per-fragment branch.
@@ -124,6 +127,11 @@ export const SUN_SHADOW_GLSL = `
   }
 `
 
+/** Light-clip ← a mesh's own frame, mercator about `origin`; composed in double precision so the mesh keeps its float precision. */
+export function lightAbout(light: Mat4, origin: [number, number, number?]): Float32Array {
+  return Float32Array.from(multiply(light, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, origin[0], origin[1], origin[2] ?? 0, 1]))
+}
+
 /** What a caster and a receiver need of the map for one frame. */
 export type SunFrame = {
   /** Clip ← mercator, for the sun's view. */
@@ -131,6 +139,8 @@ export type SunFrame = {
   perMetre: number
   texture: WebGLTexture
   depthPerMetre: number
+  /** Metres a texel spans across the light, its longer side. */
+  texelMetres: number
 }
 
 export const SUN_SHADOW_UNIFORMS = ['u_sunShadow', 'u_sunOn', 'u_sunTexel', 'u_sunBias'] as const

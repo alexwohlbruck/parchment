@@ -476,6 +476,7 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
+      if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
@@ -963,8 +964,10 @@ export class MaplibreStrategy extends MapStrategy {
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
       this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
+      shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
       this.tunnelLayer = null
     }

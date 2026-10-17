@@ -3,7 +3,7 @@
  * buffers a built mesh is uploaded into.
  */
 import type { Mesh } from './decks'
-import { bindSun, multiply, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 
 // `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
 // sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
@@ -49,8 +49,8 @@ const VS = `#version 300 es
     gl_Position = u_matrix * vec4(p, 1.0);
   }`
 
-// At grade a deck lies in the buildings' ground shadow, read from the same screen-space mask
-// and blurred as the ground's; standing clear of the ground, in their sun shadow.
+// At grade a deck lies in the ground's shadow mask, blurred as the ground's, where the sun's map agrees:
+// the mask also holds the deck's own shadow on the ground behind it. Clear of the ground, in the sun's map.
 const FS = `#version 300 es
   precision highp float;
   uniform float u_shadowAlpha;
@@ -77,9 +77,9 @@ const FS = `#version 300 es
     return sh / sw * u_maskAlpha;
   }
   void main() {
-    float ground = v_grade > 0.0 ? groundShade() * v_grade : 0.0;
-    float sky = v_grade < 1.0 ? u_shadowAlpha * sunShade(v_sun, v_slope) * (1.0 - v_grade) : 0.0;
-    float shade = max(ground, sky);
+    float sun = sunShade(v_sun, v_slope);
+    float ground = v_grade > 0.0 ? groundShade() * v_grade * (sunCovers(v_sun) ? smoothstep(0.05, 0.4, sun) : 1.0) : 0.0;
+    float shade = max(ground, u_shadowAlpha * sun * (1.0 - v_grade));
     fragColor = vec4(v_color * (1.0 - shade), 1.0);
   }`
 
@@ -207,8 +207,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   const sun = view.sun?.frame ? view.sun : null
   bindSun(gl, at.sun, sun?.frame ?? null)
   gl.uniform1f(at.uniforms.shadowAlpha, sun?.alpha ?? 0)
-  // Composed in double precision about the mesh's origin, so a mesh drawn near it keeps its float precision.
-  gl.uniformMatrix4fv(at.uniforms.sunLight, false, sun ? Float32Array.from(multiply(sun.frame!.light, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, sun.origin[0], sun.origin[1], 0, 1])) : IDENTITY)
+  gl.uniformMatrix4fv(at.uniforms.sunLight, false, sun ? lightAbout(sun.frame!.light, sun.origin) : IDENTITY)
   gl.bindVertexArray(null)
   const [position, normal, color, low, bias, spread] = at.attributes
   const enabled: number[] = []

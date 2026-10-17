@@ -28,6 +28,12 @@ describe('sunLightMatrix', () => {
     expect(up[1]).toBeCloseTo(ground[1], 9)
     expect(up[2]).toBeLessThan(ground[2])
   })
+
+  it("sizes a texel as the view's extent over the map's texels", () => {
+    const { texelMetres } = sunLightMatrix(view)
+    expect(texelMetres).toBeGreaterThanOrEqual(1600 / 2048)
+    expect(texelMetres).toBeLessThan(4000 / 2048)
+  })
 })
 
 describe('tileToMercator', () => {

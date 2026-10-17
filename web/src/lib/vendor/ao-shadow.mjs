@@ -1190,8 +1190,8 @@ export class WallShadowLayer {
   _sunPass(gl, tiles, saved) {
     this._sunTarget(gl);
     const view = this._sunView();
-    const { light, depthPerMetre } = sunLightMatrix(view);
-    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, depthPerMetre };
+    const { light, depthPerMetre, texelMetres } = sunLightMatrix(view);
+    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, depthPerMetre, texelMetres };
     // A frame that moves neither the light, the ground nor anything casting reuses the map.
     const terrain = this._terrain();
     const key = [...light];

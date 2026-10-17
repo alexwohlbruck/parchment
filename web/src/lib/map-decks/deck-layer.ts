@@ -85,6 +85,7 @@ import { closedAreas } from './closing'
 import { AT_GRADE, joinedLines, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
+import { groundBeneath, MeshShadow } from './mesh-shadow'
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
@@ -195,12 +196,20 @@ export class DeckLayer {
   private origin: [number, number] = [0, 0]
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
-  private pending: { mesh: Mesh; ranges: Ranges } | null = null
+  private pending: { mesh: Mesh; ranges: Ranges; ground: Float32Array; exaggeration: number } | null = null
   /** The buildings' sun shadow map this frame, which the decks lie in as the ground does; see `building-shade.ts`. */
   private sun: SunFrame | null = null
-  /** Decks cast no ground shadow of their own; they are in the shadow casters only to receive the sun's. */
-  readonly shadowVersion = 0
-  drawShadow() {}
+  /** The decks' structure, piers and parapets casting on the ground and into the sun's map. */
+  private shadow = new MeshShadow()
+  get shadowVersion() {
+    return this.shadow.version
+  }
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    this.shadow.drawShadow(gl, frame)
+  }
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.shadow.drawSunDepth(gl, frame)
+  }
   receiveSun(frame: SunFrame) {
     this.sun = frame
   }
@@ -266,6 +275,7 @@ export class DeckLayer {
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
     deleteMesh(gl, this.buffers)
+    this.shadow.delete(gl)
     gl.deleteProgram(this.program)
     this.map = null
   }
@@ -283,7 +293,11 @@ export class DeckLayer {
         if (!this.map) return
         const built = this.build()
         if (!built) return
-        this.pending = built
+        // On the fixed-zoom ground the decks were solved on: the drawn terrain is a hundred times slower to ask.
+        const sampler = this.groundSampler()
+        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+        const ground = groundBeneath(built.mesh.position, built.ranges.paintFrom, this.origin, q => sampler?.at(q) ?? null, exaggeration)
+        this.pending = { ...built, ground, exaggeration }
         this.map.triggerRepaint?.()
       })
     }, 200) as unknown as number
@@ -703,7 +717,10 @@ export class DeckLayer {
       deleteMesh(gl, this.buffers)
       this.buffers = uploadMesh(gl, this.pending.mesh)
       this.ranges = this.pending.ranges
+      this.shadow.set(gl, this.buffers.position, this.ranges.paintFrom, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
+      // The shade layer drew this frame's shadows before the decks changed.
+      this.map.triggerRepaint()
     }
     if (!this.buffers?.count) return
 

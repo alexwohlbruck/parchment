@@ -17,6 +17,9 @@ import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
+import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
+import { liveBuildingShade } from '@/lib/map/building-shade'
+import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck-layer'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
@@ -111,7 +114,7 @@ export class TunnelLayer {
   /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
   private exposed: FloorRange[] = []
   private exposedFor = ''
-  private pending: Built | null = null
+  private pending: (Built & { ground: Float32Array; exaggeration: number }) | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
   private cancelIdle?: () => void
@@ -124,6 +127,21 @@ export class TunnelLayer {
   /** The floors carved into the terrain, keyed by their cut. */
   private carver: TerrainCarver
   private stale = true
+  /** The walls standing out of the ground cast as the buildings do; see `building-shade.ts`. */
+  private shadow = new MeshShadow()
+  private sun: SunFrame | null = null
+  get shadowVersion() {
+    return this.shadow.version
+  }
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    this.shadow.drawShadow(gl, frame)
+  }
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.shadow.drawSunDepth(gl, frame)
+  }
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
 
   /**
    * `focusTerrain` is told where cuts are carved, so finer terrain is served
@@ -171,6 +189,7 @@ export class TunnelLayer {
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
     this.release(gl)
+    this.shadow.delete(gl)
     gl.deleteProgram(this.program)
     this.carver.clear()
     this.map = null
@@ -186,7 +205,10 @@ export class TunnelLayer {
         if (!this.map) return
         const mesh = this.build()
         if (!mesh) return
-        this.pending = mesh
+        // On the ground as it was before the cut, which is what the walls rise out of.
+        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+        const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
+        this.pending = { ...mesh, ground, exaggeration }
         this.map.triggerRepaint?.()
       })
     }, 200) as unknown as number
@@ -389,7 +411,10 @@ export class TunnelLayer {
       this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.floors = floors
       this.carver.set(footprints)
+      this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
+      // The shade layer drew this frame's shadows before the walls changed.
+      this.map.triggerRepaint()
     }
     this.carver.carveTiles()
     if (!this.buffers?.walls.count) return
@@ -404,8 +429,12 @@ export class TunnelLayer {
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
     gl.disable(gl.BLEND)
+    const sun = this.sun
+    this.sun = null
+    const shade = liveBuildingShade()
+    const shading = { frame: sun, origin: this.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: null, gradeBias: 0 }
     const draw = (name: keyof NonNullable<typeof this.buffers>, ranges?: FloorRange[]) => {
-      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light)
+      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light, { sun: shading })
       if (ranges) for (const { from, to } of ranges) mesh.draw(from, to)
       else mesh.draw()
       mesh.unbind()

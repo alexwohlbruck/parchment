@@ -41,10 +41,10 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
  */
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
-  band: 0.24,
-  shadowBlur: 1,
+  band: 0.51,
+  shadowBlur: 5.5,
   /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
-  fadeZoom: 1.2,
+  fadeZoom: 2.4,
   /** What the cast shadow drops to looking straight down, where it reads as a stain. */
   topDownOpacity: 0.5,
   aoRadiusMin: 26,
@@ -64,7 +64,7 @@ const SHAPE = {
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
   light: { shadowAlpha: 0.16, aoIntensity: 0.18, strength: 0.04, edge: 0.18 },
-  dark: { shadowAlpha: 0.07, aoIntensity: 0.18, strength: 0.035, edge: 0.2 },
+  dark: { shadowAlpha: 0.25, aoIntensity: 0.57, strength: 0.39, edge: 0.44 },
 }
 
 /**
@@ -81,7 +81,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.2 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -106,7 +106,7 @@ export function shadeLightIntensity(flavor: FlavorId) {
  * on a retina display as on an ordinary one, which is the opposite of what a
  * border should do.
  */
-const EDGE_WIDTH_CSS_PX = 1.55
+const EDGE_WIDTH_CSS_PX = 2.55
 function edgeWidth(): number {
   return EDGE_WIDTH_CSS_PX * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }

@@ -881,6 +881,38 @@ export const PARAPET_RUN = 15
 export const SEAM = 0.3
 const SEAM_DIP = 0.03
 
+/** How far a grounded end may drop and rise to meet the ground drawn under it, and over how many metres the deck eases into that. */
+export const LANDING = { down: 1, up: 2, ease: 20 }
+
+/**
+ * A deck's heights with each grounded end brought to the ground drawn under
+ * it, eased in along the deck, so the road on the ground meets it level. The
+ * ground is the map's, in true metres; an end further from it than LANDING
+ * allows stays where it is, as in a hollow the drawn ground does not show.
+ */
+export function landedOn(chain: Chain, z: number[], ground: (p: Point) => number | null): number[] {
+  const n = chain.points.length
+  if (n < 2) return z
+  const d = along(chain.points)
+  const reach = Math.min(LANDING.ease, d[n - 1] / 2)
+  const out = [...z]
+  for (const end of [0, 1] as const) {
+    if (!chain.grounded[end]) continue
+    const i = end ? n - 1 : 0
+    const g = ground(chain.points[i])
+    if (g === null || Number.isNaN(g)) continue
+    const delta = g - z[i]
+    if (delta < -LANDING.down || delta > LANDING.up) continue
+    for (let k = 0; k < n; k++) {
+      const from = end ? d[n - 1] - d[k] : d[k]
+      if (from >= reach) continue
+      const u = 1 - from / reach
+      out[k] += delta * u * u * (3 - 2 * u)
+    }
+  }
+  return out
+}
+
 /**
  * A deck's ends made whole: an end on the ground reaches at least to its way's
  * end, where the road takes over, and where both sides run on past an end the

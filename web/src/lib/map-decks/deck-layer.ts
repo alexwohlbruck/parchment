@@ -23,6 +23,7 @@ import {
   inside,
   deckMeshOut,
   endsMade,
+  landedOn,
   standing,
   standKey,
   underWay,
@@ -381,6 +382,7 @@ export class DeckLayer {
       const sampler = this.groundSampler()
       const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt, q => sampler?.at(q) ?? null)
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
+      s.z = landedOn(s.chain, s.z, q => sampler?.at(q) ?? null)
     }
     const open = joinNeighbours(solved)
     // Solved in true metres; drawn over terrain that is stretched.

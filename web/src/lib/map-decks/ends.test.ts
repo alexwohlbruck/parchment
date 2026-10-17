@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, deckMeshOut, grownRing, inside, metresPerUnit, type Point } from './decks'
+import { along, boundsOf, deckMeshOut, grownRing, inside, landedOn, metresPerUnit, type Point } from './decks'
 import { layPaint } from './paint'
 import { testSurface } from './test-surface'
 
@@ -133,5 +133,24 @@ describe('jointAreas', () => {
     expect(joint).toBeDefined()
     expect(inside(at(-0.1, 2.9), [joint])).toBe(true)
     expect(inside(at(0, 6), [joint])).toBe(false)
+  })
+})
+
+describe('landedOn', () => {
+  const points = line(0, 6, 12, 18, 24, 30, 36, 42, 48)
+  const chain = { points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 12, kind: 'road' as const, edges: [6, 6] as [number, number] }
+  const z = [100, 101, 102, 103, 104, 103, 102, 101, 100]
+
+  test('brings a grounded end to the ground drawn there, easing in along the deck', () => {
+    const out = landedOn(chain, z, p => (p[0] < points[4][0] ? 99.2 : 100))
+    expect(out[0]).toBeCloseTo(99.2, 6)
+    expect(out[4]).toBeCloseTo(104, 6)
+    expect(out[8]).toBeCloseTo(100, 6)
+    expect(out[1]).toBeGreaterThan(99.2 + 1 - 0.8)
+  })
+
+  test('leaves an end in a hollow the drawn ground does not show', () => {
+    expect(landedOn(chain, z, () => 97)).toEqual(z)
+    expect(landedOn({ ...chain, grounded: [false, false] }, z, () => 99.5)).toEqual(z)
   })
 })

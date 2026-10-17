@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, deckMeshOut, grownRing, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
+import { along, boundsOf, coveredSides, deckMeshOut, grownRing, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint, type PastEnd } from './paint'
 import { testSurface } from './test-surface'
 
@@ -274,5 +274,17 @@ describe('paint at a deck end it owns', () => {
     const over = testSurface(line(-20, -10, 0, 10), [108, 108, 108, 108], [100, 100, 100, 100])
     const zsOwn = lay(over, [at(-15), at(-5)], 100, [{ p: at(-10, 8), out: [0, 1], reach: 18, half: 10 }])
     expect(Math.max(...zsOwn)).toBeGreaterThan(107)
+  })
+})
+
+describe('coveredSides', () => {
+  test('marks the side of a deck lying on another road deck at its height, not one beside it', () => {
+    const chain = (points: Point[]) => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind: 'road' as const, edges: [5, 5] as [number, number] })
+    const main = { chain: chain(line(0, 10, 20, 30, 40)), z: [10, 10, 10, 10, 10] }
+    const across = { chain: chain([at(20, -3), at(20, 20)]), z: [10, 10] }
+    const beside = { chain: chain([at(0, 40), at(40, 40)]), z: [10, 10] }
+    const [, onAcross] = coveredSides([main, across, beside])
+    expect(onAcross[1][0]).toBe(true)
+    expect(onAcross[0][1]).toBe(false)
   })
 })

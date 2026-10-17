@@ -698,6 +698,36 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
   return open
 }
 
+/** How far inside another deck a side must lie, in metres, and how near its height, for that side to have no parapet. */
+const COVERED = { inset: 0.5, step: 1.5 }
+
+/**
+ * Per deck, the side points lying on another road deck at its height, as on a
+ * junction carried by a bridge where ways cross and meet: no parapet runs
+ * across a road there.
+ */
+export function coveredSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[] {
+  const roads = decks.map(({ chain }, k) => ({ k, chain, bounds: boundsOf(chain.points, Math.max(...chain.edges)), d: along(chain.points) })).filter(r => r.chain.kind === 'road')
+  return decks.map(({ chain, z }, a) => {
+    const out: Sides = [chain.points.map(() => false), chain.points.map(() => false)]
+    if (chain.kind !== 'road') return out
+    const sides = edgePoints(chain)
+    for (const side of [0, 1] as const)
+      sides[side].forEach((e, i) => {
+        out[side][i] = roads.some(({ k, chain: other, bounds, d }) => {
+          if (k === a || !holds(bounds, e)) return false
+          const near = beside(other.points, e)
+          if (!near.alongside) return false
+          const half = sideAt(other, near.left ? 0 : 1, near.segment - 1, near.t)
+          if (near.distance > half - COVERED.inset) return false
+          const zb = decks[k].z[near.segment - 1] + (decks[k].z[near.segment] - decks[k].z[near.segment - 1]) * near.t
+          return Math.abs(zb - z[i]) <= COVERED.step && d.length > 1
+        })
+      })
+    return out
+  })
+}
+
 /**
  * Triangles for the GPU. Where `low`, `bias` and `spread` are kept, every
  * vertex has them: its colour below street zoom, metres it is drawn toward the
@@ -745,6 +775,7 @@ export function deckMesh(
   piers?: number[],
   tops?: Top[],
   biasGround: number[] = groundAt,
+  covered: Sides = [[], []],
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -793,7 +824,7 @@ export function deckMesh(
       return { p: [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] as Point, z: z[k - 1] + (z[k] - z[k - 1]) * t }
     })
   }
-  const bare = ([0, 1] as const).map(side => bareSegments(open[side], d)) as [boolean[], boolean[]]
+  const bare = ([0, 1] as const).map(side => bareSegments(open[side], d).map((b, i) => b || (i > 0 && !!covered[side][i - 1] && !!covered[side][i]))) as [boolean[], boolean[]]
   const lefts = capped('left', caps[0], caps[2])
   const rights = capped('right', caps[1], caps[3])
   // A side shared with a neighbour runs on under it, dipping, so the two leave no seam and neither shows through the other.

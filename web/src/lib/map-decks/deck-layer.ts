@@ -41,6 +41,7 @@ import {
   densify,
   edgePoints,
   joinNeighbours,
+  coveredSides,
   smooth,
   steady,
   rounded,
@@ -416,6 +417,7 @@ export class DeckLayer {
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
+    const onDecks = coveredSides(solved)
     // Decks built here stand their piers clear of the roads, railways and paths beneath.
     const unplaced = solved.filter(s => !s.piers)
     if (unplaced.length) {
@@ -454,7 +456,7 @@ export class DeckLayer {
       : { surface: concreteAt.get(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k], biasGround[k])
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k], biasGround[k], onDecks[k])
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }, k) => {
       const width = 2 * Math.max(...chain.edges) + 1

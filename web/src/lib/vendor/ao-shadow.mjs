@@ -176,10 +176,14 @@ const BUILD_VS = `
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
     float elev = mix(base, h, t);
     float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
-    // PARCHMENT: MapLibre's edge distance, the run along the footprint ring in tile units.
-    v_wall = vec3(a_normal_ed.w * u_unit_m, elev, isWall * h);
-    v_seed = facadeHash(a_centroid / 8192.0 + u_tile_origin);
+    // PARCHMENT: along the wall from the centroid, seeded by the feature id (donor green and blue):
+    // both are the same in every zoom's tiles, so the same windows stay lit.
+    vec2 tangent = normalize(vec2(-a_normal_ed.y, a_normal_ed.x) + 1e-6);
+    v_wall = vec3(dot(a_pos - a_centroid, tangent) * u_unit_m, elev, isWall * h);
     vec2 fk = u_fct < -0.5 ? a_facade : mix(a_facade4.xy, a_facade4.zw, u_fct);
+    v_seed = u_facade_on > 0.5
+      ? facadeHash(vec2(mod(fk.x, 256.0), floor(fk.y / 256.0)) + 0.5)
+      : facadeHash(a_centroid / 8192.0 + u_tile_origin);
     float style = u_facade_on > 0.5 ? floor(floor(fk.x / 256.0) / 16.0 + 0.5) : ${FACADE_UNKNOWN}.0;
     v_style = style < ${FACADE_UNKNOWN}.0 ? style : facadeGuess(h, v_seed);
 

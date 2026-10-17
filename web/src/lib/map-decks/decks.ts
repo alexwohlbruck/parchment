@@ -1145,8 +1145,10 @@ export function subtractConvex(poly: Point[], hole: Point[]): Point[][] {
   return out
 }
 
-/** A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point. */
-/** `sidewalks`: a road deck whose top beside its carriageway is already drawn as walkway. */
+/**
+ * A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point,
+ * `sidewalks` where its top beside its carriageway is already drawn as walkway.
+ */
 export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]]; tops?: Top[]; sidewalks?: boolean }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
@@ -1435,6 +1437,11 @@ export function triangle(out: Mesh, a: number[], b: number[], c: number[], color
 export function quad(out: Mesh, a: number[], b: number[], c: number[], d: number[], color: number[]) {
   triangle(out, a, b, c, color)
   triangle(out, a, c, d, color)
+}
+
+/** A longitude and latitude for a web-mercator point. */
+export function unprojected([x, y]: Point): [number, number] {
+  return [x * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI]
 }
 
 /** A web-mercator point, 0-1 across the world, for a longitude and latitude. */

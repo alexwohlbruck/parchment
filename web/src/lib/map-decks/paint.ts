@@ -145,12 +145,12 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
     const flat = areas.flat()
     const laid = onOwnDeck(lines, flat, surfaces, { across: ACROSS.has(props.kind) }).under
     // A road's lines are laid on a deck's end only where they run with it: a road crossing at the end is the deck's to cover.
-    // A bridge's paint lying wholly past its end is at grade: a deck high overhead there is another road's.
-    const beyondEnd = !!past?.length && [...lines, ...flat].flat().every(q => past.some(e => isPast(e, q)))
-    const own = (h: Hit | null) => (h && beyondEnd && !atGradeAt(surfaces[h.deck], h.segment, h.t) ? null : h)
+    // A bridge's line or ring lying wholly past its end is at grade: a deck high overhead there is another road's.
+    const beyond = (points: Point[]) => !!past?.length && points.every(q => past.some(e => isPast(e, q)))
+    const own = (hits: Array<Hit | null>, points: Point[]) => (beyond(points) ? hits.map(h => (h && !atGradeAt(surfaces[h.deck], h.segment, h.t) ? null : h)) : hits)
     const under = atGrade
       ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? grounded(h) : null))), rings: laid.rings.map(r => r.map(grounded)) }
-      : beyondEnd ? { lines: laid.lines.map(l => l.map(own)), rings: laid.rings.map(r => r.map(own)) }
+      : past?.length ? { lines: laid.lines.map((l, k) => own(l, lines[k])), rings: laid.rings.map((r, k) => own(r, flat[k])) }
       : laid
     let next = 0
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
@@ -183,7 +183,9 @@ export function layWays(mesh: Mesh, ways: Array<{ kind: 'path' | 'rail'; points:
     const line = densify(points, PAINT_SAMPLE)
     const under = onOwnDeck([line], [], surfaces).under.lines[0]
     // A footbridge, or a street deck's top beside its carriageway, is walkway already.
-    const laid = { under: kind === 'path' ? under.map(h => (h && (surfaces[h.deck].kind === 'path' || surfaces[h.deck].sidewalks) ? null : h)) : under, surfaces }
+    // A path crossing a street deck's carriageway is laid on it still.
+    const walkway = (h: Hit | null, i: number) => !!h && (surfaces[h.deck].kind === 'path' || (!!surfaces[h.deck].sidewalks && runsAlong(surfaces, h, line, i)))
+    const laid = { under: kind === 'path' ? under.map((h, i) => (walkway(h, i) ? null : h)) : under, surfaces }
     if (kind === 'path') strip(mesh, line, laid, WALKWAY, colors.walkway, 0.005, 0, null, origin)
     else for (const side of [-1, 1]) strip(mesh, line, laid, RAIL, colors.rail, 0.03, (side * GAUGE) / 2, null, origin)
   }

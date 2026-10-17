@@ -32,6 +32,7 @@ import {
   underWay,
   runsWith,
   touchdown,
+  unprojected,
   TOUCHDOWN,
   type UnderWay,
   UNDER_SLACK,
@@ -487,8 +488,8 @@ export class DeckLayer {
     const onward = { ...ground, near: [...ends, ...past] }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     const atGrade = this.carriageways(false, ends)
-    // Laid as one area with the bridge's own there, so pieces mapped apart leave no bars or notches on a deck's end.
-    const joined = closedAreas([...paved, ...atGrade].flatMap(c => c.areas), ends)
+    // Laid as one area, less the bridge's own, so pieces mapped apart leave no bars or notches on a deck's end.
+    const joined = closedAreas(atGrade.flatMap(c => c.areas), paved.flatMap(c => c.areas), ends)
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: joined }], surfaces, tar, this.origin, { atGrade: true })
     // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
     const meeting = [...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))]
@@ -791,6 +792,3 @@ function filled(ground: number[]): number[] | null {
 }
 
 /** Longitude and latitude of a mercator point. */
-function unprojected([x, y]: Point): [number, number] {
-  return [x * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI]
-}

@@ -1220,6 +1220,7 @@ describe('assembled styles', () => {
       expect(named(evaluate('light', { colour: '#4f8fc0' }), all)).toEqual(['glassBlue'])
       expect(named(evaluate('light', { colour: '#ffffff' }), all)).toEqual(['stucco'])
       expect(named(evaluate('light', { colour: '#9a9a9a' }), all)).toHaveLength(1)
+      for (const colour of ['#d8d5ca', 'lightgray']) expect(named(evaluate('light', { colour }), all), colour).toEqual(['plaster'])
     })
 
     test('an unreadable daylight colour is matched as grey rather than drawn black', () => {

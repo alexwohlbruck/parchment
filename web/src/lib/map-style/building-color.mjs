@@ -223,6 +223,8 @@ export const BUILDING_MATERIALS = {
   stucco: [42, 52, 91],
   sidingCream: [45, 58, 85],
   sidingBlue: [205, 31, 78],
+  // Light grey and off-white paint, which would otherwise match blue siding.
+  plaster: [40, 6, 80],
 }
 
 /** Roofing that only a roof wears: pitched house roofs, and what `roof:colour` may name. */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { along, boundsOf, deckMeshOut, grownRing, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
-import { joinedLines, layPaint } from './paint'
+import { joinedLines, layPaint, type PastEnd } from './paint'
 import { testSurface } from './test-surface'
 
 const y0 = 0.4012
@@ -244,7 +244,7 @@ describe('a bridge line past its deck\'s end', () => {
 describe('paint at a deck end it owns', () => {
   const points = line(0, 10, 20, 30, 40, 50, 60, 70, 80)
   const zs = (mesh: ReturnType<typeof deckMeshOut>) => mesh.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
-  const lay = (surface: ReturnType<typeof testSurface>, run: Point[], g: number, past?: ReturnType<typeof boundsOf>[]) => {
+  const lay = (surface: ReturnType<typeof testSurface>, run: Point[], g: number, past?: PastEnd[]) => {
     const mesh = deckMeshOut()
     const ground = { at: () => g, near: [boundsOf([at(-20), at(5)], 4)], low: [0, 0, 0] }
     layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [run], areas: [] }], [surface], colors, points[0], { ground, past })
@@ -266,7 +266,13 @@ describe('paint at a deck end it owns', () => {
 
   test('past a bridge\'s end leaves a deck high overhead alone', () => {
     const over = testSurface(line(-20, -10, 0, 10), [108, 108, 108, 108], [100, 100, 100, 100])
-    const zsPast = lay(over, [at(-15), at(-5)], 100, [boundsOf([at(-20), at(0)], 4)])
+    const zsPast = lay(over, [at(-15), at(-5)], 100, [{ p: at(0), out: [-1, 0], reach: 20, half: 4 }])
     expect(Math.max(...zsPast)).toBeLessThan(101)
+  })
+
+  test('keeps a bridge\'s own paint on its high deck beside another way\'s end', () => {
+    const over = testSurface(line(-20, -10, 0, 10), [108, 108, 108, 108], [100, 100, 100, 100])
+    const zsOwn = lay(over, [at(-15), at(-5)], 100, [{ p: at(-10, 8), out: [0, 1], reach: 18, half: 10 }])
+    expect(Math.max(...zsOwn)).toBeGreaterThan(107)
   })
 })

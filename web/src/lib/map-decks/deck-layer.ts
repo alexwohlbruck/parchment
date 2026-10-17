@@ -148,6 +148,8 @@ function touchdowns(surfaces: DeckSurface[]): Bounds[] {
 
 /** Metres a bridge carriageway laid on a deck is grown by: enough to close the hairline where it meets the road beyond, too little to show as a kerb step. */
 const SURFACE_OVERLAP = 0.08
+/** Metres the road beyond a deck's end is grown by where laid on it: half the widest sliver closed between its pieces. */
+const SLIVER = 0.3
 
 /** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
 const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)
@@ -458,7 +460,7 @@ export class DeckLayer {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - biasGround[k][i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k],
+        bias: z.map((h, i) => touchdown(h - biasGround[k][i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k], sidewalks: !!concreteAt.get(chain),
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
@@ -478,10 +480,11 @@ export class DeckLayer {
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
     const ground = { at: (q: Point) => this.drawnGround(q), near: ends, low: p.lowRoad }
     // A bridge's paint runs on past its ends onto the ground, where the deck draws it in the ground's place.
-    const past = solved.flatMap(({ chain }) => chain.kind !== 'road' ? [] : wayEnds(chain).map(({ p: at, out, half }) => {
+    const pastEnds = solved.flatMap(({ chain }) => chain.kind !== 'road' ? [] : wayEnds(chain).map(end => ({ ...end, reach: PAST_END, half: end.half + COVER })))
+    const past = pastEnds.map(({ p: at, out, half }) => {
       const scale = metresPerUnit(at[1])
-      return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half + COVER)
-    }))
+      return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half)
+    })
     const onward = { ...ground, near: [...ends, ...past] }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     const atGrade = this.carriageways(false, ends)
@@ -496,7 +499,7 @@ export class DeckLayer {
     // Paint is drawn as a decal, last on top: coloured lanes, then white areas, then lines.
     const coloured = (f: Paint) => LANE_COLORS.includes(f.props.color)
     for (const tier of [coloured, (f: Paint) => !coloured(f)]) {
-      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: onward, past, parts: 'areas' })
+      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: onward, past: pastEnds, parts: 'areas' })
       layPaint(mesh, beyond.filter(tier), surfaces, p, this.origin, { atGrade: true, parts: 'areas' })
       if (tier !== coloured) continue
       // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
@@ -505,7 +508,7 @@ export class DeckLayer {
         if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
       }
     }
-    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: onward, past, parts: 'lines' })
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: onward, past: pastEnds, parts: 'lines' })
     layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
@@ -659,8 +662,9 @@ export class DeckLayer {
     return this.query(source, layer, ['all', ['==', ['coalesce', ['get', 'bridge'], false], bridge], ['!=', ['get', 'kind'], 'island']])
       .filter(f => bridge || this.meetsAny(f, over))
       .map(f => paintOf({ geometry: f.geometry, _x: f._x, _y: f._y, _z: f._z, properties: { kind: 'surface', pattern: 'fill', color: 'asphalt' } }))
-      // Grown a little, so a bridge's carriageway and the road beyond overlap where they meet rather than leave a crack.
-      .map(c => ({ ...c, areas: c.areas.map(rings => [grownRing(rings[0], SURFACE_OVERLAP), ...rings.slice(1)]) }))
+      // Grown a little, so a bridge's carriageway and the road beyond overlap where they meet rather than leave a crack;
+      // the road beyond, laid only on a deck's end, enough to close the slivers between its pieces there.
+      .map(c => ({ ...c, areas: c.areas.map(rings => [grownRing(rings[0], bridge ? SURFACE_OVERLAP : SLIVER), ...rings.slice(1)]) }))
   }
 
   /** Whether a feature's geometry meets one of the boxes, its tile tested first. */

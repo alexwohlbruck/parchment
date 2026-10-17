@@ -18,7 +18,7 @@
 * In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
 * The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 * 3D landmarks match the colours of the buildings around them, and at night their windows light up like their neighbours' and the tallest have floodlit crowns.
-* In the light theme, 3D buildings wear realistic, vivid materials (brick, sandstone, limestone, concrete and blue-green glass) chosen from their mapped colour, kind and height, on a cleaner ground with clearer water and richer greens.
+* In the light theme, 3D buildings share one soft stone colour with a gentle warm or cool cast each, show their mapped colours more clearly, and landmarks sit at their neighbours' lightness while keeping their own colours.
 
 ### Fixed
 

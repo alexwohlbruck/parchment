@@ -280,6 +280,7 @@ const DRAW_FS = `#version 300 es
   uniform vec3 u_palette;
   uniform float u_harmony;
   uniform float u_harmonyFloor;
+  uniform float u_paint_lift;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
   /** Metres from the model's ground to its top, and the share of that lit as a crown at night. */
@@ -311,7 +312,7 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
-    base = mix(base, u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)), u_harmony);
+    base = mix(base + (1.0 - base) * u_paint_lift, u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)), u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -623,7 +624,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
@@ -1236,6 +1237,7 @@ export class LandmarkLayer {
     const flavor = this.options.flavor
     gl.uniform1f(u.u_harmony, flavor.harmony)
     gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
+    gl.uniform1f(u.u_paint_lift, flavor.lift)
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)

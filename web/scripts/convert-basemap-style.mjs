@@ -2141,7 +2141,7 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 95%)    hsl(42, 38%, 88%)
+  //   light   hsl(48, 16%, 94.5%)  hsl(36, 20%, 84%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
   // Daylight is the one place the roof goes the other way — seven points below
@@ -2153,11 +2153,11 @@ async function main() {
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 88%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(36, 20%, 84%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(42, 30%, 72%)'
+  tokens.light.building_roof_edge = 'hsl(36, 14%, 71%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

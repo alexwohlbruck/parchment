@@ -104,10 +104,7 @@ describe('materialEmission', () => {
 
   it("pulls landmarks toward each flavor's own building colour", () => {
     expect(LANDMARK_FLAVOR.dark.palette[0][2]).toBeGreaterThan(LANDMARK_FLAVOR.dark.palette[0][0])
-    // Daylight landmarks are pulled toward stone and glass, a mix of warm and cool.
-    const warm = LANDMARK_FLAVOR.light.palette.filter(([r, , b]) => r > b)
-    expect(warm.length).toBeGreaterThan(0)
-    expect(warm.length).toBeLessThan(LANDMARK_FLAVOR.light.palette.length)
+    expect(Math.min(...LANDMARK_FLAVOR.light.palette[0])).toBeGreaterThan(0.8)
   })
 
   it('picks one palette colour per landmark seed, covering the palette', () => {

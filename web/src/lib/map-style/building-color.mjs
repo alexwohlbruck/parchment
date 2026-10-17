@@ -33,7 +33,7 @@
  * floor: below it the `rgb()` output rounds to whole channels coarser than the
  * tint, and the hue-fidelity test catches a facade drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 34, dark: 11 }
+export const BUILDING_TINT = { light: 46, dark: 11 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -135,11 +135,13 @@ const VALUE_PULL = 0.3
  * @param {number} amount
  * @param {string} [colorToken]
  * @param {string[]} [properties]
+ * @param {unknown} [fallback] What an unpainted building wears; the flavor's colour by default.
  */
 export function buildingColor(
   amount,
   colorToken = '@building_3d_fill_extrusion_color',
   properties = ['colour'],
+  fallback = colorToken,
 ) {
   // The first of `properties` the feature carries. One name is the ordinary
   // case; the roof passes `['roof_colour', 'colour']` so a building that
@@ -198,138 +200,33 @@ export function buildingColor(
                   ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
-    colorToken,
+    fallback,
   ]
 }
 
 /**
- * Daylight building materials, `[hue, saturation %, lightness %]`: the colours
- * real facades have, graded richer than life so a city reads like a well-lit
- * aerial illustration rather than a grey model.
+ * Faint casts for buildings that record no colour of their own, so a block of
+ * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
+ * only: night already separates buildings by light, and a cast there reads as
+ * a lit surface. Each sits at the flavor's own lightness: stone, steel, brick, sand, sage.
  */
-export const BUILDING_MATERIALS = {
-  glassBlue: [203, 55, 60],
-  glassTeal: [188, 47, 54],
-  glassSteel: [212, 29, 56],
-  glassBronze: [28, 29, 40],
-  limestone: [42, 49, 82],
-  sandstone: [33, 62, 70],
-  granite: [15, 16, 58],
-  concrete: [40, 8, 74],
-  concreteCool: [210, 8, 70],
-  brickRed: [8, 68, 48],
-  brickOrange: [16, 72, 56],
-  brickBrown: [20, 47, 40],
-  stucco: [42, 52, 91],
-  sidingCream: [45, 58, 85],
-  sidingBlue: [205, 31, 78],
-  // Light grey and off-white paint, which would otherwise match blue siding.
-  plaster: [40, 6, 80],
-}
-
-/** Roofing that only a roof wears: pitched house roofs, and what `roof:colour` may name. */
-export const ROOF_MATERIALS = {
-  copper: [168, 32, 52],
-  slate: [215, 12, 42],
-  tile: [14, 58, 52],
-  shingle: [25, 14, 44],
+export const BUILDING_PASTELS = {
+  light: ['hsl(30, 20%, 83%)', 'hsl(212, 14%, 84%)', 'hsl(8, 16%, 84%)', 'hsl(44, 24%, 82.5%)', 'hsl(155, 10%, 82.5%)'],
+  dark: [],
 }
 
 /**
- * How often each material turns up, by the kind of building: houses in stucco
- * and siding, older low-rise in brick, the middle in stone and concrete, the
- * towers in glass. Weights, not shares.
+ * The colour an unpainted building wears: the flavor's own, or one of its
+ * pastels picked by feature id so a building keeps its cast as tiles reload.
  */
-export const BUILDING_MIX = {
-  house: { stucco: 3, sidingCream: 3, sidingBlue: 2, brickRed: 1, brickBrown: 1 },
-  low: { brickRed: 3, brickOrange: 2, brickBrown: 2, limestone: 2, concrete: 2, stucco: 1, sandstone: 1 },
-  mid: { limestone: 3, concrete: 3, sandstone: 2, brickRed: 1, glassBlue: 2, glassSteel: 1, granite: 1 },
-  tall: { glassBlue: 3, glassTeal: 2, glassSteel: 2, glassBronze: 1, limestone: 1, granite: 1 },
-  industrial: { concrete: 2, concreteCool: 1, brickBrown: 1 },
-}
-
-/** Metres: under the first a house, then low-rise, mid-rise, and from the last a tower. */
-const MIX_HEIGHTS = [9, 20, 60]
-
-/** OSM `building` values that settle the mix before height does. */
-const MIX_KINDS = {
-  house: ['house', 'detached', 'semidetached_house', 'terrace', 'bungalow', 'cabin'],
-  industrial: ['industrial', 'warehouse', 'manufacture', 'factory', 'storage', 'depot'],
-  parking: ['parking', 'multi-storey', 'garage_parking'],
-}
-
-/** A flat roof: its wall's colour, mostly gravel and membrane. */
-const ROOF_BASE = [40, 8, 88]
-const ROOF_WALL_SHARE = 0.45
-
-/** Levels per channel of the grid a painted colour is matched on; see `nearestMaterial`. */
-const GRID = 8
-
-const rgb = ([h, s, l]) => {
-  const sat = s / 100, light = l / 100
-  const k = n => (n + h / 30) % 12
-  const a = sat * Math.min(light, 1 - light)
-  return [0, 8, 4].map(n => Math.round(255 * (light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))))
-}
-const css = c => `rgb(${c.join(', ')})`
-const roofOf = c => c.map((v, i) => Math.round(v * ROOF_WALL_SHARE + rgb(ROOF_BASE)[i] * (1 - ROOF_WALL_SHARE)))
-
-/** A material's colour as drawn on a wall, as CSS. */
-export const materialColor = name => css(rgb(BUILDING_MATERIALS[name]))
-
-/**
- * The material nearest a painted `building:colour`, as an expression.
- *
- * MapLibre re-evaluates a `let` binding at every `var`, and parsing the tile's
- * colour is the costly part, so it is read once per channel and the answer
- * comes from a grid of precomputed nearest materials rather than a search.
- */
-function nearestMaterial(properties, candidates, shown) {
-  const names = Object.keys(candidates)
-  const distance = (c, n) => [2, 4, 3].reduce((sum, w, i) => sum + w * (c[i] - candidates[n][i]) ** 2, 0)
-  const nearest = c => names.reduce((best, n) => (distance(c, n) < distance(c, best) ? n : best))
-  const step = 256 / GRID
-  const cells = []
-  for (let r = 0; r < GRID; r++) for (let g = 0; g < GRID; g++) for (let b = 0; b < GRID; b++)
-    cells.push(shown(nearest([r, g, b].map(v => (v + 0.5) * step))))
-  const tile = ['to-rgba', ['to-color', ['coalesce', ...properties.map(p => ['get', p])], '#808080']]
-  const level = i => ['min', GRID - 1, ['floor', ['/', ['at', i, tile], step]]]
-  return ['match', ['+', ['*', GRID * GRID, level(0)], ['*', GRID, level(1)], level(2)], ...cells.flatMap((c, i) => [i, c]), cells[0]]
-}
-
-/**
- * A daylight building's colour: the material nearest its `building:colour`
- * where it has one; otherwise a material drawn from its kind's or height's mix
- * by a hash of its id, so a building keeps its colour as tiles reload.
- *
- * @param {boolean} [roof] The roof's colour: `roof:colour` or the wall's, mostly flat-roof grey; houses get pitched roofing.
- */
-export function buildingMaterialColor(roof = false) {
-  const walls = Object.fromEntries(Object.entries(BUILDING_MATERIALS).map(([n, c]) => [n, rgb(c)]))
-  const roofs = Object.fromEntries(Object.entries(ROOF_MATERIALS).map(([n, c]) => [n, rgb(c)]))
-  const shown = name => css(roof && !roofs[name] ? roofOf(walls[name]) : (walls[name] ?? roofs[name]))
-
-  // Neighbouring OSM ids are near-consecutive, so the id is mixed before it picks.
-  const key = ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]]
-  const mixed = ['%', ['+', ['*', ['%', key, 9973], 7919], ['*', ['%', ['floor', ['/', key, 9973]], 9973], 104729]], 9973]
-  const pick = weights => {
-    const names = Object.entries(weights).flatMap(([n, w]) => Array(w).fill(n))
-    return ['match', ['%', mixed, names.length], ...names.flatMap((n, i) => [i, shown(n)]), shown(names[0])]
-  }
-  const houses = roof ? pick({ slate: 1, tile: 1, shingle: 2 }) : pick(BUILDING_MIX.house)
-  const height = ['coalesce', ['get', 'render_height'], 0]
-  const byHeight = ['case',
-    ['<', height, MIX_HEIGHTS[0]], houses,
-    ['<', height, MIX_HEIGHTS[1]], pick(BUILDING_MIX.low),
-    ['<', height, MIX_HEIGHTS[2]], pick(BUILDING_MIX.mid),
-    pick(BUILDING_MIX.tall)]
-  const byKind = ['match', ['downcase', ['to-string', ['coalesce', ['get', 'kind'], '']]],
-    MIX_KINDS.house, houses,
-    MIX_KINDS.industrial, pick(BUILDING_MIX.industrial),
-    MIX_KINDS.parking, shown('concrete'),
-    byHeight]
-
-  const properties = roof ? ['roof_colour', 'colour'] : ['colour']
-  const painted = nearestMaterial(properties, roof ? { ...walls, ...roofs } : walls, shown)
-  return ['case', ['any', ...properties.map(p => ['has', p])], painted, byKind]
+export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color') {
+  const pastels = BUILDING_PASTELS[flavor] ?? []
+  if (!pastels.length) return colorToken
+  return [
+    // Keyed on the building a part belongs to where the tiles say, so one
+    // building is one colour. Ids end in a type digit, dropped so the casts spread.
+    'match', ['%', ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]], pastels.length + 1],
+    ...pastels.flatMap((c, i) => [i, c]),
+    colorToken,
+  ]
 }

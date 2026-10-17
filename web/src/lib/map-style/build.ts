@@ -40,7 +40,7 @@ import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
-import { buildingColor, BUILDING_TINT, buildingMaterialColor } from './building-color.mjs'
+import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
@@ -583,16 +583,15 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
     paint: {
       ...buildings.paint,
       'fill-extrusion-opacity': 0,
-      'fill-extrusion-color': flavor === 'light'
-        ? buildingMaterialColor(true)
-        : buildingColor(
-          BUILDING_TINT[flavor],
-          '@building_3d_fill_extrusion_color',
-          // Falling back to the wall colour rather than to the flavor's plain
-          // building: a building that records only `building:colour` should wear
-          // it on the roof too, not band at the roofline.
-          ['roof_colour', 'colour'],
-        ),
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        // Falling back to the wall colour rather than to the flavor's plain
+        // building: a building that records only `building:colour` should wear
+        // it on the roof too, not band at the roofline.
+        ['roof_colour', 'colour'],
+        unpaintedBuildingColor(flavor),
+      ),
     },
   }
 
@@ -760,13 +759,18 @@ function withRoundedRoofEdge(layers: any[]): any[] {
   })
 }
 
-/** The extruded buildings' colour: daylight materials, or the night tint. */
+/** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
 function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
   return layers.map(l => l.type !== 'fill-extrusion' ? l : {
     ...l,
     paint: {
       ...l.paint,
-      'fill-extrusion-color': flavor === 'light' ? buildingMaterialColor() : buildingColor(BUILDING_TINT[flavor]),
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        ['colour'],
+        unpaintedBuildingColor(flavor),
+      ),
     },
   })
 }

@@ -11,7 +11,7 @@ import { aboveTunnelsIndex } from './brunnel'
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { validateStyleMin, featureFilter, expression, latest, Color } from '@maplibre/maplibre-gl-style-spec'
+import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
 import {
   buildMapStyle,
   buildSatelliteStyle,
@@ -44,7 +44,7 @@ import {
   CYCLING_WAYS_SUFFIX,
   scaleOutputs,
 } from './cycling-layers'
-import { BUILDING_MATERIALS, BUILDING_MIX, BUILDING_TINT, materialColor } from './building-color.mjs'
+import { BUILDING_PASTELS, BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -1135,11 +1135,11 @@ describe('assembled styles', () => {
    * the happy one.
    */
   describe('building colour', () => {
-    const compiled: Partial<Record<'light' | 'dark', any>> = {}
     const evaluate = (flavor: 'light' | 'dark', properties: Record<string, unknown>, id?: number) => {
-      const parsed = compiled[flavor] ??= expression.createPropertyExpression(
-        (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d).paint['fill-extrusion-color'],
-        'building.paint.fill-extrusion-color',
+      const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d)
+      const parsed = expression.createPropertyExpression(
+        layer.paint['fill-extrusion-color'],
+        `${layer.id}.paint.fill-extrusion-color`,
         (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
       )
       expect(parsed.result).toBe('success')
@@ -1147,8 +1147,8 @@ describe('assembled styles', () => {
       return [c.r, c.g, c.b].map(v => Math.round(v * 255))
     }
 
-    /** An unpainted night building: the flavor's own colour. */
-    const plain = (flavor: 'light' | 'dark') => evaluate(flavor, {})
+    /** An unpainted building whose id lands on the flavor's own colour rather than a cast. */
+    const plain = (flavor: 'light' | 'dark') => evaluate(flavor, {}, BUILDING_PASTELS[flavor].length * 10)
 
     const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
     /** How colourful, in channel units — 0 for any grey, 255 for a pure hue. */
@@ -1166,8 +1166,7 @@ describe('assembled styles', () => {
       return d > 180 ? 360 - d : d
     }
 
-    test('dark: a painted building takes its hue', () => {
-      const flavor = 'dark'
+    test.each(['light', 'dark'] as const)('%s: a painted building takes its hue', flavor => {
       const plain = evaluate(flavor, {})
       const red = evaluate(flavor, { colour: '#ff0000' })
       expect(red).not.toEqual(plain)
@@ -1180,72 +1179,32 @@ describe('assembled styles', () => {
      * buildings in a 7x7 z14 grid over Manhattan are tagged literally `black`
      * and 52 `white`, so this is the common case, not a contrived one.
      */
-    test('dark: greys render as plain buildings', () => {
-      const flavor = 'dark'
+    test.each(['light', 'dark'] as const)('%s: greys render as plain buildings', flavor => {
       for (const colour of ['black', 'white', '#808080', 'lightgray']) {
         expect(evaluate(flavor, { colour }), colour).toEqual(plain(flavor))
       }
     })
 
-    const rgb = (text: string) => {
-      const v = Color.parse(text)!
-      return [v.r, v.g, v.b].map(x => Math.round(x * 255))
-    }
-    const drawn = (name: string) => rgb(materialColor(name))
-    const named = (c: number[], names: string[]) => names.filter(n => drawn(n).every((v, i) => Math.abs(v - c[i]) <= 1))
-    const all = Object.keys(BUILDING_MATERIALS)
-
-    test('a daylight building wears a material from its height\'s mix, picked by id', () => {
-      const ids = [...Array(60).keys()].map(i => 10_000_000 + i * 10 + 1)
-      for (const [height, mix] of [[6, BUILDING_MIX.house], [14, BUILDING_MIX.low], [40, BUILDING_MIX.mid], [150, BUILDING_MIX.tall]] as const) {
-        const worn = new Set(ids.map(id => named(evaluate('light', { render_height: height }, id), all).join()))
-        expect(worn).toEqual(new Set(Object.keys(mix)))
-      }
+    test('unpainted buildings take a daylight cast by id, and none at night', () => {
+      const n = BUILDING_PASTELS.light.length + 1
+      const casts = new Set([...Array(n).keys()].map(i => evaluate('light', {}, i * 10 + 1).join()))
+      expect(casts.size).toBe(n)
+      expect(evaluate('light', {}, (n + 1) * 10 + 4)).toEqual(evaluate('light', {}, 10 + 1))
+      expect(evaluate('dark', {}, 0)).toEqual(evaluate('dark', {}, 3))
     })
 
-    test('a known kind settles the material before height does', () => {
-      expect(named(evaluate('light', { kind: 'parking', render_height: 40 }, 11), all)).toEqual(['concrete'])
-      expect(Object.keys(BUILDING_MIX.house)).toContain(named(evaluate('light', { kind: 'house', render_height: 40 }, 11), all)[0])
-    })
-
-    test('every part of a building shares its outline\'s material', () => {
+    test('every part of a building shares its outline\'s cast', () => {
       const outline = evaluate('light', {}, 41)
       expect(evaluate('light', { group_id: 41 }, 7)).toEqual(outline)
       expect(evaluate('light', { group_id: 41 }, 23)).toEqual(outline)
     })
 
-    test('a painted daylight building takes the nearest material', () => {
-      expect(named(evaluate('light', { colour: '#cc7758' }), all)).toEqual(['brickOrange'])
-      expect(named(evaluate('light', { colour: '#8b2a1a' }), all)).toEqual(['brickRed'])
-      expect(named(evaluate('light', { colour: '#4f8fc0' }), all)).toEqual(['glassBlue'])
-      expect(named(evaluate('light', { colour: '#ffffff' }), all)).toEqual(['stucco'])
-      expect(named(evaluate('light', { colour: '#9a9a9a' }), all)).toHaveLength(1)
-      for (const colour of ['#d8d5ca', 'lightgray']) expect(named(evaluate('light', { colour }), all), colour).toEqual(['plaster'])
-    })
-
-    test('an unreadable daylight colour is matched as grey rather than drawn black', () => {
-      for (const colour of ['brick', '#70c2dcb']) {
-        expect(luma(evaluate('light', { colour }))).toBeGreaterThan(100)
+    test('an unparseable colour renders plain rather than black', () => {
+      // `to-color` yields black instead of throwing, which the luminance
+      // subtraction then treats as any other neutral.
+      for (const colour of ['brick', 'light_grey', '#70c2dcb']) {
+        expect(evaluate('light', { colour }), colour).toEqual(plain('light'))
       }
-    })
-
-    test('a daylight roof is mostly flat-roof grey, or the roofing it is tagged with', () => {
-      setBarrelmanBuildingsReady(true)
-      const roofLayer = (buildLayers({ flavor: 'light' }) as any[]).find(l => l.id === BUILDING_3D_ROOF_LAYER)
-      setBarrelmanBuildingsReady(null)
-      const parsed = expression.createPropertyExpression(
-        roofLayer.paint['fill-extrusion-color'], 'roof', (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
-      ) as any
-      const at = (properties: Record<string, unknown>) => {
-        const c = parsed.value.evaluate({ zoom: 16 }, { properties })
-        return [c.r, c.g, c.b].map((x: number) => Math.round(x * 255))
-      }
-      const roof = at({ colour: '#4f8fc0' })
-      expect(chroma(roof)).toBeLessThan(chroma(drawn('glassBlue')))
-      expect(luma(roof)).toBeGreaterThan(luma(drawn('glassBlue')))
-      // Copper green is a roof, never a wall.
-      const copper = at({ colour: '#cc7758', roof_colour: '#5a9a88' })
-      expect(copper[1]).toBeGreaterThan(copper[0])
     })
 
     /**
@@ -1267,8 +1226,7 @@ describe('assembled styles', () => {
      * the same colour at different lightnesses, and the bug this test was
      * written for — maroon barely tinting at all — is still caught.
      */
-    test('dark: the same hue tints alike at any lightness', () => {
-      const flavor = 'dark'
+    test.each(['light', 'dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
       for (const shades of [
         ['#800000', '#b00000', '#ff0000'],
         ['#005500', '#00aa00', '#00ff00'],
@@ -1294,8 +1252,7 @@ describe('assembled styles', () => {
      * collapsed onto the blue-yellow axis — on the night flavor, whose anchor is
      * itself a saturated blue-grey, a dark red facade came out blue.
      */
-    test('dark: a facade keeps its own hue', () => {
-      const flavor = 'dark'
+    test.each(['light', 'dark'] as const)('%s: a facade keeps its own hue', flavor => {
       const wheel = [
         '#ff0000', '#ff8c00', '#ffff00', '#556b2f', '#00ff00', '#008080',
         '#0000ff', '#4b0082', '#800080', '#8b4513', '#ffc0cb',
@@ -1317,8 +1274,7 @@ describe('assembled styles', () => {
      * flavor's own colour cast rather than an absolute, since "subtle" means
      * subtle next to the map it sits on.
      */
-    test('dark: a tint stays a hint of the paint', () => {
-      const flavor = 'dark'
+    test.each(['light', 'dark'] as const)('%s: a tint stays a hint of the paint', flavor => {
       const plain = chroma(evaluate(flavor, {}))
       for (const colour of ['#ff0000', '#00ff00', '#0000ff', '#ffff00']) {
         const tinted = chroma(evaluate(flavor, { colour }))

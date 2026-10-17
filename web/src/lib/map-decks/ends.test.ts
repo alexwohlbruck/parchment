@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, deckMeshOut, grownRing, inside, landedOn, metresPerUnit, type Point } from './decks'
+import { along, boundsOf, deckMeshOut, grownRing, inside, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint } from './paint'
 import { testSurface } from './test-surface'
 
@@ -189,5 +189,19 @@ describe('joinedLines', () => {
   test('leaves lines of another kind alone', () => {
     const ground = [{ props: { ...props, color: 'white' }, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
     expect(joinedLines(bridge, ground).bridge[0].runs[0]).toEqual(bridge[0].runs[0])
+  })
+})
+
+describe('placedPiers', () => {
+  const points = line(0, 30, 60, 90, 120)
+  const chain = { points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 12, kind: 'road' as const, edges: [6, 6] as [number, number] }
+  const z = [100, 108, 108, 108, 100]
+  const ground = [100, 100, 100, 100, 100]
+
+  test('stands a pier every span where the deck is high, moved off what lies beneath', () => {
+    expect(placedPiers(chain, z, ground, () => true)).toEqual([14, 42, 70, 98])
+    const piers = placedPiers(chain, z, ground, at => Math.abs(at - 42) > 4)
+    expect(piers).toContain(37)
+    expect(piers.every(at => Math.abs(at - 42) > 4)).toBe(true)
   })
 })

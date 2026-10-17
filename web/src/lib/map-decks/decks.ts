@@ -92,6 +92,27 @@ export const BOX_MIN = 1
 
 const WORLD = 40075016.686
 
+/**
+ * Where a deck built here stands its piers: every PIER_SPACING metres where it
+ * stands high enough, each moved to the nearest place within a quarter span
+ * where `clear` allows its bent, or left out.
+ */
+export function placedPiers(chain: Chain, z: number[], groundAt: number[], clear: (at: number) => boolean): number[] {
+  const d = along(chain.points)
+  const total = d[d.length - 1]
+  const out: number[] = []
+  for (let s = PIER_SPACING / 2; s < total; s += PIER_SPACING) {
+    for (let shift = 0; shift <= PIER_SPACING / 4; shift++) {
+      const at = [s - shift, s + shift].find(a => a > 0 && a < total && heightAt(d, z, a) - heightAt(d, groundAt, a) >= PIER_MIN && clear(a))
+      if (at !== undefined) {
+        out.push(at)
+        break
+      }
+    }
+  }
+  return out
+}
+
 /** Metres per mercator unit at a mercator y. */
 export function metresPerUnit(y: number): number {
   const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y)))

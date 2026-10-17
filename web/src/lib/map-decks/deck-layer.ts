@@ -24,6 +24,8 @@ import {
   deckMeshOut,
   endsMade,
   landedOn,
+  placedPiers,
+  sideAt,
   standing,
   standKey,
   underWay,
@@ -396,6 +398,14 @@ export class DeckLayer {
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
+    // Decks built here stand their piers clear of the roads, railways and paths beneath.
+    const unplaced = solved.filter(s => !s.piers)
+    if (unplaced.length) {
+      const beneath = this.carriageways(false, unplaced.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges))))
+        .flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
+      const ways = this.waysNear(unplaced.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges))))
+      for (const s of unplaced) s.piers = placedPiers(s.chain, s.z, s.groundAt, at => this.bentClear(s.chain, at, ways, beneath))
+    }
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     for (const s of solved) {
@@ -496,18 +506,38 @@ export class DeckLayer {
 
   /** The ways on the ground near the decks, with half their widths. */
   private groundWays(): UnderWay[] {
-    if (!this.under) {
-      const decks = this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : []))
-      const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
-      this.under = ground.flatMap(f => linesOf(f.geometry).flatMap(line => {
-        const points = line.map(mercator)
-        if (points.length < 2) return []
-        const half = (WIDTH[f.properties?.class] ?? 6) / 2
-        const bounds = boundsOf(points, half + UNDER_SLACK)
-        return decks.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
-      }))
-    }
+    this.under ??= this.waysNear(this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : [])))
     return this.under
+  }
+
+  /** The ways on the ground meeting these boxes. */
+  private waysNear(boxes: Bounds[]): UnderWay[] {
+    const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
+    return ground.flatMap(f => linesOf(f.geometry).flatMap(line => {
+      const points = line.map(mercator)
+      if (points.length < 2) return []
+      const half = (WIDTH[f.properties?.class] ?? 6) / 2
+      const bounds = boundsOf(points, half + UNDER_SLACK)
+      return boxes.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
+    }))
+  }
+
+  /** Whether a pier's bent `at` metres along a deck, edge to edge, keeps off the ways and carriageways on the ground. */
+  private bentClear(chain: Chain, at: number, ways: UnderWay[], beneath: Array<{ rings: Point[][]; bounds: Bounds }>): boolean {
+    const d = along(chain.points)
+    let k = 1
+    while (k < chain.points.length - 1 && d[k] < at) k++
+    const t = Math.max(0, Math.min(1, (at - d[k - 1]) / (d[k] - d[k - 1] || 1)))
+    const [a, b] = [chain.points[k - 1], chain.points[k]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const scale = 1 / metresPerUnit(a[1])
+    const [l, r] = [sideAt(chain, 0, k - 1, t), sideAt(chain, 1, k - 1, t)]
+    const bent: Point[] = []
+    for (let across = -r; across <= l; across += 1)
+      bent.push([a[0] + (b[0] - a[0]) * t - ((b[1] - a[1]) / len) * across * scale, a[1] + (b[1] - a[1]) * t + ((b[0] - a[0]) / len) * across * scale])
+    return !bent.some(q =>
+      ways.some(w => holds(w.bounds, q) && beside(w.points, q).distance < w.half + ABUTMENT_ROOM) ||
+      beneath.some(r => holds(r.bounds, q) && inside(q, r.rings)))
   }
 
   /** Whether an abutment's footprint keeps off the ways and carriageways on the ground, but for the road carrying on from its way's end. */

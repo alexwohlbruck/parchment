@@ -22,6 +22,7 @@ import { BUILDING_3D_FACADE_LAYER, BUILDING_3D_ROOF_LAYER, type FlavorId } from 
 import { BUILDING_TINT } from '@/lib/map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
 import { FACADE_FLAVOR } from './facade-shader'
+import type { SunFrame } from './sun-shadow'
 
 const RAD_PER_DEG = Math.PI / 180
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -123,6 +124,10 @@ export type ShadowCaster = {
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
   /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
   shadowVersion?: number
+  /** Draw depth into the sun's shadow map; see `sun-shadow.ts`. */
+  drawSunDepth?(gl: WebGL2RenderingContext, frame: SunFrame): void
+  /** This frame's sun shadow map, to receive shadow by. */
+  receiveSun?(frame: SunFrame): void
 }
 
 /**
@@ -178,6 +183,7 @@ export function createBuildingShade(
     sdfResolution: SDF_RESOLUTION,
     edgeWidth: edgeWidth(),
     facade: FACADE_FLAVOR[flavor],
+    sunShadows: true,
     ...SHAPE,
     ...TUNING[flavor],
   })

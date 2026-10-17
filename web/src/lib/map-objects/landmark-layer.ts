@@ -48,6 +48,7 @@ import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
+import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -193,6 +194,9 @@ const DRAW_VS = `#version 300 es
   /** Model-space metres (x, z, up) and normal, before the bearing and the ground: where on its facade a fragment is. */
   out vec3 v_model;
   out vec3 v_modelNormal;
+  /** Clip ← anchor metres, for the sun's shadow map; see sun-shadow.ts. */
+  uniform mat4 u_sun;
+  out vec4 v_sun;
   flat out vec3 v_color;
   flat out vec3 v_emission;
   flat out float v_window;
@@ -208,6 +212,7 @@ const DRAW_VS = `#version 300 es
     v_floor = q.z - u_floor;
     v_model = vec3(p.x, p.z, p.y) * u_scale;
     v_modelNormal = mat3(u_node) * a_normal;
+    v_sun = u_sun * vec4(q, 1.0);
     gl_Position = u_matrix * vec4(q, 1.0);
   }`
 
@@ -288,6 +293,8 @@ const DRAW_FS = `#version 300 es
   in vec3 v_normal;
   in vec3 v_model;
   in vec3 v_modelNormal;
+  in vec4 v_sun;
+  ${SUN_SHADOW_GLSL}
   /** Metres above the flat map's ground; see u_floor. */
   in float v_floor;
   ${MASK}
@@ -308,10 +315,12 @@ const DRAW_FS = `#version 300 es
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
     float value = dot(base, LUMA);
-    float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
+    float facing = clamp(dot(n, normalize(u_lightpos)), 0.0, 1.0);
+    float inShadow = facing > 0.0 ? sunShade(v_sun, sqrt(1.0 - facing * facing) / max(facing, 0.2)) : 0.0;
+    float directional = clamp(dot(n, u_lightpos), 0.0, 1.0) * (1.0 - inShadow);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
-    vec3 shaded = clamp((base + 0.03) * directional * sky, 0.0, 1.0);
+    vec3 shaded = clamp((base + 0.03) * directional * sky * (1.0 - 0.1 * inShadow), 0.0, 1.0);
     if (v_window > 0.5) {
       vec3 mn = abs(v_modelNormal);
       bool wall = mn.y < 0.6;
@@ -333,6 +342,16 @@ const DRAW_FS = `#version 300 es
       shaded = pow(clamp(lit, 0.0, 1.0), vec3(1.0 / 2.2));
     }
     fragColor = vec4(shaded, 1.0);
+  }`
+
+/** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
+const SUN_DEPTH_FS = `#version 300 es
+  precision highp float;
+  ${MASK}
+  out vec4 fragColor;
+  void main() {
+    cut();
+    fragColor = vec4(0.0);
   }`
 
 /** Metres a door may sit under the flat map's ground and still glow: doors are set on it. */
@@ -523,6 +542,9 @@ export class LandmarkLayer {
   private map: any
   private draw!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private sunDepth!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  /** This frame's sun shadow map, handed over by the shade layer before this layer draws. */
+  private sun: SunFrame | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private quad: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer } | null = null
   private evicted = 0
@@ -600,7 +622,10 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+    this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun',
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor'])
@@ -1132,6 +1157,27 @@ export class LandmarkLayer {
    * Draw every landmark's shadow into the building shade layer's mask. Called
    * by that layer, mid-pass, with its framebuffer and stencil already set up.
    */
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
+
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    const placements = this.drawable()
+    if (!placements.length) return
+    const { program, u } = this.sunDepth
+    gl.useProgram(program)
+    for (const p of placements) {
+      const model = this.drawnModel(p)
+      if (!model?.batches) continue
+      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.light, p.placed))
+      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
+      gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
+      this.groundUniforms(gl, u, p)
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model))
+    }
+    gl.bindVertexArray(null)
+  }
+
   drawShadow(gl: WebGL2RenderingContext, frame: ShadowFrame) {
     this.upload(gl)
     const placements = this.drawable()
@@ -1188,6 +1234,9 @@ export class LandmarkLayer {
     const flavor = this.options.flavor
     gl.uniform3fv(u.u_palette, flavor.palette)
     gl.uniform1f(u.u_harmony, flavor.harmony)
+    const sun = this.sun
+    this.sun = null
+    bindSun(gl, u, sun)
     setFacadeUniforms(gl, u, flavor.facade)
 
     const now = performance.now()
@@ -1206,6 +1255,7 @@ export class LandmarkLayer {
       gl.uniform1f(u.u_crown, height > CROWN_MIN_HEIGHT ? CROWN_SHARE : 0)
       gl.uniform1f(u.u_seed, seedOf(p.id))
       gl.uniform1f(u.u_scale, p.scale)
+      if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
       const pose = this.poseOf(model, now)
       this.drawBatches(gl, model.batches, u, true, pose)
       if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)

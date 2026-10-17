@@ -36,6 +36,9 @@
 import {
   FACADE_GLSL, FACADE_GUESS_GLSL, FACADE_HASH_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, FACADE_UNKNOWN, setFacadeUniforms,
 } from '@/lib/map/facade-shader';
+import {
+  bindSun, multiply, SUN_SHADOW_GLSL, SUN_SHADOW_SIZE, SUN_SHADOW_UNIFORMS, sunLightMatrix, tileToMercator,
+} from '@/lib/map/sun-shadow';
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
 const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10, a_facade: 11, a_facade4: 12 };
@@ -161,6 +164,11 @@ const BUILD_VS = `
   varying vec3 v_wall;       // metres along the wall, metres up, roof height (0 on a roof)
   varying float v_seed;
   varying float v_style;
+  // PARCHMENT: where the vertex sits in the sun's shadow map, and its unshadowed-face colour.
+  uniform mat4 u_sunTile;
+  varying vec4 v_sun;
+  varying vec3 v_ambient;
+  varying float v_facing;
   void main() {
     float t = mod(a_normal_ed.x, 2.0);
     float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
@@ -235,6 +243,9 @@ const BUILD_VS = `
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
     directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
     v_color = clamp(color.rgb * directional, 0.0, 1.0);
+    v_ambient = clamp(color.rgb * (1.0 - u_lightintensity), 0.0, 1.0);
+    v_facing = dot(n, normalize(u_lightpos));
+    v_sun = u_sunTile * vec4(a_pos, elev, 1.0);
     gl_Position = u_matrix * vec4(a_pos, elev, 1.0);
   }`;
 
@@ -268,17 +279,41 @@ const BUILD_FS = `#version 300 es
   in vec3 v_wall;
   in float v_seed;
   in float v_style;
+  in vec4 v_sun;
+  in vec3 v_ambient;
+  in float v_facing;
   out vec4 fragColor;
   ${FACADE_GLSL}
   ${FACADE_SHADE_GLSL}
+  ${SUN_SHADOW_GLSL}
   void main() {
     float edge = v_ratio < 0.0 ? 0.0
                : v_fade * (1.0 - smoothstep(0.0, v_border, 1.0 - v_ratio));
-    vec3 color = v_color * (1.0 - v_dark);
+    // PARCHMENT: a face in another's shadow takes the light of a face turned from the sun.
+    float facing = clamp(v_facing, 0.0, 1.0);
+    float shade = facing > 0.0 ? sunShade(v_sun, sqrt(1.0 - facing * facing) / max(facing, 0.2)) : 0.0;
+    vec3 color = mix(v_color, v_ambient * 0.9, shade) * (1.0 - v_dark);
     // PARCHMENT: windows, on walls only.
     if (u_facade > 0.5 && v_wall.z > 0.0) color = facadeShade(color, facade(v_wall.x, v_wall.y, v_wall.z, v_seed, v_style, 1.0));
     fragColor = vec4(color * (1.0 - u_edge * edge), 1.0);
   }`;
+
+// PARCHMENT: the buildings into the sun's shadow map; see map/sun-shadow.ts.
+const SUN_VS = `
+  uniform mat4 u_matrix;
+  attribute vec2 a_pos;
+  attribute vec4 a_normal_ed;
+  ${HEIGHT_ATTRS}
+  ${TERRAIN}
+  void main() {
+    float t = mod(a_normal_ed.x, 2.0);
+    float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
+    float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
+    gl_Position = u_matrix * vec4(a_pos, mix(base, h, t) + get_elevation(a_centroid), 1.0);
+  }`;
+const SUN_FS = `
+  precision mediump float;
+  void main() { gl_FragColor = vec4(0.0); }`;
 
 // ── Ground shadow mask (plan D): shear each vertex by its real elevation ──
 const SHAD_VS = `
@@ -529,6 +564,9 @@ export class WallShadowLayer {
     this.edgeWidth = opts.edgeWidth ?? 1.5;
     // PARCHMENT: the facade's colours (FACADE_FLAVOR), or null for plain walls.
     this.facade = opts.facade ?? null;
+    // PARCHMENT: buildings and casters shading each other by a sun shadow map.
+    this.sunShadows = opts.sunShadows ?? false;
+    this.sunCeiling = opts.sunCeiling ?? 400;
     this._height = opts.height ?? 40;
     this._base = opts.base ?? 0;
 
@@ -563,7 +601,10 @@ export class WallShadowLayer {
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
         'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
-        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS]); // PARCHMENT
+        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
+        'u_sunTile', ...SUN_SHADOW_UNIFORMS]); // PARCHMENT
+    this._sunProg = linkProgram(gl, SUN_VS, SUN_FS); // PARCHMENT
+    this._uSun = uniformLocs(gl, this._sunProg, ['u_matrix', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg,
@@ -812,6 +853,7 @@ export class WallShadowLayer {
       }
       this._compPass(gl, saved);
     }
+    this._sun = this.sunShadows && this.shadowAlpha > 0.001 && !planView ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
     if (this.wallShade) this._buildingPass(gl, tiles);
 
     restoreGlState(ctx, saved); // PARCHMENT
@@ -1071,6 +1113,8 @@ export class WallShadowLayer {
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);
     gl.uniform1f(U.u_facade, this.facade ? 1 : 0); // PARCHMENT
+    const sun = this._sun;
+    bindSun(gl, U, sun);
     if (this.facade) setFacadeUniforms(gl, U, this.facade);
 
     for (const { coord, bucket, matrix, zf } of tiles) {
@@ -1080,6 +1124,7 @@ export class WallShadowLayer {
       const { z, x, y } = coord.canonical; // PARCHMENT
       gl.uniform1f(U.u_unit_m, tileUnitMetres(z, y));
       gl.uniform2f(U.u_tile_origin, x % 64, y % 64);
+      if (sun) gl.uniformMatrix4fv(U.u_sunTile, false, Float32Array.from(multiply(sun.light, tileToMercator(z, x, y, coord.wrap ?? 0, sun.perMetre))));
       this._bindTerrain(gl, U, coord); // PARCHMENT
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
@@ -1095,6 +1140,85 @@ export class WallShadowLayer {
       gl.polygonOffset(0, 0);
       gl.disable(gl.POLYGON_OFFSET_FILL);
     }
+  }
+
+  /* ── PARCHMENT: the sun's shadow map ── */
+
+  _sunTarget(gl) {
+    if (this._sunFbo) return;
+    this._sunTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this._sunTex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, SUN_SHADOW_SIZE, SUN_SHADOW_SIZE);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
+      [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+      [gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE], [gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    this._sunFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._sunFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this._sunTex, 0);
+  }
+
+  _sunView() {
+    const map = this._map;
+    const c = map.getCenter();
+    const merc = (lng, lat) => [(180 + lng) / 360, (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360];
+    const b = map.getBounds();
+    const perMetre = 1 / (40075016.686 * Math.cos((c.lat * Math.PI) / 180));
+    const hs = this._heightScale;
+    return {
+      center: merc(c.lng, c.lat),
+      perMetre,
+      corners: [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()].map(p => merc(p.lng, p.lat)),
+      radius: 2500 * 2 ** (16 - map.getZoom()),
+      toward: [this.shadowOffset[0] * hs, this.shadowOffset[1] * hs, -1],
+      ceiling: this.sunCeiling,
+    };
+  }
+
+  _sunPass(gl, tiles, saved) {
+    this._sunTarget(gl);
+    const view = this._sunView();
+    const light = sunLightMatrix(view);
+    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, toward: view.toward };
+    // A frame that moves neither the light nor anything casting reuses the map.
+    const key = [...light, ...tiles.map(t => bucketId(t.bucket))];
+    for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
+    for (const caster of this.shadowCasters) caster.receiveSun?.(frame);
+    if (sameKey(key, this._sunKey)) return frame;
+    this._sunKey = key;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._sunFbo);
+    gl.viewport(0, 0, SUN_SHADOW_SIZE, SUN_SHADOW_SIZE);
+    gl.colorMask(false, false, false, false);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.depthMask(true);
+    gl.depthRange(0, 1);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.STENCIL_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.clearDepth(1);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1.5, 2);
+    const U = this._uSun;
+    gl.useProgram(this._sunProg);
+    for (const { coord, bucket, zf } of tiles) {
+      const sg = this._segVaos(gl, bucket);
+      if (!sg) continue;
+      const { z, x, y } = coord.canonical;
+      gl.uniformMatrix4fv(U.u_matrix, false, Float32Array.from(multiply(light, tileToMercator(z, x, y, coord.wrap ?? 0, view.perMetre))));
+      this._bindTerrain(gl, U, coord);
+      gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
+      gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
+      this._drawSegs(gl, sg);
+    }
+    this._vao.bind(null);
+    for (const caster of this.shadowCasters) caster.drawSunDepth?.(gl, frame);
+    gl.polygonOffset(0, 0);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.colorMask(true, true, true, true);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, saved.fbo);
+    gl.viewport(...saved.vp);
+    return frame;
   }
 
   onRemove(_map, gl) {

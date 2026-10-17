@@ -68,16 +68,18 @@ const FS = `#version 300 es
     if (u_maskAlpha <= 0.0) return 0.0;
     vec2 uv = gl_FragCoord.xy / u_viewport;
     float sh = 0.0, sw = 0.0;
-    for (int dy = -2; dy <= 2; dy++)
-      for (int dx = -2; dx <= 2; dx++) {
+    for (int dy = -1; dy <= 1; dy++)
+      for (int dx = -1; dx <= 1; dx++) {
         float w = exp(-0.5 * float(dx * dx + dy * dy));
-        sh += textureLod(u_mask, uv + vec2(float(dx), float(dy)) * u_maskBlur, 0.0).a * w;
+        sh += textureLod(u_mask, uv + vec2(float(dx), float(dy)) * u_maskBlur * 2.0, 0.0).a * w;
         sw += w;
       }
     return sh / sw * u_maskAlpha;
   }
   void main() {
-    float shade = max(groundShade() * v_grade, u_shadowAlpha * sunShade(v_sun, v_slope) * (1.0 - v_grade));
+    float ground = v_grade > 0.0 ? groundShade() * v_grade : 0.0;
+    float sky = v_grade < 1.0 ? u_shadowAlpha * sunShade(v_sun, v_slope) * (1.0 - v_grade) : 0.0;
+    float shade = max(ground, sky);
     fragColor = vec4(v_color * (1.0 - shade), 1.0);
   }`
 
@@ -139,7 +141,7 @@ export function eyeOf(m: ArrayLike<number>): [number, number, number] | null {
 
 /** What a draw needs besides the matrix and light: how far toward street zoom it is (1 there) and the eye, for biased vertices. */
 export type MeshView = {
-  hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number
+  hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number; pixelRatio?: number
   /**
    * The buildings' shadows: their sun shadow map, the origin the mesh is drawn about and how dark a shadow is;
    * their screen-space ground shadow mask; and the bias a vertex lying on the ground has.
@@ -154,6 +156,19 @@ export type MeshView = {
  */
 type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
+const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
+
+/** A clear 1×1 texture for the mask's sampler while there is no ground shadow, so it never reads an unbound unit as full shadow. */
+function emptyMask(gl: WebGL2RenderingContext): WebGLTexture {
+  let t = emptyMasks.get(gl)
+  if (t) return t
+  t = gl.createTexture()!
+  gl.bindTexture(gl.TEXTURE_2D, t)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4))
+  emptyMasks.set(gl, t)
+  return t
+}
+
 /** The texture unit the ground shadow mask is bound to; the sun's map takes `SUN_SHADOW_UNIT`. */
 const MASK_UNIT = 6
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
@@ -180,14 +195,14 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   const biased = eye ? (view.perMetre ?? 0) : 0
   gl.uniform1f(at.uniforms.perMetre, biased)
   gl.uniform2f(at.uniforms.viewport, gl.drawingBufferWidth, gl.drawingBufferHeight)
-  gl.uniform1f(at.uniforms.minPx, (view.minLinePx ?? 0) * (globalThis.devicePixelRatio || 1))
+  gl.uniform1f(at.uniforms.minPx, (view.minLinePx ?? 0) * (view.pixelRatio ?? 1))
   const ground = view.sun?.ground ?? null
   gl.uniform1f(at.uniforms.gradeBias, view.sun?.gradeBias ?? 0)
   gl.uniform1f(at.uniforms.maskAlpha, ground?.alpha ?? 0)
   gl.uniform1f(at.uniforms.maskBlur, ground?.blurStep ?? 0)
   gl.uniform1i(at.uniforms.mask, MASK_UNIT)
   gl.activeTexture(gl.TEXTURE0 + MASK_UNIT)
-  gl.bindTexture(gl.TEXTURE_2D, ground?.texture ?? null)
+  gl.bindTexture(gl.TEXTURE_2D, ground?.texture ?? emptyMask(gl))
   gl.activeTexture(gl.TEXTURE0)
   const sun = view.sun?.frame ? view.sun : null
   bindSun(gl, at.sun, sun?.frame ?? null)

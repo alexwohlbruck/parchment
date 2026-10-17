@@ -699,10 +699,11 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
 }
 
 /**
- * Triangles for the GPU. Where `low` and `bias` are kept, every vertex has
- * them: its colour below street zoom, and metres it is drawn toward the eye.
+ * Triangles for the GPU. Where `low`, `bias` and `spread` are kept, every
+ * vertex has them: its colour below street zoom, metres it is drawn toward the
+ * eye, and for a painted line's vertex the way out from the line's middle
+ * (mercator units a metre) with its half width in metres.
  */
-/** `spread`: for a painted line's vertex, the way out from the line's middle (mercator units a metre) and its half width in metres; zero elsewhere. */
 export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[]; spread?: number[] }
 
 /** A mesh that keeps low colours and biases. */

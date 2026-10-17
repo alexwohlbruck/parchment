@@ -187,6 +187,13 @@ export function createBuildingShade(
     ...SHAPE,
     ...TUNING[flavor],
   })
+  // Gone from the map, it is no longer the live one: its textures went with it.
+  const layer = live
+  const remove = layer.onRemove.bind(layer)
+  layer.onRemove = (map: unknown, gl: WebGL2RenderingContext) => {
+    remove(map, gl)
+    if (live === layer) live = null
+  }
   return live
 }
 

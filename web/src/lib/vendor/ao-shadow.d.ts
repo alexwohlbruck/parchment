@@ -42,6 +42,9 @@ export class WallShadowLayer {
   enabled: boolean
   wallShade: boolean
   groundFx: boolean
+  shadowAlpha: number
+  /** How strongly the ground shadow and occlusion draw right now, 0-1. */
+  groundOpacity(): number
   onAdd(map: any, gl: WebGL2RenderingContext): void
   onRemove(map: any, gl: WebGL2RenderingContext): void
   render(gl: WebGL2RenderingContext, args?: unknown): void

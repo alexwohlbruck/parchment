@@ -98,7 +98,7 @@ export type DeckPalette = {
   parapet: Rgb
   /** A rail deck's surface. */
   track: Rgb
-  /** The top of a road deck that has its carriageway laid on it: concrete, a shade lighter than its sides. */
+  /** The top of a road deck that has its carriageway laid on it: beside the carriageway the colour of the ground's paths, as its sidewalks are. */
   deck: Rgb
   /** Below street zoom, a deck's surface: the basemap's colour for its minor, major and highway roads, and paths. */
   lowRoad: Rgb
@@ -699,8 +699,12 @@ export class DeckLayer {
     const eye = eyeOf(projection)
     const relative: [number, number, number] | null = eye && [eye[0] - this.origin[0], eye[1] - this.origin[1], eye[2]]
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX,
-      sun: { frame: this.sun, origin: this.origin, alpha: shadowAlpha(), ground: liveBuildingShade()?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
+    // The sun's map is this frame's only: a frame the buildings skip leaves none.
+    const sun = this.sun
+    this.sun = null
+    const shade = liveBuildingShade()
+    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
+      sun: { frame: sun, origin: this.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: shade?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
     })
     const { paintFrom, railsFrom, routesFrom } = this.ranges
     const draw = (writeDepth: boolean) => {
@@ -730,11 +734,6 @@ export class DeckLayer {
     draw(true)
     mesh.unbind()
   }
-}
-
-/** How dark the buildings' shadow is on the ground right now, which the decks take too. */
-function shadowAlpha(): number {
-  return liveBuildingShade()?.groundShadow()?.alpha ?? 0
 }
 
 type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }

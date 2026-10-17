@@ -789,6 +789,7 @@ export class WallShadowLayer {
   /* ── render orchestrator ── */
 
   render(gl, args) {
+    this._groundDrawn = false; // PARCHMENT
     if (!this.enabled || this._map.getZoom() < this._minZoom) return;
     // PARCHMENT: the camera matrix in mercator, for shadow casters drawn in
     // world space rather than per tile.
@@ -1240,6 +1241,7 @@ export class WallShadowLayer {
   }
 
   onRemove(_map, gl) {
+    this._groundDrawn = false; // PARCHMENT
     for (const p of [this._buildProg, this._shadProg, this._seedProg, this._jfaProg, this._compProg, this._sunProg])
       gl.deleteProgram(p);
     if (this._sunFbo) gl.deleteFramebuffer(this._sunFbo); // PARCHMENT

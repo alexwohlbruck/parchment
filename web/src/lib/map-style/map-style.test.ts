@@ -44,7 +44,7 @@ import {
   CYCLING_WAYS_SUFFIX,
   scaleOutputs,
 } from './cycling-layers'
-import { BUILDING_PALETTE, BUILDING_TINT } from './building-color.mjs'
+import { BUILDING_PALETTE, BUILDING_TINT, paletteColor } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -1166,7 +1166,8 @@ describe('assembled styles', () => {
       return d > 180 ? 360 - d : d
     }
 
-    test.each(['dark'] as const)('%s: a painted building takes its hue', flavor => {
+    test('dark: a painted building takes its hue', () => {
+      const flavor = 'dark'
       const plain = evaluate(flavor, {})
       const red = evaluate(flavor, { colour: '#ff0000' })
       expect(red).not.toEqual(plain)
@@ -1179,7 +1180,8 @@ describe('assembled styles', () => {
      * buildings in a 7x7 z14 grid over Manhattan are tagged literally `black`
      * and 52 `white`, so this is the common case, not a contrived one.
      */
-    test.each(['dark'] as const)('%s: greys render as plain buildings', flavor => {
+    test('dark: greys render as plain buildings', () => {
+      const flavor = 'dark'
       for (const colour of ['black', 'white', '#808080', 'lightgray']) {
         expect(evaluate(flavor, { colour }), colour).toEqual(plain(flavor))
       }
@@ -1189,11 +1191,7 @@ describe('assembled styles', () => {
       const v = Color.parse(text)!
       return [v.r, v.g, v.b].map(x => Math.round(x * 255))
     }
-    /** A daylight palette colour as drawn, by name. */
-    const drawn = (name: string) => {
-      const [h, s, l] = BUILDING_PALETTE.hues[name]
-      return rgb(`hsl(${h}, ${s}%, ${l}%)`)
-    }
+    const drawn = (name: string) => rgb(paletteColor(name))
     const named = (c: number[], names: string[]) => names.filter(n => drawn(n).every((v, i) => Math.abs(v - c[i]) <= 1))
 
     test('a daylight building takes a palette colour by id, warm when low and cool when tall', () => {
@@ -1205,7 +1203,11 @@ describe('assembled styles', () => {
       // Neighbouring ids spread across the palette rather than banding.
       expect(low.size).toBe(BUILDING_PALETTE.low.length)
       expect(tall.size).toBe(BUILDING_PALETTE.tall.length)
-      expect(evaluate('light', { render_height: 6 }, 10_000_001)).toEqual(evaluate('light', { render_height: 6 }, 10_000_001))
+    })
+
+    test('palette hues are distinct, which the nearest-hue lookup needs', () => {
+      const hues = Object.values(BUILDING_PALETTE.hues).map(([h]) => h)
+      expect(new Set(hues).size).toBe(hues.length)
     })
 
     test('every part of a building shares its outline\'s colour', () => {
@@ -1242,6 +1244,8 @@ describe('assembled styles', () => {
       const roof = [c.r, c.g, c.b].map((x: number) => Math.round(x * 255))
       expect(hueGap(hue(roof), hue(drawn('sky')))).toBeLessThan(4)
       expect(luma(roof)).toBeGreaterThan(luma(drawn('sky')) + 20)
+      const red = parsed.value.evaluate({ zoom: 16 }, { properties: { colour: '#7ec0ee', roof_colour: '#cc3322' } })
+      expect(hueGap(hue([red.r, red.g, red.b].map((x: number) => x * 255)), hue(drawn('terracotta')))).toBeLessThan(4)
     })
 
     /**
@@ -1263,7 +1267,8 @@ describe('assembled styles', () => {
      * the same colour at different lightnesses, and the bug this test was
      * written for — maroon barely tinting at all — is still caught.
      */
-    test.each(['dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
+    test('dark: the same hue tints alike at any lightness', () => {
+      const flavor = 'dark'
       for (const shades of [
         ['#800000', '#b00000', '#ff0000'],
         ['#005500', '#00aa00', '#00ff00'],
@@ -1289,7 +1294,8 @@ describe('assembled styles', () => {
      * collapsed onto the blue-yellow axis — on the night flavor, whose anchor is
      * itself a saturated blue-grey, a dark red facade came out blue.
      */
-    test.each(['dark'] as const)('%s: a facade keeps its own hue', flavor => {
+    test('dark: a facade keeps its own hue', () => {
+      const flavor = 'dark'
       const wheel = [
         '#ff0000', '#ff8c00', '#ffff00', '#556b2f', '#00ff00', '#008080',
         '#0000ff', '#4b0082', '#800080', '#8b4513', '#ffc0cb',
@@ -1311,7 +1317,8 @@ describe('assembled styles', () => {
      * flavor's own colour cast rather than an absolute, since "subtle" means
      * subtle next to the map it sits on.
      */
-    test.each(['dark'] as const)('%s: a tint stays a hint of the paint', flavor => {
+    test('dark: a tint stays a hint of the paint', () => {
+      const flavor = 'dark'
       const plain = chroma(evaluate(flavor, {}))
       for (const colour of ['#ff0000', '#00ff00', '#0000ff', '#ffff00']) {
         const tinted = chroma(evaluate(flavor, { colour }))

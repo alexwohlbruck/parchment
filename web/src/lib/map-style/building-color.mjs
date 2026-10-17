@@ -135,13 +135,11 @@ const VALUE_PULL = 0.3
  * @param {number} amount
  * @param {string} [colorToken]
  * @param {string[]} [properties]
- * @param {unknown} [fallback] What an unpainted building wears; the flavor's colour by default.
  */
 export function buildingColor(
   amount,
   colorToken = '@building_3d_fill_extrusion_color',
   properties = ['colour'],
-  fallback = colorToken,
 ) {
   // The first of `properties` the feature carries. One name is the ordinary
   // case; the roof passes `['roof_colour', 'colour']` so a building that
@@ -200,7 +198,7 @@ export function buildingColor(
                   ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
-    fallback,
+    colorToken,
   ]
 }
 
@@ -246,14 +244,19 @@ const PAINT_CHROMA = 40
 
 const hslText = ([h, s, l]) => `hsl(${h}, ${+s.toFixed(1)}%, ${+l.toFixed(1)}%)`
 
+/** A palette colour by name, as CSS. */
+export const paletteColor = name => hslText(BUILDING_PALETTE.hues[name])
+
 /**
  * A daylight building's colour from `BUILDING_PALETTE`: by `building:colour`
- * where it has a hue, otherwise by height band and a hash of its id, so one
- * building keeps one colour as tiles reload and every part of it matches.
+ * where it has a hue, otherwise by height band and a hash of its id, so a
+ * building keeps its colour as tiles reload. Parts share the hash but band by
+ * their own height, so a podium can be brick under a glass tower.
  *
- * @param {boolean} [roof] The roof's colour: the wall's, lifted toward white.
+ * @param {boolean} [roof] The roof's colour: `roof:colour` or the wall's, lifted toward white.
  */
 export function paletteBuildingColor(roof = false) {
+  const properties = roof ? ['roof_colour', 'colour'] : ['colour']
   const { hues, low, mid, tall } = BUILDING_PALETTE
   const tone = ([h, s, l]) => (roof ? [h, s * 0.8, l + (100 - l) * ROOF_LIFT] : [h, s, l])
   const deep = ([h, s, l]) => (roof ? tone([h, s, l]) : [h, s * 0.9, l - DEEP_SHADE])
@@ -281,7 +284,7 @@ export function paletteBuildingColor(roof = false) {
       : ['step', ['var', 'hue'], last, wrap - 360, first, ...stops]
   }
   const t = i => ['at', i, ['var', 'tile']]
-  const painted = ['let', 'tile', ['to-rgba', ['to-color', ['get', 'colour'], '#808080']],
+  const painted = ['let', 'tile', ['to-rgba', ['to-color', ['coalesce', ...properties.map(p => ['get', p])], '#808080']],
     ['let', 'high', ['max', t(0), t(1), t(2)], 'low', ['min', t(0), t(1), t(2)],
       ['let', 'chroma', ['-', ['var', 'high'], ['var', 'low']],
         ['case', ['<', ['var', 'chroma'], PAINT_CHROMA], byId,
@@ -291,5 +294,5 @@ export function paletteBuildingColor(roof = false) {
             ['+', 4, ['/', ['-', t(0), t(1)], ['var', 'chroma']]]]]], 360],
             // Dark paint, a lightness under 0.38: brick, navy, bottle green.
             ['case', ['<', ['+', ['var', 'high'], ['var', 'low']], 194], nearest(deep), nearest(tone)]]]]]]
-  return ['case', ['has', 'colour'], painted, byId]
+  return ['case', ['any', ...properties.map(p => ['has', p])], painted, byId]
 }

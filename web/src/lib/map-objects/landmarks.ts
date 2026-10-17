@@ -21,7 +21,7 @@ import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-l
 import { coveredNear, type Coverage } from './landmark-coverage'
 import { FACADE_FLAVOR, type FacadeFlavor } from '@/lib/map/facade-shader'
 import { hsl } from '@/lib/map-decks/palette'
-import { BUILDING_PALETTE } from '@/lib/map-style/building-color.mjs'
+import { BUILDING_PALETTE, paletteColor } from '@/lib/map-style/building-color.mjs'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 
 /** How a landmark joins one flavor of the map. */
@@ -37,10 +37,7 @@ export type LandmarkFlavor = {
 }
 
 /** The daylight palette's tower colours, which landmarks — mostly towers — join. */
-const towerColors = BUILDING_PALETTE.tall.map(name => {
-  const [h, s, l] = BUILDING_PALETTE.hues[name]
-  return hsl(`hsl(${h}, ${s}%, ${l}%)`)
-})
+const towerColors = BUILDING_PALETTE.tall.map(name => hsl(paletteColor(name)))
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
   // Far enough into the palette that a model's own colours read only as pattern, and kept light.

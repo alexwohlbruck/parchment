@@ -110,8 +110,8 @@ describe('materialEmission', () => {
 
   it('picks one palette colour per landmark seed, covering the palette', () => {
     const { light } = LANDMARK_FLAVOR
-    expect(paletteFor(light, 0)).toBe(light.palette[0])
-    expect(paletteFor(light, 0.999)).toBe(light.palette[light.palette.length - 1])
+    const picked = new Set([...Array(100).keys()].map(i => paletteFor(light, i / 100)))
+    expect(picked).toEqual(new Set(light.palette))
     expect(paletteFor(LANDMARK_FLAVOR.dark, 0.7)).toBe(LANDMARK_FLAVOR.dark.palette[0])
   })
 

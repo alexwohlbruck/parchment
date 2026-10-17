@@ -4,7 +4,6 @@ export declare function buildingColor(
   amount: number,
   colorToken?: string,
   properties?: string[],
-  fallback?: unknown,
 ): unknown[]
 type Hsl = [number, number, number]
 export declare const BUILDING_PALETTE: {
@@ -13,4 +12,5 @@ export declare const BUILDING_PALETTE: {
   mid: string[]
   tall: string[]
 }
+export declare function paletteColor(name: string): string
 export declare function paletteBuildingColor(roof?: boolean): unknown[]

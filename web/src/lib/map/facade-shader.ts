@@ -133,7 +133,7 @@ export type FacadeFlavor = {
 }
 
 export const FACADE_FLAVOR: Record<'light' | 'dark', FacadeFlavor> = {
-  light: { glass: [0.55, 0.8, 0.97], glassMix: 0.5, night: 0, windowLight: [1, 0.82, 0.56], windowGlow: 1, litScale: 0 },
+  light: { glass: [0.36, 0.58, 0.78], glassMix: 0.5, night: 0, windowLight: [1, 0.82, 0.56], windowGlow: 1, litScale: 0 },
   dark: { glass: [0.14, 0.18, 0.27], glassMix: 0.3, night: 1, windowLight: [0.95, 0.76, 0.5], windowGlow: 0.65, litScale: 1 },
 }
 

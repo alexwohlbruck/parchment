@@ -21,7 +21,7 @@ import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-l
 import { coveredNear, type Coverage } from './landmark-coverage'
 import { FACADE_FLAVOR, type FacadeFlavor } from '@/lib/map/facade-shader'
 import { hsl } from '@/lib/map-decks/palette'
-import { BUILDING_PALETTE, paletteColor } from '@/lib/map-style/building-color.mjs'
+import { BUILDING_MATERIALS } from '@/lib/map-style/building-color.mjs'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 
 /** How a landmark joins one flavor of the map. */
@@ -36,12 +36,13 @@ export type LandmarkFlavor = {
   facade: FacadeFlavor
 }
 
-/** The daylight palette's tower colours, which landmarks — mostly towers — join. */
-const towerColors = BUILDING_PALETTE.tall.map(name => hsl(paletteColor(name)))
+/** The daylight materials a landmark — usually stone or glass — is pulled toward. */
+const landmarkMaterials = (['limestone', 'glassBlue', 'glassTeal', 'sandstone', 'granite'] as const)
+  .map(name => { const [h, s, l] = BUILDING_MATERIALS[name]; return hsl(`hsl(${h}, ${s}%, ${l}%)`) })
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  // Far enough into the palette that a model's own colours read only as pattern, and kept light.
-  light: { palette: towerColors, harmony: 0.65, harmonyFloor: 0.7, facade: FACADE_FLAVOR.light },
+  // Under half way, so a landmark keeps its own materials while sharing the city's grade.
+  light: { palette: landmarkMaterials, harmony: 0.45, harmonyFloor: 0.55, facade: FACADE_FLAVOR.light },
   // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
   dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.85, harmonyFloor: 0.35, facade: FACADE_FLAVOR.dark },
 }

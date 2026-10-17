@@ -203,96 +203,131 @@ export function buildingColor(
 }
 
 /**
- * The daylight buildings' palette, as `[hue, saturation %, lightness %]`.
- *
- * Low buildings take the warm colours and towers the cool ones, so a skyline
- * reads as glass over a brick-and-plaster city rather than as confetti. A
- * building's own `building:colour` picks the nearest hue here, so a painted
- * facade keeps its identity without leaving the palette.
+ * Daylight building materials, `[hue, saturation %, lightness %]`: the colours
+ * real facades have, graded richer than life so a city reads like a well-lit
+ * aerial illustration rather than a grey model.
  */
-export const BUILDING_PALETTE = {
-  hues: {
-    terracotta: [14, 58, 64],
-    apricot: [28, 74, 70],
-    sand: [40, 62, 74],
-    butter: [48, 78, 70],
-    sage: [100, 30, 64],
-    rose: [352, 52, 73],
-    sky: [204, 62, 68],
-    teal: [184, 46, 58],
-    periwinkle: [224, 52, 72],
-    aqua: [192, 56, 70],
-    mint: [160, 36, 66],
-    lilac: [262, 36, 76],
-  },
-  low: ['terracotta', 'apricot', 'sand', 'butter', 'sage', 'rose'],
-  mid: ['terracotta', 'apricot', 'butter', 'rose', 'sky', 'aqua', 'sage'],
-  tall: ['sky', 'teal', 'periwinkle', 'aqua', 'mint', 'lilac'],
+export const BUILDING_MATERIALS = {
+  glassBlue: [203, 55, 60],
+  glassTeal: [188, 47, 54],
+  glassSteel: [212, 29, 56],
+  glassBronze: [28, 29, 40],
+  limestone: [42, 49, 82],
+  sandstone: [33, 62, 70],
+  granite: [15, 16, 58],
+  concrete: [40, 8, 74],
+  concreteCool: [210, 8, 70],
+  brickRed: [8, 68, 48],
+  brickOrange: [16, 72, 56],
+  brickBrown: [20, 47, 40],
+  stucco: [42, 52, 91],
+  sidingCream: [45, 58, 85],
+  sidingBlue: [205, 31, 78],
 }
 
-/** Metres: below the first a building is low, from the second a tower. */
-const PALETTE_HEIGHTS = [12, 45]
-
-/** How far a roof is lifted toward white, so tops read against their walls. */
-const ROOF_LIFT = 0.45
-
-/** How much darker a darkly painted facade's colour is drawn, in lightness points. */
-const DEEP_SHADE = 16
-
-/** Below this chroma (channel units) a painted colour is a grey and the building takes a palette colour by id. */
-const PAINT_CHROMA = 40
-
-const hslText = ([h, s, l]) => `hsl(${h}, ${+s.toFixed(1)}%, ${+l.toFixed(1)}%)`
-
-/** A palette colour by name, as CSS. */
-export const paletteColor = name => hslText(BUILDING_PALETTE.hues[name])
+/** Roofing that only a roof wears: pitched house roofs, and what `roof:colour` may name. */
+export const ROOF_MATERIALS = {
+  copper: [168, 32, 52],
+  slate: [215, 12, 42],
+  tile: [14, 58, 52],
+  shingle: [25, 14, 44],
+}
 
 /**
- * A daylight building's colour from `BUILDING_PALETTE`: by `building:colour`
- * where it has a hue, otherwise by height band and a hash of its id, so a
- * building keeps its colour as tiles reload. Parts share the hash but band by
- * their own height, so a podium can be brick under a glass tower.
- *
- * @param {boolean} [roof] The roof's colour: `roof:colour` or the wall's, lifted toward white.
+ * How often each material turns up, by the kind of building: houses in stucco
+ * and siding, older low-rise in brick, the middle in stone and concrete, the
+ * towers in glass. Weights, not shares.
  */
-export function paletteBuildingColor(roof = false) {
-  const properties = roof ? ['roof_colour', 'colour'] : ['colour']
-  const { hues, low, mid, tall } = BUILDING_PALETTE
-  const tone = ([h, s, l]) => (roof ? [h, s * 0.8, l + (100 - l) * ROOF_LIFT] : [h, s, l])
-  const deep = ([h, s, l]) => (roof ? tone([h, s, l]) : [h, s * 0.9, l - DEEP_SHADE])
-  const color = (name, shade = tone) => hslText(shade(hues[name]))
+export const BUILDING_MIX = {
+  house: { stucco: 3, sidingCream: 3, sidingBlue: 2, brickRed: 1, brickBrown: 1 },
+  low: { brickRed: 3, brickOrange: 2, brickBrown: 2, limestone: 2, concrete: 2, stucco: 1, sandstone: 1 },
+  mid: { limestone: 3, concrete: 3, sandstone: 2, brickRed: 1, glassBlue: 2, glassSteel: 1, granite: 1 },
+  tall: { glassBlue: 3, glassTeal: 2, glassSteel: 2, glassBronze: 1, limestone: 1, granite: 1 },
+  industrial: { concrete: 2, concreteCool: 1, brickBrown: 1 },
+}
+
+/** Metres: under the first a house, then low-rise, mid-rise, and from the last a tower. */
+const MIX_HEIGHTS = [9, 20, 60]
+
+/** OSM `building` values that settle the mix before height does. */
+const MIX_KINDS = {
+  house: ['house', 'detached', 'semidetached_house', 'terrace', 'bungalow', 'cabin'],
+  industrial: ['industrial', 'warehouse', 'manufacture', 'factory', 'storage', 'depot'],
+  parking: ['parking', 'multi-storey', 'garage_parking'],
+}
+
+/** A flat roof: its wall's colour, mostly gravel and membrane. */
+const ROOF_BASE = [40, 8, 88]
+const ROOF_WALL_SHARE = 0.45
+
+/** Levels per channel of the grid a painted colour is matched on; see `nearestMaterial`. */
+const GRID = 8
+
+const rgb = ([h, s, l]) => {
+  const sat = s / 100, light = l / 100
+  const k = n => (n + h / 30) % 12
+  const a = sat * Math.min(light, 1 - light)
+  return [0, 8, 4].map(n => Math.round(255 * (light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))))
+}
+const css = c => `rgb(${c.join(', ')})`
+const roofOf = c => c.map((v, i) => Math.round(v * ROOF_WALL_SHARE + rgb(ROOF_BASE)[i] * (1 - ROOF_WALL_SHARE)))
+
+/** A material's colour as drawn on a wall, as CSS. */
+export const materialColor = name => css(rgb(BUILDING_MATERIALS[name]))
+
+/**
+ * The material nearest a painted `building:colour`, as an expression.
+ *
+ * MapLibre re-evaluates a `let` binding at every `var`, and parsing the tile's
+ * colour is the costly part, so it is read once per channel and the answer
+ * comes from a grid of precomputed nearest materials rather than a search.
+ */
+function nearestMaterial(properties, candidates, shown) {
+  const names = Object.keys(candidates)
+  const distance = (c, n) => [2, 4, 3].reduce((sum, w, i) => sum + w * (c[i] - candidates[n][i]) ** 2, 0)
+  const nearest = c => names.reduce((best, n) => (distance(c, n) < distance(c, best) ? n : best))
+  const step = 256 / GRID
+  const cells = []
+  for (let r = 0; r < GRID; r++) for (let g = 0; g < GRID; g++) for (let b = 0; b < GRID; b++)
+    cells.push(shown(nearest([r, g, b].map(v => (v + 0.5) * step))))
+  const tile = ['to-rgba', ['to-color', ['coalesce', ...properties.map(p => ['get', p])], '#808080']]
+  const level = i => ['min', GRID - 1, ['floor', ['/', ['at', i, tile], step]]]
+  return ['match', ['+', ['*', GRID * GRID, level(0)], ['*', GRID, level(1)], level(2)], ...cells.flatMap((c, i) => [i, c]), cells[0]]
+}
+
+/**
+ * A daylight building's colour: the material nearest its `building:colour`
+ * where it has one; otherwise a material drawn from its kind's or height's mix
+ * by a hash of its id, so a building keeps its colour as tiles reload.
+ *
+ * @param {boolean} [roof] The roof's colour: `roof:colour` or the wall's, mostly flat-roof grey; houses get pitched roofing.
+ */
+export function buildingMaterialColor(roof = false) {
+  const walls = Object.fromEntries(Object.entries(BUILDING_MATERIALS).map(([n, c]) => [n, rgb(c)]))
+  const roofs = Object.fromEntries(Object.entries(ROOF_MATERIALS).map(([n, c]) => [n, rgb(c)]))
+  const shown = name => css(roof && !roofs[name] ? roofOf(walls[name]) : (walls[name] ?? roofs[name]))
 
   // Neighbouring OSM ids are near-consecutive, so the id is mixed before it picks.
   const key = ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]]
   const mixed = ['%', ['+', ['*', ['%', key, 9973], 7919], ['*', ['%', ['floor', ['/', key, 9973]], 9973], 104729]], 9973]
-  const pick = names => ['match', ['%', mixed, names.length], ...names.flatMap((n, i) => [i, color(n)]), color(names[0])]
-  const height = ['coalesce', ['get', 'render_height'], 0]
-  const byId = ['case',
-    ['<', height, PALETTE_HEIGHTS[0]], pick(low),
-    ['<', height, PALETTE_HEIGHTS[1]], pick(mid),
-    pick(tall)]
-
-  // The palette's hues in order, each owning the arc up to halfway to its neighbours.
-  const names = Object.keys(hues).sort((a, b) => hues[a][0] - hues[b][0])
-  const nearest = shade => {
-    const at = names.map(n => hues[n][0])
-    const first = color(names[0], shade), last = color(names[names.length - 1], shade)
-    const stops = names.slice(1).flatMap((n, i) => [(at[i] + at[i + 1]) / 2, color(n, shade)])
-    const wrap = (at[at.length - 1] + at[0] + 360) / 2
-    return wrap < 360
-      ? ['step', ['var', 'hue'], first, ...stops, wrap, first]
-      : ['step', ['var', 'hue'], last, wrap - 360, first, ...stops]
+  const pick = weights => {
+    const names = Object.entries(weights).flatMap(([n, w]) => Array(w).fill(n))
+    return ['match', ['%', mixed, names.length], ...names.flatMap((n, i) => [i, shown(n)]), shown(names[0])]
   }
-  const t = i => ['at', i, ['var', 'tile']]
-  const painted = ['let', 'tile', ['to-rgba', ['to-color', ['coalesce', ...properties.map(p => ['get', p])], '#808080']],
-    ['let', 'high', ['max', t(0), t(1), t(2)], 'low', ['min', t(0), t(1), t(2)],
-      ['let', 'chroma', ['-', ['var', 'high'], ['var', 'low']],
-        ['case', ['<', ['var', 'chroma'], PAINT_CHROMA], byId,
-          ['let', 'hue', ['%', ['+', 360, ['*', 60, ['case',
-            ['==', ['var', 'high'], t(0)], ['/', ['-', t(1), t(2)], ['var', 'chroma']],
-            ['==', ['var', 'high'], t(1)], ['+', 2, ['/', ['-', t(2), t(0)], ['var', 'chroma']]],
-            ['+', 4, ['/', ['-', t(0), t(1)], ['var', 'chroma']]]]]], 360],
-            // Dark paint, a lightness under 0.38: brick, navy, bottle green.
-            ['case', ['<', ['+', ['var', 'high'], ['var', 'low']], 194], nearest(deep), nearest(tone)]]]]]]
-  return ['case', ['any', ...properties.map(p => ['has', p])], painted, byId]
+  const houses = roof ? pick({ slate: 1, tile: 1, shingle: 2 }) : pick(BUILDING_MIX.house)
+  const height = ['coalesce', ['get', 'render_height'], 0]
+  const byHeight = ['case',
+    ['<', height, MIX_HEIGHTS[0]], houses,
+    ['<', height, MIX_HEIGHTS[1]], pick(BUILDING_MIX.low),
+    ['<', height, MIX_HEIGHTS[2]], pick(BUILDING_MIX.mid),
+    pick(BUILDING_MIX.tall)]
+  const byKind = ['match', ['downcase', ['to-string', ['coalesce', ['get', 'kind'], '']]],
+    MIX_KINDS.house, houses,
+    MIX_KINDS.industrial, pick(BUILDING_MIX.industrial),
+    MIX_KINDS.parking, shown('concrete'),
+    byHeight]
+
+  const properties = roof ? ['roof_colour', 'colour'] : ['colour']
+  const painted = nearestMaterial(properties, roof ? { ...walls, ...roofs } : walls, shown)
+  return ['case', ['any', ...properties.map(p => ['has', p])], painted, byKind]
 }

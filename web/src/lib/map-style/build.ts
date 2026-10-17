@@ -40,7 +40,7 @@ import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
-import { buildingColor, BUILDING_TINT, paletteBuildingColor } from './building-color.mjs'
+import { buildingColor, BUILDING_TINT, buildingMaterialColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
@@ -584,7 +584,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
       ...buildings.paint,
       'fill-extrusion-opacity': 0,
       'fill-extrusion-color': flavor === 'light'
-        ? paletteBuildingColor(true)
+        ? buildingMaterialColor(true)
         : buildingColor(
           BUILDING_TINT[flavor],
           '@building_3d_fill_extrusion_color',
@@ -760,13 +760,13 @@ function withRoundedRoofEdge(layers: any[]): any[] {
   })
 }
 
-/** The extruded buildings' colour: the daylight palette, or the night tint. */
+/** The extruded buildings' colour: daylight materials, or the night tint. */
 function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
   return layers.map(l => l.type !== 'fill-extrusion' ? l : {
     ...l,
     paint: {
       ...l.paint,
-      'fill-extrusion-color': flavor === 'light' ? paletteBuildingColor() : buildingColor(BUILDING_TINT[flavor]),
+      'fill-extrusion-color': flavor === 'light' ? buildingMaterialColor() : buildingColor(BUILDING_TINT[flavor]),
     },
   })
 }

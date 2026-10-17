@@ -44,7 +44,7 @@ import {
   CYCLING_WAYS_SUFFIX,
   scaleOutputs,
 } from './cycling-layers'
-import { BUILDING_PALETTE, BUILDING_TINT, paletteColor } from './building-color.mjs'
+import { BUILDING_MATERIALS, BUILDING_MIX, BUILDING_TINT, materialColor } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -1135,11 +1135,11 @@ describe('assembled styles', () => {
    * the happy one.
    */
   describe('building colour', () => {
+    const compiled: Partial<Record<'light' | 'dark', any>> = {}
     const evaluate = (flavor: 'light' | 'dark', properties: Record<string, unknown>, id?: number) => {
-      const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d)
-      const parsed = expression.createPropertyExpression(
-        layer.paint['fill-extrusion-color'],
-        `${layer.id}.paint.fill-extrusion-color`,
+      const parsed = compiled[flavor] ??= expression.createPropertyExpression(
+        (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d).paint['fill-extrusion-color'],
+        'building.paint.fill-extrusion-color',
         (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
       )
       expect(parsed.result).toBe('success')
@@ -1191,61 +1191,60 @@ describe('assembled styles', () => {
       const v = Color.parse(text)!
       return [v.r, v.g, v.b].map(x => Math.round(x * 255))
     }
-    const drawn = (name: string) => rgb(paletteColor(name))
+    const drawn = (name: string) => rgb(materialColor(name))
     const named = (c: number[], names: string[]) => names.filter(n => drawn(n).every((v, i) => Math.abs(v - c[i]) <= 1))
+    const all = Object.keys(BUILDING_MATERIALS)
 
-    test('a daylight building takes a palette colour by id, warm when low and cool when tall', () => {
-      const ids = [...Array(40).keys()].map(i => 10_000_000 + i * 10 + 1)
-      const low = new Set(ids.map(id => named(evaluate('light', { render_height: 6 }, id), BUILDING_PALETTE.low).join()))
-      const tall = new Set(ids.map(id => named(evaluate('light', { render_height: 120 }, id), BUILDING_PALETTE.tall).join()))
-      expect(low.has('')).toBe(false)
-      expect(tall.has('')).toBe(false)
-      // Neighbouring ids spread across the palette rather than banding.
-      expect(low.size).toBe(BUILDING_PALETTE.low.length)
-      expect(tall.size).toBe(BUILDING_PALETTE.tall.length)
+    test('a daylight building wears a material from its height\'s mix, picked by id', () => {
+      const ids = [...Array(60).keys()].map(i => 10_000_000 + i * 10 + 1)
+      for (const [height, mix] of [[6, BUILDING_MIX.house], [14, BUILDING_MIX.low], [40, BUILDING_MIX.mid], [150, BUILDING_MIX.tall]] as const) {
+        const worn = new Set(ids.map(id => named(evaluate('light', { render_height: height }, id), all).join()))
+        expect(worn).toEqual(new Set(Object.keys(mix)))
+      }
     })
 
-    test('palette hues are distinct, which the nearest-hue lookup needs', () => {
-      const hues = Object.values(BUILDING_PALETTE.hues).map(([h]) => h)
-      expect(new Set(hues).size).toBe(hues.length)
+    test('a known kind settles the material before height does', () => {
+      expect(named(evaluate('light', { kind: 'parking', render_height: 40 }, 11), all)).toEqual(['concrete'])
+      expect(Object.keys(BUILDING_MIX.house)).toContain(named(evaluate('light', { kind: 'house', render_height: 40 }, 11), all)[0])
     })
 
-    test('every part of a building shares its outline\'s colour', () => {
+    test('every part of a building shares its outline\'s material', () => {
       const outline = evaluate('light', {}, 41)
       expect(evaluate('light', { group_id: 41 }, 7)).toEqual(outline)
       expect(evaluate('light', { group_id: 41 }, 23)).toEqual(outline)
     })
 
-    test('a painted daylight building takes the nearest palette hue, darker for dark paint', () => {
-      const all = Object.keys(BUILDING_PALETTE.hues)
-      expect(named(evaluate('light', { colour: '#7ec0ee' }), all)).toEqual(['sky'])
-      expect(named(evaluate('light', { colour: '#f4a460' }), all)).toEqual(['apricot'])
-      expect(named(evaluate('light', { colour: '#ff69b4' }), all)).toEqual(['rose'])
-      // Brick is dark terracotta: the palette's hue, drawn deeper.
-      const brick = evaluate('light', { colour: '#8b3a2a' })
-      expect(hueGap(hue(brick), hue(drawn('terracotta')))).toBeLessThan(4)
-      expect(luma(brick)).toBeLessThan(luma(drawn('terracotta')))
+    test('a painted daylight building takes the nearest material', () => {
+      expect(named(evaluate('light', { colour: '#cc7758' }), all)).toEqual(['brickOrange'])
+      expect(named(evaluate('light', { colour: '#8b2a1a' }), all)).toEqual(['brickRed'])
+      expect(named(evaluate('light', { colour: '#4f8fc0' }), all)).toEqual(['glassBlue'])
+      expect(named(evaluate('light', { colour: '#ffffff' }), all)).toEqual(['stucco'])
+      expect(named(evaluate('light', { colour: '#9a9a9a' }), all)).toHaveLength(1)
     })
 
-    test('a grey or unreadable daylight colour falls back to the palette by id', () => {
-      for (const colour of ['black', 'white', '#808080', 'brick', '#70c2dcb']) {
-        expect(evaluate('light', { colour }, 41), colour).toEqual(evaluate('light', {}, 41))
+    test('an unreadable daylight colour is matched as grey rather than drawn black', () => {
+      for (const colour of ['brick', '#70c2dcb']) {
+        expect(luma(evaluate('light', { colour }))).toBeGreaterThan(100)
       }
     })
 
-    test('a daylight roof is its wall lifted toward white', () => {
+    test('a daylight roof is mostly flat-roof grey, or the roofing it is tagged with', () => {
       setBarrelmanBuildingsReady(true)
       const roofLayer = (buildLayers({ flavor: 'light' }) as any[]).find(l => l.id === BUILDING_3D_ROOF_LAYER)
       setBarrelmanBuildingsReady(null)
       const parsed = expression.createPropertyExpression(
         roofLayer.paint['fill-extrusion-color'], 'roof', (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
       ) as any
-      const c = parsed.value.evaluate({ zoom: 16 }, { properties: { colour: '#7ec0ee' } })
-      const roof = [c.r, c.g, c.b].map((x: number) => Math.round(x * 255))
-      expect(hueGap(hue(roof), hue(drawn('sky')))).toBeLessThan(4)
-      expect(luma(roof)).toBeGreaterThan(luma(drawn('sky')) + 20)
-      const red = parsed.value.evaluate({ zoom: 16 }, { properties: { colour: '#7ec0ee', roof_colour: '#cc3322' } })
-      expect(hueGap(hue([red.r, red.g, red.b].map((x: number) => x * 255)), hue(drawn('terracotta')))).toBeLessThan(4)
+      const at = (properties: Record<string, unknown>) => {
+        const c = parsed.value.evaluate({ zoom: 16 }, { properties })
+        return [c.r, c.g, c.b].map((x: number) => Math.round(x * 255))
+      }
+      const roof = at({ colour: '#4f8fc0' })
+      expect(chroma(roof)).toBeLessThan(chroma(drawn('glassBlue')))
+      expect(luma(roof)).toBeGreaterThan(luma(drawn('glassBlue')))
+      // Copper green is a roof, never a wall.
+      const copper = at({ colour: '#cc7758', roof_colour: '#5a9a88' })
+      expect(copper[1]).toBeGreaterThan(copper[0])
     })
 
     /**

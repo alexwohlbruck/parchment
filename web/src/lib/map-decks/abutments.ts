@@ -61,12 +61,15 @@ export function approachLift(approaches: Approach[], q: Point, metresPerUnit: nu
     const [dx, dy] = [(q[0] - p[0]) * metresPerUnit, (q[1] - p[1]) * metresPerUnit]
     const along = dx * out[0] + dy * out[1]
     const across = Math.abs(-dx * out[1] + dy * out[0])
-    if (along < -1 || along > APPROACH_SLAB.length || across > half + 3) continue
+    if (along < -1 || along > APPROACH_SLAB.length || across > half + 0.5) continue
     const u = 1 - Math.max(0, along) / APPROACH_SLAB.length
     lift = Math.max(lift, rise * u * u * (3 - 2 * u))
   }
   return lift
 }
+
+/** How far below its footing an abutment's wall reaches, so it never stands clear where the ground falls away across the deck. */
+const WALL_SINK = 1
 
 /** How thick an abutment's wall is, how far its wing walls splay from square, and the shortest and longest wing, in metres and radians. */
 const ABUTMENT = { thick: 0.8, splay: Math.PI / 6, wingMin: 2, wingMax: 10 }
@@ -84,17 +87,25 @@ export function abutmentMesh(chain: Chain, z: number[], groundAt: number[], clea
   for (const end of [0, 1] as const) {
     if (!chain.grounded[end]) continue
     const order = end ? [...Array(n).keys()].reverse() : [...Array(n).keys()]
-    const i = order.find(k => z[k] - groundAt[k] >= clearance)
-    if (i === undefined || i === order[0] || i === order[order.length - 1]) continue
-    const p = chain.points[i]
-    const toward = chain.points[order[order.indexOf(i) - 1]]
-    const len = Math.hypot(p[0] - toward[0], p[1] - toward[1]) || 1
-    const back: Point = [(toward[0] - p[0]) / len, (toward[1] - p[1]) / len]
-    const left: Point = end ? [back[1], -back[0]] : [-back[1], back[0]]
-    const [l, r] = [sideAt(chain, end ? 1 : 0, i) + 0.3, sideAt(chain, end ? 0 : 1, i) + 0.3]
-    const top = z[i] - SLAB
-    const foot = groundAt[i] - FOOTING
-    const h = top - groundAt[i]
+    const at0 = order.findIndex(k => z[k] - groundAt[k] >= clearance)
+    if (at0 <= 0 || at0 === order.length - 1) continue
+    // Where the deck crosses the clearance, between the samples either side.
+    const [i, j] = [order[at0], order[at0 - 1]]
+    const [hi, hj] = [z[i] - groundAt[i], z[j] - groundAt[j]]
+    const t = (clearance - hj) / (hi - hj || 1)
+    const p: Point = [chain.points[j][0] + (chain.points[i][0] - chain.points[j][0]) * t, chain.points[j][1] + (chain.points[i][1] - chain.points[j][1]) * t]
+    const lerp = (v: number[]) => v[j] + (v[i] - v[j]) * t
+    const [a, b] = [chain.points[Math.max(0, i - 1)], chain.points[Math.min(n - 1, i + 1)]]
+    const fl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const forward: Point = [(b[0] - a[0]) / fl, (b[1] - a[1]) / fl]
+    // As deckMesh: left of the chain's own direction, whichever end this is.
+    const left: Point = [-forward[1], forward[0]]
+    const back: Point = end ? forward : [-forward[0], -forward[1]]
+    const [l, r] = [sideAt(chain, 0, i) + 0.3, sideAt(chain, 1, i) + 0.3]
+    const top = lerp(z) - SLAB
+    const ground = lerp(groundAt)
+    const foot = ground - FOOTING - WALL_SINK
+    const h = top - ground
     const at = (q: Point, metres: number) => [q[0] - origin[0], q[1] - origin[1], metres / metresPerUnit]
     const off = (q: Point, d: Point, m: number): Point => [q[0] + (d[0] * m) / metresPerUnit, q[1] + (d[1] * m) / metresPerUnit]
     const cornerL = off(p, left, l)
@@ -110,7 +121,7 @@ export function abutmentMesh(chain: Chain, z: number[], groundAt: number[], clea
     for (const [corner, side] of [[cornerL, 1], [cornerR, -1]] as const) {
       const dir: Point = [back[0] * Math.cos(ABUTMENT.splay) + left[0] * side * Math.sin(ABUTMENT.splay), back[1] * Math.cos(ABUTMENT.splay) + left[1] * side * Math.sin(ABUTMENT.splay)]
       const tip = off(corner, dir, wing)
-      const tipTop = groundAt[i] + Math.max(0, h - wing / 1.5)
+      const tipTop = ground + Math.max(0, h - wing / 1.5)
       quad(out, at(corner, foot), at(tip, foot), at(tip, tipTop), at(corner, top), color)
       quad(out, at(tip, foot), at(corner, foot), at(corner, top), at(tip, tipTop), color)
     }

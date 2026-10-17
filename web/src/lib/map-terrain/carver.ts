@@ -101,6 +101,7 @@ export class TerrainCarver {
     this.focus?.([])
     if (this.carving.size) this.map()?.terrain?.tileManager?.tileManager?.reload(true)
     this.carving = new Map()
+    this.focused = []
   }
 
   tiles(): any[] {

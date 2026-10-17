@@ -78,7 +78,7 @@ import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
-import type { Footprint } from '@/lib/map-terrain/carve'
+import { carvedAt, type Footprint } from '@/lib/map-terrain/carve'
 import { abutmentMesh, abutments, approachLift, APPROACH_SLAB } from './abutments'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
@@ -397,8 +397,8 @@ export class DeckLayer {
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
-    this.mould = this.map.getZoom() >= MOULD_FROM
-      ? abutments(solved.map(({ chain, z, groundAt }) => ({ key: `${chain.points[0]}|${chain.points.at(-1)}|${z.map(v => v.toFixed(1)).join()}`, chain, z, groundAt })))
+    this.mould = this.map.getZoom() >= MOULD_FROM - (this.mould.size ? 0.5 : 0)
+      ? abutments(solved.map(({ chain, z, groundAt }) => ({ key: `${chain.points[0]}|${chain.points.at(-1)}|${chain.edges.map(e => e.toFixed(1))}|${z.map(v => v.toFixed(1)).join()}`, chain, z, groundAt })))
       : new Map()
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
@@ -436,7 +436,21 @@ export class DeckLayer {
     this.under = null
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
-    const terrain = (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }
+    // The terrain as drawn, cut where the decks' ends cut it, which may not have happened yet; the fixed-zoom ground where nothing is drawn.
+    const fallback = this.groundSampler()
+    const cuts = [...this.mould.values()]
+    const terrain = (q: Point) => {
+      const drawn = this.map.queryTerrainElevation?.(unprojected(q))
+      const read = fallback?.at(q)
+      let g = typeof drawn === 'number' && drawn !== 0 ? drawn : read != null ? read * exaggeration : null
+      if (g === null) return null
+      for (const f of cuts) {
+        if (!holds(f.bounds, q)) continue
+        const cut = carvedAt(f, q)
+        if (cut !== null) g = Math.min(g, cut * exaggeration)
+      }
+      return g
+    }
     // The road beyond a deck that ends over the drawn ground eases up to meet it.
     const scale = metresPerUnit(this.origin[1])
     const approaches = solved.flatMap(({ chain }, k) => chain.kind !== 'road' ? [] : wayEnds(chain).flatMap(({ p: at, out, half }) => {
@@ -449,9 +463,13 @@ export class DeckLayer {
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
     const ground = { at: (q: Point) => { const g = terrain(q); return g === null ? null : g + approachLift(approaches, q, scale) }, near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
-    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true, ground: approaches.length ? { ...ground, near: slabs } : undefined })
-    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
+    // Only the carriageway each deck carries on into eases up, not the roads beside or across it.
+    const probes = approaches.map(({ p: at, out }) => [at[0] + (out[0] * 2) / scale, at[1] + (out[1] * 2) / scale] as Point)
     const atGrade = this.carriageways(false, ends)
+    const onward = atGrade.filter(c => c.areas.some(rings => probes.some(q => inside(q, rings))))
+    layPaint(mesh, atGrade.filter(c => !onward.includes(c)), surfaces, tar, this.origin, { atGrade: true })
+    layPaint(mesh, onward, surfaces, tar, this.origin, { atGrade: true, ground: { ...ground, near: slabs } })
+    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
     const wedges = jointAreas([...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))], [...paved, ...atGrade].flatMap(c => c.areas.map(rings => rings[0])))
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
@@ -461,7 +479,7 @@ export class DeckLayer {
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3
     for (const id of this.sources.routes())
-      for (const f of this.query(id)) layRoute(mesh, linesOf(f.geometry).map(line => line.map(mercator)), surfaces, p, this.origin)
+      for (const f of this.query(id)) layRoute(mesh, linesOf(f.geometry).map(line => line.map(mercator)), surfaces, p, this.origin, slabs.length ? { ...ground, near: slabs } : undefined)
     this.version++
     const stood = standKey(this.stands)
     if (stood !== this.stood) this.onBuilt?.()

@@ -124,12 +124,12 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
 }
 
 /** A route laid over the surfaces beneath it, on a darker casing. */
-export function layRoute(mesh: Mesh, lines: Point[][], surfaces: DeckSurface[], colors: { route: number[]; routeCasing: number[] }, origin: Point) {
+export function layRoute(mesh: Mesh, lines: Point[][], surfaces: DeckSurface[], colors: { route: number[]; routeCasing: number[] }, origin: Point, ground?: Ground) {
   const dense = lines.map(line => densify(line, PAINT_SAMPLE))
   const { under } = onOwnDeck(dense, [], surfaces, { centred: true })
   for (const [k, line] of dense.entries()) {
-    strip(mesh, line, { under: under.lines[k], surfaces, keep: true }, 4.4, colors.routeCasing, 0.06, 0, null, origin)
-    strip(mesh, line, { under: under.lines[k], surfaces, keep: true }, 3, colors.route, 0.08, 0, null, origin)
+    strip(mesh, line, { under: under.lines[k], surfaces, keep: true, ground }, 4.4, colors.routeCasing, 0.06, 0, null, origin)
+    strip(mesh, line, { under: under.lines[k], surfaces, keep: true, ground }, 3, colors.route, 0.08, 0, null, origin)
   }
 }
 

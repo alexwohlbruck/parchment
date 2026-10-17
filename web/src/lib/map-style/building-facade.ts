@@ -22,7 +22,7 @@ const KINDS: Record<keyof typeof FACADE_STYLE, string[]> = {
  * which unlike anything geometric is the same in every zoom's tiles.
  */
 export function buildingFacadeColor(): unknown {
-  const key = ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]]
+  const key = ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0]
   return [
     'let', 'key', key,
     ['rgb',

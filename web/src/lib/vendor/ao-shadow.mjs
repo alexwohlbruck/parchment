@@ -159,6 +159,7 @@ const BUILD_VS = `
   // PARCHMENT: where on its facade a wall fragment sits; see FACADE_GLSL.
   uniform float u_unit_m;    // metres per tile unit
   uniform vec2 u_tile_origin; // the tile's x and y, mod 64
+  uniform vec2 u_wall_origin; // the tile's corner within its z14 tile, in tile units
   ${FACADE_HASH_GLSL}
   ${FACADE_GUESS_GLSL}
   varying vec3 v_wall;       // metres along the wall, metres up, roof height (0 on a roof)
@@ -176,10 +177,10 @@ const BUILD_VS = `
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
     float elev = mix(base, h, t);
     float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
-    // PARCHMENT: along the wall from the centroid, seeded by the feature id (donor green and blue):
-    // both are the same in every zoom's tiles, so the same windows stay lit.
+    // PARCHMENT: along the wall on the fixed z14 grid, seeded by the feature id (donor green and
+    // blue): both are the same in every zoom's tiles, so the same windows stay lit.
     vec2 tangent = normalize(vec2(-a_normal_ed.y, a_normal_ed.x) + 1e-6);
-    v_wall = vec3(dot(a_pos - a_centroid, tangent) * u_unit_m, elev, isWall * h);
+    v_wall = vec3(dot(a_pos + u_wall_origin, tangent) * u_unit_m, elev, isWall * h);
     vec2 fk = u_fct < -0.5 ? a_facade : mix(a_facade4.xy, a_facade4.zw, u_fct);
     v_seed = u_facade_on > 0.5
       ? facadeHash(vec2(mod(fk.x, 256.0), floor(fk.y / 256.0)) + 0.5)
@@ -605,7 +606,7 @@ export class WallShadowLayer {
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
         'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
-        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
+        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_wall_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
         'u_sunTile', ...SUN_SHADOW_UNIFORMS]); // PARCHMENT
     this._sunProg = linkProgram(gl, SUN_VS, SUN_FS); // PARCHMENT
     this._uSun = uniformLocs(gl, this._sunProg, ['u_matrix', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
@@ -1138,7 +1139,9 @@ export class WallShadowLayer {
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
       const { z, x, y } = coord.canonical; // PARCHMENT
-      gl.uniform1f(U.u_unit_m, tileUnitMetres(z, y));
+      const sub = 2 ** Math.max(0, z - 14);
+      gl.uniform1f(U.u_unit_m, tileUnitMetres(Math.min(z, 14), Math.floor(y / sub)) / sub);
+      gl.uniform2f(U.u_wall_origin, (x % sub) * 8192, (y % sub) * 8192);
       gl.uniform2f(U.u_tile_origin, x % 64, y % 64);
       if (sun) gl.uniformMatrix4fv(U.u_sunTile, false, Float32Array.from(multiply(sun.light, tileToMercator(z, x, y, coord.wrap ?? 0, sun.perMetre))));
       this._bindTerrain(gl, U, coord); // PARCHMENT

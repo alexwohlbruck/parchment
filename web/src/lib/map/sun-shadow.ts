@@ -47,7 +47,9 @@ export type SunView = {
   radius: number
   /** Which way the light travels, east, north, up: down and away from the sun. */
   toward: [number, number, number]
-  /** The tallest caster, metres; the map's depth range runs this far up. */
+  /** The ground's height at the centre, metres, with terrain on. */
+  floor: number
+  /** The tallest caster, metres above the floor; the map's depth range runs this far up. */
   ceiling: number
 }
 
@@ -56,8 +58,8 @@ export type SunView = {
  * as tight around the visible ground and everything standing on it as the
  * light direction allows.
  */
-export function sunLightMatrix(view: SunView): Mat4 {
-  const { center, perMetre, radius, ceiling } = view
+export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: number } {
+  const { center, perMetre, radius, ceiling, floor } = view
   const f = norm(view.toward)
   const r = norm(Math.abs(f[2]) > 0.999 ? [1, 0, 0] : cross(f, [0, 0, 1]))
   const u = cross(r, f)
@@ -72,7 +74,8 @@ export function sunLightMatrix(view: SunView): Mat4 {
   })
   const lo = [Infinity, Infinity, Infinity]
   const hi = [-Infinity, -Infinity, -Infinity]
-  for (const [e, n] of ground) for (const h of [0, ceiling]) {
+  // Terrain dips below the centre's ground as well as rising above it.
+  for (const [e, n] of ground) for (const h of [floor - ceiling * 0.25, floor + ceiling]) {
     const p = [e, n, h]
     const l = [p[0] * r[0] + p[1] * r[1] + p[2] * r[2], p[0] * u[0] + p[1] * u[1] + p[2] * u[2], p[0] * f[0] + p[1] * f[1] + p[2] * f[2]]
     for (let i = 0; i < 3; i++) {
@@ -96,7 +99,7 @@ export function sunLightMatrix(view: SunView): Mat4 {
   const metric = new Float64Array([k, 0, 0, 0, 0, -k, 0, 0, 0, 0, k, 0, -center[0] * k, center[1] * k, 0, 1])
   const light = new Float64Array(16)
   for (let c = 0; c < 4; c++) for (let row = 0; row < 4; row++) light[c * 4 + row] = rows[row][c]
-  return multiply(light, metric)
+  return { light: multiply(light, metric), depthPerMetre: 1 / (hi[2] - lo[2]) }
 }
 
 /**
@@ -107,14 +110,16 @@ export const SUN_SHADOW_GLSL = `
   uniform highp sampler2DShadow u_sunShadow;
   uniform float u_sunOn;
   uniform float u_sunTexel;
+  uniform float u_sunBias; // depth per metre
   float sunShade(vec4 p, float slope) {
     if (u_sunOn < 0.5) return 0.0;
     vec3 c = p.xyz / p.w * 0.5 + 0.5;
     if (any(lessThan(c.xy, vec2(0.0))) || any(greaterThan(c.xy, vec2(1.0))) || c.z > 1.0) return 0.0;
-    float z = c.z - (2.0 + 4.0 * slope) * u_sunTexel;
+    float z = c.z - (0.4 + 1.2 * min(slope, 4.0)) * u_sunBias;
     float t = 0.75 * u_sunTexel;
-    float lit = texture(u_sunShadow, vec3(c.xy + vec2(-t, -t), z)) + texture(u_sunShadow, vec3(c.xy + vec2(t, -t), z))
-              + texture(u_sunShadow, vec3(c.xy + vec2(-t, t), z)) + texture(u_sunShadow, vec3(c.xy + vec2(t, t), z));
+    // Lod, not plain texture: callers sample inside a per-fragment branch.
+    float lit = textureLod(u_sunShadow, vec3(c.xy + vec2(-t, -t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, -t), z), 0.0)
+              + textureLod(u_sunShadow, vec3(c.xy + vec2(-t, t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, t), z), 0.0);
     return 1.0 - lit * 0.25;
   }
 `
@@ -125,16 +130,15 @@ export type SunFrame = {
   light: Mat4
   perMetre: number
   texture: WebGLTexture
-  /** Which way the light travels: east, north, up. */
-  toward: [number, number, number]
+  depthPerMetre: number
 }
 
-export const SUN_SHADOW_UNIFORMS = ['u_sunShadow', 'u_sunOn', 'u_sunTexel'] as const
+export const SUN_SHADOW_UNIFORMS = ['u_sunShadow', 'u_sunOn', 'u_sunTexel', 'u_sunBias'] as const
 
 const empties = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
 
 /** A 1×1 depth texture for the shadow sampler while there is no sun: a shadow sampler must never see a colour texture. */
-export function emptySunTexture(gl: WebGL2RenderingContext): WebGLTexture {
+function emptySunTexture(gl: WebGL2RenderingContext): WebGLTexture {
   let t = empties.get(gl)
   if (t) return t
   t = gl.createTexture()!
@@ -149,6 +153,7 @@ export function emptySunTexture(gl: WebGL2RenderingContext): WebGLTexture {
 export function bindSun(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, frame: SunFrame | null) {
   gl.uniform1f(u.u_sunOn, frame ? 1 : 0)
   gl.uniform1f(u.u_sunTexel, 1 / SUN_SHADOW_SIZE)
+  gl.uniform1f(u.u_sunBias, frame?.depthPerMetre ?? 0)
   gl.uniform1i(u.u_sunShadow, SUN_SHADOW_UNIT)
   gl.activeTexture(gl.TEXTURE0 + SUN_SHADOW_UNIT)
   gl.bindTexture(gl.TEXTURE_2D, frame ? frame.texture : emptySunTexture(gl))

@@ -1170,6 +1170,7 @@ export class WallShadowLayer {
       corners: [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()].map(p => merc(p.lng, p.lat)),
       radius: 2500 * 2 ** (16 - map.getZoom()),
       toward: [this.shadowOffset[0] * hs, this.shadowOffset[1] * hs, -1],
+      floor: (this._terrain() && map.queryTerrainElevation?.(c)) || 0,
       ceiling: this.sunCeiling,
     };
   }
@@ -1177,10 +1178,16 @@ export class WallShadowLayer {
   _sunPass(gl, tiles, saved) {
     this._sunTarget(gl);
     const view = this._sunView();
-    const light = sunLightMatrix(view);
-    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, toward: view.toward };
-    // A frame that moves neither the light nor anything casting reuses the map.
-    const key = [...light, ...tiles.map(t => bucketId(t.bucket))];
+    const { light, depthPerMetre } = sunLightMatrix(view);
+    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, depthPerMetre };
+    // A frame that moves neither the light, the ground nor anything casting reuses the map.
+    const terrain = this._terrain();
+    const key = [...light];
+    for (const { coord, bucket } of tiles) {
+      key.push(bucketId(bucket));
+      const dem = terrain?.getTerrainData(coord);
+      if (dem) key.push(dem.texture ? bucketId(dem.texture) : 0, dem.u_terrain_exaggeration ?? 0, ...(dem.u_terrain_matrix ?? []));
+    }
     for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
     for (const caster of this.shadowCasters) caster.receiveSun?.(frame);
     if (sameKey(key, this._sunKey)) return frame;
@@ -1222,8 +1229,10 @@ export class WallShadowLayer {
   }
 
   onRemove(_map, gl) {
-    for (const p of [this._buildProg, this._shadProg, this._seedProg, this._jfaProg, this._compProg])
+    for (const p of [this._buildProg, this._shadProg, this._seedProg, this._jfaProg, this._compProg, this._sunProg])
       gl.deleteProgram(p);
+    if (this._sunFbo) gl.deleteFramebuffer(this._sunFbo); // PARCHMENT
+    if (this._sunTex) gl.deleteTexture(this._sunTex);
     this._fbo.forEach(f => gl.deleteFramebuffer(f));
     this._tex.forEach(t => gl.deleteTexture(t));
     gl.deleteRenderbuffer(this._stencilRB);

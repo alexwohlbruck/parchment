@@ -1153,15 +1153,12 @@ export class LandmarkLayer {
     }
   }
 
-  /**
-   * Draw every landmark's shadow into the building shade layer's mask. Called
-   * by that layer, mid-pass, with its framebuffer and stencil already set up.
-   */
   receiveSun(frame: SunFrame) {
     this.sun = frame
   }
 
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.upload(gl)
     const placements = this.drawable()
     if (!placements.length) return
     const { program, u } = this.sunDepth
@@ -1178,6 +1175,10 @@ export class LandmarkLayer {
     gl.bindVertexArray(null)
   }
 
+  /**
+   * Draw every landmark's shadow into the building shade layer's mask. Called
+   * by that layer, mid-pass, with its framebuffer and stencil already set up.
+   */
   drawShadow(gl: WebGL2RenderingContext, frame: ShadowFrame) {
     this.upload(gl)
     const placements = this.drawable()

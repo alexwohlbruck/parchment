@@ -8,10 +8,10 @@ describe('sunLightMatrix', () => {
   const center: [number, number] = [0.27, 0.4]
   const d = 800 * perMetre
   const view = {
-    center, perMetre, radius: 2000, ceiling: 300, toward: [0.5, 0.5, -1] as [number, number, number],
+    center, perMetre, radius: 2000, ceiling: 300, floor: 0, toward: [0.5, 0.5, -1] as [number, number, number],
     corners: [[center[0] - d, center[1] - d], [center[0] + d, center[1] - d], [center[0] + d, center[1] + d], [center[0] - d, center[1] + d]] as Array<[number, number]>,
   }
-  const L = sunLightMatrix(view)
+  const L = sunLightMatrix(view).light
 
   it('fits the visible ground, at every height up to the ceiling, inside the map', () => {
     for (const [x, y] of view.corners) for (const h of [0, 300]) {

@@ -453,12 +453,16 @@ export class DeckLayer {
       s.groundAt = s.groundAt.map(g => g * exaggeration)
     }
     // A deck's end is biased toward the eye against the ground as drawn, which may stand higher than the ground it was solved on.
+    // Anywhere else, the drawn ground under either edge reaching up near the deck, as beside a cutting, is met the same way.
     const biasGround = solved.map(({ chain, z, groundAt }) => {
       const d = along(chain.points)
+      const [lefts, rights] = edgePoints(chain)
       return groundAt.map((g, i) => {
         const w = smoothstep(Math.max(0, 1 - Math.min(chain.grounded[0] ? d[i] : Infinity, chain.grounded[1] ? d[d.length - 1] - d[i] : Infinity) / AT_GRADE.reach))
         const drawn = w > 0 ? this.drawnGround(chain.points[i]) : null
-        return drawn === null ? g : g + (Math.max(g, Math.min(drawn, z[i])) - g) * w
+        const ended = drawn === null ? g : g + (Math.max(g, Math.min(drawn, z[i])) - g) * w
+        const beside = Math.max(...[lefts[i], rights[i]].map(q => this.drawnGround(q) ?? -Infinity))
+        return Math.max(ended, Math.min(beside, z[i]))
       })
     })
 

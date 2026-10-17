@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { abutmentMesh, abutments, approachLift, APPROACH_SLAB, EMBANK } from './abutments'
+import { abutmentMesh, abutments, approachLift, approachMesh, APPROACH_SLAB, CUT } from './abutments'
 import { carvedAt } from '@/lib/map-terrain/carve'
 import { deckMeshOut, metresPerUnit, type Chain, type Point } from './decks'
 
@@ -18,7 +18,7 @@ describe('abutments', () => {
     expect(mould.size).toBe(1)
     const [cut] = [...mould.values()]
     expect(cut.fill).toBe(false)
-    expect(z.slice(0, cut.points.length - 1).every((h, i) => h - ground[i] <= EMBANK.over)).toBe(true)
+    expect(z.slice(0, cut.points.length - 1).every((h, i) => h - ground[i] <= CUT.over)).toBe(true)
   })
 
   test('brings the ground down to just under the deck top', () => {
@@ -50,8 +50,8 @@ describe('abutmentMesh', () => {
     const points = line(0, 10, 20, 30, 40)
     const chain: Chain = { points, grounded: [true, false], layer: 1, width: 10, kind: 'road', edges: [5, 5] }
     const out = deckMeshOut()
-    abutmentMesh(chain, [100, 101, 104, 106, 106], [100, 100, 100, 100, 100], 1.8, points[0], [1, 1, 1], out, metresPerUnit(y0))
-    expect(out.position.length / 3).toBe(3 * 6 + 4 * 6)
+    abutmentMesh(chain, [100, 101, 104, 106, 106], [100, 100, 100, 100, 100], 1.8, { origin: points[0], metresPerUnit: metresPerUnit(y0), color: [1, 1, 1], out })
+    expect(out.position.length / 3).toBe(3 * 5 * 6)
     const zs = out.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
     expect(Math.min(...zs)).toBeCloseTo(98.5, 3)
     expect(Math.max(...zs)).toBeCloseTo(101.8 - 0.8, 3)
@@ -60,10 +60,10 @@ describe('abutmentMesh', () => {
   const span = (grounded: [boolean, boolean], z: number[], edges: [number, number]) => {
     const points = line(0, 10, 20, 30, 40)
     const out = deckMeshOut()
-    abutmentMesh({ points, grounded, layer: 1, width: 10, kind: 'road', edges }, z, [100, 100, 100, 100, 100], 1.8, points[0], [1, 1, 1], out, metresPerUnit(y0))
+    abutmentMesh({ points, grounded, layer: 1, width: 10, kind: 'road', edges }, z, [100, 100, 100, 100, 100], 1.8, { origin: points[0], metresPerUnit: metresPerUnit(y0), color: [1, 1, 1], out })
     const xs = out.position.filter((_, k) => k % 3 === 0).map(v => v / M)
     const ys = out.position.filter((_, k) => k % 3 === 1).map(v => v / M)
-    return { xs, ys }
+    return { xs, ys, out }
   }
 
   test('stands at the deck crossing its clearance, wings back toward the end it stands at', () => {
@@ -77,8 +77,36 @@ describe('abutmentMesh', () => {
 
   test('spans the deck at its own width on each side', () => {
     const { ys } = span([true, false], [100, 101, 104, 106, 106], [3, 7])
-    const wall = ys.slice(0, 18)
+    const wall = ys.slice(0, 30)
     expect(Math.max(...wall)).toBeCloseTo(3.3, 1)
     expect(Math.min(...wall)).toBeCloseTo(-7.3, 1)
+  })
+
+  test('faces every wall outward, at either end', () => {
+    for (const [grounded, z] of [[[true, false], [100, 101, 104, 106, 106]], [[false, true], [106, 106, 104, 101, 100]]] as const) {
+      const { out } = span([...grounded], [...z], [3, 7])
+      const P = out.position, N = out.normal
+      for (let box = 0; box < P.length; box += 90) {
+        const centre = [0, 1, 2].map(c => { let t = 0; for (let k = box + c; k < box + 90; k += 3) t += P[k]; return t / 30 })
+        for (let v = box; v < box + 90; v += 9) {
+          const mid = [0, 1, 2].map(c => (P[v + c] + P[v + 3 + c] + P[v + 6 + c]) / 3 - centre[c])
+          expect(mid[0] * N[v] + mid[1] * N[v + 1] + mid[2] * N[v + 2]).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+})
+
+describe('approachMesh', () => {
+  test('raises a slab from the deck end down to the ground, walled each side', () => {
+    const out = deckMeshOut()
+    const s = metresPerUnit(y0)
+    approachMesh([{ p: [0.2789, y0], out: [-1, 0], half: 5, rise: 2 }], () => 100, [1, 1, 1], [0.5, 0.5, 0.5], { origin: [0.2789, y0], metresPerUnit: s, color: [0.5, 0.5, 0.5], out })
+    const zs = out.position.filter((_, k) => k % 3 === 2).map(v => v * s)
+    expect(Math.max(...zs)).toBeCloseTo(102, 3)
+    expect(Math.min(...zs)).toBeCloseTo(99, 3)
+    const xs = out.position.filter((_, k) => k % 3 === 0).map(v => v / M)
+    expect(Math.min(...xs)).toBeCloseTo(-APPROACH_SLAB.length, 3)
+    expect(Math.max(...xs)).toBeCloseTo(0, 3)
   })
 })

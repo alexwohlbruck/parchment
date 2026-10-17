@@ -411,6 +411,14 @@ export class DeckLayer {
     for (const s of solved) {
       s.z = s.z.map(z => z * exaggeration)
       s.groundAt = s.groundAt.map(g => g * exaggeration)
+      // Near a grounded end the ground is as drawn where that stands higher, so the end is drawn over it rather than under.
+      const d = along(s.chain.points)
+      const total = d[d.length - 1]
+      s.groundAt = s.groundAt.map((g, i) => {
+        const near = (s.chain.grounded[0] && d[i] <= AT_GRADE.reach) || (s.chain.grounded[1] && total - d[i] <= AT_GRADE.reach)
+        const drawn = near ? this.map.queryTerrainElevation?.(unprojected(s.chain.points[i])) : null
+        return typeof drawn === 'number' && drawn !== 0 ? Math.max(g, Math.min(drawn, s.z[i])) : g
+      })
     }
 
     const p = this.palette
@@ -474,8 +482,8 @@ export class DeckLayer {
         if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
       }
     }
-    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground, parts: 'lines' })
-    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground, parts: 'lines', drape: ground.at })
+    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines', drape: ground.at })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3

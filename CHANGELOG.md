@@ -2,7 +2,7 @@
 
 ### Added
 
-* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every pin that stands and flutters in 3D up close.
+* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every green that stands and flutters in 3D up close.
 * Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
 * Running tracks show their lanes, and race circuits no longer look like side streets.
 * Disc golf courses show each hole's line and number, and their baskets.

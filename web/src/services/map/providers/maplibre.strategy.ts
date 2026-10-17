@@ -1,4 +1,5 @@
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
+import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -296,6 +297,7 @@ export class MaplibreStrategy extends MapStrategy {
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
+  private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -451,6 +453,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
+    this.golfPins = attachGolfPins(this.mapInstance)
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
@@ -1596,6 +1599,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     this.poiElevation?.detach()
+    this.golfPins?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

@@ -72,6 +72,7 @@ import {
   tileBounds,
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
+import { abutmentMesh } from './abutments'
 import { AT_GRADE, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
@@ -147,6 +148,10 @@ const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}
 
 /** Zoom from which a deck's rails are drawn: thinner than a pixel before it. */
 const RAILS_FROM = 17.5
+
+/** Metres from a deck's end within which a way on the ground is the road carrying on from it, and the room an abutment keeps from any other. */
+const OWN_ROAD = 2
+const ABUTMENT_ROOM = 1
 
 /** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
 const PAVED = 0.8
@@ -417,6 +422,16 @@ export class DeckLayer {
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
     this.tracks = ways.flatMap(w => (w.kind === 'rail' ? [{ points: w.points, half: 1, bounds: boundsOf(w.points, 3) }] : []))
     this.under = null
+    const grounded = solved.filter(({ chain }) => chain.kind === 'road' && (chain.grounded[0] || chain.grounded[1]))
+    const onGround = this.carriageways(false, grounded.map(({ chain }) => boundsOf(chain.points)))
+      .flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
+    const frame = { origin: this.origin, metresPerUnit: metresPerUnit(this.origin[1]), color: p.concrete, out: mesh }
+    for (const { chain, z, groundAt } of grounded)
+      for (const end of [0, 1] as const) {
+        if (!chain.grounded[end]) continue
+        const at = chain.points[end ? chain.points.length - 1 : 0]
+        abutmentMesh({ ...chain, grounded: [end === 0, end === 1] }, z, groundAt, frame, this.abutmentClear(at, onGround), exaggeration)
+      }
     const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
@@ -461,6 +476,11 @@ export class DeckLayer {
 
   /** Whether an object belongs to a way on the ground passing under a deck: see `underWay`. */
   private passesUnder(p: Point, along?: [number, number]): boolean {
+    return underWay(this.groundWays(), p, along)
+  }
+
+  /** The ways on the ground near the decks, with half their widths. */
+  private groundWays(): UnderWay[] {
     if (!this.under) {
       const decks = this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : []))
       const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
@@ -472,7 +492,22 @@ export class DeckLayer {
         return decks.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
       }))
     }
-    return underWay(this.under, p, along)
+    return this.under
+  }
+
+  /**
+   * Whether an abutment's footprint at a deck's end keeps off the roads,
+   * railways and paths on the ground, other than the road carrying on from
+   * that end itself.
+   */
+  private abutmentClear(end: Point, rings: Array<{ rings: Point[][]; bounds: Bounds }>): (footprint: Point[]) => boolean {
+    const scale = metresPerUnit(end[1])
+    const touches = (q: Point) => Math.hypot(q[0] - end[0], q[1] - end[1]) * scale < OWN_ROAD
+    const ways = this.groundWays().filter(w => !touches(w.points[0]) && !touches(w.points[w.points.length - 1]))
+    const surfaces = rings.filter(r => !(holds(r.bounds, end) && inside(end, r.rings)))
+    return footprint => !footprint.some(q =>
+      ways.some(w => holds(w.bounds, q) && beside(w.points, q).distance < w.half + ABUTMENT_ROOM) ||
+      surfaces.some(r => holds(r.bounds, q) && inside(q, r.rings)))
   }
 
   /** Barrelman's decks in view, one copy each: every tile a deck crosses carries all of it, exactly. */

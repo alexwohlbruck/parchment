@@ -26,6 +26,7 @@ import {
   landedOn,
   placedPiers,
   sideAt,
+  smoothstep,
   standing,
   standKey,
   underWay,
@@ -411,15 +412,16 @@ export class DeckLayer {
     for (const s of solved) {
       s.z = s.z.map(z => z * exaggeration)
       s.groundAt = s.groundAt.map(g => g * exaggeration)
-      // Near a grounded end the ground is as drawn where that stands higher, so the end is drawn over it rather than under.
-      const d = along(s.chain.points)
-      const total = d[d.length - 1]
-      s.groundAt = s.groundAt.map((g, i) => {
-        const near = (s.chain.grounded[0] && d[i] <= AT_GRADE.reach) || (s.chain.grounded[1] && total - d[i] <= AT_GRADE.reach)
-        const drawn = near ? this.map.queryTerrainElevation?.(unprojected(s.chain.points[i])) : null
-        return typeof drawn === 'number' && drawn !== 0 ? Math.max(g, Math.min(drawn, s.z[i])) : g
-      })
     }
+    // A deck's end is biased toward the eye against the ground as drawn, which may stand higher than the ground it was solved on.
+    const biasGround = solved.map(({ chain, z, groundAt }) => {
+      const d = along(chain.points)
+      return groundAt.map((g, i) => {
+        const w = smoothstep(Math.max(0, 1 - Math.min(chain.grounded[0] ? d[i] : Infinity, chain.grounded[1] ? d[d.length - 1] - d[i] : Infinity) / AT_GRADE.reach))
+        const drawn = w > 0 ? this.drawnGround(chain.points[i]) : null
+        return drawn === null ? g : g + (Math.max(g, Math.min(drawn, z[i])) - g) * w
+      })
+    })
 
     const p = this.palette
     const mesh = deckMeshOut()
@@ -435,13 +437,13 @@ export class DeckLayer {
       : { surface: concreteAt.get(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
     const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k])
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k], biasGround[k])
 
     const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }, k) => {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k],
+        bias: z.map((h, i) => touchdown(h - biasGround[k][i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k],
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
@@ -459,7 +461,7 @@ export class DeckLayer {
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
-    const ground = { at: (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }, near: ends, low: p.lowRoad }
+    const ground = { at: (q: Point) => this.drawnGround(q), near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
     const atGrade = this.carriageways(false, ends)
     layPaint(mesh, atGrade, surfaces, tar, this.origin, { atGrade: true })
@@ -533,6 +535,12 @@ export class DeckLayer {
       const bounds = boundsOf(points, half + UNDER_SLACK)
       return boxes.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
     }))
+  }
+
+  /** The terrain as drawn at a point, null where none is drawn. */
+  private drawnGround(q: Point): number | null {
+    const g = this.map.queryTerrainElevation?.(unprojected(q))
+    return typeof g === 'number' && g !== 0 ? g : null
   }
 
   /** Whether a pier's bent `at` metres along a deck, edge to edge, keeps off the ways and carriageways on the ground. */

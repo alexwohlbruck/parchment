@@ -103,11 +103,11 @@ const ALONG_COS = Math.cos(Math.PI / 6)
 /** How near the drawn ground a deck end must lie for a line on it to be laid at the ground's height, where the map draws the same line. */
 const DRAPE_SNAP = 1
 
-/** A line's hit on a deck end moved to the drawn ground under it where the two lie close, so it meets the map's own line there exactly. */
-function draped(hit: Hit | null, p: Point, drape?: (p: Point) => number | null): Hit | null {
-  if (!hit || !drape) return hit
+/** A line on a deck's at-grade end lifted to the drawn ground where that stands a little above it, as the map's own line does there. */
+function draped(hit: Hit | null, p: Point, surfaces: DeckSurface[], drape?: (p: Point) => number | null): Hit | null {
+  if (!hit || !drape || hit.deck < 0 || !atGradeAt(surfaces[hit.deck], hit.segment, hit.t)) return hit
   const g = drape(p)
-  return g !== null && Math.abs(g - hit.z) <= DRAPE_SNAP ? { ...hit, z: g } : hit
+  return g !== null && g > hit.z && g - hit.z <= DRAPE_SNAP ? { ...hit, z: g } : hit
 }
 
 /** Whether a line at its `i`th point runs with the deck segment under it. */
@@ -137,8 +137,8 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
     const laid = onOwnDeck(lines, areas.flat(), surfaces, { across: ACROSS.has(props.kind) }).under
     // A road's lines are laid on a deck's end only where they run with it: a road crossing at the end is the deck's to cover.
     const under = atGrade
-      ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? draped(grounded(h), lines[k][i], drape) : null))), rings: laid.rings.map(r => r.map(grounded)) }
-      : { lines: laid.lines.map((l, k) => l.map((h, i) => draped(h, lines[k][i], drape))), rings: laid.rings }
+      ? { lines: laid.lines.map((l, k) => l.map((h, i) => (runsAlong(surfaces, h, lines[k], i) ? draped(grounded(h), lines[k][i], surfaces, drape) : null))), rings: laid.rings.map(r => r.map(grounded)) }
+      : { lines: laid.lines.map((l, k) => l.map((h, i) => draped(h, lines[k][i], surfaces, drape))), rings: laid.rings }
     let next = 0
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
     if (parts !== 'lines') for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground }, color, lift, origin)

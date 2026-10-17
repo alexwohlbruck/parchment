@@ -226,3 +226,22 @@ describe('jointAreas', () => {
     expect(jointAreas([end], [lane(-6), lane(5)], 2.5).length).toBe(2)
   })
 })
+
+describe('lines draped at a deck end', () => {
+  const points = line(0, 10, 20, 30, 40, 50, 60, 70, 80)
+  const surface = testSurface(points, points.map(() => 100), points.map(() => 99.5))
+  const heights = (ground: number, from: number, to: number) => {
+    const mesh = deckMeshOut()
+    layPaint(mesh, [{ props: { kind: 'centre', pattern: 'solid', color: 'yellow' }, runs: [[at(from), at(to)]], areas: [] }], [surface], colors, points[0], { drape: () => ground })
+    return mesh.position.filter((_, k) => k % 3 === 2).map(v => v * metresPerUnit(y0))
+  }
+
+  test('lifts a line near the end to the ground drawn a little above the deck', () => {
+    expect(Math.max(...heights(100.5, 2, 8))).toBeCloseTo(100.5 + 0.04, 3)
+  })
+
+  test('never lowers a line into the deck, nor drapes it mid-span', () => {
+    expect(Math.max(...heights(99.6, 2, 8))).toBeCloseTo(100.04, 3)
+    expect(Math.max(...heights(100.5, 35, 45))).toBeCloseTo(100.04, 3)
+  })
+})

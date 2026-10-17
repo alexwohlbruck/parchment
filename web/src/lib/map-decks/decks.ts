@@ -739,6 +739,7 @@ export function deckMesh(
   open: Sides = [[], []],
   piers?: number[],
   tops?: Top[],
+  biasGround: number[] = groundAt,
 ): Mesh {
   const pts = chain.points
   const n = pts.length
@@ -815,7 +816,7 @@ export function deckMesh(
   }
   for (let i = 1; i < n; i++) {
     const [l0, l1, r0, r1] = [lefts[i - 1], lefts[i], rights[i - 1], rights[i]]
-    const [b0, b1] = [touchdown(z[i - 1] - groundAt[i - 1]), touchdown(z[i] - groundAt[i])]
+    const [b0, b1] = [touchdown(z[i - 1] - biasGround[i - 1]), touchdown(z[i] - biasGround[i])]
     quad(at(l0.p, l0.z), at(r0.p, r0.z), at(r1.p, r1.z), at(l1.p, l1.z), colors.surface, colors.low ?? colors.surface, [b0, b0, b1, b1])
     tops?.push([l0, r0, r1, l1].map(c => [c.p[0] + origin[0], c.p[1] + origin[1], c.z]) as Top)
     if (open[0][i - 1] || open[0][i]) {

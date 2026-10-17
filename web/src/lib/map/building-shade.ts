@@ -75,13 +75,13 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * not reach is drawn at exactly that fraction of its lit colour. MapLibre
  * defaults to 0.5, which puts every shaded wall at *half* the roof's
  * brightness — far heavier than a real overcast bounce, and it reads as black
- * against our pale roofs. 0.28 leaves a 72% floor, so a wall stays plainly a
+ * against our pale roofs. 0.26 leaves a 74% floor, so a wall stays plainly a
  * wall while the lit faces still separate from it.
  *
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.19 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.26, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58

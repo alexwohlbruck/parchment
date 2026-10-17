@@ -40,7 +40,7 @@ import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
-import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
+import { buildingColor, BUILDING_TINT, paletteBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
@@ -499,7 +499,7 @@ export function buildLayers(options: {
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
-  base = withBuildingCasts(base, flavor)
+  base = withBuildingColor(base, flavor)
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
@@ -583,15 +583,16 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
     paint: {
       ...buildings.paint,
       'fill-extrusion-opacity': 0,
-      'fill-extrusion-color': buildingColor(
-        BUILDING_TINT[flavor],
-        '@building_3d_fill_extrusion_color',
-        // Falling back to the wall colour rather than to the flavor's plain
-        // building: a building that records only `building:colour` should wear
-        // it on the roof too, not band at the roofline.
-        ['roof_colour', 'colour'],
-        unpaintedBuildingColor(flavor),
-      ),
+      'fill-extrusion-color': flavor === 'light'
+        ? paletteBuildingColor(true)
+        : buildingColor(
+          BUILDING_TINT[flavor],
+          '@building_3d_fill_extrusion_color',
+          // Falling back to the wall colour rather than to the flavor's plain
+          // building: a building that records only `building:colour` should wear
+          // it on the roof too, not band at the roofline.
+          ['roof_colour', 'colour'],
+        ),
     },
   }
 
@@ -759,18 +760,13 @@ function withRoundedRoofEdge(layers: any[]): any[] {
   })
 }
 
-/** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
-function withBuildingCasts(layers: any[], flavor: FlavorId): any[] {
+/** The extruded buildings' colour: the daylight palette, or the night tint. */
+function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
   return layers.map(l => l.type !== 'fill-extrusion' ? l : {
     ...l,
     paint: {
       ...l.paint,
-      'fill-extrusion-color': buildingColor(
-        BUILDING_TINT[flavor],
-        '@building_3d_fill_extrusion_color',
-        ['colour'],
-        unpaintedBuildingColor(flavor),
-      ),
+      'fill-extrusion-color': flavor === 'light' ? paletteBuildingColor() : buildingColor(BUILDING_TINT[flavor]),
     },
   })
 }

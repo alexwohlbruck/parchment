@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
+  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, paletteFor, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
   REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
 } from './landmarks'
 import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
@@ -103,8 +103,16 @@ describe('materialEmission', () => {
   })
 
   it("pulls landmarks toward each flavor's own building colour", () => {
-    expect(LANDMARK_FLAVOR.dark.palette[2]).toBeGreaterThan(LANDMARK_FLAVOR.dark.palette[0])
-    expect(Math.min(...LANDMARK_FLAVOR.light.palette)).toBeGreaterThan(0.8)
+    expect(LANDMARK_FLAVOR.dark.palette[0][2]).toBeGreaterThan(LANDMARK_FLAVOR.dark.palette[0][0])
+    // Daylight landmarks join the towers' cool colours: blue at least as strong as red in each.
+    for (const [r, , b] of LANDMARK_FLAVOR.light.palette) expect(b).toBeGreaterThanOrEqual(r)
+  })
+
+  it('picks one palette colour per landmark seed, covering the palette', () => {
+    const { light } = LANDMARK_FLAVOR
+    expect(paletteFor(light, 0)).toBe(light.palette[0])
+    expect(paletteFor(light, 0.999)).toBe(light.palette[light.palette.length - 1])
+    expect(paletteFor(LANDMARK_FLAVOR.dark, 0.7)).toBe(LANDMARK_FLAVOR.dark.palette[0])
   })
 
   it('lights entrances at night only', () => {

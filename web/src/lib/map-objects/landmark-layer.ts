@@ -40,7 +40,7 @@ import {
   elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
-  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, parseLandmark,
+  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
@@ -279,6 +279,7 @@ const DRAW_FS = `#version 300 es
   uniform float u_painted;
   uniform vec3 u_palette;
   uniform float u_harmony;
+  uniform float u_harmonyFloor;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
   /** Metres from the model's ground to its top, and the share of that lit as a crown at night. */
@@ -310,7 +311,7 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
-    base = mix(base, u_palette * (0.35 + 0.6 * dot(base, LUMA)), u_harmony);
+    base = mix(base, u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)), u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -622,7 +623,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
@@ -1233,8 +1234,8 @@ export class LandmarkLayer {
     gl.uniform3fv(u.u_lightpos, light.position)
     gl.uniform1f(u.u_lightintensity, light.intensity)
     const flavor = this.options.flavor
-    gl.uniform3fv(u.u_palette, flavor.palette)
     gl.uniform1f(u.u_harmony, flavor.harmony)
+    gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)
@@ -1254,7 +1255,9 @@ export class LandmarkLayer {
       const height = model.height * p.scale
       gl.uniform1f(u.u_height, height)
       gl.uniform1f(u.u_crown, height > CROWN_MIN_HEIGHT ? CROWN_SHARE : 0)
-      gl.uniform1f(u.u_seed, seedOf(p.id))
+      const seed = seedOf(p.id)
+      gl.uniform1f(u.u_seed, seed)
+      gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
       gl.uniform1f(u.u_scale, p.scale)
       if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
       const pose = this.poseOf(model, now)

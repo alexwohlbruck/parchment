@@ -205,28 +205,91 @@ export function buildingColor(
 }
 
 /**
- * Faint casts for buildings that record no colour of their own, so a block of
- * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
- * only: night already separates buildings by light, and a cast there reads as
- * a lit surface. Each sits within a few points of the flavor's own near-white.
+ * The daylight buildings' palette, as `[hue, saturation %, lightness %]`.
+ *
+ * Low buildings take the warm colours and towers the cool ones, so a skyline
+ * reads as glass over a brick-and-plaster city rather than as confetti. A
+ * building's own `building:colour` picks the nearest hue here, so a painted
+ * facade keeps its identity without leaving the palette.
  */
-export const BUILDING_PASTELS = {
-  light: ['hsl(32, 22%, 89%)', 'hsl(210, 12%, 89%)', 'hsl(355, 16%, 89.5%)', 'hsl(44, 24%, 88.5%)', 'hsl(150, 10%, 88.5%)'],
-  dark: [],
+export const BUILDING_PALETTE = {
+  hues: {
+    terracotta: [14, 58, 64],
+    apricot: [28, 74, 70],
+    sand: [40, 62, 74],
+    butter: [48, 78, 70],
+    sage: [100, 30, 64],
+    rose: [352, 52, 73],
+    sky: [204, 62, 68],
+    teal: [184, 46, 58],
+    periwinkle: [224, 52, 72],
+    aqua: [192, 56, 70],
+    mint: [160, 36, 66],
+    lilac: [262, 36, 76],
+  },
+  low: ['terracotta', 'apricot', 'sand', 'butter', 'sage', 'rose'],
+  mid: ['terracotta', 'apricot', 'butter', 'rose', 'sky', 'aqua', 'sage'],
+  tall: ['sky', 'teal', 'periwinkle', 'aqua', 'mint', 'lilac'],
 }
 
+/** Metres: below the first a building is low, from the second a tower. */
+const PALETTE_HEIGHTS = [12, 45]
+
+/** How far a roof is lifted toward white, so tops read against their walls. */
+const ROOF_LIFT = 0.45
+
+/** How much darker a darkly painted facade's colour is drawn, in lightness points. */
+const DEEP_SHADE = 16
+
+/** Below this chroma (channel units) a painted colour is a grey and the building takes a palette colour by id. */
+const PAINT_CHROMA = 40
+
+const hslText = ([h, s, l]) => `hsl(${h}, ${+s.toFixed(1)}%, ${+l.toFixed(1)}%)`
+
 /**
- * The colour an unpainted building wears: the flavor's own, or one of its
- * pastels picked by feature id so a building keeps its cast as tiles reload.
+ * A daylight building's colour from `BUILDING_PALETTE`: by `building:colour`
+ * where it has a hue, otherwise by height band and a hash of its id, so one
+ * building keeps one colour as tiles reload and every part of it matches.
+ *
+ * @param {boolean} [roof] The roof's colour: the wall's, lifted toward white.
  */
-export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color') {
-  const pastels = BUILDING_PASTELS[flavor] ?? []
-  if (!pastels.length) return colorToken
-  return [
-    // Keyed on the building a part belongs to where the tiles say, so one
-    // building is one colour. Ids end in a type digit, dropped so the casts spread.
-    'match', ['%', ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]], pastels.length + 1],
-    ...pastels.flatMap((c, i) => [i, c]),
-    colorToken,
-  ]
+export function paletteBuildingColor(roof = false) {
+  const { hues, low, mid, tall } = BUILDING_PALETTE
+  const tone = ([h, s, l]) => (roof ? [h, s * 0.8, l + (100 - l) * ROOF_LIFT] : [h, s, l])
+  const deep = ([h, s, l]) => (roof ? tone([h, s, l]) : [h, s * 0.9, l - DEEP_SHADE])
+  const color = (name, shade = tone) => hslText(shade(hues[name]))
+
+  // Neighbouring OSM ids are near-consecutive, so the id is mixed before it picks.
+  const key = ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]]
+  const mixed = ['%', ['+', ['*', ['%', key, 9973], 7919], ['*', ['%', ['floor', ['/', key, 9973]], 9973], 104729]], 9973]
+  const pick = names => ['match', ['%', mixed, names.length], ...names.flatMap((n, i) => [i, color(n)]), color(names[0])]
+  const height = ['coalesce', ['get', 'render_height'], 0]
+  const byId = ['case',
+    ['<', height, PALETTE_HEIGHTS[0]], pick(low),
+    ['<', height, PALETTE_HEIGHTS[1]], pick(mid),
+    pick(tall)]
+
+  // The palette's hues in order, each owning the arc up to halfway to its neighbours.
+  const names = Object.keys(hues).sort((a, b) => hues[a][0] - hues[b][0])
+  const nearest = shade => {
+    const at = names.map(n => hues[n][0])
+    const first = color(names[0], shade), last = color(names[names.length - 1], shade)
+    const stops = names.slice(1).flatMap((n, i) => [(at[i] + at[i + 1]) / 2, color(n, shade)])
+    const wrap = (at[at.length - 1] + at[0] + 360) / 2
+    return wrap < 360
+      ? ['step', ['var', 'hue'], first, ...stops, wrap, first]
+      : ['step', ['var', 'hue'], last, wrap - 360, first, ...stops]
+  }
+  const t = i => ['at', i, ['var', 'tile']]
+  const painted = ['let', 'tile', ['to-rgba', ['to-color', ['get', 'colour'], '#808080']],
+    ['let', 'high', ['max', t(0), t(1), t(2)], 'low', ['min', t(0), t(1), t(2)],
+      ['let', 'chroma', ['-', ['var', 'high'], ['var', 'low']],
+        ['case', ['<', ['var', 'chroma'], PAINT_CHROMA], byId,
+          ['let', 'hue', ['%', ['+', 360, ['*', 60, ['case',
+            ['==', ['var', 'high'], t(0)], ['/', ['-', t(1), t(2)], ['var', 'chroma']],
+            ['==', ['var', 'high'], t(1)], ['+', 2, ['/', ['-', t(2), t(0)], ['var', 'chroma']]],
+            ['+', 4, ['/', ['-', t(0), t(1)], ['var', 'chroma']]]]]], 360],
+            // Dark paint, a lightness under 0.38: brick, navy, bottle green.
+            ['case', ['<', ['+', ['var', 'high'], ['var', 'low']], 194], nearest(deep), nearest(tone)]]]]]]
+  return ['case', ['has', 'colour'], painted, byId]
 }

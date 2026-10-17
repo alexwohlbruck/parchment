@@ -189,7 +189,8 @@ export function useBuildingShadeTuner() {
       layerAny.shadowAlpha = state.shadowAlpha * sun.daylight
       map.value.setLight(shadeLight(sun.offset, sun.altitude))
 
-      if (map.value.getLayer?.(layerGroups.building3d)) {
+      // Daylight buildings take the palette, which the tint does not drive.
+      if (flavor.value === 'dark' && map.value.getLayer?.(layerGroups.building3d)) {
         map.value.setPaintProperty(
           layerGroups.building3d,
           'fill-extrusion-color',

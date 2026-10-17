@@ -21,26 +21,37 @@ import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-l
 import { coveredNear, type Coverage } from './landmark-coverage'
 import { FACADE_FLAVOR, type FacadeFlavor } from '@/lib/map/facade-shader'
 import { hsl } from '@/lib/map-decks/palette'
-import lightTokens from '@/lib/map-style/tokens.light.json'
+import { BUILDING_PALETTE } from '@/lib/map-style/building-color.mjs'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
-  /** The extrusions' own colour (sRGB), which a landmark's materials are pulled toward. */
-  palette: [number, number, number]
+  /** The extrusions' colours (sRGB); each landmark is pulled toward one, picked by its seed. */
+  palette: [number, number, number][]
   /** How far: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
   harmony: number
+  /** The palette's share a black material keeps once pulled; white keeps 0.95, so materials keep their pattern. */
+  harmonyFloor: number
   /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
   facade: FacadeFlavor
 }
 
-const buildingColor = (tokens: Record<string, string>) => hsl(tokens.building_3d_fill_extrusion_color)
+/** The daylight palette's tower colours, which landmarks — mostly towers — join. */
+const towerColors = BUILDING_PALETTE.tall.map(name => {
+  const [h, s, l] = BUILDING_PALETTE.hues[name]
+  return hsl(`hsl(${h}, ${s}%, ${l}%)`)
+})
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  light: { palette: buildingColor(lightTokens), harmony: 0.25, facade: FACADE_FLAVOR.light },
+  // Far enough into the palette that a model's own colours read only as pattern, and kept light.
+  light: { palette: towerColors, harmony: 0.65, harmonyFloor: 0.7, facade: FACADE_FLAVOR.light },
   // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
-  dark: { palette: buildingColor(darkTokens), harmony: 0.85, facade: FACADE_FLAVOR.dark },
+  dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.85, harmonyFloor: 0.35, facade: FACADE_FLAVOR.dark },
 }
+
+/** The palette colour a landmark with this 0-1 seed is pulled toward. */
+export const paletteFor = (flavor: LandmarkFlavor, seed: number) =>
+  flavor.palette[Math.min(flavor.palette.length - 1, Math.floor(seed * flavor.palette.length))]
 
 /** sRGB hex to 0–1 channels. */
 const hex = (h: string): [number, number, number] =>

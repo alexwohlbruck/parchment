@@ -32,6 +32,9 @@
  * seed passes verbatim. Compatible with MapLibre GL JS v5.x.
  */
 
+// PARCHMENT: procedural facades on the walls; see `map/facade-shader.ts`.
+import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader';
+
 // Fixed attribute locations shared by every program, so one VAO serves all.
 const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
@@ -143,6 +146,11 @@ const BUILD_VS = `
   varying float v_ratio;     // PARCHMENT: height up the wall, for the roofline edge
   varying float v_border;    // PARCHMENT: that edge's width, in wall-height units
   varying float v_fade;      // PARCHMENT: 0 where the wall is too short to hold it
+  // PARCHMENT: where on its facade a wall fragment sits; see FACADE_GLSL.
+  uniform float u_unit_m;    // metres per tile unit
+  uniform vec2 u_tile_origin;
+  varying vec3 v_wall;       // metres along the wall, metres up, roof height (0 on a roof)
+  varying float v_seed;
   void main() {
     float t = mod(a_normal_ed.x, 2.0);
     float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
@@ -150,6 +158,9 @@ const BUILD_VS = `
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
     float elev = mix(base, h, t);
     float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
+    // PARCHMENT: MapLibre's edge distance, the run along the footprint ring in tile units.
+    v_wall = vec3(a_normal_ed.w * u_unit_m, elev, isWall * h);
+    v_seed = fract(sin(dot(a_centroid + u_tile_origin, vec2(12.9898, 78.233))) * 43758.5453);
 
     // PARCHMENT: lift onto the terrain. The roof rises by the ground height at
     // the footprint's centroid; the floor drops a further 10m when it sits at
@@ -232,18 +243,27 @@ const BUILD_VS = `
 // walls meet are already read by the flat shading — adjacent faces take
 // different light — and drawing them properly would need a separate line index
 // buffer, which is not worth its own geometry pass.
-const BUILD_FS = `
+const BUILD_FS = `#version 300 es
   precision highp float;
   uniform float u_edge;
-  varying vec3 v_color;
-  varying float v_dark;
-  varying float v_ratio;
-  varying float v_border;
-  varying float v_fade;
+  uniform float u_facade; // PARCHMENT
+  in vec3 v_color;
+  in float v_dark;
+  in float v_ratio;
+  in float v_border;
+  in float v_fade;
+  in vec3 v_wall;
+  in float v_seed;
+  out vec4 fragColor;
+  ${FACADE_GLSL}
+  ${FACADE_SHADE_GLSL}
   void main() {
     float edge = v_ratio < 0.0 ? 0.0
                : v_fade * (1.0 - smoothstep(0.0, v_border, 1.0 - v_ratio));
-    gl_FragColor = vec4(v_color * (1.0 - v_dark) * (1.0 - u_edge * edge), 1.0);
+    vec3 color = v_color * (1.0 - v_dark);
+    // PARCHMENT: windows, on walls only.
+    if (u_facade > 0.5 && v_wall.z > 0.0) color = facadeShade(color, facade(v_wall.x, v_wall.y, v_wall.z, v_seed));
+    fragColor = vec4(color * (1.0 - u_edge * edge), 1.0);
   }`;
 
 // ── Ground shadow mask (plan D): shear each vertex by its real elevation ──
@@ -350,6 +370,15 @@ function compileShader(gl, type, src) {
   return shader;
 }
 
+// PARCHMENT: the building program is GLSL ES 3.00, for the facade's `fwidth`.
+// Its vertex shader shares TERRAIN with the ES 1.00 programs, so it is lifted here.
+function essl3Vertex(src) {
+  return '#version 300 es\n' + src
+    .replace(/\battribute\b/g, 'in')
+    .replace(/\bvarying\b/g, 'out')
+    .replace(/\btexture2DLod\b/g, 'textureLod');
+}
+
 // Links with every shared attribute pinned to its fixed location; names the
 // shader doesn't declare are ignored by the GL.
 function linkProgram(gl, vSrc, fSrc) {
@@ -442,6 +471,13 @@ function sameKey(a, b) {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+// PARCHMENT: ground metres per tile unit at a tile's middle latitude.
+function tileUnitMetres(z, y) {
+  const n = Math.PI * (1 - (2 * (y + 0.5)) / 2 ** z);
+  const lat = Math.atan(Math.sinh(n));
+  return (40075016.686 * Math.cos(lat)) / 2 ** z / 8192;
+}
+
 function nextPow2(n) {
   return 2 ** Math.ceil(Math.log2(Math.max(1, n)));
 }
@@ -476,6 +512,8 @@ export class WallShadowLayer {
     // PARCHMENT: roofline edge — how dark, and how many pixels wide.
     this.edge = opts.edge ?? 0;
     this.edgeWidth = opts.edgeWidth ?? 1.5;
+    // PARCHMENT: the facade's colours (FACADE_FLAVOR), or null for plain walls.
+    this.facade = opts.facade ?? null;
     this._height = opts.height ?? 40;
     this._base = opts.base ?? 0;
 
@@ -506,10 +544,11 @@ export class WallShadowLayer {
     this._map = map;
     this._vao = { create: () => gl.createVertexArray(), bind: v => gl.bindVertexArray(v) };
 
-    this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
+    this._buildProg = linkProgram(gl, essl3Vertex(BUILD_VS), BUILD_FS); // PARCHMENT
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
-        'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS]); // PARCHMENT
+        'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
+        'u_facade', 'u_unit_m', 'u_tile_origin', ...FACADE_UNIFORMS]); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg,
@@ -1012,11 +1051,16 @@ export class WallShadowLayer {
     const light = this._lightUniforms();
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);
+    gl.uniform1f(U.u_facade, this.facade ? 1 : 0); // PARCHMENT
+    if (this.facade) setFacadeUniforms(gl, U, this.facade);
 
     for (const { coord, bucket, matrix, zf } of tiles) {
       const sg = this._segVaos(gl, bucket);
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      const { z, x, y } = coord.canonical; // PARCHMENT
+      gl.uniform1f(U.u_unit_m, tileUnitMetres(z, y));
+      gl.uniform2f(U.u_tile_origin, (x % 64) * 8192, (y % 64) * 8192);
       this._bindTerrain(gl, U, coord); // PARCHMENT
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);

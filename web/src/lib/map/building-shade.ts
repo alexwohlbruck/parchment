@@ -21,6 +21,7 @@ import { WallShadowLayer } from '@/lib/vendor/ao-shadow.mjs'
 import { BUILDING_3D_ROOF_LAYER, type FlavorId } from '@/lib/map-style/build'
 import { BUILDING_TINT } from '@/lib/map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
+import { FACADE_FLAVOR } from './facade-shader'
 
 const RAD_PER_DEG = Math.PI / 180
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -175,6 +176,7 @@ export function createBuildingShade(
     shadowCasters,
     sdfResolution: SDF_RESOLUTION,
     edgeWidth: edgeWidth(),
+    facade: FACADE_FLAVOR[flavor],
     ...SHAPE,
     ...TUNING[flavor],
   })

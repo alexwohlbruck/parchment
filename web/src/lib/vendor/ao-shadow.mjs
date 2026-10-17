@@ -33,10 +33,12 @@
  */
 
 // PARCHMENT: procedural facades on the walls; see `map/facade-shader.ts`.
-import { FACADE_GLSL, FACADE_HASH_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader';
+import {
+  FACADE_GLSL, FACADE_GUESS_GLSL, FACADE_HASH_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, FACADE_UNKNOWN, setFacadeUniforms,
+} from '@/lib/map/facade-shader';
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
-const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10 };
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10, a_facade: 11, a_facade4: 12 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
 const CENTROID_STRIDE = 4; // bytes per vertex in MapLibre's centroid buffer
 
@@ -137,6 +139,11 @@ const BUILD_VS = `
   uniform float u_rct;
   // 0 where no donor layer is in the style; the roof then wears the walls'.
   uniform float u_roof_on;
+  // PARCHMENT: the facade style id, packed as a colour by its own donor layer.
+  attribute vec2 a_facade;
+  attribute vec4 a_facade4;
+  uniform float u_fct;
+  uniform float u_facade_on;
   ${HEIGHT_ATTRS}
   ${TERRAIN}
   varying vec3 v_color;
@@ -150,8 +157,10 @@ const BUILD_VS = `
   uniform float u_unit_m;    // metres per tile unit
   uniform vec2 u_tile_origin; // the tile's x and y, mod 64
   ${FACADE_HASH_GLSL}
+  ${FACADE_GUESS_GLSL}
   varying vec3 v_wall;       // metres along the wall, metres up, roof height (0 on a roof)
   varying float v_seed;
+  varying float v_style;
   void main() {
     float t = mod(a_normal_ed.x, 2.0);
     float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
@@ -162,6 +171,9 @@ const BUILD_VS = `
     // PARCHMENT: MapLibre's edge distance, the run along the footprint ring in tile units.
     v_wall = vec3(a_normal_ed.w * u_unit_m, elev, isWall * h);
     v_seed = facadeHash(a_centroid / 8192.0 + u_tile_origin);
+    vec2 fk = u_fct < -0.5 ? a_facade : mix(a_facade4.xy, a_facade4.zw, u_fct);
+    float style = u_facade_on > 0.5 ? floor(floor(fk.x / 256.0) / 16.0 + 0.5) : ${FACADE_UNKNOWN}.0;
+    v_style = style < ${FACADE_UNKNOWN}.0 ? style : facadeGuess(h, v_seed);
 
     // PARCHMENT: lift onto the terrain. The roof rises by the ground height at
     // the footprint's centroid; the floor drops a further 10m when it sits at
@@ -255,6 +267,7 @@ const BUILD_FS = `#version 300 es
   in float v_fade;
   in vec3 v_wall;
   in float v_seed;
+  in float v_style;
   out vec4 fragColor;
   ${FACADE_GLSL}
   ${FACADE_SHADE_GLSL}
@@ -263,7 +276,7 @@ const BUILD_FS = `#version 300 es
                : v_fade * (1.0 - smoothstep(0.0, v_border, 1.0 - v_ratio));
     vec3 color = v_color * (1.0 - v_dark);
     // PARCHMENT: windows, on walls only.
-    if (u_facade > 0.5 && v_wall.z > 0.0) color = facadeShade(color, facade(v_wall.x, v_wall.y, v_wall.z, v_seed));
+    if (u_facade > 0.5 && v_wall.z > 0.0) color = facadeShade(color, facade(v_wall.x, v_wall.y, v_wall.z, v_seed, v_style, 1.0));
     fragColor = vec4(color * (1.0 - u_edge * edge), 1.0);
   }`;
 
@@ -499,6 +512,7 @@ export class WallShadowLayer {
     this._layerId = opts.buildingsLayerId;
     // PARCHMENT: the layer whose colour is the roof's; see BUILDING_3D_ROOF_LAYER.
     this._roofLayerId = opts.roofLayerId ?? null;
+    this._facadeLayerId = opts.facadeLayerId ?? null; // PARCHMENT: see BUILDING_3D_FACADE_LAYER
     this._sourceId = opts.sourceId || null;
     this._minZoom = opts.minZoom ?? 15;
     this._maxZoom = opts.maxZoom ?? 20;
@@ -549,7 +563,7 @@ export class WallShadowLayer {
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
         'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
-        'u_facade', 'u_unit_m', 'u_tile_origin', ...FACADE_UNIFORMS]); // PARCHMENT
+        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS]); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg,
@@ -697,6 +711,8 @@ export class WallShadowLayer {
     const bD = dyn(cfg, 'a_base', LOC.a_base_f, LOC.a_base_v, 1);
     const cD = dyn(cfg, 'a_color', LOC.a_color, LOC.a_color4, 2);
     const rD = dyn(roofCfg, 'a_color', LOC.a_roof_color, LOC.a_roof_color4, 2);
+    const facadeCfg = this._facadeLayerId ? configs?.[this._facadeLayerId] : null; // PARCHMENT
+    const fD = dyn(facadeCfg, 'a_color', LOC.a_facade, LOC.a_facade4, 2);
     const point = (loc, glBuf, comp, type, stride, off) => {
       if (!glBuf) return;
       gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
@@ -714,12 +730,12 @@ export class WallShadowLayer {
       // to its own draw only when it is; we bind it always and let
       // `u_terrain_on` decide, so a terrain toggle needs no VAO rebuild.
       point(LOC.a_centroid, bucket.centroidVertexBuffer?.buffer, 2, gl.SHORT, CENTROID_STRIDE, seg.vertexOffset * CENTROID_STRIDE);
-      for (const d of [hD, bD, cD, rD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
+      for (const d of [hD, bD, cD, rD, fD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
       list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
     }
     this._vao.bind(null);
-    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp });
+    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp, fComp: fD.comp });
   }
 
   _drawSegs(gl, sg) {
@@ -778,6 +794,8 @@ export class WallShadowLayer {
     // constant is whatever the last layer through this context left there.
     gl.vertexAttrib2f(LOC.a_roof_color, W, W);
     gl.vertexAttrib4f(LOC.a_roof_color4, W, W, W, W);
+    gl.vertexAttrib2f(LOC.a_facade, W, W);
+    gl.vertexAttrib4f(LOC.a_facade4, W, W, W, W);
 
     // PARCHMENT: straight down there are no walls and the ground effects sit
     // under the roofs that cover them, so the plan view skips their passes.
@@ -1068,6 +1086,8 @@ export class WallShadowLayer {
       gl.uniform1f(U.u_ct, sg.cComp === 4 ? zf : -1);
       gl.uniform1f(U.u_rct, sg.rComp === 4 ? zf : -1); // PARCHMENT
       gl.uniform1f(U.u_roof_on, sg.rComp ? 1 : 0);     // PARCHMENT
+      gl.uniform1f(U.u_fct, sg.fComp === 4 ? zf : -1);
+      gl.uniform1f(U.u_facade_on, sg.fComp ? 1 : 0);
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);

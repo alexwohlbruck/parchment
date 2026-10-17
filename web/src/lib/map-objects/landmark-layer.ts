@@ -47,7 +47,7 @@ import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
-import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
+import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -237,6 +237,9 @@ const MASK = `
 const CROWN_MIN_HEIGHT = 120
 const CROWN_SHARE = 0.08
 
+/** Landmarks are lit more often than ordinary buildings: they are what a skyline is known by. */
+const LANDMARK_LIT_SHARE = 2.5
+
 /** Metres below which a model's windows are not divided into storeys. */
 const FACADE_MIN_HEIGHT = 8
 
@@ -300,7 +303,7 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
-    base = mix(base, u_palette * (0.45 + 0.75 * dot(base, LUMA)), u_harmony);
+    base = mix(base, u_palette * (0.35 + 0.6 * dot(base, LUMA)), u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -315,7 +318,8 @@ const DRAW_FS = `#version 300 es
       // Too small for storeys, a model's windows are one pane, half lit.
       vec3 f = u_height < ${FACADE_MIN_HEIGHT.toFixed(1)}
         ? vec3(1.0, 0.5, u_seed)
-        : facade(mn.x > mn.z ? v_model.y : v_model.x, v_model.z, u_height, u_seed);
+        : facade(mn.x > mn.z ? v_model.y : v_model.x, v_model.z, u_height, u_seed,
+            u_height > 36.0 ? ${FACADE_STYLE.curtain}.0 : ${FACADE_STYLE.punched}.0, ${LANDMARK_LIT_SHARE.toFixed(2)});
       // A painted facade draws its own panes; plain glass takes the grid.
       f.x = u_panes > 0.5 ? 1.0 - paint.a : (wall ? f.x : 1.0);
       if (!wall) f.y = 0.0;

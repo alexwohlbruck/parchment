@@ -50,6 +50,7 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { buildingFacadeColor } from './building-facade'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -416,6 +417,9 @@ export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
  */
 export const BUILDING_3D_ROOF_LAYER = 'Building 3D roof colour'
 
+/** The same again, carrying each building's facade style; see `building-facade.ts`. */
+export const BUILDING_3D_FACADE_LAYER = 'Building 3D facade'
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
@@ -591,7 +595,13 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
     },
   }
 
-  return [...layers.slice(0, at), buildings, roof, ...layers.slice(at + 1)]
+  const facade = {
+    ...buildings,
+    id: BUILDING_3D_FACADE_LAYER,
+    paint: { ...buildings.paint, 'fill-extrusion-opacity': 0, 'fill-extrusion-color': buildingFacadeColor() },
+  }
+
+  return [...layers.slice(0, at), buildings, roof, facade, ...layers.slice(at + 1)]
 }
 
 /**

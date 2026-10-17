@@ -39,7 +39,7 @@ const buildingColor = (tokens: Record<string, string>) => hsl(tokens.building_3d
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
   light: { palette: buildingColor(lightTokens), harmony: 0.25, facade: FACADE_FLAVOR.light },
   // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
-  dark: { palette: buildingColor(darkTokens), harmony: 0.75, facade: FACADE_FLAVOR.dark },
+  dark: { palette: buildingColor(darkTokens), harmony: 0.85, facade: FACADE_FLAVOR.dark },
 }
 
 /** sRGB hex to 0–1 channels. */

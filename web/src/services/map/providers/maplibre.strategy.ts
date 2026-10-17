@@ -473,6 +473,7 @@ export class MaplibreStrategy extends MapStrategy {
       // The new style has its own building filters and no landmark layer.
       if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
+      if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
       this.tunnelLayer = null
@@ -972,9 +973,11 @@ export class MaplibreStrategy extends MapStrategy {
         DECK_PALETTE[flavor],
       )
       this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
+      shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
     } else if (!active && this.deckLayer) {
+      shadowCasters.delete(this.deckLayer)
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null
     }

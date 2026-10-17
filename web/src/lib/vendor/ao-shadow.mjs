@@ -841,6 +841,7 @@ export class WallShadowLayer {
     // PARCHMENT: straight down there are no walls and the ground effects sit
     // under the roofs that cover them, so the plan view skips their passes.
     const planView = Math.abs(this._map.getPitch?.() ?? 0) < PLAN_VIEW_PITCH;
+    this._groundDrawn = this.groundFx && !planView; // PARCHMENT
     if (this.groundFx && !planView) {
       // PARCHMENT: the shadow mask and SDF only depend on the camera and the
       // geometry, so a frame that changes neither reuses them.
@@ -880,6 +881,16 @@ export class WallShadowLayer {
     const pitchFade = this.topDownOpacity + (1 - this.topDownOpacity) * (pt * pt * (3 - 2 * pt));
 
     return zoomFade * pitchFade;
+  }
+
+  /**
+   * PARCHMENT: this frame's ground shadow mask, for a layer drawn over the ground
+   * (the 3D bridge decks) to darken itself by as the ground was: the screen-space
+   * mask, the composite's blur step and its strength. Null when none was drawn.
+   */
+  groundShadow() {
+    if (!this._groundDrawn || !this._tex) return null;
+    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() };
   }
 
   /** PARCHMENT: the AO radius as a fraction of the SDF, shared by the flood and the composite. */

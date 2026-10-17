@@ -32,6 +32,7 @@ import {
   underWay,
   runsWith,
   touchdown,
+  TOUCHDOWN,
   type UnderWay,
   UNDER_SLACK,
   besideGround,
@@ -80,6 +81,8 @@ import { AT_GRADE, joinedLines, layPaint, layRoute, layWays, paintOf, type Paint
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 import { HD_FADE } from '@/lib/map-style/road-markings'
+import { liveBuildingShade } from '@/lib/map/building-shade'
+import type { SunFrame } from '@/lib/map/sun-shadow'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -188,6 +191,14 @@ export class DeckLayer {
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
   private pending: { mesh: Mesh; ranges: Ranges } | null = null
+  /** The buildings' sun shadow map this frame, which the decks lie in as the ground does; see `building-shade.ts`. */
+  private sun: SunFrame | null = null
+  /** Decks cast no ground shadow of their own; they are in the shadow casters only to receive the sun's. */
+  readonly shadowVersion = 0
+  drawShadow() {}
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
   private sampler: TerrainSampler | null = null
   /** Each served deck's datum offset at its ends, by id. */
   private offsets = new Map<string, [number, number]>()
@@ -688,7 +699,9 @@ export class DeckLayer {
     const eye = eyeOf(projection)
     const relative: [number, number, number] | null = eye && [eye[0] - this.origin[0], eye[1] - this.origin[1], eye[2]]
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX })
+    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX,
+      sun: { frame: this.sun, origin: this.origin, alpha: shadowAlpha(), ground: liveBuildingShade()?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
+    })
     const { paintFrom, railsFrom, routesFrom } = this.ranges
     const draw = (writeDepth: boolean) => {
       mesh.draw(0, paintFrom)
@@ -717,6 +730,11 @@ export class DeckLayer {
     draw(true)
     mesh.unbind()
   }
+}
+
+/** How dark the buildings' shadow is on the ground right now, which the decks take too. */
+function shadowAlpha(): number {
+  return liveBuildingShade()?.groundShadow()?.alpha ?? 0
 }
 
 type Served = { id: string; chain: Chain; z: number[]; groundAt: number[]; piers: number[] }

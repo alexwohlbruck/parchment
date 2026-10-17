@@ -37,6 +37,8 @@ export class WallShadowLayer {
   readonly id: string
   readonly type: 'custom'
   readonly renderingMode: '2d' | '3d'
+  /** This frame's ground shadow mask, its blur step and strength; null when none was drawn. */
+  groundShadow(): { texture: WebGLTexture; blurStep: number; alpha: number } | null
   enabled: boolean
   wallShade: boolean
   groundFx: boolean

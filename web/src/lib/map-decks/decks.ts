@@ -670,15 +670,13 @@ export function smooth(z: number[], d: number[], ground: number[], span = VERTIC
  */
 export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?: boolean }>, gap = 1.5, step = 1.5): Sides[] {
   const open: Sides[] = decks.map(({ chain }) => [chain.points.map(() => false), chain.points.map(() => false)])
-  const bounds = decks.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges) + Math.max(gap, KERB_GAP)))
+  const bounds = decks.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges) + gap))
   const indexes = decks.map(({ chain }) => segmentIndex(chain.points))
   for (const [a, A] of decks.entries())
     for (const [b, B] of decks.entries()) {
       if (a === b || (A.chain.kind === 'rail') !== (B.chain.kind === 'rail') || !meets(bounds[a], bounds[b])) continue
-      // A sidewalk deck beside a road deck is the road's sidewalk: a kerb between them, not a wall, across a wider gap.
-      const walkway = (A.chain.kind === 'path') !== (B.chain.kind === 'path')
       // Farthest a point of one may lie from the other and still meet it.
-      const reach = Math.max(...A.chain.edges) + Math.max(...B.chain.edges) + (walkway ? KERB_GAP : gap)
+      const reach = Math.max(...A.chain.edges) + Math.max(...B.chain.edges) + gap
       A.chain.points.forEach((p, i) => {
         const candidates = nearSegments(indexes[b], p, reach)
         if (!candidates.length) return
@@ -692,16 +690,13 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
           B.chain.points[j - 1][1] + (B.chain.points[j][1] - B.chain.points[j - 1][1]) * t,
         ]
         const facing = beside(A.chain.points, q, nearSegments(indexes[a], q, reach)).left ? 0 : 1
-        if (near.distance > sideAt(A.chain, facing, i) + sideAt(B.chain, near.left ? 0 : 1, j - 1, t) + (walkway ? KERB_GAP : gap)) return
+        if (near.distance > sideAt(A.chain, facing, i) + sideAt(B.chain, near.left ? 0 : 1, j - 1, t) + gap) return
         open[a][facing][i] = true
         if (!A.fixed) A.z[i] = Math.max(A.z[i], zb)
       })
     }
   return open
 }
-
-/** Widest gap, in metres, across which a sidewalk deck and a road deck beside it meet as one. */
-const KERB_GAP = 4
 
 /** How far inside another deck a side must lie, in metres, and how near its height, for that side to have no parapet. */
 const COVERED = { inset: 0.5, step: 1.5 }
@@ -750,14 +745,18 @@ function toRings(p: Point, rings: Point[][]): number {
 }
 
 /**
- * Per deck, the side points lying inside a bridge's outline, well clear of its
- * edge: a junction a bridge carries is one surface out to its outline, so the
- * only parapets are along the outline itself.
+ * Per deck, the side points lying inside its own bridge's outline, well clear of
+ * its edge: a junction a bridge carries is one surface out to its outline, so
+ * the only parapets are along the outline itself.
  */
 export function innerSides(decks: Array<{ chain: Chain }>, outlines: Array<{ rings: Point[][]; bounds: Bounds }>): Sides[] {
   return decks.map(({ chain }) => {
-    const sides = edgePoints(chain)
-    return sides.map(side => side.map(e => chain.kind !== 'rail' && outlines.some(o => holds(o.bounds, e) && inside(e, o.rings) && toRings(e, o.rings) > OUTLINE_INSET))) as Sides
+    const none = chain.points.map(() => false)
+    // Only a deck shaped out to its outline, and one of that outline's own: not a deck passing under it.
+    const own = !chain.sides || chain.kind === 'rail' ? [] : outlines.filter(o => meets(o.bounds, boundsOf(chain.points)) &&
+      chain.points.filter(p => holds(o.bounds, p) && inside(p, o.rings)).length * 2 >= chain.points.length)
+    if (!own.length) return [none, none.slice()] as Sides
+    return edgePoints(chain).map(side => side.map(e => own.some(o => holds(o.bounds, e) && inside(e, o.rings) && toRings(e, o.rings) > OUTLINE_INSET))) as Sides
   })
 }
 
@@ -857,7 +856,7 @@ export function deckMesh(
       return { p: [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] as Point, z: z[k - 1] + (z[k] - z[k - 1]) * t }
     })
   }
-  const bare = ([0, 1] as const).map(side => bareSegments(open[side], d).map((b, i) => b || (i > 0 && !!covered[side][i - 1] && !!covered[side][i]))) as [boolean[], boolean[]]
+  const bare = ([0, 1] as const).map(side => bareSegments(open[side].map((o, i) => o || !!covered[side][i]), d)) as [boolean[], boolean[]]
   const lefts = capped('left', caps[0], caps[2])
   const rights = capped('right', caps[1], caps[3])
   // A side shared with a neighbour runs on under it, dipping, so the two leave no seam and neither shows through the other.

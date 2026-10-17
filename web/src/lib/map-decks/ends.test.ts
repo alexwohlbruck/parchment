@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { along, boundsOf, coveredSides, deckMeshOut, grownRing, innerSides, inside, jointAreas, joinNeighbours, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
+import { along, boundsOf, coveredSides, deckMeshOut, grownRing, innerSides, inside, jointAreas, landedOn, metresPerUnit, placedPiers, type Point } from './decks'
 import { joinedLines, layPaint, type PastEnd } from './paint'
 import { testSurface } from './test-surface'
 
@@ -290,7 +290,9 @@ describe('coveredSides', () => {
 })
 
 describe('innerSides', () => {
-  const chain = (points: Point[], kind: 'road' | 'path' | 'rail' = 'road') => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind, edges: [5, 5] as [number, number] })
+  // As served: shaped, with its sides at every point.
+  const chain = (points: Point[], kind: 'road' | 'path' | 'rail' = 'road') =>
+    ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind, edges: [5, 5] as [number, number], sides: [points.map(() => 5), points.map(() => 5)] as [number[], number[]] })
   const outline = (rings: Point[][]) => ({ rings, bounds: boundsOf(rings[0]) })
 
   test('leaves a parapet only where a side lies along its bridge\'s outline', () => {
@@ -302,6 +304,16 @@ describe('innerSides', () => {
     expect(sides[1 - north].some(Boolean)).toBe(false)
   })
 
+  test('keeps the parapets of a deck passing under another bridge\'s outline, and of one the map does not shape', () => {
+    // A long deck with only its middle fifth under the outline.
+    const under = { chain: chain(line(-40, -30, -20, -10, 0, 10, 20, 30, 40, 50)) }
+    const over = [outline([[at(-2, -20), at(12, -20), at(12, 20), at(-2, 20), at(-2, -20)]])]
+    expect(innerSides([under], over)[0].flat().some(Boolean)).toBe(false)
+    const { sides: _, ...unshaped } = chain(line(0, 10, 20, 30, 40))
+    const around = [outline([[at(-5, -20), at(45, -20), at(45, 20), at(-5, 20), at(-5, -20)]])]
+    expect(innerSides([{ chain: unshaped }], around)[0].flat().some(Boolean)).toBe(false)
+  })
+
   test('keeps every parapet of a deck in no outline, and a rail deck\'s', () => {
     const far = [outline([[at(100, 100), at(120, 100), at(120, 120), at(100, 120), at(100, 100)]])]
     expect(innerSides([{ chain: chain(line(0, 10, 20)) }], far)[0].flat().some(Boolean)).toBe(false)
@@ -309,16 +321,3 @@ describe('innerSides', () => {
     expect(innerSides([{ chain: chain(line(0, 10, 20), 'rail') }], around)[0].flat().some(Boolean)).toBe(false)
   })
 })
-
-describe('joinNeighbours', () => {
-  test('meets a sidewalk deck across a wider gap than another road deck', () => {
-    const chain = (points: Point[], kind: 'road' | 'path') => ({ points, grounded: [true, true] as [boolean, boolean], layer: 1, width: 10, kind, edges: kind === 'road' ? [5, 5] as [number, number] : [1, 1] as [number, number] })
-    // Edges 3 m apart: a kerb's width from a sidewalk, too far from a twin.
-    const road = { chain: chain(line(0, 10, 20, 30), 'road'), z: [10, 10, 10, 10] }
-    const walk = { chain: chain([at(0, 9), at(10, 9), at(20, 9), at(30, 9)], 'path'), z: [10, 10, 10, 10] }
-    const twin = { chain: chain([at(0, 13), at(10, 13), at(20, 13), at(30, 13)], 'road'), z: [10, 10, 10, 10] }
-    expect(joinNeighbours([road, walk])[0].flat().some(Boolean)).toBe(true)
-    expect(joinNeighbours([{ ...road, z: [10, 10, 10, 10] }, twin])[0].flat().some(Boolean)).toBe(false)
-  })
-})
-

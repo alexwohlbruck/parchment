@@ -75,9 +75,6 @@ import { AT_GRADE, layPaint, layRoute, layWays, paintOf, type Paint } from './pa
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 import { HD_FADE } from '@/lib/map-style/road-markings'
-import { TerrainCarver } from '@/lib/map-terrain/carver'
-import type { Footprint } from '@/lib/map-terrain/carve'
-import { abutments } from './abutments'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -150,8 +147,6 @@ const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}
 /** Zoom from which a deck's rails are drawn: thinner than a pixel before it. */
 const RAILS_FROM = 17.5
 
-/** Zoom from which the ground is moulded to meet deck ends. */
-const MOULD_FROM = 16
 /** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
 const PAVED = 0.8
 
@@ -194,14 +189,9 @@ export class DeckLayer {
   /** The bridges' own tracks. */
   private tracks: UnderWay[] = []
 
-  constructor(private sources: DeckSources, private palette: DeckPalette, options: { id?: string; focusTerrain?: (areas: Bounds[]) => void } = {}) {
+  constructor(private sources: DeckSources, private palette: DeckPalette, options: { id?: string } = {}) {
     this.id = options.id ?? 'map-decks'
-    this.carver = new TerrainCarver(() => this.map, options.focusTerrain)
   }
-
-  /** The ground moulded to meet the decks' ends, and what carves it into the terrain. */
-  private mould = new Map<string, Footprint>()
-  private carver: TerrainCarver
 
   setPalette(palette: DeckPalette) {
     this.palette = palette
@@ -216,10 +206,7 @@ export class DeckLayer {
     // loading rather than running once per tile as they stream in. A pan
     // that loads nothing new leaves the decks as they are.
     this.onChange = event => {
-      if ((event as any)?.tile && event?.sourceId === this.map.getTerrain?.()?.source) {
-        this.carver.recarveAround((event as any).tile)
-        this.map.triggerRepaint()
-      } else if (!event?.sourceId) {
+      if (!event?.sourceId) {
         // A pan rebuilds nothing unless it has gone far enough to re-base the vertices.
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
@@ -244,7 +231,6 @@ export class DeckLayer {
     if (this.onTerrain) map.off('terrain', this.onTerrain)
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
-    this.carver.clear()
     deleteMesh(gl, this.buffers)
     gl.deleteProgram(this.program)
     this.map = null
@@ -397,9 +383,6 @@ export class DeckLayer {
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
-    this.mould = this.map.getZoom() >= MOULD_FROM
-      ? abutments(solved.map(({ chain, z, groundAt }) => ({ key: `${chain.points[0]}|${chain.points.at(-1)}|${z.map(v => v.toFixed(1)).join()}`, chain, z, groundAt })))
-      : new Map()
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     for (const s of solved) {
@@ -583,9 +566,7 @@ export class DeckLayer {
       this.buffers = uploadMesh(gl, this.pending.mesh)
       this.ranges = this.pending.ranges
       this.pending = null
-      this.carver.set(this.mould)
     }
-    this.carver.carveTiles()
     if (!this.buffers?.count) return
 
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args

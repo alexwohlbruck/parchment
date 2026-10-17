@@ -73,7 +73,7 @@ import {
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
 import { abutmentMesh } from './abutments'
-import { AT_GRADE, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
+import { AT_GRADE, joinedLines, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
 import { HD_FADE } from '@/lib/map-style/road-markings'
@@ -155,6 +155,11 @@ const ABUTMENT_ROOM = 1
 
 /** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
 const PAVED = 0.8
+/** Coloured lanes joined across a bridge's ends, and how far apart two corners may lie and be one lane's, in metres. */
+const LANE_COLORS = ['green', 'red']
+const LANE_JOIN = 2.5
+/** Road classes whose decks are paved edge to edge, as the road beyond. */
+const HIGHWAY = /^(motorway|trunk)(_link)?$|_link$/
 
 /** Metres between height samples along a deck. */
 const SAMPLE = 6
@@ -403,8 +408,8 @@ export class DeckLayer {
     // A road deck carrying a carriageway outline is concrete, the carriageway laid on it in asphalt at its own width.
     const paved = this.carriageways()
     const outlines = paved.flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
-    // Concrete only under a carriageway that runs the deck's length; elsewhere the deck is the road itself, in asphalt.
-    const concrete = (chain: Chain) => chain.kind === 'road' &&
+    // Concrete only on a street deck whose carriageway runs its length; a highway deck, or any other, is the road itself, in asphalt.
+    const concrete = (chain: Chain) => chain.kind === 'road' && !HIGHWAY.test(chain.road ?? '') &&
       chain.points.filter(q => outlines.some(o => holds(o.bounds, q) && inside(q, o.rings))).length >= chain.points.length * PAVED
     const concreteAt = new Map(solved.map(({ chain }) => [chain, concrete(chain)]))
     const colors = (chain: Chain) =>
@@ -438,14 +443,24 @@ export class DeckLayer {
     // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
     const ground = { at: (q: Point) => { const g = this.map.queryTerrainElevation?.(unprojected(q)); return typeof g === 'number' ? g : null }, near: ends, low: p.lowRoad }
     layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
-    layPaint(mesh, this.carriageways(false, ends), surfaces, tar, this.origin, { atGrade: true })
-    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
     const atGrade = this.carriageways(false, ends)
-    const wedges = jointAreas([...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))], [...paved, ...atGrade].flatMap(c => c.areas.map(rings => rings[0])))
+    layPaint(mesh, atGrade, surfaces, tar, this.origin, { atGrade: true })
+    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
+    const meeting = [...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))]
+    const outers = (list: Paint[]) => list.flatMap(c => c.areas.map(rings => rings[0]))
+    const wedges = jointAreas(meeting, outers([...paved, ...atGrade]))
     layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
-    layPaint(mesh, paint, surfaces, p, this.origin, { ground })
-    layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })
+    const joined = joinedLines(paint, this.paintAtGrade(ends))
+    const beyond = joined.ground
+    layPaint(mesh, joined.bridge, surfaces, p, this.origin, { ground })
+    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true })
+    // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
+    for (const color of LANE_COLORS) {
+      const lanes = [...paint, ...beyond].filter(f => f.props.color === color && f.areas.length)
+      const joins = jointAreas(meeting, outers(lanes), LANE_JOIN)
+      if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
+    }
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3
@@ -612,12 +627,15 @@ export class DeckLayer {
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]) })
     const { paintFrom, railsFrom, routesFrom } = this.ranges
-    const draw = () => {
+    const draw = (writeDepth: boolean) => {
       mesh.draw(0, paintFrom)
       // Paint and routes sit a few centimetres over the asphalt; the offset keeps them in front of it at any distance.
       gl.enable(gl.POLYGON_OFFSET_FILL)
       gl.polygonOffset(-2, -2)
+      // Paint is a decal: each mark tested against the deck but not the marks laid before it, so the later one shows where two meet.
+      gl.depthMask(false)
       if (hd > 0) mesh.draw(paintFrom, railsFrom)
+      gl.depthMask(writeDepth)
       if (this.map.getZoom() >= RAILS_FROM) mesh.draw(railsFrom, routesFrom)
       mesh.draw(routesFrom)
       gl.disable(gl.POLYGON_OFFSET_FILL)
@@ -630,10 +648,10 @@ export class DeckLayer {
     // over terrain a little too high; then the true depth, which is what anything drawn later meets.
     mesh.bias(true)
     gl.depthMask(false)
-    draw()
+    draw(false)
     mesh.bias(false)
     gl.depthMask(true)
-    draw()
+    draw(true)
     mesh.unbind()
   }
 }

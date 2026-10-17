@@ -534,7 +534,7 @@ const JOINT_ALONG = 1.2
  * at it within the deck's width, from both the road on the ground and the bridge's own, so the wedge
  * between their square ends is paved. None where fewer than three corners lie there.
  */
-export function jointAreas(ends: Array<{ p: Point; out: Point; half: number }>, rings: Point[][]): Point[][] {
+export function jointAreas(ends: Array<{ p: Point; out: Point; half: number }>, rings: Point[][], cluster = Infinity): Point[][] {
   return ends.flatMap(({ p, out, half }) => {
     const scale = metresPerUnit(p[1])
     const near: Point[] = []
@@ -543,9 +543,20 @@ export function jointAreas(ends: Array<{ p: Point; out: Point; half: number }>, 
         const [dx, dy] = [(q[0] - p[0]) * scale, (q[1] - p[1]) * scale]
         if (Math.abs(dx * out[0] + dy * out[1]) <= JOINT_ALONG && Math.abs(-dx * out[1] + dy * out[0]) <= half + 0.5) near.push(q)
       }
-    const hull = convexHull(near)
-    return hull.length >= 3 ? [hull] : []
+    return clusters(near, cluster / scale).map(convexHull).filter(hull => hull.length >= 3)
   })
+}
+
+/** Points grouped so each lies within `reach` of another in its group. */
+function clusters(points: Point[], reach: number): Point[][] {
+  const groups: Point[][] = []
+  for (const q of points) {
+    const joined = groups.filter(g => g.some(r => Math.hypot(r[0] - q[0], r[1] - q[1]) <= reach))
+    const merged = [q, ...joined.flat()]
+    for (const g of joined) groups.splice(groups.indexOf(g), 1)
+    groups.push(merged)
+  }
+  return groups
 }
 
 /** The convex hull of some points (monotone chain). */

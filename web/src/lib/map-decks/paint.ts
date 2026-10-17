@@ -194,13 +194,13 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
     if (level !== null)
       for (const [k, d] of laid.surfaces.entries())
         if (d.kind === 'road' && d.tops && d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
-    // Beside a deck's end the rest lies on the ground: the triangle less every deck lying low here.
-    const ground = laid.ground ? onGround(laid, centre, false) : null
-    if (ground) {
+    // Beside a deck's end the rest lies on the ground: the triangle less every stretch of deck lying low.
+    if (laid.ground) {
       let rest = [tri]
-      for (const [k, d] of laid.surfaces.entries()) {
-        if (!d.tops || !d.bounds || !meets(d.bounds, box) || hitOn(laid, k, centre)!.z - ground.z >= AT_GRADE.over) continue
+      for (const d of laid.surfaces) {
+        if (!d.tops || !d.bounds || !meets(d.bounds, box)) continue
         for (let i = 1; i < d.points.length && rest.length; i++) {
+          if (d.ground && Math.min(d.z[i - 1] - d.ground[i - 1], d.z[i] - d.ground[i]) >= AT_GRADE.over) continue
           const quad = drawnQuad(d, i)!
           if (meets(boundsOf(quad), box)) rest = rest.flatMap(piece => subtractConvex(piece, quad))
         }
@@ -329,4 +329,78 @@ function strip(mesh: Mesh, points: Point[], laid: Laid, width: number, color: nu
     }
     travelled += metres
   }
+}
+
+/** How far beside a bridge line's end the same line on the ground may run to be one line, and over how far the bridge's eases onto it, in metres. */
+const LINE_JOIN = { reach: 1.5, ease: 8 }
+
+/**
+ * Lines on a bridge and the same lines on the ground made one where they meet:
+ * the bridge's end eased onto the ground line, and the ground line cut where
+ * the bridge's ends, so a centre line runs on through a deck's end without a
+ * sideways step or a doubled stretch.
+ */
+export function joinedLines(bridge: Paint[], ground: Paint[]): { bridge: Paint[]; ground: Paint[] } {
+  const same = (a: Paint, b: Paint) => a.props.kind === b.props.kind && a.props.color === b.props.color && a.props.pattern === b.props.pattern
+  const groundRuns = ground.map(g => g.runs.map(run => [...run]))
+  const bridgeOut = bridge.map(paint => {
+    if (!paint.runs.length) return paint
+    const runs = paint.runs.map(run => {
+      if (run.length < 2) return run
+      let out = run
+      for (const end of [0, 1] as const) {
+        const tip = out[end ? out.length - 1 : 0]
+        const other = out[end ? 0 : out.length - 1]
+        const scale = metresPerUnit(tip[1])
+        let best: { g: number; r: number; at: ReturnType<typeof nearestOn> } | null = null
+        for (const [g, paintG] of ground.entries()) {
+          if (!same(paintG, paint)) continue
+          for (const [r, line] of groundRuns[g].entries()) {
+            if (line.length < 2) continue
+            const at = nearestOn(line, tip)
+            if (at.distance * scale <= LINE_JOIN.reach && (!best || at.distance < best.at.distance)) best = { g, r, at }
+          }
+        }
+        if (!best) continue
+        out = eased(out, end, best.at.p)
+        // The ground line keeps only its part beyond the bridge's end.
+        const line = groundRuns[best.g][best.r]
+        const [head, tail] = [[...line.slice(0, best.at.segment), best.at.p], [best.at.p, ...line.slice(best.at.segment)]]
+        const far = (part: Point[]) => Math.max(...part.map(q => Math.hypot(q[0] - other[0], q[1] - other[1])))
+        groundRuns[best.g][best.r] = far(tail) >= far(head) ? tail : head
+      }
+      return out
+    })
+    return { ...paint, runs }
+  })
+  return { bridge: bridgeOut, ground: ground.map((g, k) => (g.runs.length ? { ...g, runs: groundRuns[k] } : g)) }
+}
+
+/** The point on a line nearest `q`, the index of the point after it, and how far it lies, in mercator units. */
+function nearestOn(line: Point[], q: Point): { p: Point; segment: number; distance: number } {
+  let best = { p: line[0], segment: 1, distance: Infinity }
+  for (let i = 1; i < line.length; i++) {
+    const [a, b] = [line[i - 1], line[i]]
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+    const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+    const p: Point = [a[0] + dx * t, a[1] + dy * t]
+    const distance = Math.hypot(p[0] - q[0], p[1] - q[1])
+    if (distance < best.distance) best = { p, segment: i, distance }
+  }
+  return best
+}
+
+/** A line with one end moved to `to`, the move fading out over LINE_JOIN.ease metres along it. */
+function eased(line: Point[], end: 0 | 1, to: Point): Point[] {
+  const pts = end ? [...line].reverse() : [...line]
+  const scale = metresPerUnit(pts[0][1])
+  const [dx, dy] = [to[0] - pts[0][0], to[1] - pts[0][1]]
+  let along = 0
+  const out = pts.map((p, i) => {
+    if (i) along += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) * scale
+    const u = Math.max(0, 1 - along / LINE_JOIN.ease)
+    const w = u * u * (3 - 2 * u)
+    return [p[0] + dx * w, p[1] + dy * w] as Point
+  })
+  return end ? out.reverse() : out
 }

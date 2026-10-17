@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { along, boundsOf, deckMeshOut, grownRing, inside, landedOn, metresPerUnit, type Point } from './decks'
-import { layPaint } from './paint'
+import { joinedLines, layPaint } from './paint'
 import { testSurface } from './test-surface'
 
 const y0 = 0.4012
@@ -170,5 +170,24 @@ describe('the road beyond a deck laid on its end', () => {
 
   test('leaves out a road crossing it', () => {
     expect(laid([at(5, -5), at(5, 5)])).toBe(0)
+  })
+})
+
+describe('joinedLines', () => {
+  const props = { kind: 'centre', pattern: 'double', color: 'yellow' }
+  const bridge = [{ props, runs: [[at(0, 0), at(10, 0), at(20, 0), at(30, 0)]], areas: [] }]
+
+  test('eases a bridge line end onto the ground line beside it and cuts the ground line there', () => {
+    const ground = [{ props, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
+    const joined = joinedLines(bridge, ground)
+    const run = joined.bridge[0].runs[0]
+    expect((run[3][1] - y0) / M).toBeCloseTo(0.8, 6)
+    expect((run[0][1] - y0) / M).toBeCloseTo(0, 6)
+    expect((joined.ground[0].runs[0][0][0] - at(0)[0]) / M).toBeCloseTo(30, 6)
+  })
+
+  test('leaves lines of another kind alone', () => {
+    const ground = [{ props: { ...props, color: 'white' }, runs: [[at(25, 0.8), at(60, 0.8)]], areas: [] }]
+    expect(joinedLines(bridge, ground).bridge[0].runs[0]).toEqual(bridge[0].runs[0])
   })
 })

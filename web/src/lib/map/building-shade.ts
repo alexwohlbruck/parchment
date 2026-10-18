@@ -73,7 +73,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * roofs a step above the walls. Night keeps the neutral defaults.
  */
 const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
-  light: { shadowBlur: 1, aoRadiusMin: 47, aoRadiusMax: 204, aoOffset: [0, 0, 0] },
+  light: { shadowBlur: 1, aoRadiusMin: 15, aoRadiusMax: 80, aoOffset: [0, 0, 0] },
   dark: {},
 }
 

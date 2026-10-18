@@ -55,10 +55,10 @@ describe('roof colour', () => {
     expect(locs).toContain("'u_roof_on'")
   })
 
-  test('the roof buffer is bound alongside the others, not instead of one', () => {
+  test('the roof and facade buffers are bound alongside the others, not instead of one', () => {
     // Same loop, so it gets the same per-segment vertex offset — the whole
     // reason the donor's buffer lines up with these at all.
-    expect(source).toContain('for (const d of [hD, bD, cD, rD])')
+    expect(source).toContain('for (const d of [hD, bD, cD, rD, fD])')
   })
 
   /**

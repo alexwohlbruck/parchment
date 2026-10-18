@@ -34,6 +34,7 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
+import { lightAbout, type SunFrame } from '@/lib/map/sun-shadow'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -241,6 +242,25 @@ const SHADOW_FS = `
   precision mediump float;
   void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
 
+/** The object where it stands, for the sun's shadow map: `VS` without the light or the flutter. */
+const SUN_VS = `
+  uniform mat4 u_matrix;
+  attribute vec3 a_position;
+  attribute vec3 a_offset;
+  attribute vec4 a_shape;
+  attribute vec2 a_slope;
+  void main() {
+    float c = cos(a_shape.z);
+    float s = sin(a_shape.z);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
+    p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
+    vec2 across = p.xy * a_shape.y;
+    gl_Position = u_matrix * vec4(a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across)), 1.0);
+  }`
+
+/** Texels of the sun's map an object must stand taller than to cast into it. */
+const SUN_MIN_TEXELS = 2
+
 /** How much darker the bottom of a crown is than its top. */
 const CROWN_OCCLUSION = 0.18
 
@@ -327,12 +347,21 @@ export type ObjectSourceSpec = {
   followsView?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
-  /** Whether an instance may stand on a bridge deck: `along` one it runs with, as a wire does, or at a `point` on one. */
-  deck?: (instance: ObjectInstance) => 'along' | 'point' | null
+  /**
+   * How an instance meets a bridge deck: stands on one it runs `along`, as a wire does, or at a `point` on one; or keeps
+   * `clear` of one, left out where a deck passes too close over it, as a wall under a low deck or beside one in the ground's data.
+   */
+  deck?: (instance: ObjectInstance) => 'along' | 'point' | 'clear' | null
 }
 
 /** The height a deck gives an object at a point, in the terrain's metres; `along` is a linear object's direction, east and south. Null for the ground. */
 export type StandOn = (lng: number, lat: number, along?: [number, number]) => number | null
+
+/** A deck's surface over a point, in the terrain's metres, or null. */
+export type SurfaceAt = (lng: number, lat: number) => number | null
+
+/** Least room under a deck, in metres, for an object that keeps `clear` of decks. */
+const DECK_CLEARANCE = 3
 
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
@@ -369,6 +398,8 @@ type Batch = {
   count: number
   /** Whether any instance sets a `length`, which scales by this model's own length. */
   stretched: boolean
+  /** Its tallest instance, in mercator units, worked out when first cast into the sun's map. */
+  tallest?: number
   /**
    * Uploaded on the first frame that draws this batch, and not again.
    *
@@ -492,6 +523,10 @@ export class ObjectLayer {
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private shadowProgram!: WebGLProgram
   private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
+  private sunProgram!: WebGLProgram
+  private sunMatrix: WebGLUniformLocation | null = null
+  /** Each model's height in its own units, for leaving the small ones out of the sun's map. */
+  private heights = new Map<string, number>()
   private models = new Map<string, ModelBuffers>()
   private batches: Batch[] = []
   private retired: Array<Record<string, WebGLBuffer>> = []
@@ -515,14 +550,16 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt } = {},
   ) {
     this.id = options.id ?? 'map-objects'
     this.solid = options.solid ?? {}
     this.standOn = options.standOn
+    this.surfaceAt = options.surfaceAt
   }
 
   private standOn?: StandOn
+  private surfaceAt?: SurfaceAt
 
   /** Place everything again, as when what it stands on has changed. */
   refresh() {
@@ -566,6 +603,8 @@ export class ObjectLayer {
     this.stillness?.addEventListener('change', this.onStillness)
     this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
     this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
+    this.sunProgram = link(gl, SUN_VS, SHADOW_FS)
+    this.sunMatrix = gl.getUniformLocation(this.sunProgram, 'u_matrix')
 
     for (const [name, model] of Object.entries(this.sources)) {
       const primitives = model.primitives.map(p => {
@@ -727,6 +766,7 @@ export class ObjectLayer {
     this.detach(map)
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.shadowProgram)
+    gl.deleteProgram(this.sunProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -826,7 +866,20 @@ export class ObjectLayer {
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
         project(lng, lat, 0, placed)
-        const onDeck = terrain && this.standOn ? spec.deck?.(instance) : null
+        const meets = terrain ? spec.deck?.(instance) : null
+        if (meets === 'clear' && this.surfaceAt) {
+          // A span is tested at both ends as well as its middle: one lying beside a deck can reach under it.
+          const half = ((instance.length ?? 0) / 2) * placed.perMetre
+          const [dx, dy] = [Math.cos(instance.heading) * half, Math.sin(instance.heading) * half]
+          const room = DECK_CLEARANCE * (terrain!.getTerrain?.()?.exaggeration ?? 1)
+          const close = [[0, 0], [dx, dy], [-dx, -dy]].some(([ex, ey]) => {
+            const at = unproject(placed.x + ex, placed.y + ey)
+            const over = this.surfaceAt!(...at)
+            return over !== null && over - heightAt(...at) < room
+          })
+          if (close) continue
+        }
+        const onDeck = this.standOn && meets !== 'clear' ? meets : null
         const along: [number, number] | undefined = onDeck === 'along' ? [Math.cos(instance.heading), Math.sin(instance.heading)] : undefined
         const deckAt = (lng: number, lat: number) => (onDeck ? this.standOn!(lng, lat, along) : null)
         if (terrain && instance.conform && instance.length) {
@@ -1137,6 +1190,45 @@ export class ObjectLayer {
       gl.vertexAttribDivisor(loc, 0)
       gl.disableVertexAttribArray(loc)
     }
+  }
+
+  /** Into the sun's shadow map, mid-pass in the building shade layer: what is too short to show there is left out. */
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    if (!this.batches.length || !this.placed.length) return
+    const least = (SUN_MIN_TEXELS * frame.texelMetres) * this.placed[0].perMetre
+    gl.bindVertexArray(null)
+    gl.useProgram(this.sunProgram)
+    gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.light, this.origin))
+    for (const batch of this.batches) {
+      const name = shadowModel(batch, this.models)
+      const model = this.models.get(name)
+      if (!model || this.tallest(batch) < least) continue
+      this.bindInstances(gl, batch)
+      for (const primitive of model.primitives) {
+        bindVec3(gl, LOC.a_position, primitive.position)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
+    for (const loc of Object.values(LOC)) {
+      gl.vertexAttribDivisor(loc, 0)
+      gl.disableVertexAttribArray(loc)
+    }
+  }
+
+  /** The tallest instance in a batch, in mercator units. */
+  private tallest(batch: Batch): number {
+    if (batch.tallest !== undefined) return batch.tallest
+    let height = this.heights.get(batch.model)
+    if (height === undefined) {
+      height = 0
+      for (const p of this.sources[batch.model]?.primitives ?? [])
+        for (let i = 1; i < p.position.length; i += 3) height = Math.max(height, p.position[i])
+      this.heights.set(batch.model, height)
+    }
+    let scale = 0
+    for (let i = 0; i < batch.count; i++) scale = Math.max(scale, batch.shape[i * 4])
+    return (batch.tallest = scale * height)
   }
 
   /**

@@ -17,16 +17,23 @@ import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
   absorbTracks,
-  kerbBands,
-  kerbsOf,
+  jointAreas,
+  wayEnds,
+  grownRing,
   inside,
   deckMeshOut,
   endsMade,
+  landedOn,
+  placedPiers,
+  sideAt,
+  smoothstep,
   standing,
   standKey,
   underWay,
   runsWith,
   touchdown,
+  unprojected,
+  TOUCHDOWN,
   type UnderWay,
   UNDER_SLACK,
   besideGround,
@@ -34,6 +41,9 @@ import {
   densify,
   edgePoints,
   joinNeighbours,
+  coveredSides,
+  innerSides,
+  mouthSides,
   smooth,
   steady,
   rounded,
@@ -59,7 +69,9 @@ import {
   metresPerUnit,
   type Bounds,
   type Chain,
+  type Sides,
   type DeckSurface,
+  type Top,
   type Mesh,
   type Piece,
   type Point,
@@ -69,10 +81,15 @@ import {
   tileBounds,
 } from './decks'
 import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
-import { layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
+import { abutmentMesh } from './abutments'
+import { closedAreas } from './closing'
+import { AT_GRADE, joinedLines, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
 import { idle, queryFeatures } from './map-query'
 import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, type MeshBuffers } from './mesh-program'
+import { groundBeneath, MeshShadow } from './mesh-shadow'
 import { HD_FADE } from '@/lib/map-style/road-markings'
+import { liveBuildingShade } from '@/lib/map/building-shade'
+import type { SunFrame } from '@/lib/map/sun-shadow'
 
 /** Deck widths by OpenMapTiles class, in metres, for a bridge with no paint to measure. */
 const WIDTH: Record<string, number> = {
@@ -88,6 +105,8 @@ export type DeckPalette = {
   parapet: Rgb
   /** A rail deck's surface. */
   track: Rgb
+  /** The top of a road deck that has its carriageway laid on it: beside the carriageway the colour of the ground's paths, as its sidewalks are. */
+  deck: Rgb
   /** Below street zoom, a deck's surface: the basemap's colour for its minor, major and highway roads, and paths. */
   lowRoad: Rgb
   lowMajor: Rgb
@@ -123,7 +142,8 @@ export type DeckSources = {
 /** Where each deck lies on the ground, as boxes: what the road paints there is drawn over the deck. */
 function touchdowns(surfaces: DeckSurface[]): Bounds[] {
   return surfaces.flatMap(s => {
-    const low = (i: number) => s.z[i] - (s.ground?.[i] ?? -Infinity) < BOX_MIN
+    const total = s.d[s.d.length - 1]
+    const low = (i: number) => Math.min(s.d[i], total - s.d[i]) <= AT_GRADE.reach
     const n = s.points.length
     let [head, tail] = [0, n - 1]
     while (head < n && low(head)) head++
@@ -133,17 +153,38 @@ function touchdowns(surfaces: DeckSurface[]): Bounds[] {
 }
 
 
+/** Metres a bridge carriageway laid on a deck is grown by: enough to close the hairline where it meets the road beyond, too little to show as a kerb step. */
+const SURFACE_OVERLAP = 0.08
+
 /** A basemap road's class, `_link` for a slip road, as decks are told apart by. */
 const roadClass = (props: Record<string, any>) => (props.class ? `${props.class}${Number(props.ramp) === 1 ? '_link' : ''}` : undefined)
 
 /** Zoom from which a deck's rails are drawn: thinner than a pixel before it. */
 const RAILS_FROM = 17.5
 
+/** Metres from a deck's end within which a way on the ground is the road carrying on from it, and the room an abutment keeps from any other. */
+const OWN_ROAD = 2
+const ABUTMENT_ROOM = 1
+
+/** The share of a road deck's length that must lie in carriageway outlines for it to be drawn concrete. */
+const PAVED = 0.8
+/** The least width a line on a deck is drawn at, in CSS pixels: a whole pixel, since unlike the flat roads' it is not antialiased. */
+const MIN_LINE_PX = 1
+/** How far past a bridge's end its paint may run on the ground, in metres: Barrelman gives it the street's first 15. */
+const PAST_END = 18
+/** Coloured lanes joined across a bridge's ends, and how far apart two corners may lie and be one lane's, in metres. */
+const LANE_COLORS = ['green', 'red']
+const LANE_JOIN = 2.5
+/** Road classes whose decks are paved edge to edge, as the road beyond. */
+const HIGHWAY = /^(motorway|trunk)$|_link$/
+
 /** Metres between height samples along a deck. */
 const SAMPLE = 6
 /** Decks whose ground is kept, and how far the map may pan before vertices are re-based (mercator units). */
 const PROFILE_CACHE = 4000
 const REBASE = 1e-3
+/** Metres from the view's centre past which no deck is built: a whole interchange's worth stalled the page for seconds. */
+const VIEW_REACH = 2500
 
 export class DeckLayer {
   id: string
@@ -158,7 +199,23 @@ export class DeckLayer {
   private origin: [number, number] = [0, 0]
   private scheduled = 0
   private onChange?: (event?: { sourceId?: string }) => void
-  private pending: { mesh: Mesh; ranges: Ranges } | null = null
+  private pending: { mesh: Mesh; ranges: Ranges; ground: Float32Array; exaggeration: number } | null = null
+  /** The buildings' sun shadow map this frame, which the decks lie in as the ground does; see `building-shade.ts`. */
+  private sun: SunFrame | null = null
+  /** The decks' structure, piers and parapets casting on the ground and into the sun's map. */
+  private shadow = new MeshShadow()
+  get shadowVersion() {
+    return this.shadow.version
+  }
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    this.shadow.drawShadow(gl, frame)
+  }
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.shadow.drawSunDepth(gl, frame)
+  }
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
   private sampler: TerrainSampler | null = null
   /** Each served deck's datum offset at its ends, by id. */
   private offsets = new Map<string, [number, number]>()
@@ -166,6 +223,8 @@ export class DeckLayer {
   private grounds = new Map<string, number[]>()
   /** The tiles the last build read, and whether something besides them has changed since. */
   private built = ''
+  /** The area the last build covered, the view and a margin round it. */
+  private area: Bounds | null = null
   private stale = true
   /** Bumped when the decks change, for anything that caches what they cover. */
   version = 0
@@ -198,7 +257,7 @@ export class DeckLayer {
       if (!event?.sourceId) {
         // A pan rebuilds nothing unless it has gone far enough to re-base the vertices.
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
-        if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
+        if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE || !this.covers(this.viewArea(0))) this.invalidate()
       } else if (!(event as any).isSourceLoaded) return
       else if (tiled().has(event.sourceId)) this.invalidate(false)
       else if (this.sources.routes().includes(event.sourceId)) this.invalidate()
@@ -221,6 +280,7 @@ export class DeckLayer {
     clearTimeout(this.scheduled)
     this.cancelIdle?.()
     deleteMesh(gl, this.buffers)
+    this.shadow.delete(gl)
     gl.deleteProgram(this.program)
     this.map = null
   }
@@ -237,8 +297,13 @@ export class DeckLayer {
       this.cancelIdle = idle(() => {
         if (!this.map) return
         const built = this.build()
+        this.drawn.clear()
         if (!built) return
-        this.pending = built
+        // On the fixed-zoom ground the decks were solved on: the drawn terrain is a hundred times slower to ask.
+        const sampler = this.groundSampler()
+        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+        const ground = groundBeneath(built.mesh.position, built.ranges.paintFrom, this.origin, q => sampler?.at(q) ?? null, exaggeration)
+        this.pending = { ...built, ground, exaggeration }
         this.map.triggerRepaint?.()
       })
     }, 200) as unknown as number
@@ -296,20 +361,43 @@ export class DeckLayer {
     }
   }
 
+  /** The view in mercator units, grown by `margin` of its size and held within `VIEW_REACH` of its centre. */
+  private viewArea(margin = 0.25): Bounds {
+    const b = this.map.getBounds()
+    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
+    const cap = VIEW_REACH / metresPerUnit(c.y)
+    const pad = margin * Math.max(se.x - nw.x, se.y - nw.y)
+    return {
+      minX: Math.max(nw.x - pad, c.x - cap), maxX: Math.min(se.x + pad, c.x + cap),
+      minY: Math.max(nw.y - pad, c.y - cap), maxY: Math.min(se.y + pad, c.y + cap),
+    }
+  }
+
+  private covers(view: Bounds): boolean {
+    const a = this.area
+    return !!a && view.minX >= a.minX && view.maxX <= a.maxX && view.minY >= a.minY && view.maxY <= a.maxY
+  }
+
   private build(): { mesh: Mesh; ranges: Ranges } | null {
     if (this.awaitingServed()) return null
     const pieces: Piece[] = []
     const tiles: Bounds[] = []
+    const area = this.viewArea()
     const bridges = this.query(this.sources.basemap, this.sources.roads, ['==', ['get', 'brunnel'], 'bridge'])
     const paint = this.paint()
     const kerbs = this.kerbs()
-    const served = this.served()
+    const served = this.served().filter(d => meets(boundsOf(d.chain.points), area))
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const read = [...new Set(bridges.map(f => `${f._z}/${f._x}/${f._y}`))].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
+    // The roads on the ground are laid over deck ends too, so their tiles arriving rebuilds.
+    const surfaceTiles = this.sources.surfaces ? this.query(this.sources.surfaces.source, this.sources.surfaces.layer).map(f => `${f._z}/${f._x}/${f._y}`) : []
+    const read = `${area.minX},${area.minY},${area.maxX},${area.maxY}|` + [...new Set([...bridges.map(f => `${f._z}/${f._x}/${f._y}`), ...surfaceTiles])].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
     const near = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && near && read === this.built) return null
     this.stale = false
     this.built = read
+    this.area = area
+    this.drawn.clear()
     for (const f of bridges) {
       const props = f.properties ?? {}
       const tile = tileBounds(f)
@@ -317,13 +405,15 @@ export class DeckLayer {
       const kind = props.class === 'rail' || props.class === 'transit' ? 'rail' : props.class === 'path' ? 'path' : 'road'
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined, road: roadClass(props) })
+          if (meets(boundsOf(run), area)) pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined, road: roadClass(props) })
     }
     // Pieces are cut to their own tiles, so each stretch of a way is drawn once.
     const deduped = dedupe(pieces)
     const ways = deduped.flatMap(({ kind, points }) => (kind === 'road' ? [] : [{ kind, points }]))
     const roads = deduped.flatMap(piece => (piece.kind === 'road' && piece.road ? [{ piece, bounds: boundsOf(piece.points, MAX_REACH) }] : []))
     const placed = served.flatMap(d => this.place({ ...d, chain: { ...d.chain, road: classUnder(d.chain, roads) } }))
+    // Where each deck's way meets the road on the ground, before its ends are carried on as road.
+    const joints = placed.flatMap(({ chain }) => wayEnds(chain))
     if (!near) this.origin = [center.x, center.y]
     const tolerance = 1.5 / metresPerUnit(center.y)
     // A cut where a tile meets another loaded one joins back up; one at the
@@ -335,7 +425,7 @@ export class DeckLayer {
     const own = deduped.filter(piece => !covered(piece, servedBounds))
     const decks = absorbTracks(absorbPaths(fitted(chains(own, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), kerbs)))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
-    const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean }> = decks.flatMap(chain => {
+    const solved: Array<{ chain: Chain; groundAt: number[]; z: number[]; piers?: number[]; fixed?: boolean; wayEnds?: [Point, Point] }> = decks.flatMap(chain => {
       const groundAt = this.groundOf(chain)
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
@@ -364,54 +454,117 @@ export class DeckLayer {
     for (const s of solved) Object.assign(s, rounded(s.chain, s.z, s.groundAt))
     for (const s of solved.slice(local)) {
       const sampler = this.groundSampler()
+      s.z = landedOn(s.chain, s.z, q => sampler?.at(q) ?? null)
+      s.wayEnds = [s.chain.points[0], s.chain.points[s.chain.points.length - 1]]
       const { shift, ...made } = endsMade(s.chain, s.z, s.groundAt, q => sampler?.at(q) ?? null)
       Object.assign(s, made, s.piers ? { piers: s.piers.map(at => at + shift) } : {})
     }
     const open = joinNeighbours(solved)
+    const bridgeAreas = bridges.filter(f => f.properties?.class === 'bridge').flatMap(f => polygonsOf(f.geometry).map(rings => rings.map(ring => ring.map(mercator)))).map(rings => ({ rings, bounds: boundsOf(rings[0]) }))
+    const inner = innerSides(solved, bridgeAreas)
+    const mouths = mouthSides(solved)
+    const onDecks = coveredSides(solved).map((sides, k) => sides.map((side, s) => side.map((c, i) => c || inner[k][s][i] || mouths[k][s][i])) as Sides)
+    // Decks built here stand their piers clear of the roads, railways and paths beneath.
+    const unplaced = solved.filter(s => !s.piers)
+    if (unplaced.length) {
+      const beneath = this.carriageways(false, unplaced.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges))))
+        .flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
+      const ways = this.waysNear(unplaced.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges))))
+      for (const s of unplaced) s.piers = placedPiers(s.chain, s.z, s.groundAt, at => this.bentClear(s.chain, at, ways, beneath))
+    }
     // Solved in true metres; drawn over terrain that is stretched.
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     for (const s of solved) {
       s.z = s.z.map(z => z * exaggeration)
       s.groundAt = s.groundAt.map(g => g * exaggeration)
     }
+    // A deck's end is biased toward the eye against the ground as drawn, which may stand higher than the ground it was solved on.
+    // Anywhere else, the drawn ground under either edge reaching up near the deck, as beside a cutting, is met the same way.
+    const biasGround = solved.map(({ chain, z, groundAt }) => {
+      const d = along(chain.points)
+      const [lefts, rights] = edgePoints(chain)
+      return groundAt.map((g, i) => {
+        const w = smoothstep(Math.max(0, 1 - Math.min(chain.grounded[0] ? d[i] : Infinity, chain.grounded[1] ? d[d.length - 1] - d[i] : Infinity) / AT_GRADE.reach))
+        const drawn = w > 0 ? this.drawnGround(chain.points[i]) : null
+        const ended = drawn === null ? g : g + (Math.max(g, Math.min(drawn, z[i])) - g) * w
+        const beside = Math.max(...[lefts[i], rights[i]].map(q => this.drawnGround(q) ?? -Infinity))
+        return Math.max(ended, Math.min(beside, z[i]))
+      })
+    })
 
     const p = this.palette
     const mesh = deckMeshOut()
-    // A road deck carrying a carriageway outline is paved like the street: walkway from its kerbs out to its edges.
+    // A road deck carrying a carriageway outline is concrete, the carriageway laid on it in asphalt at its own width.
     const paved = this.carriageways()
     const outlines = paved.flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
-    // The carriageways a deck carries: those its middle stretch lies in.
-    const carried = (chain: Chain) => chain.kind !== 'road' ? [] : outlines.filter(o =>
-      [0.25, 0.5, 0.75].some(f => { const q = chain.points[Math.floor((chain.points.length - 1) * f)]; return holds(o.bounds, q) && inside(q, o.rings) }))
+    // Concrete only on a street deck whose carriageway runs its length; a highway deck, or any other, is the road itself, in asphalt.
+    const concrete = (chain: Chain) => chain.kind === 'road' && !HIGHWAY.test(chain.road ?? '') &&
+      chain.points.filter(q => outlines.some(o => holds(o.bounds, q) && inside(q, o.rings))).length >= chain.points.length * PAVED
+    const concreteAt = new Map(solved.map(({ chain }) => [chain, concrete(chain)]))
     const colors = (chain: Chain) =>
       chain.kind === 'rail' ? { surface: p.track, low: p.track } : chain.kind === 'path' ? { surface: p.walkway, low: p.lowPath }
-      : { surface: p.surface, low: lowRoad(p, chain.road) }
+      : { surface: concreteAt.get(chain) ? p.deck : p.surface, low: lowRoad(p, chain.road) }
+    const tops = solved.map(() => [] as Top[])
     for (const [k, { chain, groundAt, z, piers }] of solved.entries())
-      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers)
+      deckMesh(chain, z, groundAt, this.origin, { ...colors(chain), concrete: p.concrete, parapet: p.parapet }, mesh, open[k], piers, tops[k], biasGround[k], onDecks[k])
 
-    const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }) => {
+    const surfaces: DeckSurface[] = solved.map(({ chain, z, groundAt }, k) => {
       const width = 2 * Math.max(...chain.edges) + 1
       return {
         points: chain.points, z, d: along(chain.points), width, bounds: boundsOf(chain.points, width),
-        bias: z.map((h, i) => touchdown(h - groundAt[i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain),
+        bias: z.map((h, i) => touchdown(h - biasGround[k][i])), low: colors(chain).low, ground: groundAt, kind: chain.kind, edges: edgePoints(chain), tops: tops[k], sidewalks: !!concreteAt.get(chain),
       }
     })
     this.stands = solved.map(({ chain }, k) => ({ chain, surface: surfaces[k] }))
     this.tracks = ways.flatMap(w => (w.kind === 'rail' ? [{ points: w.points, half: 1, bounds: boundsOf(w.points, 3) }] : []))
     this.under = null
-    const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
-    for (const { chain, z, groundAt } of solved) {
-      const own = carried(chain)
-      if (own.length) kerbBands(chain, z, groundAt, kerbsOf(chain, own.flatMap(o => o.rings.flat())), { walkway: p.walkway, low: colors(chain).low }, this.origin, mesh)
+    const grounded = solved.filter(({ chain }) => chain.kind === 'road' && (chain.grounded[0] || chain.grounded[1]))
+    const onGround = this.carriageways(false, grounded.map(({ chain }) => boundsOf(chain.points)))
+      .flatMap(c => c.areas.map(rings => ({ rings, bounds: boundsOf(rings[0]) })))
+    const frame = { origin: this.origin, color: p.concrete, out: mesh }
+    for (const { chain, z, groundAt, wayEnds } of grounded) {
+      const clear = ([0, 1] as const).map(end => this.abutmentClear(wayEnds?.[end] ?? chain.points[end ? chain.points.length - 1 : 0], onGround))
+      abutmentMesh(chain, z, groundAt, frame, (end, footprint) => clear[end](footprint), exaggeration)
     }
+    const ranges = { paintFrom: mesh.position.length / 3, railsFrom: 0, routesFrom: 0 }
     const tar = { ...p, asphalt: p.surface }
     const ends = touchdowns(surfaces)
-    const sampler = this.groundSampler()
-    const ground = { at: (q: Point) => { const g = sampler?.at(q); return g === null || g === undefined ? null : g * exaggeration }, near: ends, low: p.lowRoad }
-    layPaint(mesh, paved, surfaces, tar, this.origin, { ground, offDeck: true })
+    // On the ground as the map draws it, so what lies there sits on the drawn terrain, not the DEM read for the decks.
+    const ground = { at: (q: Point) => this.drawnGround(q), near: ends, low: p.lowRoad }
+    // A bridge's paint runs on past its ends onto the ground, where the deck draws it in the ground's place.
+    const pastEnds = solved.flatMap(({ chain }) => chain.kind !== 'road' ? [] : wayEnds(chain).map(end => ({ ...end, reach: PAST_END, half: end.half + COVER })))
+    const past = pastEnds.map(({ p: at, out, half }) => {
+      const scale = metresPerUnit(at[1])
+      return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half)
+    })
+    const onward = { ...ground, near: [...ends, ...past] }
+    // An asphalt deck is its carriageway already; only a concrete one, and the ground past the ends, need it laid on.
+    layPaint(mesh, paved, surfaces, tar, this.origin, { ground, on: deck => !!deck.sidewalks })
+    const atGrade = this.carriageways(false, ends)
+    // Laid as one area, less the bridge's own, so pieces mapped apart leave no bars or notches on a deck's end.
+    const joined = closedAreas(atGrade.flatMap(c => c.areas), paved.flatMap(c => c.areas), ends)
+    layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: joined }], surfaces, tar, this.origin, { atGrade: true })
+    // The road on the ground and the bridge's own each end square to their own way; where those bend at the bridge node a wedge opens between them.
+    const meeting = [...joints, ...solved.slice(0, local).flatMap(({ chain }) => wayEnds(chain))]
+    const outers = (list: Paint[]) => list.flatMap(c => c.areas.map(rings => rings[0]))
+    const wedges = jointAreas(meeting, outers([...paved, ...atGrade]))
+    layPaint(mesh, [{ props: { kind: 'surface', pattern: 'fill', color: 'asphalt' }, runs: [], areas: wedges.map(w => [w]) }], surfaces, tar, this.origin, { ground })
     layWays(mesh, ways.filter(w => w.kind === 'path'), surfaces, p, this.origin)
-    layPaint(mesh, paint, surfaces, p, this.origin, { ground })
-    layPaint(mesh, this.paintAtGrade(ends), surfaces, p, this.origin, { atGrade: true })
+    const { bridge: bridgePaint, ground: beyond } = joinedLines(paint, this.paintAtGrade(ends))
+    // Paint is drawn as a decal, last on top: coloured lanes, then white areas, then lines.
+    const coloured = (f: Paint) => LANE_COLORS.includes(f.props.color)
+    for (const tier of [coloured, (f: Paint) => !coloured(f)]) {
+      layPaint(mesh, bridgePaint.filter(tier), surfaces, p, this.origin, { ground: onward, past: pastEnds, parts: 'areas' })
+      layPaint(mesh, beyond.filter(tier), surfaces, p, this.origin, { atGrade: true, parts: 'areas' })
+      if (tier !== coloured) continue
+      // Coloured lanes on the bridge and on the ground meet at the joint the same way: each lane's own wedge, in its colour.
+      for (const color of LANE_COLORS) {
+        const joins = jointAreas(meeting, outers([...paint, ...beyond].filter(f => f.props.color === color && f.areas.length)), LANE_JOIN)
+        if (joins.length) layPaint(mesh, [{ props: { kind: 'lane', pattern: 'fill', color }, runs: [], areas: joins.map(w => [w]) }], surfaces, p, this.origin, { ground })
+      }
+    }
+    layPaint(mesh, bridgePaint, surfaces, p, this.origin, { ground: onward, past: pastEnds, parts: 'lines' })
+    layPaint(mesh, beyond, surfaces, p, this.origin, { atGrade: true, parts: 'lines' })
     ranges.railsFrom = mesh.position.length / 3
     layWays(mesh, ways.filter(w => w.kind === 'rail'), surfaces, p, this.origin)
     ranges.routesFrom = mesh.position.length / 3
@@ -440,20 +593,79 @@ export class DeckLayer {
     return stand.z
   }
 
+  /** The surface of a deck over a point, in the terrain's metres, whatever passes beneath it; null where there is none. */
+  surfaceAt(lng: number, lat: number): number | null {
+    return standing(this.stands, mercator([lng, lat]))?.z ?? null
+  }
+
   /** Whether an object belongs to a way on the ground passing under a deck: see `underWay`. */
   private passesUnder(p: Point, along?: [number, number]): boolean {
-    if (!this.under) {
-      const decks = this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : []))
-      const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
-      this.under = ground.flatMap(f => linesOf(f.geometry).flatMap(line => {
-        const points = line.map(mercator)
-        if (points.length < 2) return []
-        const half = (WIDTH[f.properties?.class] ?? 6) / 2
-        const bounds = boundsOf(points, half + UNDER_SLACK)
-        return decks.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
-      }))
-    }
-    return underWay(this.under, p, along)
+    return underWay(this.groundWays(), p, along)
+  }
+
+  /** The ways on the ground near the decks, with half their widths. */
+  private groundWays(): UnderWay[] {
+    this.under ??= this.waysNear(this.stands.flatMap(s => (s.surface.bounds ? [s.surface.bounds] : [])))
+    return this.under
+  }
+
+  /** The ways on the ground meeting these boxes. */
+  private waysNear(boxes: Bounds[]): UnderWay[] {
+    const ground = this.query(this.sources.basemap, this.sources.roads, ['!', ['in', ['get', 'brunnel'], ['literal', ['bridge', 'tunnel']]]])
+    return ground.flatMap(f => linesOf(f.geometry).flatMap(line => {
+      const points = line.map(mercator)
+      if (points.length < 2) return []
+      const half = (WIDTH[f.properties?.class] ?? 6) / 2
+      const bounds = boundsOf(points, half + UNDER_SLACK)
+      return boxes.some(d => meets(d, bounds)) ? [{ points, half, bounds }] : []
+    }))
+  }
+
+  /** The terrain as drawn at a point; where none is drawn yet, the fixed-zoom ground stretched as the terrain is. */
+  /** `drawnGround` answers within one build, which asks again for the same points many times over. */
+  private drawn = new Map<string, number | null>()
+
+  private drawnGround(q: Point): number | null {
+    const key = `${q[0]},${q[1]}`
+    let g = this.drawn.get(key)
+    if (g === undefined) this.drawn.set(key, (g = this.groundNow(q)))
+    return g
+  }
+
+  private groundNow(q: Point): number | null {
+    const g = this.map.queryTerrainElevation?.(unprojected(q))
+    if (typeof g === 'number' && g !== 0) return g
+    const read = this.groundSampler()?.at(q)
+    return read == null || Number.isNaN(read) ? null : read * (this.map.getTerrain?.()?.exaggeration ?? 1)
+  }
+
+  /** Whether a pier's bent `at` metres along a deck, edge to edge, keeps off the ways and carriageways on the ground. */
+  private bentClear(chain: Chain, at: number, ways: UnderWay[], beneath: Array<{ rings: Point[][]; bounds: Bounds }>): boolean {
+    const d = along(chain.points)
+    let k = 1
+    while (k < chain.points.length - 1 && d[k] < at) k++
+    const t = Math.max(0, Math.min(1, (at - d[k - 1]) / (d[k] - d[k - 1] || 1)))
+    const [a, b] = [chain.points[k - 1], chain.points[k]]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const scale = 1 / metresPerUnit(a[1])
+    const [l, r] = [sideAt(chain, 0, k - 1, t), sideAt(chain, 1, k - 1, t)]
+    const bent: Point[] = []
+    for (let across = -r; across <= l; across += 1)
+      bent.push([a[0] + (b[0] - a[0]) * t - ((b[1] - a[1]) / len) * across * scale, a[1] + (b[1] - a[1]) * t + ((b[0] - a[0]) / len) * across * scale])
+    return !bent.some(q =>
+      ways.some(w => holds(w.bounds, q) && beside(w.points, q).distance < w.half + ABUTMENT_ROOM) ||
+      beneath.some(r => holds(r.bounds, q) && inside(q, r.rings)))
+  }
+
+  /** Whether an abutment's footprint keeps off the ways and carriageways on the ground, but for the road carrying on from its way's end. */
+  private abutmentClear(end: Point, rings: Array<{ rings: Point[][]; bounds: Bounds }>): (footprint: Point[]) => boolean {
+    const scale = metresPerUnit(end[1])
+    const touches = (q: Point) => Math.hypot(q[0] - end[0], q[1] - end[1]) * scale < OWN_ROAD
+    const ways = this.groundWays().filter(w => !touches(w.points[0]) && !touches(w.points[w.points.length - 1]))
+    const surfaces = rings.filter(r => !(holds(r.bounds, end) && inside(end, r.rings)))
+    return footprint => !footprint.some(q =>
+      ways.some(w => holds(w.bounds, q) && beside(w.points, q).distance < w.half + ABUTMENT_ROOM) ||
+      surfaces.some(r => holds(r.bounds, q) && inside(q, r.rings)))
   }
 
   /** Barrelman's decks in view, one copy each: every tile a deck crosses carries all of it, exactly. */
@@ -509,23 +721,27 @@ export class DeckLayer {
   private paintAtGrade(ends: Bounds[]): Paint[] {
     if (!this.sources.paint || !ends.length) return []
     return this.query(this.sources.paint.source, this.sources.paint.layer, ['!=', ['get', 'bridge'], true])
-      .filter(f => {
-        const tile = tileBounds(f)
-        if (tile && !ends.some(end => meets(end, tile))) return false
-        const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
-        if (!coords.length) return false
-        const box = boundsOf(coords)
-        return ends.some(end => meets(end, box))
-      })
+      .filter(f => this.meetsAny(f, ends))
       .map(paintOf)
   }
 
-  /** The bridges' own carriageways, as asphalt to lay past a deck's end. */
-  private carriageways(): Paint[] {
-    if (!this.sources.surfaces) return []
+  /** Carriageways as asphalt to lay: the bridges' own, or the roads on the ground over the given boxes, where decks end on them. */
+  private carriageways(bridge = true, over: Bounds[] = []): Paint[] {
+    if (!this.sources.surfaces || (!bridge && !over.length)) return []
     const { source, layer } = this.sources.surfaces
-    return this.query(source, layer, ['all', ['==', ['get', 'bridge'], true], ['!=', ['get', 'kind'], 'island']])
+    return this.query(source, layer, ['all', ['==', ['coalesce', ['get', 'bridge'], false], bridge], ['!=', ['get', 'kind'], 'island']])
+      .filter(f => bridge || this.meetsAny(f, over))
       .map(f => paintOf({ geometry: f.geometry, _x: f._x, _y: f._y, _z: f._z, properties: { kind: 'surface', pattern: 'fill', color: 'asphalt' } }))
+      // Grown a little, so a bridge's carriageway and the road beyond overlap where they meet rather than leave a crack.
+      .map(c => ({ ...c, areas: c.areas.map(rings => [grownRing(rings[0], SURFACE_OVERLAP), ...rings.slice(1)]) }))
+  }
+
+  /** Whether a feature's geometry meets one of the boxes, its tile tested first. */
+  private meetsAny(f: any, boxes: Bounds[]): boolean {
+    const tile = tileBounds(f)
+    if (tile && !boxes.some(b => meets(b, tile))) return false
+    const coords = [...linesOf(f.geometry), ...polygonsOf(f.geometry).flat()].flat().map(mercator)
+    return coords.length > 0 && boxes.some(b => meets(b, boundsOf(coords)))
   }
 
   /** The outlines of the bridges' own carriageways. */
@@ -544,7 +760,10 @@ export class DeckLayer {
       deleteMesh(gl, this.buffers)
       this.buffers = uploadMesh(gl, this.pending.mesh)
       this.ranges = this.pending.ranges
+      this.shadow.set(gl, this.buffers.position, this.ranges.paintFrom, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
+      // The shade layer drew this frame's shadows before the decks changed.
+      this.map.triggerRepaint()
     }
     if (!this.buffers?.count) return
 
@@ -556,14 +775,23 @@ export class DeckLayer {
     const eye = eyeOf(projection)
     const relative: [number, number, number] | null = eye && [eye[0] - this.origin[0], eye[1] - this.origin[1], eye[2]]
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]) })
+    // The sun's map is this frame's only: a frame the buildings skip leaves none.
+    const sun = this.sun
+    this.sun = null
+    const shade = liveBuildingShade()
+    const mesh = bindMesh(gl, this.program, this.buffers, matrix, light, { hd, eye: relative, perMetre: exaggeration / metresPerUnit(this.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
+      sun: { frame: sun, origin: this.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: shade?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
+    })
     const { paintFrom, railsFrom, routesFrom } = this.ranges
-    const draw = () => {
+    const draw = (writeDepth: boolean) => {
       mesh.draw(0, paintFrom)
       // Paint and routes sit a few centimetres over the asphalt; the offset keeps them in front of it at any distance.
       gl.enable(gl.POLYGON_OFFSET_FILL)
       gl.polygonOffset(-2, -2)
+      // Paint is a decal: each mark tested against the deck but not the marks laid before it, so the later one shows where two meet.
+      gl.depthMask(false)
       if (hd > 0) mesh.draw(paintFrom, railsFrom)
+      gl.depthMask(writeDepth)
       if (this.map.getZoom() >= RAILS_FROM) mesh.draw(railsFrom, routesFrom)
       mesh.draw(routesFrom)
       gl.disable(gl.POLYGON_OFFSET_FILL)
@@ -576,10 +804,10 @@ export class DeckLayer {
     // over terrain a little too high; then the true depth, which is what anything drawn later meets.
     mesh.bias(true)
     gl.depthMask(false)
-    draw()
+    draw(false)
     mesh.bias(false)
     gl.depthMask(true)
-    draw()
+    draw(true)
     mesh.unbind()
   }
 }
@@ -633,3 +861,5 @@ function filled(ground: number[]): number[] | null {
     Number.isNaN(g) ? known.reduce((best, k) => (Math.abs(k[1] - i) < Math.abs(best[1] - i) ? k : best))[0] : g,
   )
 }
+
+/** Longitude and latitude of a mercator point. */

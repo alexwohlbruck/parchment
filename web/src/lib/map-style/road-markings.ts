@@ -24,7 +24,7 @@ const SIGNAL_UNTIL = 18.5
 
 const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
   light: {
-    asphalt: 'hsl(200, 3%, 57%)',
+    asphalt: 'hsl(218, 6%, 50%)',
     island: 'hsl(88, 26%, 83%)',
     white: 'hsl(40, 20%, 97%)',
     crosswalk: 'hsl(40, 6%, 91%)',

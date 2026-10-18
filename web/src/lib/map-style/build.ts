@@ -50,6 +50,7 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { buildingFacadeColor } from './building-facade'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -169,9 +170,9 @@ export const MAX_PITCH = 85
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
     'sky-color': 'hsl(199, 88%, 78%)',
-    'horizon-color': 'hsl(44, 46%, 94%)',
-    'fog-color': 'hsl(44, 52%, 95%)',
-    'fog-ground-blend': 0.72,
+    'horizon-color': 'hsl(48, 14%, 93.5%)',
+    'fog-color': 'hsl(48, 16%, 94.5%)',
+    'fog-ground-blend': 0.8,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
     'atmosphere-blend': 0,
@@ -416,6 +417,9 @@ export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
  */
 export const BUILDING_3D_ROOF_LAYER = 'Building 3D roof colour'
 
+/** The same again, carrying each building's facade style; see `building-facade.ts`. */
+export const BUILDING_3D_FACADE_LAYER = 'Building 3D facade'
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
@@ -495,7 +499,7 @@ export function buildLayers(options: {
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
-  base = withBuildingCasts(base, flavor)
+  base = withBuildingColor(base, flavor)
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
@@ -591,7 +595,13 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
     },
   }
 
-  return [...layers.slice(0, at), buildings, roof, ...layers.slice(at + 1)]
+  const facade = {
+    ...buildings,
+    id: BUILDING_3D_FACADE_LAYER,
+    paint: { ...buildings.paint, 'fill-extrusion-opacity': 0, 'fill-extrusion-color': buildingFacadeColor() },
+  }
+
+  return [...layers.slice(0, at), buildings, roof, facade, ...layers.slice(at + 1)]
 }
 
 /**
@@ -750,7 +760,7 @@ function withRoundedRoofEdge(layers: any[]): any[] {
 }
 
 /** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
-function withBuildingCasts(layers: any[], flavor: FlavorId): any[] {
+function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
   return layers.map(l => l.type !== 'fill-extrusion' ? l : {
     ...l,
     paint: {

@@ -92,6 +92,8 @@ export const PITCH_TILES = 'sport_pitches'
 export const OBJECT_LINE_TILES = 'object_lines'
 export const OBJECT_AREA_TILES = 'object_areas'
 export const GOLF_TILES = 'golf_features'
+/** One flag per green, worked out from `golf_features` by `golfPinSites`. */
+export const GOLF_PIN_SOURCE = 'golf-pins'
 /** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
 export const BRIDGE_DECK_TILES = 'bridge_decks'
 
@@ -247,6 +249,10 @@ export function detailSources(tileUrl: (source: string) => string) {
       tiles: [tileUrl(DETAIL_TILES)],
       minzoom: 9,
       maxzoom: 16,
+    },
+    [GOLF_PIN_SOURCE]: {
+      type: 'geojson' as const,
+      data: { type: 'FeatureCollection' as const, features: [] },
     },
     [FURNITURE_SOURCE]: {
       type: 'vector' as const,
@@ -645,10 +651,8 @@ export function golfLabelLayers(flavor: FlavorId, label: DetailLabelStyle): any[
     {
       id: GOLF_PIN_LAYER,
       type: 'symbol',
-      source: DETAIL_SOURCE,
-      'source-layer': GOLF_TILES,
+      source: GOLF_PIN_SOURCE,
       minzoom: 16,
-      filter: ['==', ['get', 'kind'], 'pin'],
       layout: {
         'icon-image': 'golf-pin',
         'icon-anchor': 'bottom',

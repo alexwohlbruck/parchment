@@ -1812,6 +1812,15 @@
         "3dBuildings": "Edificios 3D",
         "3dObjects": "Objetos 3D",
         "3dObjectsDescription": "Dibuja árboles y mobiliario urbano como modelos. Solo MapLibre.",
+        "shadows": {
+          "title": "Sombras",
+          "description": "Sombras de edificios y objetos. «Con inclinación» las oculta en la vista cenital plana.",
+          "values": {
+            "off": "Desactivadas",
+            "tilted": "Con inclinación",
+            "always": "Siempre"
+          }
+        },
         "hdRoads": "Carreteras HD",
         "hdRoadsDescription": "Dibuja carriles, pasos de peatones y flechas de giro a nivel de calle",
         "indoorMaps": "Mapas de interiores",

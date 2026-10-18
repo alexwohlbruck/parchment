@@ -18,9 +18,11 @@
  * two apart; see `MapStrategy.setBuildingShade`.
  */
 import { WallShadowLayer } from '@/lib/vendor/ao-shadow.mjs'
-import { BUILDING_3D_ROOF_LAYER, type FlavorId } from '@/lib/map-style/build'
+import { BUILDING_3D_FACADE_LAYER, BUILDING_3D_ROOF_LAYER, type FlavorId } from '@/lib/map-style/build'
 import { BUILDING_TINT } from '@/lib/map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
+import { FACADE_FLAVOR } from './facade-shader'
+import type { SunFrame } from './sun-shadow'
 
 const RAD_PER_DEG = Math.PI / 180
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -39,10 +41,10 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
  */
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
-  band: 0.24,
-  shadowBlur: 1,
+  band: 0.51,
+  shadowBlur: 5.5,
   /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
-  fadeZoom: 1.2,
+  fadeZoom: 2.4,
   /** What the cast shadow drops to looking straight down, where it reads as a stain. */
   topDownOpacity: 0.5,
   aoRadiusMin: 26,
@@ -61,8 +63,29 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.16, aoIntensity: 0.18, strength: 0.04, edge: 0.18 },
-  dark: { shadowAlpha: 0.07, aoIntensity: 0.18, strength: 0.035, edge: 0.2 },
+  light: { shadowAlpha: 0.25, aoIntensity: 0.33, strength: 0.26, edge: 0.28 },
+  dark: { shadowAlpha: 0.25, aoIntensity: 0.57, strength: 0.39, edge: 0.44 },
+}
+
+/**
+ * Daylight's colour: a warm sun and a cool sky multiplying the lit and shaded
+ * sides, blue-violet cast shadows, walls lightening toward their tops and
+ * roofs a step above the walls. Night keeps the neutral defaults.
+ */
+const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
+  light: { shadowBlur: 1, aoRadiusMin: 15, aoRadiusMax: 80, aoOffset: [0, 0, 0] },
+  dark: {},
+}
+
+const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
+  light: {
+    sunTint: [1.06, 1.01, 0.92],
+    skyTint: [0.9, 0.94, 1.06],
+    shadowColor: [0.16, 0.2, 0.4],
+    wallRise: 0.14,
+    roofLift: 0.07,
+  },
+  dark: {},
 }
 
 /**
@@ -73,13 +96,13 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * not reach is drawn at exactly that fraction of its lit colour. MapLibre
  * defaults to 0.5, which puts every shaded wall at *half* the roof's
  * brightness — far heavier than a real overcast bounce, and it reads as black
- * against our pale roofs. 0.28 leaves a 72% floor, so a wall stays plainly a
+ * against our pale roofs. 0.42 leaves a 58% floor, cooled by the sky tint, so a wall stays plainly a
  * wall while the lit faces still separate from it.
  *
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.2 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.1, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -104,9 +127,9 @@ export function shadeLightIntensity(flavor: FlavorId) {
  * on a retina display as on an ordinary one, which is the opposite of what a
  * border should do.
  */
-const EDGE_WIDTH_CSS_PX = 1.55
-function edgeWidth(): number {
-  return EDGE_WIDTH_CSS_PX * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
+const EDGE_WIDTH_CSS_PX: Record<FlavorId, number> = { light: 1.9, dark: 2.55 }
+function edgeWidth(flavor: FlavorId): number {
+  return EDGE_WIDTH_CSS_PX[flavor] * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }
 
 /**
@@ -122,6 +145,10 @@ export type ShadowCaster = {
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
   /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
   shadowVersion?: number
+  /** Draw depth into the sun's shadow map; see `sun-shadow.ts`. */
+  drawSunDepth?(gl: WebGL2RenderingContext, frame: SunFrame): void
+  /** This frame's sun shadow map, to receive shadow by. */
+  receiveSun?(frame: SunFrame): void
 }
 
 /**
@@ -170,14 +197,26 @@ export function createBuildingShade(
     // the layer looks the buffers up per bucket and falls back to the wall
     // colour wherever they are missing, which is every style but the basemap.
     roofLayerId: BUILDING_3D_ROOF_LAYER,
+    facadeLayerId: BUILDING_3D_FACADE_LAYER,
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
     shadowCasters,
     sdfResolution: SDF_RESOLUTION,
-    edgeWidth: edgeWidth(),
+    edgeWidth: edgeWidth(flavor),
+    facade: FACADE_FLAVOR[flavor],
+    sunShadows: true,
     ...SHAPE,
+    ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
+    ...DAYLIGHT[flavor],
   })
+  // Gone from the map, it is no longer the live one: its textures went with it.
+  const layer = live
+  const remove = layer.onRemove.bind(layer)
+  layer.onRemove = (map: unknown, gl: WebGL2RenderingContext) => {
+    remove(map, gl)
+    if (live === layer) live = null
+  }
   return live
 }
 
@@ -294,8 +333,9 @@ export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
 export function buildingShadeDefaults(flavor: FlavorId) {
   return {
     ...SHAPE,
+    ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
-    edgeWidth: edgeWidth(),
+    edgeWidth: edgeWidth(flavor),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
     tint: BUILDING_TINT[flavor],
     intensity: LIGHT_INTENSITY[flavor],

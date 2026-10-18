@@ -417,18 +417,18 @@ const ROAD_INK = {
  * moving it in value adds colour and disturbs nothing that was tuned.
  */
 const LIGHT_LAND = {
-  background_background_color: 'hsl(44, 52%, 95%)',
-  background_background_color_2: 'hsl(44, 46%, 94%)',
-  residential_fill_color: 'hsl(43, 40%, 90%)',
-  residential_fill_color_2: 'hsl(43, 44%, 92%)',
+  background_background_color: 'hsl(48, 16%, 94.5%)',
+  background_background_color_2: 'hsl(48, 14%, 93.5%)',
+  residential_fill_color: 'hsl(45, 14%, 92.5%)',
+  residential_fill_color_2: 'hsl(45, 14%, 93%)',
   pier_fill_color: 'hsl(40, 20%, 90.5%)',
   bridge_outline_line_color: 'hsl(44, 44%, 94%)',
   // Industrial land is a neutral in MapTiler too, just a warm one; the two
   // translucent members keep their alpha, which is what they are for.
-  industrial_fill_color: 'hsl(40, 18%, 89%)',
+  industrial_fill_color: 'hsl(220, 8%, 88%)',
   industrial_fill_color_2: 'hsla(40, 18%, 86%, 0.2)',
-  industrial_fill_color_3: 'hsl(40, 14%, 87%)',
-  industrial_fill_color_4: 'hsl(40, 18%, 89%)',
+  industrial_fill_color_3: 'hsl(220, 6%, 86%)',
+  industrial_fill_color_4: 'hsl(220, 8%, 88%)',
   industrial_fill_color_5: 'hsla(40, 18%, 86%, 0.5)',
   // Anything planted, in one green family: a soft yellow-green rather than the
   // pure one, which is what stops a park reading as a colour swatch next to
@@ -437,9 +437,9 @@ const LIGHT_LAND = {
   // than cuts — so the token is pitched about as far past the intended green as
   // the blend pulls it back: on the map it lands near hsl(95, 52%, 76%), a
   // shade above the wood it borders.
-  grass_fill_color: 'hsl(100, 54%, 58%)',
-  wood_fill_color: 'hsl(95, 48%, 71%)',
-  stadium_fill_color: 'hsl(95, 54%, 75%)',
+  grass_fill_color: 'hsl(112, 46%, 52%)',
+  wood_fill_color: 'hsl(128, 34%, 52%)',
+  stadium_fill_color: 'hsl(110, 44%, 66%)',
   // A pitch is a made surface with a boundary, so it gets an edge — the
   // same green a shade down, which reads as the line around a field rather
   // than as a second colour.
@@ -461,11 +461,11 @@ const LIGHT_LAND = {
   // The water the land meets: a light cyan-leaning blue rather than the azure
   // it was. Deep blue is what a nautical chart wants — a map of a city wants
   // water that reads as shallow and lit, the way it does from a plane.
-  water_fill_color: 'hsl(197, 92%, 72%)',
+  water_fill_color: 'hsl(206, 82%, 62%)',
   water_intermittent_fill_color: 'hsl(198, 84%, 82%)',
-  river_line_color: 'hsl(199, 82%, 68%)',
-  river_tunnel_line_color: 'hsl(199, 82%, 68%)',
-  aqueduct_line_color: 'hsl(197, 92%, 72%)',
+  river_line_color: 'hsl(206, 76%, 58%)',
+  river_tunnel_line_color: 'hsl(206, 76%, 58%)',
+  aqueduct_line_color: 'hsl(206, 82%, 62%)',
 }
 
 /** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */
@@ -1515,7 +1515,7 @@ const LABEL_TOKENS = {
   // `portolan-expressions.ts`, which letters transit stations over whatever
   // basemap is loaded — including ones that are not this style.
   label_ink_strong: { light: 'hsl(222, 25%, 21%)', dark: 'hsl(222, 25%, 93%)' },
-  label_ink_muted: { light: 'hsl(222, 10%, 46%)', dark: 'hsl(220, 12%, 76%)' },
+  label_ink_muted: { light: 'hsl(222, 10%, 44%)', dark: 'hsl(220, 12%, 76%)' },
   label_ink_road: { light: 'hsl(30, 6%, 42%)', dark: 'hsl(220, 12%, 84%)' },
   label_ink_road_minor: { light: 'hsl(30, 5%, 45%)', dark: 'hsl(220, 10%, 80%)' },
 }
@@ -2141,7 +2141,7 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 95%)    hsl(42, 38%, 88%)
+  //   light   hsl(48, 16%, 94.5%)  hsl(36, 20%, 84%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
   // Daylight is the one place the roof goes the other way — seven points below
@@ -2153,11 +2153,11 @@ async function main() {
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 88%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(36, 20%, 84%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(42, 30%, 72%)'
+  tokens.light.building_roof_edge = 'hsl(36, 14%, 71%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

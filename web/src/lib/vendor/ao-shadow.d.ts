@@ -3,6 +3,8 @@
  * kept byte-close to upstream so it stays updatable — so the surface we
  * actually call is declared here rather than by annotating the file itself.
  */
+import type { ShadowMode } from '@/types/map.types'
+
 export interface WallShadowLayerOptions {
   id?: string
   buildingsLayerId: string
@@ -37,9 +39,16 @@ export class WallShadowLayer {
   readonly id: string
   readonly type: 'custom'
   readonly renderingMode: '2d' | '3d'
+  /** This frame's ground shadow mask, its blur step and strength; null when none was drawn. */
+  groundShadow(): { texture: WebGLTexture; blurStep: number; alpha: number } | null
   enabled: boolean
   wallShade: boolean
   groundFx: boolean
+  shadowAlpha: number
+  /** The user's shadow setting; see `shadowStrength`. */
+  shadows: ShadowMode
+  /** How strongly the ground shadow and occlusion draw right now, 0-1. */
+  groundOpacity(): number
   onAdd(map: any, gl: WebGL2RenderingContext): void
   onRemove(map: any, gl: WebGL2RenderingContext): void
   render(gl: WebGL2RenderingContext, args?: unknown): void

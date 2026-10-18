@@ -41,6 +41,12 @@ type Entry = Heights | 'missing' | 'loading'
 
 export class GroundSampler {
   private tiles = new Map<string, Entry>()
+  /**
+   * Tiles read in this task and the last one: a caller's whole pass, which eviction leaves be. Evicting part of a pass
+   * larger than the capacity has the next pass ask for it again, and each arrival starts another pass.
+   */
+  private reading = new Set<string>()
+  private read = new Set<string>()
 
   /**
    * `zoom` is the zoom read everywhere; where the source has no tile there, its
@@ -65,6 +71,11 @@ export class GroundSampler {
 
   private entry(z: number, x: number, y: number): Entry {
     const key = `${z}/${x}/${y}`
+    if (!this.reading.size) queueMicrotask(() => {
+      this.read = this.reading
+      this.reading = new Set()
+    })
+    this.reading.add(key)
     const entry = this.tiles.get(key)
     if (entry) {
       // Most recently used last, so the oldest is the first evicted.
@@ -85,7 +96,7 @@ export class GroundSampler {
     const capacity = this.options.capacity ?? 16
     for (const [k, e] of this.tiles) {
       if (this.tiles.size <= capacity) break
-      if (k !== key && e !== 'loading') this.tiles.delete(k)
+      if (k !== key && e !== 'loading' && !this.read.has(k) && !this.reading.has(k)) this.tiles.delete(k)
     }
     this.options.onLoad?.()
   }

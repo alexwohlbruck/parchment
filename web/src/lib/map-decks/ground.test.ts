@@ -91,4 +91,18 @@ describe('GroundSampler', () => {
     sampler.at(points[0])
     expect(asked).toEqual(['0/0', '1/0', '2/0', '0/0'])
   })
+
+  test('a pass larger than the capacity is kept whole, so reading it again asks for nothing', async () => {
+    let asked = 0
+    const sampler = new GroundSampler(async () => {
+      asked++
+      return flat(4, 1)
+    }, { zoom: 2, capacity: 2 })
+    const points: Array<[number, number]> = [[0.1, 0.1], [0.3, 0.1], [0.6, 0.1], [0.9, 0.1]]
+    for (const p of points) sampler.at(p)
+    await tick()
+    await tick()
+    expect(points.map(p => sampler.at(p))).toEqual([1, 1, 1, 1])
+    expect(asked).toBe(4)
+  })
 })

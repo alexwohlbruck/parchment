@@ -18,6 +18,7 @@ import {
   Pegman,
   LngLat,
   Waypoint,
+  ShadowMode,
 } from '@/types/map.types'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
@@ -203,6 +204,8 @@ export class MapStrategy {
    * anything the style or the caller has to know about.
    */
   setBuildingShade(value: boolean) {}
+  /** Which views the building lighting casts shadows in. MapLibre only. */
+  setShadowMode(mode: ShadowMode) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}

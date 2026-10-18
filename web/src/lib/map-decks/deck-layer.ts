@@ -183,6 +183,8 @@ const SAMPLE = 6
 /** Decks whose ground is kept, and how far the map may pan before vertices are re-based (mercator units). */
 const PROFILE_CACHE = 4000
 const REBASE = 1e-3
+/** Metres from the view's centre past which no deck is built: a whole interchange's worth stalled the page for seconds. */
+const VIEW_REACH = 2500
 
 export class DeckLayer {
   id: string
@@ -221,6 +223,8 @@ export class DeckLayer {
   private grounds = new Map<string, number[]>()
   /** The tiles the last build read, and whether something besides them has changed since. */
   private built = ''
+  /** The area the last build covered, the view and a margin round it. */
+  private area: Bounds | null = null
   private stale = true
   /** Bumped when the decks change, for anything that caches what they cover. */
   version = 0
@@ -253,7 +257,7 @@ export class DeckLayer {
       if (!event?.sourceId) {
         // A pan rebuilds nothing unless it has gone far enough to re-base the vertices.
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
-        if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
+        if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE || !this.covers(this.viewArea(0))) this.invalidate()
       } else if (!(event as any).isSourceLoaded) return
       else if (tiled().has(event.sourceId)) this.invalidate(false)
       else if (this.sources.routes().includes(event.sourceId)) this.invalidate()
@@ -357,22 +361,42 @@ export class DeckLayer {
     }
   }
 
+  /** The view in mercator units, grown by `margin` of its size and held within `VIEW_REACH` of its centre. */
+  private viewArea(margin = 0.25): Bounds {
+    const b = this.map.getBounds()
+    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
+    const cap = VIEW_REACH / metresPerUnit(c.y)
+    const pad = margin * Math.max(se.x - nw.x, se.y - nw.y)
+    return {
+      minX: Math.max(nw.x - pad, c.x - cap), maxX: Math.min(se.x + pad, c.x + cap),
+      minY: Math.max(nw.y - pad, c.y - cap), maxY: Math.min(se.y + pad, c.y + cap),
+    }
+  }
+
+  private covers(view: Bounds): boolean {
+    const a = this.area
+    return !!a && view.minX >= a.minX && view.maxX <= a.maxX && view.minY >= a.minY && view.maxY <= a.maxY
+  }
+
   private build(): { mesh: Mesh; ranges: Ranges } | null {
     if (this.awaitingServed()) return null
     const pieces: Piece[] = []
     const tiles: Bounds[] = []
+    const area = this.viewArea()
     const bridges = this.query(this.sources.basemap, this.sources.roads, ['==', ['get', 'brunnel'], 'bridge'])
     const paint = this.paint()
     const kerbs = this.kerbs()
-    const served = this.served()
+    const served = this.served().filter(d => meets(boundsOf(d.chain.points), area))
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
     // The roads on the ground are laid over deck ends too, so their tiles arriving rebuilds.
     const surfaceTiles = this.sources.surfaces ? this.query(this.sources.surfaces.source, this.sources.surfaces.layer).map(f => `${f._z}/${f._x}/${f._y}`) : []
-    const read = [...new Set([...bridges.map(f => `${f._z}/${f._x}/${f._y}`), ...surfaceTiles])].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
+    const read = `${area.minX},${area.minY},${area.maxX},${area.maxY}|` + [...new Set([...bridges.map(f => `${f._z}/${f._x}/${f._y}`), ...surfaceTiles])].sort().join(' ') + `|${paint.length}|${kerbs.length}|${served.map(d => d.id).join(',')}`
     const near = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && near && read === this.built) return null
     this.stale = false
     this.built = read
+    this.area = area
     this.drawn.clear()
     for (const f of bridges) {
       const props = f.properties ?? {}
@@ -381,7 +405,7 @@ export class DeckLayer {
       const kind = props.class === 'rail' || props.class === 'transit' ? 'rail' : props.class === 'path' ? 'path' : 'road'
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined, road: roadClass(props) })
+          if (meets(boundsOf(run), area)) pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z, tile: tile ?? undefined, road: roadClass(props) })
     }
     // Pieces are cut to their own tiles, so each stretch of a way is drawn once.
     const deduped = dedupe(pieces)

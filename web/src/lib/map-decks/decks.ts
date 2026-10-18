@@ -739,6 +739,8 @@ const MOUTH_STEP = 1.5
  */
 export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[] {
   const roads = decks.map(({ chain }, k) => ({ k, chain, bounds: boundsOf(chain.points, Math.max(...chain.edges)) })).filter(r => r.chain.kind === 'road' && r.chain.points.length > 1)
+  // Probed every metre and a half along every side, a long deck read whole each time stalled the page for seconds.
+  const indexes = new Map(roads.map(r => [r.k, { index: segmentIndex(r.chain.points), reach: Math.max(...r.chain.edges) + MOUTH_PROBE }]))
   return decks.map(({ chain, z }, a) => {
     const n = chain.points.length
     const out: Sides = [chain.points.map(() => false), chain.points.map(() => false)]
@@ -752,7 +754,8 @@ export function mouthSides(decks: Array<{ chain: Chain; z: number[] }>): Sides[]
       const q: Point = [e[0] + ((e[0] - c[0]) / len) * scale, e[1] + ((e[1] - c[1]) / len) * scale]
       return near.some(({ k, chain: other, bounds }) => {
         if (!holds(bounds, q)) return false
-        const at = beside(other.points, q)
+        const { index, reach } = indexes.get(k)!
+        const at = beside(other.points, q, nearSegments(index, q, reach))
         if (!at.alongside || at.distance > sideAt(other, at.left ? 0 : 1, at.segment - 1, at.t) - COVERED.inset) return false
         const zb = decks[k].z[at.segment - 1] + (decks[k].z[at.segment] - decks[k].z[at.segment - 1]) * at.t
         return Math.abs(zb - h) <= COVERED.step

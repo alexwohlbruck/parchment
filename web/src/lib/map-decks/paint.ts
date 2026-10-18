@@ -214,6 +214,9 @@ function laidVertex(mesh: Mesh, p: number[], hit: Hit, { surfaces, keep, ground 
 
 /** A painted area on the decks under its corners, where every corner of a triangle has one. */
 function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: number, origin: Point) {
+  // An area clear of every deck and every deck end lays nothing; most of a view's are, and cutting them up cost seconds.
+  const extent = boundsOf(rings[0] ?? [])
+  if (!laid.surfaces.some(d => d.bounds && meets(d.bounds, extent)) && !laid.ground?.near?.some(b => meets(b, extent))) return
   const flat = rings.flat()
   const index = earcut(flat.flat(), rings.slice(0, -1).reduce<number[]>((holes, ring) => [...holes, (holes.at(-1) ?? 0) + ring.length], []))
   const scale = 1 / metresPerUnit(flat[0]?.[1] ?? 0.5)

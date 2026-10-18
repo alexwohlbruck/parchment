@@ -63,7 +63,7 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.76, aoIntensity: 0.33, strength: 0.26, edge: 0.28 },
+  light: { shadowAlpha: 0.25, aoIntensity: 0.33, strength: 0.26, edge: 0.28 },
   dark: { shadowAlpha: 0.25, aoIntensity: 0.57, strength: 0.39, edge: 0.44 },
 }
 
@@ -73,7 +73,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * roofs a step above the walls. Night keeps the neutral defaults.
  */
 const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
-  light: { shadowBlur: 8.5, aoRadiusMin: 47, aoRadiusMax: 204, aoOffset: [0, 0, 0] },
+  light: { shadowBlur: 1, aoRadiusMin: 47, aoRadiusMax: 204, aoOffset: [0, 0, 0] },
   dark: {},
 }
 

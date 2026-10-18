@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.16.1] - 2026-10-17
+
+### Added
+
 * 3D buildings have window bands that suit what they are (office glass, apartment windows, shopfronts), and at night some of them have a few warmly lit floors.
 * By day, buildings and 3D landmarks cast shadows onto each other, not only onto the ground.
 * By day, 3D bridges, tunnel portals, trees, signals and street furniture cast shadows too: the road under an overpass lies in its shade, and trees shade the buildings and bridges beside them.

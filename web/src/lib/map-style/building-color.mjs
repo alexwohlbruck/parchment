@@ -33,7 +33,7 @@
  * floor: below it the `rgb()` output rounds to whole channels coarser than the
  * tint, and the hue-fidelity test catches a facade drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 34, dark: 11 }
+export const BUILDING_TINT = { light: 46, dark: 11 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -208,10 +208,10 @@ export function buildingColor(
  * Faint casts for buildings that record no colour of their own, so a block of
  * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
  * only: night already separates buildings by light, and a cast there reads as
- * a lit surface. Each sits within a few points of the flavor's own near-white.
+ * a lit surface. Each sits at the flavor's own lightness: stone, steel, brick, sand, sage.
  */
 export const BUILDING_PASTELS = {
-  light: ['hsl(32, 22%, 89%)', 'hsl(210, 12%, 89%)', 'hsl(355, 16%, 89.5%)', 'hsl(44, 24%, 88.5%)', 'hsl(150, 10%, 88.5%)'],
+  light: ['hsl(30, 20%, 83%)', 'hsl(212, 14%, 84%)', 'hsl(8, 16%, 84%)', 'hsl(44, 24%, 82.5%)', 'hsl(155, 10%, 82.5%)'],
   dark: [],
 }
 

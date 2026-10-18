@@ -2,9 +2,22 @@
 
 ### Added
 
+* 3D buildings have window bands that suit what they are (office glass, apartment windows, shopfronts), and at night some of them have a few warmly lit floors.
+* By day, buildings and 3D landmarks cast shadows onto each other, not only onto the ground.
+* By day, 3D bridges, tunnel portals, trees, signals and street furniture cast shadows too: the road under an overpass lies in its shade, and trees shade the buildings and bridges beside them.
+* A new Shadows setting in Appearance turns building and object shadows off, shows them only when the map is tilted, or always.
+
 ### Changed
 
+* 3D road bridges are concrete with the road laid on at its own width, so streets no longer widen on a bridge and meet each bridge end without a seam.
+* 3D landmarks match the colours of the buildings around them, and at night their windows light up like their neighbours' and the tallest have floodlit crowns.
+* In the light theme, 3D buildings share one soft stone colour with a gentle warm or cool cast each, show their mapped colours more clearly, and landmarks sit at their neighbours' lightness while keeping their own colours.
+
 ### Fixed
+
+* Every golf green gets a flag, not only greens with a mapped pin.
+* Lit windows stay the same as you zoom in and out.
+* 3D bridges at large interchanges load without freezing the map for seconds.
 
 ## [0.16.0] - 2026-10-16
 

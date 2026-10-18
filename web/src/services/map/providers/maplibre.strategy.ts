@@ -1,4 +1,5 @@
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
+import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -46,6 +47,7 @@ import {
   LngLat,
   Waypoint,
   LayerType,
+  ShadowMode,
 } from '@/types/map.types'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
@@ -293,9 +295,11 @@ export class MaplibreStrategy extends MapStrategy {
   private buildingShade = true
   private map3dBuildings = true
   private map3dObjects = true
+  private shadowMode = ShadowMode.ALWAYS
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
+  private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -451,6 +455,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
+    this.golfPins = attachGolfPins(this.mapInstance)
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
@@ -473,8 +478,10 @@ export class MaplibreStrategy extends MapStrategy {
       // The new style has its own building filters and no landmark layer.
       if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
+      if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
+      if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
@@ -927,6 +934,7 @@ export class MaplibreStrategy extends MapStrategy {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
+      surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides
@@ -961,8 +969,10 @@ export class MaplibreStrategy extends MapStrategy {
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
       this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })
+      shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
+      shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
       this.tunnelLayer = null
     }
@@ -972,9 +982,11 @@ export class MaplibreStrategy extends MapStrategy {
         DECK_PALETTE[flavor],
       )
       this.deckLayer.onBuilt = () => this.objectLayer?.refresh()
+      shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
     } else if (!active && this.deckLayer) {
+      shadowCasters.delete(this.deckLayer)
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null
     }
@@ -1036,6 +1048,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyBuildingShade()
   }
 
+  override setShadowMode(mode: ShadowMode) {
+    this.shadowMode = mode
+    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? liveBuildingShade() : null
+    if (!layer) return
+    layer.shadows = mode
+    this.mapInstance.triggerRepaint()
+  }
+
   /**
    * Reconcile the lighting layer with the two switches that gate it.
    *
@@ -1064,14 +1084,13 @@ export class MaplibreStrategy extends MapStrategy {
       // the layer reads its direction from the style light rather than from its
       // own options, so this has to be set before it draws.
       this.mapInstance.setLight(shadeLight())
-      this.mapInstance.addLayer(
-        createBuildingShade(
-          buildingLayerId,
-          flavor,
-          this.mapInstance.getLayer(buildingLayerId)?.minzoom,
-        ) as any,
-        this.layerAfter(buildingLayerId),
+      const shade = createBuildingShade(
+        buildingLayerId,
+        flavor,
+        this.mapInstance.getLayer(buildingLayerId)?.minzoom,
       )
+      shade.shadows = this.shadowMode
+      this.mapInstance.addLayer(shade as any, this.layerAfter(buildingLayerId))
       this.shadowAlphaAtNoon = undefined
       this.updateSunShadow()
     } else if (!active && present) {
@@ -1589,6 +1608,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     this.poiElevation?.detach()
+    this.golfPins?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

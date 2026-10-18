@@ -657,6 +657,7 @@ function mapService() {
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
     mapStrategy?.setMap3dBuildings(mapStore.settings.buildings3d)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
+    mapStrategy?.setShadowMode(mapStore.settings.shadows)
     mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -1052,6 +1053,13 @@ function mapService() {
     () => mapStore.settings.objects3d,
     value => {
       mapStrategy?.setMap3dObjects(value)
+    },
+  )
+
+  watch(
+    () => mapStore.settings.shadows,
+    mode => {
+      mapStrategy?.setShadowMode(mode)
     },
   )
 

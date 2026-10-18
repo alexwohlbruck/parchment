@@ -40,13 +40,15 @@ import {
   elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
-  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, modelToLngLat, parseLandmark,
+  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
+import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
+import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -181,24 +183,36 @@ const DRAW_VS = `#version 300 es
   uniform mat3 u_turn;
   /** Per source primitive of the batch, by \`a_material\`: sRGB colour, and linear emission. */
   uniform vec3 u_colors[${MAX_BATCH_MATERIALS}];
-  uniform vec3 u_emissions[${MAX_BATCH_MATERIALS}];
+  uniform vec4 u_emissions[${MAX_BATCH_MATERIALS}];
   ${NODE}
   ${GROUND}
   ${ATTRIBUTES}
   out vec3 v_normal;
   out vec2 v_uv;
   out float v_floor;
+  uniform float u_scale;
+  /** Model-space metres (x, z, up) and normal, before the bearing and the ground: where on its facade a fragment is. */
+  out vec3 v_model;
+  out vec3 v_modelNormal;
+  /** Clip ← anchor metres, for the sun's shadow map; see sun-shadow.ts. */
+  uniform mat4 u_sun;
+  out vec4 v_sun;
   flat out vec3 v_color;
   flat out vec3 v_emission;
+  flat out float v_window;
   void main() {
     int m = int(a_material);
     v_color = u_colors[m];
-    v_emission = u_emissions[m];
+    v_emission = u_emissions[m].rgb;
+    v_window = u_emissions[m].a;
     v_normal = u_turn * (mat3(u_node) * a_normal);
     v_uv = a_uv;
     vec3 p = (u_node * vec4(a_position, 1.0)).xyz;
     vec3 q = u_local * onGround(p);
     v_floor = q.z - u_floor;
+    v_model = vec3(p.x, p.z, p.y) * u_scale;
+    v_modelNormal = mat3(u_node) * a_normal;
+    v_sun = u_sun * vec4(q, 1.0);
     gl_Position = u_matrix * vec4(q, 1.0);
   }`
 
@@ -224,6 +238,23 @@ const MASK = `
     if (a < u_cutoff) discard;
   }`
 
+/** Landmarks taller than this, in metres, have their top floodlit at night, over this share of their height. */
+const CROWN_MIN_HEIGHT = 120
+const CROWN_SHARE = 0.08
+
+/** Landmarks are lit more often than ordinary buildings: they are what a skyline is known by. */
+const LANDMARK_LIT_SHARE = 2.5
+
+/** Metres below which a model's windows are not divided into storeys. */
+const FACADE_MIN_HEIGHT = 8
+
+/** A 0–1 value stable per landmark, so its lit windows do not reshuffle as it reloads. */
+function seedOf(id: string): number {
+  let h = 2166136261
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619)
+  return (h >>> 0) / 4294967296
+}
+
 /**
  * MapLibre's fill-extrusion lighting, so a landmark stands in the same light
  * as its street: a clamped dot against the style light, remapped through its
@@ -236,29 +267,43 @@ const MASK = `
  * and faces that look down a little less gives the folds and the arm their
  * shape, without moving the brightness of a wall away from its neighbours.
  *
- * Then emission, for windows and doors lit from inside (see
- * `materialLight`). It is added after the tint, so a lit window is not
- * cooled with the night, and in linear light, which is how Open Landmarks'
- * three.js renderer adds an emissive — so a pane glows the colour it does
- * there rather than a washed-out one.
+ * Before any of that a material is pulled toward the map's own building
+ * colour (`harmony`), and window glass takes the same procedural facade as
+ * the extrusions, so a landmark's lit windows are the city's. Doors still
+ * glow by emission, added in linear light as Open Landmarks' renderer does.
  */
 const DRAW_FS = `#version 300 es
   precision highp float;
   flat in vec3 v_color;
   /** 1 when the primitive's texture paints its surface rather than only cutting it. */
   uniform float u_painted;
-  uniform vec3 u_tint;
+  uniform vec3 u_palette;
+  uniform float u_harmony;
+  uniform float u_harmonyFloor;
+  uniform float u_paint_lift;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
+  /** Metres from the model's ground to its top, and the share of that lit as a crown at night. */
+  uniform float u_height;
+  uniform float u_crown;
+  uniform float u_seed;
   /** Emitted colour, linear, already scaled by its intensity. */
   flat in vec3 v_emission;
+  flat in float v_window;
   /** 1 when a painted texture's alpha says where the panes are: 0 glass, 1 wall. */
   uniform float u_panes;
   in vec3 v_normal;
+  in vec3 v_model;
+  in vec3 v_modelNormal;
+  in vec4 v_sun;
+  ${SUN_SHADOW_GLSL}
   /** Metres above the flat map's ground; see u_floor. */
   in float v_floor;
   ${MASK}
+  ${FACADE_GLSL}
+  ${FACADE_SHADE_GLSL}
   out vec4 fragColor;
+  const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
   void main() {
     if (v_floor < 0.0) discard;
     cut();
@@ -267,26 +312,53 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
+    base = mix(base + (1.0 - base) * u_paint_lift, u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)), u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
-    float value = dot(base, vec3(0.2126, 0.7152, 0.0722));
-    float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
+    float value = dot(base, LUMA);
+    float facing = clamp(dot(n, normalize(u_lightpos)), 0.0, 1.0);
+    float inShadow = facing > 0.0 ? sunShade(v_sun, sqrt(1.0 - facing * facing) / max(facing, 0.2)) : 0.0;
+    float directional = clamp(dot(n, u_lightpos), 0.0, 1.0) * (1.0 - inShadow);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
-    vec3 shaded = clamp((base + 0.03) * directional * sky * u_tint, 0.0, 1.0);
+    vec3 shaded = clamp((base + 0.03) * directional * sky * (1.0 - 0.1 * inShadow), 0.0, 1.0);
+    if (v_window > 0.5) {
+      vec3 mn = abs(v_modelNormal);
+      bool wall = mn.y < 0.6;
+      // Too small for storeys, a model's windows are one pane, half lit.
+      vec3 f = u_height < ${FACADE_MIN_HEIGHT.toFixed(1)}
+        ? vec3(1.0, 0.5, u_seed)
+        : facade(mn.x > mn.z ? v_model.y : v_model.x, v_model.z, u_height, u_seed,
+            u_height > 36.0 ? ${FACADE_STYLE.curtain}.0 : ${FACADE_STYLE.punched}.0, ${LANDMARK_LIT_SHARE.toFixed(2)});
+      // A painted facade draws its own panes; plain glass takes the grid.
+      f.x = u_panes > 0.5 ? 1.0 - paint.a : (wall ? f.x : 1.0);
+      if (!wall) f.y = 0.0;
+      shaded = facadeShade(shaded, f);
+    }
+    // Floodlit crowns, as a skyline's tallest towers are.
+    float crown = u_night * smoothstep(u_height * (1.0 - u_crown), u_height, v_model.z) * step(0.001, u_crown);
+    shaded = mix(shaded, u_windowLight * 0.9, crown * 0.45);
     if (v_emission != vec3(0.0)) {
-      // The mask's mip chain averages panes and wall, so a facade too far
-      // off to show single windows still glows by the share that is glass.
-      float glass = u_panes > 0.5 ? 1.0 - paint.a : 1.0;
-      vec3 lit = pow(shaded, vec3(2.2)) + v_emission * glass;
+      vec3 lit = pow(shaded, vec3(2.2)) + v_emission;
       shaded = pow(clamp(lit, 0.0, 1.0), vec3(1.0 / 2.2));
     }
     fragColor = vec4(shaded, 1.0);
   }`
 
+/** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
+const SUN_DEPTH_FS = `#version 300 es
+  precision highp float;
+  ${MASK}
+  out vec4 fragColor;
+  void main() {
+    cut();
+    fragColor = vec4(0.0);
+  }`
+
 /** Metres a door may sit under the flat map's ground and still glow: doors are set on it. */
 const GLOW_FLOOR_SLACK = 0.5
+
 
 /**
  * A lit doorway's glow: a soft disc that always faces the camera, added onto
@@ -440,6 +512,8 @@ type Model = {
   pose: { at: number; nodes: Map<number, Float32Array> } | null
   /** Metres from its origin that it reaches, sideways or up, once loaded. */
   reach: number
+  /** Metres from its ground to its top, once loaded. */
+  height: number
   /** Where it could touch the ground, once loaded; see `groundContacts`. */
   contacts: Contact[] | null
 }
@@ -470,6 +544,9 @@ export class LandmarkLayer {
   private map: any
   private draw!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private sunDepth!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  /** This frame's sun shadow map, handed over by the shade layer before this layer draws. */
+  private sun: SunFrame | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private quad: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer } | null = null
   private evicted = 0
@@ -530,7 +607,7 @@ export class LandmarkLayer {
       buildings?: Array<{ source: string; sourceLayer: string }>
       /** Called with the credits of the models being drawn whenever they change. */
       onAttribution?: (credits: string[]) => void
-      /** How a landmark joins the map's flavor: its tint, and whether it is night. */
+      /** How a landmark joins the map's flavor: its palette, and whether it is night. */
       flavor: LandmarkFlavor
     },
   ) {
@@ -545,8 +622,12 @@ export class LandmarkLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.draw = program(gl, DRAW_VS, DRAW_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
+      ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
+        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+    this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun',
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor'])
@@ -936,7 +1017,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, contacts: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null,
     }
     this.models.set(file, model)
     void (async () => {
@@ -958,6 +1039,7 @@ export class LandmarkLayer {
       model.footprint = { minX: glb.min[0], maxX: glb.max[0], minZ: glb.min[2], maxZ: glb.max[2] }
       model.contacts = groundContacts(glb.primitives, model.footprint)
       model.animation = glb.animation
+      model.height = glb.max[1]
       model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
       model.coverage = planCoverage(glb, poseGlb(glb, 0))
       // Its footprint can now be searched, which the last gather could not.
@@ -1073,6 +1155,28 @@ export class LandmarkLayer {
     }
   }
 
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
+
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    this.upload(gl)
+    const placements = this.drawable()
+    if (!placements.length) return
+    const { program, u } = this.sunDepth
+    gl.useProgram(program)
+    for (const p of placements) {
+      const model = this.drawnModel(p)
+      if (!model?.batches) continue
+      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.light, p.placed))
+      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
+      gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
+      this.groundUniforms(gl, u, p)
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model))
+    }
+    gl.bindVertexArray(null)
+  }
+
   /**
    * Draw every landmark's shadow into the building shade layer's mask. Called
    * by that layer, mid-pass, with its framebuffer and stencil already set up.
@@ -1130,7 +1234,14 @@ export class LandmarkLayer {
 
     gl.uniform3fv(u.u_lightpos, light.position)
     gl.uniform1f(u.u_lightintensity, light.intensity)
-    gl.uniform3fv(u.u_tint, this.options.flavor.tint)
+    const flavor = this.options.flavor
+    gl.uniform1f(u.u_harmony, flavor.harmony)
+    gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
+    gl.uniform1f(u.u_paint_lift, flavor.lift)
+    const sun = this.sun
+    this.sun = null
+    bindSun(gl, u, sun)
+    setFacadeUniforms(gl, u, flavor.facade)
 
     const now = performance.now()
     let moving = false
@@ -1143,11 +1254,19 @@ export class LandmarkLayer {
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       this.groundUniforms(gl, u, p)
+      const height = model.height * p.scale
+      gl.uniform1f(u.u_height, height)
+      gl.uniform1f(u.u_crown, height > CROWN_MIN_HEIGHT ? CROWN_SHARE : 0)
+      const seed = seedOf(p.id)
+      gl.uniform1f(u.u_seed, seed)
+      gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
+      gl.uniform1f(u.u_scale, p.scale)
+      if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
       const pose = this.poseOf(model, now)
       this.drawBatches(gl, model.batches, u, true, pose)
       if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
     }
-    if (this.options.flavor.night) this.drawEntrances(gl, matrix, placements)
+    if (this.options.flavor.facade.night) this.drawEntrances(gl, matrix, placements)
     gl.bindVertexArray(null)
     this.restore()
     this.moving = moving
@@ -1247,7 +1366,7 @@ export class LandmarkLayer {
         else gl.enable(gl.CULL_FACE)
         const lit = this.lighting(batch)
         gl.uniform3fv(u.u_colors, lit.colors)
-        gl.uniform3fv(u.u_emissions, lit.emissions)
+        gl.uniform4fv(u.u_emissions, lit.emissions)
         gl.uniform1f(u.u_painted, batch.painted ? 1 : 0)
         // Only a painted window knows where its panes are; any other window
         // is glass all over. A painted batch is always a single primitive.
@@ -1266,17 +1385,17 @@ export class LandmarkLayer {
 
   /** A batch's colour and emission tables for the current flavour, kept until it changes. */
   private lighting(batch: Batch & { lit?: BatchLighting }): BatchLighting {
-    const night = this.options.flavor.night
+    const night = this.options.flavor.facade.night > 0
     if (batch.lit?.night === night) return batch.lit
     const colors = new Float32Array(batch.materials.length * 3)
-    const emissions = new Float32Array(batch.materials.length * 3)
+    // Linear emission, and in w whether the material is window glass.
+    const emissions = new Float32Array(batch.materials.length * 4)
     batch.materials.forEach(({ color, name }, i) => {
-      const light = materialLight(name, night, batch.painted)
-      colors.set(light?.base ?? color, i * 3)
-      // Linear, to be added in linear light; see DRAW_FS.
-      const glow = light?.glow ?? [0, 0, 0]
+      colors.set(color, i * 3)
+      const light = materialEmission(name, night)
       const k = light?.intensity ?? 0
-      emissions.set([Math.pow(glow[0], 2.2) * k, Math.pow(glow[1], 2.2) * k, Math.pow(glow[2], 2.2) * k], i * 3)
+      const glow = light?.glow ?? [0, 0, 0]
+      emissions.set([Math.pow(glow[0], 2.2) * k, Math.pow(glow[1], 2.2) * k, Math.pow(glow[2], 2.2) * k, isWindow(name) ? 1 : 0], i * 4)
     })
     return (batch.lit = { night, colors, emissions })
   }

@@ -116,6 +116,8 @@ export function lineInstance(kind: string, tagHeight: unknown, p: Placement): Ob
 
 /** What runs along a bridge with it: its overhead wire and masts, and the rails and fences at its edges. */
 const ON_DECKS = new Set<string>(['catenary-mast', 'catenary-wires', 'guard-rail-span', 'fence-span', 'fence-post'])
+/** Kept clear of decks: a wall or hedge drawn where a deck passes close over it is the bridge's own, or buried in it. */
+const CLEAR_OF_DECKS = new Set<string>(['wall-span', 'hedge-span'])
 
 const current = new WeakMap<object, Placement[]>()
 
@@ -149,7 +151,7 @@ export const LINE_OBJECTS: ObjectSourceSpec = {
   distinct: false,
   budget: 8000,
   prepare: map => { power = powerNetwork(powerIn(map)) },
-  deck: instance => (ON_DECKS.has(instance.model) ? 'along' : null),
+  deck: instance => (ON_DECKS.has(instance.model) ? 'along' : CLEAR_OF_DECKS.has(instance.model) ? 'clear' : null),
   positions: feature => placementsOf(feature).map(p => [p.lng, p.lat] as [number, number]),
   toInstance(feature, _lng, _lat, index) {
     const p = placementsOf(feature)[index]

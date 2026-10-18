@@ -756,6 +756,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "toward {headsign}",
+    "trainNumber": "Train {number}",
     "or": "or",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",

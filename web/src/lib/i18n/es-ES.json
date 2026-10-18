@@ -737,6 +737,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "trainNumber": "Tren {number}",
     "or": "o",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",

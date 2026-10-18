@@ -1463,6 +1463,7 @@ function showSegmentChart(segment: any): boolean {
                     <RouteBullet
                       v-else
                       size="md"
+                      class="shrink-0 max-w-[60%]"
                       :label="entry.segment.lineName"
                       :color="entry.segment.lineColor"
                       :text-color="entry.segment.lineTextColor"
@@ -1470,6 +1471,12 @@ function showSegmentChart(segment: any): boolean {
                     <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
                     <span class="text-sm font-semibold text-foreground truncate">
                       {{ entry.segment.headsign || entry.segment.lineLongName }}
+                    </span>
+                    <span
+                      v-if="entry.segment.tripShortName"
+                      class="text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
+                    >
+                      {{ translate('directions.trainNumber', { number: entry.segment.tripShortName }) }}
                     </span>
                     <RealtimeIndicator
                       v-if="entry.segment.realTimeData"

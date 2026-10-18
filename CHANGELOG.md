@@ -2,12 +2,6 @@
 
 ### Added
 
-* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every green that stands and flutters in 3D up close.
-* Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
-* Running tracks show their lanes, and race circuits no longer look like side streets.
-* Disc golf courses show each hole's line and number, and their baskets.
-* Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
-* Car-free park drives and greenways are drawn as full-width paved roads with their bike lanes, center lines and walker symbols, instead of thin footpaths.
 * 3D buildings have window bands that suit what they are (office glass, apartment windows, shopfronts), and at night some of them have a few warmly lit floors.
 * By day, buildings and 3D landmarks cast shadows onto each other, not only onto the ground.
 * By day, 3D bridges, tunnel portals, trees, signals and street furniture cast shadows too: the road under an overpass lies in its shade, and trees shade the buildings and bridges beside them.
@@ -16,10 +10,30 @@
 ### Changed
 
 * 3D road bridges are concrete with the road laid on at its own width, so streets no longer widen on a bridge and meet each bridge end without a seam.
-* In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
-* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 * 3D landmarks match the colours of the buildings around them, and at night their windows light up like their neighbours' and the tallest have floodlit crowns.
 * In the light theme, 3D buildings share one soft stone colour with a gentle warm or cool cast each, show their mapped colours more clearly, and landmarks sit at their neighbours' lightness while keeping their own colours.
+
+### Fixed
+
+* Every golf green gets a flag, not only greens with a mapped pin.
+* Lit windows stay the same as you zoom in and out.
+* 3D bridges at large interchanges load without freezing the map for seconds.
+
+## [0.16.0] - 2026-10-16
+
+### Added
+
+* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every pin that stands and flutters in 3D up close.
+* Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
+* Running tracks show their lanes, and race circuits no longer look like side streets.
+* Disc golf courses show each hole's line and number, and their baskets.
+* Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
+* Car-free park drives and greenways are drawn as full-width paved roads with their bike lanes, center lines and walker symbols, instead of thin footpaths.
+
+### Changed
+
+* In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
+* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
 
 ### Fixed
 
@@ -30,6 +44,8 @@
 * A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
 * Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
 * Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
+* Commuter rail legs like the LIRR and Metro-North show the branch name, such as Port Washington Branch, with the train number beside the destination.
+* Transit directions no longer send you through a station entrance signed for trains to somewhere else, like "R trains to Manhattan" when you're heading to Bay Ridge.
 
 ## [0.15.0] - 2026-10-15
 

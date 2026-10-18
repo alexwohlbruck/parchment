@@ -23,10 +23,12 @@ import {
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import type { Place } from '../types/place.types'
+import type { StopRouteResult } from '../types/integration.types'
 import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
 import { rideshareService } from './rideshare.service'
 import { searchByCategory } from './search.service'
+import { forwardGeocode } from './geocoding.service'
 import { logError, logWarn } from '../lib/logger'
 import { TransitPriority } from '../lib/transit/transit-gate'
 import { routeTypeForMotisMode } from '../lib/transit/motis-mode'
@@ -37,8 +39,9 @@ import {
   servedRouteOptions,
   type StopBoard,
 } from '../lib/transit/route-options'
-import { dropAvoidableStreetTransfers, transferChecks } from '../lib/transit/street-transfer'
-import { bearingDeg, entranceFacesAway, entranceHeading } from '../lib/transit/entrance-direction'
+import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
+import { nameLegByRoute } from '../lib/transit/line-name'
+import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
 
 /**
  * Simplified multimodal trip planning service
@@ -181,6 +184,7 @@ export class TripService {
     )
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
     await this.pruneUnservedRouteOptions(rankedTrips.map((c) => c.trip))
+    await this.nameLegsByRoute(rankedTrips.map((c) => c.trip))
 
     return {
       request,
@@ -2163,27 +2167,46 @@ export class TripService {
    *  at the value of time plus finding the other station's entrance. */
   private static readonly STREET_TRANSFER_PENALTY_SEC = 600
 
-  /** Lines reachable in-system from a station; static GTFS, cached for the process. */
-  private inSystemRouteCache = new Map<string, Promise<Set<string> | null>>()
-  private static readonly IN_SYSTEM_ROUTE_CACHE_MAX = 2000
+  /** Routes at a stop; static GTFS, cached for the process. */
+  private stopRouteCache = new Map<string, Promise<StopRouteResult[] | null>>()
+  private static readonly STOP_ROUTE_CACHE_MAX = 2000
 
-  private inSystemRoutes(feedId: string, stopId: string): Promise<Set<string> | null> {
+  private stopRoutes(feedId: string, stopId: string): Promise<StopRouteResult[] | null> {
     const key = `${feedId}|${stopId}`
-    let hit = this.inSystemRouteCache.get(key)
+    let hit = this.stopRouteCache.get(key)
     if (!hit) {
-      hit = transitRoutingService.getRoutesForStop(feedId, stopId)
-        .then((routes) => new Set(
-          routes.filter((r) => r.via !== 'nearby').map((r) => r.routeId),
-        ))
+      hit = Promise.resolve()
+        .then(() => transitRoutingService.getRoutesForStop(feedId, stopId))
         .catch(() => null)
-      this.inSystemRouteCache.set(key, hit)
-      hit.then((routes) => { if (!routes) this.inSystemRouteCache.delete(key) })
-      if (this.inSystemRouteCache.size > TripService.IN_SYSTEM_ROUTE_CACHE_MAX) {
-        const oldest = this.inSystemRouteCache.keys().next().value
-        if (oldest) this.inSystemRouteCache.delete(oldest)
+      this.stopRouteCache.set(key, hit)
+      hit.then((routes) => { if (!routes) this.stopRouteCache.delete(key) })
+      if (this.stopRouteCache.size > TripService.STOP_ROUTE_CACHE_MAX) {
+        const oldest = this.stopRouteCache.keys().next().value
+        if (oldest) this.stopRouteCache.delete(oldest)
       }
     }
     return hit
+  }
+
+  /** Lines reachable in-system from a station. */
+  private async inSystemRoutes(feedId: string, stopId: string): Promise<Set<string> | null> {
+    const routes = await this.stopRoutes(feedId, stopId)
+    return routes && new Set(routes.filter((r) => r.via !== 'nearby').map((r) => r.routeId))
+  }
+
+  /** Name each transit leg by its GTFS route rather than MOTIS's fallback. */
+  private async nameLegsByRoute(trips: TripResponse[]): Promise<void> {
+    const legs = trips.flatMap((t) => t.segments)
+      .map((s) => s.details?.transitDetails)
+      .filter((td): td is TransitDetails => !!td)
+    await Promise.all(legs.map(async (td) => {
+      const route = splitFeedScopedId(td.route.id)
+      const stop = splitFeedScopedId(td.departureStop.id)
+      if (!route || !stop || route.feedId !== stop.feedId) return
+      const routes = await this.stopRoutes(stop.feedId, stop.id)
+      const gtfs = routes?.find((r) => r.feedId === route.feedId && r.routeId === route.id)
+      if (gtfs) nameLegByRoute(td, gtfs)
+    }))
   }
 
   /** Mark transfer walks that leave the paid area. Unknown counts as inside. */
@@ -3456,6 +3479,13 @@ export class TripService {
     return bearingDeg(a.location, b.location)
   }
 
+  private static legRoutes(leg: TripSegment): string[] {
+    const td = leg.details?.transitDetails
+    return [td?.route, ...(td?.routeOptions ?? [])]
+      .map((r) => r?.shortName)
+      .filter((name): name is string => !!name)
+  }
+
   /**
    * The nearest entrance to a platform that reaches it. An entrance signed
    * for the opposite direction leads to the other platform, so the next
@@ -3463,16 +3493,52 @@ export class TripService {
    */
   private async entranceFor(
     platform: Coordinate,
-    travelBearing: number | null,
+    leg: TripSegment,
+    end: 'board' | 'alight',
     wheelchair: boolean,
   ): Promise<import('../types/integration.types').StationEntrance | null> {
     const radius = TripService.ENTRANCE_SNAP_RADIUS_M
+    const travelBearing = TripService.platformBearing(leg, end)
+    const routes = TripService.legRoutes(leg)
+    const facesAway = async (e: { name: string | null; description: string | null }) => {
+      const sign = entranceSign(routes, e.name, e.description)
+      const heading = sign && 'toward' in sign
+        ? await this.headingToward(sign.toward, platform)
+        : sign?.heading ?? null
+      return entranceFacesAway(heading, travelBearing)
+    }
     const nearest = await this.cachedNearestEntrance(platform.lat, platform.lng, radius, wheelchair)
-    const facesAway = (e: { name: string | null; description: string | null }) =>
-      entranceFacesAway(entranceHeading(e.name, e.description), travelBearing)
-    if (!nearest || !facesAway(nearest)) return nearest
+    if (!nearest || travelBearing == null || !(await facesAway(nearest))) return nearest
     const nearby = await this.cachedEntrancesAround(platform, nearest.accessType, radius, wheelchair)
-    return nearby.find((e) => !facesAway(e)) ?? null
+    const away = await Promise.all(nearby.map(facesAway))
+    return nearby.find((_, i) => !away[i]) ?? null
+  }
+
+  /** A signed destination nearer than this is where the station already is. */
+  private static readonly SIGN_DESTINATION_MIN_M = 1000
+
+  private signDestinationCache = new Map<string, Promise<Coordinate | null>>()
+
+  /** Compass bearing from a station to the place an entrance is signed for. */
+  private async headingToward(place: string, station: Coordinate): Promise<number | null> {
+    const key = `${place.toLowerCase()}|${station.lat.toFixed(2)},${station.lng.toFixed(2)}`
+    let hit = this.signDestinationCache.get(key)
+    if (!hit) {
+      hit = forwardGeocode(place, station.lat, station.lng)
+        .then(({ results }) => results[0]?.geometry?.value?.center ?? null)
+        .catch(() => {
+          this.signDestinationCache.delete(key)
+          return null
+        })
+      this.signDestinationCache.set(key, hit)
+      if (this.signDestinationCache.size > TripService.ENTRANCE_CACHE_MAX) {
+        const oldest = this.signDestinationCache.keys().next().value
+        if (oldest) this.signDestinationCache.delete(oldest)
+      }
+    }
+    const target = await hit
+    if (!target || TripService.haversineDistance(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
+    return bearingDeg(station, target)
   }
 
   private entrancesAroundCache = new Map<
@@ -3621,10 +3687,10 @@ export class TripService {
 
         const [boardEntrance, alightEntrance] = await Promise.all([
           nextIsTransit
-            ? this.entranceFor(seg.end.location, TripService.platformBearing(segments[i + 1], 'board'), wheelchair)
+            ? this.entranceFor(seg.end.location, segments[i + 1], 'board', wheelchair)
             : Promise.resolve(null),
           prevIsTransit
-            ? this.entranceFor(seg.start.location, TripService.platformBearing(segments[i - 1], 'alight'), wheelchair)
+            ? this.entranceFor(seg.start.location, segments[i - 1], 'alight', wheelchair)
             : Promise.resolve(null),
         ])
 

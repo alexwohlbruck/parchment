@@ -306,7 +306,9 @@ export function isSunOverridden(): boolean {
  * `(sin a, cos a)`; the shadow is the negative of that.
  */
 export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
-  const { azimuth, altitude } = sunOverride ?? sunPosition(date, lat, lng)
+  // TEMP (do not commit): pin the sun to 2 pm Eastern (18:00 UTC) for review.
+  const pinned = new Date(date); pinned.setUTCHours(18, 0, 0, 0)
+  const { azimuth, altitude } = sunOverride ?? sunPosition(pinned, lat, lng)
 
   // Ease in over the few degrees above the cutoff rather than snapping on, so
   // sunrise arrives as a fade instead of a jump.

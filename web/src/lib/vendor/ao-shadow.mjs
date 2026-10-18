@@ -167,6 +167,12 @@ const BUILD_VS = `
   varying float v_style;
   // PARCHMENT: where the vertex sits in the sun's shadow map, and its unshadowed-face colour.
   uniform mat4 u_sunTile;
+  // PARCHMENT: daylight's warm sun and cool sky, multiplying the lit and the shaded side.
+  uniform vec3 u_sunTint;
+  uniform vec3 u_skyTint;
+  // PARCHMENT: how much lighter a wall is at its top than its foot, and a roof than the walls.
+  uniform float u_wallRise;
+  uniform float u_roofLift;
   varying vec4 v_sun;
   varying vec3 v_ambient;
   varying float v_facing;
@@ -247,8 +253,10 @@ const BUILD_VS = `
     vec3 n = a_normal_ed.xyz / 16384.0;
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
     directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
-    v_color = clamp(color.rgb * directional, 0.0, 1.0);
-    v_ambient = clamp(color.rgb * (1.0 - u_lightintensity), 0.0, 1.0);
+    float lit = clamp(dot(n, normalize(u_lightpos)), 0.0, 1.0);
+    float rise = wallRatio < 0.0 ? 1.0 + u_roofLift : mix(1.0 - u_wallRise, 1.0, sqrt(wallRatio));
+    v_color = clamp(color.rgb * directional * mix(u_skyTint, u_sunTint, lit) * rise, 0.0, 1.0);
+    v_ambient = clamp(color.rgb * (1.0 - u_lightintensity) * u_skyTint * rise, 0.0, 1.0);
     v_facing = dot(n, normalize(u_lightpos));
     v_sun = u_sunTile * vec4(a_pos, elev, 1.0);
     gl_Position = u_matrix * vec4(a_pos, elev, 1.0);
@@ -386,8 +394,9 @@ const JFA_FS = `
 const COMP_FS = `
   precision highp float;
   uniform sampler2D u_sdf, u_shadow;
-  uniform float u_radius, u_intensity, u_shadowAlpha;
+  uniform float u_radius, u_intensity, u_shadowAlpha, u_aoFade;
   uniform vec2 u_offset, u_blurStep;
+  uniform vec3 u_shadowColor;
   varying vec2 v_uv;
 
   void main() {
@@ -407,11 +416,12 @@ const COMP_FS = `
     if (s.a > 0.5) {
       float d = distance(uv, s.rg);
       if (d < u_radius)
-        ao = exp(-3.0 * d / u_radius) * u_intensity;
+        ao = exp(-3.0 * d / u_radius) * u_intensity * u_aoFade;
     }
     float combined = 1.0 - (1.0 - shadow) * (1.0 - ao);
     if (combined < 0.001) discard;
-    gl_FragColor = vec4(0.0, 0.0, 0.0, combined);
+    // Shadow takes the sky's colour, contact occlusion stays neutral.
+    gl_FragColor = vec4(mix(vec3(0.0), u_shadowColor, shadow / max(combined, 1e-3)), combined);
   }`;
 
 // ── GL helpers ──────────────────────────────────────────────────────
@@ -580,6 +590,12 @@ export class WallShadowLayer {
     this._heightScale = opts.heightScale ?? 0.38;
     this.shadowOffset = opts.shadowOffset ?? [-0.5, 0.5];
     this.shadowBlur = opts.shadowBlur ?? 2.0;
+    // PARCHMENT: daylight colour — the shadow's, the sun's and the sky's — and the wall's rise.
+    this.shadowColor = opts.shadowColor ?? [0, 0, 0];
+    this.sunTint = opts.sunTint ?? [1, 1, 1];
+    this.skyTint = opts.skyTint ?? [1, 1, 1];
+    this.wallRise = opts.wallRise ?? 0;
+    this.roofLift = opts.roofLift ?? 0;
     // PARCHMENT: other layers' geometry drawn into the same shadow mask — see
     // `_casterShadows`. A live collection, so callers can come and go without
     // the layer being rebuilt.
@@ -607,7 +623,7 @@ export class WallShadowLayer {
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
         'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
         'u_facade', 'u_unit_m', 'u_tile_origin', 'u_wall_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
-        'u_sunTile', ...SUN_SHADOW_UNIFORMS]); // PARCHMENT
+        'u_sunTile', 'u_sunTint', 'u_skyTint', 'u_wallRise', 'u_roofLift', ...SUN_SHADOW_UNIFORMS]); // PARCHMENT
     this._sunProg = linkProgram(gl, SUN_VS, SUN_FS); // PARCHMENT
     this._uSun = uniformLocs(gl, this._sunProg, ['u_matrix', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
 
@@ -623,7 +639,7 @@ export class WallShadowLayer {
 
     this._compProg = linkProgram(gl, JFA_VS, COMP_FS);
     this._uComp = uniformLocs(gl, this._compProg,
-      ['u_sdf', 'u_shadow', 'u_radius', 'u_intensity', 'u_shadowAlpha', 'u_offset', 'u_blurStep']);
+      ['u_sdf', 'u_shadow', 'u_radius', 'u_intensity', 'u_shadowAlpha', 'u_aoFade', 'u_offset', 'u_blurStep', 'u_shadowColor']);
 
     // textures: [0],[1] JFA ping-pong, [2] shadow mask
     const N = this._sdfRes;
@@ -844,11 +860,9 @@ export class WallShadowLayer {
     gl.vertexAttrib2f(LOC.a_facade, W, W);
     gl.vertexAttrib4f(LOC.a_facade4, W, W, W, W);
 
-    // PARCHMENT: straight down there are no walls and the ground effects sit
-    // under the roofs that cover them, so the plan view skips their passes.
-    const planView = Math.abs(this._map.getPitch?.() ?? 0) < PLAN_VIEW_PITCH;
-    this._groundDrawn = this.groundFx && !planView; // PARCHMENT
-    if (this.groundFx && !planView) {
+    // PARCHMENT: cast shadows reach past the roofs onto the streets, so they draw in plan view too.
+    this._groundDrawn = this.groundFx; // PARCHMENT
+    if (this.groundFx) {
       // PARCHMENT: the shadow mask and SDF only depend on the camera and the
       // geometry, so a frame that changes neither reuses them.
       const key = this._groundKey(tiles, saved.vp);
@@ -860,7 +874,7 @@ export class WallShadowLayer {
       }
       this._compPass(gl, saved);
     }
-    this._sun = this.sunShadows && this.shadowAlpha > 0.001 && !planView ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
+    this._sun = this.sunShadows && this.shadowAlpha > 0.001 ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
     if (this.wallShade) this._buildingPass(gl, tiles);
 
     restoreGlState(ctx, saved); // PARCHMENT
@@ -869,24 +883,25 @@ export class WallShadowLayer {
   /**
    * PARCHMENT: how strongly the ground shadow and occlusion draw right now.
    *
-   * Two things dim them. Zoom: the layer switches on at `_minZoom`, and without
-   * this the shadows arrive at full strength in a single frame while the
-   * buildings casting them are still growing out of the ground — so they ramp
-   * over `fadeZoom` levels instead, smoothstepped so neither end has a corner.
-   *
-   * Pitch: looking straight down there is no visible wall for a shadow to
-   * belong to, so a full-strength one reads as a stain on the ground rather
-   * than as depth. It eases back to `topDownOpacity` as the camera flattens.
+   * The layer switches on at `_minZoom`, and without this the shadows arrive at
+   * full strength in a single frame while the buildings casting them are still
+   * growing out of the ground — so they ramp over `fadeZoom` levels instead,
+   * smoothstepped so neither end has a corner.
    */
   groundOpacity() {
     const zoom = this._map.getZoom();
     const zt = Math.min(Math.max((zoom - this._minZoom) / Math.max(this.fadeZoom, 0.001), 0), 1);
-    const zoomFade = zt * zt * (3 - 2 * zt);
+    return zt * zt * (3 - 2 * zt);
+  }
 
+  /**
+   * PARCHMENT: contact occlusion eases to `topDownOpacity` as the camera
+   * flattens: straight down it hugs footprints the roofs already cover and
+   * reads as a stain. The cast shadow does not fade; it falls on open street.
+   */
+  aoPitchFade() {
     const pt = Math.min(Math.max(this._map.getPitch() / Math.max(this.topDownPitch, 0.001), 0), 1);
-    const pitchFade = this.topDownOpacity + (1 - this.topDownOpacity) * (pt * pt * (3 - 2 * pt));
-
-    return zoomFade * pitchFade;
+    return this.topDownOpacity + (1 - this.topDownOpacity) * (pt * pt * (3 - 2 * pt));
   }
 
   /**
@@ -1043,7 +1058,9 @@ export class WallShadowLayer {
     gl.uniform1f(U.u_radius, this._aoRadiusUv(vp));
     const opacity = this.groundOpacity(); // PARCHMENT
     gl.uniform1f(U.u_intensity, this.aoIntensity * opacity);
+    gl.uniform1f(U.u_aoFade, this.aoPitchFade());
     gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);
+    gl.uniform3fv(U.u_shadowColor, this.shadowColor);
 
     const blurStep = this.shadowBlur / this._sdfRes;
     gl.uniform2f(U.u_blurStep, blurStep, blurStep);
@@ -1130,6 +1147,10 @@ export class WallShadowLayer {
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);
     gl.uniform1f(U.u_facade, this.facade ? 1 : 0); // PARCHMENT
+    gl.uniform3fv(U.u_sunTint, this.sunTint); // PARCHMENT
+    gl.uniform3fv(U.u_skyTint, this.skyTint);
+    gl.uniform1f(U.u_wallRise, this.wallRise);
+    gl.uniform1f(U.u_roofLift, this.roofLift);
     const sun = this._sun;
     bindSun(gl, U, sun);
     if (this.facade) setFacadeUniforms(gl, U, this.facade);

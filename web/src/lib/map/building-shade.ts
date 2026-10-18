@@ -63,8 +63,25 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.16, aoIntensity: 0.18, strength: 0.04, edge: 0.18 },
+  light: { shadowAlpha: 0.3, aoIntensity: 0.4, strength: 0.26, edge: 0.28 },
   dark: { shadowAlpha: 0.25, aoIntensity: 0.57, strength: 0.39, edge: 0.44 },
+}
+
+/**
+ * Daylight's colour: a warm sun and a cool sky multiplying the lit and shaded
+ * sides, blue-violet cast shadows, walls lightening toward their tops and
+ * roofs a step above the walls. Night keeps the neutral defaults.
+ */
+const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
+  light: {
+    sunTint: [1.06, 1.01, 0.92],
+    skyTint: [0.9, 0.94, 1.06],
+    shadowColor: [0.16, 0.2, 0.4],
+    wallRise: 0.14,
+    roofLift: 0.07,
+    shadowBlur: 3.5,
+  },
+  dark: {},
 }
 
 /**
@@ -75,13 +92,13 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * not reach is drawn at exactly that fraction of its lit colour. MapLibre
  * defaults to 0.5, which puts every shaded wall at *half* the roof's
  * brightness — far heavier than a real overcast bounce, and it reads as black
- * against our pale roofs. 0.26 leaves a 74% floor, so a wall stays plainly a
+ * against our pale roofs. 0.42 leaves a 58% floor, cooled by the sky tint, so a wall stays plainly a
  * wall while the lit faces still separate from it.
  *
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.26, dark: 0.19 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.42, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -186,6 +203,7 @@ export function createBuildingShade(
     sunShadows: true,
     ...SHAPE,
     ...TUNING[flavor],
+    ...DAYLIGHT[flavor],
   })
   // Gone from the map, it is no longer the live one: its textures went with it.
   const layer = live

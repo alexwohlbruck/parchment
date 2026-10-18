@@ -170,9 +170,9 @@ export const MAX_PITCH = 85
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
     'sky-color': 'hsl(199, 88%, 78%)',
-    'horizon-color': 'hsl(44, 46%, 94%)',
-    'fog-color': 'hsl(44, 52%, 95%)',
-    'fog-ground-blend': 0.72,
+    'horizon-color': 'hsl(48, 14%, 93.5%)',
+    'fog-color': 'hsl(48, 16%, 94.5%)',
+    'fog-ground-blend': 0.8,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
     'atmosphere-blend': 0,

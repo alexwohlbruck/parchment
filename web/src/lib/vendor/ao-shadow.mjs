@@ -39,6 +39,7 @@ import {
 import {
   bindSun, multiply, SUN_SHADOW_GLSL, SUN_SHADOW_SIZE, SUN_SHADOW_UNIFORMS, sunLightMatrix, tileToMercator,
 } from '@/lib/map/sun-shadow';
+import { shadowStrength } from '@/lib/map/shadow-mode'; // PARCHMENT
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
 const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10, a_facade: 11, a_facade4: 12 };
@@ -581,6 +582,9 @@ export class WallShadowLayer {
     this.facade = opts.facade ?? null;
     // PARCHMENT: buildings and casters shading each other by a sun shadow map.
     this.sunShadows = opts.sunShadows ?? false;
+    // PARCHMENT: the user's shadow setting, a `ShadowMode`; see `shadowStrength`.
+    this.shadows = opts.shadows ?? 'always';
+    this._fade = 1;
     this.sunCeiling = opts.sunCeiling ?? 400;
     this._height = opts.height ?? 40;
     this._base = opts.base ?? 0;
@@ -861,8 +865,10 @@ export class WallShadowLayer {
     gl.vertexAttrib4f(LOC.a_facade4, W, W, W, W);
 
     // PARCHMENT: cast shadows reach past the roofs onto the streets, so they draw in plan view too.
-    this._groundDrawn = this.groundFx; // PARCHMENT
-    if (this.groundFx) {
+    // PARCHMENT: with shadows off for this view, neither the ground nor the sun pass runs.
+    const fade = this._fade = shadowStrength(this.shadows, this._map.getPitch());
+    this._groundDrawn = this.groundFx && fade > 0; // PARCHMENT
+    if (this._groundDrawn) {
       // PARCHMENT: the shadow mask and SDF only depend on the camera and the
       // geometry, so a frame that changes neither reuses them.
       const key = this._groundKey(tiles, saved.vp);
@@ -874,7 +880,7 @@ export class WallShadowLayer {
       }
       this._compPass(gl, saved);
     }
-    this._sun = this.sunShadows && this.shadowAlpha > 0.001 ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
+    this._sun = this.sunShadows && fade > 0 && this.shadowAlpha > 0.001 ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
     if (this.wallShade) this._buildingPass(gl, tiles);
 
     restoreGlState(ctx, saved); // PARCHMENT
@@ -911,7 +917,7 @@ export class WallShadowLayer {
    */
   groundShadow() {
     if (!this._groundDrawn || !this._tex) return null;
-    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() };
+    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() * this._fade };
   }
 
   /** PARCHMENT: the AO radius as a fraction of the SDF, shared by the flood and the composite. */
@@ -1056,7 +1062,7 @@ export class WallShadowLayer {
 
     const vw = vp[2], vh = vp[3];
     gl.uniform1f(U.u_radius, this._aoRadiusUv(vp));
-    const opacity = this.groundOpacity(); // PARCHMENT
+    const opacity = this.groundOpacity() * this._fade; // PARCHMENT
     gl.uniform1f(U.u_intensity, this.aoIntensity * opacity);
     gl.uniform1f(U.u_aoFade, this.aoPitchFade());
     gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);
@@ -1219,7 +1225,7 @@ export class WallShadowLayer {
     this._sunTarget(gl);
     const view = this._sunView();
     const { light, depthPerMetre, texelMetres } = sunLightMatrix(view);
-    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, depthPerMetre, texelMetres };
+    const frame = { light, perMetre: view.perMetre, texture: this._sunTex, depthPerMetre, texelMetres, strength: this._fade };
     // A frame that moves neither the light, the ground nor anything casting reuses the map.
     const terrain = this._terrain();
     const key = [...light];

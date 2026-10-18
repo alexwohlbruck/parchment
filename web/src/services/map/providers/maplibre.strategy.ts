@@ -47,6 +47,7 @@ import {
   LngLat,
   Waypoint,
   LayerType,
+  ShadowMode,
 } from '@/types/map.types'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
@@ -294,6 +295,7 @@ export class MaplibreStrategy extends MapStrategy {
   private buildingShade = true
   private map3dBuildings = true
   private map3dObjects = true
+  private shadowMode = ShadowMode.ALWAYS
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
@@ -1046,6 +1048,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyBuildingShade()
   }
 
+  override setShadowMode(mode: ShadowMode) {
+    this.shadowMode = mode
+    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? liveBuildingShade() : null
+    if (!layer) return
+    layer.shadows = mode
+    this.mapInstance.triggerRepaint()
+  }
+
   /**
    * Reconcile the lighting layer with the two switches that gate it.
    *
@@ -1074,14 +1084,13 @@ export class MaplibreStrategy extends MapStrategy {
       // the layer reads its direction from the style light rather than from its
       // own options, so this has to be set before it draws.
       this.mapInstance.setLight(shadeLight())
-      this.mapInstance.addLayer(
-        createBuildingShade(
-          buildingLayerId,
-          flavor,
-          this.mapInstance.getLayer(buildingLayerId)?.minzoom,
-        ) as any,
-        this.layerAfter(buildingLayerId),
+      const shade = createBuildingShade(
+        buildingLayerId,
+        flavor,
+        this.mapInstance.getLayer(buildingLayerId)?.minzoom,
       )
+      shade.shadows = this.shadowMode
+      this.mapInstance.addLayer(shade as any, this.layerAfter(buildingLayerId))
       this.shadowAlphaAtNoon = undefined
       this.updateSunShadow()
     } else if (!active && present) {

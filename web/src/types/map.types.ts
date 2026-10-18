@@ -82,6 +82,13 @@ export enum GridSnapMode {
   ALL = 'all',
 }
 
+export enum ShadowMode {
+  OFF = 'off',
+  /** Only once the camera tilts away from the flat top-down view. */
+  TILTED = 'tilted',
+  ALWAYS = 'always',
+}
+
 export enum FloorNumbering {
   ZERO_BASED = 'zero-based',
   ONE_BASED = 'one-based',
@@ -104,6 +111,8 @@ export interface MapSettings {
    * `buildings3d`, which used to carry both.
    */
   objects3d: boolean
+  /** Cast shadows and ground occlusion under 3D buildings and objects. MapLibre only. */
+  shadows: ShadowMode
   poiLabels: boolean
   roadLabels: boolean
   transitLabels: boolean

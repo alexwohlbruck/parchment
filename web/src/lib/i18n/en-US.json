@@ -1896,6 +1896,15 @@
         "3dBuildings": "3D buildings",
         "3dObjects": "3D objects",
         "3dObjectsDescription": "Draw trees and street furniture as models. MapLibre only.",
+        "shadows": {
+          "title": "Shadows",
+          "description": "Building and object shadows. “When tilted” hides them in the flat top-down view.",
+          "values": {
+            "off": "Off",
+            "tilted": "When tilted",
+            "always": "Always"
+          }
+        },
         "hdRoads": "HD roads",
         "hdRoadsDescription": "Draw lanes, crosswalks and turn arrows at street level",
         "indoorMaps": "Indoor maps",

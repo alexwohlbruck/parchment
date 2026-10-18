@@ -24,11 +24,12 @@ import {
   MapPinIcon,
   RouteIcon,
   DoorOpenIcon,
+  SunIcon,
 } from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map/map.service'
-import { MapEngine, type MapStyleId, type PoiStyleId } from '@/types/map.types'
+import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
@@ -173,6 +174,33 @@ const handleColorChange = (value: any) => {
           :model-value="settings.objects3d"
           @update:model-value="mapService.toggle3dObjects()"
         />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.configuration.shadows.title')"
+        :description="
+          $t('settings.mapSettings.configuration.shadows.description')
+        "
+        :icon="SunIcon"
+      >
+        <Select
+          :model-value="settings.shadows"
+          @update:model-value="v => (settings.shadows = v as ShadowMode)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="mode in Object.values(ShadowMode)"
+              :key="mode"
+              :value="mode"
+            >
+              {{ $t(`settings.mapSettings.configuration.shadows.values.${mode}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </SettingsItem>
 
       <SettingsItem

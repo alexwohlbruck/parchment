@@ -17,6 +17,7 @@ import {
   LocateFlySpeed,
   StartupLocation,
   GridSnapMode,
+  ShadowMode,
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
@@ -34,6 +35,7 @@ const defaultSettings: MapSettings = {
   terrain3d: false,
   buildings3d: true,
   objects3d: true,
+  shadows: ShadowMode.ALWAYS,
   poiLabels: true,
   roadLabels: true,
   transitLabels: true,
@@ -123,6 +125,7 @@ export const useMapStore = defineStore('map', () => {
     settings.value.buildings3d = settings.value.objects3d ?? true
   }
   if (settings.value.objects3d === undefined) settings.value.objects3d = true
+  settings.value.shadows ??= ShadowMode.ALWAYS
 
   // HD roads became default-on for MapLibre. A stored `false` from the old
   // default can't be told apart from a chosen one, so clear it once.

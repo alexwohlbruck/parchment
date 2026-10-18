@@ -104,16 +104,17 @@ export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: num
 
 /**
  * `sunShade(p)`: 0 lit to 1 in the sun's shadow, for a point in the light's
- * clip space. Four hardware-filtered taps, so a soft 3-texel edge.
+ * clip space, scaled by the frame's `strength`. Four hardware-filtered taps,
+ * so a soft 3-texel edge.
  */
 export const SUN_SHADOW_GLSL = `
   uniform highp sampler2DShadow u_sunShadow;
-  uniform float u_sunOn;
+  uniform float u_sunOn; // the frame's strength, 0 with no sun
   uniform float u_sunTexel;
   uniform float u_sunBias; // depth per metre
   bool sunCovers(vec4 p) {
     vec3 c = p.xyz / p.w * 0.5 + 0.5;
-    return u_sunOn > 0.5 && all(greaterThanEqual(c.xy, vec2(0.0))) && all(lessThanEqual(c.xy, vec2(1.0))) && c.z <= 1.0;
+    return u_sunOn > 0.0 && all(greaterThanEqual(c.xy, vec2(0.0))) && all(lessThanEqual(c.xy, vec2(1.0))) && c.z <= 1.0;
   }
   float sunShade(vec4 p, float slope) {
     if (!sunCovers(p)) return 0.0;
@@ -123,7 +124,7 @@ export const SUN_SHADOW_GLSL = `
     // Lod, not plain texture: callers sample inside a per-fragment branch.
     float lit = textureLod(u_sunShadow, vec3(c.xy + vec2(-t, -t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, -t), z), 0.0)
               + textureLod(u_sunShadow, vec3(c.xy + vec2(-t, t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, t), z), 0.0);
-    return 1.0 - lit * 0.25;
+    return u_sunOn * (1.0 - lit * 0.25);
   }
 `
 
@@ -141,6 +142,8 @@ export type SunFrame = {
   depthPerMetre: number
   /** Metres a texel spans across the light, its longer side. */
   texelMetres: number
+  /** How much of the shadow shows, 0 to 1; see `shadowStrength`. */
+  strength: number
 }
 
 export const SUN_SHADOW_UNIFORMS = ['u_sunShadow', 'u_sunOn', 'u_sunTexel', 'u_sunBias'] as const
@@ -161,7 +164,7 @@ function emptySunTexture(gl: WebGL2RenderingContext): WebGLTexture {
 
 /** Point the receiver's sampler at this frame's map, or at nothing. */
 export function bindSun(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, frame: SunFrame | null) {
-  gl.uniform1f(u.u_sunOn, frame ? 1 : 0)
+  gl.uniform1f(u.u_sunOn, frame ? frame.strength : 0)
   gl.uniform1f(u.u_sunTexel, 1 / SUN_SHADOW_SIZE)
   gl.uniform1f(u.u_sunBias, frame?.depthPerMetre ?? 0)
   gl.uniform1i(u.u_sunShadow, SUN_SHADOW_UNIT)

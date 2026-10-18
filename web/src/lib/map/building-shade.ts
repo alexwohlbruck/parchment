@@ -63,7 +63,7 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.3, aoIntensity: 0.4, strength: 0.26, edge: 0.28 },
+  light: { shadowAlpha: 0.76, aoIntensity: 0.33, strength: 0.26, edge: 0.28 },
   dark: { shadowAlpha: 0.25, aoIntensity: 0.57, strength: 0.39, edge: 0.44 },
 }
 
@@ -72,6 +72,11 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * sides, blue-violet cast shadows, walls lightening toward their tops and
  * roofs a step above the walls. Night keeps the neutral defaults.
  */
+const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
+  light: { shadowBlur: 8.5, aoRadiusMin: 47, aoRadiusMax: 204, aoOffset: [0, 0, 0] },
+  dark: {},
+}
+
 const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
   light: {
     sunTint: [1.06, 1.01, 0.92],
@@ -79,7 +84,6 @@ const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
     shadowColor: [0.16, 0.2, 0.4],
     wallRise: 0.14,
     roofLift: 0.07,
-    shadowBlur: 3.5,
   },
   dark: {},
 }
@@ -98,7 +102,7 @@ const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.08, dark: 0.19 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.1, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -123,9 +127,9 @@ export function shadeLightIntensity(flavor: FlavorId) {
  * on a retina display as on an ordinary one, which is the opposite of what a
  * border should do.
  */
-const EDGE_WIDTH_CSS_PX = 2.55
-function edgeWidth(): number {
-  return EDGE_WIDTH_CSS_PX * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
+const EDGE_WIDTH_CSS_PX: Record<FlavorId, number> = { light: 1.9, dark: 2.55 }
+function edgeWidth(flavor: FlavorId): number {
+  return EDGE_WIDTH_CSS_PX[flavor] * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }
 
 /**
@@ -198,10 +202,11 @@ export function createBuildingShade(
     shadowOffset: [...SHADOW_OFFSET],
     shadowCasters,
     sdfResolution: SDF_RESOLUTION,
-    edgeWidth: edgeWidth(),
+    edgeWidth: edgeWidth(flavor),
     facade: FACADE_FLAVOR[flavor],
     sunShadows: true,
     ...SHAPE,
+    ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
     ...DAYLIGHT[flavor],
   })
@@ -328,8 +333,9 @@ export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
 export function buildingShadeDefaults(flavor: FlavorId) {
   return {
     ...SHAPE,
+    ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
-    edgeWidth: edgeWidth(),
+    edgeWidth: edgeWidth(flavor),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
     tint: BUILDING_TINT[flavor],
     intensity: LIGHT_INTENSITY[flavor],

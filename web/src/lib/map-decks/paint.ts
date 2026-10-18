@@ -36,6 +36,20 @@ function atGradeAt(deck: DeckSurface, i: number, t: number): boolean {
   return Math.min(d, deck.d[deck.d.length - 1] - d) <= AT_GRADE.reach && at(deck.z) - (deck.ground ? at(deck.ground) : -Infinity) < AT_GRADE.over
 }
 
+const quads = new WeakMap<DeckSurface, Array<{ quad: Point[] | null; bounds: Bounds | null }>>()
+
+/** `drawnQuad` and its bounds, worked out once per deck segment: paint asks for them per triangle. */
+function quadOf(deck: DeckSurface, i: number): { quad: Point[] | null; bounds: Bounds | null } {
+  let list = quads.get(deck)
+  if (!list) quads.set(deck, (list = []))
+  let q = list[i]
+  if (!q) {
+    const quad = drawnQuad(deck, i)
+    q = list[i] = { quad, bounds: quad ? boundsOf(quad) : null }
+  }
+  return q
+}
+
 /** A deck segment's drawn top, as `deckMesh` laid it, its corners at the deck's very ends run on a little past them. */
 function drawnQuad(deck: DeckSurface, i: number): Point[] | null {
   const tops = deck.tops
@@ -80,7 +94,7 @@ export function paintOf(feature: any): Paint {
 }
 
 /** What a mark is laid on: the deck under each point, and whether it keeps its colour below street zoom. */
-type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground }
+type Laid = { under: Array<Hit | null>; surfaces: DeckSurface[]; keep?: boolean; grounded?: boolean; ground?: Ground; on?: (deck: DeckSurface) => boolean }
 
 /**
  * The ground beside a deck's ends, where a bridge's own road and paint carry on
@@ -132,9 +146,9 @@ function runsAlong(surfaces: DeckSurface[], hit: Hit | null, line: Point[], i: n
 /**
  * Every marking laid on the surfaces beneath it; what lies on none is left
  * out. Paint `atGrade` is the road's beyond a bridge, laid only where a deck
- * lies on the ground and so would hide it.
+ * lies on the ground and so would hide it. Areas go only on the decks `on` accepts.
  */
-export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, past, parts = 'both' }: { atGrade?: boolean; ground?: Ground; past?: PastEnd[]; parts?: 'areas' | 'lines' | 'both' } = {}) {
+export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], colors: PaintColors, origin: Point, { atGrade = false, ground, past, parts = 'both', on }: { atGrade?: boolean; ground?: Ground; past?: PastEnd[]; parts?: 'areas' | 'lines' | 'both'; on?: (deck: DeckSurface) => boolean } = {}) {
   const grounded = (hit: Hit | null) => (hit && atGradeAt(surfaces[hit.deck], hit.segment, hit.t) ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
@@ -154,7 +168,7 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
       : laid
     let next = 0
     const lift = props.color === 'white' ? 0.03 : props.color === 'asphalt' ? 0.01 : 0.02
-    if (parts !== 'lines') for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground }, color, lift, origin)
+    if (parts !== 'lines') for (const rings of areas) fill(mesh, rings, { under: under.rings.slice(next, (next += rings.length)).flat(), surfaces, grounded: atGrade, ground, on }, color, lift, origin)
     const width = PAINT_WIDTH[props.kind] ?? 0.12
     if (parts !== 'areas') for (const [k, line] of lines.entries())
       for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
@@ -217,7 +231,7 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
     const level = levelNear(centre)
     if (level !== null)
       for (const [k, d] of laid.surfaces.entries())
-        if (d.kind === 'road' && d.tops && d.bounds && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
+        if (d.kind === 'road' && d.tops && d.bounds && (!laid.on || laid.on(d)) && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
     // Beside a deck's end the rest lies on the ground: the triangle less every stretch of deck lying low.
     if (laid.ground && onGround(laid, centre, false)) {
       let rest = [tri]
@@ -225,8 +239,8 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
         if (!d.tops || !d.bounds || !meets(d.bounds, box)) continue
         for (let i = 1; i < d.points.length && rest.length; i++) {
           if (d.ground && Math.min(d.z[i - 1] - d.ground[i - 1], d.z[i] - d.ground[i]) >= AT_GRADE.over) continue
-          const quad = drawnQuad(d, i)!
-          if (meets(boundsOf(quad), box)) rest = rest.flatMap(piece => subtractConvex(piece, quad))
+          const { quad, bounds } = quadOf(d, i)
+          if (meets(bounds!, box)) rest = rest.flatMap(piece => subtractConvex(piece, quad!))
         }
       }
       for (const piece of rest) {
@@ -247,8 +261,9 @@ function onTops(mesh: Mesh, triangle: Point[], k: number, laid: Laid, color: num
   for (let i = 1; i < deck.points.length; i++) {
     if (laid.grounded && !atGradeAt(deck, i, 0) && !atGradeAt(deck, i, 1)) continue
     const top = deck.tops![i - 1]
-    const outline = drawnQuad(deck, i)!
-    if (!meets(boundsOf(outline), box)) continue
+    const { quad, bounds } = quadOf(deck, i)
+    if (!meets(bounds!, box)) continue
+    const outline = quad!
     for (const [a, b, c] of [[0, 1, 2], [0, 2, 3]]) {
       const piece = convexClip(triangle, [outline[a], outline[b], outline[c]])
       if (piece.length < 3) continue
@@ -274,15 +289,16 @@ function biasT(deck: DeckSurface, i: number, bias: number): number {
 function hitOn(laid: Laid, k: number, p: Point): Hit | null {
   if (k < 0) return onGround(laid, p, false)
   const deck = laid.surfaces[k]
-  let best: Hit = { deck: k, distance: Infinity, z: deck.z[0], segment: 1, t: 0 }
+  let [distance, segment, t] = [Infinity, 1, 0]
   for (let i = 1; i < deck.points.length; i++) {
     const [a, b] = [deck.points[i - 1], deck.points[i]]
     const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
-    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
-    const distance = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1])
-    if (distance < best.distance) best = { deck: k, distance, z: topZ(deck, i, p) ?? deck.z[i - 1] + (deck.z[i] - deck.z[i - 1]) * t, segment: i, t }
+    const u = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)))
+    const d = Math.hypot(a[0] + dx * u - p[0], a[1] + dy * u - p[1])
+    if (d < distance) [distance, segment, t] = [d, i, u]
   }
-  return best
+  if (distance === Infinity) return { deck: k, distance, z: deck.z[0], segment: 1, t: 0 }
+  return { deck: k, distance, z: topZ(deck, segment, p) ?? deck.z[segment - 1] + (deck.z[segment] - deck.z[segment - 1]) * t, segment, t }
 }
 
 /**

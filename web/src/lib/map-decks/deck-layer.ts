@@ -293,6 +293,7 @@ export class DeckLayer {
       this.cancelIdle = idle(() => {
         if (!this.map) return
         const built = this.build()
+        this.drawn.clear()
         if (!built) return
         // On the fixed-zoom ground the decks were solved on: the drawn terrain is a hundred times slower to ask.
         const sampler = this.groundSampler()
@@ -372,6 +373,7 @@ export class DeckLayer {
     if (!this.stale && near && read === this.built) return null
     this.stale = false
     this.built = read
+    this.drawn.clear()
     for (const f of bridges) {
       const props = f.properties ?? {}
       const tile = tileBounds(f)
@@ -512,7 +514,8 @@ export class DeckLayer {
       return boundsOf([at, [at[0] + (out[0] * PAST_END) / scale, at[1] + (out[1] * PAST_END) / scale]], half)
     })
     const onward = { ...ground, near: [...ends, ...past] }
-    layPaint(mesh, paved, surfaces, tar, this.origin, { ground })
+    // An asphalt deck is its carriageway already; only a concrete one, and the ground past the ends, need it laid on.
+    layPaint(mesh, paved, surfaces, tar, this.origin, { ground, on: deck => !!deck.sidewalks })
     const atGrade = this.carriageways(false, ends)
     // Laid as one area, less the bridge's own, so pieces mapped apart leave no bars or notches on a deck's end.
     const joined = closedAreas(atGrade.flatMap(c => c.areas), paved.flatMap(c => c.areas), ends)
@@ -595,7 +598,17 @@ export class DeckLayer {
   }
 
   /** The terrain as drawn at a point; where none is drawn yet, the fixed-zoom ground stretched as the terrain is. */
+  /** `drawnGround` answers within one build, which asks again for the same points many times over. */
+  private drawn = new Map<string, number | null>()
+
   private drawnGround(q: Point): number | null {
+    const key = `${q[0]},${q[1]}`
+    let g = this.drawn.get(key)
+    if (g === undefined) this.drawn.set(key, (g = this.groundNow(q)))
+    return g
+  }
+
+  private groundNow(q: Point): number | null {
     const g = this.map.queryTerrainElevation?.(unprojected(q))
     if (typeof g === 'number' && g !== 0) return g
     const read = this.groundSampler()?.at(q)

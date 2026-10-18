@@ -98,7 +98,7 @@ const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.42, dark: 0.19 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.08, dark: 0.19 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -306,9 +306,7 @@ export function isSunOverridden(): boolean {
  * `(sin a, cos a)`; the shadow is the negative of that.
  */
 export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
-  // TEMP (do not commit): pin the sun to 2 pm Eastern (18:00 UTC) for review.
-  const pinned = new Date(date); pinned.setUTCHours(18, 0, 0, 0)
-  const { azimuth, altitude } = sunOverride ?? sunPosition(pinned, lat, lng)
+  const { azimuth, altitude } = sunOverride ?? sunPosition(date, lat, lng)
 
   // Ease in over the few degrees above the cutoff rather than snapping on, so
   // sunrise arrives as a fade instead of a jump.

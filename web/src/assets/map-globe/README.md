@@ -39,6 +39,22 @@ Credit: NASA Goddard Space Flight Center / Reto Stöckli. The composite combines
 visible imagery from two days and polar infrared imagery from a third day.
 Regenerate with `node web/scripts/build-clouds.mjs`.
 
-The texture loads only in globe view and occupies one GPU channel. Clouds sit
+The bundled texture is a fallback for the current 4K cloud feed from
+[Live Cloud Maps](https://github.com/matteason/live-cloud-maps). That feed
+contains modified EUMETSAT data, is published every three hours, and supports
+browser CORS. It is about 1.5 MB and can have missing regions or older imagery
+when satellite observations are unavailable. Polar gaps are mirrored by the
+provider. The renderer checks for updates every three hours while the satellite
+or hybrid globe is visible; it keeps existing imagery if an update fails.
+
+The texture loads only in satellite/hybrid globe view and occupies one GPU channel. Clouds sit
 7 km above Earth, receive sunlight, cast soft surface shadows, and fade out
 with the globe effect as you zoom in.
+
+# Ocean reflections
+
+`ocean-mask.webp` is a 3072 × 1536 lossless mask generated from Natural Earth's
+public-domain 1:50m land polygons, version 5.1.2. White marks ocean, black land.
+Regenerate with `node web/scripts/build-ocean-mask.mjs`. The 115 KiB mask limits
+satellite/hybrid ocean tint and sun glint to water; polar reflectivity fades
+out toward the ice caps. It adds no live data dependency.

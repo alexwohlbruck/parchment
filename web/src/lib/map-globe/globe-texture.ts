@@ -3,8 +3,9 @@ export class GlobeTexture {
   private bitmap?: ImageBitmap
   private request?: AbortController
   private loadedAt?: number
+  private refreshTimer?: ReturnType<typeof setTimeout>
 
-  constructor(private readonly url: string, private readonly options: { singleChannel?: boolean; clamp?: boolean } = {}) {}
+  constructor(private readonly url: string, private readonly options: { singleChannel?: boolean; clamp?: boolean; fallbackUrl?: string; refreshMs?: number } = {}) {}
 
   get ready() {
     return this.loadedAt !== undefined
@@ -17,21 +18,34 @@ export class GlobeTexture {
   load(repaint: () => void) {
     if (this.request) return
     const request = this.request = new AbortController()
-    void fetch(this.url, { signal: request.signal })
-      .then(response => {
-        if (!response.ok) throw new Error(`Globe texture: ${response.status}`)
-        return response.blob()
+    const retrieve = async (url: string) => {
+      const response = await fetch(url, { signal: request.signal })
+      if (!response.ok) throw new Error(`Globe texture: ${response.status}`)
+      return createImageBitmap(await response.blob(), { colorSpaceConversion: 'none' })
+    }
+    void retrieve(this.url)
+      .catch(error => {
+        if (request.signal.aborted || !this.options.fallbackUrl || this.ready) throw error
+        return retrieve(this.options.fallbackUrl)
       })
-      .then(blob => createImageBitmap(blob, { colorSpaceConversion: 'none' }))
       .then(bitmap => {
         if (request.signal.aborted) {
           bitmap.close()
           return
         }
+        this.bitmap?.close()
         this.bitmap = bitmap
         repaint()
       })
       .catch(() => {})
+      .finally(() => {
+        if (!this.options.refreshMs || request.signal.aborted) return
+        this.refreshTimer = setTimeout(() => {
+          this.refreshTimer = undefined
+          this.request = undefined
+          repaint()
+        }, this.options.refreshMs)
+      })
   }
 
   bind(gl: WebGL2RenderingContext, unit = 0) {
@@ -55,11 +69,13 @@ export class GlobeTexture {
       if (!this.options.clamp) gl.generateMipmap(gl.TEXTURE_2D)
       this.bitmap.close()
       this.bitmap = undefined
-      this.loadedAt = performance.now()
+      this.loadedAt ??= performance.now()
     }
   }
 
   dispose(gl: WebGL2RenderingContext) {
+    clearTimeout(this.refreshTimer)
+    this.refreshTimer = undefined
     this.request?.abort()
     this.request = undefined
     this.bitmap?.close()

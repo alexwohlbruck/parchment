@@ -2,17 +2,19 @@
 
 ### Added
 
-* Clouds wrap around the globe with sunlight, warm twilight, and soft shadows, using a lightweight NASA composite.
+* Satellite and hybrid globes show recent satellite clouds with sunlight, warm twilight, and soft shadows.
 
 * The globe’s sky shows a real Milky Way panorama, and exposure gradually adjusts to reveal the galaxy and terrain as you rotate toward the night side.
 
-* Day & Night shows city lights from NASA’s Black Marble imagery across the globe’s dark side.
+* Day & Night shows NASA city lights on the dark side of satellite and hybrid globes.
 
 * A softly glowing sun appears in the globe’s sky at its real position, disappearing behind Earth as you rotate.
 
 * The globe has a starry night sky and a soft blue atmosphere that fade away as you zoom in.
 
 ### Changed
+
+* Satellite and hybrid globes have deeper blue oceans and soft sun reflections on the water.
 
 * The globe has a fuller blue atmosphere and pale daylight haze. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
 

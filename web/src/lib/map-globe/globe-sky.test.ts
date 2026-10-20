@@ -94,20 +94,49 @@ describe('GlobeSky', () => {
     expect(calls.createProgram).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps cloud, ocean, and city-light imagery off the standard map', () => {
+    const { gl, calls } = context()
+    const host = {
+      getZoom: () => 2, getPixelRatio: () => 1,
+      getLayer: () => ({}), getLayoutProperty: () => 'visible',
+    } as unknown as Map
+    vi.stubGlobal('DOMMatrix', {
+      fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
+    })
+    let satellite = true
+    const sky = new GlobeSky(() => satellite)
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => /clouds\.(webp|jpg)/.test(String(url)))).toBe(true)
+    vi.mocked(fetch).mockClear()
+    satellite = false
+    sky.render(gl, input(1))
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_cloud_blend', 0)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_lights_blend', 0)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_ocean_blend', 0)
+    expect(fetch).not.toHaveBeenCalled()
+    sky.onRemove(host, gl)
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
+    expect(urls.some(url => /clouds|night-lights|ocean-mask/.test(url))).toBe(false)
+    sky.onRemove(host, gl)
+  })
+
   it('cancels pending globe imagery and releases all texture slots on removal', () => {
     const { gl, calls } = context()
     vi.stubGlobal('DOMMatrix', {
       fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
     })
-    const sky = new GlobeSky()
+    const sky = new GlobeSky(() => true)
     sky.onAdd(map(), gl)
     sky.render(gl, input(1))
     const requests = vi.mocked(fetch).mock.calls
-    expect(requests.some(([url]) => String(url).includes('clouds.webp'))).toBe(true)
+    expect(requests.some(([url]) => /clouds\.(webp|jpg)/.test(String(url)))).toBe(true)
     expect(calls.uniform1i).toHaveBeenCalledWith('u_clouds', 3)
     sky.onRemove(map(), gl)
     for (const [, options] of requests) expect(options?.signal?.aborted).toBe(true)
-    expect(calls.deleteTexture).toHaveBeenCalledTimes(4)
+    expect(calls.deleteTexture).toHaveBeenCalledTimes(5)
   })
 
   it('cleans up both shaders and the program if the fragment shader fails', () => {

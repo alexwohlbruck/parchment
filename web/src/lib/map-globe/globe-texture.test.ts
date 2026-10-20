@@ -12,7 +12,10 @@ function context() {
   return { calls, gl: calls as unknown as WebGL2RenderingContext }
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 describe('globe texture', () => {
   it('loads once on demand, uploads a single-channel texture, and releases decoded pixels', async () => {
@@ -85,6 +88,55 @@ describe('globe texture', () => {
     finish(bitmap)
     await vi.waitFor(() => expect(bitmap.close).toHaveBeenCalledOnce())
     expect(repaint).not.toHaveBeenCalled()
+  })
+
+  it('uses bundled cloud imagery when the current feed is unavailable', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: true, blob: async () => new Blob() })
+    vi.stubGlobal('fetch', fetch)
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })))
+    const clouds = new GlobeTexture('/current-clouds.jpg', { fallbackUrl: '/clouds.webp' })
+    const repaint = vi.fn()
+    clouds.load(repaint)
+    await vi.waitFor(() => expect(repaint).toHaveBeenCalledOnce())
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(['/current-clouds.jpg', '/clouds.webp'])
+    const { gl } = context()
+    clouds.bind(gl)
+    expect(clouds.ready).toBe(true)
+    clouds.dispose(gl)
+  })
+
+  it('refreshes only when rendered, keeps the previous image on failure, and cancels its timer', async () => {
+    vi.useFakeTimers()
+    const fetch = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob() })
+    vi.stubGlobal('fetch', fetch)
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })))
+    const clouds = new GlobeTexture('/clouds.jpg', { refreshMs: 1000, fallbackUrl: '/static.webp' })
+    const repaint = vi.fn()
+    const { gl, calls } = context()
+    clouds.load(repaint)
+    await vi.waitFor(() => expect(repaint).toHaveBeenCalledOnce())
+    clouds.bind(gl)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(fetch).toHaveBeenCalledOnce()
+    clouds.load(repaint)
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(repaint).toHaveBeenCalledTimes(3))
+    clouds.bind(gl)
+    expect(clouds.blend).toBe(1)
+    expect(calls.texImage2D).toHaveBeenCalledTimes(3)
+    fetch.mockResolvedValue({ ok: false, status: 503 })
+    await vi.advanceTimersByTimeAsync(1000)
+    clouds.load(repaint)
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3))
+    await vi.advanceTimersByTimeAsync(0)
+    clouds.bind(gl)
+    expect(clouds.ready).toBe(true)
+    expect(calls.texImage2D).toHaveBeenCalledTimes(3)
+    clouds.dispose(gl)
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
 
   it('keeps the black fallback when imagery is unavailable', async () => {

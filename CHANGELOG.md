@@ -12,7 +12,9 @@
 
 ### Changed
 
-* The globe has a fuller blue atmosphere. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
+* The globe’s atmosphere has a thin blue shell, pale sunlight haze, and warmer twilight shaped by Earth’s shadow.
+
+* Day & Night adds sunlit terrain and a soft twilight boundary in map and satellite views.
 
 ### Fixed
 

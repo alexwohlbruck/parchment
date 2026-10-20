@@ -22,3 +22,18 @@ view. Regenerate with `node web/scripts/build-milky-way.mjs`.
 The panorama is in galactic coordinates, with the Galactic Centre in the
 middle and galactic north at the top. The renderer rotates it into Earth's
 frame using sidereal time and the equatorial-to-galactic rotation.
+
+# Atmosphere transmission
+
+`transmittance.png` is a 256 × 64 lookup of sunlight transmission through a
+100 km atmosphere, including Rayleigh scattering, aerosol extinction, ozone
+absorption, and Earth's shadow. The model and density profiles are in
+`lib/map-globe/atmosphere.ts`; regenerate with `bun web/scripts/build-atmosphere.ts`.
+
+The renderer integrates single scattering through the spherical shell with
+8-point quadrature and samples this lookup for the sunlight reaching each
+point. This is a compact single-scattering approximation rather than a full
+multiple-scattering simulation. Background imagery and city lights are
+attenuated by the air along the view ray.
+
+Model reference: [Bruneton's atmosphere parameter definitions](https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/definitions.glsl.html).

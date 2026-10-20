@@ -1,3 +1,4 @@
+import { ATMOSPHERE_GLSL } from './atmosphere'
 import { GlobeTexture } from './globe-texture'
 import { Exposure, meterExposure } from './exposure'
 import { galacticRotation } from './celestial'
@@ -5,6 +6,7 @@ import { DAYNIGHT_LAYER_ID, globeSunDirection } from '@/lib/daynight/daynight'
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl'
 
 const nightLightsUrl = new URL('../../assets/map-globe/night-lights.webp', import.meta.url).href
+const transmittanceUrl = new URL('../../assets/map-globe/transmittance.png', import.meta.url).href
 const milkyWayUrl = new URL('../../assets/map-globe/milky-way.webp', import.meta.url).href
 
 const vertex = `#version 300 es
@@ -35,7 +37,10 @@ uniform sampler2D u_milky_way;
 uniform mat3 u_galactic;
 uniform float u_galaxy_blend;
 uniform float u_exposure;
+uniform sampler2D u_transmittance;
+uniform float u_atmosphere_blend;
 out vec4 fragColor;
+${ATMOSPHERE_GLSL}
 vec3 hash(vec2 p) {
     vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     q += dot(q, q.yxz + 33.33);
@@ -115,12 +120,23 @@ void main() {
     spaceColor += vec3(0.86, 0.91, 1.0) * stars(galactic) * (1.0 - min(1.0, outerHaze * scatter)) * mix(1.0, 0.6, u_galaxy_blend) * atmosphereExposure;
     float hazeAlpha = min(0.8, innerHaze * scatter * atmosphereExposure * 0.55);
     vec3 surfaceColor = atmosphereColor * innerHaze * scatter * atmosphereExposure + vec3(0.004, 0.008, 0.02) * shadow;
+    vec3 transmission = vec3(1.0);
+    float daylightHaze = mix(1.0, smoothstep(-0.02, 0.12, sunHeight), u_lighting) * u_atmosphere_blend;
+    if (distanceToCenter < 1.0 && daylightHaze > 0.0) {
+        float groundDistance = along - sqrt(max(0.0, 1.0 - distanceToCenter * distanceToCenter));
+        vec3 atmosphereSun = normalize(mix(-ray, u_sun, u_lighting));
+        Atmosphere atmosphere = scatterAtmosphere(v_near, ray, atmosphereSun, groundDistance);
+        transmission = mix(vec3(1.0), atmosphere.transmission, daylightHaze);
+        vec3 daylightColor = pow(1.0 - exp(-atmosphere.radiance * 8.0 * atmosphereExposure), vec3(1.0 / 2.2));
+        surfaceColor = mix(surfaceColor, daylightColor * 0.35 + vec3(0.004, 0.008, 0.02) * shadow, daylightHaze);
+        hazeAlpha = mix(hazeAlpha, 1.0 - dot(atmosphere.transmission, vec3(0.2126, 0.7152, 0.0722)), daylightHaze);
+    }
     vec2 lightsUv = vec2(atan(surface.x, surface.z) / 6.28318530718 + 0.5, 0.5 - asin(surface.y) / 3.14159265359);
     float radiance = texture(u_night_lights, lightsUv).r;
     float lights = pow(max(0.0, radiance - 0.025), 1.25);
     float night = (1.0 - smoothstep(-0.16, 0.02, sunHeight)) * u_lighting;
     vec3 cityColor = mix(vec3(1.0, 0.46, 0.12), vec3(1.0, 0.90, 0.62), smoothstep(0.25, 0.8, lights));
-    surfaceColor += vec3(1.0) - exp(-cityColor * lights * night * 1.8 * atmosphereExposure);
+    surfaceColor += (vec3(1.0) - exp(-cityColor * lights * night * 1.8 * atmosphereExposure)) * transmission;
     vec3 color = mix(surfaceColor, spaceColor, outside);
     float alpha = mix(shadow + hazeAlpha * (1.0 - shadow), 1.0, outside) * u_opacity;
     fragColor = vec4(color * u_opacity, alpha);
@@ -152,8 +168,11 @@ export class GlobeSky implements CustomLayerInterface {
   private lighting?: WebGLUniformLocation | null
   private nightBrightness?: WebGLUniformLocation | null
   private lightsSampler?: WebGLUniformLocation | null
-  private lights = new GlobeTexture(nightLightsUrl, true)
+  private lights = new GlobeTexture(nightLightsUrl, { singleChannel: true })
   private galaxy = new GlobeTexture(milkyWayUrl)
+  private atmosphere = new GlobeTexture(transmittanceUrl, { clamp: true })
+  private transmittanceSampler?: WebGLUniformLocation | null
+  private atmosphereBlend?: WebGLUniformLocation | null
   private exposure = new Exposure()
   private milkyWaySampler?: WebGLUniformLocation | null
   private galactic?: WebGLUniformLocation | null
@@ -194,6 +213,8 @@ export class GlobeSky implements CustomLayerInterface {
     this.galactic = gl.getUniformLocation(program, 'u_galactic')
     this.galaxyBlend = gl.getUniformLocation(program, 'u_galaxy_blend')
     this.exposureUniform = gl.getUniformLocation(program, 'u_exposure')
+    this.transmittanceSampler = gl.getUniformLocation(program, 'u_transmittance')
+    this.atmosphereBlend = gl.getUniformLocation(program, 'u_atmosphere_blend')
   }
 
   render(context: WebGLRenderingContext | WebGL2RenderingContext, input: CustomRenderMethodInput) {
@@ -220,12 +241,16 @@ export class GlobeSky implements CustomLayerInterface {
     const sun = globeSunDirection(date)
     const targetExposure = lighting ? meterExposure(inverseMatrix, sun) : 1
     gl.uniform1f(this.exposureUniform!, this.exposure.update(targetExposure, performance.now()))
+    this.atmosphere.load(() => this.map?.triggerRepaint())
+    this.atmosphere.bind(gl, 2)
+    gl.uniform1i(this.transmittanceSampler!, 2)
+    gl.uniform1f(this.atmosphereBlend!, this.atmosphere.blend)
     this.galaxy.load(() => this.map?.triggerRepaint())
     this.galaxy.bind(gl, 1)
     gl.uniform1i(this.milkyWaySampler!, 1)
     gl.uniformMatrix3fv(this.galactic!, false, galacticRotation(date))
     gl.uniform1f(this.galaxyBlend!, this.galaxy.blend)
-    if (!this.exposure.settled || (this.galaxy.ready && this.galaxy.blend < 1)) this.map.triggerRepaint()
+    if (!this.exposure.settled || (this.galaxy.ready && this.galaxy.blend < 1) || (this.atmosphere.ready && this.atmosphere.blend < 1)) this.map.triggerRepaint()
     if (lighting) this.lights.load(() => this.map?.triggerRepaint())
     this.lights.bind(gl)
     gl.uniform1i(this.lightsSampler!, 0)
@@ -242,6 +267,7 @@ export class GlobeSky implements CustomLayerInterface {
     const gl = context as WebGL2RenderingContext
     this.lights.dispose(gl)
     this.galaxy.dispose(gl)
+    this.atmosphere.dispose(gl)
     this.exposure = new Exposure()
     if (this.program) gl.deleteProgram(this.program)
     if (this.vao) gl.deleteVertexArray(this.vao)

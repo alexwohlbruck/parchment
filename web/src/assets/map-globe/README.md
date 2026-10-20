@@ -22,3 +22,11 @@ view. Regenerate with `node web/scripts/build-milky-way.mjs`.
 The panorama is in galactic coordinates, with the Galactic Centre in the
 middle and galactic north at the top. The renderer rotates it into Earth's
 frame using sidereal time and the equatorial-to-galactic rotation.
+
+# Daylight haze
+
+`transmittance.png` is a 256 × 64 sunlight-transmission lookup generated from
+the atmosphere model. It adds about 14 KB and loads only in globe view.
+Regenerate with `bun web/scripts/build-atmosphere.ts`. The daylight surface
+uses scattering through a 100 km shell; the outer glow and nighttime haze
+use the softer halo.

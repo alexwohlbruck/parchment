@@ -12,7 +12,7 @@
 
 ### Changed
 
-* The globe has a fuller blue atmosphere. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
+* The globe has a fuller blue atmosphere and pale daylight haze. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
 
 ### Fixed
 

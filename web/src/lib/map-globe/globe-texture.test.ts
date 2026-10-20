@@ -6,6 +6,8 @@ function context() {
     activeTexture: vi.fn(), createTexture: vi.fn(() => ({})), bindTexture: vi.fn(),
     texImage2D: vi.fn(), texParameteri: vi.fn(), generateMipmap: vi.fn(), deleteTexture: vi.fn(),
     R8: 33321, RED: 6403, RGB8: 32849, RGB: 6407, TEXTURE0: 33984,
+    TEXTURE_2D: 3553, TEXTURE_MIN_FILTER: 10241, TEXTURE_WRAP_S: 10242,
+    LINEAR: 9729, CLAMP_TO_EDGE: 33071,
   }
   return { calls, gl: calls as unknown as WebGL2RenderingContext }
 }
@@ -18,7 +20,7 @@ describe('globe texture', () => {
     const bitmap = { close: vi.fn() }
     vi.stubGlobal('fetch', fetch)
     vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap))
-    const lights = new GlobeTexture('/night-lights.webp', true)
+    const lights = new GlobeTexture('/night-lights.webp', { singleChannel: true })
     const { gl, calls } = context()
     lights.bind(gl)
     expect(fetch).not.toHaveBeenCalled()
@@ -56,6 +58,17 @@ describe('globe texture', () => {
     expect(panorama.ready).toBe(false)
   })
 
+  it('samples an atmosphere lookup linearly without wrapping or mipmaps', () => {
+    const lookup = new GlobeTexture('/transmittance.png', { clamp: true })
+    const { gl, calls } = context()
+    lookup.bind(gl, 2)
+    expect(calls.activeTexture).toHaveBeenCalledWith(calls.TEXTURE0 + 2)
+    expect(calls.texParameteri).toHaveBeenCalledWith(calls.TEXTURE_2D, calls.TEXTURE_MIN_FILTER, calls.LINEAR)
+    expect(calls.texParameteri).toHaveBeenCalledWith(calls.TEXTURE_2D, calls.TEXTURE_WRAP_S, calls.CLAMP_TO_EDGE)
+    expect(calls.generateMipmap).not.toHaveBeenCalled()
+    lookup.dispose(gl)
+  })
+
   it('aborts a removed layer and closes an image that finishes decoding afterward', async () => {
     let finish!: (bitmap: { close: () => void }) => void
     const bitmap = { close: vi.fn() }
@@ -63,7 +76,7 @@ describe('globe texture', () => {
     const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({ ok: true, blob: async () => new Blob() }))
     vi.stubGlobal('fetch', fetch)
     vi.stubGlobal('createImageBitmap', decode)
-    const lights = new GlobeTexture('/night-lights.webp', true)
+    const lights = new GlobeTexture('/night-lights.webp', { singleChannel: true })
     const repaint = vi.fn()
     lights.load(repaint)
     await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce())
@@ -78,7 +91,7 @@ describe('globe texture', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })))
     const decode = vi.fn()
     vi.stubGlobal('createImageBitmap', decode)
-    const lights = new GlobeTexture('/night-lights.webp', true)
+    const lights = new GlobeTexture('/night-lights.webp', { singleChannel: true })
     lights.load(vi.fn())
     await new Promise(resolve => setTimeout(resolve, 0))
     const { gl, calls } = context()

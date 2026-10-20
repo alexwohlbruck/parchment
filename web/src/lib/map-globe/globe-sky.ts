@@ -1,3 +1,5 @@
+import { NightLights } from './night-lights'
+import { DAYNIGHT_LAYER_ID, globeSunDirection } from '@/lib/daynight/daynight'
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl'
 
 const vertex = `#version 300 es
@@ -20,6 +22,10 @@ in vec3 v_near;
 in vec3 v_far;
 uniform float u_opacity;
 uniform float u_pixel_ratio;
+uniform vec3 u_sun;
+uniform float u_lighting;
+uniform float u_night_brightness;
+uniform sampler2D u_night_lights;
 out vec4 fragColor;
 vec3 hash(vec2 p) {
     vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
@@ -56,6 +62,17 @@ float stars(vec3 ray) {
     }
     return light;
 }
+vec3 sunGlow(vec3 ray) {
+    float angle = acos(clamp(dot(ray, u_sun), -1.0, 1.0));
+    float antialias = max(fwidth(angle), 0.0001);
+    float disc = 1.0 - smoothstep(0.00465 - antialias, 0.00465 + antialias, angle);
+    float corona = exp(-angle / 0.014) * 0.7;
+    float bloom = exp(-pow(angle / 0.065, 1.4)) * 0.16;
+    return vec3(1.0, 0.96, 0.82) * disc
+        + vec3(1.0, 0.65, 0.26) * corona
+        + vec3(1.0, 0.50, 0.16) * bloom;
+}
+
 void main() {
     vec3 ray = normalize(v_far - v_near);
     float along = max(0.0, -dot(v_near, ray));
@@ -63,13 +80,35 @@ void main() {
     float edge = distanceToCenter - 1.0;
     float pixel = max(fwidth(distanceToCenter), 0.00001);
     float outside = smoothstep(-pixel, pixel, edge);
-    float outerHaze = exp(-max(edge, 0.0) / 0.018) * 0.4;
-    float outerRim = exp(-max(edge, 0.0) / 0.003) * 0.22;
-    float innerHaze = pow(clamp(distanceToCenter, 0.0, 1.0), 38.0) * 0.25;
-    float atmosphere = mix(innerHaze, outerHaze + outerRim, outside);
-    vec3 blue = vec3(0.32, 0.60, 0.94);
-    vec3 color = blue * atmosphere + vec3(0.86, 0.91, 1.0) * stars(ray) * outside * (1.0 - outerHaze);
-    float alpha = mix(innerHaze * 0.6, 1.0, outside) * u_opacity;
+    vec3 tangent = normalize(v_near + ray * along);
+    vec3 surface = normalize(v_near + ray * (along - sqrt(max(0.0, 1.0 - distanceToCenter * distanceToCenter))));
+    float sunHeight = dot(surface, u_sun);
+    float daylight = smoothstep(-0.12, 0.16, sunHeight);
+    float direct = pow(max(sunHeight, 0.0), 0.45);
+    float brightness = u_night_brightness + (1.0 - u_night_brightness) * daylight * (0.32 + 0.68 * direct);
+    float shadow = (1.0 - brightness) * u_lighting;
+    float limbSun = dot(tangent, u_sun);
+    float scatter = mix(1.0, 0.12 + 0.88 * smoothstep(-0.22, 0.25, limbSun), u_lighting);
+    float outerHaze = exp(-max(edge, 0.0) / 0.035) * 0.65;
+    float outerRim = exp(-max(edge, 0.0) / 0.005) * 0.35;
+    float innerHaze = exp(-sqrt(max(0.0, 1.0 - distanceToCenter * distanceToCenter)) * 5.0) * 0.6;
+    vec3 blue = vec3(0.30, 0.59, 1.0);
+    vec3 rim = vec3(0.70, 0.85, 1.0);
+    float sunset = exp(-pow(limbSun / 0.13, 2.0)) * u_lighting;
+    vec3 atmosphereColor = mix(blue, vec3(0.95, 0.40, 0.16), sunset * 0.5);
+    vec3 spaceColor = (atmosphereColor * outerHaze + rim * outerRim) * scatter;
+    spaceColor += sunGlow(ray);
+    spaceColor += vec3(0.86, 0.91, 1.0) * stars(ray) * (1.0 - min(1.0, outerHaze * scatter));
+    float hazeAlpha = innerHaze * scatter * 0.55;
+    vec3 surfaceColor = atmosphereColor * innerHaze * scatter + vec3(0.004, 0.008, 0.02) * shadow;
+    vec2 lightsUv = vec2(atan(surface.x, surface.z) / 6.28318530718 + 0.5, 0.5 - asin(surface.y) / 3.14159265359);
+    float radiance = texture(u_night_lights, lightsUv).r;
+    float lights = pow(max(0.0, radiance - 0.025), 1.25);
+    float night = (1.0 - smoothstep(-0.16, 0.02, sunHeight)) * u_lighting;
+    vec3 cityColor = mix(vec3(1.0, 0.46, 0.12), vec3(1.0, 0.90, 0.62), smoothstep(0.25, 0.8, lights));
+    surfaceColor += cityColor * lights * night * 1.8;
+    vec3 color = mix(surfaceColor, spaceColor, outside);
+    float alpha = mix(shadow + hazeAlpha * (1.0 - shadow), 1.0, outside) * u_opacity;
     fragColor = vec4(color * u_opacity, alpha);
 }`
 
@@ -95,6 +134,13 @@ export class GlobeSky implements CustomLayerInterface {
   private inverse?: WebGLUniformLocation | null
   private opacity?: WebGLUniformLocation | null
   private pixelRatio?: WebGLUniformLocation | null
+  private sun?: WebGLUniformLocation | null
+  private lighting?: WebGLUniformLocation | null
+  private nightBrightness?: WebGLUniformLocation | null
+  private lightsSampler?: WebGLUniformLocation | null
+  private lights = new NightLights()
+
+  constructor(private readonly satellite: () => boolean = () => false) {}
 
   onAdd(map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
     const gl = context as WebGL2RenderingContext
@@ -120,6 +166,10 @@ export class GlobeSky implements CustomLayerInterface {
     this.inverse = gl.getUniformLocation(program, 'u_inverse')
     this.opacity = gl.getUniformLocation(program, 'u_opacity')
     this.pixelRatio = gl.getUniformLocation(program, 'u_pixel_ratio')
+    this.sun = gl.getUniformLocation(program, 'u_sun')
+    this.lighting = gl.getUniformLocation(program, 'u_lighting')
+    this.nightBrightness = gl.getUniformLocation(program, 'u_night_brightness')
+    this.lightsSampler = gl.getUniformLocation(program, 'u_night_lights')
   }
 
   render(context: WebGLRenderingContext | WebGL2RenderingContext, input: CustomRenderMethodInput) {
@@ -139,6 +189,14 @@ export class GlobeSky implements CustomLayerInterface {
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.uniformMatrix4fv(this.inverse!, false, inverse.toFloat32Array())
+    const dayNight = this.map.getLayer(DAYNIGHT_LAYER_ID)
+    const lighting = !!dayNight && this.map.getLayoutProperty(DAYNIGHT_LAYER_ID, 'visibility') !== 'none'
+    if (lighting) this.lights.load(() => this.map?.triggerRepaint())
+    this.lights.bind(gl)
+    gl.uniform1i(this.lightsSampler!, 0)
+    gl.uniform3fv(this.sun!, globeSunDirection(new Date()))
+    gl.uniform1f(this.lighting!, lighting ? 1 : 0)
+    gl.uniform1f(this.nightBrightness!, this.satellite() ? 0.09 : 0.18)
     gl.uniform1f(this.pixelRatio!, this.map.getPixelRatio())
     gl.uniform1f(this.opacity!, fade * fade * (3 - 2 * fade))
     gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -147,6 +205,7 @@ export class GlobeSky implements CustomLayerInterface {
 
   onRemove(_map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
     const gl = context as WebGL2RenderingContext
+    this.lights.dispose(gl)
     if (this.program) gl.deleteProgram(this.program)
     if (this.vao) gl.deleteVertexArray(this.vao)
     this.program = undefined

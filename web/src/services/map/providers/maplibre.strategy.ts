@@ -460,7 +460,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
-      this.mapInstance.addLayer(new GlobeSky())
+      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()

@@ -2,9 +2,15 @@
 
 ### Added
 
+* Day & Night shows city lights from NASA’s Black Marble imagery across the globe’s dark side.
+
+* A softly glowing sun appears in the globe’s sky at its real position, disappearing behind Earth as you rotate.
+
 * The globe has a starry night sky and a soft blue atmosphere that fade away as you zoom in.
 
 ### Changed
+
+* The globe has a fuller blue atmosphere. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
 
 ### Fixed
 

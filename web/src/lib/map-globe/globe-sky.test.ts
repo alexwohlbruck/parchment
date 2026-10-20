@@ -11,7 +11,9 @@ function context() {
     createVertexArray: vi.fn(() => ({})), deleteVertexArray: vi.fn(),
     getUniformLocation: vi.fn((_program, name) => name),
     useProgram: vi.fn(), bindVertexArray: vi.fn(), disable: vi.fn(), enable: vi.fn(),
-    depthMask: vi.fn(), blendFunc: vi.fn(), uniformMatrix4fv: vi.fn(), uniform1f: vi.fn(),
+    depthMask: vi.fn(), blendFunc: vi.fn(), uniformMatrix4fv: vi.fn(), uniform1f: vi.fn(), uniform3fv: vi.fn(), uniform1i: vi.fn(),
+    activeTexture: vi.fn(), createTexture: vi.fn(() => ({})), bindTexture: vi.fn(), texImage2D: vi.fn(),
+    texParameteri: vi.fn(), generateMipmap: vi.fn(), deleteTexture: vi.fn(),
     drawArrays: vi.fn(), getShaderInfoLog: vi.fn(() => 'compile error'),
   }
   return { calls, gl: calls as unknown as WebGL2RenderingContext }
@@ -21,7 +23,7 @@ const input = (transition: number) => ({
   defaultProjectionData: { projectionTransition: transition, mainMatrix: new Float32Array(16) },
 }) as unknown as CustomRenderMethodInput
 
-const map = (zoom = 2) => ({ getZoom: () => zoom, getPixelRatio: () => 2 }) as Map
+const map = (zoom = 2) => ({ getZoom: () => zoom, getPixelRatio: () => 2, getLayer: () => undefined }) as unknown as Map
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -52,6 +54,28 @@ describe('GlobeSky', () => {
     expect(calls.uniformMatrix4fv).toHaveBeenCalledWith('u_inverse', false, inverse)
     expect(calls.depthMask).toHaveBeenCalledWith(false)
     expect(calls.drawArrays).toHaveBeenCalledOnce()
+  })
+
+  it('uses the Day & Night toggle and keeps satellite nights darker', () => {
+    const { gl, calls } = context()
+    let visible = true
+    const host = {
+      getZoom: () => 2, getPixelRatio: () => 1,
+      getLayer: () => ({}), getLayoutProperty: () => visible ? 'visible' : 'none',
+    } as unknown as Map
+    vi.stubGlobal('DOMMatrix', {
+      fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
+    })
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const sky = new GlobeSky(() => true)
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_lighting', 1)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_night_brightness', 0.09)
+    expect(calls.uniform3fv).toHaveBeenCalledOnce()
+    visible = false
+    sky.render(gl, input(1))
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_lighting', 0)
   })
 
   it('releases resources on a style change and can be added again', () => {

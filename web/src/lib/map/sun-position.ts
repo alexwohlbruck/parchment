@@ -49,6 +49,14 @@ function sunCoords(days: number) {
   }
 }
 
+export function subSolarPoint(date: Date): { lat: number; lng: number } {
+  const days = toDays(date)
+  const { declination, rightAscension } = sunCoords(days)
+  const greenwichSiderealTime = (280.16 + 360.9856235 * days) * RAD
+  const longitude = (rightAscension - greenwichSiderealTime) / RAD
+  return { lat: declination / RAD, lng: ((longitude % 360) + 540) % 360 - 180 }
+}
+
 /**
  * The sun's position over `lat`/`lng` at `date`.
  *

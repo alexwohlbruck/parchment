@@ -1,4 +1,7 @@
+import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
+import { GlobeSky } from '@/lib/map-globe/globe-sky'
+import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
@@ -420,6 +423,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
+        customAttribution: [MILKY_WAY_ATTRIBUTION, CLOUDS_ATTRIBUTION],
       }),
       'bottom-left',
     )
@@ -459,6 +463,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
+      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()

@@ -4,7 +4,7 @@ export class GlobeTexture {
   private request?: AbortController
   private loadedAt?: number
 
-  constructor(private readonly url: string, private readonly options: { singleChannel?: boolean; clamp?: boolean } = {}) {}
+  constructor(private readonly url: string, private readonly singleChannel = false) {}
 
   get ready() {
     return this.loadedAt !== undefined
@@ -36,23 +36,23 @@ export class GlobeTexture {
 
   bind(gl: WebGL2RenderingContext, unit = 0) {
     gl.activeTexture(gl.TEXTURE0 + unit)
-    const internal = this.options.singleChannel ? gl.R8 : gl.RGB8
-    const format = this.options.singleChannel ? gl.RED : gl.RGB
+    const internal = this.singleChannel ? gl.R8 : gl.RGB8
+    const format = this.singleChannel ? gl.RED : gl.RGB
     if (!this.texture) {
       this.texture = gl.createTexture()!
       gl.bindTexture(gl.TEXTURE_2D, this.texture)
-      gl.texImage2D(gl.TEXTURE_2D, 0, internal, 1, 1, 0, format, gl.UNSIGNED_BYTE, new Uint8Array(this.options.singleChannel ? 1 : 3))
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, this.options.clamp ? gl.LINEAR : gl.LINEAR_MIPMAP_LINEAR)
+      gl.texImage2D(gl.TEXTURE_2D, 0, internal, 1, 1, 0, format, gl.UNSIGNED_BYTE, new Uint8Array(this.singleChannel ? 1 : 3))
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, this.options.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-      if (!this.options.clamp) gl.generateMipmap(gl.TEXTURE_2D)
+      gl.generateMipmap(gl.TEXTURE_2D)
     } else {
       gl.bindTexture(gl.TEXTURE_2D, this.texture)
     }
     if (this.bitmap) {
       gl.texImage2D(gl.TEXTURE_2D, 0, internal, format, gl.UNSIGNED_BYTE, this.bitmap)
-      if (!this.options.clamp) gl.generateMipmap(gl.TEXTURE_2D)
+      gl.generateMipmap(gl.TEXTURE_2D)
       this.bitmap.close()
       this.bitmap = undefined
       this.loadedAt = performance.now()

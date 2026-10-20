@@ -39,6 +39,7 @@ describe('GlobeSky', () => {
     sky.render(gl, input(1))
     expect(calls.drawArrays).not.toHaveBeenCalled()
     expect(calls.useProgram).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('fades the globe effect while preserving display pixel density', () => {
@@ -91,6 +92,22 @@ describe('GlobeSky', () => {
     expect(calls.drawArrays).not.toHaveBeenCalled()
     sky.onAdd(map(), gl)
     expect(calls.createProgram).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels pending globe imagery and releases all texture slots on removal', () => {
+    const { gl, calls } = context()
+    vi.stubGlobal('DOMMatrix', {
+      fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
+    })
+    const sky = new GlobeSky()
+    sky.onAdd(map(), gl)
+    sky.render(gl, input(1))
+    const requests = vi.mocked(fetch).mock.calls
+    expect(requests.some(([url]) => String(url).includes('clouds.webp'))).toBe(true)
+    expect(calls.uniform1i).toHaveBeenCalledWith('u_clouds', 3)
+    sky.onRemove(map(), gl)
+    for (const [, options] of requests) expect(options?.signal?.aborted).toBe(true)
+    expect(calls.deleteTexture).toHaveBeenCalledTimes(4)
   })
 
   it('cleans up both shaders and the program if the fragment shader fails', () => {

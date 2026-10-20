@@ -2,6 +2,8 @@
 
 ### Added
 
+* Clouds wrap around the globe with sunlight, warm twilight, and soft shadows, using a lightweight NASA composite.
+
 * The globe’s sky shows a real Milky Way panorama, and exposure gradually adjusts to reveal the galaxy and terrain as you rotate toward the night side.
 
 * Day & Night shows city lights from NASA’s Black Marble imagery across the globe’s dark side.

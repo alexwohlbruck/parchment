@@ -30,3 +30,15 @@ the atmosphere model. It adds about 14 KB and loads only in globe view.
 Regenerate with `bun web/scripts/build-atmosphere.ts`. The daylight surface
 uses scattering through a 100 km shell; the outer glow and nighttime haze
 use the softer halo.
+
+# Clouds
+
+`clouds.webp` is a 3072 × 1536 grayscale reduction of NASA's Blue Marble cloud
+composite, not live weather. Source: [NASA Blue Marble: Clouds](https://visibleearth.nasa.gov/images/57747/blue-marble-clouds).
+Credit: NASA Goddard Space Flight Center / Reto Stöckli. The composite combines
+visible imagery from two days and polar infrared imagery from a third day.
+Regenerate with `node web/scripts/build-clouds.mjs`.
+
+The texture loads only in globe view and occupies one GPU channel. Clouds sit
+7 km above Earth, receive sunlight, cast soft surface shadows, and fade out
+with the globe effect as you zoom in.

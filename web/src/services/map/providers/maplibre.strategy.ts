@@ -1,3 +1,4 @@
+import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
@@ -422,7 +423,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
-        customAttribution: MILKY_WAY_ATTRIBUTION,
+        customAttribution: [MILKY_WAY_ATTRIBUTION, CLOUDS_ATTRIBUTION],
       }),
       'bottom-left',
     )

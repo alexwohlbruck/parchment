@@ -28,7 +28,7 @@ export function meterExposure(inverse: ArrayLike<number>, sun: readonly number[]
     }
   }
   const darkness = count ? 1 - daylight / count : 0
-  return 1 + 2.2 * darkness * darkness
+  return 1 + 1.9 * darkness * darkness
 }
 
 export class Exposure {

@@ -6,8 +6,8 @@ const inverse = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 describe('globe exposure metering', () => {
   it('keeps a sunlit hemisphere near baseline and lifts a dark hemisphere', () => {
     expect(meterExposure(inverse, [0, 0, -1])).toBeLessThan(1.1)
-    expect(meterExposure(inverse, [0, 0, 1])).toBeGreaterThan(2.9)
-    expect(meterExposure(inverse, [0, 0, 1])).toBeLessThanOrEqual(3.2)
+    expect(meterExposure(inverse, [0, 0, 1])).toBeGreaterThan(2.6)
+    expect(meterExposure(inverse, [0, 0, 1])).toBeLessThanOrEqual(2.9)
     const twilight = meterExposure(inverse, [1, 0, 0])
     expect(twilight).toBeGreaterThan(1.3)
     expect(twilight).toBeLessThan(2)

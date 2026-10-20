@@ -1,21 +1,7 @@
-import SunCalc from 'suncalc'
+import { subSolarPoint } from '@/lib/map/sun-position'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
-
-function getSubSolarPoint(date: Date): { lat: number; lng: number } {
-  const utcH = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600
-  const lng = (12 - utcH) * 15
-
-  const pos = SunCalc.getPosition(date, 0, lng)
-  const absDecl = Math.PI / 2 - pos.altitude
-
-  const posNorth = SunCalc.getPosition(date, 45, lng)
-  const posSouth = SunCalc.getPosition(date, -45, lng)
-  const lat = (posNorth.altitude > posSouth.altitude ? absDecl : -absDecl) * RAD2DEG
-
-  return { lat, lng: ((lng % 360) + 540) % 360 - 180 }
-}
 
 function getPixelColor(angularDistDeg: number): [number, number, number, number] {
   if (angularDistDeg < 87) return [0, 0, 0, 0]
@@ -47,7 +33,7 @@ function getPixelColor(angularDistDeg: number): [number, number, number, number]
   return [5, 5, 20, 0.45]
 }
 
-export function renderDayNightCanvas(width: number, height: number): HTMLCanvasElement {
+export function renderDayNightCanvas(width: number, height: number, date = new Date()): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -55,15 +41,14 @@ export function renderDayNightCanvas(width: number, height: number): HTMLCanvasE
   const imageData = ctx.createImageData(width, height)
   const data = imageData.data
 
-  const now = new Date()
-  const sun = getSubSolarPoint(now)
+  const sun = subSolarPoint(date)
   const sunLatRad = sun.lat * DEG2RAD
   const sunLngRad = sun.lng * DEG2RAD
   const sinSunLat = Math.sin(sunLatRad)
   const cosSunLat = Math.cos(sunLatRad)
 
   for (let y = 0; y < height; y++) {
-    const lat = (0.5 - y / height) * 170 * DEG2RAD
+    const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / height)))
     const sinLat = Math.sin(lat)
     const cosLat = Math.cos(lat)
 

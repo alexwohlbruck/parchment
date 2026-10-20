@@ -1,5 +1,6 @@
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
+import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
@@ -421,6 +422,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
+        customAttribution: MILKY_WAY_ATTRIBUTION,
       }),
       'bottom-left',
     )

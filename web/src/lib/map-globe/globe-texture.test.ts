@@ -1,24 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { NightLights } from './night-lights'
+import { GlobeTexture } from './globe-texture'
 
 function context() {
   const calls = {
     activeTexture: vi.fn(), createTexture: vi.fn(() => ({})), bindTexture: vi.fn(),
     texImage2D: vi.fn(), texParameteri: vi.fn(), generateMipmap: vi.fn(), deleteTexture: vi.fn(),
-    R8: 33321, RED: 6403,
+    R8: 33321, RED: 6403, RGB8: 32849, RGB: 6407, TEXTURE0: 33984,
   }
   return { calls, gl: calls as unknown as WebGL2RenderingContext }
 }
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('night-light texture', () => {
+describe('globe texture', () => {
   it('loads once on demand, uploads a single-channel texture, and releases decoded pixels', async () => {
     const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({ ok: true, blob: async () => new Blob() }))
     const bitmap = { close: vi.fn() }
     vi.stubGlobal('fetch', fetch)
     vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap))
-    const lights = new NightLights()
+    const lights = new GlobeTexture('/night-lights.webp', true)
     const { gl, calls } = context()
     lights.bind(gl)
     expect(fetch).not.toHaveBeenCalled()
@@ -37,6 +37,25 @@ describe('night-light texture', () => {
     expect(calls.deleteTexture).toHaveBeenCalledOnce()
   })
 
+  it('uploads a colour panorama on its own texture unit and fades it in', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => new Blob() })))
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })))
+    const panorama = new GlobeTexture('/milky-way.webp')
+    const repaint = vi.fn()
+    expect(panorama.ready).toBe(false)
+    panorama.load(repaint)
+    await vi.waitFor(() => expect(repaint).toHaveBeenCalledOnce())
+    const { gl, calls } = context()
+    panorama.bind(gl, 1)
+    expect(calls.activeTexture).toHaveBeenCalledWith(calls.TEXTURE0 + 1)
+    expect(calls.texImage2D.mock.calls[1][2]).toBe(calls.RGB8)
+    expect(calls.texImage2D.mock.calls[1][3]).toBe(calls.RGB)
+    expect(panorama.ready).toBe(true)
+    expect(panorama.blend).toBeLessThan(1)
+    panorama.dispose(gl)
+    expect(panorama.ready).toBe(false)
+  })
+
   it('aborts a removed layer and closes an image that finishes decoding afterward', async () => {
     let finish!: (bitmap: { close: () => void }) => void
     const bitmap = { close: vi.fn() }
@@ -44,7 +63,7 @@ describe('night-light texture', () => {
     const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({ ok: true, blob: async () => new Blob() }))
     vi.stubGlobal('fetch', fetch)
     vi.stubGlobal('createImageBitmap', decode)
-    const lights = new NightLights()
+    const lights = new GlobeTexture('/night-lights.webp', true)
     const repaint = vi.fn()
     lights.load(repaint)
     await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce())
@@ -59,7 +78,7 @@ describe('night-light texture', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })))
     const decode = vi.fn()
     vi.stubGlobal('createImageBitmap', decode)
-    const lights = new NightLights()
+    const lights = new GlobeTexture('/night-lights.webp', true)
     lights.load(vi.fn())
     await new Promise(resolve => setTimeout(resolve, 0))
     const { gl, calls } = context()

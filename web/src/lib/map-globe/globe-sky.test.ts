@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomRenderMethodInput, Map } from 'maplibre-gl'
 import { GlobeSky } from './globe-sky'
 
@@ -11,7 +11,7 @@ function context() {
     createVertexArray: vi.fn(() => ({})), deleteVertexArray: vi.fn(),
     getUniformLocation: vi.fn((_program, name) => name),
     useProgram: vi.fn(), bindVertexArray: vi.fn(), disable: vi.fn(), enable: vi.fn(),
-    depthMask: vi.fn(), blendFunc: vi.fn(), uniformMatrix4fv: vi.fn(), uniform1f: vi.fn(), uniform3fv: vi.fn(), uniform1i: vi.fn(),
+    depthMask: vi.fn(), blendFunc: vi.fn(), uniformMatrix4fv: vi.fn(), uniformMatrix3fv: vi.fn(), uniform1f: vi.fn(), uniform3fv: vi.fn(), uniform1i: vi.fn(),
     activeTexture: vi.fn(), createTexture: vi.fn(() => ({})), bindTexture: vi.fn(), texImage2D: vi.fn(),
     texParameteri: vi.fn(), generateMipmap: vi.fn(), deleteTexture: vi.fn(),
     drawArrays: vi.fn(), getShaderInfoLog: vi.fn(() => 'compile error'),
@@ -25,6 +25,7 @@ const input = (transition: number) => ({
 
 const map = (zoom = 2) => ({ getZoom: () => zoom, getPixelRatio: () => 2, getLayer: () => undefined }) as unknown as Map
 
+beforeEach(() => vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {}))))
 afterEach(() => vi.unstubAllGlobals())
 
 describe('GlobeSky', () => {

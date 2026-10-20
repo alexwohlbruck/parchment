@@ -49,10 +49,14 @@ function sunCoords(days: number) {
   }
 }
 
+export function siderealAngle(date: Date): number {
+  return ((280.16 + 360.9856235 * toDays(date)) % 360) * RAD
+}
+
 export function subSolarPoint(date: Date): { lat: number; lng: number } {
   const days = toDays(date)
   const { declination, rightAscension } = sunCoords(days)
-  const greenwichSiderealTime = (280.16 + 360.9856235 * days) * RAD
+  const greenwichSiderealTime = siderealAngle(date)
   const longitude = (rightAscension - greenwichSiderealTime) / RAD
   return { lat: declination / RAD, lng: ((longitude % 360) + 540) % 360 - 180 }
 }
@@ -69,7 +73,7 @@ export function sunPosition(date: Date, lat: number, lng: number): SunPosition {
 
   // Sidereal time at the observer's meridian, minus the sun's right ascension,
   // is how far the sun sits from due south.
-  const siderealTime = (280.16 + 360.9856235 * days) * RAD + lng * RAD
+  const siderealTime = siderealAngle(date) + lng * RAD
   const hourAngle = siderealTime - rightAscension
 
   const phi = lat * RAD

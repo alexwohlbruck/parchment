@@ -2,6 +2,8 @@
 
 ### Added
 
+* The globe’s sky shows a real Milky Way panorama, and exposure gradually adjusts to reveal the galaxy and terrain as you rotate toward the night side.
+
 * Day & Night shows city lights from NASA’s Black Marble imagery across the globe’s dark side.
 
 * A softly glowing sun appears in the globe’s sky at its real position, disappearing behind Earth as you rotate.

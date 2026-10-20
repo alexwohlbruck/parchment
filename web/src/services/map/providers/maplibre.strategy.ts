@@ -1,4 +1,5 @@
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
+import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
@@ -459,6 +460,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
+      this.mapInstance.addLayer(new GlobeSky())
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()

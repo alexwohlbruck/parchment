@@ -2,6 +2,8 @@
 
 ### Added
 
+* The globe has a starry night sky and a soft blue atmosphere that fade away as you zoom in.
+
 ### Changed
 
 ### Fixed

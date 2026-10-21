@@ -1,7 +1,9 @@
-import { atHit, densify, metresPerUnit, onOwnDeck, vertex, type DeckSurface, type Mesh, type Point } from '../decks'
+import { atHit, boundsOf, clip, densify, metresPerUnit, onOwnDeck, vertex, type DeckSurface, type Mesh, type Point } from '../decks'
 
 export function routeOverlay(mesh: Mesh, lines: Point[][], surfaces: DeckSurface[], origin: Point) {
-  const dense = lines.map(line => densify(line, 3))
+  if (!surfaces.length) return
+  const bounds = boundsOf(surfaces.flatMap(surface => surface.points), Math.max(...surfaces.map(surface => surface.width)))
+  const dense = lines.flatMap(line => clip(line, bounds)).map(line => densify(line, 3))
   const { under } = onOwnDeck(dense, [], surfaces, { centred: true })
   for (const [k, line] of dense.entries()) {
     for (const [width, lift, material] of [[4.4, 0.06, 16], [3, 0.08, 15]]) {

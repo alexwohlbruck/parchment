@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
@@ -42,11 +42,11 @@ const emit = defineEmits(['cancel'])
 
 const formSchema = toTypedSchema(
   z.object({
-    pin: z.array(z.coerce.string()).length(8, { message: 'Invalid code' }),
+    pin: z.array(z.string().regex(/^\d$/)).length(8, { message: 'Invalid code' }),
   }),
 )
 
-const { handleSubmit, setFieldValue } = useForm({
+const { handleSubmit, setFieldValue, values } = useForm({
   validationSchema: formSchema,
   initialValues: {
     pin: [],
@@ -62,10 +62,26 @@ const onSubmit = handleSubmit(({ pin }) => {
 
 const handleComplete = (e: string[]) => {
   const otp = e.join('')
-  if (autoSubmit.value) {
+  if (autoSubmit.value && /^\d{8}$/.test(otp)) {
     autoSubmit.value = false
     signIn(otp)
   }
+}
+
+async function handlePaste(event: ClipboardEvent, index: number) {
+  const digits = event.clipboardData?.getData('text').replace(/\D/g, '')
+  if (!digits) return
+
+  const start = digits.length >= 8 ? 0 : index
+  const pin = [...(values.pin ?? [])]
+  pin.splice(start, Math.min(digits.length, 8 - start), ...digits.slice(0, 8 - start))
+  setFieldValue('pin', pin)
+
+  await nextTick()
+  const inputs = (event.target as HTMLInputElement).form?.querySelectorAll<HTMLInputElement>(
+    'input[autocomplete="one-time-code"]',
+  )
+  inputs?.[Math.min(start + digits.length, 7)]?.focus()
 }
 
 async function signIn(otp: string) {
@@ -99,16 +115,15 @@ async function signIn(otp: string) {
             otp
             :name="componentField.name"
             @complete="handleComplete"
-            @update:model-value="
-              arrStr => {
-                setFieldValue('pin', arrStr.filter(Boolean))
-              }
-            "
+            @update:model-value="setFieldValue('pin', $event)"
           >
             <PinInputGroup>
               <template v-for="(id, index) in 8" :key="id">
                 <PinInputInput 
                   :index="index"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  @paste.capture.stop.prevent="handlePaste($event, index)"
                   :class="{
                     'rounded-l-md border-l': index === 0 || index === 4,
                     'rounded-r-md': index === 3 || index === 7,

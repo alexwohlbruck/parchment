@@ -8,7 +8,7 @@
 
 ### Fixed
 
-* Reduce pauses when rebuilding detailed 3D bridges and road markings.
+* Load precomputed 3D bridges and road markings from the server, reusing their geometry as you move the map.
 
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 

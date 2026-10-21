@@ -584,3 +584,29 @@ describe('GET /proxy/portolan/* — server-side caching', () => {
     expect(hit.headers.get('cache-control')).toContain('max-age=3600')
   })
 })
+
+describe('precomputed bridge mesh proxy', () => {
+  const file = `${'a'.repeat(64)}.brm`
+  test('forwards binary meshes and upstream credentials without recomputing geometry', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test', apiKey: 'bridge-key' } }]
+    fetchResponses = [new Response(new Uint8Array([66, 82, 77, 49]))]
+    const response = await req(app).get(`/proxy/barrelman/bridges/models/${file}`)
+    expect(response.status).toBe(200)
+    expect(fetchCalls[0]).toBe(`https://barrelman.test/tiles/bridges/models/${file}`)
+    expect(fetchHeaders[0].Authorization).toBe('Bearer bridge-key')
+    expect(fetchDecompress[0]).toBe(false)
+    expect(response.headers.get('cache-control')).toContain('immutable')
+  })
+  test('rejects invalid filenames before contacting Barrelman', async () => {
+    const response = await req(app).get('/proxy/barrelman/bridges/models/secret.env')
+    expect(response.status).toBe(404)
+    expect(fetchCalls).toHaveLength(0)
+  })
+  test('keeps missing meshes retryable', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test' } }]
+    fetchResponses = [new Response(null, { status: 404 })]
+    const response = await req(app).get(`/proxy/barrelman/bridges/models/${file}`)
+    expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+})

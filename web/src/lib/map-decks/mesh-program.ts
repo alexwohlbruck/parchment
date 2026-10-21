@@ -9,6 +9,9 @@ import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFram
 // sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
 const VS = `#version 300 es
   uniform mat4 u_matrix;
+  uniform float u_elevation_scale;
+  uniform bool u_materials;
+  uniform vec3 u_palette[17];
   uniform mat4 u_sunLight;
   uniform vec3 u_light;
   uniform float u_hd;
@@ -28,13 +31,15 @@ const VS = `#version 300 es
   out float v_grade;
   uniform float u_grade_bias;
   void main() {
-    vec3 n = normalize(a_normal);
+    vec3 n = normalize(vec3(a_normal.xy, a_normal.z / u_elevation_scale));
     float sun = dot(n, u_light) * 0.5 + 0.5;
     float sky = n.z * 0.5 + 0.5;
     float lit = mix(0.62, 1.0, mix(sun, sky, 0.6));
     // A deck's top is the flat road's colour, unshaded, so it meets the road it carries.
-    v_color = mix(a_low, a_color, u_hd) * max(lit, n.z);
-    vec3 p = a_position;
+    vec3 high = u_materials ? u_palette[int(a_color.x)] : a_color;
+    vec3 low = u_materials ? u_palette[int(a_low.x)] : a_low;
+    v_color = mix(low, high, u_hd) * max(lit, n.z);
+    vec3 p = vec3(a_position.xy, a_position.z * u_elevation_scale);
     // A painted line is widened to at least u_min_px across on screen, as the flat roads' lines are.
     if (a_spread.z > 0.0) {
       vec4 c0 = u_matrix * vec4(p, 1.0);
@@ -83,42 +88,63 @@ const FS = `#version 300 es
     fragColor = vec4(v_color * (1.0 - shade), 1.0);
   }`
 
-export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; count: number }
+export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null }
 
-export function linkMeshProgram(gl: WebGL2RenderingContext): WebGLProgram {
+export function linkMeshProgram(gl: WebGL2RenderingContext, deferred = false): WebGLProgram {
   const program = gl.createProgram()!
   for (const [type, source] of [[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, FS]] as const) {
     const shader = gl.createShader(type)!
     gl.shaderSource(shader, source)
     gl.compileShader(shader)
     gl.attachShader(program, shader)
+    gl.deleteShader(shader)
   }
   gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) console.error('[mesh] link:', gl.getProgramInfoLog(program))
+  if (!deferred) programReady(gl, program)
   return program
 }
 
-export function uploadMesh(gl: WebGL2RenderingContext, mesh: Mesh): MeshBuffers {
-  const upload = (data: number[]) => {
+const readyPrograms = new WeakSet<WebGLProgram>()
+export function programReady(gl: WebGL2RenderingContext, program: WebGLProgram): boolean {
+  if (readyPrograms.has(program)) return true
+  const parallel = gl.getExtension('KHR_parallel_shader_compile')
+  if (parallel && !gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)) return false
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(`Mesh shader: ${gl.getProgramInfoLog(program)}`)
+  readyPrograms.add(program)
+  return true
+}
+
+export type MeshUpload = { [K in keyof Mesh]: number[] | Float32Array } & { indices?: Uint32Array }
+
+export function uploadMesh(gl: WebGL2RenderingContext, mesh: MeshUpload): MeshBuffers {
+  const upload = (data: number[] | Float32Array) => {
     const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, data instanceof Float32Array ? data : new Float32Array(data), gl.STATIC_DRAW)
     return buffer
   }
   const count = mesh.position.length / 3
+  gl.bindVertexArray(null)
+  const indices = mesh.indices ? gl.createBuffer() : null
+  if (indices) {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices)
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices!, gl.STATIC_DRAW)
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
+  }
   return {
+    indices,
     position: upload(mesh.position),
     normal: upload(mesh.normal),
     color: upload(mesh.color),
     low: mesh.low?.length === count * 3 ? upload(mesh.low) : null,
     bias: mesh.bias?.length === count ? upload(mesh.bias) : null,
     spread: mesh.spread?.length === count * 3 ? upload(mesh.spread) : null,
-    count,
+    count: mesh.indices?.length ?? count,
   }
 }
 
 export function deleteMesh(gl: WebGL2RenderingContext, buffers: MeshBuffers | null) {
-  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread]) if (b) gl.deleteBuffer(b)
+  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread, buffers.indices]) if (b) gl.deleteBuffer(b)
 }
 
 /**
@@ -141,6 +167,7 @@ export function eyeOf(m: ArrayLike<number>): [number, number, number] | null {
 
 /** What a draw needs besides the matrix and light: how far toward street zoom it is (1 there) and the eye, for biased vertices. */
 export type MeshView = {
+  elevationScale?: number; palette?: Float32Array
   hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number; pixelRatio?: number
   /**
    * The buildings' shadows: their sun shadow map, the origin the mesh is drawn about and how dark a shadow is;
@@ -154,7 +181,7 @@ export type MeshView = {
  * its attributes; returns a draw for a range of vertices and an unbind. A mesh
  * without low colours or biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'materials' | 'palette', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
 const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
 
@@ -178,13 +205,16 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   if (!at) {
     const u = (name: string) => gl.getUniformLocation(program, name)
     at = {
-      uniforms: { matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
+      uniforms: { elevationScale: u('u_elevation_scale'), materials: u('u_materials'), palette: u('u_palette[0]'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
       sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
       attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread'].map(name => gl.getAttribLocation(program, name)),
     }
     locations.set(program, at)
   }
   gl.useProgram(program)
+  gl.uniform1f(at.uniforms.elevationScale, view.elevationScale ?? 1)
+  gl.uniform1i(at.uniforms.materials, view.palette ? 1 : 0)
+  if (view.palette) gl.uniform3fv(at.uniforms.palette, view.palette)
   gl.uniformMatrix4fv(at.uniforms.matrix, false, matrix)
   const l = Math.hypot(light[0], light[1], light[2]) || 1
   gl.uniform3f(at.uniforms.light, light[0] / l, light[1] / l, light[2] / l)
@@ -228,11 +258,16 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   else if (spread >= 0) gl.vertexAttrib3f(spread, 0, 0, 0)
   return {
     draw: (from = 0, to = buffers.count) => {
-      if (to > from) gl.drawArrays(gl.TRIANGLES, from, to - from)
+      if (to <= from) return
+      if (buffers.indices) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices)
+        gl.drawElements(gl.TRIANGLES, to - from, gl.UNSIGNED_INT, from * 4)
+      } else gl.drawArrays(gl.TRIANGLES, from, to - from)
     },
     /** Draw the biased vertices where they are biased to, or where they are. */
     bias: (on: boolean) => gl.uniform1f(at!.uniforms.perMetre, on ? biased : 0),
     unbind: () => {
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
       for (const loc of enabled) gl.disableVertexAttribArray(loc)
     },
   }

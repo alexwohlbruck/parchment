@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { decodeHeights, hasDrawnGround, GroundSampler, sampleHeights, type Heights } from './ground'
+import { decodeHeights, GroundSampler, sampleHeights, type Heights } from './ground'
 
 const flat = (size: number, metres: number | ((x: number, y: number) => number)): Heights => {
   const data = new Float32Array(size * size)
@@ -104,25 +104,5 @@ describe('GroundSampler', () => {
     await tick()
     expect(points.map(p => sampler.at(p))).toEqual([1, 1, 1, 1])
     expect(asked).toBe(4)
-  })
-})
-
-describe('hasDrawnGround', () => {
-  const sampler = () => 10
-  test('uses the most detailed covering tile, including unloaded tiles', () => {
-    const index = { zooms: [2, 1], samplerPerTile: new Map<string, unknown>([['0/2/1/1', null], ['0/1/0/0', sampler]]) }
-    expect(hasDrawnGround(index, [0.3, 0.3])).toBe(false)
-    expect(hasDrawnGround(index, [0.1, 0.1])).toBe(true)
-    expect(hasDrawnGround(index, [0.8, 0.8])).toBe(false)
-  })
-  test('handles wrapped worlds and excludes points outside the terrain', () => {
-    const index = { zooms: [1], samplerPerTile: new Map([['-1/1/1/0', sampler], ['1/1/0/0', sampler]]) }
-    expect(hasDrawnGround(index, [-0.1, 0.2])).toBe(true)
-    expect(hasDrawnGround(index, [1.1, 0.2])).toBe(true)
-    expect(hasDrawnGround(index, [1.1, 1])).toBe(false)
-    expect(hasDrawnGround(index, [1.1, -0.1])).toBe(false)
-  })
-  test('preserves public queries without the coverage API', () => {
-    expect(hasDrawnGround(undefined, [0.2, 0.2])).toBe(true)
   })
 })

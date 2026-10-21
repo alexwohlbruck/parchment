@@ -2,9 +2,13 @@
 
 ### Added
 
+* Request a fresh sign-in code with Resend email on the verification screen.
+
 ### Changed
 
 ### Fixed
+
+* Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20
 

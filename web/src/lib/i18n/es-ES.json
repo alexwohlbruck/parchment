@@ -2179,6 +2179,10 @@
     "otp": {
       "title": "Código de verificación",
       "description": "Código enviado a {email}",
+      "resend": "Reenviar correo",
+      "resending": "Enviando…",
+      "resent": "Correo reenviado. Revisa tu bandeja de entrada.",
+      "resendFailed": "No se pudo reenviar el correo. Inténtalo de nuevo.",
       "submit": "Enviar",
       "cancel": "Cancelar",
       "verifying": "Verificando...",

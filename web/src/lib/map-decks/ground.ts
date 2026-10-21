@@ -139,3 +139,18 @@ export function terrainSampler(map: any, current: TerrainSampler | null, onLoad:
   })
   return { source: template, ground }
 }
+
+export type TerrainCoverage = { zooms: number[]; samplerPerTile: ReadonlyMap<string, unknown> }
+
+// Outside loaded terrain, MapLibre recalculates tile coverage for every elevation query.
+export function hasDrawnGround(index: TerrainCoverage | null | undefined, [x, y]: Point): boolean {
+  if (!index) return true
+  if (y < 0 || y >= 1) return false
+  const wrap = Math.floor(x)
+  for (const z of index.zooms) {
+    const n = 2 ** z
+    const key = `${wrap}/${z}/${Math.floor((x - wrap) * n)}/${Math.floor(y * n)}`
+    if (index.samplerPerTile.has(key)) return !!index.samplerPerTile.get(key)
+  }
+  return false
+}

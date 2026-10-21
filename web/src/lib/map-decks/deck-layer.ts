@@ -80,7 +80,7 @@ import {
   mercator,
   tileBounds,
 } from './decks'
-import { terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
+import { hasDrawnGround, terrainSampler, type GroundSampler, type TerrainSampler } from './ground'
 import { abutmentMesh } from './abutments'
 import { closedAreas } from './closing'
 import { AT_GRADE, joinedLines, layPaint, layRoute, layWays, paintOf, type Paint } from './paint'
@@ -633,7 +633,8 @@ export class DeckLayer {
   }
 
   private groundNow(q: Point): number | null {
-    const g = this.map.queryTerrainElevation?.(unprojected(q))
+    const coverage = this.map.terrain?.getCoverageIndex?.()
+    const g = hasDrawnGround(coverage, q) ? this.map.queryTerrainElevation?.(unprojected(q)) : null
     if (typeof g === 'number' && g !== 0) return g
     const read = this.groundSampler()?.at(q)
     return read == null || Number.isNaN(read) ? null : read * (this.map.getTerrain?.()?.exaggeration ?? 1)

@@ -152,7 +152,7 @@ export function layPaint(mesh: Mesh, paint: Paint[], surfaces: DeckSurface[], co
   const grounded = (hit: Hit | null) => (hit && atGradeAt(surfaces[hit.deck], hit.segment, hit.t) ? hit : null)
   for (const { props, runs, areas } of paint) {
     // Kept only so replication can find it; no layer draws it.
-    if (props.pattern === 'none') continue
+    if (props.pattern === 'none' || (parts === 'areas' && !areas.length) || (parts === 'lines' && !runs.length)) continue
     const color = props.color === 'yellow' ? colors.yellow : props.color === 'red' ? colors.red : props.color === 'green' ? colors.green
       : props.color === 'asphalt' ? (colors.asphalt ?? colors.white) : colors.white
     const lines = runs.map(run => densify(run, PAINT_SAMPLE))
@@ -236,7 +236,7 @@ function fill(mesh: Mesh, rings: Point[][], laid: Laid, color: number[], lift: n
       for (const [k, d] of laid.surfaces.entries())
         if (d.kind === 'road' && d.tops && d.bounds && (!laid.on || laid.on(d)) && meets(d.bounds, box) && Math.abs(hitOn(laid, k, centre)!.z - level) <= LEVEL) onTops(mesh, tri, k, laid, color, lift, origin)
     // Beside a deck's end the rest lies on the ground: the triangle less every stretch of deck lying low.
-    if (laid.ground && onGround(laid, centre, false)) {
+    if (laid.ground?.near.some(b => meets(b, box)) && onGround(laid, centre, false)) {
       let rest = [tri]
       for (const d of laid.surfaces) {
         if (!d.tops || !d.bounds || !meets(d.bounds, box)) continue
@@ -312,7 +312,10 @@ function hitOn(laid: Laid, k: number, p: Point): Hit | null {
 function split(mesh: Mesh, corners: Array<{ p: Point; hit: Hit }>, laid: Laid, color: number[], lift: number, origin: Point, scale: number, depth = 0) {
   // Ground is kept only beside a deck's end, so a piece of it away from every end is not split further.
   const near = laid.ground?.near
-  if (corners[0].hit.deck < 0 && near && !near.some(b => meets(b, boundsOf(corners.map(c => c.p))))) return
+  if (corners[0].hit.deck < 0 && near) {
+    const box = boundsOf(corners.map(c => c.p))
+    if (!near.some(b => meets(b, box))) return
+  }
   const length = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]) / scale
   const sides = [0, 1, 2].map(e => length(corners[e].p, corners[(e + 1) % 3].p))
   const e = sides.indexOf(Math.max(...sides))

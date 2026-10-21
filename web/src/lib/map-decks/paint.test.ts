@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { along, boundsOf, deckMeshOut, metresPerUnit, type Point } from './decks'
 import { layPaint, layWays } from './paint'
 import { testSurface } from './test-surface'
@@ -68,4 +68,20 @@ describe('painted areas on an arched deck', () => {
       expect(cz).toBeGreaterThan(surface(cx / M) - 0.01)
     }
   })
+})
+
+test('paint over a raised deck does not sample ground away from its ends', () => {
+  const points = line(0, 50, 100)
+  const deck = testSurface(points, [110, 110, 110], [100, 100, 100], 7)
+  const ring = [...line(30, 70), ...line(70, 30).map(([x, y]) => [x, y + M] as Point)]
+  const paint = [{ props: { kind: 'bike_lane', pattern: 'fill', color: 'green' }, runs: [], areas: [[ring]] }]
+  const colors = { white: [1, 1, 1], yellow: [1, 1, 0], green: [0, 1, 0], red: [1, 0, 0] }
+  const expected = deckMeshOut()
+  layPaint(expected, paint, [deck], colors, points[0])
+  const actual = deckMeshOut()
+  const at = vi.fn(() => 100)
+  layPaint(actual, paint, [deck], colors, points[0], { ground: { at, near: [boundsOf(line(-5, 5))], low: colors.white } })
+  expect(actual.position.length).toBeGreaterThan(0)
+  expect(actual).toEqual(expected)
+  expect(at).not.toHaveBeenCalled()
 })

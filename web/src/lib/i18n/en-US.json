@@ -2303,7 +2303,7 @@
       "description": "Code sent to {email}",
       "resend": "Resend email",
       "resending": "Sending…",
-      "resent": "Email resent. You can resend again in 30 seconds.",
+      "resent": "Email resent. Check your inbox.",
       "resendFailed": "Couldn’t resend the email. Please try again.",
       "submit": "Submit",
       "cancel": "Cancel",

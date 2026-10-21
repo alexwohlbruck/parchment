@@ -2181,7 +2181,7 @@
       "description": "Código enviado a {email}",
       "resend": "Reenviar correo",
       "resending": "Enviando…",
-      "resent": "Correo reenviado. Puedes reenviarlo de nuevo en 30 segundos.",
+      "resent": "Correo reenviado. Revisa tu bandeja de entrada.",
       "resendFailed": "No se pudo reenviar el correo. Inténtalo de nuevo.",
       "submit": "Enviar",
       "cancel": "Cancelar",

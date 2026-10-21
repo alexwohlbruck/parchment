@@ -48,7 +48,7 @@ async function resendEmail() {
 
   try {
     await authService.verifyEmail(email)
-    setFieldValue('pin', [])
+    resetField('pin', { value: [] })
     autoSubmit.value = true
     resendStatus.value = 'sent'
     startResendCooldown()
@@ -72,7 +72,7 @@ const formSchema = toTypedSchema(
   }),
 )
 
-const { handleSubmit, setFieldValue, values } = useForm({
+const { handleSubmit, setFieldValue, resetField, values } = useForm({
   validationSchema: formSchema,
   initialValues: {
     pin: [],
@@ -164,21 +164,19 @@ async function signIn(otp: string) {
             </PinInputGroup>
           </PinInput>
         </FormControl>
-        <FormDescription class="text-center text-xs">
-          {{ t('auth.otp.description', { email }) }}
-        </FormDescription>
-        <div class="flex flex-col items-center gap-1">
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            :loading="resending"
-            :disabled="resending || resendCooldown"
-            @click="resendEmail"
-          >
-            {{ t(resending ? 'auth.otp.resending' : 'auth.otp.resend') }}
-          </Button>
-          <p v-if="resendStatus" role="status" class="text-center text-xs text-muted-foreground">
+        <div class="space-y-1 text-center text-xs text-muted-foreground">
+          <FormDescription class="text-xs leading-6">
+            {{ t('auth.otp.description', { email }) }}
+            <button
+              type="button"
+              class="ml-1 inline rounded-sm text-xs font-medium text-muted-foreground underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:no-underline disabled:opacity-60"
+              :disabled="resending || resendCooldown"
+              @click="resendEmail"
+            >
+              {{ t(resending ? 'auth.otp.resending' : 'auth.otp.resend') }}
+            </button>
+          </FormDescription>
+          <p v-if="resendStatus" role="status">
             {{ t(resendStatus === 'sent' ? 'auth.otp.resent' : 'auth.otp.resendFailed') }}
           </p>
         </div>

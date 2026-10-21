@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Street names stay visible in flat map views on Android phones.
+
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20

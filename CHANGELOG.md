@@ -2,6 +2,8 @@
 
 ### Added
 
+* Request a fresh sign-in code with Resend email on the verification screen.
+
 ### Changed
 
 ### Fixed

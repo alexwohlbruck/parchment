@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTimeoutFn } from '@vueuse/core'
 import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -32,6 +33,31 @@ const { email, serverUrl } = defineProps<{
 const input = ref<InstanceType<typeof PinInput>>()
 const autoSubmit = ref(true) // Auto submit the form when the OTP is complete, only the first time
 const authService = useAuthService()
+const resending = ref(false)
+const resendStatus = ref<'sent' | 'error' | null>(null)
+const { isPending: resendCooldown, start: startResendCooldown } = useTimeoutFn(
+  () => { resendStatus.value = null },
+  30_000,
+  { immediate: false },
+)
+
+async function resendEmail() {
+  if (resending.value || resendCooldown.value) return
+  resending.value = true
+  resendStatus.value = null
+
+  try {
+    await authService.verifyEmail(email)
+    setFieldValue('pin', [])
+    autoSubmit.value = true
+    resendStatus.value = 'sent'
+    startResendCooldown()
+  } catch {
+    resendStatus.value = 'error'
+  } finally {
+    resending.value = false
+  }
+}
 
 onMounted(() => {
   const input = document.getElementById('pin-input')
@@ -141,6 +167,21 @@ async function signIn(otp: string) {
         <FormDescription class="text-center text-xs">
           {{ t('auth.otp.description', { email }) }}
         </FormDescription>
+        <div class="flex flex-col items-center gap-1">
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            :loading="resending"
+            :disabled="resending || resendCooldown"
+            @click="resendEmail"
+          >
+            {{ t(resending ? 'auth.otp.resending' : 'auth.otp.resend') }}
+          </Button>
+          <p v-if="resendStatus" role="status" class="text-center text-xs text-muted-foreground">
+            {{ t(resendStatus === 'sent' ? 'auth.otp.resent' : 'auth.otp.resendFailed') }}
+          </p>
+        </div>
       </FormItem>
     </FormField>
 
@@ -153,6 +194,7 @@ async function signIn(otp: string) {
         {{ t('auth.otp.submit') }}
       </Button>
       <Button 
+        type="button"
         variant="outline" 
         @click="emit('cancel')"
         class="flex-1"

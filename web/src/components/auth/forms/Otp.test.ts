@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import Otp from './Otp.vue'
 
-const { signIn } = vi.hoisted(() => ({ signIn: vi.fn().mockResolvedValue(undefined) }))
-vi.mock('@/services/auth.service', () => ({ useAuthService: () => ({ signIn }) }))
+const { signIn, verifyEmail } = vi.hoisted(() => ({
+  signIn: vi.fn().mockResolvedValue(undefined),
+  verifyEmail: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/services/auth.service', () => ({ useAuthService: () => ({ signIn, verifyEmail }) }))
 vi.mock('@/lib/api', () => ({ api: { defaults: {} } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
@@ -12,6 +15,8 @@ afterEach(() => {
   wrappers.forEach(wrapper => wrapper.unmount())
   wrappers.length = 0
   signIn.mockClear()
+  verifyEmail.mockReset().mockResolvedValue(undefined)
+  vi.useRealTimers()
 })
 
 function mountOtp() {
@@ -63,5 +68,50 @@ describe('OTP entry', () => {
     const wrapper = mountOtp()
     expect(await paste(wrapper, ' \nletters\t')).toBe('')
     expect(signIn).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('resending the email', () => {
+  it('sends once while pending, clears the old code, and permits another resend after the cooldown', async () => {
+    vi.useFakeTimers()
+    let resolveSend!: () => void
+    verifyEmail.mockImplementationOnce(() => new Promise<void>(resolve => { resolveSend = resolve }))
+    const wrapper = mountOtp()
+    await paste(wrapper, '12')
+    const button = wrapper.findAll('button').find(button => button.text() === 'auth.otp.resend')!
+    expect(button.attributes('type')).toBe('button')
+    await button.trigger('click')
+    expect(verifyEmail).toHaveBeenCalledExactlyOnceWith('test@example.com')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.text()).toBe('auth.otp.resending')
+    await button.trigger('click')
+    expect(verifyEmail).toHaveBeenCalledTimes(1)
+    resolveSend()
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toBe('auth.otp.resent')
+    expect(wrapper.findAll('input[autocomplete="one-time-code"]').every(input => !(input.element as HTMLInputElement).value)).toBe(true)
+    expect(signIn).not.toHaveBeenCalled()
+    expect(button.attributes('disabled')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(button.attributes('disabled')).toBeUndefined()
+    await button.trigger('click')
+    await flushPromises()
+    expect(verifyEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows an error, keeps the existing code, and permits an immediate retry', async () => {
+    verifyEmail.mockRejectedValueOnce(new Error('Network error'))
+    const wrapper = mountOtp()
+    await paste(wrapper, '12')
+    const button = wrapper.findAll('button').find(button => button.text() === 'auth.otp.resend')!
+    await button.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toBe('auth.otp.resendFailed')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect((wrapper.get('input[autocomplete="one-time-code"]').element as HTMLInputElement).value).toBe('1')
+    await button.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toBe('auth.otp.resent')
   })
 })

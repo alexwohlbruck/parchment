@@ -10,6 +10,8 @@
 
 * Load precomputed 3D bridges and road markings from the server, reusing their geometry as you move the map.
 
+* 3D bridges keep their true height over exaggerated terrain, so decks meet landmark towers where they should.
+
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20

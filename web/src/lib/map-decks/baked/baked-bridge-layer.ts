@@ -45,7 +45,8 @@ export class BakedBridgeLayer {
   private bounds = new Map<string, Bounds>()
   private displayed = ''
   private missing = false
-  private preview: Record<string, string> | null = null
+  /** DEV only: meshes baked from a local fixture, drawn wherever they meet the view, whatever the tiles hold. */
+  private preview: Array<{ url: string; bounds: Bounds }> | null = null
 
   constructor(private sources: DeckSources, palette: DeckPalette) {
     this.colors = new Float32Array(MATERIALS.flatMap(name => palette[name]))
@@ -127,7 +128,7 @@ export class BakedBridgeLayer {
     const reach = 2500 / metresPerUnit(center[1])
     const pad = Math.max(se[0] - nw[0], se[1] - nw[1]) * 0.25
     const view = { minX: Math.max(nw[0] - pad, center[0] - reach), minY: Math.max(nw[1] - pad, center[1] - reach), maxX: Math.min(se[0] + pad, center[0] + reach), maxY: Math.min(se[1] + pad, center[1] + reach) }
-    const features = queryFeatures(this.map, source, layer).filter(f => {
+    const features = this.preview ? [] : queryFeatures(this.map, source, layer).filter(f => {
       const key = `${f.properties?.id}|${f.properties?.mesh ?? f.properties?.line}`
       let bounds = this.bounds.get(key)
       if (!bounds) {
@@ -142,11 +143,11 @@ export class BakedBridgeLayer {
     const decks = new Map<string, { file: string; zoom: number }>()
     for (const feature of features) {
       const id = String(feature.properties?.id ?? '')
-      const file = this.preview ? this.preview[id]?.split('/').at(-1) : feature.properties?.mesh
-      if (this.preview && !file) continue
+      const file = feature.properties?.mesh
       const zoom = feature._z ?? 0
       if (id && (!decks.has(id) || zoom >= decks.get(id)!.zoom)) decks.set(id, { file: file ?? '', zoom })
     }
+    for (const { url, bounds } of this.preview ?? []) if (meets(bounds, view)) decks.set(url, { file: url.split('/').at(-1)!, zoom: 0 })
     this.missing = [...decks.values()].some(d => !BRIDGE_MESH_FILE.test(d.file))
     this.wanted = new Set([...decks.values()].flatMap(d => BRIDGE_MESH_FILE.test(d.file) ? [d.file] : []))
     for (const id of this.pending.keys()) if (!this.wanted.has(id)) this.pending.delete(id)
@@ -183,7 +184,7 @@ export class BakedBridgeLayer {
       if (this.parts.has(id) || this.pending.has(id) || this.requests.has(id) || this.failed.has(id)) continue
       const controller = new AbortController()
       this.requests.set(id, controller)
-      const url = Object.values(this.preview ?? {}).find(url => url.endsWith(id)) ?? template.replace(/\/detail\/[^?]+/, `/bridges/models/${id}`)
+      const url = this.preview?.find(p => p.url.endsWith(id))?.url ?? template.replace(/\/detail\/[^?]+/, `/bridges/models/${id}`)
       void this.load(id, url, controller)
     }
   }

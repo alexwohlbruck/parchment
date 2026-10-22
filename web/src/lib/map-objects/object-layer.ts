@@ -871,11 +871,10 @@ export class ObjectLayer {
           // A span is tested at both ends as well as its middle: one lying beside a deck can reach under it.
           const half = ((instance.length ?? 0) / 2) * placed.perMetre
           const [dx, dy] = [Math.cos(instance.heading) * half, Math.sin(instance.heading) * half]
-          const room = DECK_CLEARANCE * (terrain!.getTerrain?.()?.exaggeration ?? 1)
           const close = [[0, 0], [dx, dy], [-dx, -dy]].some(([ex, ey]) => {
             const at = unproject(placed.x + ex, placed.y + ey)
             const over = this.surfaceAt!(...at)
-            return over !== null && over - heightAt(...at) < room
+            return over !== null && over - heightAt(...at) < DECK_CLEARANCE
           })
           if (close) continue
         }

@@ -20,6 +20,7 @@ export function routeOverlay(mesh: Mesh, lines: Point[][], surfaces: DeckSurface
           const color = [material, 0, 0]
           vertex(mesh, [p[0] + nx * side * width / 2 - origin[0], p[1] + ny * side * width / 2 - origin[1], (hit.z + lift) * scale],
             [0, 0, 1], color, color, atHit(surfaces[hit.deck].bias, hit), [nx * side, ny * side, width / 2])
+          mesh.lift?.push((surfaces[hit.deck].lift ? atHit(surfaces[hit.deck].lift, hit) : hit.z + lift) * scale)
         }
       }
     }

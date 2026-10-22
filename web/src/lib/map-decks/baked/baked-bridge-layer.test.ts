@@ -72,3 +72,12 @@ test('notifies style changes after the render callback has finished', async () =
   expect(built).toHaveBeenCalledTimes(1)
   layer.onRemove(map, gl)
 })
+
+test('a deck stands its true height over exaggerated terrain, as buildings and landmarks do', async () => {
+  const { layer, map, gl } = setup()
+  await vi.runAllTimersAsync()
+  layer.render(gl, { defaultProjectionData: { mainMatrix: new Float32Array(16) } })
+  // The fixture's crest is 8 m over sea-level ground; exaggerated 1.2 as a whole it would be drawn 9.6 m up.
+  expect(layer.surfaceAt(-73.999, 40.7)).toBeCloseTo(8, 1)
+  layer.onRemove(map, gl)
+})

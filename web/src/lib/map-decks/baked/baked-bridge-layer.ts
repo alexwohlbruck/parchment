@@ -14,6 +14,7 @@ const MIN_LINE_PX = 1
 const RAILS_FROM = 17.5
 const MAX_BYTES = 96 * 1024 * 1024
 
+type Stand = NonNullable<ReturnType<typeof standing>>
 type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number }
 
 export class BakedBridgeLayer {
@@ -213,7 +214,7 @@ export class BakedBridgeLayer {
     const lines = this.sources.routes().flatMap(id => queryFeatures(this.map, id).flatMap(f => linesOf(f.geometry).map(line => line.map(mercator))))
     if (!lines.length) return
     const origin = parts[0].data.origin
-    const mesh = deckMeshOut()
+    const mesh = { ...deckMeshOut(), lift: [] as number[] }
     routeOverlay(mesh, lines, parts.flatMap(p => p.data.stands.map(s => s.surface)), origin)
     this.routePending = { mesh, origin }
     this.map.triggerRepaint()
@@ -221,26 +222,30 @@ export class BakedBridgeLayer {
   surfaceAt(lng: number, lat: number): number | null {
     if (!this.ready) return null
     const point = mercator([lng, lat])
-    let z: number | null = null
+    let best: Stand | null = null
     for (const [id, part] of this.parts) {
       if (!this.wanted.has(id)) continue
       const hit = standing(part.data.stands, point)
-      if (hit && (z === null || hit.z > z)) z = hit.z
+      if (hit && (!best || hit.z > best.z)) best = hit
     }
-    return z === null ? null : z * this.exaggeration()
+    return best && this.drawnAt(best)
   }
   standOn(lng: number, lat: number, along?: [number, number]): number | null {
     if (!this.ready) return null
     const point = mercator([lng, lat])
-    let z: number | null = null
+    let best: Stand | null = null
     for (const [id, part] of this.parts) {
       if (!this.wanted.has(id)) continue
       const hit = standing(part.data.stands, point, along)
       if (!hit) continue
       if (!(along && runsWith(part.data.tracks, point, along, 1)) && hit.height < BOX_MIN && underWay(part.data.under, point, along)) continue
-      if (z === null || hit.z > z) z = hit.z
+      if (!best || hit.z > best.z) best = hit
     }
-    return z === null ? null : z * this.exaggeration()
+    return best && this.drawnAt(best)
+  }
+  /** Metres up a surface is drawn: its true height over the exaggerated ground. */
+  private drawnAt(hit: Stand): number {
+    return hit.z + (this.exaggeration() - 1) * hit.lift
   }
   render(gl: WebGL2RenderingContext, args: any) {
     if (!programReady(gl, this.program) || !this.shadows.ready(gl)) { this.map.triggerRepaint(); return }
@@ -250,7 +255,7 @@ export class BakedBridgeLayer {
       this.pending.delete(id)
       const buffers = uploadMesh(gl, data)
       const shadow = new MeshShadow()
-      shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices)
+      shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
       this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes })
       this.bytes += bytes
       this.updateReady()

@@ -37,8 +37,10 @@ const MASK_FS = `#version 300 es
 const DEPTH_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform float u_elevation_scale;
+  uniform bool u_lifted;
   in vec3 a_position;
-  void main() { gl_Position = u_matrix * vec4(a_position.xy, a_position.z * u_elevation_scale, 1.0); }`
+  in float a_lift;
+  void main() { gl_Position = u_matrix * vec4(a_position.xy, u_lifted ? a_position.z + (u_elevation_scale - 1.0) * a_lift : a_position.z * u_elevation_scale, 1.0); }`
 
 const DEPTH_FS = `#version 300 es
   precision mediump float;
@@ -48,7 +50,7 @@ const DEPTH_FS = `#version 300 es
 /** Metres above the ground below which a surface casts nothing on it. */
 const MIN_HEIGHT = 0.5
 
-type Program = { uniforms: string[]; initialized?: boolean; program: WebGLProgram; u: Record<string, WebGLUniformLocation | null>; position: number; ground: number }
+type Program = { uniforms: string[]; initialized?: boolean; program: WebGLProgram; u: Record<string, WebGLUniformLocation | null>; position: number; ground: number; lift: number }
 
 function link(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: string[]): Program {
   const program = gl.createProgram()!
@@ -62,7 +64,7 @@ function link(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: stri
   gl.linkProgram(program)
   return {
     program,
-    uniforms, u: {}, position: -1, ground: -1,
+    uniforms, u: {}, position: -1, ground: -1, lift: -1,
   }
 }
 
@@ -96,10 +98,10 @@ export class MeshShadow {
   version = 0
   private mask: Program | null = null
   private depth: Program | null = null
-  private mesh: { position: WebGLBuffer; ground: WebGLBuffer; count: number; origin: Point; exaggeration: number; indices?: WebGLBuffer | null } | null = null
+  private mesh: { position: WebGLBuffer; ground: WebGLBuffer; lift: WebGLBuffer | null; count: number; origin: Point; exaggeration: number; indices?: WebGLBuffer | null } | null = null
 
   /** Cast the first `count` vertices in `position`, drawn about `origin`, standing on `ground` (see `groundBeneath`). */
-  set(gl: WebGL2RenderingContext, position: WebGLBuffer | null, count: number, ground: Float32Array | null, origin: Point, exaggeration: number, indices?: WebGLBuffer | null) {
+  set(gl: WebGL2RenderingContext, position: WebGLBuffer | null, count: number, ground: Float32Array | null, origin: Point, exaggeration: number, indices?: WebGLBuffer | null, lift: WebGLBuffer | null = null) {
     this.clear(gl)
     this.version++
     if (!position || !ground || !count) return
@@ -107,7 +109,7 @@ export class MeshShadow {
     const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, ground, gl.STATIC_DRAW)
-    this.mesh = { indices, position, ground: buffer, count, origin: [origin[0], origin[1]], exaggeration }
+    this.mesh = { indices, position, ground: buffer, lift, count, origin: [origin[0], origin[1]], exaggeration }
   }
 
   prepare(gl: WebGL2RenderingContext) {
@@ -116,7 +118,7 @@ export class MeshShadow {
       let shared = sharedPrograms.get(gl)
       if (!shared) {
         shared = { mask: link(gl, MASK_VS, MASK_FS, ['u_elevation_scale', 'u_matrix', 'u_shear', 'u_metres', 'u_min']),
-          depth: link(gl, DEPTH_VS, DEPTH_FS, ['u_elevation_scale', 'u_matrix']), users: 0 }
+          depth: link(gl, DEPTH_VS, DEPTH_FS, ['u_elevation_scale', 'u_lifted', 'u_matrix']), users: 0 }
         sharedPrograms.set(gl, shared)
       }
       shared.users++
@@ -134,6 +136,7 @@ export class MeshShadow {
         p.u = Object.fromEntries(p.uniforms.map(name => [name, gl.getUniformLocation(p.program, name)]))
         p.position = gl.getAttribLocation(p.program, 'a_position')
         p.ground = gl.getAttribLocation(p.program, 'a_ground')
+        p.lift = gl.getAttribLocation(p.program, 'a_lift')
         p.initialized = true
       }
     }
@@ -169,6 +172,7 @@ export class MeshShadow {
     gl.bindVertexArray(null)
     gl.useProgram(p.program)
     gl.uniform1f(p.u.u_elevation_scale, elevationScale)
+    gl.uniform1i(p.u.u_lifted, mesh.lift ? 1 : 0)
     gl.uniformMatrix4fv(p.u.u_matrix, false, lightAbout(frame.light, mesh.origin))
     this.drawWith(gl, p)
   }
@@ -183,6 +187,8 @@ export class MeshShadow {
     }
     attach(p.position, mesh.position, 3)
     if (p.ground >= 0) attach(p.ground, mesh.ground, 1)
+    if (p.lift >= 0 && mesh.lift) attach(p.lift, mesh.lift, 1)
+    else if (p.lift >= 0) gl.vertexAttrib1f(p.lift, 0)
     if (mesh.indices) {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indices)
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0)
@@ -190,6 +196,7 @@ export class MeshShadow {
     } else gl.drawArrays(gl.TRIANGLES, 0, mesh.count)
     gl.disableVertexAttribArray(p.position)
     if (p.ground >= 0) gl.disableVertexAttribArray(p.ground)
+    if (p.lift >= 0 && mesh.lift) gl.disableVertexAttribArray(p.lift)
   }
 
   delete(gl: WebGL2RenderingContext) {

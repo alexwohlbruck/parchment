@@ -10,6 +10,7 @@ import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFram
 const VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform float u_elevation_scale;
+  uniform bool u_lifted;
   uniform bool u_materials;
   uniform vec3 u_palette[17];
   uniform mat4 u_sunLight;
@@ -25,6 +26,7 @@ const VS = `#version 300 es
   in vec3 a_low;
   in float a_bias;
   in vec3 a_spread;
+  in float a_lift;
   out vec3 v_color;
   out vec4 v_sun;
   out float v_slope;
@@ -39,7 +41,8 @@ const VS = `#version 300 es
     vec3 high = u_materials ? u_palette[int(a_color.x)] : a_color;
     vec3 low = u_materials ? u_palette[int(a_low.x)] : a_low;
     v_color = mix(low, high, u_hd) * max(lit, n.z);
-    vec3 p = vec3(a_position.xy, a_position.z * u_elevation_scale);
+    // Lifted: a structure stands its true height over the exaggerated ground beneath it.
+    vec3 p = vec3(a_position.xy, u_lifted ? a_position.z + (u_elevation_scale - 1.0) * a_lift : a_position.z * u_elevation_scale);
     // A painted line is widened to at least u_min_px across on screen, as the flat roads' lines are.
     if (a_spread.z > 0.0) {
       vec4 c0 = u_matrix * vec4(p, 1.0);
@@ -88,7 +91,7 @@ const FS = `#version 300 es
     fragColor = vec4(v_color * (1.0 - shade), 1.0);
   }`
 
-export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null }
+export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null }
 
 export function linkMeshProgram(gl: WebGL2RenderingContext, deferred = false): WebGLProgram {
   const program = gl.createProgram()!
@@ -139,12 +142,13 @@ export function uploadMesh(gl: WebGL2RenderingContext, mesh: MeshUpload): MeshBu
     low: mesh.low?.length === count * 3 ? upload(mesh.low) : null,
     bias: mesh.bias?.length === count ? upload(mesh.bias) : null,
     spread: mesh.spread?.length === count * 3 ? upload(mesh.spread) : null,
+    lift: mesh.lift?.length === count ? upload(mesh.lift) : null,
     count: mesh.indices?.length ?? count,
   }
 }
 
 export function deleteMesh(gl: WebGL2RenderingContext, buffers: MeshBuffers | null) {
-  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread, buffers.indices]) if (b) gl.deleteBuffer(b)
+  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread, buffers.lift, buffers.indices]) if (b) gl.deleteBuffer(b)
 }
 
 /**
@@ -181,7 +185,7 @@ export type MeshView = {
  * its attributes; returns a draw for a range of vertices and an unbind. A mesh
  * without low colours or biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'materials' | 'palette', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
 const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
 
@@ -205,9 +209,9 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   if (!at) {
     const u = (name: string) => gl.getUniformLocation(program, name)
     at = {
-      uniforms: { elevationScale: u('u_elevation_scale'), materials: u('u_materials'), palette: u('u_palette[0]'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
+      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
       sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
-      attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread'].map(name => gl.getAttribLocation(program, name)),
+      attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
     }
     locations.set(program, at)
   }
@@ -239,7 +243,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   gl.uniform1f(at.uniforms.shadowAlpha, sun?.alpha ?? 0)
   gl.uniformMatrix4fv(at.uniforms.sunLight, false, sun ? lightAbout(sun.frame!.light, sun.origin) : IDENTITY)
   gl.bindVertexArray(null)
-  const [position, normal, color, low, bias, spread] = at.attributes
+  const [position, normal, color, low, bias, spread, lift] = at.attributes
   const enabled: number[] = []
   const bind = (loc: number, buffer: WebGLBuffer, size: number) => {
     if (loc < 0) return
@@ -256,6 +260,9 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   else if (bias >= 0) gl.vertexAttrib1f(bias, 0)
   if (buffers.spread) bind(spread, buffers.spread, 3)
   else if (spread >= 0) gl.vertexAttrib3f(spread, 0, 0, 0)
+  gl.uniform1i(at.uniforms.lifted, buffers.lift ? 1 : 0)
+  if (buffers.lift) bind(lift, buffers.lift, 1)
+  else if (lift >= 0) gl.vertexAttrib1f(lift, 0)
   return {
     draw: (from = 0, to = buffers.count) => {
       if (to <= from) return

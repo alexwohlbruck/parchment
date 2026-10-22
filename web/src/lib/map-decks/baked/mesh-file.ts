@@ -20,7 +20,7 @@ export function decodeBridge(buffer: ArrayBuffer): BakedMesh {
   const start = view.getUint32(8, true)
   if (length > 8 * 1024 * 1024 || start !== 12 + Math.ceil(length / 4) * 4 || start > buffer.byteLength) throw new Error('Invalid bridge mesh header')
   const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 12, length)))
-  // Version 1 has no lift: it draws exaggerated as a whole, as before.
+  // Version 1 has no lift stream: such a mesh is drawn exaggerated as a whole.
   const streams = header.version === 1 ? STREAMS.length - 1 : STREAMS.length
   if (![1, 2].includes(header.version) || !Array.isArray(header.lengths) || header.lengths.length !== streams + 1 ||
       !header.lengths.every((n: number) => Number.isSafeInteger(n) && n >= 0) ||

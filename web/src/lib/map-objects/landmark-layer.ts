@@ -625,7 +625,7 @@ export class LandmarkLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     if (import.meta.env.DEV && import.meta.env.VITE_LANDMARK_PREVIEW) {
-      void fetch(import.meta.env.VITE_LANDMARK_PREVIEW).then(r => r.json()).then(preview => { this.preview = preview; this.gather() }).catch(error => console.warn('[landmark preview]', error))
+      void fetch(import.meta.env.VITE_LANDMARK_PREVIEW).then(r => r.json()).then(preview => { if (!this.map) return; this.preview = preview; this.gather() }).catch(error => console.warn('[landmark preview]', error))
     }
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
@@ -737,7 +737,7 @@ export class LandmarkLayer {
     } catch {
       features = []
     }
-    if (this.preview) features = [...features.filter(f => !this.preview!.supersede.includes(f?.properties?.id)), ...this.preview.features]
+    if (this.preview) features = [...features.filter(f => !this.preview!.supersede?.includes(f?.properties?.id)), ...(this.preview.features ?? [])]
     const terrain = this.groundSampler()
     this.version++
     const previous = new Map(this.placements.map(p => [p.id, p]))
@@ -1028,7 +1028,7 @@ export class LandmarkLayer {
     }
     this.models.set(file, model)
     void (async () => {
-      const response = await fetch(this.preview?.files[file] ?? this.options.modelUrl(file))
+      const response = await fetch(this.preview?.files?.[file] ?? this.options.modelUrl(file))
       if (!response.ok) throw new Error(`${file}: ${response.status}`)
       const glb = parseGlb(await response.arrayBuffer(), { animation: true })
       // Unpremultiplied: a painted window texture is alpha 0 on its panes,

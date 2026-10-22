@@ -2569,6 +2569,7 @@
       "syncing": "Sincronizando…",
       "failed": "No se pudo sincronizar",
       "failedToast": "No se pudo sincronizar «{label}»",
+      "failedManyToast": "No se pudieron sincronizar {count} cambios",
       "cancel": "Cancelar",
       "retryAction": "Reintentar",
       "dismiss": "Descartar",

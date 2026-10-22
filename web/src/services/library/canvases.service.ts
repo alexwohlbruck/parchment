@@ -375,7 +375,7 @@ export const useCanvasesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return updateOffline()
       }
-      toast.error('Failed to save canvas')
+      toast.error('Failed to save canvas', { cause: error })
       return null
     }
   }
@@ -435,7 +435,7 @@ export const useCanvasesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return saveOffline()
       }
-      toast.error('Failed to save canvas')
+      toast.error('Failed to save canvas', { cause: error })
       return null
     }
   }
@@ -569,7 +569,7 @@ export const useCanvasesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return deleteOffline()
       }
-      toast.error('Failed to delete canvas')
+      toast.error('Failed to delete canvas', { cause: error })
       return false
     }
   }

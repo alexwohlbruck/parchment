@@ -1,71 +1,105 @@
-import { toast as sonner } from 'vue-sonner'
+import { toast as sonner, type ExternalToast } from 'vue-sonner'
 import { isOffline } from '@/lib/connectivity'
 import { getNetworkErrorKind, isQuietNetworkError } from '@/lib/network-errors'
 
-/**
- * The app's toast entry point. Import `toast` from here, never from
- * `vue-sonner` directly — this wrapper is where "don't shout at someone
- * who is offline" is enforced.
- *
- * Being offline is a state, and the app already says so plainly: the sync
- * chip in the sidebar, and an offline empty state on whatever view couldn't
- * load. A red toast on top of that is noise the user can do nothing about —
- * and because nearly every service catches its own fetch failure and toasts
- * a message of its own ("Failed to fetch collections"), suppressing this at
- * the axios interceptor alone never worked.
- *
- * So `toast.error` is dropped while offline. Two escape hatches:
- *   - `force: true` for an error the user must see even offline (a
- *     destructive local action that genuinely failed).
- *   - `cause: error` to suppress on the error's own merits (a cancelled or
- *     offline request) regardless of the current connectivity state, for
- *     the race where connectivity returns before the catch block runs.
- *
- * Success/info/warning toasts pass through untouched: an optimistic
- * "Saved" while offline is true and worth showing.
- */
-
-export interface ErrorToastOptions extends Record<string, unknown> {
-  /** Show even while offline. */
+type Message = Parameters<typeof sonner>[0]
+type ToastId = string | number
+type ShowToast = (message: Message, options?: ExternalToast) => ToastId
+export interface ErrorToastOptions extends ExternalToast {
   force?: boolean
-  /** The error being reported, so quiet kinds are dropped on their merits. */
   cause?: unknown
 }
+
+interface ErrorToast {
+  id: ToastId
+  description: ExternalToast['description']
+}
+
+// An API failure toasts once from the interceptor and again from the service
+// that made the request; keying on the error makes the second replace the first.
+const errorToasts = new WeakMap<object, ErrorToast>()
+let errorSequence = 0
 
 function suppressed(options?: ErrorToastOptions): boolean {
   if (options?.force) return false
   if (
     options?.cause !== undefined &&
     isQuietNetworkError(getNetworkErrorKind(options.cause))
-  ) {
-    return true
-  }
+  ) return true
   return isOffline.value
 }
 
-type Sonner = typeof sonner
-type ErrorArgs = Parameters<Sonner['error']>
+function hash(text: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return (h >>> 0).toString(36)
+}
 
-/**
- * Our `error` signature is listed first so it wins overload resolution and
- * `force` / `cause` are accepted; everything else is sonner's own API.
- */
-type AppToast = {
-  error(
-    message: ErrorArgs[0],
-    options?: ErrorArgs[1] & ErrorToastOptions,
-  ): ReturnType<Sonner['error']>
-} & Sonner
+function repeatFeedback(className: string) {
+  if (typeof document === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  const element = document.getElementsByClassName(className)[0] as HTMLElement | undefined
+  if (!element || element.dataset.removed === 'true' || !element.animate) return
+  element.getAnimations?.().filter(animation => animation.id === 'toast-repeat').forEach(animation => animation.cancel())
+  // Individual scale leaves Sonner's positioning and swipe transforms intact.
+  element.animate([{ scale: 1 }, { scale: 0.97 }, { scale: 1.01 }, { scale: 1 }], {
+    duration: 240,
+    easing: 'ease-out',
+    id: 'toast-repeat',
+  })
+}
 
-const wrapped = ((...args: Parameters<Sonner>) =>
-  sonner(...args)) as unknown as Sonner
+function show(
+  method: ShowToast,
+  type: string,
+  message: Message,
+  options: ExternalToast = {},
+) {
+  const canGroup = type !== 'loading' && typeof message === 'string' &&
+    !options.action && !options.cancel &&
+    (options.description === undefined || typeof options.description === 'string')
+  const id = options.id ?? (canGroup
+    ? `notification:${JSON.stringify([type, message, options.description])}`
+    : undefined)
+  if (id === undefined) return method(message, options)
 
-Object.assign(wrapped, sonner)
+  const className = `toast-repeat-${hash(String(id))}`
+  repeatFeedback(className)
+  return method(message, {
+    action: undefined,
+    cancel: undefined,
+    description: undefined,
+    onDismiss: undefined,
+    onAutoClose: undefined,
+    ...options,
+    id,
+    class: [options.class, className].filter(Boolean).join(' '),
+  })
+}
 
-wrapped.error = ((message: ErrorArgs[0], options?: ErrorToastOptions) => {
-  if (suppressed(options)) return
-  const { force: _force, cause: _cause, ...rest } = options ?? {}
-  return (sonner.error as any)(message, rest)
-}) as Sonner['error']
+type AppToast = Omit<typeof sonner, 'error'> & typeof sonner & {
+  error(message: Message, options?: ErrorToastOptions): ToastId | undefined
+}
 
-export const toast = wrapped as AppToast
+const wrapped = Object.assign(
+  (message: Message, options?: ExternalToast) => show(sonner, 'message', message, options),
+  sonner,
+) as unknown as Record<string, unknown>
+
+for (const type of ['success', 'info', 'warning', 'message', 'loading'] as const) {
+  wrapped[type] = (message: Message, options?: ExternalToast) =>
+    show(sonner[type], type, message, options)
+}
+
+wrapped.error = (message: Message, options?: ErrorToastOptions) => {
+  if (suppressed(options)) return undefined
+  const { force: _force, cause, ...rest } = options ?? {}
+  if (cause !== null && typeof cause === 'object') {
+    const previous = errorToasts.get(cause)
+    rest.id = previous?.id ?? rest.id ?? `request-error:${++errorSequence}`
+    rest.description ??= previous?.description
+    errorToasts.set(cause, { id: rest.id, description: rest.description })
+  }
+  return show(sonner.error, 'error', message, rest)
+}
+
+export const toast = wrapped as unknown as AppToast

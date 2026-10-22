@@ -155,10 +155,12 @@ export const useSyncStore = defineStore('sync', () => {
           } catch (rollbackError) {
             console.error('[sync] rollback failed', rollbackError)
           }
+          const failures = failedMutations.value.length
           toast.error(
-            (i18n.global as any).t('offline.sync.failedToast', {
-              label: item.label,
-            }),
+            failures > 1
+              ? (i18n.global as any).t('offline.sync.failedManyToast', { count: failures })
+              : (i18n.global as any).t('offline.sync.failedToast', { label: item.label }),
+            { id: 'sync-failed' },
           )
         }
       }

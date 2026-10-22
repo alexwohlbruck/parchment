@@ -2691,6 +2691,7 @@
       "syncing": "Syncing…",
       "failed": "Couldn't sync",
       "failedToast": "Couldn't sync \"{label}\"",
+      "failedManyToast": "Couldn't sync {count} changes",
       "cancel": "Cancel",
       "retryAction": "Retry",
       "dismiss": "Dismiss",

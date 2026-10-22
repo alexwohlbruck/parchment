@@ -6,6 +6,10 @@
 
 ### Changed
 
+* Repeated notifications update a single toast with a gentle pulse instead of stacking, and a failed save shows one error instead of two.
+
+* Creating a collection offers a View button that opens it.
+
 ### Fixed
 
 * Street names stay visible in flat map views on Android phones.

@@ -258,7 +258,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return createOffline()
       }
-      toast.error('Failed to save route')
+      toast.error('Failed to save route', { cause: error })
       return null
     }
   }
@@ -382,7 +382,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return updateOffline()
       }
-      toast.error('Failed to update route')
+      toast.error('Failed to update route', { cause: error })
       return null
     }
   }
@@ -420,7 +420,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return deleteOffline()
       }
-      toast.error('Failed to delete route')
+      toast.error('Failed to delete route', { cause: error })
       return false
     }
   }

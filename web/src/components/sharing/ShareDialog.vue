@@ -149,7 +149,7 @@ async function refreshShares() {
     shares.value = list.filter(s => s.status !== 'revoked')
   } catch (err) {
     console.error('Failed to load shares', err)
-    toast.error(t('sharing.errors.loadFailed'))
+    toast.error(t('sharing.errors.loadFailed'), { cause: err })
   } finally {
     loading.value = false
   }
@@ -299,7 +299,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     emit('changed')
   } catch (err) {
     console.error('Failed to create share', err)
-    toast.error(t('sharing.errors.createFailed'))
+    toast.error(t('sharing.errors.createFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -314,7 +314,7 @@ async function onChangeRole(row: AccessRow, newRole: ShareRole) {
     emit('changed')
   } catch (err) {
     console.error('Failed to change role', err)
-    toast.error(t('sharing.errors.roleChangeFailed'))
+    toast.error(t('sharing.errors.roleChangeFailed'), { cause: err })
     await refreshShares()
   } finally {
     mutating.value = false
@@ -382,7 +382,7 @@ async function onRemove(row: AccessRow) {
     emit('changed')
   } catch (err) {
     console.error('Failed to revoke share', err)
-    toast.error(t('sharing.errors.revokeFailed'))
+    toast.error(t('sharing.errors.revokeFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -396,7 +396,7 @@ async function onMintPublicLink() {
     emit('changed')
   } catch (err) {
     console.error('Failed to mint public link', err)
-    toast.error(t('sharing.errors.publicLinkFailed'))
+    toast.error(t('sharing.errors.publicLinkFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -410,7 +410,7 @@ async function onRevokePublicLink() {
     emit('changed')
   } catch (err) {
     console.error('Failed to revoke public link', err)
-    toast.error(t('sharing.errors.publicLinkRevokeFailed'))
+    toast.error(t('sharing.errors.publicLinkRevokeFailed'), { cause: err })
   } finally {
     mutating.value = false
   }

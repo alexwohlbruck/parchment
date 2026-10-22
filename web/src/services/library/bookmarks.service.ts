@@ -1,7 +1,6 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from '@/lib/toast'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -27,7 +26,6 @@ import {
 } from '@/lib/network-errors'
 import { newOfflineId } from '@/lib/sync/offline-id'
 import { closestThemeColor } from '@/lib/utils'
-import { AppRoute } from '@/router'
 import { type FrequentType } from '@/lib/frequents'
 import type {
   CreateBookmarkMutation,
@@ -53,23 +51,8 @@ export const useBookmarksService = createSharedComposable(() => {
   const categoryPaletteStore = useCategoryPaletteStore()
   const syncStore = useSyncStore()
   const themeStore = useThemeStore()
-  const router = useRouter()
   const { t } = useI18n()
   const isSaving = ref(false)
-
-  // Toast helper: builds the optional "View" action button that takes
-  // the user to the collection they just added a bookmark to. Returns
-  // undefined when there's no resolvable target (so the toast renders
-  // without an action) instead of a no-op button.
-  function viewCollectionAction(collectionId: string | undefined) {
-    if (!collectionId) return undefined
-    return {
-      label: t('general.view'),
-      onClick: () => {
-        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
-      },
-    }
-  }
 
   /**
    * What a saved copy of `place` records. The POI's own icon and its
@@ -150,12 +133,12 @@ export const useBookmarksService = createSharedComposable(() => {
           name: point.name,
           collection: collectionsService.getCollectionDisplayName(collection),
         }),
-        { action: viewCollectionAction(collection.id) },
+        { action: collectionsService.viewCollectionAction(collection.id) },
       )
       return point
     } catch (err) {
       console.error('[bookmarks] private save failed', err)
-      toast.error(t('services.bookmarks.saveError'))
+      toast.error(t('services.bookmarks.saveError'), { cause: err })
       return null
     }
   }
@@ -173,7 +156,7 @@ export const useBookmarksService = createSharedComposable(() => {
       return true
     } catch (err) {
       console.error('[bookmarks] private remove failed', err)
-      toast.error(t('services.bookmarks.removeFromCollectionError'))
+      toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: err })
       return false
     }
   }
@@ -225,7 +208,7 @@ export const useBookmarksService = createSharedComposable(() => {
             collection:
               target.name || t('library.entities.collections.untitled'),
           }),
-          { action: viewCollectionAction(targetId) },
+          { action: collectionsService.viewCollectionAction(targetId) },
         )
       } else {
         toast.success(
@@ -291,7 +274,7 @@ export const useBookmarksService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return createOffline()
       }
-      toast.error(t('services.bookmarks.saveError'))
+      toast.error(t('services.bookmarks.saveError'), { cause: error })
       return null
     } finally {
       isSaving.value = false
@@ -382,7 +365,7 @@ export const useBookmarksService = createSharedComposable(() => {
                 collection:
                   added.name || t('library.entities.collections.untitled'),
               }),
-              { action: viewCollectionAction(options.addedCollectionId) },
+              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
             )
           } else {
             toast.success(t('services.bookmarks.updateSuccess'))
@@ -412,7 +395,7 @@ export const useBookmarksService = createSharedComposable(() => {
               t('library.actions.addedToCollection', {
                 collection: added.name || t('library.entities.collections.untitled'),
               }),
-              { action: viewCollectionAction(options.addedCollectionId) },
+              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
             )
           } else {
             toast.success(t('services.bookmarks.updateSuccess'))
@@ -507,7 +490,7 @@ export const useBookmarksService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return removeOffline()
       }
-      toast.error(t('services.bookmarks.removeFromCollectionError'))
+      toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: error })
       return false
     }
   }

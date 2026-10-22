@@ -6,6 +6,8 @@
 
 ### Changed
 
+* 3D terrain draws faster: roads and areas are laid on the terrain in one pass instead of eight.
+
 ### Fixed
 
 * Load precomputed 3D bridges and road markings from the server, reusing their geometry as you move the map.

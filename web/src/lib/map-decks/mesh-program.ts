@@ -33,7 +33,7 @@ const VS = `#version 300 es
   out float v_grade;
   uniform float u_grade_bias;
   void main() {
-    vec3 n = normalize(vec3(a_normal.xy, a_normal.z / u_elevation_scale));
+    vec3 n = normalize(vec3(a_normal.xy, u_lifted ? a_normal.z : a_normal.z / u_elevation_scale));
     float sun = dot(n, u_light) * 0.5 + 0.5;
     float sky = n.z * 0.5 + 0.5;
     float lit = mix(0.62, 1.0, mix(sun, sky, 0.6));

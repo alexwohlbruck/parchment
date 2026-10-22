@@ -284,7 +284,7 @@ export class BakedBridgeLayer {
     const sun = this.sun
 
     const shade = liveBuildingShade()
-    const mesh = bindMesh(gl, this.program, part.buffers, matrix, light, { hd, palette: this.colors, elevationScale: exaggeration, eye: relative, perMetre: exaggeration / metresPerUnit(part.data.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
+    const mesh = bindMesh(gl, this.program, part.buffers, matrix, light, { hd, palette: this.colors, elevationScale: exaggeration, eye: relative, perMetre: (part.buffers.lift ? 1 : exaggeration) / metresPerUnit(part.data.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
       sun: { frame: sun, origin: part.data.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: shade?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
     })
     const { paintFrom, railsFrom, routesFrom } = part.data.ranges

@@ -17,6 +17,23 @@ describe('server-baked mesh contract', () => {
     expect(mesh.stands).toHaveLength(1)
     expect(mesh.ground.length).toBe(mesh.position.length / 3)
   })
+  test('still reads a mesh baked before lifts, which draws exaggerated as a whole', () => {
+    const v2 = new Uint8Array(fixture()), view = new DataView(v2.buffer)
+    const start = view.getUint32(8, true)
+    const header = JSON.parse(new TextDecoder().decode(v2.subarray(12, 12 + view.getUint32(4, true))))
+    const offsets = header.lengths.reduce((at: number[], n: number) => [...at, at[at.length - 1] + n * 4], [start])
+    const old = new TextEncoder().encode(JSON.stringify({ ...header, version: 1, lengths: [...header.lengths.slice(0, 7), header.lengths[8]] }))
+    const head = 12 + Math.ceil(old.length / 4) * 4
+    const out = new Uint8Array(head + offsets[7] - start + offsets[9] - offsets[8])
+    const ov = new DataView(out.buffer)
+    ov.setUint32(0, 0x314d5242, true); ov.setUint32(4, old.length, true); ov.setUint32(8, head, true)
+    out.set(old, 12)
+    out.set(v2.subarray(start, offsets[7]), head)
+    out.set(v2.subarray(offsets[8], offsets[9]), head + offsets[7] - start)
+    const mesh = decodeBridge(out.buffer)
+    expect(mesh.lift.length).toBe(0)
+    expect(mesh.indices.length).toBe(276)
+  })
   test('rejects truncated buffers and incompatible headers before GPU upload', () => {
     const buffer = fixture()
     expect(() => decodeBridge(buffer.slice(0, -4))).toThrow()

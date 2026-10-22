@@ -340,6 +340,9 @@ export class MaplibreStrategy extends MapStrategy {
       // ~20 frames after every camera change.
       fadeDuration: 100,
       isolatedCollisionLayers: ISOLATED_COLLISION_LAYERS,
+      // Over terrain, draw every fill and line in one draped texture beneath the
+      // labels and 3D layers, not one texture and terrain pass per run of them.
+      drapeBeneath: true,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
       bearingSnap: 0,

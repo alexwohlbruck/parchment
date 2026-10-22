@@ -80,7 +80,7 @@
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.27.0",
     "mapillary-js": "^4.1.2",
-    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#b15d94179acb1a76e4d7b50cb5809a65cea8ee91",
+    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#785de6e811e406200857ce9cb55e627af0d69327",
     "mitt": "^3.0.1",
     "mousetrap": "^1.6.5",
     "photoswipe": "^5.4.4",

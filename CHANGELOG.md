@@ -2,9 +2,15 @@
 
 ### Added
 
+* Review failed sync changes and open identity settings directly from their notifications.
+
 * Request a fresh sign-in code with Resend email on the verification screen.
 
 ### Changed
+
+* Repeated notifications update a single toast with a gentle pulse instead of stacking, and a failed save shows one error instead of two.
+
+* Creating a collection offers a View button that opens it.
 
 ### Fixed
 

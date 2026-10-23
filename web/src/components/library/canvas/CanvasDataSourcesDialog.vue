@@ -86,7 +86,7 @@ async function onFilePicked(event: Event) {
     appService.toast.error(
       error instanceof GeoImportError
         ? t(`canvases.import.errors.${error.key}`)
-        : t('canvases.import.errors.failed'),
+        : t('canvases.import.errors.failed'), { cause: error },
     )
   } finally {
     busy.value = false
@@ -117,7 +117,7 @@ async function addFromUrl() {
     appService.toast.error(
       error instanceof GeoImportError
         ? t(`canvases.import.errors.${error.key}`)
-        : t('canvases.import.errors.fetchFailed'),
+        : t('canvases.import.errors.fetchFailed'), { cause: error },
     )
   } finally {
     busy.value = false

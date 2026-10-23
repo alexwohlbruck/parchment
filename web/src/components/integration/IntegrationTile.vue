@@ -153,7 +153,7 @@ function offerManualCallback() {
       toast.error(
         error.response?.data?.message ||
           error.message ||
-          t('settings.integrations.osm.authError'),
+          t('settings.integrations.osm.authError'), { cause: error },
       )
     }
   }
@@ -205,7 +205,7 @@ async function handleOAuthClick() {
       }
     } catch (error) {
       console.error('Failed to initiate OAuth flow:', error)
-      toast.error(t('settings.integrations.osm.authError'))
+      toast.error(t('settings.integrations.osm.authError'), { cause: error })
     }
     return
   }
@@ -300,7 +300,7 @@ async function handleClick() {
       fullConfig = response.data
     } catch (err) {
       console.error('Failed to fetch full integration config:', err)
-      toast.error('Failed to load integration configuration')
+      toast.error('Failed to load integration configuration', { cause: err })
       return
     }
   }

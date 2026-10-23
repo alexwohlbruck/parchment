@@ -212,7 +212,7 @@ async function handleSubmit(comment: string) {
     announceSubmitted(result.changesetId)
     router.replace({ name: AppRoute.MAP })
   } catch (error: any) {
-    toast.error(error.response?.data?.message ?? t('quickEdit.submitError'))
+    toast.error(error.response?.data?.message ?? t('quickEdit.submitError'), { cause: error })
   } finally {
     submitting.value = false
   }

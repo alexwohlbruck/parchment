@@ -121,8 +121,8 @@ export const useRoutesService = createSharedComposable(() => {
       )
       routesStore.setRoutes(hydrated)
       return hydrated
-    } catch {
-      toast.error('Failed to load routes')
+    } catch (error) {
+      toast.error('Failed to load routes', { cause: error })
       return []
     }
   }
@@ -133,8 +133,8 @@ export const useRoutesService = createSharedComposable(() => {
       const hydrated = await hydrateRoute(data as Route, authStore.me?.id)
       routesStore.upsertRoute(hydrated)
       return hydrated
-    } catch {
-      toast.error('Failed to load route')
+    } catch (error) {
+      toast.error('Failed to load route', { cause: error })
       return null
     }
   }
@@ -258,7 +258,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return createOffline()
       }
-      toast.error('Failed to save route')
+      toast.error('Failed to save route', { cause: error })
       return null
     }
   }
@@ -382,7 +382,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return updateOffline()
       }
-      toast.error('Failed to update route')
+      toast.error('Failed to update route', { cause: error })
       return null
     }
   }
@@ -420,7 +420,7 @@ export const useRoutesService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return deleteOffline()
       }
-      toast.error('Failed to delete route')
+      toast.error('Failed to delete route', { cause: error })
       return false
     }
   }
@@ -438,9 +438,9 @@ export const useRoutesService = createSharedComposable(() => {
       return `${window.location.origin}/r/${token}`
     } catch (err: any) {
       if (err?.response?.status === 400) {
-        toast.error('Private (end-to-end encrypted) routes can’t be shared by link')
+        toast.error('Private (end-to-end encrypted) routes can’t be shared by link', { cause: err })
       } else {
-        toast.error('Failed to create share link')
+        toast.error('Failed to create share link', { cause: err })
       }
       return null
     }
@@ -454,8 +454,8 @@ export const useRoutesService = createSharedComposable(() => {
         routesStore.upsertRoute({ ...current, publicToken: null, isPublic: false })
       }
       return true
-    } catch {
-      toast.error('Failed to revoke share link')
+    } catch (error) {
+      toast.error('Failed to revoke share link', { cause: error })
       return false
     }
   }

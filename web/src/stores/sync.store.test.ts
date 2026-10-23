@@ -19,6 +19,7 @@ import {
 } from '@/lib/connectivity'
 import { registerMutationHandler } from '@/lib/sync/mutation-registry'
 import { useSyncStore } from '@/stores/sync.store'
+import { toast as sonner } from 'vue-sonner'
 
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/lib/i18n', () => ({
@@ -58,6 +59,29 @@ describe('sync store', () => {
     localStorage.clear()
     setActivePinia(createPinia())
     _resetConnectivityForTests()
+  })
+
+  test('aggregates failures and opens their review panel', async () => {
+    reportServerUnreachable()
+    const store = useSyncStore()
+    const type = uniqueType()
+    registerMutationHandler(type, { execute: async () => { throw clientError(403) } })
+    store.enqueue(type, {}, 'First change')
+    store.enqueue(type, {}, 'Second change')
+    vi.mocked(sonner.error).mockClear()
+    reportServerReachable()
+    await store.flush()
+    await settle()
+    const calls = vi.mocked(sonner.error).mock.calls
+    expect(store.failedMutations).toHaveLength(2)
+    expect(calls).toHaveLength(2)
+    expect(calls.map(call => call[1]?.id)).toEqual(['sync-failed', 'sync-failed'])
+    expect(calls[1][0]).toBe('offline.sync.failedManyToast')
+    const action = calls[1][1]?.action as { onClick: (event: MouseEvent) => void }
+    action.onClick(new MouseEvent('click'))
+    expect(store.reviewOpen).toBe(true)
+    store.clear()
+    expect(store.reviewOpen).toBe(false)
   })
 
   test('replays queued mutations in order once online', async () => {

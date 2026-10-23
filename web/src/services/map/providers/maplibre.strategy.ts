@@ -110,7 +110,7 @@ import {
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE } from '@/lib/map-decks/palette'
-import { flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
+import { flatBridgeLabelFilter, flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { SOURCE } from '@/lib/map-style/build'
@@ -489,6 +489,8 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
+      this.mutedBridgeLabels.clear()
+      this.bridgeLabelKey = null
       if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
       this.mutedTunnels.clear()
@@ -956,6 +958,10 @@ export class MaplibreStrategy extends MapStrategy {
   private deckLayer: BakedBridgeLayer | null = null
   /** Flat bridge layers muted under the decks, with the opacity each had. */
   private mutedBridges = new Map<string, { property: any; value: unknown }>()
+  /** Road symbol layers filtered off the bridges under the decks, with the filter each had. */
+  private mutedBridgeLabels = new Map<string, unknown>()
+  /** The deck version the road labels were last filtered for. */
+  private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
   /** Flat tunnel layers muted from street zoom, with the opacity each had. */
   private mutedTunnels = new Map<string, unknown>()
@@ -997,10 +1003,21 @@ export class MaplibreStrategy extends MapStrategy {
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null
     }
+    const covered = active && !!this.deckLayer?.covered
+    const labelKey = covered ? this.deckLayer!.version : null
+    const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
     for (const layer of map.getStyle()?.layers ?? []) {
+      const was = this.mutedBridgeLabels.get(layer.id)
+      const filter = footprint && flatBridgeLabelFilter({ ...(layer as any), filter: was ?? (layer as any).filter }, footprint)
+      if (filter) {
+        if (!this.mutedBridgeLabels.has(layer.id)) this.mutedBridgeLabels.set(layer.id, map.getFilter(layer.id))
+        map.setFilter(layer.id, filter)
+      } else if (!covered && this.mutedBridgeLabels.has(layer.id)) {
+        map.setFilter(layer.id, was as any)
+        this.mutedBridgeLabels.delete(layer.id)
+      }
       const property = flatBridgeOpacity(layer as any) as any
       if (!property) continue
-      const covered = active && !!this.deckLayer?.covered
       if (covered && !this.mutedBridges.has(layer.id)) {
         this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
         map.setPaintProperty(layer.id, property, 0)
@@ -1009,6 +1026,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.mutedBridges.delete(layer.id)
       }
     }
+    this.bridgeLabelKey = labelKey
     this.muteFlatTunnels()
   }
 

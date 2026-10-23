@@ -10,6 +10,7 @@ import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
 import { BRIDGE_MESH_FILE, decodeBridge, MATERIALS, type BakedMesh } from './mesh-file'
 import { deckCover } from './cover'
+import { deckFootprints } from '../footprints'
 
 const MIN_LINE_PX = 1
 const RAILS_FROM = 17.5
@@ -265,6 +266,11 @@ export class BakedBridgeLayer {
       if (hit && (!best || hit.z > best.z)) best = hit
     }
     return best && this.drawnAt(best)
+  }
+  /** The ground under the decks drawn, or null while they are not. */
+  footprints(): GeoJSON.MultiPolygon | null {
+    if (!this.covered) return null
+    return deckFootprints([...this.parts].flatMap(([id, part]) => (this.wanted.has(id) ? part.data.stands.map(s => s.chain) : [])))
   }
   standOn(lng: number, lat: number, along?: [number, number]): number | null {
     if (!this.covered) return null

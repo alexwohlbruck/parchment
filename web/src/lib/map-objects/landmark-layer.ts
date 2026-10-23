@@ -40,7 +40,7 @@ import {
   elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
-  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
+  ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
@@ -108,7 +108,7 @@ const GROUND_BLEND = 25
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
 
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
-const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3 }
+const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 4 }
 
 /**
  * The terrain under a landmark, as a GROUND_GRID² grid over its plan extent
@@ -157,7 +157,8 @@ const ATTRIBUTES = `
   layout(location = 0) in vec3 a_position;
   layout(location = 1) in vec3 a_normal;
   layout(location = 2) in vec2 a_uv;
-  layout(location = 3) in float a_material;`
+  layout(location = 3) in float a_material;
+  layout(location = 4) in float a_floodlight;`
 
 /**
  * Where a moving part stands this frame, in model space: its node's matrix
@@ -200,8 +201,10 @@ const DRAW_VS = `#version 300 es
   flat out vec3 v_color;
   flat out vec3 v_emission;
   flat out float v_window;
+  out float v_floodlight;
   void main() {
     int m = int(a_material);
+    v_floodlight = a_floodlight;
     v_color = u_colors[m];
     v_emission = u_emissions[m].rgb;
     v_window = u_emissions[m].a;
@@ -290,6 +293,8 @@ const DRAW_FS = `#version 300 es
   /** Emitted colour, linear, already scaled by its intensity. */
   flat in vec3 v_emission;
   flat in float v_window;
+  /** How much of the night's floodlighting falls here, from the model's \`_FLOODLIGHT\`. */
+  in float v_floodlight;
   /** 1 when a painted texture's alpha says where the panes are: 0 glass, 1 wall. */
   uniform float u_panes;
   in vec3 v_normal;
@@ -339,6 +344,9 @@ const DRAW_FS = `#version 300 es
     // Floodlit crowns, as a skyline's tallest towers are.
     float crown = u_night * smoothstep(u_height * (1.0 - u_crown), u_height, v_model.z) * step(0.001, u_crown);
     shaded = mix(shaded, u_windowLight * 0.9, crown * 0.45);
+    // Floodlit stone takes back its own colour, in the floodlights' warm white.
+    vec3 floodlit = min(v_color * vec3(${FLOODLIGHT.color.map(c => c.toFixed(3)).join(', ')}), 1.0) * mix(0.8, 1.0, facing);
+    shaded = mix(shaded, floodlit, clamp(v_floodlight, 0.0, 1.0) * u_night * ${FLOODLIGHT.strength.toFixed(2)});
     if (v_emission != vec3(0.0)) {
       vec3 lit = pow(shaded, vec3(2.2)) + v_emission;
       shaded = pow(clamp(lit, 0.0, 1.0), vec3(1.0 / 2.2));
@@ -1083,6 +1091,7 @@ export class LandmarkLayer {
         attribute(LOC.a_normal, batch.normal, 3)
         if (batch.uv) attribute(LOC.a_uv, batch.uv, 2)
         attribute(LOC.a_material, batch.material, 1)
+        if (batch.floodlight) attribute(LOC.a_floodlight, batch.floodlight, 1)
         const index = gl.createBuffer()!
         buffers.push(index)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index)
@@ -1364,6 +1373,8 @@ export class LandmarkLayer {
     pose: Map<number, Float32Array> | null,
   ) {
     let node: Float32Array | null = null
+    // What a batch without floodlights reads, its attribute array being off.
+    gl.vertexAttrib1f(LOC.a_floodlight, 0)
     for (const batch of batches) {
       // Set only when it changes: a static model sets the identity once.
       const at = (batch.node >= 0 && pose?.get(batch.node)) || IDENTITY

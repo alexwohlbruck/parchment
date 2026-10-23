@@ -8,6 +8,8 @@ export type GlbPrimitive = {
   material: string
   /** `TEXCOORD_0`, when the primitive has one. */
   uv: Float32Array | null
+  /** `_FLOODLIGHT`, when the primitive has one: 0–1 per vertex, how floodlit it is at night. */
+  floodlight: Float32Array | null
   /** The base-colour texture's image, undecoded. */
   image: { bytes: Uint8Array; mimeType: string } | null
   alphaMode: 'OPAQUE' | 'MASK' | 'BLEND'

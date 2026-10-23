@@ -9,6 +9,7 @@ const triangle = (over: Partial<GlbPrimitive> = {}): GlbPrimitive => ({
   color: [1, 1, 1, 1],
   material: 'wall',
   uv: null,
+  floodlight: null,
   image: null,
   alphaMode: 'OPAQUE',
   alphaCutoff: 0.5,
@@ -26,6 +27,13 @@ describe('batchPrimitives', () => {
     expect([...batch.index]).toEqual([0, 1, 2, 3, 4, 5])
     expect([...batch.material]).toEqual([0, 0, 0, 1, 1, 1])
     expect(batch.position.length).toBe(18)
+  })
+
+  it('carries floodlight per vertex, unlit where a primitive has none, and none for an unlit batch', () => {
+    const [batch] = batchPrimitives([triangle(), triangle({ floodlight: new Float32Array([1, 0.5, 0.25]) })])
+
+    expect([...batch.floodlight!]).toEqual([0, 0, 0, 1, 0.5, 0.25])
+    expect(batchPrimitives([triangle()])[0].floodlight).toBeNull()
   })
 
   it('keeps apart primitives on another node, culled differently, or textured', () => {

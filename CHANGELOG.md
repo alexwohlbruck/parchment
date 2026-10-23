@@ -18,6 +18,8 @@
 
 * 3D bridges stay raised while you pan and orbit, instead of flickering back to flat roads.
 
+* 3D bridge ramps and approaches read as clean, continuous roads: no stray slabs, plates or walkway scraps around interchanges like the Brooklyn Bridge's.
+
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20

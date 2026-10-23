@@ -884,10 +884,18 @@ export class ObjectLayer {
         if (terrain && instance.conform && instance.length) {
           const { x, y, perMetre } = placed
           const across = instance.conform === true ? 0 : instance.conform.across
-          const plane = groundPlane(instance.heading, instance.length, across, (east, south) => {
+          const ground = (east: number, south: number) => heightAt(...unproject(x + east * perMetre, y + south * perMetre))
+          let [on, off, high] = [0, 0, false]
+          const decked = groundPlane(instance.heading, instance.length, across, (east, south) => {
             const at = unproject(x + east * perMetre, y + south * perMetre)
-            return deckAt(...at) ?? heightAt(...at)
+            const deck = deckAt(...at)
+            if (deck === null) return (off++, heightAt(...at))
+            on++
+            high ||= deck - heightAt(...at) > DECK_CLEARANCE
+            return deck
           })
+          // Half on a deck high over the ground is a span running in under it, not along it.
+          const plane = on && off && high ? groundPlane(instance.heading, instance.length, across, ground) : decked
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy

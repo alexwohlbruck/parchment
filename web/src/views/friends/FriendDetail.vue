@@ -187,7 +187,7 @@ async function toggleLocationSharing() {
     })
   } catch (error) {
     console.error('Failed to toggle sharing:', error)
-    appService.toast.error(t('friends.detail.syncFailed'))
+    appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
   } finally {
     isSavingConfig.value = false
   }
@@ -201,7 +201,7 @@ async function syncKeys() {
     await friendLocations.fetchLocations()
     appService.toast.success(t('friends.detail.keysSynced'))
   } catch (error) {
-    appService.toast.error(t('friends.detail.syncFailed'))
+    appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
   } finally {
     isSyncing.value = false
   }

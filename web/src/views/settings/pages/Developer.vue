@@ -158,7 +158,7 @@ async function forceBroadcast() {
     await locationBroadcast.broadcastNow()
     appService.toast.success('Location broadcast sent')
   } catch (err) {
-    appService.toast.error('Broadcast failed')
+    appService.toast.error('Broadcast failed', { cause: err })
   } finally {
     isBroadcasting.value = false
   }

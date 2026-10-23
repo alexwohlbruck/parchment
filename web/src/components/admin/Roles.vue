@@ -154,7 +154,7 @@ async function deleteRole(role: Role) {
     appService.toast.success('Role deleted')
   } catch (err: any) {
     appService.toast.error(
-      err?.response?.data?.message ?? 'Failed to delete role',
+      err?.response?.data?.message ?? 'Failed to delete role', { cause: err },
     )
   }
 }

@@ -25,21 +25,30 @@ function suppressed(options?: ErrorToastOptions): boolean {
   if (
     options?.cause !== undefined &&
     isQuietNetworkError(getNetworkErrorKind(options.cause))
-  ) return true
+  ) {
+    return true
+  }
   return isOffline.value
 }
 
 function hash(text: string): string {
   let h = 0x811c9dc5
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  for (let i = 0; i < text.length; i++) {
+    h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  }
   return (h >>> 0).toString(36)
 }
 
 function repeatFeedback(className: string) {
-  if (typeof document === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  if (
+    typeof document === 'undefined' ||
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  ) return
   const element = document.getElementsByClassName(className)[0] as HTMLElement | undefined
   if (!element || element.dataset.removed === 'true' || !element.animate) return
-  element.getAnimations?.().filter(animation => animation.id === 'toast-repeat').forEach(animation => animation.cancel())
+  element.getAnimations?.()
+    .filter(animation => animation.id === 'toast-repeat')
+    .forEach(animation => animation.cancel())
   // Individual scale leaves Sonner's positioning and swipe transforms intact.
   element.animate([{ scale: 1 }, { scale: 0.97 }, { scale: 1.01 }, { scale: 1 }], {
     duration: 240,
@@ -54,8 +63,11 @@ function show(
   message: Message,
   options: ExternalToast = {},
 ) {
-  const canGroup = type !== 'loading' && typeof message === 'string' &&
-    !options.action && !options.cancel &&
+  const canGroup =
+    type !== 'loading' &&
+    typeof message === 'string' &&
+    !options.action &&
+    !options.cancel &&
     (options.description === undefined || typeof options.description === 'string')
   const id = options.id ?? (canGroup
     ? `notification:${JSON.stringify([type, message, options.description])}`
@@ -76,7 +88,7 @@ function show(
   })
 }
 
-type AppToast = Omit<typeof sonner, 'error'> & typeof sonner & {
+type AppToast = ShowToast & Omit<typeof sonner, 'error'> & {
   error(message: Message, options?: ErrorToastOptions): ToastId | undefined
 }
 
@@ -95,7 +107,8 @@ wrapped.error = (message: Message, options?: ErrorToastOptions) => {
   const { force: _force, cause, ...rest } = options ?? {}
   if (cause !== null && typeof cause === 'object') {
     const previous = errorToasts.get(cause)
-    rest.id = previous?.id ?? rest.id ?? `request-error:${++errorSequence}`
+    rest.id ??= previous?.id ?? `request-error:${++errorSequence}`
+    if (previous && previous.id !== rest.id) sonner.dismiss(previous.id)
     rest.description ??= previous?.description
     errorToasts.set(cause, { id: rest.id, description: rest.description })
   }

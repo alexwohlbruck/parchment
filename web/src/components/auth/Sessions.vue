@@ -148,7 +148,7 @@ async function signOutOthers() {
     toast.success(t('settings.auth.sessions.signOutOthersSuccess'))
   } catch (err) {
     toast.error(
-      err instanceof Error ? err.message : t('settings.auth.sessions.signOutOthersFailed'),
+      err instanceof Error ? err.message : t('settings.auth.sessions.signOutOthersFailed'), { cause: err },
     )
   } finally {
     isSigningOutOthers.value = false

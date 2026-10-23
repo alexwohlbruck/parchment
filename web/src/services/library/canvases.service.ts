@@ -191,8 +191,8 @@ export const useCanvasesService = createSharedComposable(() => {
       )
       canvasesStore.setCanvases(hydrated)
       return hydrated
-    } catch {
-      toast.error('Failed to load canvases')
+    } catch (error) {
+      toast.error('Failed to load canvases', { cause: error })
       return []
     }
   }
@@ -203,8 +203,8 @@ export const useCanvasesService = createSharedComposable(() => {
       const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
       canvasesStore.upsertCanvas(hydrated)
       return hydrated
-    } catch {
-      toast.error('Failed to load canvas')
+    } catch (error) {
+      toast.error('Failed to load canvas', { cause: error })
       return null
     }
   }
@@ -297,7 +297,7 @@ export const useCanvasesService = createSharedComposable(() => {
       toast.error(
         error instanceof Error && error.message.includes('seed')
           ? IDENTITY_REQUIRED
-          : 'Failed to create canvas',
+          : 'Failed to create canvas', { cause: error },
       )
       return null
     }
@@ -480,7 +480,7 @@ export const useCanvasesService = createSharedComposable(() => {
       toast.error(
         error instanceof Error && error.message.includes('seed')
           ? IDENTITY_REQUIRED
-          : 'Could not change the privacy of this canvas',
+          : 'Could not change the privacy of this canvas', { cause: error },
       )
       return null
     }
@@ -504,7 +504,7 @@ export const useCanvasesService = createSharedComposable(() => {
       toast.error(
         status === 400
           ? 'Private canvases can’t be shared by link'
-          : 'Could not create a share link',
+          : 'Could not create a share link', { cause: error },
       )
       return null
     }
@@ -519,8 +519,8 @@ export const useCanvasesService = createSharedComposable(() => {
         isPublic: false,
       })
       return true
-    } catch {
-      toast.error('Could not revoke the share link')
+    } catch (error) {
+      toast.error('Could not revoke the share link', { cause: error })
       return false
     }
   }

@@ -12,6 +12,7 @@ const sonner = vi.hoisted(() => ({
   info: vi.fn(),
   message: vi.fn(),
   loading: vi.fn(),
+  dismiss: vi.fn(),
 }))
 vi.mock('vue-sonner', () => ({ toast: Object.assign(vi.fn(), sonner) }))
 
@@ -119,6 +120,16 @@ describe('toast keys', () => {
     expect(second[1].id).toBe(first[1].id)
     expect(second[0]).toBe('Failed to save route')
     expect(second[1].description).toBe('Try again later')
+  })
+
+  it('lets an aggregate id replace a request toast', () => {
+    const cause = new Error('Forbidden')
+    toast.error('Request failed', { cause })
+    const previous = idOf(sonner.error)
+    toast.error('Two changes failed', { cause, id: 'sync-failed', description: '' })
+    expect(idOf(sonner.error, 1)).toBe('sync-failed')
+    expect(sonner.dismiss).toHaveBeenCalledWith(previous)
+    expect(sonner.error.mock.calls[1][1].description).toBe('')
   })
 
   it('keeps unrelated failures apart', () => {

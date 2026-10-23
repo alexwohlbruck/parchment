@@ -41,6 +41,7 @@ export const useSyncStore = defineStore('sync', () => {
   )
 
   const isFlushing = ref(false)
+  const reviewOpen = ref(false)
 
   const pendingMutations = computed(() =>
     queue.value.filter(item => item.status !== 'failed'),
@@ -160,7 +161,15 @@ export const useSyncStore = defineStore('sync', () => {
             failures > 1
               ? (i18n.global as any).t('offline.sync.failedManyToast', { count: failures })
               : (i18n.global as any).t('offline.sync.failedToast', { label: item.label }),
-            { id: 'sync-failed' },
+            {
+              id: 'sync-failed',
+              cause: error,
+              description: '',
+              action: {
+                label: (i18n.global as any).t('offline.sync.reviewAction'),
+                onClick: () => { reviewOpen.value = true },
+              },
+            },
           )
         }
       }
@@ -226,6 +235,7 @@ export const useSyncStore = defineStore('sync', () => {
   function clear() {
     queue.value = []
     idMap.value = {}
+    reviewOpen.value = false
   }
 
   onReconnected(() => void flush())
@@ -240,6 +250,7 @@ export const useSyncStore = defineStore('sync', () => {
     failedMutations,
     hasWork,
     isFlushing,
+    reviewOpen,
     enqueue,
     enqueueLatest,
     flush,

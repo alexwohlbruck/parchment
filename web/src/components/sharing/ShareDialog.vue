@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   Dialog,
@@ -74,6 +75,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const serverUrl = useServerUrl()
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
@@ -218,9 +220,22 @@ function isRemoteHandle(handle: string): boolean {
   return recipientDomain !== domain
 }
 
+function showIdentityWarning() {
+  toast.warning(t('sharing.errors.identityRequired'), {
+    id: 'identity-required',
+    action: {
+      label: t('notifications.manageIdentity'),
+      onClick: () => {
+        emit('update:open', false)
+        void router.push({ path: '/settings/account', hash: '#identity' })
+      },
+    },
+  })
+}
+
 async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
   if (!isSetupComplete.value || !encryptionPrivateKey.value) {
-    toast.warning(t('sharing.errors.identityRequired'))
+    showIdentityWarning()
     return
   }
   const friend = friends.value.find(f => f.friendHandle === friendHandle)
@@ -236,7 +251,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
       ? await collectionsService.collectionKey(props.collection)
       : undefined
     if (isPrivate && !key) {
-      toast.warning(t('sharing.errors.identityRequired'))
+      showIdentityWarning()
       return
     }
     const encrypted = sealCollectionShare({
@@ -259,7 +274,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     let federationTimestamp: string | undefined
     if (isRemoteHandle(friendHandle)) {
       if (!signingPrivateKey.value) {
-        toast.warning(t('sharing.errors.identityRequired'))
+        showIdentityWarning()
         return
       }
       federationNonce = generateFederationNonce()
@@ -339,7 +354,7 @@ async function onRemove(row: AccessRow) {
     // return ciphertext they can't decrypt.
     if (props.collection.scheme === 'user-e2ee') {
       if (!encryptionPrivateKey.value || !authStore.me?.id) {
-        toast.warning(t('sharing.errors.identityRequired'))
+        showIdentityWarning()
         return
       }
 
@@ -421,8 +436,8 @@ async function onCopyPublicLink() {
   try {
     await navigator.clipboard.writeText(publicUrl.value)
     toast.success(t('sharing.publicLink.copied'))
-  } catch {
-    toast.error(t('sharing.errors.copyFailed'))
+  } catch (error) {
+    toast.error(t('sharing.errors.copyFailed'), { cause: error })
   }
 }
 

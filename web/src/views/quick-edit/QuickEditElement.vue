@@ -198,7 +198,7 @@ async function handleSubmit(comment: string) {
     router.back()
   } catch (error: any) {
     if (error.response?.status === 409) {
-      toast.error(t('quickEdit.conflictError'))
+      toast.error(t('quickEdit.conflictError'), { cause: error })
       const live = error.response.data?.live as OsmLiveElement | undefined
       if (live) {
         element.value = live
@@ -206,7 +206,7 @@ async function handleSubmit(comment: string) {
         Object.assign(tags, live.tags)
       }
     } else {
-      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'))
+      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'), { cause: error })
     }
   } finally {
     submitting.value = false

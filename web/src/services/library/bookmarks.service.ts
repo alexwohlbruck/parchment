@@ -426,10 +426,10 @@ export const useBookmarksService = createSharedComposable(() => {
         return updateOffline()
       }
       if (error.response && error.response.status === 404) {
-        toast.error(t('services.bookmarks.updateErrorNotFound'))
+        toast.error(t('services.bookmarks.updateErrorNotFound'), { cause: error })
         bookmarksStore.removeBookmark(id)
       } else {
-        toast.error(t('services.bookmarks.updateError'))
+        toast.error(t('services.bookmarks.updateError'), { cause: error })
       }
       console.error(`Error updating bookmark ${id}:`, error)
       return null

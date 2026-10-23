@@ -36,7 +36,7 @@ export function useCollectionPrivacy() {
       return switched
     } catch (err) {
       console.error('[collections] privacy switch failed', err)
-      appService.toast.error(t('library.privacy.switchFailed'))
+      appService.toast.error(t('library.privacy.switchFailed'), { cause: err })
       return null
     } finally {
       switching.value = false

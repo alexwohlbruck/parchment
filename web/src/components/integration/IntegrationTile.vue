@@ -153,7 +153,7 @@ function offerManualCallback() {
       toast.error(
         error.response?.data?.message ||
           error.message ||
-          t('settings.integrations.osm.authError'),
+          t('settings.integrations.osm.authError'), { cause: error },
       )
     }
   }

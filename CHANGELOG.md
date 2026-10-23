@@ -2,6 +2,8 @@
 
 ### Added
 
+* Review failed sync changes and open identity settings directly from their notifications.
+
 * Request a fresh sign-in code with Resend email on the verification screen.
 
 ### Changed

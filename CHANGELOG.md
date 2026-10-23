@@ -20,6 +20,12 @@
 
 * 3D bridge ramps and approaches read as clean, continuous roads: no stray slabs, plates or walkway scraps around interchanges like the Brooklyn Bridge's.
 
+* Street names no longer lie on the ground or water under 3D bridges, and fences under a bridge no longer stretch up to its deck.
+
+* The Brooklyn Bridge's cables fade to a soft fan from a distance instead of a shimmering mesh.
+
+* Bike paths on 3D bridges are painted green, like bike lanes on the street.
+
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20

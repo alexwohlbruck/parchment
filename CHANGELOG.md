@@ -4,6 +4,8 @@
 
 * Request a fresh sign-in code with Resend email on the verification screen.
 
+* At night, 3D landmarks light their lamps and floodlit stone, so the Brooklyn Bridge shows its lit towers and the necklace of lights along its cables.
+
 ### Changed
 
 * 3D terrain draws faster: roads and areas are laid on the terrain in one pass instead of eight.

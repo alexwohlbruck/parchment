@@ -82,11 +82,14 @@ export const isWindow = (material: string) => material.startsWith('window')
 /** Whether a material is a lamp, which glows at night: `lamp`, `lamp-2`, as windows are named. */
 export const isLamp = (material: string) => material.startsWith('lamp')
 
+/** Whether a material is a wire (a suspender, a stay), thinned out where it is finer than a pixel. */
+export const isWire = (material: string) => material.startsWith('wire')
+
 /** How the draw shader treats a material, beyond its colour and emission. */
-export const ROLE = { plain: 0, window: 1, lamp: 2 } as const
+export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3 } as const
 
 export const materialRole = (material: string): number =>
-  isWindow(material) ? ROLE.window : isLamp(material) ? ROLE.lamp : ROLE.plain
+  isWindow(material) ? ROLE.window : isLamp(material) ? ROLE.lamp : isWire(material) ? ROLE.wire : ROLE.plain
 
 /** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
 export function materialEmission(

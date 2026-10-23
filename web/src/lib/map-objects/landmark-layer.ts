@@ -282,6 +282,9 @@ function seedOf(id: string): number {
  * the extrusions, so a landmark's lit windows are the city's. Doors still
  * glow by emission, added in linear light as Open Landmarks' renderer does.
  */
+/** Metres across a wire, as its model draws it. */
+const WIRE_WIDTH = 0.35
+
 const DRAW_FS = `#version 300 es
   precision highp float;
   flat in vec3 v_color;
@@ -316,9 +319,15 @@ const DRAW_FS = `#version 300 es
   ${FACADE_SHADE_GLSL}
   out vec4 fragColor;
   const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+  /** The share of a pixel a wire covers, drawn as its opacity: a fan of them finer than a pixel is a haze rather than moiré. */
+  float wireCover() {
+    return ${WIRE_WIDTH.toFixed(2)} / max(length(fwidth(v_model)), 1e-4);
+  }
   void main() {
     if (v_floor < 0.0) discard;
     cut();
+    float alpha = v_role == ${ROLE.wire}.0 ? min(wireCover(), 1.0) : 1.0;
+    if (alpha < 0.02) discard;
     // A painted texture carries the surface's colour, multiplied by the
     // material's — which is how a facade gets a grid of windows that
     // mipmaps to the right tone at a distance instead of shimmering.
@@ -359,7 +368,7 @@ const DRAW_FS = `#version 300 es
     }
     // A lamp is its light, unshaded.
     if (v_role == ${ROLE.lamp}.0) shaded = pow(min(v_emission, 1.0), vec3(1.0 / 2.2));
-    fragColor = vec4(shaded, 1.0);
+    fragColor = vec4(shaded, alpha);
   }`
 
 /** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
@@ -1249,7 +1258,9 @@ export class LandmarkLayer {
     gl.depthFunc(gl.LEQUAL)
     gl.depthMask(true)
     if (range) gl.depthRange(range[0], range[1])
-    gl.disable(gl.BLEND)
+    // Opaque but for the wires, whose coverage is their alpha; they come last in their model.
+    gl.enable(gl.BLEND)
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.disable(gl.STENCIL_TEST)
     gl.cullFace(gl.BACK)
     // Counter-clockwise, unlike `ObjectLayer`. That layer mirrors its models

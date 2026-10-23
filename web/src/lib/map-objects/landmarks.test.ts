@@ -125,9 +125,9 @@ describe('materialEmission', () => {
     expect(materialEmission('lamp', day)).toBeNull()
   })
 
-  it('gives windows and lamps their own roles in the draw shader', () => {
-    expect(['window-2', 'lamp', 'lamp-3', 'glass', 'stone'].map(materialRole))
-      .toEqual([ROLE.window, ROLE.lamp, ROLE.lamp, ROLE.plain, ROLE.plain])
+  it('gives windows, lamps and wires their own roles in the draw shader', () => {
+    expect(['window-2', 'lamp', 'lamp-3', 'wire-steel', 'glass', 'stone'].map(materialRole))
+      .toEqual([ROLE.window, ROLE.lamp, ROLE.lamp, ROLE.wire, ROLE.plain, ROLE.plain])
   })
 
   it('leaves windows to the facade and every other material dark', () => {

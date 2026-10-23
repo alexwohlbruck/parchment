@@ -59,8 +59,8 @@ const hex = (h: string): [number, number, number] =>
  */
 const ENTRANCE_LIGHT = { glow: hex('#fff0cd'), intensity: 2.4 }
 
-/** A lamp's light: a warm white, strong enough to read as a point of light over the dark map. */
-const LAMP_LIGHT = { glow: hex('#ffe7c4'), intensity: 0.9 }
+/** A lamp's light, a warm white; a lamp is drawn as this colour, unshaded, at night only. */
+const LAMP_LIGHT = { glow: hex('#ffe7c4'), intensity: 1 }
 
 /**
  * Floodlit stone at night (a model's `_FLOODLIGHT`): its own colour under a
@@ -81,6 +81,12 @@ export const isWindow = (material: string) => material.startsWith('window')
 
 /** Whether a material is a lamp, which glows at night: `lamp`, `lamp-2`, as windows are named. */
 export const isLamp = (material: string) => material.startsWith('lamp')
+
+/** How the draw shader treats a material, beyond its colour and emission. */
+export const ROLE = { plain: 0, window: 1, lamp: 2 } as const
+
+export const materialRole = (material: string): number =>
+  isWindow(material) ? ROLE.window : isLamp(material) ? ROLE.lamp : ROLE.plain
 
 /** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
 export function materialEmission(

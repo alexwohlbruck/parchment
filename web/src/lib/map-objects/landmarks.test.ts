@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, paletteFor, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
+  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, materialRole, paletteFor, ROLE, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
   REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
 } from './landmarks'
 import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
@@ -123,6 +123,11 @@ describe('materialEmission', () => {
     expect(materialEmission('lamp', night)).not.toBeNull()
     expect(materialEmission('lamp-2', night)).toEqual(materialEmission('lamp', night))
     expect(materialEmission('lamp', day)).toBeNull()
+  })
+
+  it('gives windows and lamps their own roles in the draw shader', () => {
+    expect(['window-2', 'lamp', 'lamp-3', 'glass', 'stone'].map(materialRole))
+      .toEqual([ROLE.window, ROLE.lamp, ROLE.lamp, ROLE.plain, ROLE.plain])
   })
 
   it('leaves windows to the facade and every other material dark', () => {

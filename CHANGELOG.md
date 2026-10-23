@@ -16,6 +16,8 @@
 
 * 3D bridges keep their true height over exaggerated terrain, so decks meet landmark towers where they should.
 
+* 3D bridges stay raised while you pan and orbit, instead of flickering back to flat roads.
+
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 
 ## [0.16.2] - 2026-10-20

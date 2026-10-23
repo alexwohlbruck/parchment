@@ -1000,7 +1000,7 @@ export class MaplibreStrategy extends MapStrategy {
     for (const layer of map.getStyle()?.layers ?? []) {
       const property = flatBridgeOpacity(layer as any) as any
       if (!property) continue
-      const covered = active && !!this.deckLayer?.ready
+      const covered = active && !!this.deckLayer?.covered
       if (covered && !this.mutedBridges.has(layer.id)) {
         this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
         map.setPaintProperty(layer.id, property, 0)

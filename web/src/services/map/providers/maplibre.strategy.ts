@@ -1008,7 +1008,7 @@ export class MaplibreStrategy extends MapStrategy {
     const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
     for (const layer of map.getStyle()?.layers ?? []) {
       const was = this.mutedBridgeLabels.get(layer.id)
-      const filter = footprint && flatBridgeLabelFilter({ ...(layer as any), filter: was ?? (layer as any).filter }, footprint)
+      const filter = footprint && flatBridgeLabelFilter({ ...(layer as any), filter: this.mutedBridgeLabels.has(layer.id) ? was : (layer as any).filter }, footprint)
       if (filter) {
         if (!this.mutedBridgeLabels.has(layer.id)) this.mutedBridgeLabels.set(layer.id, map.getFilter(layer.id))
         map.setFilter(layer.id, filter)

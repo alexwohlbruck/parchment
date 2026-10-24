@@ -2,7 +2,7 @@ import type { FlavorId } from '@/lib/map-style/build'
 import lightTokens from '@/lib/map-style/tokens.light.json'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 import { palette } from '@/lib/palette'
-import type { DeckPalette } from './deck-layer'
+import type { DeckPalette } from './deck.types'
 
 type Rgb = [number, number, number]
 

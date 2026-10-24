@@ -871,11 +871,10 @@ export class ObjectLayer {
           // A span is tested at both ends as well as its middle: one lying beside a deck can reach under it.
           const half = ((instance.length ?? 0) / 2) * placed.perMetre
           const [dx, dy] = [Math.cos(instance.heading) * half, Math.sin(instance.heading) * half]
-          const room = DECK_CLEARANCE * (terrain!.getTerrain?.()?.exaggeration ?? 1)
           const close = [[0, 0], [dx, dy], [-dx, -dy]].some(([ex, ey]) => {
             const at = unproject(placed.x + ex, placed.y + ey)
             const over = this.surfaceAt!(...at)
-            return over !== null && over - heightAt(...at) < room
+            return over !== null && over - heightAt(...at) < DECK_CLEARANCE
           })
           if (close) continue
         }
@@ -885,10 +884,18 @@ export class ObjectLayer {
         if (terrain && instance.conform && instance.length) {
           const { x, y, perMetre } = placed
           const across = instance.conform === true ? 0 : instance.conform.across
-          const plane = groundPlane(instance.heading, instance.length, across, (east, south) => {
+          const ground = (east: number, south: number) => heightAt(...unproject(x + east * perMetre, y + south * perMetre))
+          let [on, off, high] = [0, 0, false]
+          const decked = groundPlane(instance.heading, instance.length, across, (east, south) => {
             const at = unproject(x + east * perMetre, y + south * perMetre)
-            return deckAt(...at) ?? heightAt(...at)
+            const deck = deckAt(...at)
+            if (deck === null) return (off++, heightAt(...at))
+            on++
+            high ||= deck - heightAt(...at) > DECK_CLEARANCE
+            return deck
           })
+          // Half on a deck high over the ground is a span running in under it, not along it.
+          const plane = on && off && high ? groundPlane(instance.heading, instance.length, across, ground) : decked
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy

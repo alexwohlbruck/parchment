@@ -14,6 +14,9 @@
  * a stylised building cannot do without. The image is handed back as bytes;
  * decoding it is the renderer's business.
  *
+ * Landmarks may also carry `_FLOODLIGHT`, a float per vertex: how much of the
+ * night's floodlighting falls there.
+ *
  * Anything outside that throws rather than degrading, because a model that
  * loads wrong draws garbage rather than nothing.
  *
@@ -203,6 +206,9 @@ export function parseGlb(buffer, options = {}) {
         const uv = primitive.attributes?.TEXCOORD_0 !== undefined
           ? Float32Array.from(read(primitive.attributes.TEXCOORD_0))
           : null
+        const flood = primitive.attributes?._FLOODLIGHT !== undefined
+          ? Float32Array.from(read(primitive.attributes._FLOODLIGHT))
+          : null
         primitives.push({
           position,
           normal,
@@ -212,6 +218,7 @@ export function parseGlb(buffer, options = {}) {
             ? read(primitive.indices).slice()
             : (count > 65535 ? Uint32Array : Uint16Array).from({ length: count }, (_, i) => i),
           uv,
+          floodlight: flood?.length === count ? flood : null,
           image: imageOf(material?.pbrMetallicRoughness?.baseColorTexture),
           alphaMode: material?.alphaMode ?? 'OPAQUE',
           alphaCutoff: material?.alphaCutoff ?? 0.5,

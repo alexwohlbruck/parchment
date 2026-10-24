@@ -20,7 +20,7 @@ import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } f
 import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
-import type { DeckPalette } from '@/lib/map-decks/deck-layer'
+import type { DeckPalette } from '@/lib/map-decks/deck.types'
 import { idle, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'

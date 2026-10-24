@@ -724,8 +724,10 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, d
   const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
   const tunnels = tunnelledTrack(out)
   out.splice(rails, 0, ...tunnels)
-  const ground = rails + tunnels.length
   const roads = asphaltRoads(liftedTrack(out), flavor)
+  // Found again in the result: asphaltRoads adds layers (cycle tracks) ahead of the tunnels.
+  const lastTunnel = tunnels.at(-1)?.id
+  const ground = lastTunnel ? roads.findIndex(l => l.id === lastTunnel) + 1 : roads.findIndex(l => l.id === out[rails]?.id)
   const decks = aboveBridgesIndex(roads)
   if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
   roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))

@@ -59,6 +59,15 @@ const hex = (h: string): [number, number, number] =>
  */
 const ENTRANCE_LIGHT = { glow: hex('#fff0cd'), intensity: 2.4 }
 
+/** A lamp's light, a warm white; a lamp is drawn as this colour, unshaded, at night only. */
+const LAMP_LIGHT = { glow: hex('#ffe7c4'), intensity: 1 }
+
+/**
+ * Floodlit stone at night (a model's `_FLOODLIGHT`): its own colour under a
+ * warm white, mixed in by up to `strength`.
+ */
+export const FLOODLIGHT = { color: hex('#ffeacf'), strength: 0.9 }
+
 /** The soft light pooled in front of a lit door; drawn at night only. */
 export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }
 
@@ -70,12 +79,33 @@ export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }
  */
 export const isWindow = (material: string) => material.startsWith('window')
 
+/** Whether a material is a lamp, which glows at night: `lamp`, `lamp-2`, as windows are named. */
+export const isLamp = (material: string) => material.startsWith('lamp')
+
+/** Whether a material is a wire (a suspender, a stay), thinned out where it is finer than a pixel. */
+export const isWire = (material: string) => material.startsWith('wire')
+
+/** Whether a wire is one of a fan's in-between ones (`wire-steel-fine`), left out where the fan is too fine to tell them apart. */
+export const isFineWire = (material: string) => isWire(material) && material.endsWith('-fine')
+
+/** How the draw shader treats a material, beyond its colour and emission. */
+export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3, fineWire: 4 } as const
+
+export const materialRole = (material: string): number =>
+  isWindow(material) ? ROLE.window
+    : isLamp(material) ? ROLE.lamp
+      : isFineWire(material) ? ROLE.fineWire
+        : isWire(material) ? ROLE.wire
+          : ROLE.plain
+
 /** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
 export function materialEmission(
   material: string,
   night: boolean,
 ): { glow: [number, number, number]; intensity: number } | null {
-  return night && material === 'entrance' ? ENTRANCE_LIGHT : null
+  if (!night) return null
+  if (material === 'entrance') return ENTRANCE_LIGHT
+  return isLamp(material) ? LAMP_LIGHT : null
 }
 
 /** One placement, in the units the layer wants. */

@@ -2583,11 +2583,19 @@ describe('road markings', () => {
       featureFilter(track.filter, 'Path cycle track.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
     expect(matches({ subclass: 'cycleway' })).toBe(true)
     expect(matches({ subclass: 'path', bicycle: 'designated' })).toBe(true)
-    expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(false)
+    expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(true)
     expect(matches({ subclass: 'footway' })).toBe(false)
     expect(matches({ subclass: 'footway', bicycle: 'designated' })).toBe(false)
-    expect(at('Path cycle track')).toBe(at('Path (cycling)') + 1)
-    expect(at('Path bridge cycle track')).toBe(at('Path bridge (cycling)') + 1)
+    // A shared path's green, and its casing, at half strength; a segregated one's at full.
+    const opacity = (expression.createExpression as any)(track.paint['line-opacity'], latest.paint_line['line-opacity']).value
+    const strength = (properties: Record<string, string>) =>
+      opacity.evaluate({ zoom: 20 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
+    expect(strength({ subclass: 'cycleway' })).toBe(1)
+    expect(strength({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(0.5)
+    expect(strength({ subclass: 'path', bicycle: 'designated', foot: 'designated', segregated: 'yes' })).toBe(1)
+    expect(at('Path cycle track casing')).toBe(at('Path (cycling)') + 1)
+    expect(at('Path cycle track')).toBe(at('Path (cycling)') + 2)
+    expect(at('Path bridge cycle track')).toBe(at('Path bridge (cycling)') + 2)
     const lanes = style.layers.find(l => l.id === 'Road lane fill') as any
     expect(lanes.paint['fill-color'].at(-1)).toBe(track.paint['line-color'])
   })

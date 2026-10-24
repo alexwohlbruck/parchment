@@ -23,7 +23,7 @@ export const HD_FADE = [FROM, TO] as const
 /** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
 const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(218, 6%, 50%)',
     island: 'hsl(88, 26%, 83%)',
@@ -31,6 +31,7 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     crosswalk: 'hsl(40, 6%, 91%)',
     yellow: 'hsl(52, 88%, 56%)',
     green: 'hsl(150, 30%, 58%)',
+    greenCasing: 'hsl(150, 28%, 44%)',
     red: 'hsl(9, 48%, 62%)',
     signal: 'hsl(210, 8%, 30%)',
     signalHalo: 'hsl(40, 20%, 97%)',
@@ -44,6 +45,7 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
     crosswalk: '#8f8e8c',
     yellow: '#bca83d',
     green: 'hsl(148, 20%, 33%)',
+    greenCasing: 'hsl(148, 22%, 24%)',
     red: 'hsl(9, 26%, 33%)',
     signal: 'hsl(45, 10%, 78%)',
     signalHalo: 'hsl(222, 5%, 20%)',
@@ -64,24 +66,46 @@ const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
 /** The basemap's footpaths, over which a cycle track is painted. */
 const PATHS = ['Path', 'Path bridge']
-/** A cycleway, or a path designated for bikes but not for walkers: what a bridge deck paints green. */
+/** A cycleway, or a path designated for bikes: what a bridge deck paints green. */
 const CYCLE_TRACK = ['any', ['==', ['get', 'subclass'], 'cycleway'],
-  ['all', ['==', ['get', 'subclass'], 'path'], ['==', ['get', 'bicycle'], 'designated'], ['!=', ['get', 'foot'], 'designated']]]
+  ['all', ['==', ['get', 'subclass'], 'path'], ['==', ['get', 'bicycle'], 'designated']]]
+/** Walkers share it: designated for them too, and not split into a separate bike side. */
+const SHARED = ['all', ['==', ['get', 'foot'], 'designated'], ['!=', ['get', 'segregated'], 'yes']]
 /** Metres across a cycle track's paint, as barrelman lays one on a deck. */
 const CYCLE_TRACK_WIDTH = 2.5
+/** Metres of casing either side of it. */
+const CYCLE_TRACK_CASING = 0.35
+/** A shared path's green is half as strong, so it reads as a path bikes may use rather than a bike lane. */
+const SHARED_OPACITY = 0.5
 
-/** A cycle track over a basemap path at street zoom, in the green and width a deck paints one, so it runs on unchanged off a bridge. */
-export function cycleTrack(path: any, flavor: FlavorId): any {
-  return {
-    id: `${path.id} cycle track`,
+/**
+ * A cycle track over a basemap path at street zoom, in the green and width a
+ * deck paints one so it runs on unchanged off a bridge, over a darker casing.
+ */
+export function cycleTrack(path: any, flavor: FlavorId): any[] {
+  const green = COLORS[flavor].green
+  const base = {
     type: 'line',
     source: path.source,
     'source-layer': path['source-layer'],
     minzoom: FROM,
     filter: path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK,
     layout: { 'line-cap': 'butt', 'line-join': 'round' },
-    paint: { 'line-color': COLORS[flavor].green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': fadeIn },
   }
+  const strength = ['case', SHARED, SHARED_OPACITY, 1]
+  const opacity = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, strength]
+  return [
+    {
+      ...base,
+      id: `${path.id} cycle track casing`,
+      paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': opacity },
+    },
+    {
+      ...base,
+      id: `${path.id} cycle track`,
+      paint: { 'line-color': green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': opacity },
+    },
+  ]
 }
 
 /**
@@ -94,7 +118,7 @@ export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   return layers.flatMap(layer => {
     // Over the basemap's own cycling tints of the path, which would otherwise hide it.
     const path = PATHS.find(id => layer.id === `${id}${CYCLING_SUFFIX}`)
-    if (path) return [layer, cycleTrack(layers.find(l => l.id === path), flavor)]
+    if (path) return [layer, ...cycleTrack(layers.find(l => l.id === path), flavor)]
     if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
       const opacity = layer.paint?.['line-opacity'] ?? 1
       return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }

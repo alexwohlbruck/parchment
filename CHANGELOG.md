@@ -24,7 +24,7 @@
 
 * The Brooklyn Bridge's cables fade to a soft fan from a distance instead of a shimmering mesh.
 
-* Bike paths on 3D bridges are painted green, like bike lanes on the street, and carry on in the same green off the bridge.
+* Bike paths on 3D bridges are painted green, like bike lanes on the street, and carry on in the same green off the bridge. Bike paths shared with walkers show a lighter green.
 
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 

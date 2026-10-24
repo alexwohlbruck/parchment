@@ -4,7 +4,7 @@
 
 ### Changed
 
-* 3D bridge decks load with the map tiles around them instead of after them, and decode off the main thread.
+* 3D bridge decks start loading with the map tiles around them instead of after them, and decode off the main thread.
 
 ### Fixed
 

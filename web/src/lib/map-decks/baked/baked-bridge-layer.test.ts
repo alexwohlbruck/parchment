@@ -12,24 +12,24 @@ const palette = Object.fromEntries(MATERIALS.map(name => [name, [1, 1, 1]])) as 
 const file = `${'a'.repeat(64)}.brm`
 const feature = { properties: { id: 'test', line: '-740000000,407000000;10000,0;10000,0', mesh: file } }
 const frame = { defaultProjectionData: { mainMatrix: new Float32Array(16) } }
-const isBundle = (url: unknown) => String(url).includes('/bridges/tiles/')
-/** Fetches of single meshes, leaving out tile bundles. */
-const meshCalls = () => vi.mocked(fetch).mock.calls.filter(([url]) => !isBundle(url))
-/** The next single-mesh fetch answers with `respond`; bundles keep answering as before. */
+const isIndex = (url: unknown) => String(url).includes('/bridges/index/')
+/** Fetches of meshes, leaving out tile indexes. */
+const meshCalls = () => vi.mocked(fetch).mock.calls.filter(([url]) => !isIndex(url))
+/** The next mesh fetch answers with `respond`; indexes keep answering as before. */
 function nextMesh(respond: (url: unknown, init?: RequestInit) => Promise<Response>) {
   const before = vi.mocked(fetch).getMockImplementation()!
   let used = false
   vi.mocked(fetch).mockImplementation((url, init) => {
-    if (isBundle(url) || used) return before(url, init)
+    if (isIndex(url) || used) return before(url, init)
     used = true
     return respond(url, init)
   })
 }
 
-function setup(features = [feature], bundle?: (url: string) => Response) {
+function setup(features = [feature], index?: (url: string) => Response) {
   vi.useFakeTimers()
   vi.stubEnv('VITE_BRIDGE_MESH_MANIFEST', '')
-  vi.stubGlobal('fetch', vi.fn(async (url: unknown) => isBundle(url) ? bundle?.(String(url)) ?? new Response(null, { status: 404 }) : new Response(bytes)))
+  vi.stubGlobal('fetch', vi.fn(async (url: unknown) => isIndex(url) ? index?.(String(url)) ?? new Response(null, { status: 404 }) : new Response(bytes)))
   const handlers = new Map<string, (event?: any) => void>()
   const map = { on: (name: string, handler: (event?: any) => void) => handlers.set(name, handler), off: vi.fn(),
     getSource: () => ({ tiles: ['https://example.test/tiles/detail/{z}/{x}/{y}'] }),
@@ -143,7 +143,7 @@ test('a mesh that never arrives hands the view back to the flat bridges', async 
 test('the decks cover once the view is drawn, without waiting on meshes fetched for its margin', async () => {
   const margin = { properties: { id: 'margin', line: '-739880000,407000000;10000,0', mesh: `${'c'.repeat(64)}.brm` } }
   const { layer, map, gl } = setup([feature, margin])
-  vi.mocked(fetch).mockImplementation(async url => isBundle(url) ? new Response(null, { status: 404 }) : String(url).includes(margin.properties.mesh) ? new Promise<Response>(() => {}) : new Response(bytes))
+  vi.mocked(fetch).mockImplementation(async url => isIndex(url) ? new Response(null, { status: 404 }) : String(url).includes(margin.properties.mesh) ? new Promise<Response>(() => {}) : new Response(bytes))
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
   expect(meshCalls()).toHaveLength(2)
@@ -161,23 +161,19 @@ test('meshes that arrive together are drawn in the same frame', async () => {
   layer.onRemove(map, gl)
 })
 
-test('a tile bundle brings the view\'s meshes without a fetch per deck, and draws them in the frame they land', async () => {
-  const name = 'a'.repeat(64)
-  const packed = new Uint8Array(8 + 36 + Math.ceil(bytes.length / 4) * 4)
-  const view = new DataView(packed.buffer)
-  view.setUint32(0, 0x31545242, true)
-  view.setUint32(4, 1, true)
-  packed.fill(0xaa, 8, 40)
-  view.setUint32(40, bytes.length, true)
-  packed.set(bytes, 44)
-  const { layer, map, gl } = setup([feature], () => new Response(packed))
+test('a tile index starts the view\'s meshes before its detail tiles list them, so they draw in the frame the tiles land', async () => {
+  const features: typeof feature[] = []
+  const { layer, map, gl, handlers } = setup(features, () => Response.json({ decks: [[file, -74.0, 40.7, -73.99, 40.7]] }))
+  await vi.runAllTimersAsync()
+  expect(meshCalls()).toHaveLength(1)
+  expect(meshCalls()[0][1]?.priority).toBe('high')
+  expect(uploadMesh).not.toHaveBeenCalled()
+  features.push(feature)
+  handlers.get('sourcedata')!({ sourceId: 'detail', isSourceLoaded: true })
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
-  expect(vi.mocked(fetch).mock.calls.some(([url]) => isBundle(url))).toBe(true)
-  expect(meshCalls()).toHaveLength(0)
+  expect(meshCalls()).toHaveLength(1)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
   expect(layer.covered).toBe(true)
-  expect(file).toBe(`${name}.brm`)
   layer.onRemove(map, gl)
 })
-

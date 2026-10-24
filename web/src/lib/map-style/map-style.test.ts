@@ -2594,6 +2594,8 @@ describe('road markings', () => {
       featureFilter(line.filter, 'shared.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
     expect(dashed({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(true)
     expect(line.paint['line-dasharray']).toBeDefined()
+    const casing = style.layers.find(l => l.id === 'Path cycle track casing') as any
+    expect(featureFilter(casing.filter, 'casing.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', subclass: 'path', bicycle: 'designated', foot: 'designated' } } as any)).toBe(false)
     expect(dashed({ subclass: 'cycleway' })).toBe(false)
     expect(dashed({ subclass: 'path', bicycle: 'designated', foot: 'designated', segregated: 'yes' })).toBe(false)
     expect(at('Path bridge cycle track')).toBe(at('Path bridge (cycling)') + 2)

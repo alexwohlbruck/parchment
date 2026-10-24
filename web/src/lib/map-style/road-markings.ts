@@ -81,7 +81,7 @@ const SHARED_DASH = [2, 1.5]
 /**
  * A cycle track over a basemap path at street zoom, in the green and width a
  * deck paints one so it runs on unchanged off a bridge, over a darker casing.
- * Where walkers share it, the green is dashed.
+ * Where walkers share it, the green is dashed and has no casing.
  */
 export function cycleTrack(path: any, flavor: FlavorId): any[] {
   const green = COLORS[flavor].green
@@ -98,7 +98,7 @@ export function cycleTrack(path: any, flavor: FlavorId): any[] {
     {
       ...base,
       id: `${path.id} cycle track casing`,
-      filter,
+      filter: ['all', filter, ['!', SHARED]],
       paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': fadeIn },
     },
     { ...base, id: `${path.id} cycle track`, filter: ['all', filter, ['!', SHARED]], paint: fill },

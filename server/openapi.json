@@ -11840,6 +11840,28 @@
         }
       }
     },
+    "/proxy/barrelman/bridges/models/{file}": {
+      "get": {
+        "operationId": "getProxyBarrelmanBridgesModelsByFile",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy precomputed bridge meshes",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "file",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/proxy/barrelman/{source}/{z}/{x}/{y}": {
       "get": {
         "operationId": "getProxyBarrelmanBySourceByZByXByY",

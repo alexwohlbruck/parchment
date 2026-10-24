@@ -75,36 +75,34 @@ const SHARED = ['all', ['==', ['get', 'foot'], 'designated'], ['!=', ['get', 'se
 const CYCLE_TRACK_WIDTH = 2.5
 /** Metres of casing either side of it. */
 const CYCLE_TRACK_CASING = 0.35
-/** A shared path's green is half as strong, so it reads as a path bikes may use rather than a bike lane. */
-const SHARED_OPACITY = 0.5
+/** A shared path's green, in line widths: dash, gap. Broken up so it reads as a path bikes may use rather than a bike lane. */
+const SHARED_DASH = [2, 1.5]
 
 /**
  * A cycle track over a basemap path at street zoom, in the green and width a
  * deck paints one so it runs on unchanged off a bridge, over a darker casing.
+ * Where walkers share it, the green is dashed.
  */
 export function cycleTrack(path: any, flavor: FlavorId): any[] {
   const green = COLORS[flavor].green
+  const filter = path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK
   const base = {
     type: 'line',
     source: path.source,
     'source-layer': path['source-layer'],
     minzoom: FROM,
-    filter: path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK,
     layout: { 'line-cap': 'butt', 'line-join': 'round' },
   }
-  const strength = ['case', SHARED, SHARED_OPACITY, 1]
-  const opacity = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, strength]
+  const fill = { 'line-color': green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': fadeIn }
   return [
     {
       ...base,
       id: `${path.id} cycle track casing`,
-      paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': opacity },
+      filter,
+      paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': fadeIn },
     },
-    {
-      ...base,
-      id: `${path.id} cycle track`,
-      paint: { 'line-color': green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': opacity },
-    },
+    { ...base, id: `${path.id} cycle track`, filter: ['all', filter, ['!', SHARED]], paint: fill },
+    { ...base, id: `${path.id} cycle track shared`, filter: ['all', filter, SHARED], paint: { ...fill, 'line-dasharray': SHARED_DASH } },
   ]
 }
 

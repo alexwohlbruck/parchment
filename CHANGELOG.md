@@ -6,6 +6,13 @@
 
 ### Fixed
 
+## [0.16.4] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks start loading with the map tiles around them instead of after them, and decode off the main thread.
+* Panning and tilting around 3D landmarks and bridges does less work per frame.
+
 ## [0.16.3] - 2026-10-24
 
 ### Added

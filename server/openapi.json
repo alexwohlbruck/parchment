@@ -11862,6 +11862,45 @@
         }
       }
     },
+    "/proxy/barrelman/bridges/index/{z}/{x}/{y}": {
+      "get": {
+        "operationId": "getProxyBarrelmanBridgesIndexByZByXByY",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy bridge deck mesh indexes",
+        "description": "The precomputed deck meshes a zoom-14 tile meets, with their bounds, from Barrelman; revalidated by ETag.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "z",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "x",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "y",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/proxy/barrelman/{source}/{z}/{x}/{y}": {
       "get": {
         "operationId": "getProxyBarrelmanBySourceByZByXByY",

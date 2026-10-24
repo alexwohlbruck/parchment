@@ -835,14 +835,16 @@ export class MaplibreStrategy extends MapStrategy {
    */
   private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
     const map = this.mapInstance
-    for (const layer of map.getStyle()?.layers ?? []) {
-      const sourceLayer = (layer as any)['source-layer']
-      if (!REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
-      if (!this.buildingFilters.has(layer.id))
-        this.buildingFilters.set(layer.id, (layer as any).filter ?? null)
+    // By id, not `getStyle()`: that serialises the whole style, and landmarks report on every pan.
+    for (const id of map.getLayersOrder()) {
+      const layer = map.getLayer(id)
+      const sourceLayer = layer?.sourceLayer
+      if (!layer || !sourceLayer || !REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
+      if (!this.buildingFilters.has(id))
+        this.buildingFilters.set(id, layer.filter ?? null)
       map.setFilter(
-        layer.id,
-        withoutReplaced(this.buildingFilters.get(layer.id), sourceLayer, refs, featureIds) as any,
+        id,
+        withoutReplaced(this.buildingFilters.get(id), sourceLayer, refs, featureIds) as any,
       )
     }
   }
@@ -978,7 +980,12 @@ export class MaplibreStrategy extends MapStrategy {
     const map = this.mapInstance
     const active = this.map3dObjects && !!map.getTerrain?.()
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
-    const routes = () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id))
+    // Probed rather than read off `getStyle()`, which the deck layer would otherwise serialise on every styledata.
+    const routes = () => {
+      const ids: string[] = []
+      for (let i = 0; map.getSource(`route-${i}`); i++) ids.push(`route-${i}`)
+      return ids
+    }
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
       this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { focusTerrain: areas => fineTerrain.focus(areas) })

@@ -332,6 +332,36 @@ app.get(
   { detail: { tags: ['Proxy'], summary: 'Proxy precomputed bridge meshes' } },
 )
 
+app.get(
+  '/barrelman/bridges/index/:z/:x/:y',
+  async ({ params: { z, x, y }, headers: requestHeaders }) => {
+    if (![z, x, y].every(v => /^\d+$/.test(v))) return new Response('Not found', { status: 404 })
+    const config = resolveBarrelmanConfig()
+    if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
+    try {
+      const response = await fetch(new URL(`/tiles/bridges/index/${z}/${x}/${y}`, config.host), {
+        headers: {
+          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+          ...(requestHeaders['if-none-match'] ? { 'If-None-Match': requestHeaders['if-none-match'] } : {}),
+          'Accept-Encoding': acceptsGzip(requestHeaders['accept-encoding']) ? 'gzip' : 'identity',
+        },
+        decompress: false,
+      } as BunFetchRequestInit & { decompress: false })
+      const passed = ['etag', 'cache-control', 'content-encoding'].flatMap(name => {
+        const value = response.headers.get(name)
+        return value ? [[name, value] as [string, string]] : []
+      })
+      return new Response(response.ok ? response.body : null, {
+        status: response.status,
+        headers: { 'content-type': 'application/json', vary: 'accept-encoding', ...(response.ok || response.status === 304 ? Object.fromEntries(passed) : { 'cache-control': 'no-store' }) },
+      })
+    } catch {
+      return new Response('Proxy error', { status: 502 })
+    }
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy bridge deck mesh indexes', description: 'The precomputed deck meshes a zoom-14 tile meets, with their bounds, from Barrelman; revalidated by ETag.' } },
+)
+
 // Proxy vector tile requests through the Barrelman integration.
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the

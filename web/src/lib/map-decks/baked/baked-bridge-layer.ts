@@ -10,7 +10,7 @@ import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
 import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
 import { INDEX_ZOOM, indexTiles, parseIndex } from './mesh-index'
-import { decodeMesh } from './mesh-decoder'
+import { decodeMesh, DecoderLost } from './mesh-decoder'
 import { deckCover } from './cover'
 import { deckFootprints } from '../footprints'
 
@@ -19,9 +19,8 @@ const RAILS_FROM = 17.5
 const MAX_BYTES = 96 * 1024 * 1024
 /** Meshes fetched at once: each waits on the main thread between its steps, so a deep queue keeps the network busy through long frames. */
 const MAX_REQUESTS = 12
-/** Bytes of decoded meshes kept for decks not yet wanted, and deck bounds kept from tile indexes. */
+/** Bytes of decoded meshes kept for decks not yet wanted. */
 const MAX_DECODED = 48 * 1024 * 1024
-const MAX_INDEXED = 20_000
 /** Milliseconds of mesh uploads one frame may spend, so a burst of arrivals draws within a few frames without a long one. */
 const UPLOAD_BUDGET_MS = 4
 const LOAD_TIMEOUT_MS = 30_000
@@ -61,13 +60,14 @@ export class BakedBridgeLayer {
   private decoded = new Map<string, { data: BakedMesh; bytes: number }>()
   private decodedBytes = 0
   /** Tile indexes by `x/y`: in flight, or read into `indexed`. */
-  private indexes = new Map<string, AbortController | true>()
+  private indexes = new Map<string, AbortController | Array<{ file: string; bounds: Bounds }>>()
   private indexed = new Map<string, Bounds>()
   /** Meshes the indexes say the view will want, fetched while its detail tiles load: nearest first, those in view itself flagged. */
   private ahead: string[] = []
   private aheadInView = new Set<string>()
   private lastView: { view: Bounds; core: Bounds; center: Point } | null = null
   private failed = new Set<string>()
+  private indexWarned = false
   private scheduled?: ReturnType<typeof setTimeout>
   private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
@@ -155,9 +155,12 @@ export class BakedBridgeLayer {
     this.rebuildTimer = undefined
     for (const request of this.requests.values()) request.abort()
     this.requests.clear()
-    for (const index of this.indexes.values()) if (index !== true) index.abort()
+    for (const index of this.indexes.values()) if (index instanceof AbortController) index.abort()
     this.indexes.clear()
     this.indexed.clear()
+    this.ahead = []
+    this.aheadInView = new Set()
+    this.lastView = null
     this.decoded.clear()
     this.decodedBytes = 0
     this.pending.clear()
@@ -275,7 +278,8 @@ export class BakedBridgeLayer {
       this.pending.set(id, ready)
       this.map.triggerRepaint()
     }
-    for (const id of [...this.wanted, ...this.ahead]) {
+    const ahead = this.decodedBytes < MAX_DECODED ? this.ahead : []
+    for (const id of [...this.wanted, ...ahead]) {
       if (this.requests.size >= MAX_REQUESTS) break
       if (this.parts.has(id) || this.pending.has(id) || this.decoded.has(id) || this.requests.has(id) || this.failed.has(id)) continue
       const controller = new AbortController()
@@ -294,6 +298,7 @@ export class BakedBridgeLayer {
       if (!this.map || controller.signal.aborted) return
       this.accept(id, mesh)
     } catch (error) {
+      if (error instanceof DecoderLost) return
       if (timedOut || !controller.signal.aborted) {
         this.failed.add(id)
         this.updateCover()
@@ -311,7 +316,15 @@ export class BakedBridgeLayer {
     if (this.preview || !template?.includes('/detail/')) return
     const n = 2 ** INDEX_ZOOM
     const tiles = this.map.getZoom() >= INDEX_ZOOM ? indexTiles(view) : []
-    for (const [tile, index] of this.indexes) if (index !== true && !tiles.includes(tile)) { index.abort(); this.indexes.delete(tile) }
+    const near = new Set(tiles)
+    let dropped = false
+    for (const [tile, index] of this.indexes) {
+      if (near.has(tile)) continue
+      if (index instanceof AbortController) index.abort()
+      this.indexes.delete(tile)
+      dropped = true
+    }
+    if (dropped) this.indexed = new Map([...this.indexes.values()].flatMap(i => (i instanceof AbortController ? [] : i.map(d => [d.file, d.bounds] as const))))
     const [x, y] = [Math.floor(cx * n), Math.floor(cy * n)]
     for (const tile of tiles) {
       if (this.indexes.has(tile)) continue
@@ -327,16 +340,16 @@ export class BakedBridgeLayer {
       if (!response.ok) throw new Error(`Bridge deck index: ${response.status}`)
       const decks = parseIndex(await response.json())
       if (!this.map || controller.signal.aborted) return
-      if (this.indexed.size + decks.length > MAX_INDEXED) this.indexed.clear()
       for (const { file, bounds } of decks) this.indexed.set(file, bounds)
-      this.indexes.set(tile, true)
+      this.indexes.set(tile, decks)
       this.planAhead()
       this.pump()
     } catch (error) {
       // Without an index the view's meshes still load, once its detail tiles do.
       if (!controller.signal.aborted) {
-        this.indexes.set(tile, true)
-        console.warn('[bridges]', error)
+        this.indexes.set(tile, [])
+        if (!this.indexWarned) console.warn('[bridges]', error)
+        this.indexWarned = true
       }
     }
   }

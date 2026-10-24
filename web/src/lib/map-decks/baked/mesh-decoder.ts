@@ -3,6 +3,11 @@ import { decodeBridge, type BakedMesh } from './mesh-file'
 export type DecodeRequest = { id: number; buffer: ArrayBuffer }
 export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; error: string }
 
+/** The worker decoding a mesh failed with its bytes: fetch the mesh again. */
+export class DecoderLost extends Error {
+  constructor() { super('Bridge mesh decoder failed') }
+}
+
 type Job = { resolve: (mesh: BakedMesh) => void; reject: (error: Error) => void }
 type Decoder = { worker: Worker; jobs: Map<number, Job> }
 
@@ -24,7 +29,8 @@ function start(): Decoder | null {
     // A worker that fails gives up what it holds and leaves the pool; with none left, meshes decode here.
     decoder.worker.onerror = decoder.worker.onmessageerror = () => {
       pool = pool?.filter(d => d !== decoder) ?? null
-      for (const job of decoder.jobs.values()) job.reject(new Error('Bridge mesh decoder failed'))
+      decoder.worker.terminate()
+      for (const job of decoder.jobs.values()) job.reject(new DecoderLost())
       decoder.jobs.clear()
     }
     return decoder

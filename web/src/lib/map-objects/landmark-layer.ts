@@ -284,6 +284,8 @@ function seedOf(id: string): number {
  */
 /** Metres across a wire, as its model draws it. */
 const WIRE_WIDTH = 0.35
+/** Pixel coverage over which a fan's in-between wires fade in. */
+const FINE_WIRE = [0.9, 1.6]
 
 const DRAW_FS = `#version 300 es
   precision highp float;
@@ -326,7 +328,11 @@ const DRAW_FS = `#version 300 es
   void main() {
     if (v_floor < 0.0) discard;
     cut();
-    float alpha = v_role == ${ROLE.wire}.0 ? min(wireCover(), 1.0) : 1.0;
+    float cover = wireCover();
+    // The in-between wires fade out as the fan closes up, so far off it reads as a fan rather than a net.
+    float alpha = v_role == ${ROLE.wire}.0 ? min(cover, 1.0)
+      : v_role == ${ROLE.fineWire}.0 ? min(cover, 1.0) * smoothstep(${FINE_WIRE[0].toFixed(2)}, ${FINE_WIRE[1].toFixed(2)}, cover)
+      : 1.0;
     if (alpha < 0.02) discard;
     // A painted texture carries the surface's colour, multiplied by the
     // material's — which is how a facade gets a grid of windows that

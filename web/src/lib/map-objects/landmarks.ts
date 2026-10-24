@@ -85,11 +85,18 @@ export const isLamp = (material: string) => material.startsWith('lamp')
 /** Whether a material is a wire (a suspender, a stay), thinned out where it is finer than a pixel. */
 export const isWire = (material: string) => material.startsWith('wire')
 
+/** Whether a wire is one of a fan's in-between ones (`wire-steel-fine`), left out where the fan is too fine to tell them apart. */
+export const isFineWire = (material: string) => isWire(material) && material.endsWith('-fine')
+
 /** How the draw shader treats a material, beyond its colour and emission. */
-export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3 } as const
+export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3, fineWire: 4 } as const
 
 export const materialRole = (material: string): number =>
-  isWindow(material) ? ROLE.window : isLamp(material) ? ROLE.lamp : isWire(material) ? ROLE.wire : ROLE.plain
+  isWindow(material) ? ROLE.window
+    : isLamp(material) ? ROLE.lamp
+      : isFineWire(material) ? ROLE.fineWire
+        : isWire(material) ? ROLE.wire
+          : ROLE.plain
 
 /** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
 export function materialEmission(

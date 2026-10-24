@@ -2577,6 +2577,20 @@ describe('road markings', () => {
     expect(at('Road island')).toBeLessThan(at('Road line'))
   })
 
+  test('paints a cycle track over a path in a bike lane\'s green, so a bridge deck\'s runs on off it unchanged', () => {
+    const track = style.layers.find(l => l.id === 'Path cycle track') as any
+    const matches = (properties: Record<string, string>) =>
+      featureFilter(track.filter, 'Path cycle track.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
+    expect(matches({ subclass: 'cycleway' })).toBe(true)
+    expect(matches({ subclass: 'path', bicycle: 'designated' })).toBe(true)
+    expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(false)
+    expect(matches({ subclass: 'footway' })).toBe(false)
+    expect(at('Path cycle track')).toBe(at('Path') + 1)
+    expect(at('Path bridge cycle track')).toBe(at('Path bridge') + 1)
+    const lanes = style.layers.find(l => l.id === 'Road lane fill') as any
+    expect(lanes.paint['fill-color'].at(-1)).toBe(track.paint['line-color'])
+  })
+
   test('draws hatching bars on their own layer, wider than lane lines', () => {
     const matches = (id: string, properties: Record<string, string>) => {
       const layer = style.layers.find(l => l.id === id) as any

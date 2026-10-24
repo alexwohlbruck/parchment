@@ -61,13 +61,37 @@ const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outli
 const ROAD_TUNNELS = ['Tunnel', 'Tunnel outline']
 const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
+/** The basemap's footpaths, over which a cycle track is painted. */
+const PATHS = ['Path', 'Path bridge']
+/** A cycleway, or a path designated for bikes but not for walkers: what a bridge deck paints green. */
+const CYCLE_TRACK = ['any', ['==', ['get', 'subclass'], 'cycleway'],
+  ['all', ['==', ['get', 'bicycle'], 'designated'], ['!=', ['get', 'foot'], 'designated']]]
+/** Metres across a cycle track's paint, as barrelman lays one on a deck. */
+const CYCLE_TRACK_WIDTH = 2.5
+
+/** A cycle track over a basemap path at street zoom, in the green and width a deck paints one, so it runs on unchanged off a bridge. */
+export function cycleTrack(path: any, flavor: FlavorId): any {
+  return {
+    id: `${path.id} cycle track`,
+    type: 'line',
+    source: path.source,
+    'source-layer': path['source-layer'],
+    minzoom: FROM,
+    filter: path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK,
+    layout: { 'line-cap': 'butt', 'line-join': 'round' },
+    paint: { 'line-color': COLORS[flavor].green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': fadeIn },
+  }
+}
+
 /**
  * Turn the basemap's roads to asphalt and drop their casings over the hand-off,
- * so the true-width carriageways read as the same road.
+ * so the true-width carriageways read as the same road; and paint cycle tracks
+ * over its paths.
  */
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   const asphalt = COLORS[flavor].asphalt
-  return layers.map(layer => {
+  return layers.flatMap(layer => {
+    if (PATHS.includes(layer.id)) return [layer, cycleTrack(layer, flavor)]
     if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
       const opacity = layer.paint?.['line-opacity'] ?? 1
       return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }

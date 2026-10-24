@@ -126,3 +126,24 @@ test('a mesh that never arrives hands the view back to the flat bridges', async 
   expect(layer.covered).toBe(false)
   layer.onRemove(map, gl)
 })
+
+test('the decks cover once the view is drawn, without waiting on meshes fetched for its margin', async () => {
+  const margin = { properties: { id: 'margin', line: '-739880000,407000000;10000,0', mesh: `${'c'.repeat(64)}.brm` } }
+  const { layer, map, gl } = setup([feature, margin])
+  vi.mocked(fetch).mockImplementation(async url => String(url).includes(margin.properties.mesh) ? new Promise<Response>(() => {}) : new Response(bytes))
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.priority)).toEqual(['high', 'low'])
+  expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+test('meshes that arrive together are drawn in the same frame', async () => {
+  const { layer, map, gl } = setup([feature, { properties: { ...feature.properties, id: 'twin', mesh: `${'b'.repeat(64)}.brm` } }])
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(2)
+  expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})

@@ -1011,9 +1011,10 @@ export class MaplibreStrategy extends MapStrategy {
       const filter = footprint && flatBridgeLabelFilter({ ...(layer as any), filter: this.mutedBridgeLabels.has(layer.id) ? was : (layer as any).filter }, footprint)
       if (filter) {
         if (!this.mutedBridgeLabels.has(layer.id)) this.mutedBridgeLabels.set(layer.id, map.getFilter(layer.id))
-        map.setFilter(layer.id, filter)
+        // Validating a filter serialises the whole style; these are built here and known good.
+        map.setFilter(layer.id, filter, { validate: false })
       } else if (!covered && this.mutedBridgeLabels.has(layer.id)) {
-        map.setFilter(layer.id, was as any)
+        map.setFilter(layer.id, was as any, { validate: false })
         this.mutedBridgeLabels.delete(layer.id)
       }
       const property = flatBridgeOpacity(layer as any) as any

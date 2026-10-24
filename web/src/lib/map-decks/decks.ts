@@ -1413,11 +1413,25 @@ const STAND_ALIGNED = Math.cos((25 * Math.PI) / 180)
  * it stands over the ground, from the deck whose centreline is nearest. A
  * linear object (`along`, east and south) only stands on a deck it runs with.
  */
+const standIndexes = new WeakMap<Chain, { index: SegmentIndex; reach: number } | null>()
+
+/** A deck's segments by cell, with the farthest from its centreline a point can stand on it. */
+function standIndex(chain: Chain) {
+  let indexed = standIndexes.get(chain)
+  if (indexed === undefined) {
+    const reach = Math.max(...chain.edges) + STAND_SLACK
+    indexed = chain.points.length > 1 && Number.isFinite(reach) ? { index: segmentIndex(chain.points), reach } : null
+    standIndexes.set(chain, indexed)
+  }
+  return indexed
+}
+
 export function standing(decks: Array<{ chain: Chain; surface: DeckSurface }>, p: Point, along?: [number, number]): { z: number; height: number; lift: number } | null {
   let best: { z: number; height: number; lift: number; distance: number } | null = null
   for (const { chain, surface } of decks) {
     if (surface.bounds && !holds(surface.bounds, p)) continue
-    const near = beside(chain.points, p)
+    const indexed = standIndex(chain)
+    const near = beside(chain.points, p, indexed ? nearSegments(indexed.index, p, indexed.reach) : undefined)
     if (!near.alongside || near.distance > sideAt(chain, near.left ? 0 : 1, near.segment - 1, near.t) + STAND_SLACK) continue
     if (best && near.distance >= best.distance) continue
     const [a, b] = [chain.points[near.segment - 1], chain.points[near.segment]]

@@ -8,17 +8,21 @@ import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
-import { BRIDGE_MESH_FILE, decodeBridge, MATERIALS, type BakedMesh } from './mesh-file'
+import { BRIDGE_MESH_FILE, decodeBridge, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
 import { deckCover } from './cover'
 import { deckFootprints } from '../footprints'
 
 const MIN_LINE_PX = 1
 const RAILS_FROM = 17.5
 const MAX_BYTES = 96 * 1024 * 1024
-const MAX_REQUESTS = 3
+/** Meshes fetched at once: each waits on the main thread between its steps, so a deep queue keeps the network busy through long frames. */
+const MAX_REQUESTS = 12
+/** Milliseconds of mesh uploads one frame may spend, so a burst of arrivals draws within a few frames without a long one. */
+const UPLOAD_BUDGET_MS = 4
 const LOAD_TIMEOUT_MS = 30_000
 /** Milliseconds between view syncs while the camera moves, so meshes load before it stops. */
 const MOVING_SYNC_MS = 250
+const REBUILD_MS = 300
 
 type Stand = NonNullable<ReturnType<typeof standing>>
 type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number }
@@ -35,7 +39,7 @@ export class BakedBridgeLayer {
   private routePending: { mesh: Mesh; origin: Point } | null = null
   private route: Part | null = null
   private routeDirty = true
-  private routeSources = ''
+  private routeSources: string[] = []
   private notifyPending = false
   private map: any
   private gl!: WebGL2RenderingContext
@@ -44,9 +48,12 @@ export class BakedBridgeLayer {
   private colors: Float32Array
   private parts = new Map<string, Part>()
   private wanted = new Set<string>()
+  /** The wanted meshes inside the view itself rather than its margin: the decks cover once these are drawn. */
+  private inView = new Set<string>()
   private requests = new Map<string, AbortController>()
   private failed = new Set<string>()
   private scheduled?: ReturnType<typeof setTimeout>
+  private rebuildTimer?: ReturnType<typeof setTimeout>
   private sun: SunFrame | null = null
   private bytes = 0
   private bounds = new Map<string, Bounds>()
@@ -74,15 +81,16 @@ export class BakedBridgeLayer {
   }
   private exaggeration() { return this.map?.getTerrain?.()?.exaggeration ?? 1 }
   private routesChanged = () => {
-    const sources = this.sources.routes().join(',')
-    if (sources === this.routeSources) return
+    const sources = this.sources.routes()
+    if (sources.join(',') === this.routeSources.join(',')) return
     this.routeSources = sources
     this.routeDirty = true
     this.syncRoute()
   }
   private changed = (event?: { sourceId?: string; isSourceLoaded?: boolean }) => {
     if (!event?.sourceId) this.failed.clear()
-    if (event?.sourceId && this.sources.routes().includes(event.sourceId)) {
+    // The ids as of the last styledata: listing them serialises the whole style, too slow for every tile.
+    if (event?.sourceId && this.routeSources.includes(event.sourceId)) {
       this.routeDirty = true
       this.syncRoute()
       return
@@ -106,6 +114,7 @@ export class BakedBridgeLayer {
     map.on('move', this.moving)
     map.on('terrain', this.changed)
     map.on('styledata', this.routesChanged)
+    this.routeSources = this.sources.routes()
     if (import.meta.env.DEV && import.meta.env.VITE_BRIDGE_MESH_MANIFEST) {
       void fetch(import.meta.env.VITE_BRIDGE_MESH_MANIFEST).then(r => r.json()).then(manifest => { this.preview = manifest; this.changed() }).catch(error => console.warn('[bridge preview]', error))
     }
@@ -118,6 +127,8 @@ export class BakedBridgeLayer {
     map.off('terrain', this.changed)
     map.off('styledata', this.routesChanged)
     clearTimeout(this.scheduled)
+    clearTimeout(this.rebuildTimer)
+    this.rebuildTimer = undefined
     for (const request of this.requests.values()) request.abort()
     this.requests.clear()
     this.pending.clear()
@@ -143,8 +154,15 @@ export class BakedBridgeLayer {
     const nw = mercator([b.getWest(), b.getNorth()]), se = mercator([b.getEast(), b.getSouth()]), center = mercator([c.lng, c.lat])
     const reach = 2500 / metresPerUnit(center[1])
     const pad = Math.max(se[0] - nw[0], se[1] - nw[1]) * 0.25
-    const view = { minX: Math.max(nw[0] - pad, center[0] - reach), minY: Math.max(nw[1] - pad, center[1] - reach), maxX: Math.min(se[0] + pad, center[0] + reach), maxY: Math.min(se[1] + pad, center[1] + reach) }
+    const clamp = (pad: number): Bounds => ({ minX: Math.max(nw[0] - pad, center[0] - reach), minY: Math.max(nw[1] - pad, center[1] - reach), maxX: Math.min(se[0] + pad, center[0] + reach), maxY: Math.min(se[1] + pad, center[1] + reach) })
+    const view = clamp(pad), core = clamp(0)
     const near = new Map<string, number>()
+    const inside = new Set<string>()
+    const place = (file: string | undefined, bounds: Bounds) => {
+      if (!file) return
+      near.set(file, Math.min(near.get(file) ?? Infinity, distanceOutside(bounds, center)))
+      if (meets(bounds, core)) inside.add(file)
+    }
     const features = this.preview ? [] : queryFeatures(this.map, source, layer).filter(f => {
       const key = `${f.properties?.id}|${f.properties?.mesh ?? f.properties?.line}`
       let bounds = this.bounds.get(key)
@@ -156,8 +174,7 @@ export class BakedBridgeLayer {
         this.bounds.set(key, bounds)
       }
       if (!meets(bounds, view)) return false
-      const file = f.properties?.mesh
-      if (file) near.set(file, Math.min(near.get(file) ?? Infinity, distanceOutside(bounds, center)))
+      place(f.properties?.mesh, bounds)
       return true
     })
     const decks = new Map<string, { file: string; zoom: number }>()
@@ -170,12 +187,13 @@ export class BakedBridgeLayer {
     for (const { url, bounds } of this.preview ?? []) if (meets(bounds, view)) {
       const file = url.split('/').at(-1)!
       decks.set(url, { file, zoom: 0 })
-      near.set(file, distanceOutside(bounds, center))
+      place(file, bounds)
     }
     this.missing = [...decks.values()].some(d => !BRIDGE_MESH_FILE.test(d.file))
     this.settled = !!this.preview || (!!this.map.getSource(source) && !!this.map.isSourceLoaded?.(source))
     const files = [...new Set([...decks.values()].flatMap(d => BRIDGE_MESH_FILE.test(d.file) ? [d.file] : []))]
-    this.wanted = new Set(files.sort((a, b) => (near.get(a) ?? 0) - (near.get(b) ?? 0)))
+    this.wanted = new Set(files.sort((a, b) => Number(inside.has(b)) - Number(inside.has(a)) || (near.get(a) ?? 0) - (near.get(b) ?? 0)))
+    this.inView = new Set(files.filter(file => inside.has(file)))
     for (const id of this.pending.keys()) if (!this.wanted.has(id)) this.pending.delete(id)
     for (const [id, request] of this.requests) if (!this.wanted.has(id)) { request.abort(); this.requests.delete(id) }
     for (const id of this.parts.keys()) if (!this.wanted.has(id) && this.bytes > MAX_BYTES) this.remove(id)
@@ -183,12 +201,21 @@ export class BakedBridgeLayer {
     this.pump()
   }
   private updateCover() {
-    const resident = [...this.wanted].filter(id => this.parts.has(id))
-    const covered = deckCover(this.covered, { missing: this.missing, failed: [...this.wanted].some(id => this.failed.has(id)), wanted: this.wanted.size, resident: resident.length, settled: this.settled })
+    const covered = deckCover(this.covered, { missing: this.missing, failed: [...this.wanted].some(id => this.failed.has(id)), wanted: this.inView.size, resident: [...this.inView].filter(id => this.parts.has(id)).length, settled: this.settled })
     // Objects, routes and shadows rebuild on each change, so a deck set that shifts mid-move waits for moveend.
     if (covered === this.covered && this.map?.isMoving?.()) return
+    const flipped = covered !== this.covered
     this.covered = covered
-    const displayed = covered ? `${resident.sort().join(',')}|${this.exaggeration()}` : ''
+    // Meshes arriving under decks already drawn are taken in together: each rebuild re-stands every object.
+    if (flipped) this.rebuild()
+    else this.rebuildTimer ??= setTimeout(() => { this.rebuildTimer = undefined; if (!this.map?.isMoving?.()) this.rebuild() }, REBUILD_MS)
+  }
+  private rebuild() {
+    clearTimeout(this.rebuildTimer)
+    this.rebuildTimer = undefined
+    if (!this.map) return
+    const resident = this.covered ? [...this.wanted].filter(id => this.parts.has(id)) : []
+    const displayed = this.covered ? `${resident.sort().join(',')}|${this.exaggeration()}` : ''
     if (displayed === this.displayed) return
     this.displayed = displayed
     this.routeDirty = true
@@ -201,7 +228,7 @@ export class BakedBridgeLayer {
         if (this.map) this.onBuilt?.()
       })
     }
-    this.map?.triggerRepaint()
+    this.map.triggerRepaint()
   }
 
   private pump() {
@@ -214,19 +241,20 @@ export class BakedBridgeLayer {
       const controller = new AbortController()
       this.requests.set(id, controller)
       const url = this.preview?.find(p => p.url.endsWith(id))?.url ?? template.replace(/\/detail\/[^?]+/, `/bridges/models/${id}`)
-      void this.load(id, url, controller)
+      void this.load(id, url, controller, this.inView.has(id) ? 'high' : 'low')
     }
   }
-  private async load(id: string, url: string, controller: AbortController) {
+  private async load(id: string, url: string, controller: AbortController, priority: RequestPriority) {
     let timedOut = false
     const timer = setTimeout(() => { timedOut = true; controller.abort() }, LOAD_TIMEOUT_MS)
     try {
-      const response = await fetch(url, { signal: controller.signal, credentials: 'include' })
+      const response = await fetch(url, { signal: controller.signal, credentials: 'include', priority })
       if (!response.ok) throw new Error(`Bridge mesh: ${response.status}`)
       const buffer = await response.arrayBuffer()
       if (!this.map || controller.signal.aborted || !this.wanted.has(id)) return
-      for (const old of this.parts.keys()) if (!this.wanted.has(old) && this.bytes + buffer.byteLength > MAX_BYTES) this.remove(old)
-      this.pending.set(id, { data: decodeBridge(buffer), bytes: buffer.byteLength })
+      const data = decodeBridge(buffer), bytes = gpuBytes(data)
+      for (const old of this.parts.keys()) if (!this.wanted.has(old) && this.bytes + bytes > MAX_BYTES) this.remove(old)
+      this.pending.set(id, { data, bytes })
       this.map.triggerRepaint()
     } catch (error) {
       if (timedOut || !controller.signal.aborted) {
@@ -248,7 +276,7 @@ export class BakedBridgeLayer {
     this.routePending = null
     const parts = [...this.parts].filter(([id]) => this.wanted.has(id)).map(([, part]) => part)
     if (!parts.length) return
-    const lines = this.sources.routes().flatMap(id => queryFeatures(this.map, id).flatMap(f => linesOf(f.geometry).map(line => line.map(mercator))))
+    const lines = this.routeSources.flatMap(id => queryFeatures(this.map, id).flatMap(f => linesOf(f.geometry).map(line => line.map(mercator))))
     if (!lines.length) return
     const origin = parts[0].data.origin
     const mesh = { ...deckMeshOut(), lift: [] as number[] }
@@ -291,15 +319,17 @@ export class BakedBridgeLayer {
   }
   render(gl: WebGL2RenderingContext, args: any) {
     if (!programReady(gl, this.program) || !this.shadows.ready(gl)) { this.map.triggerRepaint(); return }
-    const next = this.pending.entries().next().value
-    if (next) {
-      const [id, { data, bytes }] = next
-      this.pending.delete(id)
-      const buffers = uploadMesh(gl, data)
-      const shadow = new MeshShadow()
-      shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
-      this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes })
-      this.bytes += bytes
+    if (this.pending.size) {
+      const started = performance.now()
+      for (const [id, { data, bytes }] of this.pending) {
+        this.pending.delete(id)
+        const buffers = uploadMesh(gl, data)
+        const shadow = new MeshShadow()
+        shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
+        this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes })
+        this.bytes += bytes
+        if (performance.now() - started > UPLOAD_BUDGET_MS) break
+      }
       this.updateCover()
       if (this.pending.size) this.map.triggerRepaint()
     }

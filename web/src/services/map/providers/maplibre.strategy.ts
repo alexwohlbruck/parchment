@@ -419,9 +419,8 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   addControls() {
-    // Dev only: the map is otherwise unreachable from the console, which
-    // makes every rendering question a guess instead of a check.
-    if (import.meta.env.DEV) (window as any).__parchmentMap = this.mapInstance
+    // The map is otherwise unreachable from the console; `parchment-bench` lets load benchmarks reach it in production.
+    if (import.meta.env.DEV || localStorage.getItem('parchment-bench')) (window as any).__parchmentMap = this.mapInstance
 
     this.mapInstance.addControl(
       new AttributionControl({

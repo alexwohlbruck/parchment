@@ -23,9 +23,10 @@ export const HD_FADE = [FROM, TO] as const
 /** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
 const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; kerb: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(218, 6%, 50%)',
+    kerb: 'hsl(218, 7%, 38%)',
     island: 'hsl(88, 26%, 83%)',
     white: 'hsl(40, 20%, 97%)',
     crosswalk: 'hsl(40, 6%, 91%)',
@@ -40,6 +41,7 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
   // and its edge hairline do not double up.
   dark: {
     asphalt: 'hsl(222, 5%, 25%)',
+    kerb: 'hsl(222, 6%, 16%)',
     island: 'hsl(150, 10%, 21%)',
     white: '#a4a29f',
     crosswalk: '#8f8e8c',
@@ -71,6 +73,8 @@ const CYCLE_TRACK = ['any', ['==', ['get', 'subclass'], 'cycleway'],
   ['all', ['==', ['get', 'subclass'], 'path'], ['==', ['get', 'bicycle'], 'designated']]]
 /** Walkers share it: designated for them too, and not split into a separate bike side. */
 const SHARED = ['all', ['==', ['get', 'foot'], 'designated'], ['!=', ['get', 'segregated'], 'yes']]
+/** Metres of kerb drawn outside a detailed road's edge. */
+const ROAD_CASING = 0.3
 /** Metres across a cycle track's paint, as barrelman lays one on a deck. */
 const CYCLE_TRACK_WIDTH = 2.5
 /** Metres of casing either side of it. */
@@ -161,7 +165,11 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     { id: `${id} edge${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
       layout: { 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 1, 'line-opacity': edgeFadeIn } },
   ]
+  const surface = ['all', band, ['!=', ['get', 'kind'], 'island']]
   return [
+    // A kerb round the carriageway: centred on its edge and under every fill, so only the outer half shows.
+    { id: `Road surface casing${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': ROAD_SURFACE_TILES, minzoom: FROM, filter: surface,
+      layout: { 'line-join': 'round' }, paint: { 'line-color': c.kerb, 'line-width': metres(2 * ROAD_CASING, { minimum: 1 }), 'line-opacity': fadeIn } },
     ...fill('Road surface', ROAD_SURFACE_TILES, ['all', band, ['!=', ['get', 'kind'], 'island']], c.asphalt),
     // A turning loop's island, over the basemap road that runs into its middle.
     ...fill('Road island', ROAD_SURFACE_TILES, ['all', band, ['==', ['get', 'kind'], 'island']], c.island),

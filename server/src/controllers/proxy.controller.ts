@@ -375,13 +375,15 @@ app.get(
 // default, whatever the integration was pointed at. The basemap drew nothing.
 app.get(
   '/barrelman/:source/:z/:x/:y',
-  async ({ params, headers: reqHeaders }) => {
+  async ({ params, query, headers: reqHeaders }) => {
     // Served from memory when we have it. Martin answers in 1-6 ms; the rest
     // of the ~2 s a client used to wait was the trip to the Barrelman host and
     // back, which a hit removes entirely.
     const gzipOk = acceptsGzip(reqHeaders['accept-encoding'])
     const { source, z, x, y } = params
-    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}`)
+    // A detail tile can carry the 3D bridge decks drawn over it, when asked.
+    const decks = query.decks === '1' ? '?decks=1' : ''
+    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}${decks}`)
     if (hit) return martinResponse(hit, 'HIT', gzipOk)
 
     try {
@@ -394,9 +396,9 @@ app.get(
       }
 
       const { source, z, x, y } = params
-      const cacheKey = `${source}/${z}/${x}/${y}`
+      const cacheKey = `${source}/${z}/${x}/${y}${decks}`
 
-      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
+      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}${decks}`, host)
 
       const headers: Record<string, string> = {}
       if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`

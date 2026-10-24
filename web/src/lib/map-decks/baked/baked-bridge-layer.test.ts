@@ -4,6 +4,7 @@ import { BakedBridgeLayer } from './baked-bridge-layer'
 import { uploadMesh, deleteMesh, bindMesh } from '../mesh-program'
 import { MATERIALS } from './mesh-file'
 import type { DeckPalette } from '../deck.types'
+import { deckTile, vectorTile } from './fixtures/deck-tiles'
 
 vi.mock('../mesh-program', () => ({ programReady: () => true, linkMeshProgram: () => ({}), uploadMesh: vi.fn(() => ({ position: {}, count: 276 })), deleteMesh: vi.fn(), eyeOf: vi.fn(), bindMesh: vi.fn(() => ({ draw() {}, bias() {}, unbind() {} })) }))
 vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} } }))
@@ -175,5 +176,23 @@ test('a tile index starts the view\'s meshes before its detail tiles list them, 
   expect(meshCalls()).toHaveLength(1)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
   expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+test('draws the deck pieces a detail tile carries on the frame after it loads, fetching no meshes', async () => {
+  const { layer, map, gl, handlers } = setup()
+  const [z, x, y] = [16, Math.floor(((-74 + 180) / 360) * 2 ** 16), Math.floor((0.5 - Math.log(Math.tan(Math.PI / 4 + (40.7 * Math.PI) / 360)) / (2 * Math.PI)) * 2 ** 16)]
+  const tile = { state: 'loaded', tileID: { canonical: { z, x, y } }, latestRawTileData: vectorTile(deckTile([new Uint8Array(bytes)])) }
+  Object.assign(map, {
+    getSource: () => ({ tiles: ['https://example.test/tiles/detail/{z}/{x}/{y}?v=1&decks=1'] }),
+    style: { tileManagers: { detail: { getRenderableIds: () => ['t'], getTileByID: () => tile } } },
+  })
+  vi.mocked(fetch).mockClear()
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  expect(layer.covered).toBe(true)
+  expect(fetch).not.toHaveBeenCalled()
   layer.onRemove(map, gl)
 })

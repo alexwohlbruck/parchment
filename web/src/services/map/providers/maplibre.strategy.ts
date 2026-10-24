@@ -113,7 +113,7 @@ import { DECK_PALETTE } from '@/lib/map-decks/palette'
 import { flatBridgeLabelFilter, flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
-import { SOURCE } from '@/lib/map-style/build'
+import { SOURCE, withDeckPieces } from '@/lib/map-style/build'
 import { ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -298,6 +298,8 @@ export class MaplibreStrategy extends MapStrategy {
   private buildingShade = true
   private map3dBuildings = true
   private map3dObjects = true
+  /** Whether 3D terrain is on, known before the style is built so its detail tiles can ask for the decks. */
+  private terrainOn = !!this.options.terrain3d
   private shadowMode = ShadowMode.ALWAYS
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
@@ -1009,6 +1011,9 @@ export class MaplibreStrategy extends MapStrategy {
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
       this.deckLayer = null
     }
+    const detail = map.getSource(DETAIL_SOURCE) as { tiles?: string[]; setTiles?: (tiles: string[]) => void } | undefined
+    const tiles = detail?.tiles?.[0] && withDeckPieces(detail.tiles[0], active)
+    if (tiles && tiles !== detail!.tiles![0]) detail!.setTiles!([tiles])
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
     const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
@@ -1072,6 +1077,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   override setMap3dTerrain(value: boolean) {
+    this.terrainOn = value
     super.setMap3dTerrain(value)
     this.applyDecks()
   }
@@ -1269,6 +1275,7 @@ export class MaplibreStrategy extends MapStrategy {
       poiStyle: this.poiStyle(),
       hdRoads: this.hdRoads(),
       categoryColors: this.categoryColors(theme),
+      decks: this.map3dObjects && this.terrainOn,
     })
   }
 

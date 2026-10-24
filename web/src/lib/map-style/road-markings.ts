@@ -10,6 +10,7 @@
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
 import { metres } from './metres'
+import { CYCLING_SUFFIX } from './cycling.mjs'
 
 export const ROAD_SURFACE_TILES = 'road_surfaces'
 export const ROAD_MARKING_TILES = 'road_markings'
@@ -65,7 +66,7 @@ const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 const PATHS = ['Path', 'Path bridge']
 /** A cycleway, or a path designated for bikes but not for walkers: what a bridge deck paints green. */
 const CYCLE_TRACK = ['any', ['==', ['get', 'subclass'], 'cycleway'],
-  ['all', ['==', ['get', 'bicycle'], 'designated'], ['!=', ['get', 'foot'], 'designated']]]
+  ['all', ['==', ['get', 'subclass'], 'path'], ['==', ['get', 'bicycle'], 'designated'], ['!=', ['get', 'foot'], 'designated']]]
 /** Metres across a cycle track's paint, as barrelman lays one on a deck. */
 const CYCLE_TRACK_WIDTH = 2.5
 
@@ -91,7 +92,9 @@ export function cycleTrack(path: any, flavor: FlavorId): any {
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   const asphalt = COLORS[flavor].asphalt
   return layers.flatMap(layer => {
-    if (PATHS.includes(layer.id)) return [layer, cycleTrack(layer, flavor)]
+    // Over the basemap's own cycling tints of the path, which would otherwise hide it.
+    const path = PATHS.find(id => layer.id === `${id}${CYCLING_SUFFIX}`)
+    if (path) return [layer, cycleTrack(layers.find(l => l.id === path), flavor)]
     if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
       const opacity = layer.paint?.['line-opacity'] ?? 1
       return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }

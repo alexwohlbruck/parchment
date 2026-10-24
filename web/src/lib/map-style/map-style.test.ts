@@ -2585,8 +2585,9 @@ describe('road markings', () => {
     expect(matches({ subclass: 'path', bicycle: 'designated' })).toBe(true)
     expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(false)
     expect(matches({ subclass: 'footway' })).toBe(false)
-    expect(at('Path cycle track')).toBe(at('Path') + 1)
-    expect(at('Path bridge cycle track')).toBe(at('Path bridge') + 1)
+    expect(matches({ subclass: 'footway', bicycle: 'designated' })).toBe(false)
+    expect(at('Path cycle track')).toBe(at('Path (cycling)') + 1)
+    expect(at('Path bridge cycle track')).toBe(at('Path bridge (cycling)') + 1)
     const lanes = style.layers.find(l => l.id === 'Road lane fill') as any
     expect(lanes.paint['fill-color'].at(-1)).toBe(track.paint['line-color'])
   })

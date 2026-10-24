@@ -124,7 +124,7 @@ async function editUser() {
     user.value = await userService.getUser(userId)
     appService.toast.success('User updated')
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to update user')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to update user', { cause: err })
   }
 }
 
@@ -150,7 +150,7 @@ async function deleteUser() {
     appService.toast.success('User deleted')
     router.push({ name: AppRoute.USERS })
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete user')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete user', { cause: err })
   }
 }
 
@@ -167,7 +167,7 @@ async function impersonate() {
     await authService.impersonateUser(userId)
     router.push({ name: AppRoute.MAP })
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user', { cause: err })
   }
 }
 

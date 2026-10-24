@@ -2,6 +2,8 @@
 
 ### Added
 
+* Review failed sync changes and open identity settings directly from their notifications.
+
 * Request a fresh sign-in code with Resend email on the verification screen.
 
 * At night, 3D landmarks light their lamps and floodlit stone, so the Brooklyn Bridge shows its lit towers and the necklace of lights along its cables.
@@ -9,6 +11,12 @@
 ### Changed
 
 * 3D terrain draws faster: roads and areas are laid on the terrain in one pass instead of eight.
+
+* 3D bridges appear sooner after the map moves: their meshes download in under half the bytes and draw as soon as those in view arrive.
+
+* Repeated notifications update a single toast with a gentle pulse instead of stacking, and a failed save shows one error instead of two.
+
+* Creating a collection offers a View button that opens it.
 
 ### Fixed
 
@@ -25,6 +33,8 @@
 * The Brooklyn Bridge's cables fade to a soft fan from a distance instead of a shimmering mesh.
 
 * Bike paths on 3D bridges are painted green, like bike lanes on the street, and carry on in the same green off the bridge. Bike paths shared with walkers show dashed green.
+
+* Street names stay visible in flat map views on Android phones.
 
 * Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
 

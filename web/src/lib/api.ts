@@ -331,6 +331,7 @@ api.interceptors.response.use(
       kind === NetworkErrorKind.Unreachable || kind === NetworkErrorKind.Timeout
     toast.error(title, {
       description,
+      cause: error,
       ...(connectionProblem ? { id: 'network-error' } : {}),
     })
 

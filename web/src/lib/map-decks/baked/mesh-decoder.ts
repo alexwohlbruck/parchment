@@ -3,30 +3,41 @@ import { decodeBridge, type BakedMesh } from './mesh-file'
 export type DecodeRequest = { id: number; buffer: ArrayBuffer }
 export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; error: string }
 
-let worker: Worker | null | undefined
-let next = 0
-const waiting = new Map<number, { resolve: (mesh: BakedMesh) => void; reject: (error: Error) => void }>()
+type Job = { resolve: (mesh: BakedMesh) => void; reject: (error: Error) => void }
+type Decoder = { worker: Worker; jobs: Map<number, Job> }
 
-function decoder(): Worker | null {
-  if (worker !== undefined) return worker
+/** Workers decoding at once: a view's meshes arrive together, and one worker would take them in turn. */
+const POOL = Math.max(1, Math.min(3, Math.floor((globalThis.navigator?.hardwareConcurrency ?? 2) / 2)))
+
+let pool: Decoder[] | null = null
+let next = 0
+
+function start(): Decoder | null {
   try {
-    worker = new Worker(new URL('./mesh-worker.ts', import.meta.url), { type: 'module' })
-    worker.onmessage = ({ data }: MessageEvent<DecodeResult>) => {
-      const job = waiting.get(data.id)
-      waiting.delete(data.id)
+    const decoder: Decoder = { worker: new Worker(new URL('./mesh-worker.ts', import.meta.url), { type: 'module' }), jobs: new Map() }
+    decoder.worker.onmessage = ({ data }: MessageEvent<DecodeResult>) => {
+      const job = decoder.jobs.get(data.id)
+      decoder.jobs.delete(data.id)
       if ('error' in data) job?.reject(new Error(data.error))
       else job?.resolve(data.mesh)
     }
-    // A worker that cannot start fails what it holds; later meshes decode here.
-    worker.onerror = worker.onmessageerror = () => {
-      worker = null
-      for (const job of waiting.values()) job.reject(new Error('Bridge mesh decoder failed'))
-      waiting.clear()
+    // A worker that fails gives up what it holds and leaves the pool; with none left, meshes decode here.
+    decoder.worker.onerror = decoder.worker.onmessageerror = () => {
+      pool = pool?.filter(d => d !== decoder) ?? null
+      for (const job of decoder.jobs.values()) job.reject(new Error('Bridge mesh decoder failed'))
+      decoder.jobs.clear()
     }
+    return decoder
   } catch {
-    worker = null
+    return null
   }
-  return worker
+}
+
+/** The least busy decoder, or null where workers are unavailable. */
+function decoder(): Decoder | null {
+  pool ??= Array.from({ length: POOL }, start).filter((d): d is Decoder => !!d)
+  if (!pool.length) return null
+  return pool.reduce((a, b) => (b.jobs.size < a.jobs.size ? b : a))
 }
 
 /** Decodes a mesh file off the main thread, or on it where workers are unavailable. */
@@ -41,11 +52,11 @@ export function decodeMesh(buffer: ArrayBuffer): Promise<BakedMesh> {
   }
   const id = next++
   return new Promise((resolve, reject) => {
-    waiting.set(id, { resolve, reject })
+    target.jobs.set(id, { resolve, reject })
     try {
-      target.postMessage({ id, buffer } satisfies DecodeRequest, [buffer])
+      target.worker.postMessage({ id, buffer } satisfies DecodeRequest, [buffer])
     } catch (error) {
-      waiting.delete(id)
+      target.jobs.delete(id)
       reject(error)
     }
   })

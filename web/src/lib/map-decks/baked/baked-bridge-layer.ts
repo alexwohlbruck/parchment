@@ -27,6 +27,7 @@ const UPLOAD_BUDGET_MS = 4
 const LOAD_TIMEOUT_MS = 30_000
 /** Milliseconds between view syncs while the camera moves, so meshes load before it stops. */
 const MOVING_SYNC_MS = 250
+const TILE_SYNC_MS = 100
 const REBUILD_MS = 300
 
 type Stand = NonNullable<ReturnType<typeof standing>>
@@ -68,6 +69,7 @@ export class BakedBridgeLayer {
   private lastView: { view: Bounds; core: Bounds; center: Point } | null = null
   private failed = new Set<string>()
   private scheduled?: ReturnType<typeof setTimeout>
+  private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
   private sun: SunFrame | null = null
   private bytes = 0
@@ -110,7 +112,12 @@ export class BakedBridgeLayer {
       this.syncRoute()
       return
     }
-    if (event?.sourceId && (event.sourceId !== this.sources.profiles?.source || !event.isSourceLoaded)) return
+    if (event?.sourceId && event.sourceId !== this.sources.profiles?.source) return
+    // Each tile as it lands, at most every TILE_SYNC_MS: its decks' meshes are often decoded already.
+    if (event?.sourceId && !event.isSourceLoaded) {
+      this.tileSync ??= setTimeout(() => { this.tileSync = undefined; this.sync() }, TILE_SYNC_MS)
+      return
+    }
     clearTimeout(this.scheduled)
     this.scheduled = setTimeout(() => this.sync(), 0)
   }
@@ -142,6 +149,8 @@ export class BakedBridgeLayer {
     map.off('terrain', this.changed)
     map.off('styledata', this.routesChanged)
     clearTimeout(this.scheduled)
+    clearTimeout(this.tileSync)
+    this.tileSync = undefined
     clearTimeout(this.rebuildTimer)
     this.rebuildTimer = undefined
     for (const request of this.requests.values()) request.abort()

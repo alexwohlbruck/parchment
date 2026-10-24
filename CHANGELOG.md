@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.16.3] - 2026-10-24
+
+### Added
+
 * Review failed sync changes and open identity settings directly from their notifications.
 
 * Request a fresh sign-in code with Resend email on the verification screen.

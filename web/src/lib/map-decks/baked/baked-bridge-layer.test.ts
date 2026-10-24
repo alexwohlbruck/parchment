@@ -12,11 +12,24 @@ const palette = Object.fromEntries(MATERIALS.map(name => [name, [1, 1, 1]])) as 
 const file = `${'a'.repeat(64)}.brm`
 const feature = { properties: { id: 'test', line: '-740000000,407000000;10000,0;10000,0', mesh: file } }
 const frame = { defaultProjectionData: { mainMatrix: new Float32Array(16) } }
+const isBundle = (url: unknown) => String(url).includes('/bridges/tiles/')
+/** Fetches of single meshes, leaving out tile bundles. */
+const meshCalls = () => vi.mocked(fetch).mock.calls.filter(([url]) => !isBundle(url))
+/** The next single-mesh fetch answers with `respond`; bundles keep answering as before. */
+function nextMesh(respond: (url: unknown, init?: RequestInit) => Promise<Response>) {
+  const before = vi.mocked(fetch).getMockImplementation()!
+  let used = false
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (isBundle(url) || used) return before(url, init)
+    used = true
+    return respond(url, init)
+  })
+}
 
-function setup(features = [feature]) {
+function setup(features = [feature], bundle?: (url: string) => Response) {
   vi.useFakeTimers()
   vi.stubEnv('VITE_BRIDGE_MESH_MANIFEST', '')
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(bytes)))
+  vi.stubGlobal('fetch', vi.fn(async (url: unknown) => isBundle(url) ? bundle?.(String(url)) ?? new Response(null, { status: 404 }) : new Response(bytes)))
   const handlers = new Map<string, (event?: any) => void>()
   const map = { on: (name: string, handler: (event?: any) => void) => handlers.set(name, handler), off: vi.fn(),
     getSource: () => ({ tiles: ['https://example.test/tiles/detail/{z}/{x}/{y}'] }),
@@ -41,7 +54,7 @@ test('panning over the same bridges reuses downloaded meshes and GPU buffers', a
   const version = layer.version
   handlers.get('moveend')!()
   await vi.runAllTimersAsync()
-  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(meshCalls()).toHaveLength(1)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
   expect(layer.version).toBe(version)
   layer.onRemove(map, gl)
@@ -52,9 +65,9 @@ test('panning over the same bridges reuses downloaded meshes and GPU buffers', a
 test('removal aborts in-flight downloads and never uploads their stale results', async () => {
   const { layer, map, gl } = setup()
   let resolve!: (response: Response) => void
-  vi.mocked(fetch).mockImplementationOnce(() => new Promise(r => { resolve = r }))
+  nextMesh(() => new Promise(r => { resolve = r }))
   await vi.advanceTimersByTimeAsync(100)
-  const signal = vi.mocked(fetch).mock.calls[0][1]?.signal
+  const signal = meshCalls()[0][1]?.signal
   layer.onRemove(map, gl)
   expect(signal?.aborted).toBe(true)
   resolve(new Response(bytes))
@@ -89,7 +102,7 @@ test('a deck coming into view keeps the loaded ones drawn and the flat bridges m
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
   expect(layer.covered).toBe(true)
-  vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}))
+  nextMesh(() => new Promise(() => {}))
   features.push({ properties: { ...feature.properties, id: 'next', mesh: `${'b'.repeat(64)}.brm` } })
   handlers.get('moveend')!()
   await vi.runAllTimersAsync()
@@ -117,7 +130,7 @@ test('a mesh that never arrives hands the view back to the flat bridges', async 
   const { layer, map, gl, handlers } = setup(features)
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
-  vi.mocked(fetch).mockImplementationOnce((_, init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))))
+  nextMesh((_, init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))))
   features.push({ properties: { ...feature.properties, id: 'next', mesh: `${'b'.repeat(64)}.brm` } })
   handlers.get('moveend')!()
   await vi.advanceTimersByTimeAsync(1000)
@@ -130,11 +143,11 @@ test('a mesh that never arrives hands the view back to the flat bridges', async 
 test('the decks cover once the view is drawn, without waiting on meshes fetched for its margin', async () => {
   const margin = { properties: { id: 'margin', line: '-739880000,407000000;10000,0', mesh: `${'c'.repeat(64)}.brm` } }
   const { layer, map, gl } = setup([feature, margin])
-  vi.mocked(fetch).mockImplementation(async url => String(url).includes(margin.properties.mesh) ? new Promise<Response>(() => {}) : new Response(bytes))
+  vi.mocked(fetch).mockImplementation(async url => isBundle(url) ? new Response(null, { status: 404 }) : String(url).includes(margin.properties.mesh) ? new Promise<Response>(() => {}) : new Response(bytes))
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
-  expect(fetch).toHaveBeenCalledTimes(2)
-  expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.priority)).toEqual(['high', 'low'])
+  expect(meshCalls()).toHaveLength(2)
+  expect(meshCalls().map(([, init]) => init?.priority)).toEqual(['high', 'low'])
   expect(layer.covered).toBe(true)
   layer.onRemove(map, gl)
 })
@@ -147,3 +160,24 @@ test('meshes that arrive together are drawn in the same frame', async () => {
   expect(layer.covered).toBe(true)
   layer.onRemove(map, gl)
 })
+
+test('a tile bundle brings the view\'s meshes without a fetch per deck, and draws them in the frame they land', async () => {
+  const name = 'a'.repeat(64)
+  const packed = new Uint8Array(8 + 36 + Math.ceil(bytes.length / 4) * 4)
+  const view = new DataView(packed.buffer)
+  view.setUint32(0, 0x31545242, true)
+  view.setUint32(4, 1, true)
+  packed.fill(0xaa, 8, 40)
+  view.setUint32(40, bytes.length, true)
+  packed.set(bytes, 44)
+  const { layer, map, gl } = setup([feature], () => new Response(packed))
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => isBundle(url))).toBe(true)
+  expect(meshCalls()).toHaveLength(0)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  expect(layer.covered).toBe(true)
+  expect(file).toBe(`${name}.brm`)
+  layer.onRemove(map, gl)
+})
+

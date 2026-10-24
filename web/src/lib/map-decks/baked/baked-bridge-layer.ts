@@ -8,7 +8,9 @@ import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
-import { BRIDGE_MESH_FILE, decodeBridge, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
+import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
+import { BUNDLE_ZOOM, bundleTiles } from './mesh-bundle'
+import { decodeMeshes } from './mesh-decoder'
 import { deckCover } from './cover'
 import { deckFootprints } from '../footprints'
 
@@ -17,6 +19,9 @@ const RAILS_FROM = 17.5
 const MAX_BYTES = 96 * 1024 * 1024
 /** Meshes fetched at once: each waits on the main thread between its steps, so a deep queue keeps the network busy through long frames. */
 const MAX_REQUESTS = 12
+/** Tile bundles fetched at once, and bytes of decoded meshes kept for decks not yet in view. */
+const MAX_BUNDLES = 6
+const MAX_DECODED = 48 * 1024 * 1024
 /** Milliseconds of mesh uploads one frame may spend, so a burst of arrivals draws within a few frames without a long one. */
 const UPLOAD_BUDGET_MS = 4
 const LOAD_TIMEOUT_MS = 30_000
@@ -51,6 +56,13 @@ export class BakedBridgeLayer {
   /** The wanted meshes inside the view itself rather than its margin: the decks cover once these are drawn. */
   private inView = new Set<string>()
   private requests = new Map<string, AbortController>()
+  /** Meshes decoded ahead of their decks entering the view. */
+  private decoded = new Map<string, { data: BakedMesh; bytes: number }>()
+  private decodedBytes = 0
+  /** Tile bundles by `x/y`: in flight, or fetched. */
+  private bundles = new Map<string, AbortController | true>()
+  /** The bundle tiles each wanted mesh's deck meets: one on its way brings the mesh. */
+  private tilesOf = new Map<string, string[]>()
   private failed = new Set<string>()
   private scheduled?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
@@ -131,6 +143,10 @@ export class BakedBridgeLayer {
     this.rebuildTimer = undefined
     for (const request of this.requests.values()) request.abort()
     this.requests.clear()
+    for (const bundle of this.bundles.values()) if (bundle !== true) bundle.abort()
+    this.bundles.clear()
+    this.decoded.clear()
+    this.decodedBytes = 0
     this.pending.clear()
     this.routePending = null
     for (const id of this.parts.keys()) this.remove(id)
@@ -160,6 +176,7 @@ export class BakedBridgeLayer {
     const inside = new Set<string>()
     const place = (file: string | undefined, bounds: Bounds) => {
       if (!file) return
+      if (!this.tilesOf.has(file)) this.tilesOf.set(file, bundleTiles(bounds))
       near.set(file, Math.min(near.get(file) ?? Infinity, distanceOutside(bounds, center)))
       if (meets(bounds, core)) inside.add(file)
     }
@@ -194,7 +211,9 @@ export class BakedBridgeLayer {
     const files = [...new Set([...decks.values()].flatMap(d => BRIDGE_MESH_FILE.test(d.file) ? [d.file] : []))]
     this.wanted = new Set(files.sort((a, b) => Number(inside.has(b)) - Number(inside.has(a)) || (near.get(a) ?? 0) - (near.get(b) ?? 0)))
     this.inView = new Set(files.filter(file => inside.has(file)))
-    for (const id of this.pending.keys()) if (!this.wanted.has(id)) this.pending.delete(id)
+    if (this.tilesOf.size > 4000) this.tilesOf.clear()
+    this.fetchBundles(view, center)
+    for (const [id, entry] of this.pending) if (!this.wanted.has(id)) { this.pending.delete(id); this.keep(id, entry) }
     for (const [id, request] of this.requests) if (!this.wanted.has(id)) { request.abort(); this.requests.delete(id) }
     for (const id of this.parts.keys()) if (!this.wanted.has(id) && this.bytes > MAX_BYTES) this.remove(id)
     this.updateCover()
@@ -238,6 +257,15 @@ export class BakedBridgeLayer {
     for (const id of this.wanted) {
       if (this.requests.size >= MAX_REQUESTS) break
       if (this.parts.has(id) || this.pending.has(id) || this.requests.has(id) || this.failed.has(id)) continue
+      const ready = this.decoded.get(id)
+      if (ready) {
+        this.decoded.delete(id)
+        this.decodedBytes -= ready.bytes
+        this.pending.set(id, ready)
+        this.map.triggerRepaint()
+        continue
+      }
+      if (this.tilesOf.get(id)?.some(tile => this.bundles.get(tile) instanceof AbortController)) continue
       const controller = new AbortController()
       this.requests.set(id, controller)
       const url = this.preview?.find(p => p.url.endsWith(id))?.url ?? template.replace(/\/detail\/[^?]+/, `/bridges/models/${id}`)
@@ -250,12 +278,9 @@ export class BakedBridgeLayer {
     try {
       const response = await fetch(url, { signal: controller.signal, credentials: 'include', priority })
       if (!response.ok) throw new Error(`Bridge mesh: ${response.status}`)
-      const buffer = await response.arrayBuffer()
+      const [{ mesh }] = await decodeMeshes(await response.arrayBuffer(), id)
       if (!this.map || controller.signal.aborted || !this.wanted.has(id)) return
-      const data = decodeBridge(buffer), bytes = gpuBytes(data)
-      for (const old of this.parts.keys()) if (!this.wanted.has(old) && this.bytes + bytes > MAX_BYTES) this.remove(old)
-      this.pending.set(id, { data, bytes })
-      this.map.triggerRepaint()
+      this.accept(id, mesh)
     } catch (error) {
       if (timedOut || !controller.signal.aborted) {
         this.failed.add(id)
@@ -266,6 +291,62 @@ export class BakedBridgeLayer {
       clearTimeout(timer)
       if (this.requests.get(id) === controller) this.requests.delete(id)
       this.pump()
+    }
+  }
+  /** Fetches the bundles of the tiles the view meets, nearest first, and drops those it has left. */
+  private fetchBundles(view: Bounds, [cx, cy]: Point) {
+    const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
+    if (this.preview || !template?.includes('/detail/') || this.map.getZoom() < BUNDLE_ZOOM) return
+    const n = 2 ** BUNDLE_ZOOM
+    const tiles = bundleTiles(view).sort((a, b) => {
+      const [ax, ay] = a.split('/').map(Number), [bx, by] = b.split('/').map(Number)
+      return Math.hypot(ax + 0.5 - cx * n, ay + 0.5 - cy * n) - Math.hypot(bx + 0.5 - cx * n, by + 0.5 - cy * n)
+    })
+    for (const [tile, bundle] of this.bundles) if (bundle !== true && !tiles.includes(tile)) { bundle.abort(); this.bundles.delete(tile) }
+    if (this.bundles.size > 2000) for (const [tile, bundle] of this.bundles) if (bundle === true) this.bundles.delete(tile)
+    let flying = [...this.bundles.values()].filter(b => b !== true).length
+    for (const [k, tile] of tiles.entries()) {
+      if (flying >= MAX_BUNDLES) break
+      if (this.bundles.has(tile)) continue
+      const controller = new AbortController()
+      this.bundles.set(tile, controller)
+      flying++
+      void this.loadBundle(tile, template.replace(/\/detail\/[^?]+/, `/bridges/tiles/${BUNDLE_ZOOM}/${tile}`), controller, k < 4 ? 'high' : 'low')
+    }
+  }
+  private async loadBundle(tile: string, url: string, controller: AbortController, priority: RequestPriority) {
+    try {
+      const response = await fetch(url, { signal: controller.signal, credentials: 'include', priority })
+      if (!response.ok) throw new Error(`Bridge mesh bundle: ${response.status}`)
+      const meshes = await decodeMeshes(await response.arrayBuffer())
+      if (!this.map || controller.signal.aborted) return
+      for (const { file, mesh } of meshes) this.accept(file, mesh)
+      this.bundles.set(tile, true)
+    } catch (error) {
+      // A bundle that fails leaves its meshes to be fetched one by one.
+      if (!controller.signal.aborted) this.bundles.set(tile, true)
+      if (!controller.signal.aborted) console.warn('[bridges]', error)
+    } finally {
+      this.pump()
+    }
+  }
+  /** A decoded mesh: uploaded next frame when its deck is wanted, else kept for when it is. */
+  private accept(id: string, data: BakedMesh) {
+    if (this.parts.has(id) || this.pending.has(id)) return
+    const bytes = gpuBytes(data)
+    if (!this.wanted.has(id)) return this.keep(id, { data, bytes })
+    for (const old of this.parts.keys()) if (!this.wanted.has(old) && this.bytes + bytes > MAX_BYTES) this.remove(old)
+    this.pending.set(id, { data, bytes })
+    this.map.triggerRepaint()
+  }
+  private keep(id: string, entry: { data: BakedMesh; bytes: number }) {
+    if (this.decoded.has(id)) return
+    this.decoded.set(id, entry)
+    this.decodedBytes += entry.bytes
+    for (const [old, { bytes }] of this.decoded) {
+      if (this.decodedBytes <= MAX_DECODED) break
+      this.decoded.delete(old)
+      this.decodedBytes -= bytes
     }
   }
   private syncRoute() {
@@ -322,13 +403,14 @@ export class BakedBridgeLayer {
     if (this.pending.size) {
       const started = performance.now()
       for (const [id, { data, bytes }] of this.pending) {
+        // Until the decks cover, the view's own meshes go up together: the first frame drawn has them all.
+        if (performance.now() - started > UPLOAD_BUDGET_MS && (this.covered || !this.inView.has(id))) continue
         this.pending.delete(id)
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
         shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
         this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes })
         this.bytes += bytes
-        if (performance.now() - started > UPLOAD_BUDGET_MS) break
       }
       this.updateCover()
       if (this.pending.size) this.map.triggerRepaint()

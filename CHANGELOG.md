@@ -4,6 +4,8 @@
 
 ### Changed
 
+* 3D bridge decks load with the map tiles around them instead of after them, and decode off the main thread.
+
 ### Fixed
 
 ## [0.16.3] - 2026-10-24

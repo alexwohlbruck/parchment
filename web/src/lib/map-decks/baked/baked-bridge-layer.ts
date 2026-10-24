@@ -1,7 +1,7 @@
 import type { DeckPalette, DeckSources } from '../deck.types'
 import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
-import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
+import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
 import { translate } from '@/lib/map-objects/object-layer'
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { liveBuildingShade } from '@/lib/map/building-shade'
@@ -31,7 +31,7 @@ const TILE_SYNC_MS = 100
 const REBUILD_MS = 300
 
 type Stand = NonNullable<ReturnType<typeof standing>>
-type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number }
+type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number; bounds: Bounds | null }
 
 export class BakedBridgeLayer {
   readonly id = 'map-decks'
@@ -395,7 +395,7 @@ export class BakedBridgeLayer {
     const point = mercator([lng, lat])
     let best: Stand | null = null
     for (const [id, part] of this.parts) {
-      if (!this.wanted.has(id)) continue
+      if (!this.wanted.has(id) || (part.bounds && !holds(part.bounds, point))) continue
       const hit = standing(part.data.stands, point)
       if (hit && (!best || hit.z > best.z)) best = hit
     }
@@ -411,7 +411,7 @@ export class BakedBridgeLayer {
     const point = mercator([lng, lat])
     let best: Stand | null = null
     for (const [id, part] of this.parts) {
-      if (!this.wanted.has(id)) continue
+      if (!this.wanted.has(id) || (part.bounds && !holds(part.bounds, point))) continue
       const hit = standing(part.data.stands, point, along)
       if (!hit) continue
       if (!(along && runsWith(part.data.tracks, point, along, 1)) && hit.height < BOX_MIN && underWay(part.data.under, point, along)) continue
@@ -434,7 +434,7 @@ export class BakedBridgeLayer {
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
         shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
-        this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes })
+        this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes, bounds: standBounds(data.stands) })
         this.bytes += bytes
       }
       this.updateCover()
@@ -443,7 +443,7 @@ export class BakedBridgeLayer {
     if (this.routePending) {
       const { mesh, origin } = this.routePending
       this.routePending = null
-      this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0 }
+      this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
     }
     if (!this.covered) return
     for (const [id, part] of this.parts) if (this.wanted.has(id)) this.drawPart(gl, args, part)
@@ -494,6 +494,13 @@ export class BakedBridgeLayer {
     draw(true)
     mesh.unbind()
   }
+}
+
+/** The bounds of every surface a mesh's decks stand on, or null where one has none and so cannot be skipped. */
+function standBounds(stands: BakedMesh['stands']): Bounds | null {
+  if (!stands.length || stands.some(s => !s.surface.bounds)) return stands.length ? null : { minX: 1, minY: 1, maxX: 0, maxY: 0 }
+  const all = stands.map(s => s.surface.bounds!)
+  return { minX: Math.min(...all.map(b => b.minX)), minY: Math.min(...all.map(b => b.minY)), maxX: Math.max(...all.map(b => b.maxX)), maxY: Math.max(...all.map(b => b.maxY)) }
 }
 
 /** How far a point lies outside bounds, in mercator units: zero inside. */

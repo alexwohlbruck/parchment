@@ -610,3 +610,23 @@ describe('precomputed bridge mesh proxy', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
   })
 })
+
+describe('bridge mesh bundle proxy', () => {
+  test('forwards a tile bundle with its validators, and revalidation', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test', apiKey: 'bridge-key' } }]
+    fetchResponses = [new Response(new Uint8Array([66, 82, 84, 49, 0, 0, 0, 0]), { headers: { etag: '"abc"', 'cache-control': 'public, max-age=600, stale-while-revalidate=604800' } })]
+    const response = await req(app).get('/proxy/barrelman/bridges/tiles/14/4824/6159', { headers: { 'if-none-match': '"old"' } })
+    expect(response.status).toBe(200)
+    expect(fetchCalls[0]).toBe('https://barrelman.test/tiles/bridges/tiles/14/4824/6159')
+    expect(fetchHeaders[0].Authorization).toBe('Bearer bridge-key')
+    expect(fetchHeaders[0]['If-None-Match']).toBe('"old"')
+    expect(response.headers.get('etag')).toBe('"abc"')
+    expect(response.headers.get('cache-control')).toContain('stale-while-revalidate')
+  })
+  test('rejects a non-numeric tile before contacting Barrelman', async () => {
+    const response = await req(app).get('/proxy/barrelman/bridges/tiles/14/x/1')
+    expect(response.status).toBe(404)
+    expect(fetchCalls).toHaveLength(0)
+  })
+})
+

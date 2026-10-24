@@ -422,8 +422,12 @@ describe('standing on decks', () => {
   const decks = [{ chain: deck, surface }]
 
   test('an object on a deck stands at its surface, one off it on the ground', () => {
-    expect(standing(decks, line(50)[0])).toEqual({ z: 107, height: 7 })
+    expect(standing(decks, line(50)[0])).toEqual({ z: 107, height: 7, lift: 107 })
     expect(standing(decks, offset(9, 50)[0])).toBeNull()
+  })
+
+  test('a deck baked with lifts reports the ground it rises with, so it is drawn at its true height over the exaggerated ground', () => {
+    expect(standing([{ chain: deck, surface: { ...surface, lift: [100, 102, 100] } }], line(50)[0])?.lift).toBe(102)
   })
 
   test('a wire stands on a deck it runs with, not one it passes under', () => {

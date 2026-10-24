@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest'
-import { eyeOf } from './mesh-program'
+import { describe, expect, test, vi } from 'vitest'
+import { eyeOf, programReady } from './mesh-program'
 
 /** A perspective camera at `eye` looking down -z, as a column-major matrix. */
 function camera(eye: [number, number, number]): number[] {
@@ -22,4 +22,18 @@ describe('eyeOf', () => {
   test('has none for an orthographic projection', () => {
     expect(eyeOf([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])).toBeNull()
   })
+})
+
+test('polls parallel compilation without blocking on link status', () => {
+  const program = {} as WebGLProgram
+  let complete = false
+  const getProgramParameter = vi.fn((_program, status) => status === 1 ? complete : true)
+  const gl = { getExtension: () => ({ COMPLETION_STATUS_KHR: 1 }), getProgramParameter, LINK_STATUS: 2 } as unknown as WebGL2RenderingContext
+  expect(programReady(gl, program)).toBe(false)
+  expect(getProgramParameter).not.toHaveBeenCalledWith(program, 2)
+  complete = true
+  expect(programReady(gl, program)).toBe(true)
+  getProgramParameter.mockClear()
+  expect(programReady(gl, program)).toBe(true)
+  expect(getProgramParameter).not.toHaveBeenCalled()
 })

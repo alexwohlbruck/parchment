@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, paletteFor, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
+  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, materialRole, paletteFor, ROLE, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
   REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
 } from './landmarks'
 import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
@@ -117,6 +117,17 @@ describe('materialEmission', () => {
   it('lights entrances at night only', () => {
     expect(materialEmission('entrance', night)?.intensity).toBe(2.4)
     expect(materialEmission('entrance', day)).toBeNull()
+  })
+
+  it('lights lamps at night only, by name prefix', () => {
+    expect(materialEmission('lamp', night)).not.toBeNull()
+    expect(materialEmission('lamp-2', night)).toEqual(materialEmission('lamp', night))
+    expect(materialEmission('lamp', day)).toBeNull()
+  })
+
+  it('gives windows, lamps and wires their own roles in the draw shader', () => {
+    expect(['window-2', 'lamp', 'lamp-3', 'wire-steel', 'wire-steel-fine', 'glass', 'stone'].map(materialRole))
+      .toEqual([ROLE.window, ROLE.lamp, ROLE.lamp, ROLE.wire, ROLE.fineWire, ROLE.plain, ROLE.plain])
   })
 
   it('leaves windows to the facade and every other material dark', () => {
@@ -306,7 +317,7 @@ describe('groundGrid', () => {
  * A two-node GLB: a static base and an arm 10 m above it, both one triangle,
  * the arm turning once about +Y over 4 s in quarter-turn keyframes.
  */
-function turningGlb(interpolation = 'LINEAR'): ArrayBuffer {
+function turningGlb(interpolation = 'LINEAR', extra: Record<string, number> = {}): ArrayBuffer {
   const quarter = (k: number) => [0, Math.sin((k * Math.PI) / 4), 0, Math.cos((k * Math.PI) / 4)]
   const bin = new ArrayBuffer(144)
   new Float32Array(bin, 0, 9).set([1, 0, 0, 2, 0, 0, 1, 1, 0])
@@ -318,12 +329,13 @@ function turningGlb(interpolation = 'LINEAR'): ArrayBuffer {
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ name: 'base', mesh: 0, children: [1] }, { name: 'arm', mesh: 0, translation: [0, 10, 0] }],
-    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0, ...extra }, indices: 1 }] }],
     accessors: [
       { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [1, 0, 0], max: [2, 1, 0] },
       { bufferView: 1, componentType: 5123, count: 3, type: 'SCALAR' },
       { bufferView: 2, componentType: 5126, count: 5, type: 'SCALAR', min: [0], max: [4] },
       { bufferView: 3, componentType: 5126, count: 5, type: 'VEC4' },
+      { bufferView: 2, componentType: 5126, count: 3, type: 'SCALAR' },
     ],
     bufferViews: [
       { buffer: 0, byteOffset: 0, byteLength: 36 },
@@ -359,6 +371,12 @@ const apply = (m: ArrayLike<number>, [x, y, z]: number[]) =>
   [0, 1, 2].map(r => m[r] * x + m[4 + r] * y + m[8 + r] * z + m[12 + r])
 
 describe('animated landmarks', () => {
+  it('reads a primitive\'s floodlight, and drops one that does not match its vertices', () => {
+    expect([...parseGlb(turningGlb('LINEAR', { _FLOODLIGHT: 4 })).primitives[0].floodlight!]).toEqual([0, 1, 2])
+    expect(parseGlb(turningGlb('LINEAR', { _FLOODLIGHT: 2 })).primitives[0].floodlight).toBeNull()
+    expect(parseGlb(turningGlb()).primitives[0].floodlight).toBeNull()
+  })
+
   it('flattens every node as before unless animation is asked for', () => {
     const model = parseGlb(turningGlb())
     expect(model.animation).toBeNull()

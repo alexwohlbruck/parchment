@@ -270,7 +270,7 @@ async function impersonateUser(user: User) {
     await authService.impersonateUser(user.id)
     router.push({ name: AppRoute.MAP })
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user', { cause: err })
   }
 }
 

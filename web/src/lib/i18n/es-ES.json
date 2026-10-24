@@ -1,4 +1,7 @@
 {
+  "notifications": {
+    "manageIdentity": "Gestionar identidad"
+  },
   "taglines": {
     "short": "La próxima generación de mapas digitales",
     "long": "Explora el mundo con mapas hermosos y detallados creados por la comunidad"
@@ -2179,6 +2182,10 @@
     "otp": {
       "title": "Código de verificación",
       "description": "Código enviado a {email}",
+      "resend": "Reenviar correo",
+      "resending": "Enviando…",
+      "resent": "Correo reenviado. Revisa tu bandeja de entrada.",
+      "resendFailed": "No se pudo reenviar el correo. Inténtalo de nuevo.",
       "submit": "Enviar",
       "cancel": "Cancelar",
       "verifying": "Verificando...",
@@ -2564,7 +2571,9 @@
       "willSync": "Tus cambios se sincronizarán cuando te reconectes",
       "syncing": "Sincronizando…",
       "failed": "No se pudo sincronizar",
+      "reviewAction": "Revisar sincronización",
       "failedToast": "No se pudo sincronizar «{label}»",
+      "failedManyToast": "No se pudieron sincronizar {count} cambios",
       "cancel": "Cancelar",
       "retryAction": "Reintentar",
       "dismiss": "Descartar",

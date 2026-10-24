@@ -1,4 +1,7 @@
 {
+  "notifications": {
+    "manageIdentity": "Manage identity"
+  },
   "taglines": {
     "short": "The next generation of digital maps",
     "long": "Explore the world with beautiful, detailed maps crafted by the community"
@@ -2301,6 +2304,10 @@
     "otp": {
       "title": "Verification code",
       "description": "Code sent to {email}",
+      "resend": "Resend email",
+      "resending": "Sending…",
+      "resent": "Email resent. Check your inbox.",
+      "resendFailed": "Couldn’t resend the email. Please try again.",
       "submit": "Submit",
       "cancel": "Cancel",
       "verifying": "Verifying...",
@@ -2686,7 +2693,9 @@
       "willSync": "Your changes will sync when you reconnect",
       "syncing": "Syncing…",
       "failed": "Couldn't sync",
+      "reviewAction": "Review sync",
       "failedToast": "Couldn't sync \"{label}\"",
+      "failedManyToast": "Couldn't sync {count} changes",
       "cancel": "Cancel",
       "retryAction": "Retry",
       "dismiss": "Dismiss",

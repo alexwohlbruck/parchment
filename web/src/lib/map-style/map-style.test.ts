@@ -2577,6 +2577,33 @@ describe('road markings', () => {
     expect(at('Road island')).toBeLessThan(at('Road line'))
   })
 
+  test('paints a cycle track over a path in a bike lane\'s green, so a bridge deck\'s runs on off it unchanged', () => {
+    const track = style.layers.find(l => l.id === 'Path cycle track') as any
+    const matches = (properties: Record<string, string>) =>
+      featureFilter(track.filter, 'Path cycle track.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
+    expect(matches({ subclass: 'cycleway' })).toBe(true)
+    expect(matches({ subclass: 'path', bicycle: 'designated' })).toBe(true)
+    expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(false)
+    expect(matches({ subclass: 'path', bicycle: 'designated', foot: 'designated', segregated: 'yes' })).toBe(true)
+    expect(matches({ subclass: 'footway' })).toBe(false)
+    expect(matches({ subclass: 'footway', bicycle: 'designated' })).toBe(false)
+    expect(at('Path cycle track casing')).toBe(at('Path (cycling)') + 1)
+    expect(at('Path cycle track')).toBe(at('Path (cycling)') + 2)
+    const line = style.layers.find(l => l.id === 'Path cycle track shared') as any
+    const dashed = (properties: Record<string, string>) =>
+      featureFilter(line.filter, 'shared.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', ...properties } } as any)
+    expect(dashed({ subclass: 'path', bicycle: 'designated', foot: 'designated' })).toBe(true)
+    expect(line.paint['line-dasharray']).toBeDefined()
+    const casing = style.layers.find(l => l.id === 'Path cycle track casing') as any
+    expect(featureFilter(casing.filter, 'casing.filter').filter({ zoom: 18 } as any, { type: 2, properties: { class: 'path', subclass: 'path', bicycle: 'designated', foot: 'designated' } } as any)).toBe(false)
+    expect(dashed({ subclass: 'cycleway' })).toBe(false)
+    expect(dashed({ subclass: 'path', bicycle: 'designated', foot: 'designated', segregated: 'yes' })).toBe(false)
+    expect(at('Path bridge cycle track')).toBe(at('Path bridge (cycling)') + 2)
+    expect(at('Path cycle track shared')).toBe(at('Path cycle track') + 1)
+    const lanes = style.layers.find(l => l.id === 'Road lane fill') as any
+    expect(lanes.paint['fill-color'].at(-1)).toBe(track.paint['line-color'])
+  })
+
   test('draws hatching bars on their own layer, wider than lane lines', () => {
     const matches = (id: string, properties: Record<string, string>) => {
       const layer = style.layers.find(l => l.id === id) as any

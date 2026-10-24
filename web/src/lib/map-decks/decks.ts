@@ -815,10 +815,11 @@ export function innerSides(decks: Array<{ chain: Chain }>, outlines: Array<{ rin
  * eye, and for a painted line's vertex the way out from the line's middle
  * (mercator units a metre) with its half width in metres.
  */
-export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[]; spread?: number[] }
+/** `lift`: metres per unit of terrain exaggeration past 1 a vertex rises, where it stands its true height over the exaggerated ground. */
+export type Mesh = { position: number[]; normal: number[]; color: number[]; low?: number[]; bias?: number[]; spread?: number[]; lift?: number[] }
 
 /** A mesh that keeps low colours and biases. */
-export const deckMeshOut = (): Required<Mesh> => ({ position: [], normal: [], color: [], low: [], bias: [], spread: [] })
+export const deckMeshOut = (): Required<Omit<Mesh, 'lift'>> & Pick<Mesh, 'lift'> => ({ position: [], normal: [], color: [], low: [], bias: [], spread: [] })
 
 /** One vertex onto a mesh, with its low colour and bias where the mesh keeps them. */
 export function vertex(out: Mesh, p: ArrayLike<number>, n: ArrayLike<number>, color: ArrayLike<number>, low: ArrayLike<number> = color, bias = 0, spread: ArrayLike<number> = NO_SPREAD) {
@@ -1261,7 +1262,7 @@ export function subtractConvex(poly: Point[], hole: Point[]): Point[][] {
  * A solved deck as things are laid on it; `bias` per point and `low` as in `Mesh`, `ground` beneath each point,
  * `sidewalks` where its top beside its carriageway is already drawn as walkway.
  */
-export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]]; tops?: Top[]; sidewalks?: boolean }
+export type DeckSurface = { points: Point[]; z: number[]; d: number[]; width: number; bounds?: Bounds; bias?: number[]; low?: number[]; ground?: number[]; lift?: number[]; kind?: Piece['kind']; edges?: [Point[], Point[]]; tops?: Top[]; sidewalks?: boolean }
 
 /** A point over a deck: which deck, how far off its centreline, its height there, and the segment beneath. */
 export type Hit = { deck: number; distance: number; z: number; segment: number; t: number }
@@ -1412,19 +1413,33 @@ const STAND_ALIGNED = Math.cos((25 * Math.PI) / 180)
  * it stands over the ground, from the deck whose centreline is nearest. A
  * linear object (`along`, east and south) only stands on a deck it runs with.
  */
-export function standing(decks: Array<{ chain: Chain; surface: DeckSurface }>, p: Point, along?: [number, number]): { z: number; height: number } | null {
-  let best: { z: number; height: number; distance: number } | null = null
+const standIndexes = new WeakMap<Chain, { index: SegmentIndex; reach: number } | null>()
+
+/** A deck's segments by cell, with the farthest from its centreline a point can stand on it. */
+function standIndex(chain: Chain) {
+  let indexed = standIndexes.get(chain)
+  if (indexed === undefined) {
+    const reach = Math.max(...chain.edges) + STAND_SLACK
+    indexed = chain.points.length > 1 && Number.isFinite(reach) ? { index: segmentIndex(chain.points), reach } : null
+    standIndexes.set(chain, indexed)
+  }
+  return indexed
+}
+
+export function standing(decks: Array<{ chain: Chain; surface: DeckSurface }>, p: Point, along?: [number, number]): { z: number; height: number; lift: number } | null {
+  let best: { z: number; height: number; lift: number; distance: number } | null = null
   for (const { chain, surface } of decks) {
     if (surface.bounds && !holds(surface.bounds, p)) continue
-    const near = beside(chain.points, p)
+    const indexed = standIndex(chain)
+    const near = beside(chain.points, p, indexed ? nearSegments(indexed.index, p, indexed.reach) : undefined)
     if (!near.alongside || near.distance > sideAt(chain, near.left ? 0 : 1, near.segment - 1, near.t) + STAND_SLACK) continue
     if (best && near.distance >= best.distance) continue
     const [a, b] = [chain.points[near.segment - 1], chain.points[near.segment]]
     if (along && Math.abs(along[0] * (b[0] - a[0]) + along[1] * (b[1] - a[1])) < STAND_ALIGNED * Math.hypot(along[0], along[1]) * (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1)) continue
     const at = (v: number[]) => v[near.segment - 1] + (v[near.segment] - v[near.segment - 1]) * near.t
-    best = { z: at(surface.z), height: at(surface.z) - at(surface.ground ?? surface.z), distance: near.distance }
+    best = { z: at(surface.z), height: at(surface.z) - at(surface.ground ?? surface.z), lift: surface.lift ? at(surface.lift) : at(surface.z), distance: near.distance }
   }
-  return best && { z: best.z, height: best.height }
+  return best && { z: best.z, height: best.height, lift: best.lift }
 }
 
 /** A way near a deck, and its half width in metres. */

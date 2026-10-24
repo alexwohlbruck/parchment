@@ -1,6 +1,7 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from '@/lib/toast'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useFriendsStore } from '@/stores/friends.store'
@@ -13,6 +14,7 @@ import type {
   DecryptedPoint,
 } from '@/types/library.types'
 import { api } from '@/lib/api'
+import { AppRoute } from '@/router'
 import { getSeed } from '@/lib/identity/key-storage'
 import {
   collectionMetadataOf,
@@ -186,6 +188,17 @@ export const useCollectionsService = createSharedComposable(() => {
   const friendsStore = useFriendsStore()
   const identityStore = useIdentityStore()
   const { t } = useI18n()
+  const router = useRouter()
+
+  function viewCollectionAction(collectionId: string | undefined) {
+    if (!collectionId) return undefined
+    return {
+      label: t('general.view'),
+      onClick: () => {
+        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
+      },
+    }
+  }
 
   function getCollectionDisplayName(collection: Collection | null): string {
     if (!collection) return ''
@@ -254,7 +267,7 @@ export const useCollectionsService = createSharedComposable(() => {
       collectionsStore.setCollections(hydrated)
       return hydrated
     } catch (error) {
-      toast.error(t('services.collections.fetchError'))
+      toast.error(t('services.collections.fetchError'), { cause: error })
       return []
     }
   }
@@ -294,7 +307,7 @@ export const useCollectionsService = createSharedComposable(() => {
       collectionsStore.updateCollection(hydrated)
       return hydrated
     } catch (error) {
-      toast.error(t('services.collections.fetchOneError'))
+      toast.error(t('services.collections.fetchOneError'), { cause: error })
       return null
     }
   }
@@ -324,10 +337,12 @@ export const useCollectionsService = createSharedComposable(() => {
       }
 
       collectionsStore.updateCollection(created)
-      toast.success(t('services.collections.createSuccess'))
+      toast.success(t('services.collections.createSuccess'), {
+        action: viewCollectionAction(created.id),
+      })
       return created
     } catch (error) {
-      toast.error(t('services.collections.createError'))
+      toast.error(t('services.collections.createError'), { cause: error })
       return null
     }
   }
@@ -364,7 +379,7 @@ export const useCollectionsService = createSharedComposable(() => {
       toast.success(t('services.collections.updateSuccess'))
       return hydrated
     } catch (error) {
-      toast.error(t('services.collections.updateError'))
+      toast.error(t('services.collections.updateError'), { cause: error })
       return null
     }
   }
@@ -434,7 +449,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
       return true
     } catch (error) {
-      toast.error(t('services.collections.deleteError'))
+      toast.error(t('services.collections.deleteError'), { cause: error })
       return false
     }
   }
@@ -446,7 +461,7 @@ export const useCollectionsService = createSharedComposable(() => {
       )
       return response.data
     } catch (error) {
-      toast.error(t('services.collections.fetchBookmarksError'))
+      toast.error(t('services.collections.fetchBookmarksError'), { cause: error })
       return []
     }
   }
@@ -468,7 +483,7 @@ export const useCollectionsService = createSharedComposable(() => {
         updatedAt: string
       }>
     } catch (error) {
-      toast.error('Failed to fetch encrypted points')
+      toast.error('Failed to fetch encrypted points', { cause: error })
       return []
     }
   }
@@ -586,6 +601,7 @@ export const useCollectionsService = createSharedComposable(() => {
   }
 
   return {
+    viewCollectionAction,
     fetchCollections,
     fetchCollectionById,
     createCollection,

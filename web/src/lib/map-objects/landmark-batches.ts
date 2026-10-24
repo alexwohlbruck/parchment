@@ -12,6 +12,8 @@ export type PrimitiveBatch = {
   uv: Float32Array | null
   index: Uint16Array | Uint32Array
   material: Float32Array
+  /** Per vertex, how floodlit at night; null when nothing in the batch is. */
+  floodlight: Float32Array | null
 }
 
 /**
@@ -43,6 +45,7 @@ function merge(primitives: GlbPrimitive[]): PrimitiveBatch {
   const position = new Float32Array(vertices * 3)
   const normal = new Float32Array(vertices * 3)
   const material = new Float32Array(vertices)
+  const floodlight = primitives.some(p => p.floodlight) ? new Float32Array(vertices) : null
   const index = vertices > 0xffff ? new Uint32Array(indices) : new Uint16Array(indices)
   let v = 0
   let i = 0
@@ -51,10 +54,11 @@ function merge(primitives: GlbPrimitive[]): PrimitiveBatch {
     position.set(p.position, v * 3)
     normal.set(p.normal, v * 3)
     material.fill(m, v, v + count)
+    if (p.floodlight) floodlight!.set(p.floodlight, v)
     for (let k = 0; k < p.index.length; k++) index[i + k] = p.index[k] + v
     v += count
     i += p.index.length
   })
   const uv = primitives.length === 1 ? primitives[0].uv : null
-  return { primitives, position, normal, uv, index, material }
+  return { primitives, position, normal, uv, index, material, floodlight }
 }

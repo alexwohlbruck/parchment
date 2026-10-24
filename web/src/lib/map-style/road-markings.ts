@@ -10,6 +10,7 @@
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
 import { metres } from './metres'
+import { CYCLING_SUFFIX } from './cycling.mjs'
 
 export const ROAD_SURFACE_TILES = 'road_surfaces'
 export const ROAD_MARKING_TILES = 'road_markings'
@@ -22,14 +23,16 @@ export const HD_FADE = [FROM, TO] as const
 /** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
 const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string; crosswalk: string; yellow: string; green: string; red: string; signal: string; signalHalo: string }> = {
+const COLORS: Record<FlavorId, { asphalt: string; kerb: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(218, 6%, 50%)',
+    kerb: 'hsl(218, 7%, 38%)',
     island: 'hsl(88, 26%, 83%)',
     white: 'hsl(40, 20%, 97%)',
     crosswalk: 'hsl(40, 6%, 91%)',
     yellow: 'hsl(52, 88%, 56%)',
     green: 'hsl(150, 30%, 58%)',
+    greenCasing: 'hsl(150, 28%, 44%)',
     red: 'hsl(9, 48%, 62%)',
     signal: 'hsl(210, 8%, 30%)',
     signalHalo: 'hsl(40, 20%, 97%)',
@@ -38,11 +41,13 @@ const COLORS: Record<FlavorId, { asphalt: string; island: string; white: string;
   // and its edge hairline do not double up.
   dark: {
     asphalt: 'hsl(222, 5%, 25%)',
+    kerb: 'hsl(222, 6%, 16%)',
     island: 'hsl(150, 10%, 21%)',
     white: '#a4a29f',
     crosswalk: '#8f8e8c',
     yellow: '#bca83d',
     green: 'hsl(148, 20%, 33%)',
+    greenCasing: 'hsl(148, 22%, 24%)',
     red: 'hsl(9, 26%, 33%)',
     signal: 'hsl(45, 10%, 78%)',
     signalHalo: 'hsl(222, 5%, 20%)',
@@ -61,13 +66,61 @@ const ROAD_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outli
 const ROAD_TUNNELS = ['Tunnel', 'Tunnel outline']
 const UNDERGROUND = ['<', ['to-number', ['coalesce', ['get', 'layer'], 0]], 0]
 
+/** The basemap's footpaths, over which a cycle track is painted. */
+const PATHS = ['Path', 'Path bridge']
+/** A cycleway, or a path designated for bikes: what a bridge deck paints green. */
+const CYCLE_TRACK = ['any', ['==', ['get', 'subclass'], 'cycleway'],
+  ['all', ['==', ['get', 'subclass'], 'path'], ['==', ['get', 'bicycle'], 'designated']]]
+/** Walkers share it: designated for them too, and not split into a separate bike side. */
+const SHARED = ['all', ['==', ['get', 'foot'], 'designated'], ['!=', ['get', 'segregated'], 'yes']]
+/** Metres of kerb drawn outside a detailed road's edge. */
+const ROAD_CASING = 0.3
+/** Metres across a cycle track's paint, as barrelman lays one on a deck. */
+const CYCLE_TRACK_WIDTH = 2.5
+/** Metres of casing either side of it. */
+const CYCLE_TRACK_CASING = 0.35
+/** A shared path's green, in line widths: dash, gap. Broken up so it reads as a path bikes may use rather than a bike lane. */
+const SHARED_DASH = [2, 1.5]
+
+/**
+ * A cycle track over a basemap path at street zoom, in the green and width a
+ * deck paints one so it runs on unchanged off a bridge, over a darker casing.
+ * Where walkers share it, the green is dashed and has no casing.
+ */
+export function cycleTrack(path: any, flavor: FlavorId): any[] {
+  const green = COLORS[flavor].green
+  const filter = path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK
+  const base = {
+    type: 'line',
+    source: path.source,
+    'source-layer': path['source-layer'],
+    minzoom: FROM,
+    layout: { 'line-cap': 'butt', 'line-join': 'round' },
+  }
+  const fill = { 'line-color': green, 'line-width': metres(CYCLE_TRACK_WIDTH), 'line-opacity': fadeIn }
+  return [
+    {
+      ...base,
+      id: `${path.id} cycle track casing`,
+      filter: ['all', filter, ['!', SHARED]],
+      paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': fadeIn },
+    },
+    { ...base, id: `${path.id} cycle track`, filter: ['all', filter, ['!', SHARED]], paint: fill },
+    { ...base, id: `${path.id} cycle track shared`, filter: ['all', filter, SHARED], paint: { ...fill, 'line-dasharray': SHARED_DASH } },
+  ]
+}
+
 /**
  * Turn the basemap's roads to asphalt and drop their casings over the hand-off,
- * so the true-width carriageways read as the same road.
+ * so the true-width carriageways read as the same road; and paint cycle tracks
+ * over its paths.
  */
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   const asphalt = COLORS[flavor].asphalt
-  return layers.map(layer => {
+  return layers.flatMap(layer => {
+    // Over the basemap's own cycling tints of the path, which would otherwise hide it.
+    const path = PATHS.find(id => layer.id === `${id}${CYCLING_SUFFIX}`)
+    if (path) return [layer, ...cycleTrack(layers.find(l => l.id === path), flavor)]
     if (ROAD_TUNNELS.includes(layer.id) && typeof (layer.paint?.['line-opacity'] ?? 1) === 'number') {
       const opacity = layer.paint?.['line-opacity'] ?? 1
       return { ...layer, paint: { ...layer.paint, 'line-opacity': ['interpolate', ['linear'], ['zoom'], FROM, opacity, TO, ['case', UNDERGROUND, 0, opacity]] } }
@@ -112,7 +165,11 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     { id: `${id} edge${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': sourceLayer, minzoom: FROM, filter,
       layout: { 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 1, 'line-opacity': edgeFadeIn } },
   ]
+  const surface = ['all', band, ['!=', ['get', 'kind'], 'island']]
   return [
+    // A kerb round the carriageway: centred on its edge and under every fill, so only the outer half shows.
+    { id: `Road surface casing${suffix}`, type: 'line', source: DETAIL_SOURCE, 'source-layer': ROAD_SURFACE_TILES, minzoom: FROM, filter: surface,
+      layout: { 'line-join': 'round' }, paint: { 'line-color': c.kerb, 'line-width': metres(2 * ROAD_CASING, { minimum: 1 }), 'line-opacity': fadeIn } },
     ...fill('Road surface', ROAD_SURFACE_TILES, ['all', band, ['!=', ['get', 'kind'], 'island']], c.asphalt),
     // A turning loop's island, over the basemap road that runs into its middle.
     ...fill('Road island', ROAD_SURFACE_TILES, ['all', band, ['==', ['get', 'kind'], 'island']], c.island),

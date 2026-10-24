@@ -45,6 +45,7 @@ import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
 import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
+import SyncQueueDialog from '@/components/sync/SyncQueueDialog.vue'
 import { TransitionSlide } from '@morev/vue-transitions'
 
 const route = useRoute()
@@ -285,6 +286,7 @@ function beforeNavTransition(value: boolean) {
 
   <!-- Popups and modals -->
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
+  <SyncQueueDialog v-if="authStore.me" />
   <HotkeysMenu />
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />

@@ -16,6 +16,8 @@ import { useSyncStore } from '@/stores/sync.store'
  * failed — with per-item cancel (pending) and retry/dismiss (failed).
  * Rendered inside the sidebar status pill's hover card / bottom sheet.
  */
+withDefaults(defineProps<{ showTitle?: boolean }>(), { showTitle: true })
+
 const { t } = useI18n()
 const { isOffline } = useConnectivity()
 const syncStore = useSyncStore()
@@ -23,8 +25,8 @@ const syncStore = useSyncStore()
 
 <template>
   <div class="w-72 max-w-full">
-    <div class="px-3 pt-3 pb-2">
-      <p class="text-sm font-medium text-foreground">
+    <div v-if="showTitle || isOffline" class="px-3 pt-3 pb-2">
+      <p v-if="showTitle" class="text-sm font-medium text-foreground">
         {{ t('offline.sync.title') }}
       </p>
       <p v-if="isOffline" class="mt-0.5 text-xs text-muted-foreground">

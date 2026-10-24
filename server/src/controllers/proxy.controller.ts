@@ -307,6 +307,31 @@ app.get(
   { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark models' } },
 )
 
+app.get(
+  '/barrelman/bridges/models/:file',
+  async ({ params: { file }, headers: requestHeaders }) => {
+    if (!/^[0-9a-f]{64}\.brm$/.test(file)) return new Response('Not found', { status: 404 })
+    const config = resolveBarrelmanConfig()
+    if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
+    try {
+      const response = await fetch(new URL(`/tiles/bridges/models/${file}`, config.host), {
+        headers: { ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}), 'Accept-Encoding': acceptsGzip(requestHeaders['accept-encoding']) ? 'gzip' : 'identity' },
+        decompress: false,
+      } as BunFetchRequestInit & { decompress: false })
+      return new Response(response.ok ? response.body : null, {
+        status: response.status,
+        headers: { 'content-type': 'application/octet-stream', vary: 'accept-encoding',
+          'cache-control': response.ok ? 'public, max-age=31536000, immutable' : 'no-store',
+          ...(response.ok && response.headers.get('content-encoding') === 'gzip' ? { 'content-encoding': 'gzip' } : {}),
+        },
+      })
+    } catch {
+      return new Response('Proxy error', { status: 502 })
+    }
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy precomputed bridge meshes' } },
+)
+
 // Proxy vector tile requests through the Barrelman integration.
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the

@@ -5,6 +5,7 @@ import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
+import { rerouteSegment } from '../services/reroute.service'
 import {
   TripRequest,
   SelectedMode,
@@ -228,6 +229,42 @@ app.post(
         + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
         + 'segment with `streetTransfer` leaves the paid area '
         + 'between stations the agency does not connect, so the next ride is a new fare.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+app.post(
+  '/reroute',
+  async ({ body, language, set }) => {
+    try {
+      const segment = await rerouteSegment({ ...body, language })
+      if (!segment) {
+        set.status = 404
+        return { error: 'No route found' }
+      }
+      return { segment }
+    } catch (error) {
+      logError('Reroute failed', error)
+      set.status = 502
+      return { error: error instanceof Error ? error.message : 'Reroute failed' }
+    }
+  },
+  {
+    body: t.Object({
+      position: CoordinateSchema,
+      heading: t.Optional(t.Number({ minimum: 0, maximum: 360 })),
+      destination: CoordinateSchema,
+      mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
+      routingPreferences: t.Optional(t.Record(t.String(), t.Any())),
+    }),
+    detail: {
+      summary: 'Reroute the current segment during navigation',
+      description:
+        'Plans a fresh street route from where the traveller is to the end of the segment '
+        + 'they are on, favouring the direction they are already heading so the new route '
+        + 'does not open with a U-turn. Send a position projected a few seconds ahead of the '
+        + 'last fix. Returns one segment in the same shape as a `/directions` trip segment.',
       tags: ['Trip Planning'],
     },
   },

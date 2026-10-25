@@ -129,6 +129,9 @@ export interface RouteRequest {
   // Timing
   departureTime?: Date
 
+  /** Compass bearing the traveller is already moving in at the first waypoint. */
+  startHeading?: number
+
   // Provider selection
   preferredProvider?: string
   requestId?: string

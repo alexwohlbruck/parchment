@@ -1282,7 +1282,9 @@
         "uturn": "Da la vuelta",
         "roundabout": "Entra en la rotonda",
         "roundaboutExit": "En la rotonda, toma la salida {exit}",
-        "arrive": "Llega"
+        "arrive": "Llega",
+        "board": "Sube",
+        "boardAt": "Sube en {stop}"
       },
       "onto": "{action} hacia {road}",
       "in": "En {distance}, {action}",
@@ -1344,7 +1346,6 @@
       "unlock-bike": "Desbloquea una bici en {station}",
       "get-in-car": "Sube a tu coche",
       "get-on-bike": "Sube a tu bici",
-      "board": "Ve a tu parada",
       "continue": "Sigue",
       "then": "luego {mode} {duration}",
       "thenTo": "luego {mode} {duration} hasta {place}",
@@ -1357,6 +1358,43 @@
       "go": "Vamos",
       "notYet": "Todavía no",
       "docksFree": "{n} anclaje libre | {n} anclajes libres"
+    },
+    "transit": {
+      "voice": {
+        "board": "Sube al {line}",
+        "boardToward": "Sube al {line} hacia {headsign}",
+        "alight-next": "Bájate en la próxima parada, {stop}",
+        "alight-now": "Bájate en {stop}",
+        "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
+        "missed-stop": "Pasaste {stop}. Bájate en la próxima parada"
+      },
+      "departsIn": "Sale en {duration}",
+      "departingNow": "Saliendo ahora",
+      "from": "desde {stop}",
+      "stopsLeft": "{n} parada | {n} paradas",
+      "getOffAt": "Bájate en {stop}",
+      "getOffNext": "Bájate en la próxima parada",
+      "getOffNow": "Bájate ahora",
+      "nextStop": "Próxima: {stop}",
+      "missedVehicle": "El {line} ya salió",
+      "missedVehicleHint": "Toma el siguiente o busca otra ruta",
+      "nextDeparture": "Siguiente salida",
+      "anotherWay": "Otra ruta",
+      "noLaterRun": "No hay más salidas hoy",
+      "missedStop": "Pasaste {stop}",
+      "missedStopHint": "Bájate en la próxima parada",
+      "reach": {
+        "ok": "A tiempo",
+        "hurry": "Date prisa",
+        "late": "Puede que no llegues"
+      },
+      "inDuration": "en {duration}",
+      "leg": {
+        "walking": "Camina {duration}",
+        "cycling": "Pedalea {duration}",
+        "driving": "Conduce {duration}"
+      },
+      "toPlace": "hasta {place}"
     }
   },
   "attribution": {

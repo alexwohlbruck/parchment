@@ -23,7 +23,6 @@ describe('describeHandoff', () => {
     [{ mode: 'biking' }, { mode: 'walking' }, 'lock-bike'],
     [{ mode: 'walking' }, { mode: 'cycling', ownership: 'shared' }, 'unlock-bike'],
     [{ mode: 'walking' }, { mode: 'driving' }, 'get-in-car'],
-    [{ mode: 'walking' }, { mode: 'transit' }, 'board'],
   ])('%o → %o is %s', (from, to, kind) => {
     expect(describeHandoff([from, to], 0)?.kind).toBe(kind)
   })
@@ -49,5 +48,9 @@ describe('dueHandoff', () => {
 
   test('never for the last segment', () => {
     expect(dueHandoff(route, puck(690, 1), segments, 30)).toBeNull()
+  })
+  test('leaves stops to live transit guidance', () => {
+    const toTransit = [{ mode: 'driving' }, { mode: 'transit' }]
+    expect(dueHandoff(route, puck(470), toTransit, 0)).toBeNull()
   })
 })

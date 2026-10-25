@@ -30,6 +30,7 @@ function inline(action: string): string {
 
 function maneuverPhrase(instruction: RouteInstruction, t: TFn): string {
   const kind = maneuverKind(instruction)
+  if (kind === 'board') return t('guidance.voice.maneuvers.boardAt', { stop: instruction.streetName ?? '' })
   const action = kind === 'roundabout' && instruction.exitNumber
     ? t('guidance.voice.maneuvers.roundaboutExit', { exit: instruction.exitNumber })
     : t(`guidance.voice.maneuvers.${kind}`)
@@ -57,6 +58,13 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
       return t(`guidance.voice.hazards.${announcement.hazard.kind}`)
     case 'handoff':
       return handoffText(announcement.handoff, t)
+    case 'transit': {
+      const { event, line, headsign, stop } = announcement
+      if (event === 'wait') {
+        return headsign ? t('guidance.transit.voice.boardToward', { line, headsign }) : t('guidance.transit.voice.board', { line })
+      }
+      return t(`guidance.transit.voice.${event}`, { line, stop })
+    }
     case 'arrived':
       return announcement.side
         ? t(`guidance.voice.arrivedSide.${announcement.side}`)

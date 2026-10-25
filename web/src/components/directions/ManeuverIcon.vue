@@ -13,6 +13,7 @@ const PATHS: Record<string, string> = {
   'keep-right': 'M8 21v-5c0-2.2 1-3.6 2.5-4.8L15 8M8 15V4M11 8h4v4',
   uturn: 'M16 21V10a5 5 0 0 0-10 0v6M2.5 13 6 16.5 9.5 13',
   arrive: 'M6 21V4M6 4h10l-2 4 2 4H6',
+  board: 'M8 3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3ZM5 10h14M9 21l1.5-4M15 21l-1.5-4',
 }
 
 const mirrored = computed(() => props.kind.endsWith('-left'))

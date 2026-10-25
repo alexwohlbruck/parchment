@@ -55,6 +55,16 @@ export const MODE_PROFILES: Record<string, ModeProfile> = {
     speedometer: false,
     speedLimit: false,
   },
+  transit: {
+    baseSpeed: 10,
+    arrivalRadius: 40,
+    handoffRadius: 40,
+    jerkSigma: 1.5,
+    stillSpeed: 0.7,
+    camera: { minAhead: 300, maxAhead: 2500, minZoom: 12.5, maxZoom: 16.5, minManeuverZone: 0, pitchScale: 0.6 },
+    speedometer: false,
+    speedLimit: false,
+  },
 }
 
 /** Server and client spell modes a few ways; bike-share rides are cycling. */

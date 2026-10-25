@@ -47,6 +47,12 @@ const mode = computed(() => {
   return route && puck ? travelModeAt(route, puck.s) : 'driving'
 })
 
+// Waiting for or riding a vehicle has no turns to show.
+const onTransit = computed(() => {
+  const kind = guidance.transit?.kind
+  return kind != null && kind !== 'to-stop'
+})
+
 const hazardAhead = computed(() => {
   const route = guidance.route
   const puck = guidance.progress?.puck
@@ -81,6 +87,7 @@ const labelStyle = computed(() => {
   <div ref="root" class="pointer-events-none absolute inset-0 z-30">
     <div ref="banner" class="absolute inset-x-0 top-0 px-2 pt-[calc(0.5rem+env(safe-area-inset-top))]">
       <ManeuverBanner
+        v-if="!onTransit"
         :progress="guidance.progress"
         :status="guidance.status"
         :destination="guidance.destinationLabel"
@@ -91,7 +98,7 @@ const labelStyle = computed(() => {
     </div>
 
     <div
-      v-if="label && camera.following.value"
+      v-if="label && camera.following.value && !onTransit"
       class="absolute -translate-x-1/2"
       :style="labelStyle"
     >

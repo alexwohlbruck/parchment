@@ -15,6 +15,19 @@ import { rerouteOrigin, spliceReroute } from '@/lib/guidance/reroute'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
+import {
+  rideStops,
+  stageEvent,
+  withBoardingStep,
+  timetabledRemaining,
+  transitStage,
+  type RideStop,
+  type TransitSegmentInput,
+  type TransitStage,
+} from '@/lib/guidance/transit-progress'
+import { applyDepartureChange, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
+import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, stopVoice, unlockVoice } from '@/services/guidance/voice.service'
@@ -48,7 +61,7 @@ export interface GuidanceProgress extends ProgressSummary {
   puck: PuckState
 }
 
-type LegSegment = NavSegmentInput & {
+type LegSegment = NavSegmentInput & TransitSegmentInput & {
   legIndex?: number
   duration?: number
   ownership?: string
@@ -62,10 +75,10 @@ export function legSegments(trip: TripOption, legIndex: number): LegSegment[] {
   )
 }
 
-/** Navigation can follow a leg once every segment in it has a street route. */
+/** Navigation can follow a leg once every segment in it has a shape to follow. */
 export function isLegNavigable(trip: TripOption, legIndex: number): boolean {
-  const segments = legSegments(trip, legIndex)
-  return segments.length > 0 && segments.every(s => s.mode !== 'transit')
+  const leg = (trip.segments as LegSegment[]).filter(s => (s.legIndex ?? 0) === legIndex)
+  return leg.length > 0 && leg.every(s => (s.geometry?.length ?? 0) > 1)
 }
 
 /** First leg after the ones already navigated that can be followed, or null. */
@@ -93,6 +106,15 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Segments whose handoff was accepted or dismissed; per route, cleared on reroute. */
   let settledHandoffs = new Set<number>()
   let slowSec = 0
+  const transit = shallowRef<TransitStage | null>(null)
+  let rides: (RideStop[] | null)[] = []
+  /** Transit events already spoken, keyed by segment and event. */
+  let spokenTransit = new Set<string>()
+  /** Furthest snapped distance reached; boarding and alighting don't undo. */
+  let furthestS = 0
+  const rebooking = ref(false)
+  /** The timetable clock, to the second, for countdowns. */
+  const clockMs = ref(guidanceClock.now())
   const appStore = useAppStore()
 
   function soundModeAt(s: number): SoundMode {
@@ -126,11 +148,16 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const navRoute = route.value
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck || status.value === 'arrived') return
-    progress.value = { puck, ...summarizeProgress(navRoute, puck, segmentDurations.value) }
+    clockMs.value = Math.floor(guidanceClock.now() / 1000) * 1000
+    const summary = summarizeProgress(navRoute, puck, segmentDurations.value)
+    const timetabled = timetabledRemaining(navRoute, segments.value, segmentDurations.value, puck.s, guidanceClock.now())
+    progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds }
+    updateTransit(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
-    if (puck.snapped) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
+    const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
+    if (puck.snapped && !turnsMuted) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
     if (puck.snapped && hasArrived(navRoute, puck)) arrive()
-    else if (!puck.snapped) void reroute()
+    else if (!puck.snapped && transit.value?.kind !== 'missed-stop') void reroute()
   }
 
   function updateHandoff(navRoute: NavRoute, puck: PuckState) {
@@ -145,6 +172,47 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (due && !handoff.value && !settledHandoffs.has(due.from)) {
       handoff.value = due
       announce({ kind: 'handoff', handoff: due }, puck.s)
+    }
+  }
+
+  function updateTransit(navRoute: NavRoute, puck: PuckState) {
+    if (puck.snapped) furthestS = Math.max(furthestS, puck.s)
+    const stage = transitStage(navRoute, segments.value, rides, { ...puck, s: Math.max(puck.s, furthestS) }, guidanceClock.now())
+    transit.value = stage
+    const event = stage && stageEvent(stage)
+    if (!stage || !event) return
+    const key = `${stage.segmentIndex}:${event}`
+    if (spokenTransit.has(key)) return
+    spokenTransit.add(key)
+    const segment = segments.value[stage.segmentIndex]
+    const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
+    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, stop }, puck.s)
+    if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
+  }
+
+  function placeRides(navRoute: NavRoute) {
+    rides = segments.value.map((segment, i) => (segment.mode === 'transit' ? rideStops(navRoute, i, segment) : null))
+  }
+
+  /** Moves a missed boarding onto the line's next run, re-timing the rest of the trip. */
+  async function catchNextRun(): Promise<boolean> {
+    const stage = transit.value
+    const option = trip.value
+    if (!option || stage?.kind !== 'missed-vehicle' || rebooking.value) return false
+    const all = option.segments as unknown as (RebookableSegment & LineRun)[]
+    const index = all.indexOf(segments.value[stage.segmentIndex] as unknown as RebookableSegment & LineRun)
+    if (index < 0) return false
+    rebooking.value = true
+    try {
+      const next = await nextRunAfter(all[index], Math.max(stage.departureMs + 60_000, guidanceClock.now()))
+      if (next == null) return false
+      await applyDepartureChange(all, index, next, (i, minMs) => nextRunAfter(all[i], minMs))
+      segments.value = [...segments.value]
+      if (route.value) placeRides(route.value)
+      spokenTransit = new Set([...spokenTransit].filter(key => !key.startsWith(`${stage.segmentIndex}:`)))
+      return true
+    } finally {
+      rebooking.value = false
     }
   }
 
@@ -180,12 +248,14 @@ export const useGuidanceStore = defineStore('guidance', () => {
       })
       if (!fresh || route.value !== navRoute) return
       segments.value = spliceReroute(segments.value, index, fresh)
-      const next = markRaw(buildNavRoute(segments.value))
+      const next = markRaw(buildNavRoute(segments.value.map(withBoardingStep)))
       route.value = next
       guidanceEngine.setRoute(next)
       announcer?.setRoute(next)
       settledHandoffs = new Set()
       handoff.value = null
+      furthestS = 0
+      placeRides(next)
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
@@ -197,7 +267,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     unlockVoice()
     await requestMotionPermission()
     const legParts = legSegments(option, leg)
-    const navRoute = markRaw(buildNavRoute(legParts))
+    const navRoute = markRaw(buildNavRoute(legParts.map(withBoardingStep)))
     segments.value = legParts
     trip.value = markRaw(option)
     legIndex.value = leg
@@ -208,6 +278,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
     settledHandoffs = new Set()
     handoff.value = null
     slowSec = 0
+    transit.value = null
+    spokenTransit = new Set()
+    furthestS = 0
+    placeRides(navRoute)
     const end = legParts.at(-1)?.end?.location
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     guidanceEngine.start(navRoute)
@@ -226,6 +300,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress.value = null
     trip.value = null
     segments.value = []
+    transit.value = null
     status.value = 'navigating'
   }
 
@@ -273,5 +348,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
     cycleSound,
     handoff,
     settleHandoff,
+    segments,
+    transit,
+    rebooking,
+    catchNextRun,
+    clockMs,
   }
 })

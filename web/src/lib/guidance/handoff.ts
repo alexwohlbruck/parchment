@@ -13,7 +13,7 @@ export interface HandoffSegment {
   sharedMobilityDetails?: { stationName?: string; toStationName?: string; availableDocks?: number; provider?: string } | null
 }
 
-export type HandoffKind = 'park' | 'lock-bike' | 'dock-bike' | 'unlock-bike' | 'get-in-car' | 'get-on-bike' | 'board' | 'continue'
+export type HandoffKind = 'park' | 'lock-bike' | 'dock-bike' | 'unlock-bike' | 'get-in-car' | 'get-on-bike' | 'continue'
 
 export interface Handoff {
   /** Index of the segment being left. */
@@ -36,7 +36,6 @@ const STOPPED_WITHIN_METERS = 300
 function kindFor(from: HandoffSegment, to: HandoffSegment): HandoffKind {
   const fromMode = from.mode === 'biking' ? 'cycling' : from.mode
   const toMode = to.mode === 'biking' ? 'cycling' : to.mode
-  if (toMode === 'transit') return 'board'
   if (fromMode === 'driving') return 'park'
   if (fromMode === 'cycling') return from.ownership === 'shared' ? 'dock-bike' : 'lock-bike'
   if (toMode === 'cycling') return to.ownership === 'shared' ? 'unlock-bike' : 'get-on-bike'
@@ -78,6 +77,8 @@ export function dueHandoff(
   const stopped =
     segment.mode !== 'walking' && slowForSec >= STOPPED_HANDOFF_SEC && left <= STOPPED_WITHIN_METERS
   if (left > profile.handoffRadius && !stopped) return null
+  // Live transit guidance owns the stop: waiting, boarding and getting off.
+  if (segment.mode === 'transit' || segments[segment.index + 1]?.mode === 'transit') return null
   return describeHandoff(segments, segment.index)
 }
 

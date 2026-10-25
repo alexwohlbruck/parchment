@@ -13,6 +13,7 @@ export type ManeuverKind =
   | 'uturn'
   | 'roundabout'
   | 'arrive'
+  | 'board'
 
 /**
  * One vocabulary over both routing adapters: Barrelman sends type + modifier
@@ -22,6 +23,7 @@ export type ManeuverKind =
 export function maneuverKind(instruction: Pick<RouteInstruction, 'type' | 'modifier'>): ManeuverKind {
   const type = instruction.type ?? ''
   const modifier = instruction.modifier
+  if (type === 'board') return 'board'
   if (/arrive|destination/.test(type)) return 'arrive'
   if (/roundabout/.test(type)) return 'roundabout'
   if (modifier === 'u-turn' || /u-turn/.test(type)) return 'uturn'

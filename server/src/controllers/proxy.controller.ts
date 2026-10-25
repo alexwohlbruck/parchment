@@ -459,19 +459,22 @@ app.get(
       const gzipped =
         body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
 
-      return storeMartin(
-        cacheKey,
-        {
-          status: 200,
-          body: gzipped.buffer.slice(
-            gzipped.byteOffset,
-            gzipped.byteOffset + gzipped.byteLength,
-          ) as ArrayBuffer,
-          contentType:
-            response.headers.get('content-type') || 'application/x-protobuf',
-        },
-        gzipOk,
-      )
+      const tile: CachedResponse = {
+        status: 200,
+        body: gzipped.buffer.slice(
+          gzipped.byteOffset,
+          gzipped.byteOffset + gzipped.byteLength,
+        ) as ArrayBuffer,
+        contentType:
+          response.headers.get('content-type') || 'application/x-protobuf',
+      }
+      // A tile Barrelman could only partly build (some of its decks unreadable) is passed on uncached.
+      if (/no-store/.test(response.headers.get('cache-control') ?? '')) {
+        const sent = martinResponse(tile, 'BYPASS', gzipOk)
+        sent.headers.set('Cache-Control', 'no-store')
+        return sent
+      }
+      return storeMartin(cacheKey, tile, gzipOk)
     } catch (error) {
       logError('Barrelman tile proxy error', error, { params })
       return new Response('Proxy error', { status: 500 })

@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Tunnel entrances cut into 3D terrain within about a second of the map loading, instead of several seconds later.
+
 ### Fixed
 
 ## [0.16.11] - 2026-10-25

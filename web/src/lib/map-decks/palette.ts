@@ -57,3 +57,8 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     ...basemap('dark'),
   },
 }
+
+/** The palette with routes on decks drawn in other colours, as the navigated route's. */
+export function withRouteColors(base: DeckPalette, route: string, casing: string): DeckPalette {
+  return { ...base, route: rgb(route), routeCasing: rgb(casing) }
+}

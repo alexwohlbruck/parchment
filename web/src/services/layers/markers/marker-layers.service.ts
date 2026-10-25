@@ -100,6 +100,7 @@ export function useMarkerLayersService() {
         spread?: number,
         pitchAlignment?: 'map' | 'viewport',
       ) => mapStrategy?.setMarkerHeading(id, heading, spread, pitchAlignment),
+      setMarkerLift: (id: string, metres: number) => mapStrategy?.setMarkerLift(id, metres),
     }
 
     waypointsLayer.initialize(markerAPI)

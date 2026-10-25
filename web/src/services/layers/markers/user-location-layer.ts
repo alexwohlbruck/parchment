@@ -29,6 +29,7 @@ import {
   type Tick,
 } from '@/lib/map/animation-scheduler'
 import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
+import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 
 const MARKER_ID = 'self'
@@ -267,6 +268,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
     if (!puck || !this.mapAPI) return 'active'
     this.mapAPI.setMarkerLngLat(fullId, puck.position)
     this.mapAPI.setMarkerHeading(fullId, puck.bearing, 1, 'map')
+    this.mapAPI.setMarkerLift?.(fullId, deckLiftAt(puck.s))
     this.lastRendered = null
     this.headingDirty = true
     return 'active'

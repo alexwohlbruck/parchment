@@ -1199,10 +1199,29 @@
   "guidance": {
     "start": "Iniciar",
     "exit": "Finalizar navegación",
-    "follow": "Seguir",
     "remaining": "Quedan {distance}",
     "offRoute": "Fuera de ruta",
-    "waitingForLocation": "Esperando tu ubicación…"
+    "waitingForLocation": "Esperando tu ubicación…",
+    "camera": {
+      "resume": "Seguir tu posición",
+      "overview": "Ver toda la ruta",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Rumbo arriba",
+        "north-up": "Norte arriba"
+      },
+      "bearing": {
+        "look-ahead": "Anticipar curvas",
+        "straight": "Rumbo recto"
+      }
+    },
+    "settings": {
+      "title": "Navegación",
+      "cameraMode": "Cámara",
+      "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
+      "bearingMode": "Dirección de la cámara",
+      "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección"
+    }
   },
   "attribution": {
     "poweredBy": "Desarrollado por",

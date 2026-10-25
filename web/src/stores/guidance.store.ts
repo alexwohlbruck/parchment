@@ -1,12 +1,23 @@
-import { computed, markRaw, ref, shallowRef } from 'vue'
+import { computed, markRaw, reactive, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
+import { useStorage } from '@vueuse/core'
 import type { TripOption } from '@/types/directions.types'
 import { buildNavRoute, type NavRoute, type NavSegmentInput } from '@/lib/guidance/nav-route'
 import type { PuckState } from '@/lib/guidance/guidance-engine'
+import {
+  DEFAULT_CAMERA_TUNING,
+  type BearingMode,
+  type CameraMode,
+} from '@/lib/guidance/camera-framing'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 
 const PROGRESS_INTERVAL_MS = 250
+
+export interface GuidancePreferences {
+  cameraMode: CameraMode
+  bearingMode: BearingMode
+}
 
 export interface GuidanceProgress {
   puck: PuckState
@@ -32,6 +43,14 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const legIndex = ref(0)
   const route = shallowRef<NavRoute | null>(null)
   const progress = shallowRef<GuidanceProgress | null>(null)
+  const preferences = useStorage<GuidancePreferences>(
+    'guidance-preferences',
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead' },
+    undefined,
+    { mergeDefaults: true },
+  )
+  // Mutable so the dev tuning panel can adjust framing live.
+  const cameraTuning = reactive({ ...DEFAULT_CAMERA_TUNING })
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const isActive = computed(() => route.value != null)
@@ -69,5 +88,5 @@ export const useGuidanceStore = defineStore('guidance', () => {
     tripId.value = null
   }
 
-  return { tripId, legIndex, route, progress, isActive, start, stop }
+  return { tripId, legIndex, route, progress, preferences, cameraTuning, isActive, start, stop }
 })

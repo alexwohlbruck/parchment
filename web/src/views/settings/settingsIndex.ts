@@ -179,6 +179,12 @@ export const settingsIndex: SettingsPageDef[] = [
         descriptionKey: 'settings.behavior.units.description',
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
       },
+      {
+        id: 'navigation',
+        titleKey: 'guidance.settings.title',
+        descriptionKey: 'guidance.settings.cameraModeDescription',
+        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn'],
+      },
     ],
   },
   {

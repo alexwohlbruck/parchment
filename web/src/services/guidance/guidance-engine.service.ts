@@ -10,6 +10,9 @@ let engine: GuidanceEngine | null = null
 let stopSource: (() => void) | null = null
 let lastSample: { t: number; puck: PuckState | null } | null = null
 const FRAME_SEC = 0.008
+let frameIntervalMs = 0
+let lastFrameMs = -Infinity
+let frameDecision: { at: number; due: boolean } = { at: NaN, due: true }
 const active = shallowRef(false)
 
 function nowSec(): number {
@@ -40,6 +43,23 @@ export const guidanceEngine = {
 
   setRoute(route: NavRoute): void {
     engine?.setRoute(route)
+  },
+
+  /**
+   * Whether the frame at `nowMs` should render. The puck and the camera both
+   * ask, so on calm stretches they drop the same frames and never drift apart.
+   */
+  frameDue(nowMs: number): boolean {
+    if (frameDecision.at === nowMs) return frameDecision.due
+    const due = nowMs - lastFrameMs >= frameIntervalMs - 2
+    if (due) lastFrameMs = nowMs
+    frameDecision = { at: nowMs, due }
+    return due
+  },
+
+  /** 0 renders every frame; ~33 halves the rate to 30 fps. */
+  setFrameInterval(ms: number): void {
+    frameIntervalMs = ms
   },
 
   /** Consumers in the same frame share one sample, so they never disagree. */

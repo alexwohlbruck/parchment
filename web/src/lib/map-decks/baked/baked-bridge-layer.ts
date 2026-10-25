@@ -120,10 +120,17 @@ export class BakedBridgeLayer {
   get shadowVersion() { return this.version }
   receiveSun(frame: SunFrame) { this.sun = frame }
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
-    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawShadow(gl, frame, this.exaggeration())
+    if (this.drawing) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawShadow(gl, frame, this.exaggeration())
   }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
-    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
+    if (this.drawing) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
+  }
+  /**
+   * Whether the decks resident are drawn. Pieces from tiles draw as their tile lands, before the view's decks cover and the
+   * flat bridges are muted under them; meshes fetched per deck wait to cover together.
+   */
+  private get drawing() {
+    return this.covered || !!this.tileMode
   }
   private exaggeration() { return this.map?.getTerrain?.()?.exaggeration ?? 1 }
   private routesChanged = () => {
@@ -699,7 +706,7 @@ export class BakedBridgeLayer {
       this.routePending = null
       this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
     }
-    if (!this.covered) return
+    if (!this.drawing) return
     // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
     if (!this.drawOrder || this.drawOrder.parts !== this.parts.size || this.drawOrder.wanted !== this.wanted) {
       const ids = [...this.parts.keys()].filter(id => this.wanted.has(id))

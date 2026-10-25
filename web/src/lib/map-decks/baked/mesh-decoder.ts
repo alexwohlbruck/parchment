@@ -1,5 +1,5 @@
 import { decodeBridge, type BakedMesh } from './mesh-file'
-import { decodeDeckTile, type DeckTile } from './deck-tile'
+import { decodeDeckTile, splitDeckTile, type DeckTile } from './deck-tile'
 
 export type DecodeRequest = { id: number; buffer: ArrayBuffer; tile?: boolean }
 export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; tile: DeckTile } | { id: number; error: string }
@@ -52,9 +52,12 @@ export function decodeMesh(buffer: ArrayBuffer): Promise<BakedMesh> {
   return decode(buffer, false, () => decodeBridge(buffer))
 }
 
-/** Decodes a vector tile's deck payload (a copy of it is handed over) off the main thread, or on it where workers are unavailable. */
-export function decodeTilePieces(payload: Uint8Array): Promise<DeckTile> {
-  return decode(payload.slice().buffer, true, () => decodeDeckTile(payload))
+/** Decodes a vector tile's deck payload off the main thread, its pieces shared between the decoders, or on it where workers are unavailable. */
+export async function decodeTilePieces(payload: Uint8Array): Promise<DeckTile> {
+  pool ??= Array.from({ length: POOL }, start).filter((d): d is Decoder => !!d)
+  const parts = splitDeckTile(payload, Math.max(1, pool.length))
+  const tiles = await Promise.all(parts.map(part => decode<DeckTile>((part === payload ? part.slice() : part).buffer as ArrayBuffer, true, () => decodeDeckTile(part))))
+  return { pieces: tiles.flatMap(t => t.pieces), failed: tiles.flatMap(t => t.failed) }
 }
 
 function decode<T>(buffer: ArrayBuffer, tile: boolean, here: () => T): Promise<T> {

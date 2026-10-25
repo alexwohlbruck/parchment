@@ -53,3 +53,37 @@ export function decodeDeckTile(payload: Uint8Array): DeckTile {
   })
   return { pieces, failed }
 }
+
+/** A deck payload split into up to `parts` payloads of about equal size, each piece kept whole: decoded side by side. */
+export function splitDeckTile(payload: Uint8Array, parts: number): Uint8Array[] {
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  if (payload.byteLength < 8 || view.getUint32(0, true) !== MAGIC) throw new Error('Unsupported deck tile')
+  const length = view.getUint32(4, true)
+  const header = JSON.parse(new TextDecoder().decode(payload.subarray(8, 8 + length))) as { decks: string[]; lengths: number[]; failed?: string[] }
+  if (parts <= 1 || header.decks.length <= 1) return [payload]
+  const align = (n: number) => Math.ceil(n / 4) * 4
+  let at = align(8 + length)
+  const pieces = header.decks.map((file, i) => {
+    const bytes = payload.subarray(at, at + header.lengths[i])
+    at += align(header.lengths[i])
+    return { file, bytes }
+  })
+  const total = pieces.reduce((n, p) => n + p.bytes.byteLength, 0)
+  const groups: Array<typeof pieces> = [[]]
+  let size = 0
+  for (const piece of pieces) {
+    if (size >= total / parts && groups.length < parts) { groups.push([]); size = 0 }
+    groups.at(-1)!.push(piece)
+    size += piece.bytes.byteLength
+  }
+  return groups.map((group, g) => {
+    const text = new TextEncoder().encode(JSON.stringify({ decks: group.map(p => p.file), lengths: group.map(p => p.bytes.byteLength), ...(g === 0 && header.failed ? { failed: header.failed } : {}) }))
+    const out = new Uint8Array(group.reduce((n, p) => align(n + p.bytes.byteLength), align(8 + text.length)))
+    const v = new DataView(out.buffer)
+    v.setUint32(0, MAGIC, true)
+    v.setUint32(4, text.length, true)
+    out.set(text, 8)
+    group.reduce((offset, p) => { out.set(p.bytes, offset); return align(offset + p.bytes.byteLength) }, align(8 + text.length))
+    return out
+  })
+}

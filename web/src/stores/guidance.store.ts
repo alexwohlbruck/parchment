@@ -11,7 +11,7 @@ import {
 } from '@/lib/guidance/camera-framing'
 import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
 import { segmentAt } from '@/lib/guidance/nav-route'
-import { rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
@@ -293,6 +293,12 @@ export const useGuidanceStore = defineStore('guidance', () => {
     reshape(spliceReroute(segments.value, index, alternative))
   }
 
+  /** Rides another transit plan from segment `from` on. */
+  function takeItinerary(from: number, fresh: LegSegment[]) {
+    reshape(adoptItinerary(segments.value, from, fresh))
+    spokenTransit = new Set()
+  }
+
   /** Heads for a different bike share station; the segments either side of it are replanned. */
   async function switchDock(boundary: number, station: StationSwitch): Promise<boolean> {
     const navRoute = route.value
@@ -442,5 +448,6 @@ export const useGuidanceStore = defineStore('guidance', () => {
     lanePlans,
     setLanePlan,
     takeAlternative,
+    takeItinerary,
   }
 })

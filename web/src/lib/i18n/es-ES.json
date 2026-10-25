@@ -1460,6 +1460,10 @@
       "protectedShare": "{n}% protegido",
       "empty": "No hay otras rutas ahora"
     },
+    "itinerary": {
+      "sooner": "Llega {duration} antes",
+      "take": "Toma el {lines}"
+    },
     "lanes": {
       "label": "Carriles"
     }

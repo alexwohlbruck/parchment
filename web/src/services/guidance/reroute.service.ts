@@ -2,6 +2,8 @@ import { api } from '@/lib/api'
 import type { LngLat } from '@/types/map.types'
 import type { RouteEdgeSegment, RouteInstruction } from '@/types/directions.types'
 import type { RouteMetrics } from '@/lib/guidance/alternatives'
+import type { TripOption } from '@/types/directions.types'
+import { mapCandidate } from '@/lib/directions/trip-response'
 
 export interface RerouteSegment {
   mode: string
@@ -55,4 +57,18 @@ export async function requestAlternatives(params: {
     mode: SERVER_MODES[params.mode],
   })
   return data?.alternatives ?? []
+}
+
+/** Transit plans from here to `destination`, leaving at `departAt`, with no personal vehicles. */
+export async function requestTransitItineraries(params: { position: LngLat; destination: LngLat; departAt: Date }): Promise<TripOption[]> {
+  const { data } = await api.post('/directions/', {
+    waypoints: [
+      { location: params.position, type: 'origin' },
+      { location: params.destination, type: 'destination' },
+    ],
+    selectedMode: 'transit',
+    availableVehicles: [],
+    preferredDepartureTime: params.departAt.toISOString(),
+  })
+  return (data?.trips ?? []).map((candidate: unknown, i: number) => mapCandidate(candidate, i))
 }

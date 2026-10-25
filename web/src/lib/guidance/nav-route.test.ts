@@ -5,6 +5,7 @@ import {
   buildNavRoute,
   edgeAt,
   pointAt,
+  routeAhead,
   segmentAt,
   smoothedBearingAt,
   stepIndexAt,
@@ -56,5 +57,22 @@ describe('lookups by distance', () => {
     expect(stepIndexAt(route, 10)).toBe(0)
     expect(stepIndexAt(route, 700)).toBe(1)
     expect(stepIndexAt(route, 1200)).toBe(2)
+  })
+})
+
+describe('routeAhead', () => {
+  const route = buildNavRoute([{ mode: 'driving', geometry: polyline([[0, 1000], [90, 1000]]) }])
+
+  test('starts at the traveller and runs to the end', () => {
+    const ahead = routeAhead(route, 500)
+    expect(distanceMeters(ahead[0], pointAt(route, 500))).toBeLessThan(0.5)
+    expect(ahead.at(-1)).toEqual(route.points.at(-1))
+  })
+
+  test('thins long routes to the point budget', () => {
+    const dense = buildNavRoute([{ mode: 'driving', geometry: polyline(Array.from({ length: 2000 }, () => [0, 5] as [number, number])) }])
+    const ahead = routeAhead(dense, 0, 500)
+    expect(ahead.length).toBeLessThanOrEqual(500)
+    expect(ahead.at(-1)).toEqual(dense.points.at(-1))
   })
 })

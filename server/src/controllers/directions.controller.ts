@@ -7,6 +7,7 @@ import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
 import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
 import { attachHazards } from '../lib/route-hazards'
+import { attachLanes } from '../services/route-lanes.service'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { getPermissions, hasPermission } from '../services/auth.service'
 import { PermissionId } from '../types/auth.types'
@@ -224,6 +225,7 @@ app.post(
       const result = await multimodalTripService.planTrip(request)
       const premium = await seesPremiumHazards(user?.id)
       for (const candidate of result.trips) attachHazards((candidate.trip?.segments ?? []) as any[], { premium })
+      await attachLanes(result.trips.flatMap(candidate => candidate.trip?.segments ?? []))
 
       return result
     } catch (error) {
@@ -252,7 +254,10 @@ app.post(
         + 'Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep '
         + 'grades, stairs, sharp curves and the like, placed by distance along the segment. '
         + 'Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users '
-        + 'with premium navigation.',
+        + 'with premium navigation. Driving segments carry `drivingSide`, and where the routing '
+        + 'engine knows the lanes, `laneGeometry` (the route drawn in the lanes it takes, with '
+        + '`measures` giving the distance along `geometry` each coordinate stands for) and '
+        + '`lanePlan` (per instruction index, the approach lanes left to right and which lead on).',
       tags: ['Trip Planning'],
     },
   },
@@ -268,6 +273,7 @@ app.post(
         return { error: 'No route found' }
       }
       attachHazards([segment], { premium: await seesPremiumHazards(user?.id) })
+      await attachLanes([segment])
       return { segment }
     } catch (error) {
       logError('Reroute failed', error)
@@ -295,6 +301,7 @@ app.post(
     try {
       const alternatives = await alternativeSegments({ ...body, language })
       attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) })
+      await attachLanes(alternatives)
       return { alternatives }
     } catch (error) {
       logError('Route alternatives failed', error)

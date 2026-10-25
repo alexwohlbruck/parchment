@@ -2,26 +2,17 @@
 // on the approach (the basemap's road glyphs, from OSM turn:lanes).
 
 import type { LngLat } from '@/types/map.types'
+import type { LaneArrow, LanePlan } from '@server/types/unified-routing.types'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import { angleDelta } from './spring'
 
-export type LaneArrow = 'left' | 'slight-left' | 'through' | 'slight-right' | 'right' | 'uturn'
+export type { Lane, LaneArrow, LanePlan } from '@server/types/unified-routing.types'
 
 export interface RoadGlyph {
   glyph: string
   /** Compass bearing the arrow reads along. */
   direction: number
   position: LngLat
-}
-
-export interface Lane {
-  arrows: LaneArrow[]
-  valid: boolean
-  recommended: boolean
-}
-
-export interface LanePlan {
-  lanes: Lane[]
 }
 
 const ARROWS: Record<string, LaneArrow[]> = {

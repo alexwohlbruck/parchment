@@ -1,5 +1,12 @@
 import { routingService } from './routing.service'
-import type { RouteInstruction, RouteEdgeSegment, Coordinate } from '../types/unified-routing.types'
+import type {
+  RouteInstruction,
+  RouteEdgeSegment,
+  Coordinate,
+  DrivingSide,
+  InstructionLanePlan,
+  LaneGeometry,
+} from '../types/unified-routing.types'
 import type { Language } from '../lib/i18n'
 import type { Location } from '../types/valhalla.types'
 import { routeMetrics, type RouteMetrics } from '../lib/route-metrics'
@@ -29,6 +36,9 @@ export interface RerouteSegment {
   geometry: Coordinate[]
   instructions: RouteInstruction[]
   edgeSegments?: RouteEdgeSegment[]
+  drivingSide?: DrivingSide
+  laneGeometry?: LaneGeometry
+  lanePlan?: InstructionLanePlan[]
 }
 
 export interface RouteAlternative extends RerouteSegment {

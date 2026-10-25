@@ -217,6 +217,8 @@ export interface RouteEdgeSegment {
   averageSpeed?: number     // km/h — actual routing speed used
   bikePriority?: number     // 0–1 — GraphHopper's bike-friendliness (higher = safer/friendlier)
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
+  osmWayId?: number         // the OSM way the edge belongs to
+  country?: string          // ISO 3166-1 alpha-3
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string
@@ -226,6 +228,46 @@ export interface RouteEdgeSegment {
   laneCount?: number
   weightedGrade?: number
   meanElevation?: number
+}
+
+export type DrivingSide = 'right' | 'left'
+
+export type LaneArrow = 'left' | 'slight-left' | 'through' | 'slight-right' | 'right' | 'uturn'
+
+export interface Lane {
+  arrows: LaneArrow[]
+  /** Leads on to the maneuver. */
+  valid: boolean
+  recommended: boolean
+}
+
+/** The approach lanes at a maneuver, left to right as the driver sees them. */
+export interface LanePlan {
+  lanes: Lane[]
+}
+
+/** A lane plan for one of a segment's instructions. */
+export interface InstructionLanePlan extends LanePlan {
+  instruction: number
+}
+
+/** A driven route drawn in its lanes; `measures[i]` is the distance along the segment's geometry that coordinate stands for. */
+export interface LaneGeometry {
+  coordinates: [lng: number, lat: number][]
+  measures: number[]
+}
+
+export interface RouteLanesRequest {
+  coordinates: [lng: number, lat: number][]
+  ways: { from: number; to: number; osmWayId: number }[]
+  maneuvers: { distance: number; turn?: string }[]
+  country?: string
+}
+
+export interface RouteLanes {
+  drivingSide: DrivingSide
+  lanePlan: { maneuver: number; lanes: { turns: string[]; valid: boolean; recommended: boolean }[] }[]
+  laneGeometry: { coordinates: [number, number][]; measures: number[] } | null
 }
 
 export interface RouteLeg {

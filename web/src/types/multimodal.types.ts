@@ -2,6 +2,7 @@
 // Mirrors the backend types but adapted for frontend use
 
 import type { RouteEdgeSegment } from '@/types/directions.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry } from '@server/types/unified-routing.types'
 
 export type VehicleType =
   | 'car'
@@ -206,6 +207,9 @@ export interface TripSegment {
   co2?: number // grams
   details?: SegmentDetails
   edgeSegments?: RouteEdgeSegment[]
+  drivingSide?: DrivingSide
+  laneGeometry?: LaneGeometry
+  lanePlan?: InstructionLanePlan[]
   totalElevationGain?: number
   totalElevationLoss?: number
   maxElevation?: number

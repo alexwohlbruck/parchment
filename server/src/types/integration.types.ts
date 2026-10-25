@@ -12,6 +12,8 @@ import {
   MatrixRequest,
   MatrixResponse,
   UnifiedRoute,
+  RouteLanes,
+  RouteLanesRequest,
 } from './unified-routing.types'
 import type {
   LocationHistory,
@@ -116,6 +118,8 @@ export interface GeocodingCapability {
 export interface RoutingCapability {
   getRoute(request: RouteRequest): Promise<UnifiedRoute>
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
+  /** Lane-level geometry and lane plans for a driven route; null where the engine has none. */
+  getLanes?(request: RouteLanesRequest): Promise<RouteLanes | null>
   
   // Metadata about what this routing engine supports
   metadata?: RoutingCapabilityMetadata

@@ -2,6 +2,7 @@
 // Based on detailed requirements specification
 
 import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { Place } from './place.types'
 
@@ -202,6 +203,12 @@ export interface TripSegment {
   minElevation?: number // meters
   // Per-edge surface/road/safety data
   edgeSegments?: RouteEdgeSegment[]
+
+  // Driving: the side traffic keeps to, and where barrelman has the lanes, the
+  // route drawn in them and the lanes to take at each maneuver
+  drivingSide?: DrivingSide
+  laneGeometry?: LaneGeometry
+  lanePlan?: InstructionLanePlan[]
   /** Station entrance this walk uses (snapped during enrichment). `role`
    *  is 'enter' for an access walk into a station, 'exit' for an egress
    *  walk out of one. */

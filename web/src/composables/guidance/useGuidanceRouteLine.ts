@@ -29,7 +29,7 @@ export function useGuidanceRouteLine() {
       }
       stopLift?.()
       stopLift = strategy ? trackDeckLift(strategy, route) : null
-      strategy?.measureDeckRoute(([lng, lat], from) => distanceAlong(route, { lng, lat }, from))
+      strategy?.measureDeckRoute(([lng, lat], from) => distanceAlong(route.laneLine ?? route, { lng, lat }, from))
     },
     { immediate: true },
   )

@@ -10,11 +10,17 @@ export function rerouteOrigin(position: LngLat, heading: number | null, speed: n
   return projectLatLng(position, speed, heading, REROUTE_LEAD_SECONDS)
 }
 
+/** A segment without what was drawn from its old geometry, which a fresh one replaces. */
+function withoutLanes<T extends NavSegmentInput>(segment: T): T {
+  const { laneGeometry: _geometry, lanePlan: _plan, ...rest } = segment
+  return rest as T
+}
+
 /** The leg after a reroute: the fresh segment, then whatever followed the one replaced. */
 export function spliceReroute<T extends NavSegmentInput>(segments: T[], replaced: number, fresh: Partial<T>): T[] {
   const current = segments[replaced]
   if (!current) return segments
-  return [{ ...current, ...fresh }, ...segments.slice(replaced + 1)]
+  return [{ ...withoutLanes(current), ...fresh }, ...segments.slice(replaced + 1)]
 }
 
 export interface AddedStop {
@@ -33,7 +39,7 @@ export function splitAtStop<T extends NavSegmentInput & { end?: { label?: string
   const current = segments[index]
   if (!current) return null
   return {
-    leg: [{ ...current, ...toStop, end: { label: stop.label, location: stop.location } }],
-    continuation: [{ ...current, ...fromStop }, ...segments.slice(index + 1)],
+    leg: [{ ...withoutLanes(current), ...toStop, end: { label: stop.label, location: stop.location } }],
+    continuation: [{ ...withoutLanes(current), ...fromStop }, ...segments.slice(index + 1)],
   }
 }

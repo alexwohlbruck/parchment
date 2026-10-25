@@ -1233,8 +1233,6 @@
   "guidance": {
     "start": "Start",
     "exit": "End navigation",
-    "remaining": "{distance} left",
-    "offRoute": "Off route",
     "waitingForLocation": "Waiting for your location…",
     "camera": {
       "resume": "Follow your position",
@@ -1255,6 +1253,38 @@
       "cameraModeDescription": "How the map follows you while navigating",
       "bearingMode": "Camera direction",
       "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading"
+    },
+    "exitShort": "Exit",
+    "banner": {
+      "arrive": "Your destination",
+      "then": "Then",
+      "offRoute": "Off route",
+      "offRouteHint": "Head back to the route"
+    },
+    "units": {
+      "ft": "ft",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "SPEED LIMIT"
+    },
+    "roads": {
+      "path": "Path",
+      "pedestrian": "Pedestrian street",
+      "cycleway": "Bike path",
+      "steps": "Stairs",
+      "track": "Track",
+      "service": "Service road",
+      "road": "Unnamed road"
+    },
+    "menu": {
+      "sound": "Sound",
+      "searchAlongRoute": "Search along route",
+      "addStop": "Add stop",
+      "report": "Report",
+      "steps": "Steps"
     }
   },
   "attribution": {

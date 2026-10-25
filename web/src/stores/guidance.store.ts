@@ -9,8 +9,10 @@ import {
   type BearingMode,
   type CameraMode,
 } from '@/lib/guidance/camera-framing'
+import { summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { requestMotionPermission } from '@/services/guidance/position-source'
+import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
 
 const PROGRESS_INTERVAL_MS = 250
 
@@ -19,15 +21,14 @@ export interface GuidancePreferences {
   bearingMode: BearingMode
 }
 
-export interface GuidanceProgress {
+export interface GuidanceProgress extends ProgressSummary {
   puck: PuckState
-  remaining: number
-  stepIndex: number
-  distanceToNextStep: number | null
 }
 
-export function legSegments(trip: TripOption, legIndex: number): NavSegmentInput[] {
-  return (trip.segments as (NavSegmentInput & { legIndex?: number })[]).filter(
+type LegSegment = NavSegmentInput & { legIndex?: number; duration?: number }
+
+export function legSegments(trip: TripOption, legIndex: number): LegSegment[] {
+  return (trip.segments as LegSegment[]).filter(
     s => (s.legIndex ?? 0) === legIndex && (s.geometry?.length ?? 0) > 1,
   )
 }
@@ -42,6 +43,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const tripId = ref<string | null>(null)
   const legIndex = ref(0)
   const route = shallowRef<NavRoute | null>(null)
+  const segmentDurations = shallowRef<number[]>([])
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
@@ -59,28 +61,26 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const navRoute = route.value
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck) return
-    const next = navRoute.steps[puck.stepIndex + 1]
-    progress.value = {
-      puck,
-      remaining: Math.max(0, navRoute.length - puck.s),
-      stepIndex: puck.stepIndex,
-      distanceToNextStep: next ? Math.max(0, next.startDistance - puck.s) : null,
-    }
+    progress.value = { puck, ...summarizeProgress(navRoute, puck, segmentDurations.value) }
   }
 
   async function start(trip: TripOption, leg: number) {
     await requestMotionPermission()
-    const navRoute = markRaw(buildNavRoute(legSegments(trip, leg)))
+    const segments = legSegments(trip, leg)
+    const navRoute = markRaw(buildNavRoute(segments))
+    segmentDurations.value = segments.map(s => s.duration ?? 0)
     tripId.value = trip.id
     legIndex.value = leg
     route.value = navRoute
     progress.value = null
     guidanceEngine.start(navRoute)
+    holdScreenAwake()
     progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
   }
 
   function stop() {
     guidanceEngine.stop()
+    releaseScreenAwake()
     if (progressTimer) clearInterval(progressTimer)
     progressTimer = null
     route.value = null

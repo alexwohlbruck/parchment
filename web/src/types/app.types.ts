@@ -75,4 +75,6 @@ export type DialogOptions =
 export interface SheetMeta {
   dismissable?: boolean
   snapPoints?: (number | string)[]
+  /** Detent the sheet opens at; defaults to the second. */
+  defaultSnapIndex?: number
 }

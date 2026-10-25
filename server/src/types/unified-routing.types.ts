@@ -142,6 +142,8 @@ export interface RouteInstruction {
   duration: number // seconds to next instruction
   heading?: number
   streetName?: string
+  /** Route number of the road, e.g. "I 85" */
+  streetRef?: string
 
   // Turn details
   modifier?:
@@ -150,6 +152,8 @@ export interface RouteInstruction {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
 

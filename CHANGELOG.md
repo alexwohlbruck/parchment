@@ -4,8 +4,11 @@
 
 * Start navigation from a walking, cycling or driving trip: a direction arrow follows the road smoothly as you move, with the next turn and distance left.
 * While navigating, the map follows you in 3D, heading-up or north-up, zooming out on open road and in before turns. Pan freely and it returns after a few seconds, or show the whole route.
+* Navigation shows the next turn with its distance, the road you're on, your speed against the limit, and arrival time, time and distance left, with the route ahead in its travel-mode colours.
 
 ### Changed
+
+* Sharp turns show as sharp in step-by-step directions.
 
 ### Fixed
 

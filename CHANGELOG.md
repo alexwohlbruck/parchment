@@ -4,6 +4,8 @@
 
 ### Changed
 
+* 3D terrain and bridge decks keep up with the map in busy views on slower connections too.
+
 ### Fixed
 
 ## [0.16.10] - 2026-10-25

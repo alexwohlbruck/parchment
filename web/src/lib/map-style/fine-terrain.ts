@@ -87,7 +87,7 @@ export class FineTerrain {
     // Started with the terrain, so it is ready by the time something is cut into it.
     if (this.upsampler === undefined) this.upsampler = startUpsampler((z, x, y) => this.here(z, x, y))
     if (z <= SOURCE_MAXZOOM) {
-      const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)))
+      const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)), { priority: 'high' })
       if (res.status === 404 || res.status === 204) throw missing()
       if (!res.ok) throw new Error(`terrain ${res.status}`)
       return res.arrayBuffer()

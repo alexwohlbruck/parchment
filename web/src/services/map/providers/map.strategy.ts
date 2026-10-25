@@ -294,10 +294,16 @@ export class MapStrategy {
    * Rotate an existing marker to a compass heading without recreating it, and
    * toggle the `--heading-opacity` cue its element uses to show/hide the beam.
    * The marker is switched to `rotationAlignment: 'map'` so the heading stays
-   * north-relative as the map rotates (pitch stays viewport-flat so the dot
-   * doesn't distort when the map is tilted). `null` hides the beam.
+   * north-relative as the map rotates. Pitch defaults to viewport-flat so the
+   * dot doesn't distort when tilted; the navigation arrow lies on the map.
+   * `null` hides the beam.
    */
-  setMarkerHeading(id: string, heading: number | null, spread = 1) {
+  setMarkerHeading(
+    id: string,
+    heading: number | null,
+    spread = 1,
+    pitchAlignment: 'map' | 'viewport' = 'viewport',
+  ) {
     const marker = this.markers.get(id)
     if (!marker || typeof marker.setRotation !== 'function') return
 
@@ -312,7 +318,7 @@ export class MapStrategy {
       marker.setRotationAlignment('map')
     }
     if (typeof marker.setPitchAlignment === 'function') {
-      marker.setPitchAlignment('viewport')
+      marker.setPitchAlignment(pitchAlignment)
     }
     marker.setRotation(heading)
     element?.style.setProperty('--beam-spread', String(spread))

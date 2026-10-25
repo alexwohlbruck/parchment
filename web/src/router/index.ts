@@ -33,6 +33,7 @@ export enum AppRoute {
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
+  GUIDANCE = 'guidance',
   SEARCH_RESULTS = 'search-results',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
@@ -159,6 +160,16 @@ const router = createRouter({
           name: AppRoute.TRIP,
           component: TripDetail,
           props: true,
+        },
+        {
+          path: '/navigate',
+          name: AppRoute.GUIDANCE,
+          component: () => import('@/views/guidance/Guidance.vue'),
+          meta: {
+            // The map is the point while navigating; the sheet stays low and
+            // can't be swiped away mid-trip.
+            sheet: { dismissable: false, snapPoints: ['150px', '240px', 1] },
+          },
         },
         {
           path: '/place/:type/:id',

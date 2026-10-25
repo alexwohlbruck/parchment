@@ -1196,6 +1196,14 @@
     "toggle": "Alternar navegación",
     "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida"
   },
+  "guidance": {
+    "start": "Iniciar",
+    "exit": "Finalizar navegación",
+    "follow": "Seguir",
+    "remaining": "Quedan {distance}",
+    "offRoute": "Fuera de ruta",
+    "waitingForLocation": "Esperando tu ubicación…"
+  },
   "attribution": {
     "poweredBy": "Desarrollado por",
     "contribute": "Contribuir",

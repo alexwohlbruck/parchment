@@ -1230,6 +1230,14 @@
     "toggle": "Toggle navigation",
     "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
+  "guidance": {
+    "start": "Start",
+    "exit": "End navigation",
+    "follow": "Follow",
+    "remaining": "{distance} left",
+    "offRoute": "Off route",
+    "waitingForLocation": "Waiting for your location…"
+  },
   "attribution": {
     "poweredBy": "Powered by",
     "contribute": "Contribute",

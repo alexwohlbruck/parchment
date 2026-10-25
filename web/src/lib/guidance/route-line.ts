@@ -4,6 +4,7 @@
 import type { LngLat } from '@/types/map.types'
 import { pointAt, smoothedBearingAt, type NavRoute } from './nav-route'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
+import { metersPerPixel } from './camera-framing'
 
 export type Expression = (string | number | Expression)[]
 
@@ -44,14 +45,20 @@ export function maneuverArrow(
   at: number,
   before = 25,
   after = 20,
+  /** Metres to the right of the route, to sit on an offset route line. */
+  offset = 0,
 ): { shaft: LngLat[]; head: LngLat[] } {
   const from = Math.max(0, at - before)
   const to = Math.min(route.length, at + after)
+  const beside = (d: number) => {
+    const p = pointAt(route, d)
+    return offset ? projectLatLng(p, offset, smoothedBearingAt(route, d, 3) + 90, 1) : p
+  }
   const shaft: LngLat[] = []
   const step = 2
-  for (let d = from; d < to; d += step) shaft.push(pointAt(route, d))
-  shaft.push(pointAt(route, to))
-  const tip = pointAt(route, to)
+  for (let d = from; d < to; d += step) shaft.push(beside(d))
+  shaft.push(beside(to))
+  const tip = beside(to)
   const bearing = smoothedBearingAt(route, to, 3)
   const back = projectLatLng(tip, 7, bearing + 180, 1)
   return {
@@ -63,4 +70,10 @@ export function maneuverArrow(
       projectLatLng(tip, 4, bearing, 1),
     ],
   }
+}
+
+/** The route's offset from the road's centre to the middle of its travel lanes, as zoom-scaled pixels. */
+export function laneOffset(metres: number, lat: number): Expression {
+  const at = (zoom: number) => metres / metersPerPixel(zoom, lat)
+  return ['interpolate', ['exponential', 2], ['zoom'], 10, at(10), 22, at(22)]
 }

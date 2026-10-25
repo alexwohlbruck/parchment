@@ -17,6 +17,7 @@ import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
 import AheadSearch from '@/components/guidance/AheadSearch.vue'
 import RoutesPanel from '@/components/guidance/RoutesPanel.vue'
 import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
+import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import DockWatchCard from '@/components/guidance/DockWatchCard.vue'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
@@ -70,6 +71,7 @@ const currentSegment = computed(() => {
 
 const docks = useDockWatch()
 const alternatives = useAlternativeRoutes()
+useLaneGuidance()
 
 const expandSheet = inject(EXPAND_MAP_SHEET, () => {})
 const panel = ref<'menu' | 'search' | 'routes'>('menu')

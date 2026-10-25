@@ -1315,6 +1315,15 @@
         "steep_grade": "Pendiente pronunciada más adelante",
         "steps": "Escaleras más adelante",
         "shared_space": "Calle compartida más adelante, atención a los peatones"
+      },
+      "useLanes": "{action}. Usa {lanes}",
+      "lanes": {
+        "left": "el carril izquierdo",
+        "leftMany": "los {n} carriles de la izquierda",
+        "right": "el carril derecho",
+        "rightMany": "los {n} carriles de la derecha",
+        "middle": "el carril central",
+        "middleMany": "los {n} carriles centrales"
       }
     },
     "sound": {
@@ -1450,6 +1459,9 @@
       "current": "Ruta actual",
       "protectedShare": "{n}% protegido",
       "empty": "No hay otras rutas ahora"
+    },
+    "lanes": {
+      "label": "Carriles"
     }
   },
   "attribution": {

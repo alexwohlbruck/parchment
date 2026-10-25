@@ -13,6 +13,7 @@ import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guida
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
+import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
@@ -115,6 +116,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Furthest snapped distance reached; boarding and alighting don't undo. */
   let furthestS = 0
   const rebooking = ref(false)
+  /** Lanes for each step whose approach has painted arrows; per route. */
+  const lanePlans = shallowRef(new Map<number, LanePlan>())
+  function setLanePlan(step: number, plan: LanePlan) {
+    lanePlans.value = new Map(lanePlans.value).set(step, plan)
+  }
   /** What remains of the leg after a stop added mid-route. */
   const continuation = shallowRef<LegSegment[] | null>(null)
   /** The timetable clock, to the second, for countdowns. */
@@ -130,7 +136,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const sound = soundModeAt(s)
     if (sound === 'silent' || (sound === 'alerts' && !isAlert(announcement))) return
     const metric = appStore.unitSystem === UnitSystem.METRIC
-    const text = announcementText(announcement, metric, translate)
+    const hint = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? lanePlans.value.get(announcement.step.index) : undefined
+    const lanes = hint ? laneHint(hint) : null
+    const text = lanes
+      ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
+      : announcementText(announcement, metric, translate)
     const urgent = announcement.kind === 'maneuver' && announcement.phase === 'now'
     speak(text, { lang: storedLocale.value, urgent })
     if (urgent) void hapticImpact('medium')
@@ -262,6 +272,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Swaps in a replanned leg mid-guidance, keeping the announcer's progress. */
   function reshape(next: LegSegment[]) {
     segments.value = next
+    lanePlans.value = new Map()
     const navRoute = markRaw(buildNavRoute(next.map(withBoardingStep)))
     route.value = navRoute
     guidanceEngine.setRoute(navRoute)
@@ -308,6 +319,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Guides along `parts` from scratch: a new leg, or a leg reshaped by an added stop. */
   function follow(parts: LegSegment[]): NavRoute {
+    lanePlans.value = new Map()
     const navRoute = markRaw(buildNavRoute(parts.map(withBoardingStep)))
     segments.value = parts
     route.value = navRoute
@@ -422,6 +434,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     clockMs,
     addStop,
     switchDock,
+    lanePlans,
+    setLanePlan,
     takeAlternative,
   }
 })

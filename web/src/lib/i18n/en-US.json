@@ -1349,6 +1349,15 @@
         "steep_grade": "Steep grade ahead",
         "steps": "Stairs ahead",
         "shared_space": "Shared street ahead, watch for people walking"
+      },
+      "useLanes": "{action}. Use {lanes}",
+      "lanes": {
+        "left": "the left lane",
+        "leftMany": "the left {n} lanes",
+        "right": "the right lane",
+        "rightMany": "the right {n} lanes",
+        "middle": "the middle lane",
+        "middleMany": "the middle {n} lanes"
       }
     },
     "sound": {
@@ -1484,6 +1493,9 @@
       "current": "Current route",
       "protectedShare": "{n}% protected",
       "empty": "No other routes right now"
+    },
+    "lanes": {
+      "label": "Lanes"
     }
   },
   "attribution": {

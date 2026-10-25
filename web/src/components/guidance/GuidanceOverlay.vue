@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouteIcon } from 'lucide-vue-next'
+import { BellRingIcon, RouteIcon, Volume2Icon, VolumeXIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/stores/app.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -43,6 +43,9 @@ const mode = computed(() => {
   const puck = guidance.progress?.puck
   return route && puck ? travelModeAt(route, puck.s) : 'driving'
 })
+
+const SOUND_ICONS = { all: Volume2Icon, alerts: BellRingIcon, silent: VolumeXIcon }
+const sound = computed(() => guidance.soundModeAt(guidance.progress?.puck.s ?? 0))
 
 const label = computed(() => {
   const route = guidance.route
@@ -99,6 +102,16 @@ const labelStyle = computed(() => {
       class="pointer-events-auto absolute right-2 flex flex-col gap-2 transition-[bottom] duration-150"
       :style="{ bottom: `${bottomInset + 12}px` }"
     >
+      <Button
+        size="icon"
+        variant="secondary"
+        class="size-11 rounded-full shadow-md"
+        :title="t(`guidance.sound.${sound}`)"
+        :aria-label="t(`guidance.sound.${sound}`)"
+        @click="guidance.cycleSound()"
+      >
+        <component :is="SOUND_ICONS[sound]" class="size-5" />
+      </Button>
       <Button
         size="icon"
         class="size-11 rounded-full shadow-md"

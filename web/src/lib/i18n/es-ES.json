@@ -1248,7 +1248,6 @@
       "road": "Calle sin nombre"
     },
     "menu": {
-      "sound": "Sonido",
       "searchAlongRoute": "Buscar en la ruta",
       "addStop": "Añadir parada",
       "report": "Reportar",
@@ -1260,6 +1259,53 @@
       "at": "Llegada a las {time}",
       "nextLeg": "Siguiente tramo",
       "done": "Listo"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} pies",
+        "mile": "{value} milla",
+        "miles": "{value} millas",
+        "meters": "{value} metros",
+        "kilometer": "{value} kilómetro",
+        "kilometers": "{value} kilómetros"
+      },
+      "maneuvers": {
+        "straight": "Sigue recto",
+        "slight-left": "Gira ligeramente a la izquierda",
+        "slight-right": "Gira ligeramente a la derecha",
+        "left": "Gira a la izquierda",
+        "right": "Gira a la derecha",
+        "sharp-left": "Gira bruscamente a la izquierda",
+        "sharp-right": "Gira bruscamente a la derecha",
+        "keep-left": "Mantente a la izquierda",
+        "keep-right": "Mantente a la derecha",
+        "uturn": "Da la vuelta",
+        "roundabout": "Entra en la rotonda",
+        "roundaboutExit": "En la rotonda, toma la salida {exit}",
+        "arrive": "Llega"
+      },
+      "onto": "{action} hacia {road}",
+      "in": "En {distance}, {action}",
+      "then": "{action} y luego {next}",
+      "continue": "Sigue durante {distance}",
+      "continueOn": "Sigue por {road} durante {distance}",
+      "arrive": "En {distance}, llegarás",
+      "arriveSide": {
+        "left": "En {distance}, tu destino estará a la izquierda",
+        "right": "En {distance}, tu destino estará a la derecha"
+      },
+      "arrived": "Has llegado",
+      "arrivedSide": {
+        "left": "Has llegado. Tu destino está a la izquierda",
+        "right": "Has llegado. Tu destino está a la derecha"
+      },
+      "rerouting": "Recalculando la ruta"
+    },
+    "sound": {
+      "title": "Sonido",
+      "all": "Todo",
+      "alerts": "Solo alertas",
+      "silent": "Silencio"
     }
   },
   "attribution": {

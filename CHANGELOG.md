@@ -6,6 +6,7 @@
 * While navigating, the map follows you in 3D, heading-up or north-up, zooming out on open road and in before turns. Pan freely and it returns after a few seconds, or show the whole route.
 * Navigation shows the next turn with its distance, the road you're on, your speed against the limit, and arrival time, time and distance left, with the route ahead in its travel-mode colours.
 * Navigation reroutes within seconds when you leave the route, without starting the new route behind you, and says when you've arrived. Multi-stop trips continue with the next leg.
+* Spoken turn-by-turn directions, timed to your speed, with a choice of all prompts, alerts only or silent for each way of travelling.
 
 ### Changed
 

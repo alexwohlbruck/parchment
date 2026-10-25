@@ -4,9 +4,13 @@
 
 ### Changed
 
-* 3D bridge decks decode while their map tile is still being read, so both appear in the same frame.
-
 ### Fixed
+
+## [0.16.7] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode while their map tile is still being read, so both appear in the same frame.
 
 ## [0.16.6] - 2026-10-24
 

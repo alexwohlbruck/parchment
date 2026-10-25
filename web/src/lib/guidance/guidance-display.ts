@@ -56,7 +56,11 @@ export function currentRoadStep(route: NavRoute, s: number): NavStep | null {
 }
 
 export function roadLabel(route: NavRoute, s: number): RoadLabel {
-  const step = currentRoadStep(route, s)
+  return stepRoad(route, currentRoadStep(route, s), s)
+}
+
+/** The road a step follows, by its name or number, else by the class of road under `s`. */
+export function stepRoad(route: NavRoute, step: NavStep | null, s: number): RoadLabel {
   const name = step?.instruction.streetName?.trim()
   const ref = step?.instruction.streetRef?.trim()
   if (name) return { kind: 'named', name, ref: ref && ref !== name ? ref : undefined }

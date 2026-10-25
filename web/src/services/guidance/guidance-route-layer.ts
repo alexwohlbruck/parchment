@@ -1,18 +1,18 @@
 // The navigated route on the map: the leg in its mode colours with the
-// travelled part greyed, and a white arrow through the next maneuver.
+// travelled part greyed, and a bubble naming the road at the next turn.
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
 import type { MeasuredLine, NavRoute } from '@/lib/guidance/nav-route'
-import { drawnProgress, laneOffset, maneuverArrow, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
+import { drawnProgress, laneOffset, pointBeside, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
+import type { CalloutSide } from '@/lib/guidance/turn-callout'
+import { TurnCalloutMarker } from './turn-callout-marker'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 const ROUTE = 'guidance-route'
 /** Read by the 3D bridge decks, which lift the route onto themselves. */
 export const GUIDANCE_ROUTE_SOURCE = ROUTE
-const ARROW = 'guidance-maneuver'
 const HAZARDS = 'guidance-hazards'
-const ARROW_COLOR = '#ffffff'
 /** Half a lane: a driven route runs in its lanes, not on the road's centre line. */
 const HALF_LANE_METERS = 1.8
 /** Radius the route turns through junctions with. */
@@ -22,7 +22,8 @@ type Feature = GeoJSON.Feature<GeoJSON.Geometry>
 
 export class GuidanceRouteLayer {
   private lastTravelled = -1
-  private lastManeuver: number | null = null
+  private lastCallout: string | null = null
+  private readonly callout: TurnCalloutMarker
   private progressAt: ((d: number) => number) | undefined
 
   constructor(
@@ -30,9 +31,9 @@ export class GuidanceRouteLayer {
     private route: NavRoute,
   ) {
     this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
+    this.callout = new TurnCalloutMarker(map)
     const beforeId = slotBeforeId(map.getStyle().layers, 'middle')
     map.addSource(ROUTE, { type: 'geojson', lineMetrics: true, data: this.routeData() })
-    map.addSource(ARROW, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
     map.addSource(HAZARDS, { type: 'geojson', data: this.hazardData() })
     map.addLayer(
       {
@@ -59,30 +60,6 @@ export class GuidanceRouteLayer {
           'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 4, 18, 16],
           'line-gradient': this.gradient(0) as never,
         },
-      },
-      beforeId,
-    )
-    map.addLayer(
-      {
-        id: `${ARROW}-shaft`,
-        type: 'line',
-        source: ARROW,
-        filter: ['==', ['geometry-type'], 'LineString'],
-        layout: { 'line-join': 'round', 'line-cap': 'butt' },
-        paint: {
-          'line-color': ARROW_COLOR,
-          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 14, 2, 18, 8],
-        },
-      },
-      beforeId,
-    )
-    map.addLayer(
-      {
-        id: `${ARROW}-head`,
-        type: 'fill',
-        source: ARROW,
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': ARROW_COLOR },
       },
       beforeId,
     )
@@ -136,25 +113,18 @@ export class GuidanceRouteLayer {
     return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt)
   }
 
-  /** `travelled` and the next maneuver's distance along the route; cheap to call often. */
-  update(travelled: number, maneuverAt: number | null): void {
+  /** `travelled`, and the bubble for the next turn at its route distance; cheap to call often. */
+  update(travelled: number, callout: { at: number; side: CalloutSide; text: string; color: string } | null): void {
     if (Math.abs(travelled - this.lastTravelled) >= 1) {
       this.lastTravelled = travelled
       this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
       this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
       this.map.setFilter(HAZARDS, ['>=', ['get', 'at'], travelled])
     }
-    if (maneuverAt !== this.lastManeuver) {
-      this.lastManeuver = maneuverAt
-      const features: Feature[] = []
-      if (maneuverAt != null) {
-        const { shaft, head } = maneuverArrow(this.drawn(), maneuverAt, undefined, undefined, this.offsetMetres())
-        features.push(
-          { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: shaft.map(p => [p.lng, p.lat]) } },
-          { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [head.map(p => [p.lng, p.lat])] } },
-        )
-      }
-      ;(this.map.getSource(ARROW) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features })
+    const key = callout && `${callout.at}|${callout.side}|${callout.text}|${callout.color}`
+    if (key !== this.lastCallout) {
+      this.lastCallout = key
+      this.callout.show(callout && { ...callout, at: pointBeside(this.drawn(), callout.at, this.offsetMetres()) })
     }
   }
 
@@ -177,16 +147,17 @@ export class GuidanceRouteLayer {
     this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
     for (const id of [ROUTE, `${ROUTE}-case`]) if (this.map.getLayer(id)) this.map.setPaintProperty(id, 'line-offset', this.offset() as never)
     this.lastTravelled = -1
-    this.lastManeuver = null
+    this.lastCallout = null
     ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())
     ;(this.map.getSource(HAZARDS) as GeoJSONSource | undefined)?.setData(this.hazardData())
   }
 
   destroy(): void {
-    for (const id of [HAZARDS, `${ARROW}-head`, `${ARROW}-shaft`, ROUTE, `${ROUTE}-case`]) {
+    this.callout.hide()
+    for (const id of [HAZARDS, ROUTE, `${ROUTE}-case`]) {
       if (this.map.getLayer(id)) this.map.removeLayer(id)
     }
-    for (const id of [HAZARDS, ARROW, ROUTE]) {
+    for (const id of [HAZARDS, ROUTE]) {
       if (this.map.getSource(id)) this.map.removeSource(id)
     }
   }

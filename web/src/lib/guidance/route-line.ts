@@ -66,37 +66,10 @@ export function drawnProgress(line: MeasuredLine): (d: number) => number {
   }
 }
 
-/** The stretch of route through a maneuver plus an arrowhead at its exit. */
-export function maneuverArrow(
-  route: MeasuredLine,
-  at: number,
-  before = 25,
-  after = 20,
-  /** Metres to the right of the route, to sit on an offset route line. */
-  offset = 0,
-): { shaft: LngLat[]; head: LngLat[] } {
-  const from = Math.max(0, at - before)
-  const to = Math.min(route.length, at + after)
-  const beside = (d: number) => {
-    const p = pointAt(route, d)
-    return offset ? projectLatLng(p, offset, smoothedBearingAt(route, d, 3) + 90, 1) : p
-  }
-  const shaft: LngLat[] = []
-  const step = 2
-  for (let d = from; d < to; d += step) shaft.push(beside(d))
-  shaft.push(beside(to))
-  const tip = beside(to)
-  const bearing = smoothedBearingAt(route, to, 3)
-  const back = projectLatLng(tip, 7, bearing + 180, 1)
-  return {
-    shaft,
-    head: [
-      projectLatLng(tip, 4, bearing, 1),
-      projectLatLng(back, 5, bearing - 90, 1),
-      projectLatLng(back, 5, bearing + 90, 1),
-      projectLatLng(tip, 4, bearing, 1),
-    ],
-  }
+/** The route's point at `at`, moved `offset` metres to its right to sit on an offset route line. */
+export function pointBeside(route: MeasuredLine, at: number, offset = 0): LngLat {
+  const p = pointAt(route, at)
+  return offset ? projectLatLng(p, offset, smoothedBearingAt(route, at, 3) + 90, 1) : p
 }
 
 /** The route's offset from the road's centre to the middle of its travel lanes, as zoom-scaled pixels. */

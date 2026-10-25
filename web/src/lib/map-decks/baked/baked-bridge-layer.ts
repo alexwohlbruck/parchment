@@ -125,6 +125,13 @@ export class BakedBridgeLayer {
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
   }
+  /**
+   * Whether the decks resident are drawn. Pieces from tiles draw as their tile lands, before the view's decks cover and the
+   * flat bridges are muted under them, unless the view cannot cover; meshes fetched per deck wait to cover together.
+   */
+  private get drawing() {
+    return this.covered || (!!this.tileMode && !this.missing && !this.tilesFailed)
+  }
   private exaggeration() { return this.map?.getTerrain?.()?.exaggeration ?? 1 }
   private routesChanged = () => {
     const sources = this.sources.routes()
@@ -328,6 +335,8 @@ export class BakedBridgeLayer {
     if (!id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
     // Past the source's maxzoom MapLibre cuts tiles from a deck-zoom one and drops what it does not read: that one is in the HTTP cache.
     if (id.z > DECK_TILE_ZOOMS.max) return this.readTile(deckTileOf(id))
+    // Out of the decks' reach: read if the view comes to want it.
+    if (!this.reaches(`${id.z}/${id.x}/${id.y}`)) return
     const raw: ArrayBuffer | undefined = tile.latestRawTileData
     const key = `${id.z}/${id.x}/${id.y}`
     if (!raw || this.tileTokens.has(key)) return
@@ -336,7 +345,7 @@ export class BakedBridgeLayer {
     this.readPieces(key, raw)
   }
   private readTile(key: string) {
-    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key)) return
+    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return
     const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
     if (!template) return
     const [z, x, y] = key.split('/')
@@ -347,6 +356,10 @@ export class BakedBridgeLayer {
       .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`Detail tile ${response.status}`))))
       .then(raw => { if (this.tileTokens.get(key) === token) this.readPieces(key, raw, token) })
       .catch(error => this.tileFailed(key, token, error))
+  }
+  /** Whether a tile meets the view, as far as the decks reach from its centre; true before the first sync. */
+  private reaches(key: string) {
+    return !this.lastView || meets(tileBounds(key), this.lastView.view)
   }
   private begin(key: string) {
     const token = ++this.tileReads
@@ -699,7 +712,7 @@ export class BakedBridgeLayer {
       this.routePending = null
       this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
     }
-    if (!this.covered) return
+    if (!this.drawing) return
     // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
     if (!this.drawOrder || this.drawOrder.parts !== this.parts.size || this.drawOrder.wanted !== this.wanted) {
       const ids = [...this.parts.keys()].filter(id => this.wanted.has(id))
@@ -710,7 +723,7 @@ export class BakedBridgeLayer {
       const part = this.parts.get(id)
       if (part) this.drawPart(gl, args, part)
     }
-    if (this.route) this.drawPart(gl, args, this.route)
+    if (this.route && this.covered) this.drawPart(gl, args, this.route)
     this.sun = null
   }
   private drawPart(gl: WebGL2RenderingContext, args: any, part: Part) {

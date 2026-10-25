@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { deckField, decodeDeckTile } from './deck-tile'
+import { deckField, decodeDeckTile, splitDeckTile } from './deck-tile'
 import { deckTile, vectorTile } from './fixtures/deck-tiles'
 
 const brm = new Uint8Array(readFileSync('src/lib/map-decks/baked/fixtures/arched-bridge.brm'))
@@ -20,4 +20,12 @@ test('decodes each piece of a deck tile as a mesh of its own', () => {
     expect(name).toBe(file)
     expect(mesh.indices.length).toBe(276)
   }
+})
+
+test('splits a deck tile into payloads that decode to the same pieces, in order', () => {
+  const payload = deckField(vectorTile(deckTile([brm, brm, brm])))!
+  const parts = splitDeckTile(payload, 2)
+  expect(parts).toHaveLength(2)
+  const pieces = parts.flatMap(part => decodeDeckTile(part).pieces)
+  expect(pieces.map(p => p.mesh.indices.length)).toEqual(decodeDeckTile(payload).pieces.map(p => p.mesh.indices.length))
 })

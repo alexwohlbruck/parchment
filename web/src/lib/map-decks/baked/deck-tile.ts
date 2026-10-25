@@ -40,16 +40,49 @@ export type DeckTile = { pieces: DeckPiece[]; failed: string[] }
 
 /** A deck payload's pieces: `BDT1`, a JSON header of each piece's deck mesh and length, then BRM meshes 4-byte aligned. */
 export function decodeDeckTile(payload: Uint8Array): DeckTile {
+  const { failed, pieces } = readDeckTile(payload)
+  return { pieces: pieces.map(({ file, bytes }) => ({ file, mesh: decodeBridge(bytes.slice().buffer) })), failed }
+}
+
+const align = (n: number) => Math.ceil(n / 4) * 4
+
+/** A deck payload's header and each piece's bytes, checked against each other. */
+function readDeckTile(payload: Uint8Array): { failed: string[]; pieces: Array<{ file: string; bytes: Uint8Array }> } {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   if (payload.byteLength < 8 || view.getUint32(0, true) !== MAGIC) throw new Error('Unsupported deck tile')
   const length = view.getUint32(4, true)
   const { decks, lengths, failed = [] } = JSON.parse(new TextDecoder().decode(payload.subarray(8, 8 + length))) as { decks: string[]; lengths: number[]; failed?: string[] }
-  if (!Array.isArray(decks) || !Array.isArray(lengths) || decks.length !== lengths.length) throw new Error('Invalid deck tile header')
-  let at = Math.ceil((8 + length) / 4) * 4
+  if (!Array.isArray(decks) || !Array.isArray(lengths) || decks.length !== lengths.length || !Array.isArray(failed)) throw new Error('Invalid deck tile header')
+  let at = align(8 + length)
   const pieces = decks.map((file, i) => {
-    const piece = payload.slice(at, at + lengths[i])
-    at += Math.ceil(lengths[i] / 4) * 4
-    return { file, mesh: decodeBridge(piece.buffer) }
+    if (!Number.isSafeInteger(lengths[i]) || lengths[i] < 0 || at + lengths[i] > payload.byteLength) throw new Error('Invalid deck tile header')
+    const bytes = payload.subarray(at, at + lengths[i])
+    at += align(lengths[i])
+    return { file, bytes }
   })
-  return { pieces, failed }
+  return { failed, pieces }
+}
+
+/** A deck payload split into up to `parts` payloads of about equal size, each piece kept whole: decoded side by side. */
+export function splitDeckTile(payload: Uint8Array, parts: number): Uint8Array[] {
+  const { failed, pieces } = readDeckTile(payload)
+  if (parts <= 1 || pieces.length <= 1) return [payload]
+  const total = pieces.reduce((n, p) => n + p.bytes.byteLength, 0)
+  const groups: Array<typeof pieces> = [[]]
+  let size = 0
+  for (const piece of pieces) {
+    if (size >= total / parts && groups.length < parts) { groups.push([]); size = 0 }
+    groups.at(-1)!.push(piece)
+    size += piece.bytes.byteLength
+  }
+  return groups.map((group, g) => {
+    const text = new TextEncoder().encode(JSON.stringify({ decks: group.map(p => p.file), lengths: group.map(p => p.bytes.byteLength), ...(g === 0 && failed.length ? { failed } : {}) }))
+    const out = new Uint8Array(group.reduce((n, p) => align(n + p.bytes.byteLength), align(8 + text.length)))
+    const view = new DataView(out.buffer)
+    view.setUint32(0, MAGIC, true)
+    view.setUint32(4, text.length, true)
+    out.set(text, 8)
+    group.reduce((offset, p) => { out.set(p.bytes, offset); return align(offset + p.bytes.byteLength) }, align(8 + text.length))
+    return out
+  })
 }

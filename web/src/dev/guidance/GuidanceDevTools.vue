@@ -12,6 +12,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { attachGuidanceDebug } from './guidance-debug-layer'
+import { simulateNavigation } from './simulate-navigation'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
@@ -119,6 +120,15 @@ function stayOnBoard() {
   simulatorStore.setLoop(false)
   simulatorStore.play()
 }
+
+// With simulation on in developer settings, each route is driven as soon as there is one to follow.
+watch(
+  () => guidance.route,
+  route => {
+    if (route && simulateNavigation.value && simulatorStore.getState().status === 'stopped') simulate()
+  },
+  { immediate: true },
+)
 
 // A simulated driver follows the new route after a reroute, as a real one would:
 // joining it from where they are, at the speed they're doing.

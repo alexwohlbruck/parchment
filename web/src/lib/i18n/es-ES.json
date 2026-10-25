@@ -1199,8 +1199,6 @@
   "guidance": {
     "start": "Iniciar",
     "exit": "Finalizar navegación",
-    "remaining": "Quedan {distance}",
-    "offRoute": "Fuera de ruta",
     "waitingForLocation": "Esperando tu ubicación…",
     "camera": {
       "resume": "Seguir tu posición",
@@ -1221,6 +1219,38 @@
       "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
       "bearingMode": "Dirección de la cámara",
       "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección"
+    },
+    "exitShort": "Salir",
+    "banner": {
+      "arrive": "Tu destino",
+      "then": "Luego",
+      "offRoute": "Fuera de ruta",
+      "offRouteHint": "Vuelve a la ruta"
+    },
+    "units": {
+      "ft": "pies",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "VELOCIDAD MÁXIMA"
+    },
+    "roads": {
+      "path": "Sendero",
+      "pedestrian": "Calle peatonal",
+      "cycleway": "Ciclovía",
+      "steps": "Escaleras",
+      "track": "Camino",
+      "service": "Vía de servicio",
+      "road": "Calle sin nombre"
+    },
+    "menu": {
+      "sound": "Sonido",
+      "searchAlongRoute": "Buscar en la ruta",
+      "addStop": "Añadir parada",
+      "report": "Reportar",
+      "steps": "Pasos"
     }
   },
   "attribution": {

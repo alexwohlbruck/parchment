@@ -1,0 +1,133 @@
+// The navigated route on the map: the leg in its mode colours with the
+// travelled part greyed, and a white arrow through the next maneuver.
+
+import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
+import type { NavRoute } from '@/lib/guidance/nav-route'
+import { maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
+import { slotBeforeId } from '@/lib/map/layer-slots'
+import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+
+const ROUTE = 'guidance-route'
+const ARROW = 'guidance-maneuver'
+const TRAVELLED_COLOR = '#9ca3af'
+const TRAVELLED_CASE_COLOR = '#6b7280'
+const ARROW_COLOR = '#ffffff'
+
+type Feature = GeoJSON.Feature<GeoJSON.Geometry>
+
+export class GuidanceRouteLayer {
+  private lastTravelled = -1
+  private lastManeuver: number | null = null
+
+  constructor(
+    private readonly map: MaplibreMap,
+    private route: NavRoute,
+  ) {
+    const beforeId = slotBeforeId(map.getStyle().layers, 'middle')
+    map.addSource(ROUTE, { type: 'geojson', lineMetrics: true, data: this.routeData() })
+    map.addSource(ARROW, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    map.addLayer(
+      {
+        id: `${ROUTE}-case`,
+        type: 'line',
+        source: ROUTE,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 6, 18, 22],
+          'line-gradient': this.caseGradient(0) as never,
+        },
+      },
+      beforeId,
+    )
+    map.addLayer(
+      {
+        id: ROUTE,
+        type: 'line',
+        source: ROUTE,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 4, 18, 16],
+          'line-gradient': this.gradient(0) as never,
+        },
+      },
+      beforeId,
+    )
+    map.addLayer(
+      {
+        id: `${ARROW}-shaft`,
+        type: 'line',
+        source: ARROW,
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-join': 'round', 'line-cap': 'butt' },
+        paint: {
+          'line-color': ARROW_COLOR,
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 14, 2, 18, 8],
+        },
+      },
+      beforeId,
+    )
+    map.addLayer(
+      {
+        id: `${ARROW}-head`,
+        type: 'fill',
+        source: ARROW,
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': ARROW_COLOR },
+      },
+      beforeId,
+    )
+  }
+
+  private routeData(): Feature {
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: this.route.points.map(p => [p.lng, p.lat]) },
+    }
+  }
+
+  private gradient(travelled: number) {
+    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR)
+  }
+
+  private caseGradient(travelled: number) {
+    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR)
+  }
+
+  /** `travelled` and the next maneuver's distance along the route; cheap to call often. */
+  update(travelled: number, maneuverAt: number | null): void {
+    if (Math.abs(travelled - this.lastTravelled) >= 1) {
+      this.lastTravelled = travelled
+      this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
+      this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
+    }
+    if (maneuverAt !== this.lastManeuver) {
+      this.lastManeuver = maneuverAt
+      const features: Feature[] = []
+      if (maneuverAt != null) {
+        const { shaft, head } = maneuverArrow(this.route, maneuverAt)
+        features.push(
+          { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: shaft.map(p => [p.lng, p.lat]) } },
+          { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [head.map(p => [p.lng, p.lat])] } },
+        )
+      }
+      ;(this.map.getSource(ARROW) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features })
+    }
+  }
+
+  setRoute(route: NavRoute): void {
+    this.route = route
+    this.lastTravelled = -1
+    this.lastManeuver = null
+    ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())
+  }
+
+  destroy(): void {
+    for (const id of [`${ARROW}-head`, `${ARROW}-shaft`, ROUTE, `${ROUTE}-case`]) {
+      if (this.map.getLayer(id)) this.map.removeLayer(id)
+    }
+    for (const id of [ARROW, ROUTE]) {
+      if (this.map.getSource(id)) this.map.removeSource(id)
+    }
+  }
+}

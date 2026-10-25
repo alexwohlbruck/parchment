@@ -130,7 +130,9 @@ watch(
     // Directions opens at peek (just the inputs) and expands to full once
     // suggestions load — see the watcher below. Other views open at half.
     bottomSheetSnapIndex.value =
-      name === AppRoute.DIRECTIONS ? 0 : MOBILE_DEFAULT_SNAP_INDEX
+      name === AppRoute.DIRECTIONS
+        ? 0
+        : (sheetMeta.value?.defaultSnapIndex ?? MOBILE_DEFAULT_SNAP_INDEX)
   },
 )
 
@@ -158,6 +160,8 @@ const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI)
+// A view that draws its own chrome over the map (turn-by-turn) hides the map's.
+const immersive = computed(() => !!route.meta?.immersive)
 
 // ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
 // Tracks whether entering street view auto-enabled the street view layer group,
@@ -442,7 +446,7 @@ defineExpose({
         adjust-map-padding
         obstructing-key="map-content-sheet"
       >
-        <template #actions>
+        <template v-if="!immersive" #actions>
           <SheetActionButtons
             :can-go-back="canGoBack"
             direction="bottom"
@@ -478,7 +482,7 @@ defineExpose({
     <!-- Map canvas -->
     <div id="mainContent" class="flex-1 relative w-full h-full">
       <!-- Map UI controls positioned within map container -->
-      <template v-if="!hideUI">
+      <template v-if="!hideUI && !immersive">
         <!-- z-50 above drawers -->
         <div
           class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"

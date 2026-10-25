@@ -5,7 +5,7 @@ import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
-import { rerouteSegment } from '../services/reroute.service'
+import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
 import { attachHazards } from '../lib/route-hazards'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { getPermissions, hasPermission } from '../services/auth.service'
@@ -24,6 +24,14 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 const CoordinateSchema = t.Object({
   lat: t.Number(),
   lng: t.Number(),
+})
+
+const RerouteBodySchema = t.Object({
+  position: CoordinateSchema,
+  heading: t.Optional(t.Number({ minimum: 0, maximum: 360 })),
+  destination: CoordinateSchema,
+  mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
+  routingPreferences: t.Optional(t.Record(t.String(), t.Any())),
 })
 
 const WaypointSchema = t.Object({
@@ -268,13 +276,7 @@ app.post(
     }
   },
   {
-    body: t.Object({
-      position: CoordinateSchema,
-      heading: t.Optional(t.Number({ minimum: 0, maximum: 360 })),
-      destination: CoordinateSchema,
-      mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
-      routingPreferences: t.Optional(t.Record(t.String(), t.Any())),
-    }),
+    body: RerouteBodySchema,
     detail: {
       summary: 'Reroute the current segment during navigation',
       description:
@@ -286,6 +288,34 @@ app.post(
     },
   },
 )
+
+app.post(
+  '/alternatives',
+  async ({ body, language, set, user }) => {
+    try {
+      const alternatives = await alternativeSegments({ ...body, language })
+      attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) })
+      return { alternatives }
+    } catch (error) {
+      logError('Route alternatives failed', error)
+      set.status = 502
+      return { error: error instanceof Error ? error.message : 'Route alternatives failed' }
+    }
+  },
+  {
+    body: RerouteBodySchema,
+    detail: {
+      summary: 'Alternative routes for the rest of the current segment',
+      description:
+        'The same request as `/reroute`, answered with up to three routes from where the traveller '
+        + 'is to the end of their segment. Each is a segment like `/reroute` returns, plus `metrics`: '
+        + '`duration`, `distance`, `turns`, `protectedShare` and `majorRoadShare` (fractions of '
+        + 'distance), `crossings`, and `via`, the street carrying most of the route.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
 
 /**
  * Get available vehicle types

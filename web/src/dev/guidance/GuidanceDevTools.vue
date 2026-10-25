@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon, HourglassIcon, TrainFrontIcon, BikeIcon } from 'lucide-vue-next'
+import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon, HourglassIcon, TrainFrontIcon, BikeIcon, RouteIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
@@ -16,6 +16,8 @@ import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
 import type { NavRoute } from '@/lib/guidance/nav-route'
+
+const props = defineProps<{ alternatives?: { check: () => Promise<void> } }>()
 
 const RATES = [1, 2, 4, 8, 16]
 const TUNING_RANGES: Record<keyof CameraTuning, [min: number, max: number, step: number]> = {
@@ -176,6 +178,9 @@ function toggleDebug() {
         @click="simulatorStore.setRate(rate)"
       >
         {{ rate }}×
+      </Button>
+      <Button size="icon-sm" variant="ghost" title="Check routes" @click="props.alternatives?.check()">
+        <RouteIcon class="size-4" />
       </Button>
       <Button size="icon-sm" variant="ghost" title="Take a wrong turn" @click="takeWrongTurn">
         <SplitIcon class="size-4" />

@@ -272,6 +272,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     placeRides(navRoute)
   }
 
+  /** Follows another route for the rest of the segment the traveller is on. */
+  function takeAlternative(index: number, alternative: Partial<LegSegment>) {
+    reshape(spliceReroute(segments.value, index, alternative))
+  }
+
   /** Heads for a different bike share station; the segments either side of it are replanned. */
   async function switchDock(boundary: number, station: StationSwitch): Promise<boolean> {
     const navRoute = route.value
@@ -417,5 +422,6 @@ export const useGuidanceStore = defineStore('guidance', () => {
     clockMs,
     addStop,
     switchDock,
+    takeAlternative,
   }
 })

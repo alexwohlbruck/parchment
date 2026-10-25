@@ -1287,7 +1287,8 @@
       "searchAlongRoute": "Search along route",
       "addStop": "Add stop",
       "report": "Report",
-      "steps": "Steps"
+      "steps": "Steps",
+      "routes": "Routes"
     },
     "startLeg": "Start leg {leg}",
     "arrival": {
@@ -1470,6 +1471,19 @@
       "voice": {
         "switched": "Switching to {station}"
       }
+    },
+    "alternatives": {
+      "faster": "{duration} faster",
+      "slower": "{duration} slower",
+      "sameTime": "Same time",
+      "via": "via {street}",
+      "protected": "More protected bike lanes",
+      "quieter": "Quieter streets",
+      "switch": "Switch",
+      "title": "Routes",
+      "current": "Current route",
+      "protectedShare": "{n}% protected",
+      "empty": "No other routes right now"
     }
   },
   "attribution": {

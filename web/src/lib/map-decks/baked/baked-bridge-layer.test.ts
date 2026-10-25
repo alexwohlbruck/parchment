@@ -205,7 +205,7 @@ test('draws the deck pieces a detail tile carries on the frame after it loads, f
 test('keeps the flat bridges where barrelman could not read a deck of the tile', async () => {
   const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)], ['b'.repeat(64) + '.brm']))
   handlers.get('sourcedata')!({ sourceId: 'detail', tile })
-  await vi.runAllTimersAsync()
+  await vi.advanceTimersByTimeAsync(1000)
   layer.render(gl, frame)
   expect(layer.covered).toBe(false)
   layer.onRemove(map, gl)
@@ -222,6 +222,18 @@ test('reads a tile again once its pieces have been evicted', async () => {
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
   expect(uploadMesh).toHaveBeenCalledTimes(2)
+  expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+test('fetches a failed tile afresh once its retry is due, and draws its decks', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)], ['b'.repeat(64) + '.brm']))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(1000)
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  await vi.advanceTimersByTimeAsync(11_000)
+  layer.render(gl, frame)
+  expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]).toMatchObject({ cache: 'reload' })
   expect(layer.covered).toBe(true)
   layer.onRemove(map, gl)
 })

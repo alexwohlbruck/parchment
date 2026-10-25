@@ -24,6 +24,8 @@ const MAX_REQUESTS = 12
 const MAX_DECODED = 48 * 1024 * 1024
 /** Milliseconds of mesh uploads one frame may spend, so a burst of arrivals draws within a few frames without a long one. */
 const UPLOAD_BUDGET_MS = 4
+/** Milliseconds a frame may spend on the view's own tile pieces once the decks cover: a tile's decks land within a frame or two. */
+const TILE_UPLOAD_BUDGET_MS = 12
 const LOAD_TIMEOUT_MS = 30_000
 /** Milliseconds between view syncs while the camera moves, so meshes load before it stops. */
 const MOVING_SYNC_MS = 250
@@ -90,8 +92,8 @@ export class BakedBridgeLayer {
   private tileMode: boolean | null = null
   /** Each detail tile's pieces by `z/x/y`: their part ids, once decoded. */
   private tilePieces = new Map<string, string[]>()
-  /** The raw data each tile's pieces were read from, as MapLibre reports a tile again for other reasons. */
-  private tileRaw = new Map<string, ArrayBuffer>()
+  /** Raw tile data already read, as MapLibre reports a tile again for other reasons. */
+  private tilesRead = new WeakSet<ArrayBuffer>()
   /** Reads in flight by tile, the newest one's token. */
   private tileTokens = new Map<string, number>()
   private tileReads = 0
@@ -100,6 +102,7 @@ export class BakedBridgeLayer {
   /** The deck-zoom tiles drawn for the view. */
   private drawnTiles = new Set<string>()
   private tilesFailed = false
+  private retryTimer?: ReturnType<typeof setTimeout>
   /** DEV only: meshes baked from a local fixture, drawn wherever they meet the view, whatever the tiles hold. */
   private preview: Array<{ url: string; bounds: Bounds }> | null = null
 
@@ -188,7 +191,7 @@ export class BakedBridgeLayer {
     this.decodedBytes = 0
     this.pending.clear()
     this.tilePieces.clear()
-    this.tileRaw.clear()
+    clearTimeout(this.retryTimer)
     this.tileTokens.clear()
     this.tileFailures.clear()
     this.drawnTiles.clear()
@@ -314,8 +317,9 @@ export class BakedBridgeLayer {
     if (id.z > DECK_TILE_ZOOMS.max) return this.readTile(deckTileOf(id))
     const raw: ArrayBuffer | undefined = tile.latestRawTileData
     const key = `${id.z}/${id.x}/${id.y}`
-    if (!raw || (this.tileRaw.get(key) === raw && (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key)))) return
-    this.tileRaw.set(key, raw)
+    if (!raw || this.tileTokens.has(key)) return
+    if (this.tilesRead.has(raw) && (this.tilePieces.has(key) || this.tileFailures.has(key))) return
+    this.tilesRead.add(raw)
     this.readPieces(key, raw)
   }
   private readTile(key: string) {
@@ -324,9 +328,10 @@ export class BakedBridgeLayer {
     if (!template) return
     const [z, x, y] = key.split('/')
     const token = this.begin(key)
-    fetch(template.replace('{z}', z).replace('{x}', x).replace('{y}', y), { credentials: 'same-origin' })
+    fetch(template.replace('{z}', z).replace('{x}', x).replace('{y}', y), { credentials: 'same-origin', cache: this.tileFailures.has(key) ? 'reload' : 'default' })
       .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`Detail tile ${response.status}`))))
-      .then(raw => this.tileTokens.get(key) === token && this.readPieces(key, raw, token), error => this.tileFailed(key, token, error))
+      .then(raw => { if (this.tileTokens.get(key) === token) this.readPieces(key, raw, token) })
+      .catch(error => this.tileFailed(key, token, error))
   }
   private begin(key: string) {
     const token = ++this.tileReads
@@ -335,8 +340,15 @@ export class BakedBridgeLayer {
   }
   /** A deck-zoom tile's pieces, from its raw data; the newest read of a tile wins. */
   private readPieces(key: string, raw: ArrayBuffer, token = this.begin(key)) {
-    const payload = deckField(raw)
+    let payload: Uint8Array | null
+    try {
+      payload = deckField(raw)
+    } catch (error) {
+      return this.tileFailed(key, token, error)
+    }
     if (!payload) {
+      // Once tiles are known to carry pieces, one without is a stale answer, not an older barrelman.
+      if (this.tileMode) return this.tileFailed(key, token, new Error(`Detail tile ${key} has no deck pieces`))
       this.tileTokens.delete(key)
       return this.withoutPieces()
     }
@@ -355,6 +367,8 @@ export class BakedBridgeLayer {
     if (!(error instanceof DecoderLost)) {
       this.tileFailures.set(key, performance.now())
       console.warn('[bridges]', error)
+      clearTimeout(this.retryTimer)
+      this.retryTimer = setTimeout(() => this.map && this.changed(), TILE_RETRY_MS)
     }
     if (this.map) this.changed()
   }
@@ -414,8 +428,9 @@ export class BakedBridgeLayer {
       const c = tile?.tileID?.canonical
       if (c && c.z >= DECK_TILE_ZOOMS.min) tiles.set(deckTileOf(c), tile)
     }
-    // While a tile's children load MapLibre draws it beside them, clipped; its pieces cannot be, so both draw until all its children have.
-    const drawn = [...tiles.keys()].filter(key => !childrenDrawn(key, tiles))
+    // While a tile's children load MapLibre draws it beside them, clipped; its pieces cannot be, so both draw until all its children's are held.
+    const held = (key: string) => tiles.has(key) && !!this.tilePieces.get(key) && this.holds(this.tilePieces.get(key)!)
+    const drawn = [...tiles.keys()].filter(key => !childrenDrawn(key, held))
     this.drawnTiles = new Set(drawn)
     const wanted = new Set<string>(), inView = new Set<string>()
     const waiting = new Set<string>()
@@ -427,11 +442,18 @@ export class BakedBridgeLayer {
       if (ids && !this.holds(ids)) {
         for (const id of ids) this.drop(id)
         this.tilePieces.delete(key)
-        this.tileRaw.delete(key)
         ids = undefined
       }
       if (!ids) {
-        this.takeTile(tiles.get(key))
+        const tile = tiles.get(key)
+        const failure = this.tileFailures.get(key)
+        // A failed tile is fetched afresh once its retry is due; one evicted is read again from MapLibre's copy.
+        if (failure !== undefined) {
+          if (!this.recentlyFailed(key)) this.readTile(key)
+        } else {
+          if (tile?.latestRawTileData) this.tilesRead.delete(tile.latestRawTileData)
+          this.takeTile(tile)
+        }
         if (meets(bounds, core)) {
           waiting.add(key)
           failed ||= this.recentlyFailed(key)
@@ -447,7 +469,6 @@ export class BakedBridgeLayer {
     for (const [key, ids] of this.tilePieces) if (!this.drawnTiles.has(key) && !this.holds(ids)) {
       for (const id of ids) this.drop(id)
       this.tilePieces.delete(key)
-      this.tileRaw.delete(key)
     }
     this.wanted = wanted
     this.inView = inView
@@ -642,7 +663,8 @@ export class BakedBridgeLayer {
       const started = performance.now()
       for (const [id, { data, bytes }] of this.pending) {
         // The view's own meshes go up together until the decks cover, and a tile's pieces always do: the frame that draws the tile has them.
-        if (performance.now() - started > UPLOAD_BUDGET_MS && (!this.inView.has(id) || (this.covered && !this.tileMode))) continue
+        const spent = performance.now() - started
+        if (spent > UPLOAD_BUDGET_MS && (!this.inView.has(id) || (this.covered && (!this.tileMode || spent > TILE_UPLOAD_BUDGET_MS)))) continue
         this.pending.delete(id)
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
@@ -659,7 +681,10 @@ export class BakedBridgeLayer {
       this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
     }
     if (!this.covered) return
-    for (const [id, part] of this.parts) if (this.wanted.has(id)) this.drawPart(gl, args, part)
+    // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
+    const drawn = [...this.parts].filter(([id]) => this.wanted.has(id))
+    if (this.tileMode) drawn.sort(([a], [b]) => parseInt(a) - parseInt(b))
+    for (const [, part] of drawn) this.drawPart(gl, args, part)
     if (this.route) this.drawPart(gl, args, this.route)
     this.sun = null
   }
@@ -730,13 +755,13 @@ function deckTileOf({ z, x, y }: { z: number; x: number; y: number }): string {
   return `${z - up}/${x >> up}/${y >> up}`
 }
 
-/** Whether all of a `z/x/y` tile's area is drawn by its descendants among these. */
-function childrenDrawn(key: string, tiles: Map<string, unknown>): boolean {
+/** Whether all of a `z/x/y` tile's area is covered by descendants that `held` says are ready to draw. */
+function childrenDrawn(key: string, held: (key: string) => boolean): boolean {
   const [z, x, y] = key.split('/').map(Number)
   if (z >= DECK_TILE_ZOOMS.max) return false
   return [0, 1].every(i => [0, 1].every(j => {
     const child = `${z + 1}/${2 * x + i}/${2 * y + j}`
-    return tiles.has(child) || childrenDrawn(child, tiles)
+    return held(child) || childrenDrawn(child, held)
   }))
 }
 

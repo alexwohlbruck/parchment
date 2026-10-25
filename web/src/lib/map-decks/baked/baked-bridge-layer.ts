@@ -96,6 +96,8 @@ export class BakedBridgeLayer {
   private tilesRead = new WeakSet<ArrayBuffer>()
   /** Reads started alongside MapLibre's own load of a tile, by the deck-zoom tile, with how many loading tiles they serve. */
   private readAhead = new Map<string, { controller: AbortController; users: number }>()
+  /** Loading tiles a read alongside has been started for. */
+  private alongside = new WeakSet<object>()
   /** Reads in flight by tile, the newest one's token. */
   private tileTokens = new Map<string, number>()
   private tileReads = 0
@@ -167,23 +169,30 @@ export class BakedBridgeLayer {
    * response MapLibre's own fetch puts in the HTTP cache, so they decode while MapLibre parses the tile rather than after.
    */
   private loading = (event: { sourceId?: string; tile?: any }) => {
-    const id = event.tile?.tileID?.canonical
-    if (event.sourceId !== this.sources.profiles?.source || !id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
+    if (event.sourceId === this.sources.profiles?.source) this.readAlongside(event.tile)
+  }
+  /** Read a loading tile's pieces alongside MapLibre's own fetch of it, once per tile. */
+  private readAlongside(tile: any) {
+    const id = tile?.tileID?.canonical
+    if (!id || id.z < DECK_TILE_ZOOMS.min || this.alongside.has(tile) || !this.expectsTiles() || this.tileMode === false) return
     // WebKit fetches the same tile twice rather than share one response: there the pieces are read once MapLibre has the tile.
     if (id.z <= DECK_TILE_ZOOMS.max && !sharesFetches()) return
     const key = deckTileOf(id)
     const ahead = this.readAhead.get(key)
-    if (ahead) ahead.users++
-    else if (!this.tilePieces.has(key)) {
-      const controller = new AbortController()
-      this.readAhead.set(key, { controller, users: 1 })
-      this.readTile(key, controller.signal)
+    if (ahead) {
+      ahead.users++
+      this.alongside.add(tile)
+      return
     }
+    const controller = new AbortController()
+    if (!this.readTile(key, controller.signal)) return
+    this.readAhead.set(key, { controller, users: 1 })
+    this.alongside.add(tile)
   }
   /** MapLibre dropped a tile before it loaded: the read alongside it stops once no tile it serves is loading. */
   private aborted = (event: { sourceId?: string; tile?: any }) => {
     const id = event.tile?.tileID?.canonical
-    if (event.sourceId !== this.sources.profiles?.source || !id) return
+    if (event.sourceId !== this.sources.profiles?.source || !id || !this.alongside.delete(event.tile)) return
     const key = deckTileOf(id)
     const ahead = this.readAhead.get(key)
     if (!ahead || --ahead.users > 0) return
@@ -379,10 +388,11 @@ export class BakedBridgeLayer {
     if (this.readAhead.delete(key) && this.tilePieces.has(key)) return
     this.readPieces(key, raw)
   }
-  private readTile(key: string, signal?: AbortSignal) {
-    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return
+  /** Fetch a deck-zoom tile and read its pieces; false where there is nothing to start. */
+  private readTile(key: string, signal?: AbortSignal): boolean {
+    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return false
     const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
-    if (!template) return
+    if (!template) return false
     const [z, x, y] = key.split('/')
     const token = this.begin(key)
     const reload = this.tileFailures.has(key)
@@ -400,6 +410,7 @@ export class BakedBridgeLayer {
         }
         this.tileFailed(key, token, error)
       })
+    return true
   }
   /** MapLibre's loaded copy of a deck-zoom tile, if it has one. */
   private loadedTile(key: string): any {
@@ -541,6 +552,11 @@ export class BakedBridgeLayer {
       const tile = manager.getTileByID(id)
       const c = tile?.tileID?.canonical
       if (c && c.z >= DECK_TILE_ZOOMS.min) tiles.set(deckTileOf(c), tile)
+    }
+    // A tile MapLibre is (again) loading without saying so, or one that only now comes within the decks' reach.
+    for (const id of manager?.getIds?.() ?? []) {
+      const tile = manager.getTileByID(id)
+      if (tile?.state === 'loading') this.readAlongside(tile)
     }
     // While a tile's children load MapLibre draws it beside them, clipped; its pieces cannot be, so both draw until all its children's are held.
     const ready = (key: string) => !!this.tilePieces.get(key) && this.holds(this.tilePieces.get(key)!)

@@ -353,3 +353,18 @@ test('drops and reads again a tile whose surfaces could not be read', async () =
   expect(l.tileFailures.has(key)).toBe(true)
   layer.onRemove(map, gl)
 })
+
+test('starts reading a tile MapLibre is loading without having said so, at the next sync', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Chrome' })
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  const loading = { ...tile, state: 'loading', latestRawTileData: undefined }
+  Object.assign((map as any).style.tileManagers.detail, { getRenderableIds: () => [], getIds: () => ['l'], getTileByID: () => loading })
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(50)
+  expect(fetch).toHaveBeenCalledTimes(1)
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(50)
+  expect(fetch).toHaveBeenCalledTimes(1)
+  layer.onRemove(map, gl)
+})

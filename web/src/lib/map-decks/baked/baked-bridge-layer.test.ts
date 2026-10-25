@@ -286,6 +286,7 @@ test('draws a tile\'s decks before the view covers, but not where a deck in view
 })
 
 test('reads a deck-zoom tile\'s pieces as it starts loading, and not again when it lands', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0' })
   const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
   vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
   handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
@@ -295,5 +296,29 @@ test('reads a deck-zoom tile\'s pieces as it starts loading, and not again when 
   await vi.advanceTimersByTimeAsync(10)
   layer.render(gl, frame)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
+  layer.onRemove(map, gl)
+})
+
+test('on WebKit a deck-zoom tile is read once MapLibre has it, not alongside', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1' })
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  expect(fetch).not.toHaveBeenCalled()
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  layer.onRemove(map, gl)
+})
+
+test('stops a read alongside a tile MapLibre drops before it loads', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Chrome' })
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  let signal: AbortSignal | undefined
+  vi.mocked(fetch).mockImplementation((_, init) => { signal = init?.signal ?? undefined; return new Promise(() => {}) })
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
+  handlers.get('sourcedataabort')!({ sourceId: 'detail', tile })
+  expect(signal?.aborted).toBe(true)
   layer.onRemove(map, gl)
 })

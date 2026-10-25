@@ -13,18 +13,34 @@ import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guida
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { rerouteOrigin, spliceReroute } from '@/lib/guidance/reroute'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
+import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
+import { announcementText } from '@/lib/guidance/phrases'
+import { travelModeAt } from '@/lib/guidance/guidance-display'
+import { speak, stopVoice, unlockVoice } from '@/services/guidance/voice.service'
+import { hapticImpact } from '@/lib/haptics'
+import { i18n, storedLocale } from '@/lib/i18n'
+import { useAppStore } from '@/stores/app.store'
+import { UnitSystem } from '@/types/map.types'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
+
+// The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
+const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
 
 const PROGRESS_INTERVAL_MS = 250
 const REROUTE_MIN_INTERVAL_MS = 10_000
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived'
 
+export type SoundMode = 'all' | 'alerts' | 'silent'
+export const SOUND_MODES: SoundMode[] = ['all', 'alerts', 'silent']
+
 export interface GuidancePreferences {
   cameraMode: CameraMode
   bearingMode: BearingMode
+  /** Per travel mode: walkers mostly want quiet, drivers want every turn. */
+  sound: Record<string, SoundMode>
 }
 
 export interface GuidanceProgress extends ProgressSummary {
@@ -69,10 +85,27 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Legs already finished, per trip, so the trip page offers the next one. */
   const completedLegs = ref<Record<string, number>>({})
   let lastRerouteAt = 0
+  let announcer: Announcer | null = null
+  const appStore = useAppStore()
+
+  function soundModeAt(s: number): SoundMode {
+    const mode = route.value ? travelModeAt(route.value, s) : 'driving'
+    return preferences.value.sound[mode] ?? 'all'
+  }
+
+  function announce(announcement: Announcement, s: number) {
+    const sound = soundModeAt(s)
+    if (sound === 'silent' || (sound === 'alerts' && !isAlert(announcement))) return
+    const metric = appStore.unitSystem === UnitSystem.METRIC
+    const text = announcementText(announcement, metric, translate)
+    const urgent = announcement.kind === 'maneuver' && announcement.phase === 'now'
+    speak(text, { lang: storedLocale.value, urgent })
+    if (urgent) void hapticImpact('medium')
+  }
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead' },
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' } },
     undefined,
     { mergeDefaults: true },
   )
@@ -87,6 +120,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck || status.value === 'arrived') return
     progress.value = { puck, ...summarizeProgress(navRoute, puck, segmentDurations.value) }
+    if (puck.snapped) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
     if (puck.snapped && hasArrived(navRoute, puck)) arrive()
     else if (!puck.snapped) void reroute()
   }
@@ -108,6 +142,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
     lastRerouteAt = Date.now()
     status.value = 'rerouting'
+    announce({ kind: 'reroute' }, puck.s)
     try {
       const fresh = await requestReroute({
         position: rerouteOrigin(puck.position, puck.bearing, puck.speed),
@@ -120,6 +155,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
       const next = markRaw(buildNavRoute(segments.value))
       route.value = next
       guidanceEngine.setRoute(next)
+      announcer?.setRoute(next)
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
@@ -128,6 +164,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   async function start(option: TripOption, leg: number) {
+    unlockVoice()
     await requestMotionPermission()
     const legParts = legSegments(option, leg)
     const navRoute = markRaw(buildNavRoute(legParts))
@@ -138,6 +175,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress.value = null
     status.value = 'navigating'
     lastRerouteAt = 0
+    const end = legParts.at(-1)?.end?.location
+    announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     guidanceEngine.start(navRoute)
     holdScreenAwake()
     progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
@@ -146,6 +185,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   function stop() {
     guidanceEngine.stop()
     releaseScreenAwake()
+    stopVoice()
+    announcer = null
     if (progressTimer) clearInterval(progressTimer)
     progressTimer = null
     route.value = null
@@ -164,6 +205,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (!option || leg == null) return
     stop()
     await start(option, leg)
+  }
+
+  function cycleSound() {
+    const mode = route.value && progress.value ? travelModeAt(route.value, progress.value.puck.s) : 'driving'
+    const current = preferences.value.sound[mode] ?? 'all'
+    const next = SOUND_MODES[(SOUND_MODES.indexOf(current) + 1) % SOUND_MODES.length]
+    preferences.value.sound = { ...preferences.value.sound, [mode]: next }
   }
 
   /** The leg the trip page's Start button begins: the first not yet navigated. */
@@ -188,5 +236,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     stop,
     startNextLeg,
     legToStart,
+    soundModeAt,
+    cycleSound,
   }
 })

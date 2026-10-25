@@ -1282,7 +1282,6 @@
       "road": "Unnamed road"
     },
     "menu": {
-      "sound": "Sound",
       "searchAlongRoute": "Search along route",
       "addStop": "Add stop",
       "report": "Report",
@@ -1294,6 +1293,53 @@
       "at": "Arrived at {time}",
       "nextLeg": "Next leg",
       "done": "Done"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} feet",
+        "mile": "{value} mile",
+        "miles": "{value} miles",
+        "meters": "{value} meters",
+        "kilometer": "{value} kilometer",
+        "kilometers": "{value} kilometers"
+      },
+      "maneuvers": {
+        "straight": "Continue straight",
+        "slight-left": "Bear left",
+        "slight-right": "Bear right",
+        "left": "Turn left",
+        "right": "Turn right",
+        "sharp-left": "Make a sharp left",
+        "sharp-right": "Make a sharp right",
+        "keep-left": "Keep left",
+        "keep-right": "Keep right",
+        "uturn": "Make a U-turn",
+        "roundabout": "Enter the roundabout",
+        "roundaboutExit": "At the roundabout, take exit {exit}",
+        "arrive": "Arrive"
+      },
+      "onto": "{action} onto {road}",
+      "in": "In {distance}, {action}",
+      "then": "{action}, then {next}",
+      "continue": "Continue for {distance}",
+      "continueOn": "Continue on {road} for {distance}",
+      "arrive": "In {distance}, you will arrive",
+      "arriveSide": {
+        "left": "In {distance}, your destination is on the left",
+        "right": "In {distance}, your destination is on the right"
+      },
+      "arrived": "You have arrived",
+      "arrivedSide": {
+        "left": "You have arrived. Your destination is on the left",
+        "right": "You have arrived. Your destination is on the right"
+      },
+      "rerouting": "Rerouting"
+    },
+    "sound": {
+      "title": "Sound",
+      "all": "All",
+      "alerts": "Alerts only",
+      "silent": "Silent"
     }
   },
   "attribution": {

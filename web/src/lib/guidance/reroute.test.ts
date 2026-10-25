@@ -29,6 +29,13 @@ describe('spliceReroute', () => {
     expect(result.map(s => s.mode)).toEqual(['driving', 'walking'])
     expect(result[0].geometry).toEqual(fresh.geometry)
   })
+
+  test('drops the lanes drawn from the replaced geometry', () => {
+    const laned: NavSegmentInput[] = [{ mode: 'driving', geometry: [], laneGeometry: { coordinates: [], measures: [] }, lanePlan: [] }]
+    const result = spliceReroute(laned, 0, { geometry: [{ lat: 1, lng: 1 }] })
+    expect(result[0].laneGeometry).toBeUndefined()
+    expect(result[0].lanePlan).toBeUndefined()
+  })
 })
 
 describe('splitAtStop', () => {

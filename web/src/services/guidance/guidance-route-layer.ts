@@ -2,8 +2,8 @@
 // travelled part greyed, and a white arrow through the next maneuver.
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
-import type { NavRoute } from '@/lib/guidance/nav-route'
-import { laneOffset, maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
+import type { MeasuredLine, NavRoute } from '@/lib/guidance/nav-route'
+import { drawnProgress, laneOffset, maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
@@ -25,11 +25,13 @@ type Feature = GeoJSON.Feature<GeoJSON.Geometry>
 export class GuidanceRouteLayer {
   private lastTravelled = -1
   private lastManeuver: number | null = null
+  private progressAt: ((d: number) => number) | undefined
 
   constructor(
     private readonly map: MaplibreMap,
     private route: NavRoute,
   ) {
+    this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
     const beforeId = slotBeforeId(map.getStyle().layers, 'middle')
     map.addSource(ROUTE, { type: 'geojson', lineMetrics: true, data: this.routeData() })
     map.addSource(ARROW, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -115,20 +117,25 @@ export class GuidanceRouteLayer {
     }
   }
 
+  /** What is drawn: the route in its lanes where it has them, else its centreline. */
+  private drawn(): MeasuredLine {
+    return this.route.laneLine ?? this.route
+  }
+
   private routeData(): Feature {
     return {
       type: 'Feature',
       properties: {},
-      geometry: { type: 'LineString', coordinates: this.route.points.map(p => [p.lng, p.lat]) },
+      geometry: { type: 'LineString', coordinates: this.drawn().points.map(p => [p.lng, p.lat]) },
     }
   }
 
   private gradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR)
+    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR, this.progressAt)
   }
 
   private caseGradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR)
+    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt)
   }
 
   /** `travelled` and the next maneuver's distance along the route; cheap to call often. */
@@ -143,7 +150,7 @@ export class GuidanceRouteLayer {
       this.lastManeuver = maneuverAt
       const features: Feature[] = []
       if (maneuverAt != null) {
-        const { shaft, head } = maneuverArrow(this.route, maneuverAt, undefined, undefined, this.offsetMetres())
+        const { shaft, head } = maneuverArrow(this.drawn(), maneuverAt, undefined, undefined, this.offsetMetres())
         features.push(
           { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: shaft.map(p => [p.lng, p.lat]) } },
           { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [head.map(p => [p.lng, p.lat])] } },
@@ -153,9 +160,14 @@ export class GuidanceRouteLayer {
     }
   }
 
-  /** Metres right of centre the route is drawn: driving only, as walking and cycling routes keep to paths. */
+  /**
+   * Metres right of centre the route is drawn: none on a lane line, which is
+   * in its lanes already, and none off the road, as walking and cycling keep to paths.
+   */
   private offsetMetres(): number {
-    return this.route.segments.length > 0 && this.route.segments.every(s => s.mode === 'driving') ? HALF_LANE_METERS : 0
+    if (this.route.laneLine) return 0
+    if (this.route.segments.length === 0 || this.route.segments.some(s => s.mode !== 'driving')) return 0
+    return this.route.drivingSide === 'left' ? -HALF_LANE_METERS : HALF_LANE_METERS
   }
 
   private offset() {
@@ -164,6 +176,7 @@ export class GuidanceRouteLayer {
 
   setRoute(route: NavRoute): void {
     this.route = route
+    this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
     for (const id of [ROUTE, `${ROUTE}-case`]) if (this.map.getLayer(id)) this.map.setPaintProperty(id, 'line-offset', this.offset() as never)
     this.lastTravelled = -1
     this.lastManeuver = null

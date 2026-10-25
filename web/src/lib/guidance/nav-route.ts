@@ -7,6 +7,7 @@ import type {
   RouteHazard,
   RouteInstruction,
 } from '@/types/directions.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan } from '@server/types/unified-routing.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 
@@ -16,6 +17,9 @@ export interface NavSegmentInput {
   instructions?: RouteInstruction[]
   edgeSegments?: RouteEdgeSegment[]
   hazards?: RouteHazard[]
+  drivingSide?: DrivingSide
+  laneGeometry?: LaneGeometry
+  lanePlan?: InstructionLanePlan[]
 }
 
 export interface NavStep {
@@ -23,6 +27,7 @@ export interface NavStep {
   segmentIndex: number
   startDistance: number
   instruction: RouteInstruction
+  lanePlan?: LanePlan
 }
 
 export interface NavSegment {
@@ -40,17 +45,24 @@ export interface NavHazard extends RouteHazard {
   segmentIndex: number
 }
 
-export interface NavRoute {
+/** A polyline indexed by route distance. */
+export interface MeasuredLine {
   points: LngLat[]
   /** cumulative[i] = distance along the route at points[i]. */
   cumulative: Float64Array
   length: number
+}
+
+export interface NavRoute extends MeasuredLine {
   segments: NavSegment[]
   steps: NavStep[]
   /** Edge attributes rebased onto route distance, sorted by start. */
   edges: NavEdge[]
   /** Hazards rebased onto route distance, sorted by start. */
   hazards: NavHazard[]
+  drivingSide: DrivingSide
+  /** The route drawn in its lanes, where every driven segment has them; `cumulative` is route distance. */
+  laneLine: MeasuredLine | null
 }
 
 export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
@@ -60,6 +72,10 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
   const steps: NavStep[] = []
   const edges: NavEdge[] = []
   const hazards: NavHazard[] = []
+  const lanePoints: LngLat[] = []
+  const laneMeasures: number[] = []
+  const driven = inputs.filter(i => i.mode === 'driving')
+  const laned = driven.length > 0 && driven.every(i => (i.laneGeometry?.coordinates.length ?? 0) >= 2)
   let offset = 0
 
   inputs.forEach((input, segmentIndex) => {
@@ -78,14 +94,33 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     }
     segments.push({ index: segmentIndex, mode: input.mode, startDistance, endDistance: offset })
 
+    if (laned) {
+      const lane = input.laneGeometry
+      const from = Math.max(0, firstNew - 1)
+      const own = lane
+        ? lane.coordinates.map(([lng, lat], i) => ({ p: { lat, lng }, s: startDistance + lane.measures[i] }))
+        : points.slice(from).map((p, i) => ({ p, s: distances[from + i] }))
+      for (const { p, s } of own) {
+        lanePoints.push(p)
+        laneMeasures.push(Math.min(offset, Math.max(laneMeasures.at(-1) ?? 0, s)))
+      }
+    }
+
     const local = Float64Array.from(distances.slice(Math.max(0, firstNew - 1)))
     const localPoints = points.slice(Math.max(0, firstNew - 1))
     let searchFrom = 0
-    for (const instruction of input.instructions ?? []) {
+    ;(input.instructions ?? []).forEach((instruction, k) => {
       const s = locateOnPolyline(localPoints, local, instruction.coordinate, searchFrom)
       searchFrom = s.index
-      steps.push({ index: steps.length, segmentIndex, startDistance: s.distance, instruction })
-    }
+      const plan = input.lanePlan?.find(p => p.instruction === k)
+      steps.push({
+        index: steps.length,
+        segmentIndex,
+        startDistance: s.distance,
+        instruction,
+        ...(plan && { lanePlan: { lanes: plan.lanes } }),
+      })
+    })
 
     for (const hazard of input.hazards ?? []) {
       hazards.push({
@@ -116,11 +151,15 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     steps,
     edges,
     hazards,
+    drivingSide: driven.find(i => i.drivingSide)?.drivingSide ?? 'right',
+    laneLine: laned && lanePoints.length >= 2
+      ? { points: lanePoints, cumulative: Float64Array.from(laneMeasures), length: offset }
+      : null,
   }
 }
 
 /** Index of the polyline segment [i, i+1] containing distance `s`. */
-export function segmentIndexAt(route: NavRoute, s: number): number {
+export function segmentIndexAt(route: MeasuredLine, s: number): number {
   const c = route.cumulative
   if (c.length < 2) return 0
   if (s <= c[0]) return 0
@@ -135,7 +174,7 @@ export function segmentIndexAt(route: NavRoute, s: number): number {
   return lo
 }
 
-export function pointAt(route: NavRoute, s: number): LngLat {
+export function pointAt(route: MeasuredLine, s: number): LngLat {
   const { points, cumulative } = route
   if (points.length === 0) return { lat: 0, lng: 0 }
   if (points.length === 1) return points[0]
@@ -154,7 +193,7 @@ export function distanceAlong(route: NavRoute, target: LngLat, fromS = 0): numbe
 }
 
 /** Bearing of the polyline segment under `s`. */
-export function bearingAt(route: NavRoute, s: number): number {
+export function bearingAt(route: MeasuredLine, s: number): number {
   const { points } = route
   if (points.length < 2) return 0
   const i = segmentIndexAt(route, s)
@@ -165,7 +204,7 @@ export function bearingAt(route: NavRoute, s: number): number {
  * Bearing of the chord from `s − window` to `s + window`. Rotates the puck
  * smoothly through corners instead of snapping at each vertex.
  */
-export function smoothedBearingAt(route: NavRoute, s: number, window: number): number {
+export function smoothedBearingAt(route: MeasuredLine, s: number, window: number): number {
   const from = pointAt(route, Math.max(0, s - window))
   const to = pointAt(route, Math.min(route.length, s + window))
   if (from.lat === to.lat && from.lng === to.lng) return bearingAt(route, s)

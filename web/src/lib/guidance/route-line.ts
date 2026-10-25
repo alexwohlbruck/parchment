@@ -2,7 +2,8 @@
 // travelled part greyed. Rebuilt a few times a second, never per frame.
 
 import type { LngLat } from '@/types/map.types'
-import { pointAt, smoothedBearingAt, type NavRoute } from './nav-route'
+import { pointAt, segmentIndexAt, smoothedBearingAt, type MeasuredLine, type NavRoute } from './nav-route'
+import { haversineMeters } from '@/lib/geo/geo-line'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { metersPerPixel } from './camera-framing'
 
@@ -13,9 +14,11 @@ export function routeGradient(
   travelled: number,
   colorFor: (mode: string) => string,
   travelledColor: string,
+  /** Where route distance `d` falls along the drawn line, 0 to 1; by default the route itself. */
+  progressAt?: (d: number) => number,
 ): Expression {
   const length = Math.max(1, route.length)
-  const progress = (d: number) => Math.min(1, Math.max(0, d / length))
+  const progress = progressAt ?? ((d: number) => Math.min(1, Math.max(0, d / length)))
   const cut = progress(travelled)
   const stops: [at: number, color: string][] = cut > 0 ? [[0, travelledColor]] : []
   for (const segment of route.segments) {
@@ -39,9 +42,30 @@ export function routeGradient(
   return expression
 }
 
+/**
+ * Route distance to `line-progress` along a line drawn apart from the route,
+ * such as its lane line, whose own length differs from the route's.
+ */
+export function drawnProgress(line: MeasuredLine): (d: number) => number {
+  const drawn = new Float64Array(line.points.length)
+  for (let i = 1; i < line.points.length; i++) {
+    const a = line.points[i - 1]
+    const b = line.points[i]
+    drawn[i] = drawn[i - 1] + haversineMeters(a.lat, a.lng, b.lat, b.lng)
+  }
+  const total = Math.max(1e-6, drawn[drawn.length - 1] ?? 0)
+  return d => {
+    if (line.points.length < 2) return 0
+    const i = segmentIndexAt(line, d)
+    const span = line.cumulative[i + 1] - line.cumulative[i]
+    const t = span > 0 ? Math.min(1, Math.max(0, (d - line.cumulative[i]) / span)) : d >= line.cumulative[i + 1] ? 1 : 0
+    return Math.min(1, Math.max(0, (drawn[i] + (drawn[i + 1] - drawn[i]) * t) / total))
+  }
+}
+
 /** The stretch of route through a maneuver plus an arrowhead at its exit. */
 export function maneuverArrow(
-  route: NavRoute,
+  route: MeasuredLine,
   at: number,
   before = 25,
   after = 20,

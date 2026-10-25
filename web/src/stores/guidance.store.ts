@@ -93,6 +93,11 @@ export function nextNavigableLeg(trip: TripOption, after: number): number | null
   return null
 }
 
+/** The lane plans the route came with, by step. */
+function routeLanePlans(route: NavRoute): Map<number, LanePlan> {
+  return new Map(route.steps.flatMap(step => (step.lanePlan ? [[step.index, step.lanePlan] as const] : [])))
+}
+
 export const useGuidanceStore = defineStore('guidance', () => {
   const trip = shallowRef<TripOption | null>(null)
   const tripId = computed(() => trip.value?.id ?? null)
@@ -116,7 +121,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Furthest snapped distance reached; boarding and alighting don't undo. */
   let furthestS = 0
   const rebooking = ref(false)
-  /** Lanes for each step whose approach has painted arrows; per route. */
+  /** Lanes for each step whose approach has tagged or painted arrows; per route. */
   const lanePlans = shallowRef(new Map<number, LanePlan>())
   function setLanePlan(step: number, plan: LanePlan) {
     lanePlans.value = new Map(lanePlans.value).set(step, plan)
@@ -272,8 +277,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Swaps in a replanned leg mid-guidance, keeping the announcer's progress. */
   function reshape(next: LegSegment[]) {
     segments.value = next
-    lanePlans.value = new Map()
     const navRoute = markRaw(buildNavRoute(next.map(withBoardingStep)))
+    lanePlans.value = routeLanePlans(navRoute)
     route.value = navRoute
     guidanceEngine.setRoute(navRoute)
     announcer?.setRoute(navRoute)
@@ -319,8 +324,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Guides along `parts` from scratch: a new leg, or a leg reshaped by an added stop. */
   function follow(parts: LegSegment[]): NavRoute {
-    lanePlans.value = new Map()
     const navRoute = markRaw(buildNavRoute(parts.map(withBoardingStep)))
+    lanePlans.value = routeLanePlans(navRoute)
     segments.value = parts
     route.value = navRoute
     progress.value = null

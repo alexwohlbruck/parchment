@@ -6,7 +6,7 @@ const PATHS: Record<string, string> = {
   straight: 'M12 21V4M6.5 9.5 12 4l5.5 5.5',
   'slight-right': 'M8 21v-6.5c0-2 .8-3.4 2.2-4.8L16 4M10.5 4H16v5.5',
   right: 'M7 21v-8a4 4 0 0 1 4-4h9M15 4l5 5-5 5',
-  'sharp-right': 'M7 3v10a4 4 0 0 0 4 4h5.5M12 21l4.5-4.5L12 12',
+  'sharp-right': 'M6 21V9a3 3 0 0 1 5.1-2.1L18.5 14.3M18.5 8.3v6h-6',
   'keep-right': 'M8 21v-5c0-2.2 1-3.6 2.5-4.8L15 8M8 15V4M11 8h4v4',
   uturn: 'M16 21V10a5 5 0 0 0-10 0v6M2.5 13 6 16.5 9.5 13',
   roundabout: 'M16 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 21v-7M15.5 7.5 20 3M16 3h4v4',

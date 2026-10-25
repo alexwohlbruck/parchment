@@ -1494,6 +1494,10 @@
       "protectedShare": "{n}% protected",
       "empty": "No other routes right now"
     },
+    "itinerary": {
+      "sooner": "Arrive {duration} sooner",
+      "take": "Take the {lines}"
+    },
     "lanes": {
       "label": "Lanes"
     }

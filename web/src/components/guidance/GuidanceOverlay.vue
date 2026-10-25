@@ -11,6 +11,8 @@ import { modeProfile } from '@/lib/guidance/mode-profiles'
 import { toContainerRect } from '@/lib/map/map-padding'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
+import type { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
+import { formatDurationCompact } from '@/lib/time-format'
 import AlternativeOffer from './AlternativeOffer.vue'
 import ManeuverBanner from './ManeuverBanner.vue'
 import SpeedPanel from './SpeedPanel.vue'
@@ -23,11 +25,34 @@ const props = defineProps<{
   camera: ReturnType<typeof useGuidanceCamera>
   metric: boolean
   alternatives: ReturnType<typeof useAlternativeRoutes>
+  itinerary: ReturnType<typeof useBetterItinerary>
 }>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const guidance = useGuidanceStore()
+
+const routeOffer = computed(() => {
+  const offer = props.alternatives.offer.value
+  if (!offer) return null
+  return {
+    key: `${offer.segmentIndex}:${offer.route.duration}`,
+    headline: offer.reason === 'faster'
+      ? t('guidance.alternatives.faster', { duration: formatDurationCompact(offer.saved) })
+      : t(`guidance.alternatives.${offer.reason}`),
+    detail: offer.via ? t('guidance.alternatives.via', { street: offer.via }) : null,
+  }
+})
+
+const itineraryOffer = computed(() => {
+  const offer = props.itinerary.offer.value
+  if (!offer) return null
+  return {
+    key: `${offer.from}:${offer.gainMs}`,
+    headline: t('guidance.itinerary.sooner', { duration: formatDurationCompact(offer.gainMs / 1000) }),
+    detail: offer.lines.length ? t('guidance.itinerary.take', { lines: offer.lines.join(' → ') }) : null,
+  }
+})
 
 const banner = ref<HTMLElement | null>(null)
 useObstructingComponent(banner, 'guidance-banner')
@@ -109,10 +134,21 @@ const labelStyle = computed(() => {
         class="mx-auto max-w-xl"
       />
       <AlternativeOffer
-        v-if="alternatives.offer.value"
-        :key="alternatives.offer.value.segmentIndex + ':' + alternatives.offer.value.route.duration"
+        v-if="itineraryOffer"
+        :key="itineraryOffer.key"
         class="mx-auto mt-2 max-w-xl"
-        :offer="alternatives.offer.value"
+        :headline="itineraryOffer.headline"
+        :detail="itineraryOffer.detail"
+        :seconds="itinerary.offerSeconds"
+        @accept="itinerary.accept()"
+        @dismiss="itinerary.dismiss()"
+      />
+      <AlternativeOffer
+        v-else-if="routeOffer"
+        :key="routeOffer.key"
+        class="mx-auto mt-2 max-w-xl"
+        :headline="routeOffer.headline"
+        :detail="routeOffer.detail"
         :seconds="alternatives.offerSeconds"
         @accept="alternatives.accept()"
         @dismiss="alternatives.dismiss()"

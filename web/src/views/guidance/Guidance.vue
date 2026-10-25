@@ -17,6 +17,7 @@ import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
 import AheadSearch from '@/components/guidance/AheadSearch.vue'
 import RoutesPanel from '@/components/guidance/RoutesPanel.vue'
 import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
+import { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import DockWatchCard from '@/components/guidance/DockWatchCard.vue'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
@@ -71,6 +72,7 @@ const currentSegment = computed(() => {
 
 const docks = useDockWatch()
 const alternatives = useAlternativeRoutes()
+const itinerary = useBetterItinerary()
 useLaneGuidance()
 
 const expandSheet = inject(EXPAND_MAP_SHEET, () => {})
@@ -184,10 +186,10 @@ onBeforeUnmount(() => guidance.stop())
       />
       <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" @search-ahead="openPanel('search')" @routes="openPanel('routes')" />
     </template>
-    <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" :alternatives="alternatives" />
+    <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" :alternatives="alternatives" :itinerary="itinerary" />
   </PanelLayout>
 
   <Teleport to="#mainContent">
-    <GuidanceOverlay :camera="camera" :metric="metric" :alternatives="alternatives" />
+    <GuidanceOverlay :camera="camera" :metric="metric" :alternatives="alternatives" :itinerary="itinerary" />
   </Teleport>
 </template>

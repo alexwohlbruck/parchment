@@ -32,6 +32,8 @@ const RANGE_SEC = 30
 const TURN_CLEARANCE_METERS = 25
 /** A sign this close to the turn is under the turn bubble's tail. */
 export const SIGN_TURN_CLEARANCE_METERS = 12
+/** A sign goes this far before the puck reaches it, so it never draws over the puck. */
+export const SIGN_PASS_METERS = 5
 /** Hazards closer together than this would stack into one blob; a sign wins over a bubble. */
 const SPACING_METERS = 20
 

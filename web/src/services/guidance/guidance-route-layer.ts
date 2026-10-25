@@ -9,7 +9,7 @@ import type { CalloutSide } from '@/lib/guidance/turn-callout'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import type { RouteHazardKind } from '@/types/directions.types'
 import { maneuverIcon, MANEUVER_ICON_STROKE } from '@/lib/directions/maneuver-icon'
-import { HAZARD_TONE_COLORS, isHazardSign, SIGN_TURN_CLEARANCE_METERS, type HazardTone } from '@/lib/guidance/hazard-callouts'
+import { HAZARD_TONE_COLORS, isHazardSign, SIGN_PASS_METERS, SIGN_TURN_CLEARANCE_METERS, type HazardTone } from '@/lib/guidance/hazard-callouts'
 import { hazardIcon, HAZARD_ICON_STROKE } from '@/lib/guidance/hazard-icon'
 import { CalloutMarker } from './callout-marker'
 import { ensureHazardSignImages, HAZARD_SIGN_IMAGE } from './hazard-sign-images'
@@ -90,6 +90,7 @@ export class GuidanceRouteLayer {
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-pitch-alignment': 'viewport',
+          'icon-anchor': 'bottom',
         },
       },
       slotBeforeId(map.getStyle().layers, 'top'),
@@ -146,7 +147,7 @@ export class GuidanceRouteLayer {
   }
 
   private filterSigns(travelled: number, turnAt: number | null): void {
-    const ahead = ['>=', ['get', 'at'], Math.round(travelled)]
+    const ahead = ['>=', ['get', 'at'], Math.round(travelled + SIGN_PASS_METERS)]
     const filter = turnAt == null ? ahead : ['all', ahead, ['>=', ['abs', ['-', ['get', 'at'], turnAt]], SIGN_TURN_CLEARANCE_METERS]]
     const key = JSON.stringify(filter)
     if (key === this.lastSignFilter) return

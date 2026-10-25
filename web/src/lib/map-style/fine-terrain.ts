@@ -131,18 +131,16 @@ export class FineTerrain {
     const meets = (areas: Bounds[]) => areas.some(a => a.maxX >= x / n && a.minX <= (x + 1) / n && a.maxY >= y / n && a.minY <= (y + 1) / n)
     if (meets(this.areas)) return served(this.upsample(z, x, y))
     if (!this.held) throw missing()
-    const image = this.upsample(z, x, y)
     const deadline = performance.now() + HOLD_MS
     for (;;) {
       const known = this.held?.()
-      if (meets(this.areas) || (known && meets(known))) return served(image)
+      if (meets(this.areas) || (known && meets(known))) return served(this.upsample(z, x, y))
       if (known || !this.held || performance.now() >= deadline) break
       await new Promise<void>(wake => {
         const timer = setTimeout(wake, Math.min(RECHECK_MS, deadline - performance.now()))
         this.waiting.add(() => { clearTimeout(timer); wake() })
       })
     }
-    void image.then(bitmap => bitmap?.close())
     throw missing()
   }
 

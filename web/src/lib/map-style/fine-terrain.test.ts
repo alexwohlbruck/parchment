@@ -42,7 +42,7 @@ describe('FineTerrain held tiles', () => {
     await expect(fine.tile(url)).rejects.toMatchObject({ status: 404 })
   })
 
-  test('a held tile is served once the portals around it are known', async () => {
+  test('a held tile is served once the cuts over it are known', async () => {
     const { fine, image } = terrain()
     let known: Bounds[] | null = null
     fine.hold(() => known)
@@ -52,14 +52,14 @@ describe('FineTerrain held tiles', () => {
     await expect(tile).resolves.toBe(image)
   })
 
-  test('a held tile no portal reaches is turned away, and its image let go', async () => {
-    const { fine, image } = terrain()
+  test('a held tile no cut reaches is turned away without being upsampled', async () => {
+    const { fine } = terrain()
     let known: Bounds[] | null = null
     fine.hold(() => known)
     const tile = fine.tile(url)
     known = []
     fine.release()
     await expect(tile).rejects.toMatchObject({ status: 404 })
-    expect(image.close).toHaveBeenCalled()
+    expect((fine as any).upsample).not.toHaveBeenCalled()
   })
 })

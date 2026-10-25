@@ -52,9 +52,9 @@ export function useGuidanceRouteLine() {
   function calloutFor(step: NavStep | null) {
     const route = guidance.route
     if (!route || !step || step.instruction.type === 'destination') return null
-    const { at, side, road } = turnCallout(route, step)
+    const { at, side, kind, road } = turnCallout(route, step)
     const text = road.kind === 'named' ? road.name : t(`guidance.roads.${road.key}`)
-    return { at, side, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
+    return { at, side, kind, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
   }
 
   onScopeDispose(() => {

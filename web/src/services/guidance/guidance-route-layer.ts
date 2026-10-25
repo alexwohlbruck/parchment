@@ -5,6 +5,7 @@ import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
 import type { MeasuredLine, NavRoute } from '@/lib/guidance/nav-route'
 import { drawnProgress, laneOffset, pointBeside, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { CalloutSide } from '@/lib/guidance/turn-callout'
+import type { ManeuverKind } from '@/lib/directions/maneuver'
 import { TurnCalloutMarker } from './turn-callout-marker'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
@@ -114,14 +115,14 @@ export class GuidanceRouteLayer {
   }
 
   /** `travelled`, and the bubble for the next turn at its route distance; cheap to call often. */
-  update(travelled: number, callout: { at: number; side: CalloutSide; text: string; color: string } | null): void {
+  update(travelled: number, callout: { at: number; side: CalloutSide; kind: ManeuverKind; text: string; color: string } | null): void {
     if (Math.abs(travelled - this.lastTravelled) >= 1) {
       this.lastTravelled = travelled
       this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
       this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
       this.map.setFilter(HAZARDS, ['>=', ['get', 'at'], travelled])
     }
-    const key = callout && `${callout.at}|${callout.side}|${callout.text}|${callout.color}`
+    const key = callout && `${callout.at}|${callout.side}|${callout.kind}|${callout.text}|${callout.color}`
     if (key !== this.lastCallout) {
       this.lastCallout = key
       this.callout.show(callout && { ...callout, at: pointBeside(this.drawn(), callout.at, this.offsetMetres()) })

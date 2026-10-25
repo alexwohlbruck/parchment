@@ -6,6 +6,12 @@
 
 ### Fixed
 
+## [0.16.10] - 2026-10-25
+
+### Changed
+
+* 3D terrain sharpens as soon as the map around it loads, instead of lagging seconds behind in busy views.
+
 ## [0.16.9] - 2026-10-25
 
 ### Changed

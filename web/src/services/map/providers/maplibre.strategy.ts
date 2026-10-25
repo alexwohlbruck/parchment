@@ -257,6 +257,8 @@ const ROOF_EDGE_FADE_PITCH = 8
 
 /** The one custom layer every 3D scene object is drawn by. */
 const OBJECT_LAYER_ID = 'map-objects'
+/** Any footprint, to ask whether a layer's labels are ones decks leave out. */
+const EMPTY_FOOTPRINT: GeoJSON.MultiPolygon = { type: 'MultiPolygon', coordinates: [] }
 
 /** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
 const LANDMARK_LAYER_ID = 'map-landmarks'
@@ -491,6 +493,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.deckLayer = null
       this.mutedBridges.clear()
       this.mutedBridgeLabels.clear()
+      this.bridgeFootprint = null
       this.bridgeLabelKey = null
       if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
@@ -962,7 +965,9 @@ export class MaplibreStrategy extends MapStrategy {
   /** Flat bridge layers muted under the decks, with the opacity each had. */
   private mutedBridges = new Map<string, { property: any; value: unknown }>()
   /** Road symbol layers filtered off the bridges under the decks, with the filter each had. */
-  private mutedBridgeLabels = new Map<string, unknown>()
+  private mutedBridgeLabels = new Set<string>()
+  /** Where decks are drawn, so the flat bridges' labels under them are left out; null while they are not. */
+  private bridgeFootprint: GeoJSON.MultiPolygon | null = null
   /** The deck version the road labels were last filtered for. */
   private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
@@ -1017,16 +1022,13 @@ export class MaplibreStrategy extends MapStrategy {
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
     const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
+    if (footprint || !covered) this.bridgeFootprint = covered ? footprint : null
     for (const layer of map.getStyle()?.layers ?? []) {
-      const was = this.mutedBridgeLabels.get(layer.id)
-      const filter = footprint && flatBridgeLabelFilter({ ...(layer as any), filter: this.mutedBridgeLabels.has(layer.id) ? was : (layer as any).filter }, footprint)
-      if (filter) {
-        if (!this.mutedBridgeLabels.has(layer.id)) this.mutedBridgeLabels.set(layer.id, map.getFilter(layer.id))
-        // Validating a filter serialises the whole style; these are built here and known good.
-        map.setFilter(layer.id, filter, { validate: false })
-      } else if (!covered && this.mutedBridgeLabels.has(layer.id)) {
-        map.setFilter(layer.id, was as any, { validate: false })
-        this.mutedBridgeLabels.delete(layer.id)
+      // The labels' filter is the basemap's, with the ways on decks left out; one writer keeps the two from undoing each other.
+      if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && flatBridgeLabelFilter(layer as any, EMPTY_FOOTPRINT)) {
+        if (covered) this.mutedBridgeLabels.add(layer.id)
+        else this.mutedBridgeLabels.delete(layer.id)
+        this.applyBasemapFilter(layer.id)
       }
       const property = flatBridgeOpacity(layer as any) as any
       if (!property) continue
@@ -1227,13 +1229,12 @@ export class MaplibreStrategy extends MapStrategy {
 
   /** The style's own filter for a layer, plus whichever of ours currently apply to it. */
   private applyBasemapFilter(id: string) {
-    if (!this.mapInstance.getLayer(id)) return
+    const layer = this.mapInstance.getLayer(id)
+    if (!layer) return
     if (!this.baseFilters.has(id)) {
       this.baseFilters.set(id, this.mapInstance.getFilter(id) ?? null)
     }
-    this.mapInstance.setFilter(
-      id,
-      combineFilters([
+    const filter = combineFilters([
         this.baseFilters.get(id),
         this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
         // An unnamed recycling point is a street container, drawn as a 3D bin
@@ -1245,14 +1246,16 @@ export class MaplibreStrategy extends MapStrategy {
           ['!', ['all', ['==', ['get', 'subclass'], 'recycling'], ['!', ['has', 'name']]]],
         ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
-      ]),
-    )
+      ])
+    const footprint = this.mutedBridgeLabels.has(id) && this.bridgeFootprint
+    // Validating a filter serialises the whole style; these are built here and known good.
+    this.mapInstance.setFilter(id, (footprint && flatBridgeLabelFilter({ id, type: layer.type, 'source-layer': layer.sourceLayer, filter }, footprint)) || filter, { validate: false })
   }
 
   /** A new style brings its own filters, so ours are rebuilt on top of them. */
   private reapplyBasemapFilters() {
     this.baseFilters.clear()
-    const ids = new Set([...this.basemapHiders.keys(), ...layerGroups.poi])
+    const ids = new Set([...this.basemapHiders.keys(), ...layerGroups.poi, ...this.mutedBridgeLabels])
     for (const id of ids) this.applyBasemapFilter(id)
   }
 

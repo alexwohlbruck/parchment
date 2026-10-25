@@ -188,6 +188,9 @@ const transitGate = new TransitGate({
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
+  /** Another barrelman to route through (`/route`, `/route/lanes`); `host` answers when it can't. */
+  routingHost?: string
+  routingApiKey?: string
 }
 
 /**
@@ -1303,9 +1306,6 @@ export class BarrelmanIntegration
       throw new Error('At least 2 waypoints are required for routing')
     }
 
-    const host = this.config.host.replace(/\/$/, '')
-    const url = `${host}/route`
-
     const lang = request.language ? getLanguageCode(request.language) : 'en'
 
     // Build GraphHopper request body
@@ -1347,8 +1347,18 @@ export class BarrelmanIntegration
       requestBody.custom_model = customModel
     }
 
+    const routing = this.routingTarget()
+    if (routing) {
+      try {
+        const response = await barrelmanHttp.post(`${routing.host}/route`, requestBody, { headers: routing.headers, timeout: 30_000 })
+        return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+      } catch (error: any) {
+        logWarn(`Barrelman routing host failed, using the main host: ${error.response?.status ?? error.message}`)
+      }
+    }
+
     try {
-      const response = await barrelmanHttp.post(url, requestBody, {
+      const response = await barrelmanHttp.post(`${this.config.host.replace(/\/$/, '')}/route`, requestBody, {
         headers: this.headers,
         timeout: 30_000,
       })
@@ -1372,10 +1382,11 @@ export class BarrelmanIntegration
   private lanesUnsupportedUntil = 0
 
   private async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
-    if (!this.config.apiKey || Date.now() < this.lanesUnsupportedUntil) return null
-    const host = this.config.host.replace(/\/$/, '')
+    // Way ids come from the routing graph, so the lanes come from the instance that routed.
+    const target = this.routingTarget() ?? (this.config.apiKey ? { host: this.config.host.replace(/\/$/, ''), headers: this.headers } : null)
+    if (!target || Date.now() < this.lanesUnsupportedUntil) return null
     try {
-      const response = await barrelmanHttp.post(`${host}/route/lanes`, request, { headers: this.headers, timeout: 5_000 })
+      const response = await barrelmanHttp.post(`${target.host}/route/lanes`, request, { headers: target.headers, timeout: 5_000 })
       return response.data as RouteLanes
     } catch (error: any) {
       if (error.response?.status === 404) this.lanesUnsupportedUntil = Date.now() + LANES_RETRY_MS
@@ -1383,6 +1394,14 @@ export class BarrelmanIntegration
       return null
     }
   }
+
+  private routingTarget(): { host: string; headers: Record<string, string> } | null {
+    const host = this.config.routingHost?.replace(/\/$/, '')
+    if (!host) return null
+    const key = this.config.routingApiKey ?? this.config.apiKey
+    return { host, headers: { 'Content-Type': 'application/json', ...(key && { Authorization: `Bearer ${key}` }) } }
+  }
+
 
   // ── GraphHopper profile mapping ───────────────────────────────
 

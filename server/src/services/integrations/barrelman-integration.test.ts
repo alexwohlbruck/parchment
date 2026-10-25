@@ -975,4 +975,34 @@ describe('BarrelmanIntegration', () => {
       expect(headers['Authorization']).toBeUndefined()
     })
   })
+  describe('routing host', () => {
+    const route = {
+      waypoints: [{ coordinate: { lat: 40.69, lng: -73.99 } }, { coordinate: { lat: 40.7, lng: -73.98 } }],
+      mode: 'cycling',
+    } as any
+    const lanes = { coordinates: [], ways: [], maneuvers: [], profile: 'bike' } as any
+
+    beforeEach(() => {
+      integration.initialize({ host: 'http://main', apiKey: 'main-key', routingHost: 'http://routing/', routingApiKey: 'routing-key' })
+    })
+
+    test('routes and draws lanes through the routing host, with its key', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: { paths: [] } })
+      mockAxiosPost.mockResolvedValueOnce({ data: { drivingSide: 'right', lanePlan: [], laneGeometry: null } })
+      await integration.capabilities.routing!.getRoute(route)
+      await integration.capabilities.routing!.getLanes!(lanes)
+      const calls = mockAxiosPost.mock.calls as any[]
+      expect(calls.map(c => c[0])).toEqual(['http://routing/route', 'http://routing/route/lanes'])
+      expect(calls[0][2].headers.Authorization).toBe('Bearer routing-key')
+    })
+
+    test('falls back to the main host when the routing host fails', async () => {
+      mockAxiosPost.mockRejectedValueOnce(Object.assign(new Error('bad'), { response: { status: 400 } }))
+      mockAxiosPost.mockResolvedValueOnce({ data: { paths: [] } })
+      await integration.capabilities.routing!.getRoute(route)
+      const calls = mockAxiosPost.mock.calls as any[]
+      expect(calls.map(c => c[0])).toEqual(['http://routing/route', 'http://main/route'])
+      expect(calls[1][2].headers.Authorization).toBe('Bearer main-key')
+    })
+  })
 })

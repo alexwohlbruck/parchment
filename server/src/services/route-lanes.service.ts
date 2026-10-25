@@ -1,16 +1,16 @@
 import { routingService } from './routing.service'
-import { applyLanes, drivingSideFor, lanesRequest, segmentCountry, type LanedSegment } from '../lib/route-lanes'
+import { applyLanes, drivingSideFor, lanesProfile, lanesRequest, segmentCountry, type LanedSegment } from '../lib/route-lanes'
 import { logWarn } from '../lib/logger'
 
 /**
- * Gives each driven segment its driving side and, where barrelman has the
- * lanes, the route drawn in them and a lane plan per maneuver. A segment
+ * Gives each driven or ridden segment its driving side and, where barrelman
+ * has the lanes, the route drawn in them; driving also gets a lane plan per maneuver. A segment
  * barrelman can't answer for keeps what it had.
  */
 export async function attachLanes(segments: LanedSegment[], getLanes = routingService.getLanes.bind(routingService)): Promise<void> {
   await Promise.all(
     segments
-      .filter(s => s.mode === 'driving')
+      .filter(s => lanesProfile(s.mode))
       .map(async segment => {
         segment.drivingSide = drivingSideFor(segmentCountry(segment.edgeSegments))
         const request = lanesRequest(segment)

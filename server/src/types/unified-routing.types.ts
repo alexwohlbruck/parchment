@@ -262,7 +262,11 @@ export interface RouteLanesRequest {
   ways: { from: number; to: number; osmWayId: number }[]
   maneuvers: { distance: number; turn?: string }[]
   country?: string
+  /** `bike` rides the bike lane, or beside the traffic, and has no lane plan. */
+  profile: LanesProfile
 }
+
+export type LanesProfile = 'car' | 'bike'
 
 export interface RouteLanes {
   drivingSide: DrivingSide

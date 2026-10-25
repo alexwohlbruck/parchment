@@ -4,6 +4,7 @@ import { BakedBridgeLayer } from './baked-bridge-layer'
 import { uploadMesh, deleteMesh, bindMesh } from '../mesh-program'
 import { MATERIALS } from './mesh-file'
 import type { DeckPalette } from '../deck.types'
+import { deckTile, vectorTile } from './fixtures/deck-tiles'
 
 vi.mock('../mesh-program', () => ({ programReady: () => true, linkMeshProgram: () => ({}), uploadMesh: vi.fn(() => ({ position: {}, count: 276 })), deleteMesh: vi.fn(), eyeOf: vi.fn(), bindMesh: vi.fn(() => ({ draw() {}, bias() {}, unbind() {} })) }))
 vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} } }))
@@ -175,5 +176,94 @@ test('a tile index starts the view\'s meshes before its detail tiles list them, 
   expect(meshCalls()).toHaveLength(1)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
   expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+function tileMode(payload: Uint8Array) {
+  const env = setup()
+  const [z, x, y] = [16, Math.floor(((-74 + 180) / 360) * 2 ** 16), Math.floor((0.5 - Math.log(Math.tan(Math.PI / 4 + (40.7 * Math.PI) / 360)) / (2 * Math.PI)) * 2 ** 16)]
+  const tile = { state: 'loaded', tileID: { canonical: { z, x, y } }, latestRawTileData: vectorTile(payload) }
+  Object.assign(env.map, {
+    getSource: () => ({ tiles: ['https://example.test/tiles/detail/{z}/{x}/{y}?v=1&decks=1'] }),
+    style: { tileManagers: { detail: { getRenderableIds: () => ['t'], getTileByID: () => tile } } },
+  })
+  vi.mocked(fetch).mockClear()
+  return { ...env, tile }
+}
+
+test('draws the deck pieces a detail tile carries on the frame after it loads, fetching no meshes', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  expect(layer.covered).toBe(true)
+  expect(fetch).not.toHaveBeenCalled()
+  layer.onRemove(map, gl)
+})
+
+test('keeps the flat bridges where barrelman could not read a deck of the tile', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)], ['b'.repeat(64) + '.brm']))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(1000)
+  layer.render(gl, frame)
+  expect(layer.covered).toBe(false)
+  layer.onRemove(map, gl)
+})
+
+test('reads a tile again once its pieces have been evicted', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  const [id] = (layer as any).parts.keys()
+  ;(layer as any).remove(id)
+  handlers.get('moveend')!()
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(2)
+  expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+test('fetches a failed tile afresh once its retry is due, and draws its decks', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)], ['b'.repeat(64) + '.brm']))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(1000)
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  await vi.advanceTimersByTimeAsync(11_000)
+  layer.render(gl, frame)
+  expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]).toMatchObject({ cache: 'reload' })
+  expect(layer.covered).toBe(true)
+  layer.onRemove(map, gl)
+})
+
+test('reads the zoom-16 tile a deeper one is cut from as soon as that one starts loading', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  const { z, x, y } = tile.tileID.canonical
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile: { tileID: { canonical: { z: z + 2, x: 4 * x + 1, y: 4 * y + 3 } } } })
+  expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(`https://example.test/tiles/detail/${z}/${x}/${y}?v=1&decks=1`)
+  await vi.advanceTimersByTimeAsync(10)
+  expect((layer as any).tilePieces.get(`${z}/${x}/${y}`)).toHaveLength(1)
+  layer.onRemove(map, gl)
+})
+
+test('keeps a tile\'s decks drawn after MapLibre swaps it for children whose pieces are not ready', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  const { x, y } = tile.tileID.canonical
+  const parent = { state: 'loaded', tileID: { canonical: { z: 15, x: x >> 1, y: y >> 1 } }, latestRawTileData: vectorTile(deckTile([new Uint8Array(bytes)])) }
+  let renderable: any[] = [parent]
+  Object.assign((map as any).style.tileManagers.detail, { getRenderableIds: () => renderable.map((_, i) => String(i)), getTileByID: (i: string) => renderable[Number(i)] })
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile: parent })
+  await vi.advanceTimersByTimeAsync(500)
+  layer.render(gl, frame)
+  const parentPiece = `15/${x >> 1}/${y >> 1}|${'a'.repeat(64)}.brm`
+  expect((layer as any).wanted.has(parentPiece)).toBe(true)
+  // Children loaded, with no deck pieces read yet.
+  renderable = [0, 1].flatMap(i => [0, 1].map(j => ({ state: 'loaded', tileID: { canonical: { z: 16, x: 2 * (x >> 1) + i, y: 2 * (y >> 1) + j } } })))
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(500)
+  expect((layer as any).wanted.has(parentPiece)).toBe(true)
   layer.onRemove(map, gl)
 })

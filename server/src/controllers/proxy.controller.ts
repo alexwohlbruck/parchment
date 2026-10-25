@@ -201,7 +201,7 @@ function acceptsGzip(header: string | undefined | null): boolean {
  */
 function martinResponse(
   hit: CachedResponse,
-  state: 'HIT' | 'MISS',
+  state: 'HIT' | 'MISS' | 'BYPASS',
   gzipOk: boolean,
 ): Response {
   if (hit.status !== 200) {
@@ -375,13 +375,15 @@ app.get(
 // default, whatever the integration was pointed at. The basemap drew nothing.
 app.get(
   '/barrelman/:source/:z/:x/:y',
-  async ({ params, headers: reqHeaders }) => {
+  async ({ params, query, headers: reqHeaders }) => {
     // Served from memory when we have it. Martin answers in 1-6 ms; the rest
     // of the ~2 s a client used to wait was the trip to the Barrelman host and
     // back, which a hit removes entirely.
     const gzipOk = acceptsGzip(reqHeaders['accept-encoding'])
     const { source, z, x, y } = params
-    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}`)
+    // A detail tile can carry the 3D bridge decks drawn over it, when asked.
+    const decks = query.decks === '1' ? '?decks=1' : ''
+    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}${decks}`)
     if (hit) return martinResponse(hit, 'HIT', gzipOk)
 
     try {
@@ -394,9 +396,9 @@ app.get(
       }
 
       const { source, z, x, y } = params
-      const cacheKey = `${source}/${z}/${x}/${y}`
+      const cacheKey = `${source}/${z}/${x}/${y}${decks}`
 
-      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
+      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}${decks}`, host)
 
       const headers: Record<string, string> = {}
       if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
@@ -457,19 +459,22 @@ app.get(
       const gzipped =
         body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
 
-      return storeMartin(
-        cacheKey,
-        {
-          status: 200,
-          body: gzipped.buffer.slice(
-            gzipped.byteOffset,
-            gzipped.byteOffset + gzipped.byteLength,
-          ) as ArrayBuffer,
-          contentType:
-            response.headers.get('content-type') || 'application/x-protobuf',
-        },
-        gzipOk,
-      )
+      const tile: CachedResponse = {
+        status: 200,
+        body: gzipped.buffer.slice(
+          gzipped.byteOffset,
+          gzipped.byteOffset + gzipped.byteLength,
+        ) as ArrayBuffer,
+        contentType:
+          response.headers.get('content-type') || 'application/x-protobuf',
+      }
+      // A tile Barrelman could only partly build (some of its decks unreadable) is passed on uncached.
+      if (/no-store/.test(response.headers.get('cache-control') ?? '')) {
+        const sent = martinResponse(tile, 'BYPASS', gzipOk)
+        sent.headers.set('Cache-Control', 'no-store')
+        return sent
+      }
+      return storeMartin(cacheKey, tile, gzipOk)
     } catch (error) {
       logError('Barrelman tile proxy error', error, { params })
       return new Response('Proxy error', { status: 500 })

@@ -19,6 +19,6 @@ describe('routeGradient', () => {
   })
 
   test('a finished route is all travelled', () => {
-    expect(routeGradient(walkThenDrive, 1e6, color, 'grey')).toEqual(['step', ['line-progress'], 'grey'])
+    expect(routeGradient(walkThenDrive, 1e6, color, 'grey')).toEqual(['step', ['line-progress'], 'grey', 1, 'grey'])
   })
 })

@@ -322,3 +322,34 @@ test('stops a read alongside a tile MapLibre drops before it loads', async () =>
   expect(signal?.aborted).toBe(true)
   layer.onRemove(map, gl)
 })
+
+test('gives a tile\'s pieces their surfaces when they come after them, ignoring those of an older read', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  layer.render(gl, frame)
+  const l = layer as any
+  const [key, ids] = [...l.tilePieces][0]
+  const [id] = ids
+  const stands = l.parts.get(id).data.stands
+  l.takeGeometry(key, [...ids], [{ stands: [], under: [], tracks: [] }])
+  expect(l.parts.get(id).data.stands).toBe(stands)
+  const geometry = { stands: [...stands], under: [], tracks: [] }
+  l.takeGeometry(key, ids, [geometry])
+  expect(l.parts.get(id).data.stands).toBe(geometry.stands)
+  layer.onRemove(map, gl)
+})
+
+test('drops and reads again a tile whose surfaces could not be read', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  layer.render(gl, frame)
+  const l = layer as any
+  const [key, ids] = [...l.tilePieces][0]
+  l.lostGeometry(key, ids, new Error('bad surfaces'))
+  expect(l.tilePieces.has(key)).toBe(false)
+  expect(l.parts.size).toBe(0)
+  expect(l.tileFailures.has(key)).toBe(true)
+  layer.onRemove(map, gl)
+})

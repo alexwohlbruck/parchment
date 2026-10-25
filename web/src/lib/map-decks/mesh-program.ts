@@ -91,7 +91,9 @@ const FS = `#version 300 es
     fragColor = vec4(v_color * (1.0 - shade), 1.0);
   }`
 
-export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null }
+/** How an attribute's buffer is read: its GL type, and whether integers are normalised to [-1, 1]. */
+type Layout = { type: number; normalized: boolean }
+export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null; layouts?: Partial<Record<'normal' | 'color' | 'low', Layout>> }
 
 export function linkMeshProgram(gl: WebGL2RenderingContext, deferred = false): WebGLProgram {
   const program = gl.createProgram()!
@@ -117,15 +119,17 @@ export function programReady(gl: WebGL2RenderingContext, program: WebGLProgram):
   return true
 }
 
-export type MeshUpload = { [K in keyof Mesh]: number[] | Float32Array } & { indices?: Uint32Array }
+/** Normals may come as signed bytes (read normalised) and palette slots as unsigned bytes, as compact meshes store them. */
+export type MeshUpload = Omit<{ [K in keyof Mesh]: number[] | Float32Array }, 'normal' | 'color' | 'low'> & { normal: number[] | Float32Array | Int8Array; color: number[] | Float32Array | Uint8Array; low?: number[] | Float32Array | Uint8Array; indices?: Uint32Array }
 
 export function uploadMesh(gl: WebGL2RenderingContext, mesh: MeshUpload): MeshBuffers {
-  const upload = (data: number[] | Float32Array) => {
+  const upload = (data: number[] | Float32Array | Int8Array | Uint8Array) => {
     const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, data instanceof Float32Array ? data : new Float32Array(data), gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, ArrayBuffer.isView(data) ? data : new Float32Array(data), gl.STATIC_DRAW)
     return buffer
   }
+  const layout = (data: unknown): Layout | undefined => data instanceof Int8Array ? { type: gl.BYTE, normalized: true } : data instanceof Uint8Array ? { type: gl.UNSIGNED_BYTE, normalized: false } : undefined
   const count = mesh.position.length / 3
   gl.bindVertexArray(null)
   const indices = mesh.indices ? gl.createBuffer() : null
@@ -144,6 +148,7 @@ export function uploadMesh(gl: WebGL2RenderingContext, mesh: MeshUpload): MeshBu
     spread: mesh.spread?.length === count * 3 ? upload(mesh.spread) : null,
     lift: mesh.lift?.length === count ? upload(mesh.lift) : null,
     count: mesh.indices?.length ?? count,
+    layouts: { normal: layout(mesh.normal), color: layout(mesh.color), low: mesh.low?.length === count * 3 ? layout(mesh.low) : layout(mesh.color) },
   }
 }
 
@@ -245,17 +250,17 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   gl.bindVertexArray(null)
   const [position, normal, color, low, bias, spread, lift] = at.attributes
   const enabled: number[] = []
-  const bind = (loc: number, buffer: WebGLBuffer, size: number) => {
+  const bind = (loc: number, buffer: WebGLBuffer, size: number, layout?: Layout) => {
     if (loc < 0) return
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.enableVertexAttribArray(loc)
-    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0)
+    gl.vertexAttribPointer(loc, size, layout?.type ?? gl.FLOAT, layout?.normalized ?? false, 0, 0)
     enabled.push(loc)
   }
   bind(position, buffers.position, 3)
-  bind(normal, buffers.normal, 3)
-  bind(color, buffers.color, 3)
-  bind(low, buffers.low ?? buffers.color, 3)
+  bind(normal, buffers.normal, 3, buffers.layouts?.normal)
+  bind(color, buffers.color, 3, buffers.layouts?.color)
+  bind(low, buffers.low ?? buffers.color, 3, buffers.layouts?.low)
   if (buffers.bias) bind(bias, buffers.bias, 1)
   else if (bias >= 0) gl.vertexAttrib1f(bias, 0)
   if (buffers.spread) bind(spread, buffers.spread, 3)

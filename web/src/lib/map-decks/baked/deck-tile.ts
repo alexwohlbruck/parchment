@@ -1,4 +1,4 @@
-import { decodeBridge, type BakedMesh } from './mesh-file'
+import { decodeBridgeDeferred, type BakedMesh } from './mesh-file'
 
 /** The MVT `Tile` field barrelman carries a detail tile's deck pieces in, when asked with `decks=1`. */
 export const DECK_TILE_FIELD = 20
@@ -35,13 +35,14 @@ export function deckField(raw: ArrayBuffer): Uint8Array | null {
   return null
 }
 
-/** A tile's pieces, and the decks in it barrelman could not read. */
-export type DeckTile = { pieces: DeckPiece[]; failed: string[] }
+/** A tile's pieces, and the decks in it barrelman could not read. `geometry` holds each piece's surfaces as JSON when they were left unread. */
+export type DeckTile = { pieces: DeckPiece[]; failed: string[]; geometry?: Array<string | null> }
 
 /** A deck payload's pieces: `BDT1`, a JSON header of each piece's deck mesh and length, then BRM meshes 4-byte aligned. */
-export function decodeDeckTile(payload: Uint8Array): DeckTile {
+export function decodeDeckTile(payload: Uint8Array, defer = false): DeckTile {
   const { failed, pieces } = readDeckTile(payload)
-  return { pieces: pieces.map(({ file, bytes }) => ({ file, mesh: decodeBridge(bytes.slice().buffer) })), failed }
+  const decoded = pieces.map(({ file, bytes }) => ({ file, ...decodeBridgeDeferred(bytes.slice().buffer, defer) }))
+  return { pieces: decoded.map(({ file, mesh }) => ({ file, mesh })), failed, ...(defer ? { geometry: decoded.map(d => d.geometry) } : {}) }
 }
 
 const align = (n: number) => Math.ceil(n / 4) * 4

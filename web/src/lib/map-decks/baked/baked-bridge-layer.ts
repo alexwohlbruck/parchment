@@ -147,6 +147,12 @@ export class BakedBridgeLayer {
     clearTimeout(this.scheduled)
     this.scheduled = setTimeout(() => this.sync(), 0)
   }
+  /** A tile past the deck zooms starts loading: its ancestor's pieces are read alongside, MapLibre's fetch of it filling the HTTP cache. */
+  private loading = (event: { sourceId?: string; tile?: any }) => {
+    const id = event.tile?.tileID?.canonical
+    if (event.sourceId !== this.sources.profiles?.source || !id || id.z <= DECK_TILE_ZOOMS.max || !this.expectsTiles() || this.tileMode === false) return
+    this.readTile(deckTileOf(id))
+  }
   private moving = () => {
     if (performance.now() - this.lastSync < MOVING_SYNC_MS) return
     this.lastSync = performance.now()
@@ -158,6 +164,7 @@ export class BakedBridgeLayer {
     this.program = linkMeshProgram(gl, true)
     this.shadows.prepare(gl)
     map.on('sourcedata', this.changed)
+    map.on('sourcedataloading', this.loading)
     map.on('moveend', this.changed)
     map.on('move', this.moving)
     map.on('terrain', this.changed)
@@ -170,6 +177,7 @@ export class BakedBridgeLayer {
   }
   onRemove(map: any, gl: WebGL2RenderingContext) {
     map.off('sourcedata', this.changed)
+    map.off('sourcedataloading', this.loading)
     map.off('moveend', this.changed)
     map.off('move', this.moving)
     map.off('terrain', this.changed)

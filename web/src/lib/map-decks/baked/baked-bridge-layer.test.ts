@@ -237,3 +237,14 @@ test('fetches a failed tile afresh once its retry is due, and draws its decks', 
   expect(layer.covered).toBe(true)
   layer.onRemove(map, gl)
 })
+
+test('reads the zoom-16 tile a deeper one is cut from as soon as that one starts loading', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  const { z, x, y } = tile.tileID.canonical
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile: { tileID: { canonical: { z: z + 2, x: 4 * x + 1, y: 4 * y + 3 } } } })
+  expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(`https://example.test/tiles/detail/${z}/${x}/${y}?v=1&decks=1`)
+  await vi.advanceTimersByTimeAsync(10)
+  expect((layer as any).tilePieces.get(`${z}/${x}/${y}`)).toHaveLength(1)
+  layer.onRemove(map, gl)
+})

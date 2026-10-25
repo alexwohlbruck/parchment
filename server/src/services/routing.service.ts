@@ -23,7 +23,7 @@ export class RoutingService {
     locations: Location[],
     costing: string = 'auto',
     preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
-    options: { startHeading?: number } = {},
+    options: { startHeading?: number; alternatives?: number } = {},
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -123,6 +123,10 @@ export class RoutingService {
         : {
             optimize: 'time',
           },
+    }
+
+    if (options.alternatives) {
+      request.preferences = { ...request.preferences, alternatives: true, maxAlternatives: options.alternatives }
     }
 
     try {

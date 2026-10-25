@@ -2,6 +2,7 @@ import { routingService } from './routing.service'
 import type { RouteInstruction, RouteEdgeSegment, Coordinate } from '../types/unified-routing.types'
 import type { Language } from '../lib/i18n'
 import type { Location } from '../types/valhalla.types'
+import { routeMetrics, type RouteMetrics } from '../lib/route-metrics'
 
 export type RerouteMode = 'walking' | 'cycling' | 'driving'
 
@@ -30,8 +31,11 @@ export interface RerouteSegment {
   edgeSegments?: RouteEdgeSegment[]
 }
 
-/** A fresh route for the rest of one segment, leaving the way the traveller is heading. */
-export async function rerouteSegment(request: RerouteRequest): Promise<RerouteSegment | null> {
+export interface RouteAlternative extends RerouteSegment {
+  metrics: RouteMetrics
+}
+
+async function segmentRoutes(request: RerouteRequest, alternatives?: number): Promise<RerouteSegment[]> {
   const locations: Location[] = [
     { type: 'coordinates', value: [request.position.lat, request.position.lng] },
     { type: 'coordinates', value: [request.destination.lat, request.destination.lng] },
@@ -40,16 +44,30 @@ export async function rerouteSegment(request: RerouteRequest): Promise<RerouteSe
     locations,
     MODE_COSTING[request.mode],
     { ...request.routingPreferences, language: request.language },
-    { startHeading: request.heading },
+    { startHeading: request.heading, alternatives },
   )
-  const leg = route.routes[0]?.legs[0]
-  if (!leg) return null
-  return {
-    mode: request.mode,
-    duration: leg.duration,
-    distance: leg.distance,
-    geometry: leg.geometry as Coordinate[],
-    instructions: leg.instructions ?? [],
-    edgeSegments: leg.edgeSegments,
-  }
+  return route.routes
+    .map(r => r.legs[0])
+    .filter(leg => !!leg)
+    .map(leg => ({
+      mode: request.mode,
+      duration: leg.duration,
+      distance: leg.distance,
+      geometry: leg.geometry as Coordinate[],
+      instructions: leg.instructions ?? [],
+      edgeSegments: leg.edgeSegments,
+    }))
+}
+
+/** A fresh route for the rest of one segment, leaving the way the traveller is heading. */
+export async function rerouteSegment(request: RerouteRequest): Promise<RerouteSegment | null> {
+  return (await segmentRoutes(request))[0] ?? null
+}
+
+const MAX_ALTERNATIVES = 3
+
+/** Every sensible way to finish the segment, each with what it is like. */
+export async function alternativeSegments(request: RerouteRequest): Promise<RouteAlternative[]> {
+  const routes = await segmentRoutes(request, MAX_ALTERNATIVES)
+  return routes.map(segment => ({ ...segment, metrics: routeMetrics(segment) }))
 }

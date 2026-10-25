@@ -513,6 +513,28 @@
     0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+/* Navigation's surfaces stay dark in either theme, tinted toward the theme's accent.
+   Pair with `dark` on the same element so dark: variants apply inside. */
+@utility nav-surface {
+  --color-background: color-mix(in oklab, hsl(var(--primary)) 6%, oklch(0.2 0 0));
+  --color-card: var(--color-background);
+  --color-popover: var(--color-background);
+  --color-foreground: oklch(0.97 0.003 80);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover-foreground: var(--color-foreground);
+  --color-secondary: color-mix(in oklab, hsl(var(--primary)) 8%, oklch(0.3 0 0));
+  --color-muted: var(--color-secondary);
+  --color-accent: var(--color-secondary);
+  --color-secondary-foreground: var(--color-foreground);
+  --color-accent-foreground: var(--color-foreground);
+  --color-muted-foreground: oklch(0.97 0.003 80 / 0.62);
+  --color-border: oklch(1 0 0 / 0.1);
+  --color-input: oklch(1 0 0 / 0.12);
+  --color-primary: color-mix(in oklab, hsl(var(--primary)) 72%, white);
+  --color-primary-foreground: oklch(0.18 0 0);
+  color: var(--color-foreground);
+}
+
 @utility depth-floating {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),

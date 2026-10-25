@@ -1222,7 +1222,7 @@
       "autoSwitchDocks": "Cambiar de estación",
       "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis"
     },
-    "exitShort": "Salir",
+    "exitShort": "Terminar",
     "banner": {
       "arrive": "Tu destino",
       "then": "Luego",
@@ -1251,10 +1251,16 @@
     },
     "menu": {
       "searchAlongRoute": "Buscar en la ruta",
+      "search": "Buscar",
       "addStop": "Añadir parada",
       "report": "Reportar",
       "steps": "Pasos",
-      "routes": "Rutas"
+      "routes": "Rutas",
+      "title": "Opciones",
+      "back": "Atrás",
+      "close": "Cerrar",
+      "show": "Mostrar opciones del viaje",
+      "hide": "Ocultar opciones del viaje"
     },
     "startLeg": "Iniciar tramo {leg}",
     "arrival": {
@@ -1427,8 +1433,7 @@
       "add": "Añadir parada",
       "empty": "No hay nada en la ruta",
       "failed": "La búsqueda no está disponible ahora",
-      "addFailed": "No se pudo añadir la parada",
-      "done": "Listo"
+      "addFailed": "No se pudo añadir la parada"
     },
     "docks": {
       "docks": "{n} anclaje | {n} anclajes",

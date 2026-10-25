@@ -1,44 +1,56 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { postedLimit } from '@/lib/guidance/guidance-display'
+import { postedLimit, travelModeAt } from '@/lib/guidance/guidance-display'
+import { modeProfile } from '@/lib/guidance/mode-profiles'
+import { useGuidanceStore } from '@/stores/guidance.store'
+import { useGuidanceContext } from './context'
 
-const props = defineProps<{
-  /** m/s */
-  speed: number
-  limitKmh: number | null
-  metric: boolean
-  showLimit: boolean
-}>()
+defineProps<{ dash?: boolean }>()
 const { t } = useI18n()
+const guidance = useGuidanceStore()
+const { metric } = useGuidanceContext()
 
-const current = computed(() => Math.round(props.metric ? props.speed * 3.6 : props.speed * 2.236936))
-const limit = computed(() => (props.limitKmh && props.showLimit ? postedLimit(props.limitKmh, props.metric) : null))
+const profile = computed(() => {
+  const route = guidance.route
+  const puck = guidance.progress?.puck
+  return modeProfile(route && puck ? travelModeAt(route, puck.s) : 'driving')
+})
+const current = computed(() => {
+  const speed = guidance.progress?.puck.speed ?? 0
+  return Math.round(metric.value ? speed * 3.6 : speed * 2.236936)
+})
+const limit = computed(() => {
+  const kmh = guidance.progress?.speedLimitKmh
+  return kmh && profile.value.speedLimit ? postedLimit(kmh, metric.value) : null
+})
 const speeding = computed(() => limit.value != null && current.value > limit.value * 1.1)
 </script>
 
 <template>
-  <div class="pointer-events-auto flex items-end gap-1.5">
+  <div v-if="profile.speedometer && guidance.progress" class="pointer-events-auto flex items-end gap-2">
     <!-- US / mph regions post a rectangular sign; metric regions a red ring. -->
     <div
       v-if="limit != null && !metric"
-      class="flex w-12 flex-col items-center rounded-md border-2 border-zinc-900 bg-white px-1 py-0.5 text-zinc-900 shadow-md"
+      class="flex flex-col items-center rounded-lg border-2 border-zinc-900 bg-white px-1 py-1 text-zinc-900 shadow-lg"
+      :class="dash ? 'w-16' : 'w-13'"
     >
       <span class="text-[7px] font-semibold leading-tight">{{ t('guidance.speed.limitSign') }}</span>
-      <span class="font-display text-xl leading-none tabular-nums">{{ limit }}</span>
+      <span class="font-display leading-none tabular-nums" :class="dash ? 'text-3xl' : 'text-2xl'">{{ limit }}</span>
     </div>
     <div
       v-else-if="limit != null"
-      class="flex size-12 items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-display text-lg text-zinc-900 shadow-md tabular-nums"
+      class="flex items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-display text-zinc-900 shadow-lg tabular-nums"
+      :class="dash ? 'size-16 text-2xl' : 'size-13 text-xl'"
     >
       {{ limit }}
     </div>
     <div
-      class="flex size-12 flex-col items-center justify-center rounded-full bg-background shadow-md"
-      :class="speeding ? 'text-red-600' : 'text-foreground'"
+      class="nav-surface dark flex flex-col items-center justify-center rounded-full bg-background shadow-lg"
+      :class="[dash ? 'size-16' : 'size-13', speeding ? 'text-red-400' : 'text-foreground']"
     >
-      <span class="font-display text-lg leading-none tabular-nums">{{ current }}</span>
-      <span class="text-[9px] text-muted-foreground">{{ metric ? 'km/h' : 'mph' }}</span>
+      <span class="font-display leading-none tabular-nums" :class="dash ? 'text-2xl' : 'text-xl'">{{ current }}</span>
+      <span class="text-[10px] text-muted-foreground">{{ metric ? 'km/h' : 'mph' }}</span>
     </div>
   </div>
 </template>

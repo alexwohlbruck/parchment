@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
 import { formatDurationCompact } from '@/lib/time-format'
 import { currentCandidate } from '@/lib/guidance/alternatives'
 import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
@@ -29,6 +28,7 @@ const rows = computed(() => {
 })
 
 onMounted(() => void props.alternatives.fetchCandidates())
+onBeforeUnmount(() => props.alternatives.preview(null))
 
 function take(row: (typeof rows.value)[number]) {
   const index = props.alternatives.current.value?.span.index
@@ -39,17 +39,13 @@ function take(row: (typeof rows.value)[number]) {
 </script>
 
 <template>
-  <div class="mt-4 space-y-3">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-medium">{{ t('guidance.alternatives.title') }}</h3>
-      <Button variant="ghost" size="sm" @click="alternatives.preview(null); emit('done')">{{ t('guidance.ahead.done') }}</Button>
-    </div>
+  <div>
     <div v-if="alternatives.loading.value && !rows.length" class="py-6 text-center text-sm text-muted-foreground">…</div>
     <div v-else-if="!rows.length" class="py-6 text-center text-sm text-muted-foreground">{{ t('guidance.alternatives.empty') }}</div>
     <ol v-else class="divide-y">
       <li v-for="(row, i) in rows" :key="i">
         <button
-          class="flex w-full items-center gap-3 py-3 text-left"
+          class="flex w-full items-center gap-3 py-3.5 text-left"
           @pointerenter="alternatives.preview(row.isCurrent ? null : row.candidate.route)"
           @click="take(row)"
         >

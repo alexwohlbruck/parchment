@@ -14,6 +14,8 @@ const props = defineProps<{
   destination: string | null
   metric: boolean
   lanes?: LanePlan | null
+  /** The larger, arm's-length sizing of the wide layout. */
+  dash?: boolean
 }>()
 const { t } = useI18n()
 
@@ -33,32 +35,36 @@ const headline = computed(() => {
   if (props.status === 'rerouting') return t('guidance.banner.rerouting')
   return offRoute.value ? t('guidance.banner.offRoute') : null
 })
+const subline = computed(() => (props.status === 'arrived' ? props.destination : t('guidance.banner.offRouteHint')))
 </script>
 
 <template>
-  <div class="pointer-events-auto overflow-hidden rounded-2xl bg-zinc-900/95 text-white shadow-lg backdrop-blur">
-    <div v-if="!progress" class="px-4 py-3.5 text-base text-white/80">
+  <div>
+    <div v-if="!progress" class="px-5 py-5 text-lg text-muted-foreground">
       {{ t('guidance.waitingForLocation') }}
     </div>
-    <div v-else-if="headline" class="px-4 py-3.5">
-      <div class="text-lg font-semibold">{{ headline }}</div>
-      <div v-if="status === 'arrived' && destination" class="truncate text-sm text-white/70">{{ destination }}</div>
-      <div v-else-if="status !== 'arrived'" class="text-sm text-white/70">{{ t('guidance.banner.offRouteHint') }}</div>
+    <div v-else-if="headline" class="px-5 py-4">
+      <div class="font-display leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ headline }}</div>
+      <div v-if="subline" class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ subline }}</div>
     </div>
-    <div v-else-if="next" class="flex items-center gap-3.5 px-4 py-3">
-      <ManeuverIcon :kind="kind" :exit="next.instruction.exitNumber" class="size-11 shrink-0" />
-      <div class="min-w-0">
+    <div v-else-if="next" class="flex items-center" :class="dash ? 'gap-5 px-5 py-5' : 'gap-4 px-4 py-4'">
+      <ManeuverIcon :kind="kind" :exit="next.instruction.exitNumber" class="shrink-0" :class="dash ? 'size-16' : 'size-12'" />
+      <div class="min-w-0 flex-1">
         <div class="flex items-baseline gap-1 tabular-nums leading-none">
-          <span class="font-display text-[34px]">{{ distance.value }}</span>
-          <span class="text-lg text-white/75">{{ t(`guidance.units.${distance.unit}`) }}</span>
+          <span class="font-display" :class="dash ? 'text-[52px]' : 'text-[42px]'">{{ distance.value }}</span>
+          <span class="text-muted-foreground" :class="dash ? 'text-2xl' : 'text-xl'">{{ t(`guidance.units.${distance.unit}`) }}</span>
         </div>
-        <div class="mt-1 truncate text-lg font-medium leading-tight">{{ road }}</div>
+        <div class="mt-1.5 line-clamp-2 font-semibold leading-tight" :class="dash ? 'text-[26px]' : 'text-[22px]'">{{ road }}</div>
       </div>
     </div>
-    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" />
-    <div v-if="then && !headline" class="flex items-center gap-2 bg-white/10 px-4 py-1.5 text-sm">
-      <span class="text-white/75">{{ t('guidance.banner.then') }}</span>
-      <ManeuverIcon :kind="then" class="size-5" />
+    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" :dash="dash" />
+    <div
+      v-if="then && !headline"
+      class="flex items-center gap-2 border-t px-5 text-muted-foreground"
+      :class="dash ? 'py-2.5 text-lg' : 'py-2 text-base'"
+    >
+      <span>{{ t('guidance.banner.then') }}</span>
+      <ManeuverIcon :kind="then" class="text-foreground" :class="dash ? 'size-7' : 'size-6'" />
     </div>
   </div>
 </template>

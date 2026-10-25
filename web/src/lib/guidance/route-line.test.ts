@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
-import { routeGradient } from './route-line'
+import { laneOffset, routeGradient } from './route-line'
 import { polyline } from './test-routes'
 
 const walkThenDrive = buildNavRoute([
@@ -20,5 +20,14 @@ describe('routeGradient', () => {
 
   test('a finished route is all travelled', () => {
     expect(routeGradient(walkThenDrive, 1e6, color, 'grey')).toEqual(['step', ['line-progress'], 'grey', 1, 'grey'])
+  })
+})
+
+describe('laneOffset', () => {
+  test('a metre distance doubles in pixels with each zoom', () => {
+    const [, , , z10, px10, z22, px22] = laneOffset(1.8, 40) as [string, unknown, unknown, number, number, number, number]
+    expect([z10, z22]).toEqual([10, 22])
+    expect(px22 / px10).toBeCloseTo(2 ** 12)
+    expect(px22).toBeGreaterThan(50)
   })
 })

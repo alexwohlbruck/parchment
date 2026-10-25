@@ -3,7 +3,7 @@
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
 import type { NavRoute } from '@/lib/guidance/nav-route'
-import { maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
+import { laneOffset, maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
@@ -15,6 +15,10 @@ const HAZARDS = 'guidance-hazards'
 const TRAVELLED_COLOR = '#9ca3af'
 const TRAVELLED_CASE_COLOR = '#6b7280'
 const ARROW_COLOR = '#ffffff'
+/** Half a lane: a driven route runs in its lanes, not on the road's centre line. */
+const HALF_LANE_METERS = 1.8
+/** Radius the route turns through junctions with. */
+const CORNER_METERS = 8
 
 type Feature = GeoJSON.Feature<GeoJSON.Geometry>
 
@@ -35,8 +39,9 @@ export class GuidanceRouteLayer {
         id: `${ROUTE}-case`,
         type: 'line',
         source: ROUTE,
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        layout: { 'line-join': 'round', 'line-cap': 'round', 'line-rounded-corner-distance': CORNER_METERS } as never,
         paint: {
+          'line-offset': this.offset() as never,
           'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 6, 18, 22],
           'line-gradient': this.caseGradient(0) as never,
         },
@@ -48,8 +53,9 @@ export class GuidanceRouteLayer {
         id: ROUTE,
         type: 'line',
         source: ROUTE,
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        layout: { 'line-join': 'round', 'line-cap': 'round', 'line-rounded-corner-distance': CORNER_METERS } as never,
         paint: {
+          'line-offset': this.offset() as never,
           'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 4, 18, 16],
           'line-gradient': this.gradient(0) as never,
         },
@@ -137,7 +143,7 @@ export class GuidanceRouteLayer {
       this.lastManeuver = maneuverAt
       const features: Feature[] = []
       if (maneuverAt != null) {
-        const { shaft, head } = maneuverArrow(this.route, maneuverAt)
+        const { shaft, head } = maneuverArrow(this.route, maneuverAt, undefined, undefined, this.offsetMetres())
         features.push(
           { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: shaft.map(p => [p.lng, p.lat]) } },
           { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [head.map(p => [p.lng, p.lat])] } },
@@ -147,8 +153,18 @@ export class GuidanceRouteLayer {
     }
   }
 
+  /** Metres right of centre the route is drawn: driving only, as walking and cycling routes keep to paths. */
+  private offsetMetres(): number {
+    return this.route.segments.length > 0 && this.route.segments.every(s => s.mode === 'driving') ? HALF_LANE_METERS : 0
+  }
+
+  private offset() {
+    return laneOffset(this.offsetMetres(), this.route.points[0]?.lat ?? 0)
+  }
+
   setRoute(route: NavRoute): void {
     this.route = route
+    for (const id of [ROUTE, `${ROUTE}-case`]) if (this.map.getLayer(id)) this.map.setPaintProperty(id, 'line-offset', this.offset() as never)
     this.lastTravelled = -1
     this.lastManeuver = null
     ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())

@@ -56,6 +56,16 @@ const onTransit = computed(() => {
   return kind != null && kind !== 'to-stop'
 })
 
+const LANES_SHOW_METERS = 500
+const LANES_SHOW_SECONDS = 30
+const lanesShown = computed(() => {
+  const progress = guidance.progress
+  const next = progress?.next
+  if (!next || progress.distanceToNext == null) return null
+  const within = Math.max(LANES_SHOW_METERS, progress.puck.speed * LANES_SHOW_SECONDS)
+  return progress.distanceToNext <= within ? guidance.lanePlans.get(next.index) ?? null : null
+})
+
 const hazardAhead = computed(() => {
   const route = guidance.route
   const puck = guidance.progress?.puck
@@ -95,6 +105,7 @@ const labelStyle = computed(() => {
         :status="guidance.status"
         :destination="guidance.destinationLabel"
         :metric="metric"
+        :lanes="lanesShown"
         class="mx-auto max-w-xl"
       />
       <AlternativeOffer

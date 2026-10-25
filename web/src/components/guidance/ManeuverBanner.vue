@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
+import type { LanePlan } from '@/lib/guidance/lanes'
+import LaneStrip from './LaneStrip.vue'
 import type { GuidanceProgress, GuidanceStatus } from '@/stores/guidance.store'
 
 const props = defineProps<{
@@ -11,6 +13,7 @@ const props = defineProps<{
   status: GuidanceStatus
   destination: string | null
   metric: boolean
+  lanes?: LanePlan | null
 }>()
 const { t } = useI18n()
 
@@ -52,6 +55,7 @@ const headline = computed(() => {
         <div class="mt-1 truncate text-lg font-medium leading-tight">{{ road }}</div>
       </div>
     </div>
+    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" />
     <div v-if="then && !headline" class="flex items-center gap-2 bg-white/10 px-4 py-1.5 text-sm">
       <span class="text-white/75">{{ t('guidance.banner.then') }}</span>
       <ManeuverIcon :kind="then" class="size-5" />

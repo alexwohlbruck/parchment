@@ -4,6 +4,8 @@
 
 ### Changed
 
+* 3D bridge decks also keep up with map tiles that load again or load without notice.
+
 ### Fixed
 
 ## [0.16.8] - 2026-10-25

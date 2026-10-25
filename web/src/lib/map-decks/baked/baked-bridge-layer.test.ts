@@ -179,20 +179,49 @@ test('a tile index starts the view\'s meshes before its detail tiles list them, 
   layer.onRemove(map, gl)
 })
 
-test('draws the deck pieces a detail tile carries on the frame after it loads, fetching no meshes', async () => {
-  const { layer, map, gl, handlers } = setup()
+function tileMode(payload: Uint8Array) {
+  const env = setup()
   const [z, x, y] = [16, Math.floor(((-74 + 180) / 360) * 2 ** 16), Math.floor((0.5 - Math.log(Math.tan(Math.PI / 4 + (40.7 * Math.PI) / 360)) / (2 * Math.PI)) * 2 ** 16)]
-  const tile = { state: 'loaded', tileID: { canonical: { z, x, y } }, latestRawTileData: vectorTile(deckTile([new Uint8Array(bytes)])) }
-  Object.assign(map, {
+  const tile = { state: 'loaded', tileID: { canonical: { z, x, y } }, latestRawTileData: vectorTile(payload) }
+  Object.assign(env.map, {
     getSource: () => ({ tiles: ['https://example.test/tiles/detail/{z}/{x}/{y}?v=1&decks=1'] }),
     style: { tileManagers: { detail: { getRenderableIds: () => ['t'], getTileByID: () => tile } } },
   })
   vi.mocked(fetch).mockClear()
+  return { ...env, tile }
+}
+
+test('draws the deck pieces a detail tile carries on the frame after it loads, fetching no meshes', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
   handlers.get('sourcedata')!({ sourceId: 'detail', tile })
   await vi.runAllTimersAsync()
   layer.render(gl, frame)
   expect(uploadMesh).toHaveBeenCalledTimes(1)
   expect(layer.covered).toBe(true)
   expect(fetch).not.toHaveBeenCalled()
+  layer.onRemove(map, gl)
+})
+
+test('keeps the flat bridges where barrelman could not read a deck of the tile', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)], ['b'.repeat(64) + '.brm']))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(layer.covered).toBe(false)
+  layer.onRemove(map, gl)
+})
+
+test('reads a tile again once its pieces have been evicted', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  const [id] = (layer as any).parts.keys()
+  ;(layer as any).remove(id)
+  handlers.get('moveend')!()
+  await vi.runAllTimersAsync()
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(2)
+  expect(layer.covered).toBe(true)
   layer.onRemove(map, gl)
 })

@@ -72,7 +72,7 @@ export class BakedBridgeLayer {
   private failed = new Set<string>()
   private indexWarned = false
   /** Detail tiles in view at a deck zoom whose pieces are not decoded yet. */
-  private tilesWaiting = 0
+  private waitingTiles = new Set<string>()
   private scheduled?: ReturnType<typeof setTimeout>
   private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
@@ -193,7 +193,7 @@ export class BakedBridgeLayer {
     this.tileFailures.clear()
     this.drawnTiles.clear()
     this.tileMode = null
-    this.tilesWaiting = 0
+    this.waitingTiles.clear()
     this.tilesFailed = false
     this.routePending = null
     for (const id of this.parts.keys()) this.remove(id)
@@ -270,7 +270,7 @@ export class BakedBridgeLayer {
     this.pump()
   }
   private updateCover() {
-    const covered = deckCover(this.covered, { missing: this.missing, failed: this.tilesFailed || [...this.wanted].some(id => this.failed.has(id)), wanted: this.inView.size + this.tilesWaiting, resident: [...this.inView].filter(id => this.parts.has(id)).length, settled: this.settled })
+    const covered = deckCover(this.covered, { missing: this.missing, failed: this.tilesFailed || [...this.wanted].some(id => this.failed.has(id)), wanted: this.inView.size + this.waitingTiles.size, resident: [...this.inView].filter(id => this.parts.has(id)).length, settled: this.settled })
     // Objects, routes and shadows rebuild on each change, so a deck set that shifts mid-move waits for moveend.
     if (covered === this.covered && this.map?.isMoving?.()) return
     const flipped = covered !== this.covered
@@ -314,7 +314,7 @@ export class BakedBridgeLayer {
     if (id.z > DECK_TILE_ZOOMS.max) return this.readTile(deckTileOf(id))
     const raw: ArrayBuffer | undefined = tile.latestRawTileData
     const key = `${id.z}/${id.x}/${id.y}`
-    if (!raw || (this.tileRaw.get(key) === raw && (this.tilePieces.has(key) || this.tileTokens.has(key)))) return
+    if (!raw || (this.tileRaw.get(key) === raw && (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key)))) return
     this.tileRaw.set(key, raw)
     this.readPieces(key, raw)
   }
@@ -366,12 +366,13 @@ export class BakedBridgeLayer {
   private withoutPieces() {
     if (this.tileMode !== null) return
     this.tileMode = false
-    this.tilesWaiting = 0
+    this.waitingTiles.clear()
     this.changed()
   }
   private acceptTile(key: string, pieces: DeckPiece[]) {
     if (!this.map) return
     this.tileFailures.delete(key)
+    this.waitingTiles.delete(key)
     for (const old of this.tilePieces.get(key) ?? []) this.drop(old)
     const ids = pieces.map(({ file }) => `${key}|${file}`)
     this.tilePieces.set(key, ids)
@@ -417,7 +418,8 @@ export class BakedBridgeLayer {
     const drawn = [...tiles.keys()].filter(key => !childrenDrawn(key, tiles))
     this.drawnTiles = new Set(drawn)
     const wanted = new Set<string>(), inView = new Set<string>()
-    let waiting = 0, failed = false
+    const waiting = new Set<string>()
+    let failed = false
     for (const key of drawn) {
       const bounds = tileBounds(key)
       if (!meets(bounds, view)) continue
@@ -431,7 +433,7 @@ export class BakedBridgeLayer {
       if (!ids) {
         this.takeTile(tiles.get(key))
         if (meets(bounds, core)) {
-          waiting++
+          waiting.add(key)
           failed ||= this.recentlyFailed(key)
         }
         continue
@@ -449,7 +451,7 @@ export class BakedBridgeLayer {
     }
     this.wanted = wanted
     this.inView = inView
-    this.tilesWaiting = waiting
+    this.waitingTiles = waiting
     this.tilesFailed = failed
   }
 

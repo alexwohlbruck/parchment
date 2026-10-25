@@ -3,8 +3,8 @@ import { DECK_TILE_FIELD } from '../deck-tile'
 const file = `${'a'.repeat(64)}.brm`
 
 /** A deck tile as barrelman writes it: BDT1, its JSON header, each piece 4-byte aligned. */
-export function deckTile(pieces: Uint8Array[]): Uint8Array {
-  const text = new TextEncoder().encode(JSON.stringify({ decks: pieces.map(() => file), lengths: pieces.map(p => p.byteLength) }))
+export function deckTile(pieces: Uint8Array[], failed: string[] = []): Uint8Array {
+  const text = new TextEncoder().encode(JSON.stringify({ decks: pieces.map(() => file), lengths: pieces.map(p => p.byteLength), ...(failed.length ? { failed } : {}) }))
   const align = (n: number) => Math.ceil(n / 4) * 4
   const out = new Uint8Array(pieces.reduce((n, p) => align(n + p.byteLength), align(8 + text.length)))
   new DataView(out.buffer).setUint32(0, 0x31544442, true)

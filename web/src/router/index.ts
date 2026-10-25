@@ -165,12 +165,8 @@ const router = createRouter({
           path: '/navigate',
           name: AppRoute.GUIDANCE,
           component: () => import('@/views/guidance/Guidance.vue'),
-          meta: {
-            // The map is the point while navigating: guidance draws its own
-            // chrome, and the sheet rests as a bottom bar that opens a menu.
-            immersive: true,
-            sheet: { dismissable: false, snapPoints: ['120px', 0.7], defaultSnapIndex: 0 },
-          },
+          // Guidance takes over the whole screen: no rail, sheet or map chrome.
+          meta: { immersive: true },
         },
         {
           path: '/place/:type/:id',

@@ -117,7 +117,7 @@ const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
-  hideUI.value = route.meta?.hideUI ?? false
+  hideUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
 })
 
 // Global click handler for external links

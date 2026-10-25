@@ -1,21 +1,40 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TriangleAlertIcon } from 'lucide-vue-next'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
-import type { NavHazard } from '@/lib/guidance/nav-route'
+import { upcomingHazard } from '@/lib/guidance/hazards'
+import { useGuidanceStore } from '@/stores/guidance.store'
+import { useGuidanceContext } from './context'
 
-const props = defineProps<{ hazard: NavHazard; distance: number; metric: boolean }>()
 const { t } = useI18n()
-const spoken = () => bannerDistance(props.distance, props.metric)
+const guidance = useGuidanceStore()
+const { metric } = useGuidanceContext()
+
+const ahead = computed(() => {
+  const route = guidance.route
+  const puck = guidance.progress?.puck
+  if (!route || !puck?.snapped || guidance.status !== 'navigating') return null
+  const hazard = upcomingHazard(route, puck.s, puck.speed)
+  return hazard && { ...hazard, distance: bannerDistance(hazard.distance, metric.value) }
+})
 </script>
 
 <template>
-  <div
-    class="pointer-events-auto mx-auto mt-2 flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium shadow-md"
-    :class="hazard.severity === 'high' ? 'bg-amber-400 text-zinc-950' : 'bg-background text-foreground'"
+  <Transition
+    enter-active-class="transition duration-200 ease-out"
+    enter-from-class="opacity-0 -translate-y-1"
+    leave-active-class="transition duration-150 ease-in"
+    leave-to-class="opacity-0 -translate-y-1"
   >
-    <TriangleAlertIcon class="size-4" />
-    <span>{{ t(`guidance.hazards.${hazard.kind}`) }}</span>
-    <span class="tabular-nums opacity-70">{{ spoken().value }} {{ t(`guidance.units.${spoken().unit}`) }}</span>
-  </div>
+    <div
+      v-if="ahead"
+      class="pointer-events-auto flex w-fit items-center gap-2 rounded-full px-3.5 py-2 text-[15px] font-semibold shadow-lg"
+      :class="ahead.hazard.severity === 'high' ? 'bg-amber-400 text-zinc-950' : 'nav-surface dark bg-background/95'"
+    >
+      <TriangleAlertIcon class="size-4" />
+      <span>{{ t(`guidance.hazards.${ahead.hazard.kind}`) }}</span>
+      <span class="tabular-nums opacity-70">{{ ahead.distance.value }} {{ t(`guidance.units.${ahead.distance.unit}`) }}</span>
+    </div>
+  </Transition>
 </template>

@@ -1256,7 +1256,7 @@
       "autoSwitchDocks": "Switch bike share stations",
       "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes"
     },
-    "exitShort": "Exit",
+    "exitShort": "End",
     "banner": {
       "arrive": "Your destination",
       "then": "Then",
@@ -1285,10 +1285,16 @@
     },
     "menu": {
       "searchAlongRoute": "Search along route",
+      "search": "Search",
       "addStop": "Add stop",
       "report": "Report",
       "steps": "Steps",
-      "routes": "Routes"
+      "routes": "Routes",
+      "title": "Options",
+      "back": "Back",
+      "close": "Close",
+      "show": "Show trip options",
+      "hide": "Hide trip options"
     },
     "startLeg": "Start leg {leg}",
     "arrival": {
@@ -1461,8 +1467,7 @@
       "add": "Add stop",
       "empty": "Nothing found along the route",
       "failed": "Search is unavailable right now",
-      "addFailed": "Could not add that stop",
-      "done": "Done"
+      "addFailed": "Could not add that stop"
     },
     "docks": {
       "docks": "{n} dock | {n} docks",

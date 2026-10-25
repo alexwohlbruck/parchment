@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { BikeIcon, BugIcon, CarFrontIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon } from 'lucide-vue-next'
+import { BikeIcon, BugIcon, CarFrontIcon, FlaskConicalIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
@@ -18,7 +18,12 @@ import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
 import type { NavRoute } from '@/lib/guidance/nav-route'
 
-const props = defineProps<{ alternatives?: { check: () => Promise<void> }; itinerary?: { check: () => Promise<void> } }>()
+const props = defineProps<{
+  /** Which way the panel opens from its pill. */
+  placement: 'above' | 'below'
+  alternatives?: { check: () => Promise<void> }
+  itinerary?: { check: () => Promise<void> }
+}>()
 
 const RATES = [1, 2, 4, 8, 16]
 const TUNING_RANGES: Record<keyof CameraTuning, [min: number, max: number, step: number]> = {
@@ -31,6 +36,7 @@ const TUNING_RANGES: Record<keyof CameraTuning, [min: number, max: number, step:
   lookAheadSeconds: [1, 12, 0.5],
   lookAheadMaxDeg: [0, 90, 5],
 }
+const open = ref(false)
 const tuningOpen = ref(false)
 
 const guidance = useGuidanceStore()
@@ -165,78 +171,92 @@ function toggleDebug() {
 </script>
 
 <template>
-  <div v-if="guidance.isActive" class="flex flex-wrap items-center gap-1.5 rounded-xl border border-dashed p-2">
-    <Button v-if="sim.status === 'stopped'" size="sm" variant="secondary" @click="simulate">
-      <CarFrontIcon class="size-4" />
-      Simulate
-    </Button>
-    <template v-else>
-      <Button
-        size="icon-sm"
-        variant="secondary"
-        @click="sim.status === 'playing' ? simulatorStore.pause() : simulatorStore.play()"
-      >
-        <PauseIcon v-if="sim.status === 'playing'" class="size-4" />
-        <PlayIcon v-else class="size-4" />
+  <div v-if="guidance.isActive" class="pointer-events-auto relative">
+    <button
+      class="flex h-8 items-center gap-1.5 rounded-full border border-dashed border-amber-500/60 bg-background/90 px-3 text-xs font-medium shadow-md backdrop-blur"
+      :class="open && 'bg-amber-100 dark:bg-amber-950'"
+      @click="open = !open"
+    >
+      <FlaskConicalIcon class="size-3.5" />
+      <span v-if="sim.status !== 'stopped'" class="tabular-nums">{{ sim.playbackRate }}×</span>
+    </button>
+    <div
+      v-if="open"
+      class="absolute right-0 flex w-[min(22rem,calc(100vw-1.5rem))] flex-wrap items-center gap-1.5 rounded-2xl border border-dashed border-amber-500/60 bg-background p-2 shadow-xl"
+      :class="placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2'"
+    >
+      <Button v-if="sim.status === 'stopped'" size="sm" variant="secondary" @click="simulate">
+        <CarFrontIcon class="size-4" />
+        Simulate
       </Button>
-      <Button
-        v-for="rate in RATES"
-        :key="rate"
-        size="sm"
-        :variant="sim.playbackRate === rate ? 'default' : 'ghost'"
-        class="px-2 tabular-nums"
-        @click="simulatorStore.setRate(rate)"
-      >
-        {{ rate }}×
-      </Button>
-      <Button size="icon-sm" variant="ghost" title="Check routes" @click="props.alternatives?.check()">
-        <RouteIcon class="size-4" />
-      </Button>
-      <Button v-if="guidance.segments.some(s => s.mode === 'transit')" size="icon-sm" variant="ghost" title="Check transit plans" @click="props.itinerary?.check()">
-        <TrainFrontIcon class="size-4" />
-      </Button>
-      <Button size="icon-sm" variant="ghost" title="Take a wrong turn" @click="takeWrongTurn">
-        <SplitIcon class="size-4" />
-      </Button>
-      <Button
-        v-if="guidance.transit?.kind === 'wait' || guidance.transit?.kind === 'to-stop'"
-        size="icon-sm"
-        variant="ghost"
-        title="Wait too long"
-        @click="waitTooLong"
-      >
-        <HourglassIcon class="size-4" />
-      </Button>
-      <Button size="sm" :variant="dockForcing === 'filling' ? 'default' : 'ghost'" class="px-2" title="Dock filling" @click="forceDock('filling')">
-        <BikeIcon class="size-4" />↓
-      </Button>
-      <Button size="sm" :variant="dockForcing === 'full' ? 'default' : 'ghost'" class="px-2" title="Dock full" @click="forceDock('full')">
-        <BikeIcon class="size-4" />0
-      </Button>
-      <Button v-if="guidance.transit?.kind === 'riding'" size="icon-sm" variant="ghost" title="Stay on board" @click="stayOnBoard">
-        <TrainFrontIcon class="size-4" />
-      </Button>
-    </template>
-    <Button size="icon-sm" :variant="tuningOpen ? 'default' : 'ghost'" class="ml-auto" @click="tuningOpen = !tuningOpen">
-      <SlidersHorizontalIcon class="size-4" />
-    </Button>
-    <Button size="icon-sm" :variant="debugOn ? 'default' : 'ghost'" @click="toggleDebug">
-      <BugIcon class="size-4" />
-    </Button>
-    <div v-if="tuningOpen" class="grid w-full grid-cols-[auto_1fr_3rem] items-center gap-x-2 gap-y-1 pt-1 text-xs">
-      <template v-for="(range, key) in TUNING_RANGES" :key="key">
-        <span class="text-muted-foreground">{{ key }}</span>
-        <input
-          v-model.number="guidance.cameraTuning[key]"
-          type="range"
-          :min="range[0]"
-          :max="range[1]"
-          :step="range[2]"
-        />
-        <button class="tabular-nums text-right" @click="guidance.cameraTuning[key] = DEFAULT_CAMERA_TUNING[key]">
-          {{ guidance.cameraTuning[key] }}
-        </button>
+      <template v-else>
+        <Button
+          size="icon-sm"
+          variant="secondary"
+          @click="sim.status === 'playing' ? simulatorStore.pause() : simulatorStore.play()"
+        >
+          <PauseIcon v-if="sim.status === 'playing'" class="size-4" />
+          <PlayIcon v-else class="size-4" />
+        </Button>
+        <Button
+          v-for="rate in RATES"
+          :key="rate"
+          size="sm"
+          :variant="sim.playbackRate === rate ? 'default' : 'ghost'"
+          class="px-2 tabular-nums"
+          @click="simulatorStore.setRate(rate)"
+        >
+          {{ rate }}×
+        </Button>
+        <Button size="icon-sm" variant="ghost" title="Check routes" @click="props.alternatives?.check()">
+          <RouteIcon class="size-4" />
+        </Button>
+        <Button v-if="guidance.segments.some(s => s.mode === 'transit')" size="icon-sm" variant="ghost" title="Check transit plans" @click="props.itinerary?.check()">
+          <TrainFrontIcon class="size-4" />
+        </Button>
+        <Button size="icon-sm" variant="ghost" title="Take a wrong turn" @click="takeWrongTurn">
+          <SplitIcon class="size-4" />
+        </Button>
+        <Button
+          v-if="guidance.transit?.kind === 'wait' || guidance.transit?.kind === 'to-stop'"
+          size="icon-sm"
+          variant="ghost"
+          title="Wait too long"
+          @click="waitTooLong"
+        >
+          <HourglassIcon class="size-4" />
+        </Button>
+        <Button size="sm" :variant="dockForcing === 'filling' ? 'default' : 'ghost'" class="px-2" title="Dock filling" @click="forceDock('filling')">
+          <BikeIcon class="size-4" />↓
+        </Button>
+        <Button size="sm" :variant="dockForcing === 'full' ? 'default' : 'ghost'" class="px-2" title="Dock full" @click="forceDock('full')">
+          <BikeIcon class="size-4" />0
+        </Button>
+        <Button v-if="guidance.transit?.kind === 'riding'" size="icon-sm" variant="ghost" title="Stay on board" @click="stayOnBoard">
+          <TrainFrontIcon class="size-4" />
+        </Button>
       </template>
+      <Button size="icon-sm" :variant="tuningOpen ? 'default' : 'ghost'" class="ml-auto" @click="tuningOpen = !tuningOpen">
+        <SlidersHorizontalIcon class="size-4" />
+      </Button>
+      <Button size="icon-sm" :variant="debugOn ? 'default' : 'ghost'" @click="toggleDebug">
+        <BugIcon class="size-4" />
+      </Button>
+      <div v-if="tuningOpen" class="grid w-full grid-cols-[auto_1fr_3rem] items-center gap-x-2 gap-y-1 pt-1 text-xs">
+        <template v-for="(range, key) in TUNING_RANGES" :key="key">
+          <span class="text-muted-foreground">{{ key }}</span>
+          <input
+            v-model.number="guidance.cameraTuning[key]"
+            type="range"
+            :min="range[0]"
+            :max="range[1]"
+            :step="range[2]"
+          />
+          <button class="tabular-nums text-right" @click="guidance.cameraTuning[key] = DEFAULT_CAMERA_TUNING[key]">
+            {{ guidance.cameraTuning[key] }}
+          </button>
+        </template>
+      </div>
     </div>
   </div>
 </template>

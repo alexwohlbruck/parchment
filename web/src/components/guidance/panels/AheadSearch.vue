@@ -99,24 +99,20 @@ async function add(result: AheadResult) {
 </script>
 
 <template>
-  <div class="mt-4 space-y-3">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-medium">{{ t('guidance.ahead.title') }}</h3>
-      <Button variant="ghost" size="sm" @click="emit('done')">{{ t('guidance.ahead.done') }}</Button>
-    </div>
+  <div class="space-y-3">
 
     <form class="relative" @submit.prevent="submit">
       <SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input v-model="query" class="h-11 rounded-full pl-9" :placeholder="t('guidance.ahead.placeholder')" enterkeyhint="search" />
     </form>
 
-    <div class="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+    <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
       <Button
         v-for="key in categories"
         :key="key"
         size="sm"
         :variant="active === key ? 'default' : 'secondary'"
-        class="shrink-0 gap-1.5 rounded-full"
+        class="h-10 shrink-0 gap-1.5 rounded-full px-4"
         @click="pick(key)"
       >
         <component :is="ICONS[key]" class="size-4" />
@@ -130,7 +126,7 @@ async function add(result: AheadResult) {
       {{ t('guidance.ahead.empty') }}
     </div>
     <ol v-else class="divide-y">
-      <li v-for="(result, i) in results" :key="result.place.id" class="flex items-center gap-3 py-2.5">
+      <li v-for="(result, i) in results" :key="result.place.id" class="flex items-center gap-3 py-3">
         <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
           {{ i + 1 }}
         </span>
@@ -149,7 +145,7 @@ async function add(result: AheadResult) {
             {{ distance(result.alongDistance) }}<template v-if="detour(result)"> · {{ detour(result) }}</template>
           </div>
         </div>
-        <Button size="sm" variant="secondary" class="shrink-0 rounded-full" :disabled="adding != null" @click="add(result)">
+        <Button variant="secondary" class="h-10 shrink-0 rounded-full px-4" :disabled="adding != null" @click="add(result)">
           {{ t('guidance.ahead.add') }}
         </Button>
       </li>

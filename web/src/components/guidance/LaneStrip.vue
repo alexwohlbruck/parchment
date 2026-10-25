@@ -4,7 +4,7 @@ import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import type { LaneArrow, LanePlan } from '@/lib/guidance/lanes'
 
-defineProps<{ plan: LanePlan }>()
+defineProps<{ plan: LanePlan; dash?: boolean }>()
 const { t } = useI18n()
 
 const ICON: Record<LaneArrow, ManeuverKind> = {
@@ -18,18 +18,19 @@ const ICON: Record<LaneArrow, ManeuverKind> = {
 </script>
 
 <template>
-  <div class="flex items-center justify-center gap-1 bg-white/10 px-3 py-1.5" role="img" :aria-label="t('guidance.lanes.label')">
+  <div class="flex items-center justify-center gap-1 border-t bg-muted/60 px-3 py-2" role="img" :aria-label="t('guidance.lanes.label')">
     <div
       v-for="(lane, i) in plan.lanes"
       :key="i"
-      class="relative flex size-9 items-center justify-center rounded-md"
-      :class="[lane.recommended ? 'bg-white/20' : '', lane.valid ? 'text-white' : 'text-white/30']"
+      class="relative flex items-center justify-center rounded-lg"
+      :class="[dash ? 'size-12' : 'size-10', lane.recommended && 'bg-foreground/15', lane.valid ? 'text-foreground' : 'text-foreground/30']"
     >
       <ManeuverIcon
         v-for="arrow in lane.arrows"
         :key="arrow"
         :kind="ICON[arrow]"
-        class="absolute size-6"
+        class="absolute"
+        :class="dash ? 'size-8' : 'size-7'"
       />
     </div>
   </div>

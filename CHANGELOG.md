@@ -19,6 +19,7 @@
 * Driving navigation shows which lanes to use before a turn, from the arrows painted on the road, and says it too. The route line now sits in your travel lanes and curves through junctions.
 * Driving navigation draws your route in the lane to take, moving across before each turn, with lane guidance from the road's mapped lanes where it is known. In countries that drive on the left, the route keeps left.
 * Cycling routes run down the bike lane where a street has one, or just inside the outer traffic lane where it doesn't. Separate bike paths keep their own line, and your position arrow rides in the lane with it.
+* Navigation takes over the whole screen: a large turn card and a swipe-up trip card on phones, and a car-dashboard column with big buttons on wider screens. The rest of the app returns when you end.
 
 ### Changed
 

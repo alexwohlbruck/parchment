@@ -368,3 +368,21 @@ test('starts reading a tile MapLibre is loading without having said so, at the n
   expect(fetch).toHaveBeenCalledTimes(1)
   layer.onRemove(map, gl)
 })
+
+test('a tile MapLibre reloads after a read alongside its first load is read afresh', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Chrome' })
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  const l = layer as any
+  const first = l.tilePieces.values().next().value
+  tile.latestRawTileData = vectorTile(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  expect(l.tilePieces.values().next().value).not.toBe(first)
+  expect(l.readAhead.size).toBe(0)
+  layer.onRemove(map, gl)
+})

@@ -95,9 +95,9 @@ export class BakedBridgeLayer {
   /** Raw tile data already read, as MapLibre reports a tile again for other reasons. */
   private tilesRead = new WeakSet<ArrayBuffer>()
   /** Reads started alongside MapLibre's own load of a tile, by the deck-zoom tile, with how many loading tiles they serve. */
-  private readAhead = new Map<string, { controller: AbortController; users: number }>()
-  /** Loading tiles a read alongside has been started for. */
-  private alongside = new WeakSet<object>()
+  private readAhead = new Map<string, Alongside>()
+  /** The read alongside each loading tile holds. */
+  private alongside = new WeakMap<object, Alongside>()
   /** Reads in flight by tile, the newest one's token. */
   private tileTokens = new Map<string, number>()
   private tileReads = 0
@@ -178,29 +178,33 @@ export class BakedBridgeLayer {
     // WebKit fetches the same tile twice rather than share one response: there the pieces are read once MapLibre has the tile.
     if (id.z <= DECK_TILE_ZOOMS.max && !sharesFetches()) return
     const key = deckTileOf(id)
-    const ahead = this.readAhead.get(key)
-    if (ahead) {
-      ahead.users++
-      this.alongside.add(tile)
-      return
+    let entry = this.readAhead.get(key)
+    if (!entry) {
+      const controller = new AbortController()
+      const token = this.readTile(key, controller.signal)
+      if (token === null) return
+      entry = { key, token, controller, users: 0 }
+      this.readAhead.set(key, entry)
     }
-    const controller = new AbortController()
-    if (!this.readTile(key, controller.signal)) return
-    this.readAhead.set(key, { controller, users: 1 })
-    this.alongside.add(tile)
+    entry.users++
+    this.alongside.set(tile, entry)
   }
   /** MapLibre dropped a tile before it loaded: the read alongside it stops once no tile it serves is loading. */
   private aborted = (event: { sourceId?: string; tile?: any }) => {
-    const id = event.tile?.tileID?.canonical
-    if (event.sourceId !== this.sources.profiles?.source || !id || !this.alongside.delete(event.tile)) return
-    const key = deckTileOf(id)
-    const ahead = this.readAhead.get(key)
-    if (!ahead || --ahead.users > 0) return
-    this.readAhead.delete(key)
-    if (this.tileTokens.has(key)) {
-      ahead.controller.abort()
-      this.tileTokens.delete(key)
+    if (event.sourceId === this.sources.profiles?.source) this.release(event.tile, true)
+  }
+  /** A tile done loading, or dropped (`abort`): it lets go of the read alongside it, which ends once no loading tile holds it. */
+  private release(tile: any, abort: boolean): Alongside | null {
+    const entry = tile && this.alongside.get(tile)
+    if (!entry) return null
+    this.alongside.delete(tile)
+    if (--entry.users > 0) return entry
+    if (this.readAhead.get(entry.key) === entry) this.readAhead.delete(entry.key)
+    if (abort && this.tileTokens.get(entry.key) === entry.token) {
+      entry.controller.abort()
+      this.tileTokens.delete(entry.key)
     }
+    return entry
   }
   private moving = () => {
     if (performance.now() - this.lastSync < MOVING_SYNC_MS) return
@@ -375,24 +379,26 @@ export class BakedBridgeLayer {
   private takeTile(tile: any) {
     const id = tile?.tileID?.canonical
     if (!id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
+    const alongside = this.release(tile, false)
     // Past the source's maxzoom MapLibre cuts tiles from a deck-zoom one and drops what it does not read: that one is in the HTTP cache.
-    if (id.z > DECK_TILE_ZOOMS.max) return this.readTile(deckTileOf(id))
+    if (id.z > DECK_TILE_ZOOMS.max) return void this.readTile(deckTileOf(id))
     // Out of the decks' reach: read if the view comes to want it.
     if (!this.reaches(`${id.z}/${id.x}/${id.y}`)) return
     const raw: ArrayBuffer | undefined = tile.latestRawTileData
     const key = `${id.z}/${id.x}/${id.y}`
-    if (!raw || this.tileTokens.has(key)) return
+    if (!raw) return
+    // Read alongside this very load, from the same response: in flight, or done.
+    if (alongside && (this.tileTokens.get(key) === alongside.token || this.tilePieces.has(key))) return void this.tilesRead.add(raw)
+    if (this.tileTokens.has(key)) return
     if (this.tilesRead.has(raw) && (this.tilePieces.has(key) || this.tileFailures.has(key))) return
     this.tilesRead.add(raw)
-    // Read as it loaded, from the same response; a tile reloaded later (expired, or its url changed) is read afresh.
-    if (this.readAhead.delete(key) && this.tilePieces.has(key)) return
     this.readPieces(key, raw)
   }
-  /** Fetch a deck-zoom tile and read its pieces; false where there is nothing to start. */
-  private readTile(key: string, signal?: AbortSignal): boolean {
-    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return false
+  /** Fetch a deck-zoom tile and read its pieces: the read's token, or null where there is nothing to start. */
+  private readTile(key: string, signal?: AbortSignal): number | null {
+    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return null
     const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
-    if (!template) return false
+    if (!template) return null
     const [z, x, y] = key.split('/')
     const token = this.begin(key)
     const reload = this.tileFailures.has(key)
@@ -410,7 +416,7 @@ export class BakedBridgeLayer {
         }
         this.tileFailed(key, token, error)
       })
-    return true
+    return token
   }
   /** MapLibre's loaded copy of a deck-zoom tile, if it has one. */
   private loadedTile(key: string): any {
@@ -507,8 +513,8 @@ export class BakedBridgeLayer {
     if (!this.map || this.tilePieces.get(key) !== ids) return
     for (const id of ids) this.drop(id)
     this.tilePieces.delete(key)
-    const token = this.begin(key)
-    this.tileFailed(key, token, error)
+    // A fresh read already under way stands in for the retry.
+    if (!this.tileTokens.has(key)) this.tileFailed(key, this.begin(key), error)
   }
   /** The surfaces a tile's pieces stand on, read after the pieces themselves: given to them wherever they now are. */
   private takeGeometry(key: string, ids: string[], surfaces: Array<MeshGeometry | null>) {
@@ -553,8 +559,8 @@ export class BakedBridgeLayer {
       const c = tile?.tileID?.canonical
       if (c && c.z >= DECK_TILE_ZOOMS.min) tiles.set(deckTileOf(c), tile)
     }
-    // A tile MapLibre is (again) loading without saying so, or one that only now comes within the decks' reach.
-    for (const id of manager?.getIds?.() ?? []) {
+    // A tile whose load was not announced (a reload after an error), or one that only now comes within the decks' reach.
+    if (sharesFetches()) for (const id of manager?.getIds?.() ?? []) {
       const tile = manager.getTileByID(id)
       if (tile?.state === 'loading') this.readAlongside(tile)
     }
@@ -885,6 +891,9 @@ const distanceOutside = (b: Bounds, [x, y]: Point) => Math.hypot(Math.max(b.minX
 
 /** Detail tile urls that ask barrelman for deck pieces. */
 export const DECK_PIECES_ASKED = /[?&]decks=1(&|$)/
+/** A read of a deck-zoom tile started alongside MapLibre's load of it, and how many loading tiles hold it. */
+type Alongside = { key: string; token: number; controller: AbortController; users: number }
+
 /** Whether the browser answers two requests for one url at once with one download: true but for WebKit. */
 const sharesFetches = () => typeof navigator === 'undefined' || !/AppleWebKit/.test(navigator.userAgent) || /Chrome|Chromium|Edg/.test(navigator.userAgent)
 

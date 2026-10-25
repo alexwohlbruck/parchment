@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { CameraIcon, ScanEyeIcon } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { BikeIcon, CameraIcon, ScanEyeIcon } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 
 const { preferences } = storeToRefs(useGuidanceStore())
+const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
 </script>
 
 <template>
@@ -41,6 +46,14 @@ const { preferences } = storeToRefs(useGuidanceStore())
           </SelectGroup>
         </SelectContent>
       </Select>
+    </SettingsItem>
+    <SettingsItem
+      v-if="premium"
+      :title="$t('guidance.settings.autoSwitchDocks')"
+      :description="$t('guidance.settings.autoSwitchDocksDescription')"
+      :icon="BikeIcon"
+    >
+      <Switch v-model="preferences.autoSwitchDocks" />
     </SettingsItem>
   </SettingsSection>
 </template>

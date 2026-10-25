@@ -32,6 +32,7 @@ export type Announcement =
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
   | { kind: 'reroute' }
+  | { kind: 'dock-switch'; station: string }
   | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
 
 /** Turn prompts are guidance; everything else is an alert, spoken in "alerts only" too. */

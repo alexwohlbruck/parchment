@@ -1252,7 +1252,9 @@
       "cameraMode": "Camera",
       "cameraModeDescription": "How the map follows you while navigating",
       "bearingMode": "Camera direction",
-      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading"
+      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading",
+      "autoSwitchDocks": "Switch bike share stations",
+      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes"
     },
     "exitShort": "Exit",
     "banner": {
@@ -1451,6 +1453,23 @@
       "failed": "Search is unavailable right now",
       "addFailed": "Could not add that stop",
       "done": "Done"
+    },
+    "docks": {
+      "docks": "{n} dock | {n} docks",
+      "bikes": "{n} bike | {n} bikes",
+      "atRisk": {
+        "dock": "{station} may be full when you arrive",
+        "bike": "{station} may run out of bikes"
+      },
+      "gone": {
+        "dock": "{station} is full",
+        "bike": "{station} has no bikes"
+      },
+      "switchTo": "Switch to {station}",
+      "keep": "Keep",
+      "voice": {
+        "switched": "Switching to {station}"
+      }
     }
   },
   "attribution": {

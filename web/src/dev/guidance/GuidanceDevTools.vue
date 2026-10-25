@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon, HourglassIcon, TrainFrontIcon } from 'lucide-vue-next'
+import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon, HourglassIcon, TrainFrontIcon, BikeIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
@@ -13,6 +13,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { attachGuidanceDebug } from './guidance-debug-layer'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
+import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
 import type { NavRoute } from '@/lib/guidance/nav-route'
 
@@ -47,6 +48,7 @@ onBeforeUnmount(() => {
   unsubscribe?.()
   detachDebug?.()
   guidanceClock.reset()
+  setDevStationOverride(null)
   simulatorStore.unload()
 })
 
@@ -93,6 +95,19 @@ function waitTooLong() {
   if (stage?.kind !== 'wait' && stage?.kind !== 'to-stop') return
   simulatorStore.pause()
   guidanceClock.advance(stage.departureMs + MISSED_GRACE_MS + 5000 - guidanceClock.now())
+}
+
+const dockForcing = ref<'filling' | 'full' | null>(null)
+
+/** Each poll the station loses two bikes and docks, or has none at all. */
+function forceDock(kind: 'filling' | 'full') {
+  dockForcing.value = dockForcing.value === kind ? null : kind
+  if (!dockForcing.value) return setDevStationOverride(null)
+  let left = 7
+  setDevStationOverride(status => {
+    left = kind === 'full' ? 0 : Math.max(0, left - 2)
+    return { ...status, bikes: left, docks: left }
+  })
 }
 
 function stayOnBoard() {
@@ -173,6 +188,12 @@ function toggleDebug() {
         @click="waitTooLong"
       >
         <HourglassIcon class="size-4" />
+      </Button>
+      <Button size="sm" :variant="dockForcing === 'filling' ? 'default' : 'ghost'" class="px-2" title="Dock filling" @click="forceDock('filling')">
+        <BikeIcon class="size-4" />↓
+      </Button>
+      <Button size="sm" :variant="dockForcing === 'full' ? 'default' : 'ghost'" class="px-2" title="Dock full" @click="forceDock('full')">
+        <BikeIcon class="size-4" />0
       </Button>
       <Button v-if="guidance.transit?.kind === 'riding'" size="icon-sm" variant="ghost" title="Stay on board" @click="stayOnBoard">
         <TrainFrontIcon class="size-4" />

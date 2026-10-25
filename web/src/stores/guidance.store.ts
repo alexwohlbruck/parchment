@@ -12,6 +12,7 @@ import {
 import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
@@ -55,6 +56,7 @@ export interface GuidancePreferences {
   bearingMode: BearingMode
   /** Per travel mode: walkers mostly want quiet, drivers want every turn. */
   sound: Record<string, SoundMode>
+  autoSwitchDocks: boolean
 }
 
 export interface GuidanceProgress extends ProgressSummary {
@@ -136,7 +138,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' } },
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true },
     undefined,
     { mergeDefaults: true },
   )
@@ -249,20 +251,43 @@ export const useGuidanceStore = defineStore('guidance', () => {
         mode: segment.mode,
       })
       if (!fresh || route.value !== navRoute) return
-      segments.value = spliceReroute(segments.value, index, fresh)
-      const next = markRaw(buildNavRoute(segments.value.map(withBoardingStep)))
-      route.value = next
-      guidanceEngine.setRoute(next)
-      announcer?.setRoute(next)
-      settledHandoffs = new Set()
-      handoff.value = null
-      furthestS = 0
-      placeRides(next)
+      reshape(spliceReroute(segments.value, index, fresh))
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
       if (status.value === 'rerouting') status.value = 'navigating'
     }
+  }
+
+  /** Swaps in a replanned leg mid-guidance, keeping the announcer's progress. */
+  function reshape(next: LegSegment[]) {
+    segments.value = next
+    const navRoute = markRaw(buildNavRoute(next.map(withBoardingStep)))
+    route.value = navRoute
+    guidanceEngine.setRoute(navRoute)
+    announcer?.setRoute(navRoute)
+    settledHandoffs = new Set()
+    handoff.value = null
+    furthestS = 0
+    placeRides(navRoute)
+  }
+
+  /** Heads for a different bike share station; the segments either side of it are replanned. */
+  async function switchDock(boundary: number, station: StationSwitch): Promise<boolean> {
+    const navRoute = route.value
+    const puck = guidanceEngine.sample()
+    const before = segments.value[boundary]
+    const after = segments.value[boundary + 1]
+    const end = after?.geometry?.at(-1)
+    if (!navRoute || !puck || !before || !after || !end) return false
+    const [into, outOf] = await Promise.all([
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, destination: station.location, mode: before.mode }),
+      requestReroute({ position: station.location, heading: null, destination: end, mode: after.mode }),
+    ])
+    if (!into || !outOf || route.value !== navRoute) return false
+    reshape(switchStation(segments.value.slice(boundary), 0, into, outOf, station))
+    announce({ kind: 'dock-switch', station: station.name }, puck.s)
+    return true
   }
 
   async function start(option: TripOption, leg: number) {
@@ -391,5 +416,6 @@ export const useGuidanceStore = defineStore('guidance', () => {
     catchNextRun,
     clockMs,
     addStop,
+    switchDock,
   }
 })

@@ -11,6 +11,7 @@
 * Multimodal navigation pauses at each mode change, telling you to park, lock your bike or board, and continues on its own after a short countdown.
 * Navigation now guides transit trips: a countdown to your departure, the stops left on board, and a get-off alert before your stop. If you miss the bus or your stop, it offers the next departure or another way.
 * Search along your route while navigating, for gas, charging, coffee, restrooms and more, with how much time each detour adds. Add one as a stop and navigation routes you there first.
+* Bike share trips keep an eye on your station: if it is filling up or running out of bikes, navigation offers a nearby one, or switches for you when it's empty or full.
 
 ### Changed
 

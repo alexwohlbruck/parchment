@@ -1218,7 +1218,9 @@
       "cameraMode": "Cámara",
       "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
       "bearingMode": "Dirección de la cámara",
-      "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección"
+      "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección",
+      "autoSwitchDocks": "Cambiar de estación",
+      "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis"
     },
     "exitShort": "Salir",
     "banner": {
@@ -1417,6 +1419,23 @@
       "failed": "La búsqueda no está disponible ahora",
       "addFailed": "No se pudo añadir la parada",
       "done": "Listo"
+    },
+    "docks": {
+      "docks": "{n} anclaje | {n} anclajes",
+      "bikes": "{n} bici | {n} bicis",
+      "atRisk": {
+        "dock": "Puede que {station} esté llena cuando llegues",
+        "bike": "Puede que {station} se quede sin bicis"
+      },
+      "gone": {
+        "dock": "{station} está llena",
+        "bike": "{station} no tiene bicis"
+      },
+      "switchTo": "Cambiar a {station}",
+      "keep": "Mantener",
+      "voice": {
+        "switched": "Cambiando a {station}"
+      }
     }
   },
   "attribution": {

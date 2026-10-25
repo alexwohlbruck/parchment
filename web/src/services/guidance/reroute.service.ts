@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import type { LngLat } from '@/types/map.types'
 import type { RouteEdgeSegment, RouteInstruction } from '@/types/directions.types'
+import type { RouteMetrics } from '@/lib/guidance/alternatives'
 
 export interface RerouteSegment {
   mode: string
@@ -35,4 +36,23 @@ export async function requestReroute(params: {
     mode: SERVER_MODES[params.mode],
   })
   return data?.segment ?? null
+}
+
+export interface AlternativeSegment extends RerouteSegment {
+  metrics: RouteMetrics
+}
+
+export async function requestAlternatives(params: {
+  position: LngLat
+  heading: number | null
+  destination: LngLat
+  mode: string
+}): Promise<AlternativeSegment[]> {
+  const { data } = await api.post('/directions/alternatives', {
+    position: params.position,
+    heading: params.heading ?? undefined,
+    destination: params.destination,
+    mode: SERVER_MODES[params.mode],
+  })
+  return data?.alternatives ?? []
 }

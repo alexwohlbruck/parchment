@@ -15,6 +15,8 @@ import TransitStageCard from '@/components/guidance/TransitStageCard.vue'
 import TransitApproach from '@/components/guidance/TransitApproach.vue'
 import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
 import AheadSearch from '@/components/guidance/AheadSearch.vue'
+import RoutesPanel from '@/components/guidance/RoutesPanel.vue'
+import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import DockWatchCard from '@/components/guidance/DockWatchCard.vue'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
@@ -67,15 +69,17 @@ const currentSegment = computed(() => {
 })
 
 const docks = useDockWatch()
+const alternatives = useAlternativeRoutes()
 
 const expandSheet = inject(EXPAND_MAP_SHEET, () => {})
-const searchingAhead = ref(false)
-function openAheadSearch() {
-  searchingAhead.value = true
+const panel = ref<'menu' | 'search' | 'routes'>('menu')
+function openPanel(next: 'search' | 'routes') {
+  panel.value = next
   expandSheet()
+  if (next === 'routes') camera.overview()
 }
-function closeAheadSearch() {
-  searchingAhead.value = false
+function closePanel() {
+  panel.value = 'menu'
   camera.follow()
 }
 
@@ -166,7 +170,8 @@ onBeforeUnmount(() => guidance.stop())
         <GuidanceBottomBar :progress="guidance.progress" :metric="metric" @exit="exit" />
       </div>
     </SheetHeader>
-    <AheadSearch v-if="searchingAhead" :metric="metric" @done="closeAheadSearch" @found="camera.overview()" />
+    <AheadSearch v-if="panel === 'search'" :metric="metric" @done="closePanel" @found="camera.overview()" />
+    <RoutesPanel v-else-if="panel === 'routes'" :alternatives="alternatives" @done="closePanel" />
     <template v-else>
       <LiveTransitTimeline
         v-if="hasTransit"
@@ -175,12 +180,12 @@ onBeforeUnmount(() => guidance.stop())
         :current="currentSegment"
         :stage="guidance.transit"
       />
-      <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" @search-ahead="openAheadSearch" />
+      <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" @search-ahead="openPanel('search')" @routes="openPanel('routes')" />
     </template>
-    <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" />
+    <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" :alternatives="alternatives" />
   </PanelLayout>
 
   <Teleport to="#mainContent">
-    <GuidanceOverlay :camera="camera" :metric="metric" />
+    <GuidanceOverlay :camera="camera" :metric="metric" :alternatives="alternatives" />
   </Teleport>
 </template>

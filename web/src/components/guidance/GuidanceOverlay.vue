@@ -10,6 +10,8 @@ import { roadLabel, travelModeAt } from '@/lib/guidance/guidance-display'
 import { modeProfile } from '@/lib/guidance/mode-profiles'
 import { toContainerRect } from '@/lib/map/map-padding'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
+import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
+import AlternativeOffer from './AlternativeOffer.vue'
 import ManeuverBanner from './ManeuverBanner.vue'
 import SpeedPanel from './SpeedPanel.vue'
 import RoadNameLabel from './RoadNameLabel.vue'
@@ -20,6 +22,7 @@ import { upcomingHazard } from '@/lib/guidance/hazards'
 const props = defineProps<{
   camera: ReturnType<typeof useGuidanceCamera>
   metric: boolean
+  alternatives: ReturnType<typeof useAlternativeRoutes>
 }>()
 
 const { t } = useI18n()
@@ -94,7 +97,16 @@ const labelStyle = computed(() => {
         :metric="metric"
         class="mx-auto max-w-xl"
       />
-      <HazardChip v-if="hazardAhead" :hazard="hazardAhead.hazard" :distance="hazardAhead.distance" :metric="metric" />
+      <AlternativeOffer
+        v-if="alternatives.offer.value"
+        :key="alternatives.offer.value.segmentIndex + ':' + alternatives.offer.value.route.duration"
+        class="mx-auto mt-2 max-w-xl"
+        :offer="alternatives.offer.value"
+        :seconds="alternatives.offerSeconds"
+        @accept="alternatives.accept()"
+        @dismiss="alternatives.dismiss()"
+      />
+      <HazardChip v-else-if="hazardAhead" :hazard="hazardAhead.hazard" :distance="hazardAhead.distance" :metric="metric" />
     </div>
 
     <div

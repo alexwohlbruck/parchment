@@ -1253,7 +1253,8 @@
       "searchAlongRoute": "Buscar en la ruta",
       "addStop": "Añadir parada",
       "report": "Reportar",
-      "steps": "Pasos"
+      "steps": "Pasos",
+      "routes": "Rutas"
     },
     "startLeg": "Iniciar tramo {leg}",
     "arrival": {
@@ -1436,6 +1437,19 @@
       "voice": {
         "switched": "Cambiando a {station}"
       }
+    },
+    "alternatives": {
+      "faster": "{duration} más rápido",
+      "slower": "{duration} más lento",
+      "sameTime": "Mismo tiempo",
+      "via": "por {street}",
+      "protected": "Más carriles bici protegidos",
+      "quieter": "Calles más tranquilas",
+      "switch": "Cambiar",
+      "title": "Rutas",
+      "current": "Ruta actual",
+      "protectedShare": "{n}% protegido",
+      "empty": "No hay otras rutas ahora"
     }
   },
   "attribution": {

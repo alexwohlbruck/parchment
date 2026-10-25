@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FlagIcon, MegaphoneIcon, PlusIcon, RouteIcon, SearchIcon } from 'lucide-vue-next'
+import { FlagIcon, MegaphoneIcon, PlusIcon, RouteIcon, SearchIcon, SplitIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
@@ -11,9 +11,10 @@ import { SOUND_MODES, useGuidanceStore } from '@/stores/guidance.store'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { canSearchAhead } from '@/services/guidance/route-search.service'
+import { canReroute } from '@/services/guidance/reroute.service'
 
 const props = defineProps<{ camera: ReturnType<typeof useGuidanceCamera>; metric: boolean }>()
-defineEmits<{ exit: []; searchAhead: [] }>()
+defineEmits<{ exit: []; searchAhead: []; routes: [] }>()
 const { t } = useI18n()
 const guidance = useGuidanceStore()
 
@@ -98,6 +99,10 @@ const AHEAD_ACTIONS = [
       >
         <component :is="item.icon" class="size-4" />
         {{ t(`guidance.menu.${item.key}`) }}
+      </Button>
+      <Button variant="secondary" class="justify-start" :disabled="!canReroute(travelMode)" @click="$emit('routes')">
+        <SplitIcon class="size-4" />
+        {{ t('guidance.menu.routes') }}
       </Button>
       <Button variant="secondary" class="justify-start" disabled>
         <MegaphoneIcon class="size-4" />

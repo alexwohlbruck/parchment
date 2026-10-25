@@ -225,7 +225,7 @@ app.post(
       const result = await multimodalTripService.planTrip(request)
       const premium = await seesPremiumHazards(user?.id)
       for (const candidate of result.trips) attachHazards((candidate.trip?.segments ?? []) as any[], { premium })
-      await attachLanes(result.trips.flatMap(candidate => candidate.trip?.segments ?? []))
+      await attachLanes(result.trips.flatMap(candidate => (candidate.trip?.segments ?? []).flatMap(s => [s, ...(s.details?.multimodalSegments ?? [])])))
 
       return result
     } catch (error) {

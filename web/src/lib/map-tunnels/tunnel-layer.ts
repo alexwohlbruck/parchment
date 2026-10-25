@@ -45,6 +45,8 @@ const HEADWALLS = ['wall', 'retaining_wall', 'city_wall']
 const SAMPLE = 3
 const MEASURE = 40
 const REBASE = 1e-3
+/** Milliseconds a rebuild waits for the main thread to be idle before running anyway: the terrain is cut only once it has. */
+const IDLE_WAIT_MS = 250
 const CACHE = 400
 
 export type TunnelSources = {
@@ -210,7 +212,7 @@ export class TunnelLayer {
         const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
         this.pending = { ...mesh, ground, exaggeration }
         this.map.triggerRepaint?.()
-      })
+      }, IDLE_WAIT_MS)
     }, 200) as unknown as number
   }
 

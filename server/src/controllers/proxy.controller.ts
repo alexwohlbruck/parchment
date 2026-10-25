@@ -201,7 +201,7 @@ function acceptsGzip(header: string | undefined | null): boolean {
  */
 function martinResponse(
   hit: CachedResponse,
-  state: 'HIT' | 'MISS',
+  state: 'HIT' | 'MISS' | 'BYPASS',
   gzipOk: boolean,
 ): Response {
   if (hit.status !== 200) {

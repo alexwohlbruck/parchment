@@ -248,3 +248,22 @@ test('reads the zoom-16 tile a deeper one is cut from as soon as that one starts
   expect((layer as any).tilePieces.get(`${z}/${x}/${y}`)).toHaveLength(1)
   layer.onRemove(map, gl)
 })
+
+test('keeps a tile\'s decks drawn after MapLibre swaps it for children whose pieces are not ready', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  const { x, y } = tile.tileID.canonical
+  const parent = { state: 'loaded', tileID: { canonical: { z: 15, x: x >> 1, y: y >> 1 } }, latestRawTileData: vectorTile(deckTile([new Uint8Array(bytes)])) }
+  let renderable: any[] = [parent]
+  Object.assign((map as any).style.tileManagers.detail, { getRenderableIds: () => renderable.map((_, i) => String(i)), getTileByID: (i: string) => renderable[Number(i)] })
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile: parent })
+  await vi.advanceTimersByTimeAsync(500)
+  layer.render(gl, frame)
+  const parentPiece = `15/${x >> 1}/${y >> 1}|${'a'.repeat(64)}.brm`
+  expect((layer as any).wanted.has(parentPiece)).toBe(true)
+  // Children loaded, with no deck pieces read yet.
+  renderable = [0, 1].flatMap(i => [0, 1].map(j => ({ state: 'loaded', tileID: { canonical: { z: 16, x: 2 * (x >> 1) + i, y: 2 * (y >> 1) + j } } })))
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(500)
+  expect((layer as any).wanted.has(parentPiece)).toBe(true)
+  layer.onRemove(map, gl)
+})

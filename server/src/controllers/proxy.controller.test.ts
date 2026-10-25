@@ -461,7 +461,7 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
   })
 
   test('passes a no-store tile on uncached', async () => {
-    const partial = () => new Response(Bun.gzipSync(Uint8Array.of(0x1a, 0)), { headers: { 'content-encoding': 'gzip', 'cache-control': 'no-store' } })
+    const partial = () => new Response(Bun.gzipSync(Uint8Array.of(0x1a, 0)).buffer as ArrayBuffer, { headers: { 'content-encoding': 'gzip', 'cache-control': 'no-store' } })
     fetchResponses = [partial(), partial()]
 
     const first = await req(app).get('/proxy/barrelman/detail/16/19301/24640?decks=1')

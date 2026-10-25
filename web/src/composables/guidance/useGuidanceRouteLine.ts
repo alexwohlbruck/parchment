@@ -6,6 +6,7 @@ import { useMapService } from '@/services/map/map.service'
 import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
 import { trackDeckLift } from '@/services/guidance/deck-lift.service'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
+import { distanceAlong } from '@/lib/guidance/nav-route'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 /** Draws the navigated leg in place of the trip preview while guidance runs. */
@@ -28,6 +29,7 @@ export function useGuidanceRouteLine() {
       }
       stopLift?.()
       stopLift = strategy ? trackDeckLift(strategy, route) : null
+      strategy?.measureDeckRoute(([lng, lat], from) => distanceAlong(route, { lng, lat }, from))
     },
     { immediate: true },
   )
@@ -39,7 +41,9 @@ export function useGuidanceRouteLine() {
       const mode = guidance.route ? travelModeAt(guidance.route, progress.puck.s) : 'driving'
       strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
       const maneuver = progress.next && progress.next.instruction.type !== 'destination' ? progress.next.startDistance : null
-      layer.update(progress.puck.snapped ? progress.puck.s : 0, maneuver)
+      const travelled = progress.puck.snapped ? progress.puck.s : 0
+      layer.update(travelled, maneuver)
+      strategy?.setDeckRouteTravelled(travelled)
     },
   )
 
@@ -48,6 +52,7 @@ export function useGuidanceRouteLine() {
     stopProgress()
     stopLift?.()
     strategy?.setDeckRouteColors(null)
+    strategy?.measureDeckRoute(null)
     layer?.destroy()
     layer = null
   })

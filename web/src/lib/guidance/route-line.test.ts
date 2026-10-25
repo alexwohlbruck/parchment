@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
-import { drawnProgress, laneOffset, routeGradient } from './route-line'
+import { drawnProgress, laneOffset, pointBeside, routeGradient } from './route-line'
 import { polyline } from './test-routes'
 
 const walkThenDrive = buildNavRoute([
@@ -45,5 +45,15 @@ describe('drawnProgress', () => {
   test('remaps the gradient stops onto it', () => {
     const stretched = (d: number) => Math.min(1, d / 800)
     expect(routeGradient(walkThenDrive, 0, color, 'grey', stretched)).toEqual(['step', ['line-progress'], 'blue', expect.closeTo(0.125, 2), 'violet'])
+  })
+})
+
+describe('pointBeside', () => {
+  test('moves the point to the right of the direction of travel', () => {
+    const route = buildNavRoute([{ mode: 'driving', geometry: polyline([[0, 100]]) }])
+    const on = pointBeside(route, 50)
+    const right = pointBeside(route, 50, 2)
+    expect(right.lat).toBeCloseTo(on.lat, 6)
+    expect(right.lng).toBeGreaterThan(on.lng)
   })
 })

@@ -1,4 +1,5 @@
 import { onScopeDispose, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -6,12 +7,14 @@ import { useMapService } from '@/services/map/map.service'
 import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
 import { trackDeckLift } from '@/services/guidance/deck-lift.service'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
-import { distanceAlong } from '@/lib/guidance/nav-route'
+import { distanceAlong, type NavStep } from '@/lib/guidance/nav-route'
+import { turnCallout } from '@/lib/guidance/turn-callout'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 /** Draws the navigated leg in place of the trip preview while guidance runs. */
 export function useGuidanceRouteLine() {
   const guidance = useGuidanceStore()
+  const { t } = useI18n()
   const mapService = useMapService()
   const strategy = useMapStore().getMapStrategy()
   const map = strategy?.mapInstance as MaplibreMap | undefined
@@ -40,12 +43,19 @@ export function useGuidanceRouteLine() {
       if (!layer || !progress) return
       const mode = guidance.route ? travelModeAt(guidance.route, progress.puck.s) : 'driving'
       strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
-      const maneuver = progress.next && progress.next.instruction.type !== 'destination' ? progress.next.startDistance : null
       const travelled = progress.puck.snapped ? progress.puck.s : 0
-      layer.update(travelled, maneuver)
+      layer.update(travelled, calloutFor(progress.next))
       strategy?.setDeckRouteTravelled(travelled)
     },
   )
+
+  function calloutFor(step: NavStep | null) {
+    const route = guidance.route
+    if (!route || !step || step.instruction.type === 'destination') return null
+    const { at, side, road } = turnCallout(route, step)
+    const text = road.kind === 'named' ? road.name : t(`guidance.roads.${road.key}`)
+    return { at, side, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
+  }
 
   onScopeDispose(() => {
     stopRoute()

@@ -39,6 +39,7 @@ export function useGuidanceRouteLine() {
         measure: ([lng, lat], from) => distanceAlong(drawnLine(route), { lng, lat }, from),
         offset: drawnOffsetMeters(route),
         rides: s => ridesAt(spans, s),
+        laid: laid => layer?.setHidden(laid),
       })
     },
     { immediate: true },

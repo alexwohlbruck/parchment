@@ -8,6 +8,7 @@ import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
 import { trackDeckLift } from '@/services/guidance/deck-lift.service'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { distanceAlong, type NavStep } from '@/lib/guidance/nav-route'
+import { bridgeSpans, ridesAt } from '@/lib/guidance/deck-lift'
 import { drawnLine, drawnOffsetMeters } from '@/lib/guidance/route-line'
 import { turnCallout } from '@/lib/guidance/turn-callout'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
@@ -33,9 +34,11 @@ export function useGuidanceRouteLine() {
       }
       stopLift?.()
       stopLift = strategy ? trackDeckLift(strategy, route) : null
+      const spans = bridgeSpans(route)
       strategy?.trackDeckRoute({
         measure: ([lng, lat], from) => distanceAlong(drawnLine(route), { lng, lat }, from),
         offset: drawnOffsetMeters(route),
+        rides: s => ridesAt(spans, s),
       })
     },
     { immediate: true },

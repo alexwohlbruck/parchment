@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { distanceMeters } from '@/lib/map/movement-interpolation'
-import { rerouteOrigin, spliceReroute, splitAtStop } from './reroute'
+import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop } from './reroute'
 import type { NavSegmentInput } from './nav-route'
 
 describe('rerouteOrigin', () => {
@@ -52,5 +52,21 @@ describe('splitAtStop', () => {
       { mode: 'driving', end: { label: 'Home' }, geometry: [stop.location] },
       { mode: 'walking', end: { label: 'Door' } },
     ])
+  })
+})
+
+describe('adoptItinerary', () => {
+  test('takes the leg index of the segment replaced and ends where the leg did', () => {
+    const line = [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }]
+    type Seg = { mode: string; geometry: typeof line; legIndex: number; end?: { label: string } }
+    const old: Seg[] = [
+      { mode: 'walking', geometry: line, legIndex: 2 },
+      { mode: 'transit', geometry: line, legIndex: 2, end: { label: 'Home' } },
+    ]
+    const fresh: Seg[] = [{ mode: 'walking', geometry: line, legIndex: 0 }, { mode: 'transit', geometry: line, legIndex: 0 }]
+    const leg = adoptItinerary(old, 0, fresh)
+    expect(leg.map(s => s.legIndex)).toEqual([2, 2])
+    expect(leg[1].end).toEqual({ label: 'Home' })
+    expect(leg[0].end).toBeUndefined()
   })
 })

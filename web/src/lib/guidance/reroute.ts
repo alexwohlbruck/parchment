@@ -23,6 +23,13 @@ export function spliceReroute<T extends NavSegmentInput>(segments: T[], replaced
   return [{ ...withoutLanes(current), ...fresh }, ...segments.slice(replaced + 1)]
 }
 
+/** The leg after switching to another transit plan at segment `from`: its segments, ending where the leg did. */
+export function adoptItinerary<T extends NavSegmentInput & { legIndex?: number; end?: unknown }>(segments: T[], from: number, fresh: T[]): T[] {
+  const legIndex = segments[from]?.legIndex
+  const end = segments.at(-1)?.end
+  return fresh.map((segment, i) => ({ ...segment, legIndex, ...(i === fresh.length - 1 ? { end } : {}) }))
+}
+
 export interface AddedStop {
   label?: string
   location: LngLat

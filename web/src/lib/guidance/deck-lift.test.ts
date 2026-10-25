@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
-import { deckProfile, liftAt, liftPixels } from './deck-lift'
+import { bridgeSpans, deckProfile, liftAt, liftPixels } from './deck-lift'
 import { polyline } from './test-routes'
 
 const route = buildNavRoute([{ mode: 'driving', geometry: polyline([[0, 200]]) }])
@@ -19,9 +19,29 @@ describe('deckProfile', () => {
     expect(liftAt(profile, 180)).toBe(0)
   })
 
+  test('a route that reports no bridge there stays under the deck', () => {
+    const under = buildNavRoute([{ mode: 'driving', geometry: polyline([[0, 200]]), edgeSegments: [{ startDistance: 0, endDistance: 200, roadEnvironment: 'road' }] }])
+    expect(liftAt(deckProfile(under, deckAt, () => 20), 80)).toBe(0)
+  })
+
   test('only decks running with the route count', () => {
     const across = deckProfile(route, (lng, lat, along) => (along && Math.abs(along[0]) > 0.5 ? 40 : null), () => 20)
     expect(liftAt(across, 80)).toBe(0)
+  })
+})
+
+describe('bridgeSpans', () => {
+  test('the bridges a route reports, padded for the deck ends, and all of a segment that reports nothing', () => {
+    const walk = polyline([[0, 100]])
+    const route = buildNavRoute([
+      { mode: 'driving', geometry: walk, edgeSegments: [{ startDistance: 0, endDistance: 40, roadEnvironment: 'road' }, { startDistance: 40, endDistance: 70, roadEnvironment: 'bridge' }, { startDistance: 70, endDistance: 100, roadEnvironment: 'road' }] },
+      { mode: 'walking', geometry: polyline([[0, 100]], walk.at(-1)) },
+    ])
+    const [bridge, walking] = bridgeSpans(route)
+    expect(bridge[0]).toBeCloseTo(20, 0)
+    expect(bridge[1]).toBeCloseTo(90, 0)
+    expect(walking[0]).toBeCloseTo(100, 0)
+    expect(walking[1]).toBeCloseTo(200, 0)
   })
 })
 

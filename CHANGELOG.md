@@ -27,6 +27,8 @@
 
 ### Fixed
 
+* With 3D on, a route passing under a bridge disappears beneath the deck, and a route riding a deck no longer also draws on the ground or water below it.
+
 ## [0.16.10] - 2026-10-25
 
 ### Changed

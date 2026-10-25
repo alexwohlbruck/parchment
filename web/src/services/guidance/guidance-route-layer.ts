@@ -8,6 +8,7 @@ import type { CalloutSide } from '@/lib/guidance/turn-callout'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import { TurnCalloutMarker } from './turn-callout-marker'
 import { slotBeforeId } from '@/lib/map/layer-slots'
+import type { RouteSpan } from '@/lib/map-decks/deck.types'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 const ROUTE = 'guidance-route'
@@ -24,6 +25,8 @@ export class GuidanceRouteLayer {
   private lastCallout: string | null = null
   private readonly callout: TurnCalloutMarker
   private progressAt: ((d: number) => number) | undefined
+  /** Where the route is laid over bridge decks, so the flat line leaves those stretches to them. */
+  private hidden: RouteSpan[] = []
 
   constructor(
     private readonly map: MaplibreMap,
@@ -100,19 +103,18 @@ export class GuidanceRouteLayer {
   }
 
   private gradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR, this.progressAt)
+    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR, this.progressAt, this.hidden)
   }
 
   private caseGradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt)
+    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt, this.hidden)
   }
 
   /** `travelled`, and the bubble for the next turn at its route distance; cheap to call often. */
   update(travelled: number, callout: { at: number; side: CalloutSide; kind: ManeuverKind; text: string; color: string } | null): void {
     if (Math.abs(travelled - this.lastTravelled) >= 1) {
       this.lastTravelled = travelled
-      this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
-      this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
+      this.paint()
       this.map.setFilter(HAZARDS, ['>=', ['get', 'at'], travelled])
     }
     const key = callout && `${callout.at}|${callout.side}|${callout.kind}|${callout.text}|${callout.color}`
@@ -120,6 +122,20 @@ export class GuidanceRouteLayer {
       this.lastCallout = key
       this.callout.show(callout && { ...callout, at: drawnPoint(this.route, callout.at) })
     }
+  }
+
+  /** Leaves the stretches laid over bridge decks to them. */
+  setHidden(spans: RouteSpan[]): void {
+    const key = (list: RouteSpan[]) => list.map(([a, b]) => `${Math.round(a)}-${Math.round(b)}`).join(',')
+    if (key(spans) === key(this.hidden)) return
+    this.hidden = spans
+    this.paint()
+  }
+
+  private paint() {
+    const travelled = Math.max(0, this.lastTravelled)
+    this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
+    this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
   }
 
   private offset() {
@@ -131,6 +147,7 @@ export class GuidanceRouteLayer {
     this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
     for (const id of [ROUTE, `${ROUTE}-case`]) if (this.map.getLayer(id)) this.map.setPaintProperty(id, 'line-offset', this.offset() as never)
     this.lastTravelled = -1
+    this.hidden = []
     this.lastCallout = null
     ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())
     ;(this.map.getSource(HAZARDS) as GeoJSONSource | undefined)?.setData(this.hazardData())

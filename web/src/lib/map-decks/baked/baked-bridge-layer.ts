@@ -8,7 +8,7 @@ import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
-import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
+import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh, type MeshGeometry } from './mesh-file'
 import { INDEX_ZOOM, indexTiles, parseIndex } from './mesh-index'
 import { decodeMesh, decodeTilePieces, DecoderLost } from './mesh-decoder'
 import { deckField, type DeckPiece } from './deck-tile'
@@ -107,6 +107,8 @@ export class BakedBridgeLayer {
   private drawnTiles = new Set<string>()
   private tilesFailed = false
   private retryTimer?: ReturnType<typeof setTimeout>
+  /** Bumped as pieces' surfaces arrive after them, so what stands on the decks is placed again. */
+  private surfaces = 0
   /** The parts drawn, in order, as of the wanted set and part count it was worked out for. */
   private drawOrder: { parts: number; wanted: Set<string>; ids: string[] } | null = null
   /** DEV only: meshes baked from a local fixture, drawn wherever they meet the view, whatever the tiles hold. */
@@ -338,7 +340,7 @@ export class BakedBridgeLayer {
     this.rebuildTimer = undefined
     if (!this.map) return
     const resident = this.covered ? [...this.wanted].filter(id => this.parts.has(id)) : []
-    const displayed = this.covered ? `${resident.sort().join(',')}|${this.exaggeration()}` : ''
+    const displayed = this.covered ? `${resident.sort().join(',')}|${this.exaggeration()}|${this.surfaces}` : ''
     if (displayed === this.displayed) return
     this.displayed = displayed
     this.routeDirty = true
@@ -435,11 +437,12 @@ export class BakedBridgeLayer {
       return this.withoutPieces()
     }
     this.tileMode = true
-    decodeTilePieces(payload).then(({ pieces, failed }) => {
+    decodeTilePieces(payload).then(({ pieces, failed, geometry }) => {
       if (this.tileTokens.get(key) !== token) return
       if (failed.length) return this.tileFailed(key, token, new Error(`Deck tile ${key}: ${failed.length} decks missing`))
       this.tileTokens.delete(key)
-      this.acceptTile(key, pieces)
+      const ids = this.acceptTile(key, pieces)
+      geometry.then(surfaces => this.takeGeometry(key, ids, surfaces), error => console.warn('[bridges]', error))
     }, error => this.tileFailed(key, token, error))
   }
   /** A tile whose pieces could not be had: its decks are unknown, so the flat bridges stay until it is read again. */
@@ -466,8 +469,8 @@ export class BakedBridgeLayer {
     this.tilesFailed = false
     this.changed()
   }
-  private acceptTile(key: string, pieces: DeckPiece[]) {
-    if (!this.map) return
+  private acceptTile(key: string, pieces: DeckPiece[]): string[] {
+    if (!this.map) return []
     this.tileFailures.delete(key)
     this.waitingTiles.delete(key)
     for (const old of this.tilePieces.get(key) ?? []) this.drop(old)
@@ -486,6 +489,26 @@ export class BakedBridgeLayer {
       this.updateCover()
       this.map.triggerRepaint()
     }
+    return ids
+  }
+  /** The surfaces a tile's pieces stand on, read after the pieces themselves: given to them wherever they now are. */
+  private takeGeometry(key: string, ids: string[], surfaces: Array<MeshGeometry | null>) {
+    if (!this.map || this.tilePieces.get(key) !== ids) return
+    let changed = false
+    ids.forEach((id, i) => {
+      const geometry = surfaces[i]
+      if (!geometry) return
+      const part = this.parts.get(id)
+      if (part) {
+        Object.assign(part.data, geometry)
+        part.bounds = standBounds(geometry.stands)
+      }
+      for (const entry of [this.pending.get(id), this.decoded.get(id)]) if (entry) Object.assign(entry.data, geometry)
+      changed = true
+    })
+    if (!changed) return
+    this.surfaces++
+    this.rebuildTimer ??= setTimeout(() => { this.rebuildTimer = undefined; if (!this.map?.isMoving?.()) this.rebuild() }, REBUILD_MS)
   }
   /** A piece gone from the GPU, the upload queue and the decoded cache. */
   private drop(id: string) {

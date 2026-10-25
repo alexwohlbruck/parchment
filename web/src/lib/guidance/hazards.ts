@@ -37,7 +37,7 @@ export function crosswalkAfter(route: NavRoute, step: NavStep): NavHazard | null
   )
 }
 
-function isAtTurn(route: NavRoute, hazard: NavHazard): boolean {
+export function isAtTurn(route: NavRoute, hazard: NavHazard): boolean {
   return hazard.kind === 'crosswalk' && route.steps.some(
     step => step.index > 0 && hazard.startDistance >= step.startDistance && hazard.startDistance - step.startDistance <= TURN_CROSSWALK_METERS,
   )

@@ -1,12 +1,18 @@
 // The navigated route on the map: the leg in its mode colours with the
-// travelled part greyed, and a bubble naming the road at the next turn.
+// travelled part greyed, a bubble naming the road at the next turn, and the
+// hazards ahead as signs on the line or bubbles.
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
 import type { NavRoute } from '@/lib/guidance/nav-route'
 import { drawnLine, drawnOffsetMeters, drawnPoint, drawnProgress, laneOffset, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { CalloutSide } from '@/lib/guidance/turn-callout'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
-import { TurnCalloutMarker } from './turn-callout-marker'
+import type { RouteHazardKind } from '@/types/directions.types'
+import { maneuverIcon, MANEUVER_ICON_STROKE } from '@/lib/directions/maneuver-icon'
+import { HAZARD_TONE_COLORS, isHazardSign, SIGN_PASS_METERS, SIGN_TURN_CLEARANCE_METERS, type HazardTone } from '@/lib/guidance/hazard-callouts'
+import { hazardIcon, HAZARD_ICON_STROKE } from '@/lib/guidance/hazard-icon'
+import { CalloutMarker } from './callout-marker'
+import { ensureHazardSignImages, HAZARD_SIGN_IMAGE } from './hazard-sign-images'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import type { RouteSpan } from '@/lib/map-decks/deck.types'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
@@ -20,10 +26,16 @@ const CORNER_METERS = 8
 
 type Feature = GeoJSON.Feature<GeoJSON.Geometry>
 
+export interface TurnBubble { at: number; side: CalloutSide; kind: ManeuverKind; text: string; color: string }
+export interface HazardBubble { at: number; kind: RouteHazardKind; tone: HazardTone; text: string | null }
+
 export class GuidanceRouteLayer {
   private lastTravelled = -1
   private lastCallout: string | null = null
-  private readonly callout: TurnCalloutMarker
+  private readonly callout: CalloutMarker
+  private readonly hazardMarkers = new Map<string, CalloutMarker>()
+  private lastHazards = ''
+  private lastSignFilter = ''
   private progressAt: ((d: number) => number) | undefined
   /** Where the route is laid over bridge decks, so the flat line leaves those stretches to them. */
   private hidden: RouteSpan[] = []
@@ -33,10 +45,11 @@ export class GuidanceRouteLayer {
     private route: NavRoute,
   ) {
     this.progressAt = route.laneLine ? drawnProgress(route.laneLine) : undefined
-    this.callout = new TurnCalloutMarker(map)
+    this.callout = new CalloutMarker(map)
     const beforeId = slotBeforeId(map.getStyle().layers, 'middle')
     map.addSource(ROUTE, { type: 'geojson', lineMetrics: true, data: this.routeData() })
     map.addSource(HAZARDS, { type: 'geojson', data: this.hazardData() })
+    ensureHazardSignImages(map)
     map.addLayer(
       {
         id: `${ROUTE}-case`,
@@ -68,28 +81,29 @@ export class GuidanceRouteLayer {
     map.addLayer(
       {
         id: HAZARDS,
-        type: 'circle',
+        type: 'symbol',
         source: HAZARDS,
         minzoom: 14,
-        paint: {
-          'circle-radius': ['match', ['get', 'severity'], 'high', 6, 'medium', 5, 3.5],
-          'circle-color': ['match', ['get', 'severity'], 'high', '#f59e0b', 'medium', '#fbbf24', '#9ca3af'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-          'circle-pitch-alignment': 'map',
+        layout: {
+          'icon-image': HAZARD_SIGN_IMAGE as never,
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 18, 1.15],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-pitch-alignment': 'viewport',
+          'icon-anchor': 'bottom',
         },
       },
-      beforeId,
+      slotBeforeId(map.getStyle().layers, 'top'),
     )
   }
 
   private hazardData(): GeoJSON.FeatureCollection {
     return {
       type: 'FeatureCollection',
-      features: this.route.hazards.map(h => ({
+      features: this.route.hazards.filter(h => isHazardSign(h.kind)).map(h => ({
         type: 'Feature',
-        properties: { severity: h.severity, kind: h.kind, at: h.startDistance },
-        geometry: { type: 'Point', coordinates: [h.coordinate.lng, h.coordinate.lat] },
+        properties: { kind: h.kind, at: h.startDistance },
+        geometry: { type: 'Point', coordinates: lngLat(drawnPoint(this.route, h.startDistance)) },
       })),
     }
   }
@@ -110,17 +124,60 @@ export class GuidanceRouteLayer {
     return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt, this.hidden)
   }
 
-  /** `travelled`, and the bubble for the next turn at its route distance; cheap to call often. */
-  update(travelled: number, callout: { at: number; side: CalloutSide; kind: ManeuverKind; text: string; color: string } | null): void {
+  /** `travelled`, and the bubbles for the next turn and hazards at their route distance; cheap to call often. */
+  update(travelled: number, callout: TurnBubble | null, hazards: HazardBubble[]): void {
     if (Math.abs(travelled - this.lastTravelled) >= 1) {
       this.lastTravelled = travelled
       this.paint()
-      this.map.setFilter(HAZARDS, ['>=', ['get', 'at'], travelled])
     }
+    this.filterSigns(travelled, callout?.at ?? null)
     const key = callout && `${callout.at}|${callout.side}|${callout.kind}|${callout.text}|${callout.color}`
     if (key !== this.lastCallout) {
       this.lastCallout = key
-      this.callout.show(callout && { ...callout, at: drawnPoint(this.route, callout.at) })
+      this.callout.show(callout && {
+        at: drawnPoint(this.route, callout.at),
+        placement: callout.side,
+        icon: { ...maneuverIcon(callout.kind), stroke: MANEUVER_ICON_STROKE },
+        text: callout.text,
+        background: callout.color,
+        foreground: '#ffffff',
+      })
+    }
+    this.showHazards(hazards)
+  }
+
+  private filterSigns(travelled: number, turnAt: number | null): void {
+    const ahead = ['>=', ['get', 'at'], Math.round(travelled + SIGN_PASS_METERS)]
+    const filter = turnAt == null ? ahead : ['all', ahead, ['>=', ['abs', ['-', ['get', 'at'], turnAt]], SIGN_TURN_CLEARANCE_METERS]]
+    const key = JSON.stringify(filter)
+    if (key === this.lastSignFilter) return
+    this.lastSignFilter = key
+    this.map.setFilter(HAZARDS, filter as never)
+  }
+
+  private showHazards(hazards: HazardBubble[]): void {
+    const key = JSON.stringify(hazards)
+    if (key === this.lastHazards) return
+    this.lastHazards = key
+    const shown = new Set<string>()
+    for (const hazard of hazards) {
+      const id = `${hazard.at}|${hazard.kind}`
+      shown.add(id)
+      let marker = this.hazardMarkers.get(id)
+      if (!marker) this.hazardMarkers.set(id, (marker = new CalloutMarker(this.map)))
+      marker.show({
+        at: drawnPoint(this.route, hazard.at),
+        placement: 'above',
+        icon: { d: hazardIcon(hazard.kind), stroke: HAZARD_ICON_STROKE },
+        text: hazard.text,
+        small: true,
+        ...HAZARD_TONE_COLORS[hazard.tone],
+      })
+    }
+    for (const [id, marker] of this.hazardMarkers) {
+      if (shown.has(id)) continue
+      marker.hide()
+      this.hazardMarkers.delete(id)
     }
   }
 
@@ -149,12 +206,15 @@ export class GuidanceRouteLayer {
     this.lastTravelled = -1
     this.hidden = []
     this.lastCallout = null
+    this.lastSignFilter = ''
+    this.showHazards([])
     ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())
     ;(this.map.getSource(HAZARDS) as GeoJSONSource | undefined)?.setData(this.hazardData())
   }
 
   destroy(): void {
     this.callout.hide()
+    this.showHazards([])
     for (const id of [HAZARDS, ROUTE, `${ROUTE}-case`]) {
       if (this.map.getLayer(id)) this.map.removeLayer(id)
     }
@@ -163,3 +223,5 @@ export class GuidanceRouteLayer {
     }
   }
 }
+
+const lngLat = (p: { lng: number; lat: number }): [number, number] => [p.lng, p.lat]

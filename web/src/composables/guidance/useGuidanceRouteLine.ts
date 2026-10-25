@@ -11,6 +11,8 @@ import { distanceAlong, type NavStep } from '@/lib/guidance/nav-route'
 import { bridgeSpans, ridesAt } from '@/lib/guidance/deck-lift'
 import { drawnLine, drawnOffsetMeters } from '@/lib/guidance/route-line'
 import { turnCallout } from '@/lib/guidance/turn-callout'
+import { hazardCallouts } from '@/lib/guidance/hazard-callouts'
+import type { GuidanceProgress } from '@/stores/guidance.store'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 /** Draws the navigated leg in place of the trip preview while guidance runs. */
@@ -52,7 +54,8 @@ export function useGuidanceRouteLine() {
       const mode = guidance.route ? travelModeAt(guidance.route, progress.puck.s) : 'driving'
       strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
       const travelled = progress.puck.snapped ? progress.puck.s : 0
-      layer.update(travelled, calloutFor(progress.next))
+      const callout = calloutFor(progress.next)
+      layer.update(travelled, callout, hazardsFor(progress, callout?.at ?? null))
       strategy?.setDeckRouteTravelled(travelled)
     },
   )
@@ -63,6 +66,17 @@ export function useGuidanceRouteLine() {
     const { at, side, kind, road } = turnCallout(route, step)
     const text = road.kind === 'named' ? road.name : t(`guidance.roads.${road.key}`)
     return { at, side, kind, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
+  }
+
+  function hazardsFor({ puck }: GuidanceProgress, turnAt: number | null) {
+    const route = guidance.route
+    if (!route || !puck.snapped) return []
+    return hazardCallouts(route, puck.s, puck.speed, turnAt).map(({ hazard, tone, compact }) => ({
+      at: hazard.startDistance,
+      kind: hazard.kind,
+      tone,
+      text: compact ? null : t(`guidance.hazards.${hazard.kind}`),
+    }))
   }
 
   onScopeDispose(() => {

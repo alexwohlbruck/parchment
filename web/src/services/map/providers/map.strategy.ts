@@ -24,7 +24,7 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
-import { impactFeedback } from '@tauri-apps/plugin-haptics'
+import { hapticImpact } from '@/lib/haptics'
 import {
   mapPoiClickPolicy,
   PoiTapController,
@@ -66,11 +66,7 @@ export class MapStrategy {
     lngLat: { lng: number; lat: number },
     point: { x: number; y: number },
   ) {
-    try {
-      await impactFeedback('medium')
-    } catch {
-      // Haptics not available (e.g., web/desktop)
-    }
+    await hapticImpact('medium')
     mapEventBus.emit('contextmenu', { lngLat, point })
   }
 

@@ -13,7 +13,8 @@ test('finds the deck pieces after a tile\'s layers, and nothing in a tile withou
 })
 
 test('decodes each piece of a deck tile as a mesh of its own', () => {
-  const pieces = decodeDeckTile(deckField(vectorTile(deckTile([brm, brm])))!)
+  const { pieces, failed } = decodeDeckTile(deckField(vectorTile(deckTile([brm, brm])))!)
+  expect(failed).toEqual([])
   expect(pieces).toHaveLength(2)
   for (const { file: name, mesh } of pieces) {
     expect(name).toBe(file)

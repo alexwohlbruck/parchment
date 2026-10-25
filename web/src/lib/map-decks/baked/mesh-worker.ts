@@ -7,10 +7,10 @@ const buffersOf = (meshes: BakedMesh[]) => [...new Set(meshes.flatMap(mesh => Ob
 self.onmessage = ({ data: { id, buffer, tile } }: MessageEvent<DecodeRequest>) => {
   let result: DecodeResult
   try {
-    result = tile ? { id, pieces: decodeDeckTile(new Uint8Array(buffer)) } : { id, mesh: decodeBridge(buffer) }
+    result = tile ? { id, tile: decodeDeckTile(new Uint8Array(buffer)) } : { id, mesh: decodeBridge(buffer) }
   } catch (error) {
     result = { id, error: String(error) }
   }
-  const meshes = 'mesh' in result ? [result.mesh] : 'pieces' in result ? result.pieces.map(p => p.mesh) : []
+  const meshes = 'mesh' in result ? [result.mesh] : 'tile' in result ? result.tile.pieces.map(p => p.mesh) : []
   ;(self as unknown as Worker).postMessage(result, buffersOf(meshes))
 }

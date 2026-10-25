@@ -35,17 +35,21 @@ export function deckField(raw: ArrayBuffer): Uint8Array | null {
   return null
 }
 
+/** A tile's pieces, and the decks in it barrelman could not read. */
+export type DeckTile = { pieces: DeckPiece[]; failed: string[] }
+
 /** A deck payload's pieces: `BDT1`, a JSON header of each piece's deck mesh and length, then BRM meshes 4-byte aligned. */
-export function decodeDeckTile(payload: Uint8Array): DeckPiece[] {
+export function decodeDeckTile(payload: Uint8Array): DeckTile {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   if (payload.byteLength < 8 || view.getUint32(0, true) !== MAGIC) throw new Error('Unsupported deck tile')
   const length = view.getUint32(4, true)
-  const { decks, lengths } = JSON.parse(new TextDecoder().decode(payload.subarray(8, 8 + length))) as { decks: string[]; lengths: number[] }
+  const { decks, lengths, failed = [] } = JSON.parse(new TextDecoder().decode(payload.subarray(8, 8 + length))) as { decks: string[]; lengths: number[]; failed?: string[] }
   if (!Array.isArray(decks) || !Array.isArray(lengths) || decks.length !== lengths.length) throw new Error('Invalid deck tile header')
   let at = Math.ceil((8 + length) / 4) * 4
-  return decks.map((file, i) => {
+  const pieces = decks.map((file, i) => {
     const piece = payload.slice(at, at + lengths[i])
     at += Math.ceil(lengths[i] / 4) * 4
     return { file, mesh: decodeBridge(piece.buffer) }
   })
+  return { pieces, failed }
 }

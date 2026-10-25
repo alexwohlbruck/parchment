@@ -1,8 +1,8 @@
 import { decodeBridge, type BakedMesh } from './mesh-file'
-import { decodeDeckTile, type DeckPiece } from './deck-tile'
+import { decodeDeckTile, type DeckTile } from './deck-tile'
 
 export type DecodeRequest = { id: number; buffer: ArrayBuffer; tile?: boolean }
-export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; pieces: DeckPiece[] } | { id: number; error: string }
+export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; tile: DeckTile } | { id: number; error: string }
 
 /** The worker decoding a mesh failed with its bytes: fetch the mesh again. */
 export class DecoderLost extends Error {
@@ -25,7 +25,7 @@ function start(): Decoder | null {
       const job = decoder.jobs.get(data.id)
       decoder.jobs.delete(data.id)
       if ('error' in data) job?.reject(new Error(data.error))
-      else job?.resolve('mesh' in data ? data.mesh : data.pieces)
+      else job?.resolve('mesh' in data ? data.mesh : data.tile)
     }
     // A worker that fails gives up what it holds and leaves the pool; with none left, meshes decode here.
     decoder.worker.onerror = decoder.worker.onmessageerror = () => {
@@ -53,7 +53,7 @@ export function decodeMesh(buffer: ArrayBuffer): Promise<BakedMesh> {
 }
 
 /** Decodes a vector tile's deck payload (a copy of it is handed over) off the main thread, or on it where workers are unavailable. */
-export function decodeTilePieces(payload: Uint8Array): Promise<DeckPiece[]> {
+export function decodeTilePieces(payload: Uint8Array): Promise<DeckTile> {
   return decode(payload.slice().buffer, true, () => decodeDeckTile(payload))
 }
 

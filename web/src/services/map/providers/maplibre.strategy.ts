@@ -1012,7 +1012,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.deckLayer = null
     }
     const detail = map.getSource(DETAIL_SOURCE) as { tiles?: string[]; setTiles?: (tiles: string[]) => void } | undefined
-    const tiles = detail?.tiles?.[0] && withDeckPieces(detail.tiles[0], active)
+    const tiles = detail?.tiles?.[0] && withDeckPieces(detail.tiles[0], this.map3dObjects && this.terrainOn)
     if (tiles && tiles !== detail!.tiles![0]) detail!.setTiles!([tiles])
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null

@@ -16,6 +16,7 @@ import {
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
+import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -28,20 +29,13 @@ import {
   type DepartureReachability,
 } from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { Caption } from '@/components/ui/typography'
 import {
-  AlertTriangleIcon,
   ArrowLeft,
   BikeIcon,
   CarTaxiFrontIcon,
   ArrowRight,
   BookmarkIcon,
-  ChevronDownIcon,
   ClockIcon,
   ExternalLinkIcon,
   AccessibilityIcon,
@@ -71,14 +65,10 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
 import HazardSummary from '@/components/directions/trip/HazardSummary.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
-import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
-import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
-import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
-import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
 import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
@@ -464,40 +454,7 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
     const cached = sched.find((d) => d.ms >= minMs && !d.cancelled)
     if (cached) return cached.ms
   }
-  try {
-    const { data } = await api.get('/transit/departures', {
-      params: {
-        lat: seg.departureStop.location.lat,
-        lng: seg.departureStop.location.lng,
-        radius: 50,
-        n: 20,
-        time: new Date(minMs).toISOString(),
-      },
-    })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const all: any[] = (Array.isArray(data) ? data : []).flatMap(
-      (s: { departures?: unknown[] }) => s.departures ?? [],
-    )
-    return (
-      all
-        .filter(
-          (d) =>
-            (seg.routeOptions?.length
-              ? seg.routeOptions.some(
-                  (o: { shortName?: string }) => o.shortName === d.route?.shortName,
-                )
-              : d.route?.shortName === seg.lineName) &&
-            (seg.directionId == null ||
-              String(d.directionId) === String(seg.directionId)) &&
-            !d.cancelled,
-        )
-        .map((d) => new Date(d.departureTime).getTime())
-        .filter((m) => m >= minMs)
-        .sort((a, b) => a - b)[0] ?? null
-    )
-  } catch {
-    return null
-  }
+  return nextRunAfter(seg, minMs)
 }
 
 async function chooseDeparture(segmentIndex: number, departureMs: number) {
@@ -1431,244 +1388,18 @@ function showSegmentChart(segment: any): boolean {
                      content — and so the rail running through it — 1px right of
                      the rail on every other entry. The ring sits outside the box,
                      so the header's tint can't cover it either. -->
-                <div class="rounded-[22px] ring-1 ring-border bg-card">
-                  <!-- Line header — tinted with the line colour, mode icon on the rail -->
-                  <div
-                    class="flex items-stretch rounded-t-[22px] pl-2"
-                    :class="!entry.segment.lineColor && 'bg-muted/40'"
-                    :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
-                  >
-                    <div class="relative flex flex-col items-center justify-center w-7 shrink-0">
-                      <!-- Above the icon: the colour of whatever came before -->
-                      <div
-                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[calc(50%+2px)]"
-                        :class="railColorAt(timelineEntries, i, 'above')"
-                        :style="railStyleAt(timelineEntries, i, 'above')"
-                      />
-                      <!-- Below the icon: this line's colour, on down the card -->
-                      <div
-                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-1/2 bottom-[-2px]"
-                        v-bind="segmentRail(entry.segment)"
-                      />
-                      <div
-                        class="relative z-10 size-7 rounded-full flex items-center justify-center text-white shrink-0"
-                        :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
-                        :style="entry.segment.lineColor ? {
-                          background: `#${entry.segment.lineColor}`,
-                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
-                        } : {}"
-                      >
-                        <component
-                          :is="getSegmentIcon(entry.segment.mode, entry.segment.routeType)"
-                          class="size-3.5"
-                        />
-                      </div>
-                    </div>
-                    <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2.5 pr-3">
-                    <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
-                         cluster of bullets — any of them works for this leg. -->
-                    <div
-                      v-if="(entry.segment.routeOptions?.length ?? 0) > 1"
-                      class="flex items-center gap-1 shrink-0"
-                    >
-                      <RouteBullet
-                        v-for="opt in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
-                        :key="opt.shortName"
-                        size="md"
-                        :label="opt.shortName"
-                        :color="opt.color"
-                        :text-color="opt.textColor"
-                      />
-                    </div>
-                    <RouteBullet
-                      v-else
-                      size="md"
-                      class="shrink-0 max-w-[60%]"
-                      :label="entry.segment.lineName"
-                      :color="entry.segment.lineColor"
-                      :text-color="entry.segment.lineTextColor"
-                    />
-                    <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
-                    <span class="text-sm font-semibold text-foreground truncate">
-                      {{ entry.segment.headsign || entry.segment.lineLongName }}
-                    </span>
-                    <span
-                      v-if="entry.segment.tripShortName"
-                      class="text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
-                    >
-                      {{ translate('directions.trainNumber', { number: entry.segment.tripShortName }) }}
-                    </span>
-                    <RealtimeIndicator
-                      v-if="entry.segment.realTimeData"
-                      :real-time="true"
-                      :delay="entry.segment.delay"
-                      :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
-                      class="ml-auto shrink-0"
-                    />
-                    </div>
-                  </div>
-
-                  <!-- Card body — the rail carries straight on behind every row,
-                       so each row only has to place its own node on it.
-                       Node centres, measured from each row's top:
-                         board / alight — 10px (5px mt + 5px half of size-2.5)
-                         intermediate   —  8px (5px mt + 3px half of size-1.5) -->
-                  <div class="relative py-2.5 pl-2 pr-3">
-                    <!-- The rail sits outside the spaced rows: `space-y` margins
-                         apply to every non-last child, and on an absolutely
-                         positioned element that margin shortens the line. -->
-                    <div
-                      class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
-                      v-bind="segmentRail(entry.segment)"
-                    />
-                    <div class="space-y-2">
-
-                    <!-- Board -->
-                    <div v-if="entry.segment.departureStop" class="relative flex">
-                      <div class="flex flex-col items-center w-7 shrink-0">
-                        <div
-                          class="mt-[5px] size-2.5 rounded-full shrink-0"
-                          v-bind="segmentRail(entry.segment)"
-                        />
-                      </div>
-                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
-                        <div class="min-w-0">
-                          <div class="text-sm font-medium text-foreground leading-snug">
-                            {{ entry.segment.departureStop.name }}
-                          </div>
-                          <div class="text-[11px] text-muted-foreground mt-px">
-                            Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
-                          </div>
-                        </div>
-                        <div class="text-sm font-semibold tabular-nums shrink-0">
-                          {{ formatTime(entry.segment.startTime) }}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- What the agency has published about this line, above
-                         the board of runs it applies to. Keeps the card's
-                         gutter so it lines up with the stops either side. -->
-                    <div v-if="legAlerts(entry.segmentIndex).length" class="relative flex">
-                      <div class="w-7 shrink-0" />
-                      <div class="flex-1 min-w-0 pl-2.5 space-y-1.5">
-                        <template
-                          v-for="alert in legAlerts(entry.segmentIndex)"
-                          :key="alert.id"
-                        >
-                          <ServiceAlertRow
-                            :alert="alert"
-                            :when="null"
-                            :expanded="alert.id === openLegAlertId"
-                            @toggle="toggleLegAlert(alert)"
-                          />
-                          <ServiceAlertCard
-                            v-if="alert.id === openLegAlertId"
-                            :alert="alert"
-                          />
-                        </template>
-                      </div>
-                    </div>
-
-                    <!-- Other departures on this line -->
-                    <div v-if="departuresFor(entry.segmentIndex).length > 1" class="relative flex">
-                      <div class="w-7 shrink-0" />
-                      <div class="flex-1 min-w-0 pl-2.5">
-                        <DepartureBoard
-                          :key="`${trip.id}-${entry.segmentIndex}`"
-                          :cards="boardCards[entry.segmentIndex] ?? []"
-                          :line-color="entry.segment.lineColor"
-                          :line-text-color="entry.segment.lineTextColor"
-                          :line-name="entry.segment.lineName"
-                          :busy="rebooking"
-                          @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
-                        />
-                      </div>
-                    </div>
-
-                    <!-- Intermediate stops — they open onto the same rail -->
-                    <Collapsible
-                      v-if="entry.segment.intermediateStops?.length"
-                      v-slot="{ open }"
-                      class="relative"
-                    >
-                      <!-- Same full-width control as the leg's Details toggle,
-                           offset past the rail column so it lines up with the
-                           cards above and below it. -->
-                      <CollapsibleTrigger class="group/stops flex w-full transition-colors cursor-pointer select-none">
-                        <div class="w-7 shrink-0" />
-                        <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
-                          <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
-                          <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
-                        </span>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div class="pt-1.5 space-y-1">
-                          <div
-                            v-for="stop in entry.segment.intermediateStops"
-                            :key="stop.id || stop.name"
-                            class="flex"
-                          >
-                            <div class="flex flex-col items-center w-7 shrink-0">
-                              <div
-                                class="mt-[5px] size-1.5 rounded-full shrink-0"
-                                v-bind="segmentRail(entry.segment)"
-                              />
-                            </div>
-                            <div class="flex-1 min-w-0 flex items-center gap-2 pl-2.5 text-xs text-muted-foreground">
-                              <span class="flex-1 truncate">{{ stop.name }}</span>
-                              <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
-                                {{ formatTime(new Date(stop.arrivalTime)) }}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-
-                    <!-- Alight -->
-                    <div v-if="entry.segment.arrivalStop" class="relative flex">
-                      <div class="flex flex-col items-center w-7 shrink-0">
-                        <div
-                          class="mt-[5px] size-2.5 rounded-full shrink-0"
-                          v-bind="segmentRail(entry.segment)"
-                        />
-                      </div>
-                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
-                        <div class="min-w-0">
-                          <div class="text-sm font-medium text-foreground leading-snug">
-                            {{ entry.segment.arrivalStop.name }}
-                          </div>
-                          <div class="text-[11px] text-muted-foreground mt-px">
-                            Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
-                          </div>
-                        </div>
-                        <span class="text-sm font-semibold tabular-nums shrink-0">
-                          {{ formatTime(entry.segment.endTime) }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- Transit alerts -->
-                    <div
-                      v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
-                      :key="ai"
-                      class="ml-[38px] flex gap-2 p-2 rounded-md text-xs"
-                      :class="alert.severity === 'severe'
-                        ? 'bg-destructive/10 text-destructive'
-                        : alert.severity === 'warning'
-                          ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
-                          : 'bg-muted text-muted-foreground'"
-                    >
-                      <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
-                      <div>
-                        <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
-                        <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
-                      </div>
-                    </div>
-                    </div>
-                  </div>
-                </div>
+                <TransitLegCard
+                  :segment="entry.segment"
+                  :rail-above="{ class: railColorAt(timelineEntries, i, 'above'), style: railStyleAt(timelineEntries, i, 'above') }"
+                  :alerts="legAlerts(entry.segmentIndex)"
+                  :open-alert-id="openLegAlertId"
+                  :board-cards="boardCards[entry.segmentIndex] ?? []"
+                  :show-board="departuresFor(entry.segmentIndex).length > 1"
+                  :board-key="`${trip.id}-${entry.segmentIndex}`"
+                  :busy="rebooking"
+                  @toggle-alert="toggleLegAlert"
+                  @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                />
 
                 <!-- Meta under the card — the rail leaves the card here and
                      carries on to the next entry, so this slice covers the gap

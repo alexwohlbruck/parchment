@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon } from 'lucide-vue-next'
+import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon, HourglassIcon, TrainFrontIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
@@ -12,6 +12,9 @@ import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { attachGuidanceDebug } from './guidance-debug-layer'
+import { guidanceClock } from '@/services/guidance/guidance-clock'
+import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
+import type { NavRoute } from '@/lib/guidance/nav-route'
 
 const RATES = [1, 2, 4, 8, 16]
 const TUNING_RANGES: Record<keyof CameraTuning, [min: number, max: number, step: number]> = {
@@ -43,14 +46,25 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unsubscribe?.()
   detachDebug?.()
+  guidanceClock.reset()
   simulatorStore.unload()
 })
+
+const STOP_DWELL_SEC = 15
+
+/** Dwell at every intermediate stop of each ride. */
+function transitDwells(route: NavRoute) {
+  return guidance.segments.flatMap((segment, i) =>
+    segment.mode === 'transit' ? rideStops(route, i, segment).slice(1, -1).map(stop => ({ s: stop.s, sec: STOP_DWELL_SEC })) : [],
+  )
+}
 
 function simulate() {
   const route = guidanceEngine.route
   if (!route) return
   const mode = route.segments[0]?.mode ?? 'driving'
-  simulatorStore.load('Route drive', synthesizeDrive(route, mode, Date.now(), Math.floor(Math.random() * 1e9)), REALISTIC_FIX_MODEL)
+  const drive = synthesizeDrive(route, mode, Date.now(), Math.floor(Math.random() * 1e9), { stops: transitDwells(route) })
+  simulatorStore.load('Route drive', drive, REALISTIC_FIX_MODEL)
   simulatorStore.setLoop(false)
   simulatorStore.play()
 }
@@ -59,6 +73,32 @@ function takeWrongTurn() {
   const here = simulatorStore.getState().currentPoint
   if (!here) return
   simulatorStore.load('Wrong turn', synthesizeDetour(here, Date.now()), REALISTIC_FIX_MODEL)
+  simulatorStore.setLoop(false)
+  simulatorStore.play()
+}
+
+// The simulated walk reaches the stop early; bring the timetable to it.
+watch(
+  () => guidance.transit?.kind,
+  kind => {
+    const stage = guidance.transit
+    if (kind !== 'wait' || stage?.kind !== 'wait' || sim.value.status === 'stopped') return
+    const ahead = stage.departureMs - 20_000 - guidanceClock.now()
+    if (ahead > 0) guidanceClock.advance(ahead)
+  },
+)
+
+function waitTooLong() {
+  const stage = guidance.transit
+  if (stage?.kind !== 'wait' && stage?.kind !== 'to-stop') return
+  simulatorStore.pause()
+  guidanceClock.advance(stage.departureMs + MISSED_GRACE_MS + 5000 - guidanceClock.now())
+}
+
+function stayOnBoard() {
+  const here = simulatorStore.getState().currentPoint
+  if (!here) return
+  simulatorStore.load('Stay on board', synthesizeDetour(here, Date.now(), { turnDeg: 0, meters: 1500, speed: 10 }), REALISTIC_FIX_MODEL)
   simulatorStore.setLoop(false)
   simulatorStore.play()
 }
@@ -75,7 +115,7 @@ watch(
     const rate = simulatorStore.getState().playbackRate
     simulatorStore.load(
       'Route drive',
-      synthesizeDrive(route, mode, Date.now(), Math.floor(Math.random() * 1e9), { startS, startSpeed: here.speed }),
+      synthesizeDrive(route, mode, Date.now(), Math.floor(Math.random() * 1e9), { startS, startSpeed: here.speed, stops: transitDwells(route) }),
       REALISTIC_FIX_MODEL,
     )
     simulatorStore.setLoop(false)
@@ -124,6 +164,18 @@ function toggleDebug() {
       </Button>
       <Button size="icon-sm" variant="ghost" title="Take a wrong turn" @click="takeWrongTurn">
         <SplitIcon class="size-4" />
+      </Button>
+      <Button
+        v-if="guidance.transit?.kind === 'wait' || guidance.transit?.kind === 'to-stop'"
+        size="icon-sm"
+        variant="ghost"
+        title="Wait too long"
+        @click="waitTooLong"
+      >
+        <HourglassIcon class="size-4" />
+      </Button>
+      <Button v-if="guidance.transit?.kind === 'riding'" size="icon-sm" variant="ghost" title="Stay on board" @click="stayOnBoard">
+        <TrainFrontIcon class="size-4" />
       </Button>
     </template>
     <Button size="icon-sm" :variant="tuningOpen ? 'default' : 'ghost'" class="ml-auto" @click="tuningOpen = !tuningOpen">

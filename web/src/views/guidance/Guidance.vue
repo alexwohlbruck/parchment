@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { AppRoute } from '@/router'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
@@ -10,6 +11,12 @@ import GuidanceBottomBar from '@/components/guidance/GuidanceBottomBar.vue'
 import GuidanceMenu from '@/components/guidance/GuidanceMenu.vue'
 import ArrivalPanel from '@/components/guidance/ArrivalPanel.vue'
 import SegmentHandoff from '@/components/guidance/SegmentHandoff.vue'
+import TransitStageCard from '@/components/guidance/TransitStageCard.vue'
+import TransitApproach from '@/components/guidance/TransitApproach.vue'
+import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
+import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
+import { segmentAt } from '@/lib/guidance/nav-route'
+import { walkToStopSec } from '@/lib/guidance/transit-progress'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useAppStore } from '@/stores/app.store'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
@@ -21,6 +28,7 @@ const GuidanceDevTools = import.meta.env.DEV
   : null
 
 const router = useRouter()
+const { t } = useI18n()
 const guidance = useGuidanceStore()
 const { unitSystem } = storeToRefs(useAppStore())
 const metric = computed(() => unitSystem.value === UnitSystem.METRIC)
@@ -33,6 +41,46 @@ useGuidanceRouteLine()
 function exit() {
   guidance.stop()
   router.back()
+}
+
+const HEADER_STAGES = new Set(['wait', 'riding', 'missed-vehicle', 'missed-stop'])
+const stageCard = computed(() => {
+  const stage = guidance.transit
+  return stage && HEADER_STAGES.has(stage.kind) ? stage : null
+})
+const approach = computed(() => {
+  const stage = guidance.transit
+  const route = guidance.route
+  const puck = guidance.progress?.puck
+  if (stage?.kind !== 'to-stop' || !route || !puck) return null
+  return { stage, walkSec: walkToStopSec(route, stage, puck.s) }
+})
+const hasTransit = computed(() => guidance.segments.some(s => s.mode === 'transit'))
+const currentSegment = computed(() => {
+  const route = guidance.route
+  const puck = guidance.progress?.puck
+  return route && puck ? segmentAt(route, puck.s)?.index ?? 0 : 0
+})
+
+const noLaterRun = ref(false)
+watch(() => guidance.transit?.kind, () => (noLaterRun.value = false))
+async function catchNextRun() {
+  noLaterRun.value = !(await guidance.catchNextRun())
+}
+
+function findAnotherWay() {
+  const from = guidance.progress?.puck.position
+  const end = guidance.segments.at(-1)?.end
+  if (!from || !end?.location) return
+  const query = serializeDirectionsQuery({
+    waypoints: [
+      { lat: from.lat, lng: from.lng, label: t('directions.currentLocation') },
+      { lat: end.location.lat, lng: end.location.lng, label: end.label },
+    ],
+    mode: 'multi',
+  })
+  guidance.stop()
+  router.replace({ name: AppRoute.DIRECTIONS, query })
 }
 
 // With nothing left to navigate, the arrival card closes itself.
@@ -62,14 +110,40 @@ onBeforeUnmount(() => guidance.stop())
         @done="exit"
         @next="guidance.startNextLeg()"
       />
+      <TransitStageCard
+        v-else-if="stageCard"
+        :stage="stageCard"
+        :segment="guidance.segments[stageCard.segmentIndex]"
+        :now-ms="guidance.clockMs"
+        :busy="guidance.rebooking"
+        :no-later-run="noLaterRun"
+        @next-run="catchNextRun"
+        @another-way="findAnotherWay"
+      />
       <SegmentHandoff
         v-else-if="guidance.handoff"
         :key="guidance.handoff.from"
         :handoff="guidance.handoff"
         @settle="guidance.settleHandoff()"
       />
-      <GuidanceBottomBar v-else :progress="guidance.progress" :metric="metric" @exit="exit" />
+      <div v-else class="flex flex-col gap-2">
+        <TransitApproach
+          v-if="approach"
+          :departure-ms="approach.stage.departureMs"
+          :segment="guidance.segments[approach.stage.segmentIndex]"
+          :now-ms="guidance.clockMs"
+          :walk-sec="approach.walkSec"
+        />
+        <GuidanceBottomBar :progress="guidance.progress" :metric="metric" @exit="exit" />
+      </div>
     </SheetHeader>
+    <LiveTransitTimeline
+      v-if="hasTransit"
+      class="mb-4"
+      :segments="guidance.segments"
+      :current="currentSegment"
+      :stage="guidance.transit"
+    />
     <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" />
     <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" />
   </PanelLayout>

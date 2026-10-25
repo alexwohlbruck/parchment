@@ -1316,7 +1316,9 @@
         "uturn": "Make a U-turn",
         "roundabout": "Enter the roundabout",
         "roundaboutExit": "At the roundabout, take exit {exit}",
-        "arrive": "Arrive"
+        "arrive": "Arrive",
+        "board": "Board",
+        "boardAt": "Board at {stop}"
       },
       "onto": "{action} onto {road}",
       "in": "In {distance}, {action}",
@@ -1378,7 +1380,6 @@
       "unlock-bike": "Unlock a bike at {station}",
       "get-in-car": "Get in your car",
       "get-on-bike": "Get on your bike",
-      "board": "Head for your stop",
       "continue": "Carry on",
       "then": "then {mode} {duration}",
       "thenTo": "then {mode} {duration} to {place}",
@@ -1391,6 +1392,43 @@
       "go": "Go",
       "notYet": "Not yet",
       "docksFree": "{n} dock free | {n} docks free"
+    },
+    "transit": {
+      "voice": {
+        "board": "Board the {line}",
+        "boardToward": "Board the {line} toward {headsign}",
+        "alight-next": "Get off at the next stop, {stop}",
+        "alight-now": "Get off at {stop}",
+        "missed-vehicle": "The {line} has left. Catch the next one or find another way",
+        "missed-stop": "You passed {stop}. Get off at the next stop"
+      },
+      "departsIn": "Departs in {duration}",
+      "departingNow": "Departing now",
+      "from": "from {stop}",
+      "stopsLeft": "{n} stop | {n} stops",
+      "getOffAt": "Get off at {stop}",
+      "getOffNext": "Get off at the next stop",
+      "getOffNow": "Get off now",
+      "nextStop": "Next: {stop}",
+      "missedVehicle": "The {line} has left",
+      "missedVehicleHint": "Catch the next one or find another way",
+      "nextDeparture": "Next departure",
+      "anotherWay": "Another way",
+      "noLaterRun": "No later departure today",
+      "missedStop": "You passed {stop}",
+      "missedStopHint": "Get off at the next stop",
+      "reach": {
+        "ok": "On track",
+        "hurry": "Hurry",
+        "late": "You may miss it"
+      },
+      "inDuration": "in {duration}",
+      "leg": {
+        "walking": "Walk {duration}",
+        "cycling": "Ride {duration}",
+        "driving": "Drive {duration}"
+      },
+      "toPlace": "to {place}"
     }
   },
   "attribution": {

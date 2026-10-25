@@ -7,6 +7,7 @@ import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { pointAt, bearingAt, type NavRoute, type NavStep } from './nav-route'
 import type { PuckState } from './guidance-engine'
+import type { TransitEvent } from './transit-progress'
 import { angleDelta } from './spring'
 import { travelModeAt } from './guidance-display'
 import { crosswalkAfter, upcomingHazard } from './hazards'
@@ -31,6 +32,7 @@ export type Announcement =
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
   | { kind: 'reroute' }
+  | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
 
 /** Turn prompts are guidance; everything else is an alert, spoken in "alerts only" too. */
 export function isAlert(announcement: Announcement): boolean {

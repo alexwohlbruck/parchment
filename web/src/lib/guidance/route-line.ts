@@ -33,6 +33,8 @@ export function routeGradient(
       last = at
     }
   }
+  // MapLibre rejects a `step` without at least one stop.
+  if (expression.length === 3) expression.push(1, expression[2])
   return expression
 }
 

@@ -29,6 +29,7 @@ export const DRIVE_PROFILES: Record<string, DriveProfile> = {
   driving: { cruise: 13.4, lateralAccel: 2.5, accel: 2, decel: 2.5, stopChance: 0.5, maxStopSec: 25, step: 2 },
   cycling: { cruise: 5.5, lateralAccel: 1.5, accel: 0.8, decel: 1.5, stopChance: 0.3, maxStopSec: 15, step: 1 },
   walking: { cruise: 1.4, lateralAccel: 10, accel: 0.5, decel: 1, stopChance: 0.2, maxStopSec: 20, step: 1 },
+  transit: { cruise: 11, lateralAccel: 2, accel: 1, decel: 1.3, stopChance: 0, maxStopSec: 0, step: 2 },
 }
 
 const TURN_MODIFIERS = new Set(['left', 'right', 'u-turn'])
@@ -63,8 +64,8 @@ export function synthesizeDrive(
   fallbackMode: string,
   startTimeMs: number,
   seed = 1,
-  /** Join the route part-way and already moving, as after a reroute. */
-  { startS = 0, startSpeed = 0 }: { startS?: number; startSpeed?: number } = {},
+  /** Join the route part-way and already moving, as after a reroute; `stops` are dwells, as at transit stops. */
+  { startS = 0, startSpeed = 0, stops = [] }: { startS?: number; startSpeed?: number; stops?: { s: number; sec: number }[] } = {},
 ): GpxPoint[] {
   const random = createRandom(seed)
   const finest = Math.min(...route.segments.map(seg => profileFor(seg.mode).step), profileFor(fallbackMode).step)
@@ -93,6 +94,11 @@ export function synthesizeDrive(
     const i = Math.min(n - 1, Math.round(segment.startDistance / ds))
     limit[i] = 0
     dwell[i] = MODE_CHANGE_SEC
+  }
+  for (const stop of stops) {
+    const i = Math.min(n - 1, Math.round(stop.s / ds))
+    limit[i] = 0
+    dwell[i] = Math.max(dwell[i], stop.sec)
   }
   const first = Math.min(n - 2, Math.max(0, Math.round(startS / ds)))
   limit[first] = startSpeed

@@ -147,6 +147,12 @@ export function pointAt(route: NavRoute, s: number): LngLat {
   return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t }
 }
 
+/** Route distance of the point nearest `target`, searching forward from `fromS`. */
+export function distanceAlong(route: NavRoute, target: LngLat, fromS = 0): number {
+  if (route.points.length === 0) return 0
+  return locateOnPolyline(route.points, route.cumulative, target, segmentIndexAt(route, fromS)).distance
+}
+
 /** Bearing of the polyline segment under `s`. */
 export function bearingAt(route: NavRoute, s: number): number {
   const { points } = route

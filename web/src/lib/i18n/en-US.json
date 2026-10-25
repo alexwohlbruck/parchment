@@ -1259,7 +1259,9 @@
       "arrive": "Your destination",
       "then": "Then",
       "offRoute": "Off route",
-      "offRouteHint": "Head back to the route"
+      "offRouteHint": "Head back to the route",
+      "arrived": "You have arrived",
+      "rerouting": "Rerouting…"
     },
     "units": {
       "ft": "ft",
@@ -1285,6 +1287,13 @@
       "addStop": "Add stop",
       "report": "Report",
       "steps": "Steps"
+    },
+    "startLeg": "Start leg {leg}",
+    "arrival": {
+      "destination": "Your destination",
+      "at": "Arrived at {time}",
+      "nextLeg": "Next leg",
+      "done": "Done"
     }
   },
   "attribution": {

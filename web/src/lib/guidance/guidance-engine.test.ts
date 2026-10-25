@@ -5,7 +5,7 @@ import { FixNoise, REALISTIC_FIX_MODEL } from '@/dev/gpx-simulator/fix-model'
 import { pointAtTime } from '@/dev/gpx-simulator/gpx-parser'
 import { buildNavRoute, pointAt } from './nav-route'
 import { GuidanceEngine } from './guidance-engine'
-import { cityDrive } from './test-routes'
+import { cityDrive, polyline } from './test-routes'
 
 function replay(seed: number) {
   const route = buildNavRoute([cityDrive()])
@@ -70,5 +70,25 @@ describe('GuidanceEngine', () => {
     }
     expect(engine.isOffRoute).toBe(true)
     expect(engine.sample(16)?.snapped).toBe(false)
+  })
+
+  test('snaps to a new route after a reroute, keeping its speed', () => {
+    const route = buildNavRoute([cityDrive()])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 10; t++) {
+      engine.pushFix({ t, position: pointAt(route, 10 * t), accuracy: 5, speed: 10, heading: 0 })
+    }
+    let position = pointAt(route, 100)
+    for (let t = 11; t <= 16; t++) {
+      position = projectLatLng(position, 15, 270, 1)
+      engine.pushFix({ t, position, accuracy: 5, speed: 15, heading: 270 })
+    }
+    const detour = buildNavRoute([{ mode: 'driving', geometry: polyline([[270, 300], [0, 500]], position) }])
+    engine.setRoute(detour)
+    engine.pushFix({ t: 17, position: pointAt(detour, 15), accuracy: 5, speed: 15, heading: 270 })
+    const puck = engine.sample(17.5)!
+    expect(puck.snapped).toBe(true)
+    expect(puck.s).toBeGreaterThan(5)
+    expect(puck.speed).toBeGreaterThan(5)
   })
 })

@@ -1225,7 +1225,9 @@
       "arrive": "Tu destino",
       "then": "Luego",
       "offRoute": "Fuera de ruta",
-      "offRouteHint": "Vuelve a la ruta"
+      "offRouteHint": "Vuelve a la ruta",
+      "arrived": "Has llegado",
+      "rerouting": "Recalculando…"
     },
     "units": {
       "ft": "pies",
@@ -1251,6 +1253,13 @@
       "addStop": "Añadir parada",
       "report": "Reportar",
       "steps": "Pasos"
+    },
+    "startLeg": "Iniciar tramo {leg}",
+    "arrival": {
+      "destination": "Tu destino",
+      "at": "Llegada a las {time}",
+      "nextLeg": "Siguiente tramo",
+      "done": "Listo"
     }
   },
   "attribution": {

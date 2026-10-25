@@ -109,6 +109,13 @@ export function postedLimit(kmh: number, metric: boolean): number {
   return metric ? Math.round(kmh / 5) * 5 : Math.round(kmh / 1.609344 / 5) * 5
 }
 
+const ARRIVAL_RADIUS: Record<string, number> = { driving: 30, cycling: 20, walking: 15 }
+
+export function hasArrived(route: NavRoute, puck: PuckState): boolean {
+  const mode = travelModeAt(route, puck.s)
+  return route.length - puck.s <= (ARRIVAL_RADIUS[mode] ?? 20)
+}
+
 export function travelModeAt(route: NavRoute, s: number): string {
   return segmentAt(route, s)?.mode ?? 'driving'
 }

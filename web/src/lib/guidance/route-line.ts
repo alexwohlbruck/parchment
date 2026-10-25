@@ -6,11 +6,13 @@ import { pointAt, segmentIndexAt, smoothedBearingAt, type MeasuredLine, type Nav
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { metersPerPixel } from './camera-framing'
+import type { RouteSpan } from '@/lib/map-decks/deck.types'
 
 export type Expression = (string | number | Expression)[]
 
 export const TRAVELLED_COLOR = '#9ca3af'
 export const TRAVELLED_CASE_COLOR = '#6b7280'
+const HIDDEN_COLOR = 'rgba(0, 0, 0, 0)'
 
 export function routeGradient(
   route: NavRoute,
@@ -19,21 +21,28 @@ export function routeGradient(
   travelledColor: string,
   /** Where route distance `d` falls along the drawn line, 0 to 1; by default the route itself. */
   progressAt?: (d: number) => number,
+  /** Stretches of route distance left undrawn, as where the route is laid over a bridge deck instead. */
+  hidden: RouteSpan[] = [],
 ): Expression {
   const length = Math.max(1, route.length)
   const progress = progressAt ?? ((d: number) => Math.min(1, Math.max(0, d / length)))
-  const cut = progress(travelled)
-  const stops: [at: number, color: string][] = cut > 0 ? [[0, travelledColor]] : []
-  for (const segment of route.segments) {
-    if (progress(segment.endDistance) <= cut) continue
-    stops.push([Math.max(cut, progress(segment.startDistance)), colorFor(segment.mode)])
+  const colorAt = (d: number) => {
+    if (hidden.some(([start, end]) => d >= start && d < end)) return HIDDEN_COLOR
+    if (d < travelled) return travelledColor
+    const segment = route.segments.find(s => d < s.endDistance) ?? route.segments.at(-1)
+    return segment ? colorFor(segment.mode) : travelledColor
   }
-  if (stops.length === 0) stops.push([0, travelledColor])
+  const breaks = [travelled, ...route.segments.map(s => s.startDistance), ...hidden.flat()]
+    .filter(d => d > 0 && d < route.length)
+    .sort((a, b) => a - b)
 
   // `step` needs strictly ascending stops: a stop landing on its predecessor replaces it.
-  const expression: Expression = ['step', ['line-progress'], stops[0][1]]
+  const expression: Expression = ['step', ['line-progress'], colorAt(0)]
   let last = 0
-  for (const [at, color] of stops.slice(1)) {
+  for (const d of breaks) {
+    const at = progress(d)
+    const color = colorAt(d)
+    if (color === expression[expression.length - 1]) continue
     if (at <= last) expression[expression.length - 1] = color
     else {
       expression.push(at, color)

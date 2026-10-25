@@ -26,7 +26,7 @@ import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
 import { hapticImpact } from '@/lib/haptics'
 import { liftPixels } from '@/lib/guidance/deck-lift'
-import type { RouteMeasure } from '@/lib/map-decks/deck.types'
+import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { metersPerPixel } from '@/lib/guidance/camera-framing'
 import {
   mapPoiClickPolicy,
@@ -312,8 +312,8 @@ export class MapStrategy {
   /** Colours routes lifted onto bridge decks, or restores the default with null. */
   setDeckRouteColors(_colors: { route: string; casing: string } | null) {}
 
-  /** Measures the navigated route where it crosses bridge decks, so its travelled part greys there too; null stops. */
-  measureDeckRoute(_measure: RouteMeasure | null) {}
+  /** Lays the navigated route over bridge decks as its track says, and tells it where; null stops. */
+  trackDeckRoute(_track: RouteTrack | null) {}
 
   /** Metres of the measured route already travelled. */
   setDeckRouteTravelled(_metres: number) {}

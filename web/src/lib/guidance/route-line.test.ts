@@ -18,6 +18,12 @@ describe('routeGradient', () => {
     expect(routeGradient(walkThenDrive, 200, color, 'grey')).toEqual(['step', ['line-progress'], 'grey', expect.closeTo(0.5, 2), 'violet'])
   })
 
+  test('leaves hidden stretches undrawn', () => {
+    expect(routeGradient(walkThenDrive, 0, color, 'grey', undefined, [[200, 300]])).toEqual(
+      ['step', ['line-progress'], 'blue', expect.closeTo(0.25, 2), 'violet', expect.closeTo(0.5, 2), 'rgba(0, 0, 0, 0)', expect.closeTo(0.75, 2), 'violet'],
+    )
+  })
+
   test('a finished route is all travelled', () => {
     expect(routeGradient(walkThenDrive, 1e6, color, 'grey')).toEqual(['step', ['line-progress'], 'grey', 1, 'grey'])
   })

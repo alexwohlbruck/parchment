@@ -4,13 +4,18 @@ import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useMapService } from '@/services/map/map.service'
 import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
+import { trackDeckLift } from '@/services/guidance/deck-lift.service'
+import { travelModeAt } from '@/lib/guidance/guidance-display'
+import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 /** Draws the navigated leg in place of the trip preview while guidance runs. */
 export function useGuidanceRouteLine() {
   const guidance = useGuidanceStore()
   const mapService = useMapService()
-  const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
+  const strategy = useMapStore().getMapStrategy()
+  const map = strategy?.mapInstance as MaplibreMap | undefined
   let layer: GuidanceRouteLayer | null = null
+  let stopLift: (() => void) | null = null
 
   const stopRoute = watch(
     () => guidance.route,
@@ -21,6 +26,8 @@ export function useGuidanceRouteLine() {
         mapService.setVisibleTrips([])
         layer = new GuidanceRouteLayer(map, route)
       }
+      stopLift?.()
+      stopLift = strategy ? trackDeckLift(strategy, route) : null
     },
     { immediate: true },
   )
@@ -29,6 +36,8 @@ export function useGuidanceRouteLine() {
     () => guidance.progress,
     progress => {
       if (!layer || !progress) return
+      const mode = guidance.route ? travelModeAt(guidance.route, progress.puck.s) : 'driving'
+      strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
       const maneuver = progress.next && progress.next.instruction.type !== 'destination' ? progress.next.startDistance : null
       layer.update(progress.puck.snapped ? progress.puck.s : 0, maneuver)
     },
@@ -37,6 +46,8 @@ export function useGuidanceRouteLine() {
   onScopeDispose(() => {
     stopRoute()
     stopProgress()
+    stopLift?.()
+    strategy?.setDeckRouteColors(null)
     layer?.destroy()
     layer = null
   })

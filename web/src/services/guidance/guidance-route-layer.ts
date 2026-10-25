@@ -8,6 +8,8 @@ import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 const ROUTE = 'guidance-route'
+/** Read by the 3D bridge decks, which lift the route onto themselves. */
+export const GUIDANCE_ROUTE_SOURCE = ROUTE
 const ARROW = 'guidance-maneuver'
 const HAZARDS = 'guidance-hazards'
 const TRAVELLED_COLOR = '#9ca3af'

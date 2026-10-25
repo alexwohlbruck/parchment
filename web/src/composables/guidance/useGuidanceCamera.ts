@@ -8,6 +8,7 @@ import { register as registerTick, type Tick } from '@/lib/map/animation-schedul
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { createSpring, stepAngleSpring, stepSpring } from '@/lib/guidance/spring'
+import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { CAMERA_MODES, frameCamera, metersPerPixel } from '@/lib/guidance/camera-framing'
 import { segmentAt } from '@/lib/guidance/nav-route'
 
@@ -15,6 +16,9 @@ export type CameraState = 'following' | 'free' | 'overview'
 
 const ZOOM_SMOOTH_SEC = 1.2
 const PITCH_SMOOTH_SEC = 1
+const LIFT_SMOOTH_SEC = 0.5
+/** Below this the centre stays clamped to the ground. */
+const LIFT_MIN_METERS = 0.5
 const BEARING_SMOOTH_SEC = 0.5
 const AUTO_RESUME_MS = 10_000
 const CALM_MANEUVER_SEC = 7
@@ -29,12 +33,14 @@ type GestureEvent = MapLibreEvent & { originalEvent?: Event }
 export function useGuidanceCamera() {
   const guidance = useGuidanceStore()
   const appStore = useAppStore()
-  const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
+  const strategy = useMapStore().getMapStrategy()
+  const map = strategy?.mapInstance as MaplibreMap | undefined
   const state = ref<CameraState>('following')
 
   const zoom = createSpring(map?.getZoom() ?? 15)
   const pitch = createSpring(map?.getPitch() ?? 0)
   const bearing = createSpring(map?.getBearing() ?? 0)
+  const lift = createSpring(0)
   let focalOffset = 0
   let lastMs = performance.now()
   let resumeTimer: ReturnType<typeof setTimeout> | null = null
@@ -83,6 +89,8 @@ export function useGuidanceCamera() {
       pitch: pitch.value,
       bearing: bearing.value,
     })
+    stepSpring(lift, deckLiftAt(puck.s), LIFT_SMOOTH_SEC, dt)
+    strategy?.liftCenter(lift.value > LIFT_MIN_METERS ? lift.value : 0)
 
     // Nudge the centre along the heading until the puck lands on the focal line.
     const desiredY = visible.y + target.focal * visible.height

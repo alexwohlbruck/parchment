@@ -25,6 +25,8 @@ import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
 import { hapticImpact } from '@/lib/haptics'
+import { liftPixels } from '@/lib/guidance/deck-lift'
+import { metersPerPixel } from '@/lib/guidance/camera-framing'
 import {
   mapPoiClickPolicy,
   PoiTapController,
@@ -279,6 +281,36 @@ export class MapStrategy {
   }
 
   /** Update an existing marker's position without removing it (e.g. during drag of another marker). */
+  /** Draws a mounted marker this many metres above the ground, as on a bridge deck. */
+  setMarkerLift(id: string, metres: number) {
+    const marker = this.markers.get(id)
+    if (!marker?.setOffset) return
+    const lat = marker.getLngLat?.().lat ?? 0
+    const px = liftPixels(metres, metersPerPixel(this.mapInstance.getZoom(), lat), this.mapInstance.getPitch())
+    marker.setOffset([0, -px])
+  }
+
+  /** A 3D bridge deck's height under a point, in terrain metres, or null where there is none. */
+  deckHeight(_lng: number, _lat: number, _along?: [number, number]): number | null {
+    return null
+  }
+
+  /** The terrain's height at a point, or null without terrain. */
+  groundHeight(_lng: number, _lat: number): number | null {
+    return null
+  }
+
+  /** Runs whenever the drawn decks change; returns an unsubscribe. */
+  onDecksChanged(_listener: () => void): () => void {
+    return () => {}
+  }
+
+  /** Raises the camera's centre this far above the ground, as over a bridge deck; 0 rests it on the ground. */
+  liftCenter(_metres: number) {}
+
+  /** Colours routes lifted onto bridge decks, or restores the default with null. */
+  setDeckRouteColors(_colors: { route: string; casing: string } | null) {}
+
   setMarkerLngLat(id: string, lngLat: LngLat) {
     const marker = this.markers.get(id)
     if (marker && typeof marker.setLngLat === 'function') {

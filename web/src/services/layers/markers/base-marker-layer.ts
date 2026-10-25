@@ -67,6 +67,8 @@ export interface MapMarkerAPI {
     spread?: number,
     pitchAlignment?: 'map' | 'viewport',
   ): void
+  /** Raise a mounted marker this many metres, as onto a bridge deck. */
+  setMarkerLift?(id: string, metres: number): void
 }
 
 /**

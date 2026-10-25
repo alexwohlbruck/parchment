@@ -64,6 +64,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman'
 import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
+import { GUIDANCE_ROUTE_SOURCE } from '@/services/guidance/guidance-route-layer'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/map/vue-marker'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
@@ -109,7 +110,7 @@ import {
 } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
-import { DECK_PALETTE } from '@/lib/map-decks/palette'
+import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import { flatBridgeLabelFilter, flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
@@ -964,6 +965,47 @@ export class MaplibreStrategy extends MapStrategy {
   /** The deck version the road labels were last filtered for. */
   private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
+  private deckListeners = new Set<() => void>()
+
+  deckHeight(lng: number, lat: number, along?: [number, number]): number | null {
+    return this.deckLayer?.standOn(lng, lat, along) ?? null
+  }
+
+  groundHeight(lng: number, lat: number): number | null {
+    return this.mapInstance.getTerrain?.() ? this.mapInstance.queryTerrainElevation?.([lng, lat]) ?? null : null
+  }
+
+  onDecksChanged(listener: () => void): () => void {
+    this.deckListeners.add(listener)
+    return () => this.deckListeners.delete(listener)
+  }
+
+  private deckRouteColors: { route: string; casing: string } | null = null
+  private deckPalette(flavor: 'light' | 'dark') {
+    const colors = this.deckRouteColors
+    return colors ? withRouteColors(DECK_PALETTE[flavor], colors.route, colors.casing) : DECK_PALETTE[flavor]
+  }
+
+  setDeckRouteColors(colors: { route: string; casing: string } | null) {
+    if (colors?.route === this.deckRouteColors?.route && colors?.casing === this.deckRouteColors?.casing) return
+    this.deckRouteColors = colors
+    this.deckLayer?.setPalette(this.deckPalette(this.options.theme === 'dark' ? 'dark' : 'light'))
+  }
+
+  private centerLifted = false
+  liftCenter(metres: number) {
+    const map = this.mapInstance
+    if (metres > 0) {
+      const center = map.getCenter()
+      const ground = this.groundHeight(center.lng, center.lat) ?? 0
+      if (!this.centerLifted) map.setCenterClampedToGround(false)
+      this.centerLifted = true
+      map.setCenterElevation(ground + metres)
+    } else if (this.centerLifted) {
+      this.centerLifted = false
+      map.setCenterClampedToGround(true)
+    }
+  }
   /** Flat tunnel layers muted from street zoom, with the opacity each had. */
   private mutedTunnels = new Map<string, unknown>()
   /** Layers `muteFlatTunnels` has already judged. */
@@ -983,6 +1025,8 @@ export class MaplibreStrategy extends MapStrategy {
     const routes = () => {
       const ids: string[] = []
       for (let i = 0; map.getSource(`route-${i}`); i++) ids.push(`route-${i}`)
+      for (const group of this.layerGroups.values()) if (group instanceof TripGroup) ids.push(...group.routeSources())
+      if (map.getSource(GUIDANCE_ROUTE_SOURCE)) ids.push(GUIDANCE_ROUTE_SOURCE)
       return ids
     }
     const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
@@ -998,9 +1042,13 @@ export class MaplibreStrategy extends MapStrategy {
     if (active && !this.deckLayer) {
       this.deckLayer = new BakedBridgeLayer(
         { profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, hd: () => !!this.builtHdRoads },
-        DECK_PALETTE[flavor],
+        this.deckPalette(flavor),
       )
-      this.deckLayer.onBuilt = () => { this.objectLayer?.refresh(); this.applyDecks() }
+      this.deckLayer.onBuilt = () => {
+        this.objectLayer?.refresh()
+        this.applyDecks()
+        for (const listener of this.deckListeners) listener()
+      }
       shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))

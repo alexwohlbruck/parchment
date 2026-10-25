@@ -13,6 +13,7 @@
 * Search along your route while navigating, for gas, charging, coffee, restrooms and more, with how much time each detour adds. Add one as a stop and navigation routes you there first.
 * Bike share trips keep an eye on your station: if it is filling up or running out of bikes, navigation offers a nearby one, or switches for you when it's empty or full.
 * Navigation suggests a better route when one appears: faster, or with more protected bike lanes or quieter streets when riding or walking. Routes in the menu lists every option.
+* With 3D on, your route and position ride up onto bridge decks instead of running along the ground beneath them, while navigating and when previewing a trip.
 
 ### Changed
 

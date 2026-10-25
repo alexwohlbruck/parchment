@@ -15,6 +15,8 @@ import TransitStageCard from '@/components/guidance/TransitStageCard.vue'
 import TransitApproach from '@/components/guidance/TransitApproach.vue'
 import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
 import AheadSearch from '@/components/guidance/AheadSearch.vue'
+import DockWatchCard from '@/components/guidance/DockWatchCard.vue'
+import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
 import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { segmentAt } from '@/lib/guidance/nav-route'
@@ -63,6 +65,8 @@ const currentSegment = computed(() => {
   const puck = guidance.progress?.puck
   return route && puck ? segmentAt(route, puck.s)?.index ?? 0 : 0
 })
+
+const docks = useDockWatch()
 
 const expandSheet = inject(EXPAND_MAP_SHEET, () => {})
 const searchingAhead = ref(false)
@@ -140,8 +144,20 @@ onBeforeUnmount(() => guidance.stop())
         @settle="guidance.settleHandoff()"
       />
       <div v-else class="flex flex-col gap-2">
+        <DockWatchCard
+          v-if="docks.watched.value"
+          :need="docks.watched.value.need"
+          :name="docks.watched.value.name"
+          :station="docks.station.value"
+          :risk="docks.risk.value"
+          :alternative="docks.alternative.value"
+          :dismissed="docks.dismissed.value"
+          :switching="docks.switching.value"
+          @accept="docks.accept()"
+          @dismiss="docks.dismiss()"
+        />
         <TransitApproach
-          v-if="approach"
+          v-else-if="approach"
           :departure-ms="approach.stage.departureMs"
           :segment="guidance.segments[approach.stage.segmentIndex]"
           :now-ms="guidance.clockMs"

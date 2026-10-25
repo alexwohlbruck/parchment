@@ -5,7 +5,7 @@ import type { Location } from '../types/valhalla.types'
 
 export type RerouteMode = 'walking' | 'cycling' | 'driving'
 
-const COSTING: Record<RerouteMode, string> = {
+export const MODE_COSTING: Record<RerouteMode, string> = {
   walking: 'pedestrian',
   cycling: 'bicycle',
   driving: 'auto',
@@ -38,7 +38,7 @@ export async function rerouteSegment(request: RerouteRequest): Promise<RerouteSe
   ]
   const route = await routingService.getRoute(
     locations,
-    COSTING[request.mode],
+    MODE_COSTING[request.mode],
     { ...request.routingPreferences, language: request.language },
     { startHeading: request.heading },
   )

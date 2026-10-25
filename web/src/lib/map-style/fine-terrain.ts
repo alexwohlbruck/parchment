@@ -65,7 +65,8 @@ export async function upsampledTile(z: number, x: number, y: number, parents: Pa
   return null
 }
 
-type Upsampler = { worker: Worker; jobs: Map<number, (image: ImageBitmap | null) => void>; alive: boolean }
+type Job = { tile: [number, number, number]; resolve: (image: ImageBitmap | null) => void }
+type Upsampler = { worker: Worker; jobs: Map<number, Job>; alive: boolean }
 
 export class FineTerrain {
   private parents: ParentHeights | null = null
@@ -84,7 +85,7 @@ export class FineTerrain {
   async tile(url: string): Promise<ArrayBuffer | ImageBitmap> {
     const [z, x, y] = url.slice(FINE_TERRAIN_PROTOCOL.length + 3).split('/').map(Number)
     // Started with the terrain, so it is ready by the time something is cut into it.
-    if (this.upsampler === undefined) this.upsampler = startUpsampler()
+    if (this.upsampler === undefined) this.upsampler = startUpsampler((z, x, y) => this.here(z, x, y))
     if (z <= SOURCE_MAXZOOM) {
       const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)))
       if (res.status === 404 || res.status === 204) throw missing()
@@ -100,26 +101,30 @@ export class FineTerrain {
 
   private upsample(z: number, x: number, y: number): Promise<ImageBitmap | null> {
     const upsampler = this.upsampler
-    if (!upsampler?.alive) return upsampledTile(z, x, y, (this.parents ??= new ParentHeights()))
+    if (!upsampler?.alive) return this.here(z, x, y)
     const id = this.next++
     return new Promise(resolve => {
-      upsampler.jobs.set(id, resolve)
+      upsampler.jobs.set(id, { tile: [z, x, y], resolve })
       upsampler.worker.postMessage({ id, z, x, y })
     })
   }
+
+  private here(z: number, x: number, y: number): Promise<ImageBitmap | null> {
+    return upsampledTile(z, x, y, (this.parents ??= new ParentHeights()))
+  }
 }
 
-/** A worker cutting finer tiles; null where workers are unavailable. One that fails answers its jobs empty, and the next tile is cut here. */
-function startUpsampler(): Upsampler | null {
+/** A worker cutting finer tiles; null where workers are unavailable. One that fails hands what it held, and every later tile, to `here`. */
+function startUpsampler(here: (z: number, x: number, y: number) => Promise<ImageBitmap | null>): Upsampler | null {
   try {
     const upsampler: Upsampler = { worker: new Worker(new URL('./fine-terrain.worker.ts', import.meta.url), { type: 'module' }), jobs: new Map(), alive: true }
     upsampler.worker.onmessage = ({ data }: MessageEvent<{ id: number; image: ImageBitmap | null }>) => {
-      upsampler.jobs.get(data.id)?.(data.image)
+      upsampler.jobs.get(data.id)?.resolve(data.image)
       upsampler.jobs.delete(data.id)
     }
-    upsampler.worker.onerror = () => {
+    upsampler.worker.onerror = upsampler.worker.onmessageerror = () => {
       upsampler.alive = false
-      for (const resolve of upsampler.jobs.values()) resolve(null)
+      for (const { tile, resolve } of upsampler.jobs.values()) void here(...tile).then(resolve, () => resolve(null))
       upsampler.jobs.clear()
       upsampler.worker.terminate()
     }

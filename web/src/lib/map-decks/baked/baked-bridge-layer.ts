@@ -120,17 +120,17 @@ export class BakedBridgeLayer {
   get shadowVersion() { return this.version }
   receiveSun(frame: SunFrame) { this.sun = frame }
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
-    if (this.drawing) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawShadow(gl, frame, this.exaggeration())
+    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawShadow(gl, frame, this.exaggeration())
   }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
-    if (this.drawing) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
+    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
   }
   /**
    * Whether the decks resident are drawn. Pieces from tiles draw as their tile lands, before the view's decks cover and the
-   * flat bridges are muted under them; meshes fetched per deck wait to cover together.
+   * flat bridges are muted under them, unless the view cannot cover; meshes fetched per deck wait to cover together.
    */
   private get drawing() {
-    return this.covered || !!this.tileMode
+    return this.covered || (!!this.tileMode && !this.missing && !this.tilesFailed)
   }
   private exaggeration() { return this.map?.getTerrain?.()?.exaggeration ?? 1 }
   private routesChanged = () => {
@@ -717,7 +717,7 @@ export class BakedBridgeLayer {
       const part = this.parts.get(id)
       if (part) this.drawPart(gl, args, part)
     }
-    if (this.route) this.drawPart(gl, args, this.route)
+    if (this.route && this.covered) this.drawPart(gl, args, this.route)
     this.sun = null
   }
   private drawPart(gl: WebGL2RenderingContext, args: any, part: Part) {

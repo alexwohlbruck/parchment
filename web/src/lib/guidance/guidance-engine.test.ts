@@ -5,6 +5,7 @@ import { FixNoise, REALISTIC_FIX_MODEL } from '@/dev/gpx-simulator/fix-model'
 import { pointAtTime } from '@/dev/gpx-simulator/gpx-parser'
 import { buildNavRoute, pointAt } from './nav-route'
 import { GuidanceEngine } from './guidance-engine'
+import { drawnPoint } from './route-line'
 import { cityDrive, polyline } from './test-routes'
 
 function replay(seed: number) {
@@ -50,11 +51,23 @@ describe('GuidanceEngine', () => {
     expect(maxStepBack).toBe(0)
   })
 
-  test('keeps the puck on the route line', () => {
+  test('keeps the puck on the route line as drawn, half a lane right of a driven centreline', () => {
     const { engine, route } = replay(3)
     const puck = engine.sample(1e6)!
     expect(puck.snapped).toBe(true)
-    expect(distanceMeters(puck.position, pointAt(route, puck.s))).toBeLessThan(0.01)
+    expect(distanceMeters(puck.position, drawnPoint(route, puck.s))).toBeLessThan(0.01)
+    expect(distanceMeters(puck.position, pointAt(route, puck.s))).toBeCloseTo(1.8, 1)
+  })
+
+  test('rides the lane line where the route has one', () => {
+    const centre = buildNavRoute([{ mode: 'cycling', geometry: polyline([[0, 300]]) }])
+    const coordinates = centre.points.map(p => projectLatLng(p, 3, 90, 1)).map(p => [p.lng, p.lat] as [number, number])
+    const route = buildNavRoute([{ mode: 'cycling', geometry: centre.points, laneGeometry: { coordinates, measures: Array.from(centre.cumulative) } }])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 10; t++) engine.pushFix({ t, position: pointAt(route, 10 * t), accuracy: 5, speed: 10, heading: 0 })
+    const puck = engine.sample(10)!
+    expect(distanceMeters(puck.position, pointAt(route.laneLine!, puck.s))).toBeLessThan(0.01)
+    expect(distanceMeters(puck.position, pointAt(route, puck.s))).toBeCloseTo(3, 0)
   })
 
   test('leaves the route after sustained fixes away from it', () => {

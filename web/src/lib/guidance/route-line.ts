@@ -66,6 +66,29 @@ export function drawnProgress(line: MeasuredLine): (d: number) => number {
   }
 }
 
+/** Half a lane: a driven route without lane geometry runs in its lanes, not on the road's centre line. */
+const HALF_LANE_METERS = 1.8
+
+/** What is drawn: the route in its lanes where it has them, else its centreline. */
+export function drawnLine(route: NavRoute): MeasuredLine {
+  return route.laneLine ?? route
+}
+
+/**
+ * Metres right of the drawn line the route is shown: none on a lane line, which is
+ * in its lanes already, and none off the road, as walking and cycling keep to paths.
+ */
+export function drawnOffsetMeters(route: NavRoute): number {
+  if (route.laneLine) return 0
+  if (route.segments.length === 0 || route.segments.some(s => s.mode !== 'driving')) return 0
+  return route.drivingSide === 'left' ? -HALF_LANE_METERS : HALF_LANE_METERS
+}
+
+/** Where the route is shown at route distance `s`, so the puck rides the line drawn for it. */
+export function drawnPoint(route: NavRoute, s: number): LngLat {
+  return pointBeside(drawnLine(route), s, drawnOffsetMeters(route))
+}
+
 /** The route's point at `at`, moved `offset` metres to its right to sit on an offset route line. */
 export function pointBeside(route: MeasuredLine, at: number, offset = 0): LngLat {
   const p = pointAt(route, at)

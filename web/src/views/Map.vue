@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed, provide, type CSSProperties } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, type CSSProperties } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
@@ -19,7 +19,6 @@ import CameraPositionControl from '@/components/map/controls/CameraPositionContr
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import LeftSheet from '@/components/sheet/LeftSheet.vue'
 import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
-import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
 import StreetViewPip from '@/components/map/street-view/StreetViewPip.vue'
 import StreetImageryPeek from '@/components/map/street-view/StreetImageryPeek.vue'
 import { useMapService } from '@/services/map/map.service'
@@ -58,8 +57,7 @@ const canvasesStore = useCanvasesStore()
 const { currentPlace } = usePlaceService()
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
-  const isNotDialog = !route.meta.dialog
-  return isSubview && isNotDialog
+  return isSubview && !route.meta.dialog && !route.meta.immersive
 })
 
 // Back button mirrors browser-back behavior. vue-router stores the previous
@@ -109,10 +107,6 @@ const bottomSheetActiveSnapPoint = computed<number | string | null>(
   () => MOBILE_SNAP_POINTS.value[bottomSheetSnapIndex.value] ?? null,
 )
 
-provide(EXPAND_MAP_SHEET, () => {
-  bottomSheetSnapIndex.value = MOBILE_SNAP_POINTS.value.length - 1
-})
-
 function onBottomSheetSnapIndexChange(idx: number) {
   if (idx >= 0) bottomSheetSnapIndex.value = idx
 }
@@ -137,7 +131,7 @@ watch(
     bottomSheetSnapIndex.value =
       name === AppRoute.DIRECTIONS
         ? 0
-        : (sheetMeta.value?.defaultSnapIndex ?? MOBILE_DEFAULT_SNAP_INDEX)
+        : MOBILE_DEFAULT_SNAP_INDEX
   },
 )
 
@@ -165,7 +159,7 @@ const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI)
-// A view that draws its own chrome over the map (turn-by-turn) hides the map's.
+// A view that takes over the whole map (turn-by-turn) replaces the sheets and the map's chrome.
 const immersive = computed(() => !!route.meta?.immersive)
 
 // ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
@@ -274,7 +268,7 @@ watch(isBottomSheetView, async (isOpen, wasOpen) => {
     // dialog route (e.g. /settings/integrations) or a full-screen takeover
     // (e.g. /street/:id street view). The user wants to stay there; pushing to
     // MAP here would bounce them back immediately.
-    if (wasOpen && !route.meta.dialog && !route.meta.hideUI) {
+    if (wasOpen && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
       router.push({ name: AppRoute.MAP })
     }
   }
@@ -286,7 +280,7 @@ watch(isBottomSheetView, async (isOpen, wasOpen) => {
 // sheet's close event would bounce mobile street view straight back to the map.
 function onOpenChange(value: boolean) {
   bottomSheetOpen.value = value
-  if (!value && !route.meta.dialog && !route.meta.hideUI) {
+  if (!value && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
     router.push({ name: AppRoute.MAP })
   }
 }
@@ -451,7 +445,7 @@ defineExpose({
         adjust-map-padding
         obstructing-key="map-content-sheet"
       >
-        <template v-if="!immersive" #actions>
+        <template #actions>
           <SheetActionButtons
             :can-go-back="canGoBack"
             direction="bottom"
@@ -460,7 +454,7 @@ defineExpose({
             @home="handleHome"
           />
         </template>
-        <router-view />
+        <router-view v-if="!immersive" />
       </bottom-sheet>
     </template>
 
@@ -480,7 +474,7 @@ defineExpose({
         @back="handleBack"
         @home="handleHome"
       >
-        <router-view />
+        <router-view v-if="!immersive" />
       </LeftSheet>
     </template>
 
@@ -655,6 +649,8 @@ defineExpose({
           <StreetImageryPeek />
         </div>
       </Transition>
+
+      <router-view v-if="immersive" />
 
       <template v-if="mountTeleports">
         <Teleport

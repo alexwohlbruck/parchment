@@ -4,6 +4,12 @@
 
 ### Changed
 
+### Fixed
+
+## [0.16.6] - 2026-10-24
+
+### Changed
+
 * 3D bridge decks draw as soon as their map tile lands and decode in parallel, so they keep up with the map.
 * Terrain cut away for tunnels is refined off the main thread.
 

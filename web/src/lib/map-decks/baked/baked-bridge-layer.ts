@@ -335,6 +335,8 @@ export class BakedBridgeLayer {
     if (!id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
     // Past the source's maxzoom MapLibre cuts tiles from a deck-zoom one and drops what it does not read: that one is in the HTTP cache.
     if (id.z > DECK_TILE_ZOOMS.max) return this.readTile(deckTileOf(id))
+    // Out of the decks' reach: read if the view comes to want it.
+    if (!this.reaches(`${id.z}/${id.x}/${id.y}`)) return
     const raw: ArrayBuffer | undefined = tile.latestRawTileData
     const key = `${id.z}/${id.x}/${id.y}`
     if (!raw || this.tileTokens.has(key)) return
@@ -343,7 +345,7 @@ export class BakedBridgeLayer {
     this.readPieces(key, raw)
   }
   private readTile(key: string) {
-    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key)) return
+    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return
     const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
     if (!template) return
     const [z, x, y] = key.split('/')
@@ -354,6 +356,10 @@ export class BakedBridgeLayer {
       .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`Detail tile ${response.status}`))))
       .then(raw => { if (this.tileTokens.get(key) === token) this.readPieces(key, raw, token) })
       .catch(error => this.tileFailed(key, token, error))
+  }
+  /** Whether a tile meets the view, as far as the decks reach from its centre; true before the first sync. */
+  private reaches(key: string) {
+    return !this.lastView || meets(tileBounds(key), this.lastView.view)
   }
   private begin(key: string) {
     const token = ++this.tileReads

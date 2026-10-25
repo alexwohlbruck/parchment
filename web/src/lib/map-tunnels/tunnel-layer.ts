@@ -21,7 +21,7 @@ import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
-import { idle, queryFeatures } from '@/lib/map-decks/map-query'
+import { queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
@@ -46,10 +46,8 @@ const HEADWALLS = ['wall', 'retaining_wall', 'city_wall']
 const SAMPLE = 3
 const MEASURE = 40
 const REBASE = 1e-3
-/** Milliseconds a rebuild waits after what it reads changes; for the roads and surfaces in view to finish loading; and then, if they have not, for the main thread to be idle. */
+/** Milliseconds a rebuild waits after what it reads changes, so a burst of tile events is read at once. */
 const SETTLE_MS = 50
-const LOAD_WAIT_MS = 2000
-const IDLE_WAIT_MS = 250
 const CACHE = 400
 
 export type TunnelSources = {
@@ -133,10 +131,10 @@ export class TunnelLayer {
   private groundLoading = false
   private origin: Point = [0, 0]
   private scheduled = 0
-  private waitingSince = 0
   /** Whether the cuts carved are those of the roads in view, built once they had all loaded. */
   private settled = false
-  private cancelIdle?: () => void
+  /** The sources read for the cuts that have finished loading since the camera last came to rest. */
+  private loadedSince = new Set<string>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
   private sampler: TerrainSampler | null = null
@@ -188,13 +186,16 @@ export class TunnelLayer {
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
         this.settled = false
+        this.loadedSince.clear()
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
       } else {
         if (!tiled.includes(event.sourceId)) return
         if (event.tile) this.settled = false
-        if (event.isSourceLoaded) this.invalidate(false)
+        if (!event.isSourceLoaded) return
+        this.loadedSince.add(event.sourceId)
+        this.invalidate(false)
       }
     }
     this.onTerrain = () => this.invalidate()
@@ -229,7 +230,6 @@ export class TunnelLayer {
     this.options.terrain?.hold(null)
     clearTimeout(this.scheduled)
     this.scheduled = 0
-    this.cancelIdle?.()
     this.release(gl)
     this.shadow.delete(gl)
     gl.deleteProgram(this.program)
@@ -241,31 +241,17 @@ export class TunnelLayer {
     return [this.sources.basemap, this.sources.surfaces?.source].filter((id): id is string => !!id)
   }
 
-  /**
-   * Rebuild between frames, a burst of tile events at once, as soon as the roads
-   * and surfaces in view have loaded, or once the main thread is idle if they are slow to; unforced, only if what it reads has changed.
-   */
+  /** Rebuild between frames, a burst of tile events at once; unforced, only if what it reads has changed. */
   invalidate(force = true) {
     if (force) this.stale = true
     if (this.scheduled) return
-    this.waitingSince ||= performance.now()
-    this.scheduled = setTimeout(() => {
-      if (!this.map) return
-      const complete = this.tiled().every(id => loaded(this.map, id))
-      if (!complete && performance.now() - this.waitingSince < LOAD_WAIT_MS) {
-        this.scheduled = 0
-        this.invalidate(false)
-        return
-      }
-      this.waitingSince = 0
-      if (complete) return this.rebuild(true)
-      this.cancelIdle = idle(() => this.rebuild(false), IDLE_WAIT_MS)
-    }, SETTLE_MS) as unknown as number
+    this.scheduled = setTimeout(() => this.rebuild(), SETTLE_MS) as unknown as number
   }
 
-  private rebuild(complete: boolean) {
+  private rebuild() {
     this.scheduled = 0
     if (!this.map) return
+    const complete = this.tiled().every(id => this.loadedSince.has(id) || loaded(this.map, id))
     this.groundLoading = false
     const mesh = this.build()
     if (!mesh) {

@@ -9,6 +9,7 @@ import GuidanceOverlay from '@/components/guidance/GuidanceOverlay.vue'
 import GuidanceBottomBar from '@/components/guidance/GuidanceBottomBar.vue'
 import GuidanceMenu from '@/components/guidance/GuidanceMenu.vue'
 import ArrivalPanel from '@/components/guidance/ArrivalPanel.vue'
+import SegmentHandoff from '@/components/guidance/SegmentHandoff.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useAppStore } from '@/stores/app.store'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
@@ -60,6 +61,12 @@ onBeforeUnmount(() => guidance.stop())
         :has-next-leg="guidance.nextLeg != null"
         @done="exit"
         @next="guidance.startNextLeg()"
+      />
+      <SegmentHandoff
+        v-else-if="guidance.handoff"
+        :key="guidance.handoff.from"
+        :handoff="guidance.handoff"
+        @settle="guidance.settleHandoff()"
       />
       <GuidanceBottomBar v-else :progress="guidance.progress" :metric="metric" @exit="exit" />
     </SheetHeader>

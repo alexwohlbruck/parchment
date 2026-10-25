@@ -1336,6 +1336,27 @@
     "hazardCounts": {
       "crosswalk": "{n} paso de peatones | {n} pasos de peatones",
       "traffic_signals": "{n} semáforo | {n} semáforos"
+    },
+    "handoff": {
+      "park": "Aparca",
+      "lock-bike": "Asegura tu bici",
+      "dock-bike": "Deja la bici en {station}",
+      "unlock-bike": "Desbloquea una bici en {station}",
+      "get-in-car": "Sube a tu coche",
+      "get-on-bike": "Sube a tu bici",
+      "board": "Ve a tu parada",
+      "continue": "Sigue",
+      "then": "luego {mode} {duration}",
+      "thenTo": "luego {mode} {duration} hasta {place}",
+      "modes": {
+        "walking": "camina",
+        "cycling": "pedalea",
+        "driving": "conduce",
+        "transit": "viaja"
+      },
+      "go": "Vamos",
+      "notYet": "Todavía no",
+      "docksFree": "{n} anclaje libre | {n} anclajes libres"
     }
   },
   "attribution": {

@@ -1370,6 +1370,27 @@
     "hazardCounts": {
       "crosswalk": "{n} crosswalk | {n} crosswalks",
       "traffic_signals": "{n} light | {n} lights"
+    },
+    "handoff": {
+      "park": "Park",
+      "lock-bike": "Lock up your bike",
+      "dock-bike": "Dock the bike at {station}",
+      "unlock-bike": "Unlock a bike at {station}",
+      "get-in-car": "Get in your car",
+      "get-on-bike": "Get on your bike",
+      "board": "Head for your stop",
+      "continue": "Carry on",
+      "then": "then {mode} {duration}",
+      "thenTo": "then {mode} {duration} to {place}",
+      "modes": {
+        "walking": "walk",
+        "cycling": "ride",
+        "driving": "drive",
+        "transit": "ride"
+      },
+      "go": "Go",
+      "notYet": "Not yet",
+      "docksFree": "{n} dock free | {n} docks free"
     }
   },
   "attribution": {

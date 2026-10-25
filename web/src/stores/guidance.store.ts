@@ -14,6 +14,7 @@ import { segmentAt } from '@/lib/guidance/nav-route'
 import { rerouteOrigin, spliceReroute } from '@/lib/guidance/reroute'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
+import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import { announcementText } from '@/lib/guidance/phrases'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, stopVoice, unlockVoice } from '@/services/guidance/voice.service'
@@ -50,7 +51,9 @@ export interface GuidanceProgress extends ProgressSummary {
 type LegSegment = NavSegmentInput & {
   legIndex?: number
   duration?: number
+  ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number } }
+  sharedMobilityDetails?: { stationName?: string; toStationName?: string; availableDocks?: number } | null
 }
 
 export function legSegments(trip: TripOption, legIndex: number): LegSegment[] {
@@ -86,6 +89,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const completedLegs = ref<Record<string, number>>({})
   let lastRerouteAt = 0
   let announcer: Announcer | null = null
+  const handoff = shallowRef<Handoff | null>(null)
+  /** Segments whose handoff was accepted or dismissed; per route, cleared on reroute. */
+  let settledHandoffs = new Set<number>()
+  let slowSec = 0
   const appStore = useAppStore()
 
   function soundModeAt(s: number): SoundMode {
@@ -120,9 +127,30 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck || status.value === 'arrived') return
     progress.value = { puck, ...summarizeProgress(navRoute, puck, segmentDurations.value) }
+    if (puck.snapped) updateHandoff(navRoute, puck)
     if (puck.snapped) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
     if (puck.snapped && hasArrived(navRoute, puck)) arrive()
     else if (!puck.snapped) void reroute()
+  }
+
+  function updateHandoff(navRoute: NavRoute, puck: PuckState) {
+    slowSec = slowDuration(slowSec, puck.speed, PROGRESS_INTERVAL_MS / 1000)
+    const due = dueHandoff(navRoute, puck, segments.value, slowSec)
+    const shown = handoff.value
+    if (shown && (!due || due.from !== shown.from)) {
+      // Moving on into the next segment answers the card.
+      settledHandoffs.add(shown.from)
+      handoff.value = null
+    }
+    if (due && !handoff.value && !settledHandoffs.has(due.from)) {
+      handoff.value = due
+      announce({ kind: 'handoff', handoff: due }, puck.s)
+    }
+  }
+
+  function settleHandoff() {
+    if (handoff.value) settledHandoffs.add(handoff.value.from)
+    handoff.value = null
   }
 
   function arrive() {
@@ -156,6 +184,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
       route.value = next
       guidanceEngine.setRoute(next)
       announcer?.setRoute(next)
+      settledHandoffs = new Set()
+      handoff.value = null
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
@@ -175,6 +205,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress.value = null
     status.value = 'navigating'
     lastRerouteAt = 0
+    settledHandoffs = new Set()
+    handoff.value = null
+    slowSec = 0
     const end = legParts.at(-1)?.end?.location
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     guidanceEngine.start(navRoute)
@@ -238,5 +271,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     legToStart,
     soundModeAt,
     cycleSound,
+    handoff,
+    settleHandoff,
   }
 })

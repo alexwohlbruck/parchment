@@ -5,6 +5,7 @@ import { pointAt, edgeAt, type NavRoute } from './nav-route'
 import type { PuckState } from './guidance-engine'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { angleDelta, normalizeDeg } from './spring'
+import { modeProfile } from './mode-profiles'
 
 export type CameraMode = 'north-up' | 'heading-up' | 'follow-3d'
 export type BearingMode = 'straight' | 'look-ahead'
@@ -38,28 +39,14 @@ export const DEFAULT_CAMERA_TUNING: CameraTuning = {
   lookAheadMaxDeg: 45,
 }
 
-interface ModeRange {
-  minAhead: number
-  maxAhead: number
-  minZoom: number
-  maxZoom: number
-  minManeuverZone: number
-  pitchScale: number
-}
-
-const MODE_RANGES: Record<string, ModeRange> = {
-  driving: { minAhead: 150, maxAhead: 2000, minZoom: 13, maxZoom: 17.5, minManeuverZone: 180, pitchScale: 1 },
-  cycling: { minAhead: 90, maxAhead: 600, minZoom: 15, maxZoom: 18, minManeuverZone: 80, pitchScale: 0.9 },
-  walking: { minAhead: 50, maxAhead: 250, minZoom: 16.5, maxZoom: 18.5, minManeuverZone: 40, pitchScale: 0.8 },
-}
 
 const FRAMED_TYPE = /turn|roundabout|destination|arrive/
 
 const EARTH_CIRCUMFERENCE = 40075016.686
 const TILE_SIZE = 512
 
-export function modeRange(mode: string): ModeRange {
-  return MODE_RANGES[mode] ?? MODE_RANGES.driving
+export function modeRange(mode: string) {
+  return modeProfile(mode).camera
 }
 
 export function metersPerPixel(zoom: number, lat: number): number {

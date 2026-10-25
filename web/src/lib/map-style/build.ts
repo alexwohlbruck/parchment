@@ -23,6 +23,7 @@ import {
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
+  DETAIL_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
 import { combineFilters } from './combine-filters'
@@ -237,6 +238,8 @@ export interface BasemapStyleOptions {
   poiStyle?: PoiStyleId
   /** Lane-level roads at street zoom; off by default. */
   hdRoads?: boolean
+  /** Ask the detail tiles for the 3D bridge decks drawn over them. */
+  decks?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -427,6 +430,12 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 // ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
+
+/** A detail tile url asking for the deck pieces drawn over the tile, or not. */
+export function withDeckPieces(url: string, on: boolean): string {
+  const plain = url.replace(/&decks=1(?=&|$)/, '')
+  return on ? `${plain}&decks=1` : plain
+}
 
 function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
@@ -779,7 +788,7 @@ function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
+  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle, hdRoads, decks } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -789,7 +798,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => buildTileUrl(tileServerUrl, source)),
+      ...detailSources(source => withDeckPieces(buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {

@@ -4,6 +4,8 @@
 
 ### Changed
 
+* 3D bridge decks arrive inside the map tiles they are drawn over, so they appear with the map instead of after it.
+
 ### Fixed
 
 ## [0.16.4] - 2026-10-24

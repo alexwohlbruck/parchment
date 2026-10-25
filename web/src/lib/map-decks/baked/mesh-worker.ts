@@ -1,14 +1,16 @@
 import { decodeBridge, type BakedMesh } from './mesh-file'
+import { decodeDeckTile } from './deck-tile'
 import type { DecodeRequest, DecodeResult } from './mesh-decoder'
 
-const buffersOf = (mesh: BakedMesh) => [...new Set(Object.values(mesh).flatMap(v => (ArrayBuffer.isView(v) ? [v.buffer as ArrayBuffer] : [])))]
+const buffersOf = (meshes: BakedMesh[]) => [...new Set(meshes.flatMap(mesh => Object.values(mesh).flatMap(v => (ArrayBuffer.isView(v) ? [v.buffer as ArrayBuffer] : []))))]
 
-self.onmessage = ({ data: { id, buffer } }: MessageEvent<DecodeRequest>) => {
+self.onmessage = ({ data: { id, buffer, tile } }: MessageEvent<DecodeRequest>) => {
   let result: DecodeResult
   try {
-    result = { id, mesh: decodeBridge(buffer) }
+    result = tile ? { id, tile: decodeDeckTile(new Uint8Array(buffer)) } : { id, mesh: decodeBridge(buffer) }
   } catch (error) {
     result = { id, error: String(error) }
   }
-  ;(self as unknown as Worker).postMessage(result, 'mesh' in result ? buffersOf(result.mesh) : [])
+  const meshes = 'mesh' in result ? [result.mesh] : 'tile' in result ? result.tile.pieces.map(p => p.mesh) : []
+  ;(self as unknown as Worker).postMessage(result, buffersOf(meshes))
 }

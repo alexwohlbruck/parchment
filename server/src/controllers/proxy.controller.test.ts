@@ -450,6 +450,27 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     expect(fetchCalls[0]).toContain('https://barrelman.test/tiles/geo_places/12/1170/1567')
   })
 
+  test('asks for deck pieces only when the client does, and caches the two apart', async () => {
+    fetchResponses = [tileResponse(), tileResponse()]
+
+    await req(app).get('/proxy/barrelman/detail/16/19300/24640?v=1&decks=1')
+    await req(app).get('/proxy/barrelman/detail/16/19300/24640?v=1')
+
+    expect(fetchCalls[0]).toContain('/tiles/detail/16/19300/24640?decks=1')
+    expect(fetchCalls[1]).toMatch(/\/tiles\/detail\/16\/19300\/24640$/)
+  })
+
+  test('passes a no-store tile on uncached', async () => {
+    const partial = () => new Response(Bun.gzipSync(Uint8Array.of(0x1a, 0)).buffer as ArrayBuffer, { headers: { 'content-encoding': 'gzip', 'cache-control': 'no-store' } })
+    fetchResponses = [partial(), partial()]
+
+    const first = await req(app).get('/proxy/barrelman/detail/16/19301/24640?decks=1')
+    await req(app).get('/proxy/barrelman/detail/16/19301/24640?decks=1')
+
+    expect(first.headers.get('cache-control')).toBe('no-store')
+    expect(fetchCalls).toHaveLength(2)
+  })
+
   test('sends the integration apiKey as a bearer, like every other Barrelman call', async () => {
     fetchResponses = [tileResponse()]
 

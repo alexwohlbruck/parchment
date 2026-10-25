@@ -1429,6 +1429,28 @@
         "driving": "Drive {duration}"
       },
       "toPlace": "to {place}"
+    },
+    "ahead": {
+      "title": "Along the route",
+      "placeholder": "Search along the route",
+      "categories": {
+        "fuel": "Gas",
+        "charging": "EV charging",
+        "coffee": "Coffee",
+        "food": "Food",
+        "restrooms": "Restrooms",
+        "parking": "Parking",
+        "water": "Water",
+        "bikeRepair": "Bike repair"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "On the way",
+      "ahead": "{distance} ahead",
+      "add": "Add stop",
+      "empty": "Nothing found along the route",
+      "failed": "Search is unavailable right now",
+      "addFailed": "Could not add that stop",
+      "done": "Done"
     }
   },
   "attribution": {

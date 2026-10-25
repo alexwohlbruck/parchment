@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, inject, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -14,6 +14,8 @@ import SegmentHandoff from '@/components/guidance/SegmentHandoff.vue'
 import TransitStageCard from '@/components/guidance/TransitStageCard.vue'
 import TransitApproach from '@/components/guidance/TransitApproach.vue'
 import LiveTransitTimeline from '@/components/guidance/LiveTransitTimeline.vue'
+import AheadSearch from '@/components/guidance/AheadSearch.vue'
+import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
 import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { walkToStopSec } from '@/lib/guidance/transit-progress'
@@ -61,6 +63,17 @@ const currentSegment = computed(() => {
   const puck = guidance.progress?.puck
   return route && puck ? segmentAt(route, puck.s)?.index ?? 0 : 0
 })
+
+const expandSheet = inject(EXPAND_MAP_SHEET, () => {})
+const searchingAhead = ref(false)
+function openAheadSearch() {
+  searchingAhead.value = true
+  expandSheet()
+}
+function closeAheadSearch() {
+  searchingAhead.value = false
+  camera.follow()
+}
 
 const noLaterRun = ref(false)
 watch(() => guidance.transit?.kind, () => (noLaterRun.value = false))
@@ -137,14 +150,17 @@ onBeforeUnmount(() => guidance.stop())
         <GuidanceBottomBar :progress="guidance.progress" :metric="metric" @exit="exit" />
       </div>
     </SheetHeader>
-    <LiveTransitTimeline
-      v-if="hasTransit"
-      class="mb-4"
-      :segments="guidance.segments"
-      :current="currentSegment"
-      :stage="guidance.transit"
-    />
-    <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" />
+    <AheadSearch v-if="searchingAhead" :metric="metric" @done="closeAheadSearch" @found="camera.overview()" />
+    <template v-else>
+      <LiveTransitTimeline
+        v-if="hasTransit"
+        class="mb-4"
+        :segments="guidance.segments"
+        :current="currentSegment"
+        :stage="guidance.transit"
+      />
+      <GuidanceMenu :camera="camera" :metric="metric" @exit="exit" @search-ahead="openAheadSearch" />
+    </template>
     <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-4" />
   </PanelLayout>
 

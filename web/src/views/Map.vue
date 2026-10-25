@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed, type CSSProperties } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, provide, type CSSProperties } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
@@ -19,6 +19,7 @@ import CameraPositionControl from '@/components/map/controls/CameraPositionContr
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import LeftSheet from '@/components/sheet/LeftSheet.vue'
 import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
+import { EXPAND_MAP_SHEET } from '@/components/sheet/context'
 import StreetViewPip from '@/components/map/street-view/StreetViewPip.vue'
 import StreetImageryPeek from '@/components/map/street-view/StreetImageryPeek.vue'
 import { useMapService } from '@/services/map/map.service'
@@ -107,6 +108,10 @@ const bottomSheetSnapIndex = ref(MOBILE_DEFAULT_SNAP_INDEX)
 const bottomSheetActiveSnapPoint = computed<number | string | null>(
   () => MOBILE_SNAP_POINTS.value[bottomSheetSnapIndex.value] ?? null,
 )
+
+provide(EXPAND_MAP_SHEET, () => {
+  bottomSheetSnapIndex.value = MOBILE_SNAP_POINTS.value.length - 1
+})
 
 function onBottomSheetSnapIndexChange(idx: number) {
   if (idx >= 0) bottomSheetSnapIndex.value = idx

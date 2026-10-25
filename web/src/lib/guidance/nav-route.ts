@@ -255,3 +255,14 @@ export function projectOntoSegment(
   const ey = a.lat + dy * t - p.lat
   return { t, d2: ex * ex + ey * ey }
 }
+
+/** The route from `s` to its end, thinned to at most `maxPoints`. */
+export function routeAhead(route: NavRoute, s: number, maxPoints = 500): LngLat[] {
+  const first = segmentIndexAt(route, s) + 1
+  const rest = route.points.slice(first)
+  const stride = Math.max(1, Math.ceil(rest.length / (maxPoints - 2)))
+  const thinned = rest.filter((_, i) => i % stride === 0)
+  const last = route.points.at(-1)
+  if (last && thinned.at(-1) !== last) thinned.push(last)
+  return [pointAt(route, s), ...thinned]
+}

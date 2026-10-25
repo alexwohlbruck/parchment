@@ -10,6 +10,7 @@
 * Trips and navigation point out what's on the way: crosswalks drivers must yield at, railroad and uncontrolled crossings, sharp curves, stairs, steep climbs on foot or by bike, and more. Navigation warns you ahead of each one.
 * Multimodal navigation pauses at each mode change, telling you to park, lock your bike or board, and continues on its own after a short countdown.
 * Navigation now guides transit trips: a countdown to your departure, the stops left on board, and a get-off alert before your stop. If you miss the bus or your stop, it offers the next departure or another way.
+* Search along your route while navigating, for gas, charging, coffee, restrooms and more, with how much time each detour adds. Add one as a stop and navigation routes you there first.
 
 ### Changed
 

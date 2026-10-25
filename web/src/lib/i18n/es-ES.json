@@ -1395,6 +1395,28 @@
         "driving": "Conduce {duration}"
       },
       "toPlace": "hasta {place}"
+    },
+    "ahead": {
+      "title": "En la ruta",
+      "placeholder": "Buscar en la ruta",
+      "categories": {
+        "fuel": "Gasolina",
+        "charging": "Carga eléctrica",
+        "coffee": "Café",
+        "food": "Comida",
+        "restrooms": "Baños",
+        "parking": "Estacionamiento",
+        "water": "Agua",
+        "bikeRepair": "Taller de bicis"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "De camino",
+      "ahead": "a {distance}",
+      "add": "Añadir parada",
+      "empty": "No hay nada en la ruta",
+      "failed": "La búsqueda no está disponible ahora",
+      "addFailed": "No se pudo añadir la parada",
+      "done": "Listo"
     }
   },
   "attribution": {

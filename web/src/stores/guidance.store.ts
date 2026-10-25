@@ -11,7 +11,7 @@ import {
 } from '@/lib/guidance/camera-framing'
 import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
 import { segmentAt } from '@/lib/guidance/nav-route'
-import { rerouteOrigin, spliceReroute } from '@/lib/guidance/reroute'
+import { rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
@@ -113,6 +113,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Furthest snapped distance reached; boarding and alighting don't undo. */
   let furthestS = 0
   const rebooking = ref(false)
+  /** What remains of the leg after a stop added mid-route. */
+  const continuation = shallowRef<LegSegment[] | null>(null)
   /** The timetable clock, to the second, for countdowns. */
   const clockMs = ref(guidanceClock.now())
   const appStore = useAppStore()
@@ -223,7 +225,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   function arrive() {
     status.value = 'arrived'
-    if (trip.value) completedLegs.value = { ...completedLegs.value, [trip.value.id]: legIndex.value }
+    if (trip.value && !continuation.value) completedLegs.value = { ...completedLegs.value, [trip.value.id]: legIndex.value }
   }
 
   async function reroute() {
@@ -266,11 +268,18 @@ export const useGuidanceStore = defineStore('guidance', () => {
   async function start(option: TripOption, leg: number) {
     unlockVoice()
     await requestMotionPermission()
-    const legParts = legSegments(option, leg)
-    const navRoute = markRaw(buildNavRoute(legParts.map(withBoardingStep)))
-    segments.value = legParts
     trip.value = markRaw(option)
     legIndex.value = leg
+    continuation.value = null
+    guidanceEngine.start(follow(legSegments(option, leg)))
+    holdScreenAwake()
+    progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
+  }
+
+  /** Guides along `parts` from scratch: a new leg, or a leg reshaped by an added stop. */
+  function follow(parts: LegSegment[]): NavRoute {
+    const navRoute = markRaw(buildNavRoute(parts.map(withBoardingStep)))
+    segments.value = parts
     route.value = navRoute
     progress.value = null
     status.value = 'navigating'
@@ -282,11 +291,30 @@ export const useGuidanceStore = defineStore('guidance', () => {
     spokenTransit = new Set()
     furthestS = 0
     placeRides(navRoute)
-    const end = legParts.at(-1)?.end?.location
+    const end = parts.at(-1)?.end?.location
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
-    guidanceEngine.start(navRoute)
-    holdScreenAwake()
-    progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
+    return navRoute
+  }
+
+  /** Heads to `stop` first; the rest of the leg becomes the next leg. */
+  async function addStop(stop: AddedStop): Promise<boolean> {
+    const navRoute = route.value
+    const puck = guidanceEngine.sample()
+    if (!navRoute || !puck) return false
+    const index = segmentAt(navRoute, puck.s)?.index ?? 0
+    const segment = segments.value[index]
+    const end = segment?.geometry?.at(-1)
+    if (!segment || !end || !canReroute(segment.mode)) return false
+    const [toStop, fromStop] = await Promise.all([
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, destination: stop.location, mode: segment.mode }),
+      requestReroute({ position: stop.location, heading: null, destination: end, mode: segment.mode }),
+    ])
+    if (!toStop || !fromStop || route.value !== navRoute) return false
+    const split = splitAtStop(segments.value, index, toStop, fromStop, stop)
+    if (!split) return false
+    continuation.value = [...split.continuation, ...(continuation.value ?? [])]
+    guidanceEngine.setRoute(follow(split.leg))
+    return true
   }
 
   function stop() {
@@ -300,14 +328,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress.value = null
     trip.value = null
     segments.value = []
+    continuation.value = null
     transit.value = null
     status.value = 'navigating'
   }
 
   const destinationLabel = computed(() => segments.value.at(-1)?.end?.label ?? null)
-  const nextLeg = computed(() => (trip.value ? nextNavigableLeg(trip.value, legIndex.value) : null))
+  const nextLeg = computed(() =>
+    continuation.value ? legIndex.value : trip.value ? nextNavigableLeg(trip.value, legIndex.value) : null,
+  )
 
   async function startNextLeg() {
+    const rest = continuation.value
+    if (rest) {
+      continuation.value = null
+      guidanceEngine.setRoute(follow(rest))
+      return
+    }
     const option = trip.value
     const leg = nextLeg.value
     if (!option || leg == null) return
@@ -353,5 +390,6 @@ export const useGuidanceStore = defineStore('guidance', () => {
     rebooking,
     catchNextRun,
     clockMs,
+    addStop,
   }
 })

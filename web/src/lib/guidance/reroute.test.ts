@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { distanceMeters } from '@/lib/map/movement-interpolation'
-import { rerouteOrigin, spliceReroute } from './reroute'
+import { rerouteOrigin, spliceReroute, splitAtStop } from './reroute'
 import type { NavSegmentInput } from './nav-route'
 
 describe('rerouteOrigin', () => {
@@ -28,5 +28,22 @@ describe('spliceReroute', () => {
     const result = spliceReroute(leg, 1, fresh)
     expect(result.map(s => s.mode)).toEqual(['driving', 'walking'])
     expect(result[0].geometry).toEqual(fresh.geometry)
+  })
+})
+
+describe('splitAtStop', () => {
+  const segments: (NavSegmentInput & { end?: { label?: string } })[] = [
+    { mode: 'driving', end: { label: 'Home' } },
+    { mode: 'walking', end: { label: 'Door' } },
+  ]
+  const stop = { label: 'Cafe', location: { lat: 1, lng: 2 } }
+
+  test('ends this leg at the stop and carries the rest on', () => {
+    const split = splitAtStop(segments, 0, { geometry: [] }, { geometry: [stop.location] }, stop)
+    expect(split?.leg).toEqual([{ mode: 'driving', geometry: [], end: { label: 'Cafe', location: stop.location } }])
+    expect(split?.continuation).toEqual([
+      { mode: 'driving', end: { label: 'Home' }, geometry: [stop.location] },
+      { mode: 'walking', end: { label: 'Door' } },
+    ])
   })
 })

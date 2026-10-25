@@ -10,9 +10,10 @@ import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { SOUND_MODES, useGuidanceStore } from '@/stores/guidance.store'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
+import { canSearchAhead } from '@/services/guidance/route-search.service'
 
 const props = defineProps<{ camera: ReturnType<typeof useGuidanceCamera>; metric: boolean }>()
-defineEmits<{ exit: [] }>()
+defineEmits<{ exit: []; searchAhead: [] }>()
 const { t } = useI18n()
 const guidance = useGuidanceStore()
 
@@ -25,7 +26,6 @@ const upcoming = computed(() => {
     .map(step => ({ step, distance: bannerDistance(step.startDistance - s, props.metric) }))
 })
 
-// Wired up as their steps land; shown now so the menu's shape is settled.
 const travelMode = computed(() =>
   guidance.route ? travelModeAt(guidance.route, guidance.progress?.puck.s ?? 0) : 'driving',
 )
@@ -34,10 +34,9 @@ function setSound(mode: (typeof SOUND_MODES)[number]) {
   guidance.preferences.sound = { ...guidance.preferences.sound, [travelMode.value]: mode }
 }
 
-const COMING = [
+const AHEAD_ACTIONS = [
   { key: 'searchAlongRoute', icon: SearchIcon },
   { key: 'addStop', icon: PlusIcon },
-  { key: 'report', icon: MegaphoneIcon },
 ]
 </script>
 
@@ -89,9 +88,20 @@ const COMING = [
         <RouteIcon class="size-4" />
         {{ t('guidance.camera.overview') }}
       </Button>
-      <Button v-for="item in COMING" :key="item.key" variant="secondary" class="justify-start" disabled>
+      <Button
+        v-for="item in AHEAD_ACTIONS"
+        :key="item.key"
+        variant="secondary"
+        class="justify-start"
+        :disabled="!canSearchAhead(travelMode)"
+        @click="$emit('searchAhead')"
+      >
         <component :is="item.icon" class="size-4" />
         {{ t(`guidance.menu.${item.key}`) }}
+      </Button>
+      <Button variant="secondary" class="justify-start" disabled>
+        <MegaphoneIcon class="size-4" />
+        {{ t('guidance.menu.report') }}
       </Button>
     </section>
 

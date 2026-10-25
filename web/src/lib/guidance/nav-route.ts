@@ -61,7 +61,7 @@ export interface NavRoute extends MeasuredLine {
   /** Hazards rebased onto route distance, sorted by start. */
   hazards: NavHazard[]
   drivingSide: DrivingSide
-  /** The route drawn in its lanes, where every driven segment has them; `cumulative` is route distance. */
+  /** The route drawn in its lanes, where any segment has them and every driven one does; `cumulative` is route distance. */
   laneLine: MeasuredLine | null
 }
 
@@ -74,8 +74,9 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
   const hazards: NavHazard[] = []
   const lanePoints: LngLat[] = []
   const laneMeasures: number[] = []
-  const driven = inputs.filter(i => i.mode === 'driving')
-  const laned = driven.length > 0 && driven.every(i => (i.laneGeometry?.coordinates.length ?? 0) >= 2)
+  const hasLanes = (i: NavSegmentInput) => (i.laneGeometry?.coordinates.length ?? 0) >= 2
+  // A driven segment without lanes needs the half-lane offset, which a lane line drops.
+  const laned = inputs.some(hasLanes) && inputs.every(i => i.mode !== 'driving' || hasLanes(i))
   let offset = 0
 
   inputs.forEach((input, segmentIndex) => {
@@ -151,7 +152,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     steps,
     edges,
     hazards,
-    drivingSide: driven.find(i => i.drivingSide)?.drivingSide ?? 'right',
+    drivingSide: inputs.find(i => i.drivingSide)?.drivingSide ?? 'right',
     laneLine: laned && lanePoints.length >= 2
       ? { points: lanePoints, cumulative: Float64Array.from(laneMeasures), length: offset }
       : null,

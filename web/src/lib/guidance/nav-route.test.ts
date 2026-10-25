@@ -117,6 +117,13 @@ describe('lane line', () => {
     expect(route.laneLine!.cumulative.at(-1)).toBeCloseTo(route.length, 3)
   })
 
+  test('draws a ride in its lanes too', () => {
+    const { lanePlan: _plan, ...lanes } = lanedDrive()
+    const route = buildNavRoute([{ ...lanes, mode: 'biking' }])
+    expect(route.laneLine).not.toBeNull()
+    expect(distanceMeters(pointAt(route.laneLine!, 300), pointAt(route, 300))).toBeCloseTo(2, 0)
+  })
+
   test('is left out unless every driven segment has one', () => {
     expect(buildNavRoute([lanedDrive(), cityDrive()]).laneLine).toBeNull()
     expect(buildNavRoute([cityDrive()]).drivingSide).toBe('right')

@@ -17,6 +17,7 @@
 * With 3D on, your route and position ride up onto bridge decks instead of running along the ground beneath them, while navigating and when previewing a trip. The part already travelled greys out on the deck too.
 * Driving navigation shows which lanes to use before a turn, from the arrows painted on the road, and says it too. The route line now sits in your travel lanes and curves through junctions.
 * Driving navigation draws your route in the lane to take, moving across before each turn, with lane guidance from the road's mapped lanes where it is known. In countries that drive on the left, the route keeps left.
+* Cycling routes run down the bike lane where a street has one, or just inside the outer traffic lane where it doesn't. Separate bike paths keep their own line.
 
 ### Changed
 

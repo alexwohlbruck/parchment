@@ -405,11 +405,15 @@ export class BakedBridgeLayer {
     const key = deckTileOf(id)
     const ids = this.tilePieces.get(key)
     if (!ids?.length || !this.holds(ids) || !meets(tileBounds(key), this.lastView.view)) return
+    // A parent whose children already draw stays out, as the sync leaves it.
+    if (childrenDrawn(key, child => this.drawnTiles.has(child) && this.holds(this.tilePieces.get(child) ?? []))) return
     const core = meets(tileBounds(key), this.lastView.core)
     for (const piece of ids) {
       this.wanted.add(piece)
       if (core) this.inView.add(piece)
     }
+    this.drawnTiles.add(key)
+    this.drawOrder = null
     this.pump()
     this.map.triggerRepaint()
   }

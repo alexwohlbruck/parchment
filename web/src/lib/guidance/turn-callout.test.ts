@@ -20,6 +20,7 @@ test('names the road turned onto, on the side of the turn', () => {
   const step = route.steps.find(s => s.instruction.type === 'turn')!
   const callout = turnCallout(route, step)
   expect(callout.side).toBe('left')
+  expect(callout.kind).toBe('left')
   expect(callout.road).toMatchObject({ kind: 'named', name: 'Underhill Avenue' })
   expect(callout.at).toBeCloseTo(step.startDistance)
 })

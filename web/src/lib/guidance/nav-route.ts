@@ -1,0 +1,231 @@
+// One polyline per leg, indexed by distance along it (`s`). Every per-frame
+// lookup is a binary search over cumulative distances.
+
+import type { LngLat } from '@/types/map.types'
+import type {
+  RouteEdgeSegment,
+  RouteInstruction,
+} from '@/types/directions.types'
+import { haversineMeters } from '@/lib/geo/geo-line'
+import { bearingDeg } from '@/lib/map/movement-interpolation'
+
+export interface NavSegmentInput {
+  mode: string
+  geometry?: LngLat[]
+  instructions?: RouteInstruction[]
+  edgeSegments?: RouteEdgeSegment[]
+}
+
+export interface NavStep {
+  index: number
+  segmentIndex: number
+  startDistance: number
+  instruction: RouteInstruction
+}
+
+export interface NavSegment {
+  index: number
+  mode: string
+  startDistance: number
+  endDistance: number
+}
+
+export interface NavEdge extends RouteEdgeSegment {
+  segmentIndex: number
+}
+
+export interface NavRoute {
+  points: LngLat[]
+  /** cumulative[i] = distance along the route at points[i]. */
+  cumulative: Float64Array
+  length: number
+  segments: NavSegment[]
+  steps: NavStep[]
+  /** Edge attributes rebased onto route distance, sorted by start. */
+  edges: NavEdge[]
+}
+
+export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
+  const points: LngLat[] = []
+  const distances: number[] = []
+  const segments: NavSegment[] = []
+  const steps: NavStep[] = []
+  const edges: NavEdge[] = []
+  let offset = 0
+
+  inputs.forEach((input, segmentIndex) => {
+    const geometry = (input.geometry ?? []).map(p => ({ lat: p.lat, lng: p.lng }))
+    const startDistance = offset
+    const firstNew = points.length
+    for (const p of geometry) {
+      const prev = points[points.length - 1]
+      if (prev) {
+        const d = haversineMeters(prev.lat, prev.lng, p.lat, p.lng)
+        if (d < 0.01) continue
+        offset += d
+      }
+      points.push(p)
+      distances.push(offset)
+    }
+    segments.push({ index: segmentIndex, mode: input.mode, startDistance, endDistance: offset })
+
+    const local = Float64Array.from(distances.slice(Math.max(0, firstNew - 1)))
+    const localPoints = points.slice(Math.max(0, firstNew - 1))
+    let searchFrom = 0
+    for (const instruction of input.instructions ?? []) {
+      const s = locateOnPolyline(localPoints, local, instruction.coordinate, searchFrom)
+      searchFrom = s.index
+      steps.push({ index: steps.length, segmentIndex, startDistance: s.distance, instruction })
+    }
+
+    for (const edge of input.edgeSegments ?? []) {
+      edges.push({
+        ...edge,
+        segmentIndex,
+        startDistance: startDistance + edge.startDistance,
+        endDistance: startDistance + edge.endDistance,
+      })
+    }
+  })
+
+  edges.sort((a, b) => a.startDistance - b.startDistance)
+  return {
+    points,
+    cumulative: Float64Array.from(distances),
+    length: offset,
+    segments,
+    steps,
+    edges,
+  }
+}
+
+/** Index of the polyline segment [i, i+1] containing distance `s`. */
+export function segmentIndexAt(route: NavRoute, s: number): number {
+  const c = route.cumulative
+  if (c.length < 2) return 0
+  if (s <= c[0]) return 0
+  if (s >= c[c.length - 1]) return c.length - 2
+  let lo = 0
+  let hi = c.length - 1
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (c[mid] <= s) lo = mid
+    else hi = mid
+  }
+  return lo
+}
+
+export function pointAt(route: NavRoute, s: number): LngLat {
+  const { points, cumulative } = route
+  if (points.length === 0) return { lat: 0, lng: 0 }
+  if (points.length === 1) return points[0]
+  const i = segmentIndexAt(route, s)
+  const a = points[i]
+  const b = points[i + 1]
+  const span = cumulative[i + 1] - cumulative[i]
+  const t = span > 0 ? Math.min(1, Math.max(0, (s - cumulative[i]) / span)) : 0
+  return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t }
+}
+
+/** Bearing of the polyline segment under `s`. */
+export function bearingAt(route: NavRoute, s: number): number {
+  const { points } = route
+  if (points.length < 2) return 0
+  const i = segmentIndexAt(route, s)
+  return bearingDeg(points[i], points[i + 1])
+}
+
+/**
+ * Bearing of the chord from `s − window` to `s + window`. Rotates the puck
+ * smoothly through corners instead of snapping at each vertex.
+ */
+export function smoothedBearingAt(route: NavRoute, s: number, window: number): number {
+  const from = pointAt(route, Math.max(0, s - window))
+  const to = pointAt(route, Math.min(route.length, s + window))
+  if (from.lat === to.lat && from.lng === to.lng) return bearingAt(route, s)
+  return bearingDeg(from, to)
+}
+
+function lastIndexAtOrBefore<T extends { startDistance: number }>(items: T[], s: number): number {
+  let lo = 0
+  let hi = items.length - 1
+  let found = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (items[mid].startDistance <= s) {
+      found = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return found
+}
+
+/** The step being travelled at `s` (the last maneuver passed). */
+export function stepIndexAt(route: NavRoute, s: number): number {
+  return Math.max(0, lastIndexAtOrBefore(route.steps, s))
+}
+
+export function edgeAt(route: NavRoute, s: number): NavEdge | null {
+  const i = lastIndexAtOrBefore(route.edges, s)
+  if (i < 0) return null
+  const edge = route.edges[i]
+  return s <= edge.endDistance ? edge : null
+}
+
+export function segmentAt(route: NavRoute, s: number): NavSegment | null {
+  const i = lastIndexAtOrBefore(route.segments, s)
+  return i < 0 ? route.segments[0] ?? null : route.segments[i]
+}
+
+/**
+ * Distance along `points` of the vertex or projection nearest `target`,
+ * scanning forward from `fromIndex` so repeated points on loops resolve to
+ * the next occurrence rather than the first.
+ */
+function locateOnPolyline(
+  points: LngLat[],
+  cumulative: Float64Array,
+  target: LngLat,
+  fromIndex: number,
+): { index: number; distance: number } {
+  let best = { index: fromIndex, distance: cumulative[fromIndex] ?? 0, d2: Infinity }
+  const cosLat = Math.cos((target.lat * Math.PI) / 180)
+  for (let i = fromIndex; i < points.length - 1; i++) {
+    const proj = projectOntoSegment(points[i], points[i + 1], target, cosLat)
+    if (proj.d2 < best.d2 - 1e-12) {
+      best = {
+        index: i,
+        distance: cumulative[i] + (cumulative[i + 1] - cumulative[i]) * proj.t,
+        d2: proj.d2,
+      }
+      if (proj.d2 < 1e-14) break
+    }
+  }
+  if (points.length === 1) return { index: 0, distance: cumulative[0] ?? 0 }
+  return { index: best.index, distance: best.distance }
+}
+
+/**
+ * Equirectangular projection of `p` onto segment ab. `d2` is in squared
+ * degrees-of-latitude; callers compare it, they don't convert it.
+ */
+export function projectOntoSegment(
+  a: LngLat,
+  b: LngLat,
+  p: LngLat,
+  cosLat: number,
+): { t: number; d2: number } {
+  const ax = a.lng * cosLat
+  const bx = b.lng * cosLat
+  const px = p.lng * cosLat
+  const dx = bx - ax
+  const dy = b.lat - a.lat
+  const len2 = dx * dx + dy * dy
+  let t = len2 > 0 ? ((px - ax) * dx + (p.lat - a.lat) * dy) / len2 : 0
+  t = Math.max(0, Math.min(1, t))
+  const ex = ax + dx * t - px
+  const ey = a.lat + dy * t - p.lat
+  return { t, d2: ex * ex + ey * ey }
+}

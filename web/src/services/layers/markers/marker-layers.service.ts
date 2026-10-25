@@ -94,8 +94,12 @@ export function useMarkerLayersService() {
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
       setMarkerLngLat: (id: string, lngLat: LngLat) =>
         mapStrategy?.setMarkerLngLat(id, lngLat),
-      setMarkerHeading: (id: string, heading: number | null, spread?: number) =>
-        mapStrategy?.setMarkerHeading(id, heading, spread),
+      setMarkerHeading: (
+        id: string,
+        heading: number | null,
+        spread?: number,
+        pitchAlignment?: 'map' | 'viewport',
+      ) => mapStrategy?.setMarkerHeading(id, heading, spread, pitchAlignment),
     }
 
     waypointsLayer.initialize(markerAPI)

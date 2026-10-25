@@ -42,25 +42,14 @@ const props = withDefaults(defineProps<Props>(), {
     <!-- Blue dot (dot mode) -->
     <div v-if="props.mode === 'dot'" class="location-dot" />
 
-    <!-- Navigation arrow (navigation mode) -->
-    <div
-      v-if="props.mode === 'navigation'"
-      class="navigation-arrow"
-      :style="{ transform: `rotate(${props.heading ?? 0}deg)` }"
-    >
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 40 40"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <!-- Directional chevron / arrow -->
+    <!-- Rotated and laid on the map by the layer (setMarkerHeading). -->
+    <div v-if="props.mode === 'navigation'" class="navigation-arrow">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
-          d="M20 4L32 28L20 22L8 28L20 4Z"
+          d="M22 5L35 35L22 28.5L9 35L22 5Z"
           fill="hsl(var(--primary))"
           stroke="white"
-          stroke-width="2"
+          stroke-width="3"
           stroke-linejoin="round"
         />
       </svg>
@@ -125,8 +114,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 .navigation-arrow {
   z-index: 2;
-  transition: transform 0.3s ease;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
 }
 
 @keyframes pulse {

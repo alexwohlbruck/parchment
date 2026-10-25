@@ -2,6 +2,8 @@
 
 ### Added
 
+* Start navigation from a walking, cycling or driving trip: a direction arrow follows the road smoothly as you move, with the next turn and distance left.
+
 ### Changed
 
 ### Fixed

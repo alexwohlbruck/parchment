@@ -18,6 +18,7 @@ import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
+import { isLegNavigable, useGuidanceStore } from '@/stores/guidance.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -46,6 +47,7 @@ import {
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
+  NavigationIcon,
   ShareIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
@@ -707,6 +709,15 @@ const boardCards = computed(() => {
 
 const hoveredInstructionKey = ref<string | null>(null)
 
+const guidanceStore = useGuidanceStore()
+const canNavigate = computed(() => !!trip.value && isLegNavigable(trip.value, 0))
+
+async function startGuidance() {
+  if (!trip.value) return
+  await guidanceStore.start(trip.value, 0)
+  router.push({ name: AppRoute.GUIDANCE })
+}
+
 const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -845,7 +856,8 @@ onBeforeRouteLeave(to => {
 onUnmounted(() => {
   // The board's run ids belong to this page's boards; the list page has none.
   tripFocusStore.setLegTripIds({})
-  if (route.name === AppRoute.DIRECTIONS) return
+  // Guidance follows this trip and returns here on exit.
+  if (route.name === AppRoute.DIRECTIONS || route.name === AppRoute.GUIDANCE) return
   directionsService.clearWaypoints()
   directionsStore.unsetTrips()
 })
@@ -1171,8 +1183,12 @@ function showSegmentChart(segment: any): boolean {
           </div>
         </div>
 
-        <!-- Share + Save -->
-        <div class="flex gap-0.5 shrink-0 -mr-2 -mb-1">
+        <!-- Start + Share + Save -->
+        <div class="flex items-center gap-0.5 shrink-0 -mr-2 -mb-1">
+          <Button v-if="canNavigate" size="sm" class="mr-1.5" @click="startGuidance">
+            <NavigationIcon class="size-4" />
+            {{ translate('guidance.start') }}
+          </Button>
           <Button variant="ghost" size="icon-sm">
             <ShareIcon class="size-4" />
           </Button>

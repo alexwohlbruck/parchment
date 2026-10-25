@@ -23,6 +23,7 @@ export class RoutingService {
     locations: Location[],
     costing: string = 'auto',
     preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
+    options: { startHeading?: number } = {},
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -83,6 +84,7 @@ export class RoutingService {
       mode,
       includeInstructions: true,
       includeGeometry: true,
+      startHeading: options.startHeading,
       language: (preferences as { language?: import('../lib/i18n').Language })
         ?.language,
       preferences: preferences

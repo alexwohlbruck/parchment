@@ -4,9 +4,14 @@ import { useI18n } from 'vue-i18n'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
-import type { GuidanceProgress } from '@/stores/guidance.store'
+import type { GuidanceProgress, GuidanceStatus } from '@/stores/guidance.store'
 
-const props = defineProps<{ progress: GuidanceProgress | null; metric: boolean }>()
+const props = defineProps<{
+  progress: GuidanceProgress | null
+  status: GuidanceStatus
+  destination: string | null
+  metric: boolean
+}>()
 const { t } = useI18n()
 
 const next = computed(() => props.progress?.next ?? null)
@@ -20,6 +25,11 @@ const road = computed(() => {
 })
 const then = computed(() => (props.progress?.then ? maneuverKind(props.progress.then.instruction) : null))
 const offRoute = computed(() => props.progress && !props.progress.puck.snapped)
+const headline = computed(() => {
+  if (props.status === 'arrived') return t('guidance.banner.arrived')
+  if (props.status === 'rerouting') return t('guidance.banner.rerouting')
+  return offRoute.value ? t('guidance.banner.offRoute') : null
+})
 </script>
 
 <template>
@@ -27,9 +37,10 @@ const offRoute = computed(() => props.progress && !props.progress.puck.snapped)
     <div v-if="!progress" class="px-4 py-3.5 text-base text-white/80">
       {{ t('guidance.waitingForLocation') }}
     </div>
-    <div v-else-if="offRoute" class="px-4 py-3.5">
-      <div class="text-lg font-semibold">{{ t('guidance.banner.offRoute') }}</div>
-      <div class="text-sm text-white/70">{{ t('guidance.banner.offRouteHint') }}</div>
+    <div v-else-if="headline" class="px-4 py-3.5">
+      <div class="text-lg font-semibold">{{ headline }}</div>
+      <div v-if="status === 'arrived' && destination" class="truncate text-sm text-white/70">{{ destination }}</div>
+      <div v-else-if="status !== 'arrived'" class="text-sm text-white/70">{{ t('guidance.banner.offRouteHint') }}</div>
     </div>
     <div v-else-if="next" class="flex items-center gap-3.5 px-4 py-3">
       <ManeuverIcon :kind="kind" :exit="next.instruction.exitNumber" class="size-11 shrink-0" />
@@ -41,7 +52,7 @@ const offRoute = computed(() => props.progress && !props.progress.puck.snapped)
         <div class="mt-1 truncate text-lg font-medium leading-tight">{{ road }}</div>
       </div>
     </div>
-    <div v-if="then && !offRoute" class="flex items-center gap-2 bg-white/10 px-4 py-1.5 text-sm">
+    <div v-if="then && !headline" class="flex items-center gap-2 bg-white/10 px-4 py-1.5 text-sm">
       <span class="text-white/75">{{ t('guidance.banner.then') }}</span>
       <ManeuverIcon :kind="then" class="size-5" />
     </div>

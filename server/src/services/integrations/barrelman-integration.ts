@@ -1323,6 +1323,12 @@ export class BarrelmanIntegration
       ],
     }
 
+    // Favour leaving in the direction already travelled, so a reroute
+    // doesn't start with a U-turn.
+    if (request.startHeading != null) {
+      requestBody.headings = [request.startHeading]
+    }
+
     // Alternatives
     if (request.preferences?.alternatives) {
       requestBody.algorithm = 'alternative_route'

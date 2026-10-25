@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon } from 'lucide-vue-next'
+import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon, SplitIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
-import { synthesizeDrive } from '@/dev/gpx-simulator/route-drive'
+import { synthesizeDetour, synthesizeDrive } from '@/dev/gpx-simulator/route-drive'
 import { REALISTIC_FIX_MODEL } from '@/dev/gpx-simulator/fix-model'
+import { matchToRoute } from '@/lib/guidance/route-matcher'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
@@ -54,6 +55,35 @@ function simulate() {
   simulatorStore.play()
 }
 
+function takeWrongTurn() {
+  const here = simulatorStore.getState().currentPoint
+  if (!here) return
+  simulatorStore.load('Wrong turn', synthesizeDetour(here, Date.now()), REALISTIC_FIX_MODEL)
+  simulatorStore.setLoop(false)
+  simulatorStore.play()
+}
+
+// A simulated driver follows the new route after a reroute, as a real one would:
+// joining it from where they are, at the speed they're doing.
+watch(
+  () => guidance.route,
+  (route, previous) => {
+    const here = simulatorStore.getState().currentPoint
+    if (!route || !previous || !here || sim.value.status === 'stopped') return
+    const startS = matchToRoute(route, here)?.s ?? 0
+    const mode = route.segments[0]?.mode ?? 'driving'
+    const rate = simulatorStore.getState().playbackRate
+    simulatorStore.load(
+      'Route drive',
+      synthesizeDrive(route, mode, Date.now(), Math.floor(Math.random() * 1e9), { startS, startSpeed: here.speed }),
+      REALISTIC_FIX_MODEL,
+    )
+    simulatorStore.setLoop(false)
+    simulatorStore.setRate(rate)
+    simulatorStore.play()
+  },
+)
+
 function toggleDebug() {
   const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
   if (!map) return
@@ -91,6 +121,9 @@ function toggleDebug() {
         @click="simulatorStore.setRate(rate)"
       >
         {{ rate }}×
+      </Button>
+      <Button size="icon-sm" variant="ghost" title="Take a wrong turn" @click="takeWrongTurn">
+        <SplitIcon class="size-4" />
       </Button>
     </template>
     <Button size="icon-sm" :variant="tuningOpen ? 'default' : 'ghost'" class="ml-auto" @click="tuningOpen = !tuningOpen">

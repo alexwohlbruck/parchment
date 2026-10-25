@@ -11,6 +11,7 @@ import {
 } from '@/lib/guidance/nav-route'
 import { angleDelta } from '@/lib/guidance/spring'
 import { createRandom } from './fix-model'
+import { projectLatLng } from '@/lib/map/movement-interpolation'
 
 export interface DriveProfile {
   cruise: number
@@ -62,6 +63,8 @@ export function synthesizeDrive(
   fallbackMode: string,
   startTimeMs: number,
   seed = 1,
+  /** Join the route part-way and already moving, as after a reroute. */
+  { startS = 0, startSpeed = 0 }: { startS?: number; startSpeed?: number } = {},
 ): GpxPoint[] {
   const random = createRandom(seed)
   const finest = Math.min(...route.segments.map(seg => profileFor(seg.mode).step), profileFor(fallbackMode).step)
@@ -91,11 +94,12 @@ export function synthesizeDrive(
     limit[i] = 0
     dwell[i] = MODE_CHANGE_SEC
   }
-  limit[0] = 0
+  const first = Math.min(n - 2, Math.max(0, Math.round(startS / ds)))
+  limit[first] = startSpeed
   limit[n - 1] = 0
 
   const v = Float64Array.from(limit)
-  for (let i = 1; i < n; i++) v[i] = Math.min(v[i], Math.sqrt(v[i - 1] ** 2 + 2 * profiles[i].accel * ds))
+  for (let i = first + 1; i < n; i++) v[i] = Math.min(v[i], Math.sqrt(v[i - 1] ** 2 + 2 * profiles[i].accel * ds))
   for (let i = n - 2; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] ** 2 + 2 * profiles[i].decel * ds))
 
   const points: GpxPoint[] = []
@@ -113,8 +117,8 @@ export function synthesizeDrive(
     })
   }
 
-  push(0, 0)
-  for (let i = 1; i < n; i++) {
+  push(first, v[first])
+  for (let i = first + 1; i < n; i++) {
     const avg = Math.max(MIN_ROLLING_SPEED, (v[i - 1] + v[i]) / 2)
     t += (ds / avg) * 1000
     push(i, v[i])
@@ -122,6 +126,22 @@ export function synthesizeDrive(
       t += dwell[i] * 1000
       push(i, 0)
     }
+  }
+  return points
+}
+
+/** Leave the route: turn off at `turnDeg` and keep going straight, ignoring roads. */
+export function synthesizeDetour(
+  from: GpxPoint,
+  startTimeMs: number,
+  { turnDeg = 75, meters = 400, speed = Math.max(4, from.speed) } = {},
+): GpxPoint[] {
+  const heading = ((from.heading ?? 0) + turnDeg + 360) % 360
+  const step = 2
+  const points: GpxPoint[] = []
+  for (let d = 0; d <= meters; d += step) {
+    const p = projectLatLng(from, d, heading, 1)
+    points.push({ lat: p.lat, lng: p.lng, time: startTimeMs + (d / speed) * 1000, altitude: null, speed, heading })
   }
   return points
 }

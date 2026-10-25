@@ -68,7 +68,13 @@ const labelStyle = computed(() => {
 <template>
   <div ref="root" class="pointer-events-none absolute inset-0 z-30">
     <div ref="banner" class="absolute inset-x-0 top-0 px-2 pt-[calc(0.5rem+env(safe-area-inset-top))]">
-      <ManeuverBanner :progress="guidance.progress" :metric="metric" class="mx-auto max-w-xl" />
+      <ManeuverBanner
+        :progress="guidance.progress"
+        :status="guidance.status"
+        :destination="guidance.destinationLabel"
+        :metric="metric"
+        class="mx-auto max-w-xl"
+      />
     </div>
 
     <div

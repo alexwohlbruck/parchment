@@ -267,3 +267,20 @@ test('keeps a tile\'s decks drawn after MapLibre swaps it for children whose pie
   expect((layer as any).wanted.has(parentPiece)).toBe(true)
   layer.onRemove(map, gl)
 })
+
+test('draws a tile\'s decks before the view covers, but not where a deck in view has no mesh and the flat bridges stay', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  vi.mocked(bindMesh).mockClear()
+  layer.render(gl, frame)
+  expect(bindMesh).toHaveBeenCalled()
+  ;(map as any).querySourceFeatures = () => [{ properties: { id: 'other', line: feature.properties.line } }]
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(500)
+  vi.mocked(bindMesh).mockClear()
+  layer.render(gl, frame)
+  expect(layer.covered).toBe(false)
+  expect(bindMesh).not.toHaveBeenCalled()
+  layer.onRemove(map, gl)
+})

@@ -1,5 +1,5 @@
 import { decodeBridge, type BakedMesh } from './mesh-file'
-import { decodeDeckTile, type DeckTile } from './deck-tile'
+import { decodeDeckTile, splitDeckTile, type DeckTile } from './deck-tile'
 
 export type DecodeRequest = { id: number; buffer: ArrayBuffer; tile?: boolean }
 export type DecodeResult = { id: number; mesh: BakedMesh } | { id: number; tile: DeckTile } | { id: number; error: string }
@@ -41,23 +41,29 @@ function start(): Decoder | null {
 }
 
 /** The least busy decoder, or null where workers are unavailable. */
+function decoders(): Decoder[] {
+  return (pool ??= Array.from({ length: POOL }, start).filter((d): d is Decoder => !!d))
+}
+
 function decoder(): Decoder | null {
-  pool ??= Array.from({ length: POOL }, start).filter((d): d is Decoder => !!d)
-  if (!pool.length) return null
-  return pool.reduce((a, b) => (b.jobs.size < a.jobs.size ? b : a))
+  const all = decoders()
+  return all.length ? all.reduce((a, b) => (b.jobs.size < a.jobs.size ? b : a)) : null
 }
 
 /** Decodes a mesh file off the main thread, or on it where workers are unavailable. */
 export function decodeMesh(buffer: ArrayBuffer): Promise<BakedMesh> {
-  return decode(buffer, false, () => decodeBridge(buffer))
+  return decode(() => buffer, false, () => decodeBridge(buffer))
 }
 
-/** Decodes a vector tile's deck payload (a copy of it is handed over) off the main thread, or on it where workers are unavailable. */
-export function decodeTilePieces(payload: Uint8Array): Promise<DeckTile> {
-  return decode(payload.slice().buffer, true, () => decodeDeckTile(payload))
+/** Decodes a vector tile's deck payload off the main thread, its pieces shared between the decoders, or on it where workers are unavailable. */
+export async function decodeTilePieces(payload: Uint8Array): Promise<DeckTile> {
+  const workers = decoders().length
+  const parts = workers ? splitDeckTile(payload, workers) : [payload]
+  const tiles = await Promise.all(parts.map(part => decode<DeckTile>(() => (part === payload ? part.slice() : part).buffer as ArrayBuffer, true, () => decodeDeckTile(part))))
+  return { pieces: tiles.flatMap(t => t.pieces), failed: tiles.flatMap(t => t.failed) }
 }
 
-function decode<T>(buffer: ArrayBuffer, tile: boolean, here: () => T): Promise<T> {
+function decode<T>(bytes: () => ArrayBuffer, tile: boolean, here: () => T): Promise<T> {
   const target = decoder()
   if (!target) {
     try {
@@ -70,6 +76,7 @@ function decode<T>(buffer: ArrayBuffer, tile: boolean, here: () => T): Promise<T
   return new Promise((resolve, reject) => {
     target.jobs.set(id, { resolve, reject })
     try {
+      const buffer = bytes()
       target.worker.postMessage({ id, buffer, tile } satisfies DecodeRequest, [buffer])
     } catch (error) {
       target.jobs.delete(id)

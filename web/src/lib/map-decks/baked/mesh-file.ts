@@ -60,7 +60,7 @@ export function decodeBridge(buffer: ArrayBuffer): BakedMesh {
   })
   const index = stream(layouts[streams], indices)
   mesh.indices = compact ? summed(index as Int32Array) : index as Uint32Array
-  if (compact && mesh.indices.some(i => i >= count)) throw new Error('Invalid bridge mesh indices')
+  if (compact) for (let i = 0; i < mesh.indices.length; i++) if (mesh.indices[i] >= count) throw new Error('Invalid bridge mesh indices')
   return mesh
 }
 
@@ -74,11 +74,20 @@ function expand(raw: ArrayLike<number>, { type, delta = 0, quantum, scale = 1 }:
   if (type === Float32Array) return raw as Float32Array
   const factor = quantum ? step : scale
   const out = new Float32Array(raw.length)
+  const n = raw.length
   if (!delta) {
-    for (let i = 0; i < raw.length; i++) out[i] = raw[i] * factor
-    return out
+    for (let i = 0; i < n; i++) out[i] = raw[i] * factor
+  } else if (delta === 1) {
+    for (let i = 0, a = 0; i < n; i++) out[i] = (a += raw[i]) * factor
+  } else if (delta === 3) {
+    for (let i = 0, a = 0, b = 0, c = 0; i < n; i += 3) {
+      out[i] = (a += raw[i]) * factor
+      out[i + 1] = (b += raw[i + 1]) * factor
+      out[i + 2] = (c += raw[i + 2]) * factor
+    }
+  } else {
+    const sums = new Float64Array(delta)
+    for (let i = 0; i < n; i++) out[i] = (sums[i % delta] += raw[i]) * factor
   }
-  const sums = new Float64Array(delta)
-  for (let i = 0; i < raw.length; i++) out[i] = (sums[i % delta] += raw[i]) * factor
   return out
 }

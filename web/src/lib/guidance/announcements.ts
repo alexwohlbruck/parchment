@@ -10,7 +10,9 @@ import type { PuckState } from './guidance-engine'
 import { angleDelta } from './spring'
 import { travelModeAt } from './guidance-display'
 import { crosswalkAfter, upcomingHazard } from './hazards'
+import { modeProfile } from './mode-profiles'
 import type { NavHazard } from './nav-route'
+import type { Handoff } from './handoff'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -25,6 +27,7 @@ export type Announcement =
       pedestrians?: boolean
     }
   | { kind: 'hazard'; hazard: NavHazard; distance: number }
+  | { kind: 'handoff'; handoff: Handoff }
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
   | { kind: 'reroute' }
@@ -34,8 +37,6 @@ export function isAlert(announcement: Announcement): boolean {
   return announcement.kind !== 'maneuver'
 }
 
-/** Speed a mode's prompts are sized for when the traveller is slower than it. */
-const BASE_SPEED: Record<string, number> = { driving: 13.9, cycling: 5, walking: 1.4 }
 const PREPARE_SEC = 115
 const APPROACH_SEC = 22
 const MIN_NOW_METERS = 12
@@ -45,8 +46,7 @@ const THEN_WITHIN_METERS = 100
 const MIN_GAP_SEC = 8
 
 export function leadDistances(mode: string, speed: number) {
-  const base = BASE_SPEED[mode] ?? BASE_SPEED.driving
-  const v = Math.max(base, speed)
+  const v = Math.max(modeProfile(mode).baseSpeed, speed)
   return {
     prepare: mode === 'walking' ? null : v * PREPARE_SEC,
     approach: v * APPROACH_SEC,

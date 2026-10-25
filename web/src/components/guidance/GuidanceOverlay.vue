@@ -7,6 +7,7 @@ import { useAppStore } from '@/stores/app.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import { roadLabel, travelModeAt } from '@/lib/guidance/guidance-display'
+import { modeProfile } from '@/lib/guidance/mode-profiles'
 import { toContainerRect } from '@/lib/map/map-padding'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import ManeuverBanner from './ManeuverBanner.vue'
@@ -99,11 +100,11 @@ const labelStyle = computed(() => {
 
     <div class="absolute left-2 transition-[bottom] duration-150" :style="{ bottom: `${bottomInset + 12}px` }">
       <SpeedPanel
-        v-if="mode !== 'walking' && guidance.progress"
+        v-if="modeProfile(mode).speedometer && guidance.progress"
         :speed="guidance.progress.puck.speed"
         :limit-kmh="guidance.progress.speedLimitKmh"
         :metric="metric"
-        :show-limit="mode === 'driving'"
+        :show-limit="modeProfile(mode).speedLimit"
       />
     </div>
 

@@ -5,6 +5,8 @@ import { maneuverKind } from '@/lib/directions/maneuver'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { Announcement } from './announcements'
 import { bannerDistance } from './guidance-display'
+import type { Handoff } from './handoff'
+import { formatDurationLong } from '@/lib/time-format'
 
 type TFn = (key: string, named?: Record<string, unknown>) => string
 
@@ -35,12 +37,26 @@ function maneuverPhrase(instruction: RouteInstruction, t: TFn): string {
   return road ? t('guidance.voice.onto', { action, road }) : action
 }
 
+/** The words on the handoff card, which are also what's spoken. */
+export function handoffText(handoff: Handoff, t: TFn): string {
+  const duration = formatDurationLong(handoff.nextDuration)
+  const mode = t(`guidance.handoff.modes.${handoff.nextMode === 'biking' ? 'cycling' : handoff.nextMode}`)
+  const place = handoff.nextEnd
+  const base = t(`guidance.handoff.${handoff.kind}`, { station: handoff.station ?? '', mode })
+  const then = place
+    ? t('guidance.handoff.thenTo', { mode, duration, place })
+    : t('guidance.handoff.then', { mode, duration })
+  return `${base}, ${then}`
+}
+
 export function announcementText(announcement: Announcement, metric: boolean, t: TFn): string {
   switch (announcement.kind) {
     case 'reroute':
       return t('guidance.voice.rerouting')
     case 'hazard':
       return t(`guidance.voice.hazards.${announcement.hazard.kind}`)
+    case 'handoff':
+      return handoffText(announcement.handoff, t)
     case 'arrived':
       return announcement.side
         ? t(`guidance.voice.arrivedSide.${announcement.side}`)

@@ -33,7 +33,7 @@ export class AlongRouteFilter {
   private P: Mat3
   private t: number
   private rejections = 0
-  private readonly options: FilterOptions
+  private options: FilterOptions
 
   constructor(initial: { s: number; v?: number; t: number; sigma?: number }, options?: Partial<FilterOptions>) {
     this.options = { ...DEFAULT_FILTER_OPTIONS, ...options }
@@ -41,6 +41,11 @@ export class AlongRouteFilter {
     this.t = initial.t
     const sv = initial.sigma ?? 10
     this.P = [sv * sv, 0, 0, 0, 25, 0, 0, 0, 4]
+  }
+
+  /** Retune for a new way of travelling (walking is gentler than driving). */
+  setJerkSigma(jerkSigma: number): void {
+    this.options = { ...this.options, jerkSigma }
   }
 
   get time(): number {

@@ -5,10 +5,12 @@ import type { LngLat } from '@/types/map.types'
 import { projectLatLng, distanceMeters } from '@/lib/map/movement-interpolation'
 import {
   pointAt,
+  segmentAt,
   smoothedBearingAt,
   stepIndexAt,
   type NavRoute,
 } from './nav-route'
+import { modeProfile } from './mode-profiles'
 import { matchToRoute, type RouteMatch } from './route-matcher'
 import { AlongRouteFilter, type FilterOptions } from './along-route-filter'
 import { HeadingFilter } from './heading-filter'
@@ -60,13 +62,14 @@ export class GuidanceEngine {
   private readonly offRoute = new OffRouteDetector()
   private readonly yaw = new YawRateEstimator()
   private readonly stillness = new StillnessDetector()
-  private readonly options: Required<EngineOptions>
+  private readonly options: { filter: Partial<FilterOptions>; stillSpeedOverride: number | null; maxAccuracy: number }
 
   private correction = 0
   private correctionAt = 0
   private renderedS = 0
   private renderedAt: number | null = null
   private stillFixes = 0
+  private stillSpeed: number
   private jumpRejections = 0
   private lastFix: Fix | null = null
   private lastMatch: RouteMatch | null = null
@@ -77,9 +80,10 @@ export class GuidanceEngine {
     this.route = route
     this.options = {
       filter: options.filter ?? {},
-      stillSpeed: options.stillSpeed ?? 0.7,
+      stillSpeedOverride: options.stillSpeed ?? null,
       maxAccuracy: options.maxAccuracy ?? 50,
     }
+    this.stillSpeed = options.stillSpeed ?? modeProfile(route.segments[0]?.mode ?? 'driving').stillSpeed
   }
 
   get navRoute(): NavRoute {
@@ -149,6 +153,9 @@ export class GuidanceEngine {
 
   private updateOnRoute(fix: Fix, match: RouteMatch, now: number): void {
     const before = this.filter ? this.renderTarget(now) : null
+    const profile = modeProfile(segmentAt(this.route, match.s)?.mode ?? 'driving')
+    this.filter?.setJerkSigma(this.options.filter.jerkSigma ?? profile.jerkSigma)
+    this.stillSpeed = this.options.stillSpeedOverride ?? profile.stillSpeed
 
     const still = this.isStill(fix)
     if (!this.filter) {
@@ -213,7 +220,7 @@ export class GuidanceEngine {
     const sensorStill = this.stillness.isStill()
     const still =
       fix.speed != null
-        ? fix.speed < this.options.stillSpeed && sensorStill !== false
+        ? fix.speed < this.stillSpeed && sensorStill !== false
         : sensorStill === true
     this.stillFixes = still ? this.stillFixes + 1 : 0
     return this.stillFixes >= 2

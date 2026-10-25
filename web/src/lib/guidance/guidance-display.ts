@@ -3,6 +3,7 @@
 
 import { edgeAt, segmentAt, type NavRoute, type NavStep } from './nav-route'
 import type { PuckState } from './guidance-engine'
+import { modeProfile } from './mode-profiles'
 
 const FEET_PER_METER = 3.28084
 const METERS_PER_MILE = 1609.344
@@ -109,11 +110,10 @@ export function postedLimit(kmh: number, metric: boolean): number {
   return metric ? Math.round(kmh / 5) * 5 : Math.round(kmh / 1.609344 / 5) * 5
 }
 
-const ARRIVAL_RADIUS: Record<string, number> = { driving: 30, cycling: 20, walking: 15 }
 
 export function hasArrived(route: NavRoute, puck: PuckState): boolean {
   const mode = travelModeAt(route, puck.s)
-  return route.length - puck.s <= (ARRIVAL_RADIUS[mode] ?? 20)
+  return route.length - puck.s <= modeProfile(mode).arrivalRadius
 }
 
 export function travelModeAt(route: NavRoute, s: number): string {

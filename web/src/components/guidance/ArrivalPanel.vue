@@ -12,7 +12,7 @@ const arrivedAt = formatClock(new Date())
 
 <template>
   <div class="flex items-center gap-3">
-    <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600">
+    <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600 dark:text-emerald-400">
       <FlagIcon class="size-5" />
     </div>
     <div class="min-w-0 flex-1">

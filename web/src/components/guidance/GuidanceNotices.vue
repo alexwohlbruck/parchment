@@ -38,7 +38,7 @@ const offer = computed(() => {
   }
 })
 
-const NOTICE = 'pointer-events-auto rounded-3xl bg-background/95 p-3.5 shadow-xl backdrop-blur-md'
+const NOTICE = 'nav-surface pointer-events-auto rounded-3xl bg-background/95 p-3.5 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md'
 
 const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'arrived')
 </script>

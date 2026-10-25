@@ -30,7 +30,7 @@ useObstructingComponent(root, 'guidance-column', undefined, undefined, rect => (
 const { height } = useWindowSize()
 const roomy = computed(() => height.value >= 600)
 
-const CARD = 'nav-surface dark pointer-events-auto rounded-[28px] bg-background/95 shadow-xl backdrop-blur-md'
+const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md'
 </script>
 
 <template>
@@ -46,7 +46,7 @@ const CARD = 'nav-surface dark pointer-events-auto rounded-[28px] bg-background/
         <InstructionCard :dash="roomy" />
       </Transition>
       <HazardChip class="self-center" />
-      <GuidanceNotices class="nav-surface dark" />
+      <GuidanceNotices />
 
       <Transition
         mode="out-in"
@@ -82,7 +82,7 @@ const CARD = 'nav-surface dark pointer-events-auto rounded-[28px] bg-background/
     <GuidanceMapButtons
       panels
       :large="roomy"
-      class="nav-surface dark absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)]"
+      class="nav-surface absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)]"
     />
 
   </div>

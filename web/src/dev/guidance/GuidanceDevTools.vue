@@ -171,7 +171,7 @@ function toggleDebug() {
 </script>
 
 <template>
-  <div v-if="guidance.isActive" class="pointer-events-auto relative">
+  <div v-if="guidance.isActive" class="nav-surface pointer-events-auto relative">
     <button
       class="flex h-8 items-center gap-1.5 rounded-full border border-dashed border-amber-500/60 bg-background/90 px-3 text-xs font-medium shadow-md backdrop-blur"
       :class="open && 'bg-amber-100 dark:bg-amber-950'"

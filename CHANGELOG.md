@@ -4,7 +4,12 @@
 
 ### Changed
 
+* 3D bridge decks draw as soon as their map tile lands and decode in parallel, so they keep up with the map.
+* Terrain cut away for tunnels is refined off the main thread.
+
 ### Fixed
+
+* Road names on bridges no longer show through 3D decks after the road labels setting is reapplied.
 
 ## [0.16.5] - 2026-10-24
 

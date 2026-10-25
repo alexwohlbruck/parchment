@@ -9,6 +9,7 @@
  */
 
 import { pointAtTime, type GpxPoint } from './gpx-parser'
+import type { FixModel } from './fix-model'
 
 export type Status = 'stopped' | 'playing' | 'paused'
 
@@ -22,6 +23,8 @@ export interface SimulatorState {
   playbackRate: number
   loop: boolean
   currentPoint: GpxPoint | null
+  /** When set, the override emits noisy fixes on this cadence instead of every frame. */
+  fixModel: FixModel | null
 }
 
 type Listener = (state: SimulatorState) => void
@@ -35,6 +38,7 @@ const initialState: SimulatorState = {
   playbackRate: 1,
   loop: true,
   currentPoint: null,
+  fixModel: null,
 }
 
 let state: SimulatorState = { ...initialState }
@@ -119,7 +123,7 @@ export const simulatorStore = {
     }
   },
 
-  load(fileName: string, points: GpxPoint[]) {
+  load(fileName: string, points: GpxPoint[], fixModel: FixModel | null = null) {
     if (points.length === 0) return
     const totalDurationMs =
       points[points.length - 1].time - points[0].time
@@ -130,6 +134,7 @@ export const simulatorStore = {
       points,
       trackTimeMs: 0,
       totalDurationMs,
+      fixModel,
     }
     recomputeCurrentPoint()
     emit()
@@ -174,6 +179,12 @@ export const simulatorStore = {
   setRate(rate: number) {
     state = { ...state, playbackRate: Math.max(0.1, Math.min(64, rate)) }
     emit()
+  },
+
+  /** Ground truth at `offsetMs` from the current playback position. */
+  pointAtOffset(offsetMs: number): GpxPoint | null {
+    if (state.points.length === 0) return null
+    return pointAtTime(state.points, state.points[0].time + state.trackTimeMs + offsetMs)
   },
 
   setLoop(loop: boolean) {

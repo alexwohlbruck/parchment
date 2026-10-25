@@ -126,7 +126,11 @@ export function installGeolocationOverride() {
     }
   }
 
-  const fakeGeo: Geolocation = {
+  const fakeGeo: Geolocation & { readonly simulated: boolean } = {
+    /** Read by guidance, which otherwise prefers the apps' native location service. */
+    get simulated() {
+      return isSimulating()
+    },
     getCurrentPosition(onSuccess, onError, options) {
       if (isSimulating() && lastNoisy) {
         onSuccess(lastNoisy)

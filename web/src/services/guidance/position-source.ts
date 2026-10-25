@@ -3,6 +3,10 @@
 
 import type { Fix } from '@/lib/guidance/guidance-engine'
 import type { MotionSample } from '@/lib/guidance/motion'
+import { isTauri } from '@/lib/api'
+
+const simulatorActive = () =>
+  import.meta.env.DEV && !!(navigator.geolocation as { simulated?: boolean }).simulated
 
 export interface PositionSourceHandlers {
   onFix: (fix: Fix) => void
@@ -24,7 +28,11 @@ export async function requestMotionPermission(): Promise<boolean> {
   }
 }
 
-function toFix(position: GeolocationPosition): Fix {
+type PositionLike = Pick<GeolocationPosition, 'timestamp'> & {
+  coords: Pick<GeolocationCoordinates, 'latitude' | 'longitude' | 'accuracy' | 'speed' | 'heading'>
+}
+
+function toFix(position: PositionLike): Fix {
   const { coords } = position
   return {
     t: position.timestamp / 1000,
@@ -46,12 +54,40 @@ function toMotion(event: DeviceMotionEvent): MotionSample | null {
   }
 }
 
-export function startPositionSource(handlers: PositionSourceHandlers): () => void {
+const WATCH_OPTIONS = { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+
+/** The apps read the OS location service, which keeps delivering with the screen off. */
+function watchNative(onFix: (fix: Fix) => void): () => void {
+  let stopped = false
+  let id: number | null = null
+  void (async () => {
+    const geolocation = await import('@tauri-apps/plugin-geolocation')
+    const { location } = await geolocation.checkPermissions()
+    if (location !== 'granted') await geolocation.requestPermissions(['location'])
+    if (stopped) return
+    id = await geolocation.watchPosition(WATCH_OPTIONS, position => {
+      if (position) onFix(toFix(position))
+    })
+    if (stopped) void geolocation.clearWatch(id)
+  })()
+  return () => {
+    stopped = true
+    if (id != null) void import('@tauri-apps/plugin-geolocation').then(g => g.clearWatch(id!))
+  }
+}
+
+function watchBrowser(handlers: PositionSourceHandlers): () => void {
   const watchId = navigator.geolocation.watchPosition(
     position => handlers.onFix(toFix(position)),
     error => handlers.onError?.(error),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    WATCH_OPTIONS,
   )
+  return () => navigator.geolocation.clearWatch(watchId)
+}
+
+export function startPositionSource(handlers: PositionSourceHandlers): () => void {
+  // The dev simulator stands in for navigator.geolocation, so it always takes that path.
+  const stopWatch = isTauri && !simulatorActive() ? watchNative(handlers.onFix) : watchBrowser(handlers)
 
   const onDeviceMotion = (event: DeviceMotionEvent) => {
     const sample = toMotion(event)
@@ -60,7 +96,7 @@ export function startPositionSource(handlers: PositionSourceHandlers): () => voi
   if (handlers.onMotion) window.addEventListener('devicemotion', onDeviceMotion)
 
   return () => {
-    navigator.geolocation.clearWatch(watchId)
+    stopWatch()
     window.removeEventListener('devicemotion', onDeviceMotion)
   }
 }

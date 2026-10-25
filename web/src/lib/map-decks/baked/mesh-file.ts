@@ -1,7 +1,7 @@
 import type { Chain, DeckSurface, Point, UnderWay } from '../decks'
 
 export const BRIDGE_MESH_FILE = /^[0-9a-f]{64}\.brm$/
-export const MATERIALS = ['surface', 'concrete', 'parapet', 'track', 'deck', 'lowRoad', 'lowMajor', 'lowHighway', 'lowPath', 'walkway', 'rail', 'white', 'yellow', 'green', 'red', 'route', 'routeCasing'] as const
+export const MATERIALS = ['surface', 'concrete', 'parapet', 'track', 'deck', 'lowRoad', 'lowMajor', 'lowHighway', 'lowPath', 'walkway', 'rail', 'white', 'yellow', 'green', 'red', 'route', 'routeCasing', 'travelled', 'travelledCasing'] as const
 const STREAMS = ['position', 'normal', 'color', 'low', 'bias', 'spread', 'ground', 'lift'] as const
 /** Compact meshes keep normals as signed bytes and palette slots as bytes: the GPU reads them as they are. */
 export type BakedMesh = Record<Exclude<typeof STREAMS[number], 'normal' | 'color' | 'low'>, Float32Array> & {

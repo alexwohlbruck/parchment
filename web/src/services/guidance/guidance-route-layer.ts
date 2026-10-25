@@ -3,7 +3,7 @@
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
 import type { NavRoute } from '@/lib/guidance/nav-route'
-import { laneOffset, maneuverArrow, routeGradient } from '@/lib/guidance/route-line'
+import { laneOffset, maneuverArrow, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
@@ -12,8 +12,6 @@ const ROUTE = 'guidance-route'
 export const GUIDANCE_ROUTE_SOURCE = ROUTE
 const ARROW = 'guidance-maneuver'
 const HAZARDS = 'guidance-hazards'
-const TRAVELLED_COLOR = '#9ca3af'
-const TRAVELLED_CASE_COLOR = '#6b7280'
 const ARROW_COLOR = '#ffffff'
 /** Half a lane: a driven route runs in its lanes, not on the road's centre line. */
 const HALF_LANE_METERS = 1.8

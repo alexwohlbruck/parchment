@@ -22,12 +22,18 @@ export type DeckPalette = {
   red: [number, number, number]
   route: [number, number, number]
   routeCasing: [number, number, number]
+  travelled: [number, number, number]
+  travelledCasing: [number, number, number]
 }
+
+export type RouteMeasure = (lngLat: [number, number], from: number) => number
 
 export type DeckSources = {
   profiles: { source: string; layer: string }
   /** Source ids whose lines are routes to lay over decks. */
   routes: () => string[]
+  /** Metres along a route source's line at a lng/lat, searched on from `from`, so its travelled part can be drawn apart. */
+  measure?: (source: string) => RouteMeasure | null
   /** Whether the lane-level roads are drawn: without them a deck keeps the basemap's road colours at every zoom. */
   hd?: () => boolean
 }

@@ -256,6 +256,7 @@ export class BakedBridgeLayer {
     this.tilePieces.clear()
     for (const { controller } of this.readAhead.values()) controller.abort()
     this.readAhead.clear()
+    this.alongside = new WeakMap()
     clearTimeout(this.retryTimer)
     this.tileTokens.clear()
     this.tileFailures.clear()
@@ -559,10 +560,13 @@ export class BakedBridgeLayer {
       const c = tile?.tileID?.canonical
       if (c && c.z >= DECK_TILE_ZOOMS.min) tiles.set(deckTileOf(c), tile)
     }
-    // A tile whose load was not announced (a reload after an error), or one that only now comes within the decks' reach.
-    if (sharesFetches()) for (const id of manager?.getIds?.() ?? []) {
+    // A tile whose load was not announced (a reload after an error), or one that only now comes within the decks' reach;
+    // one that errored lets go of its read, so its reload starts another.
+    const along = sharesFetches()
+    for (const id of manager?.getIds?.() ?? []) {
       const tile = manager.getTileByID(id)
-      if (tile?.state === 'loading') this.readAlongside(tile)
+      if (tile?.state === 'errored') this.release(tile, false)
+      else if (along && tile?.state === 'loading') this.readAlongside(tile)
     }
     // While a tile's children load MapLibre draws it beside them, clipped; its pieces cannot be, so both draw until all its children's are held.
     const ready = (key: string) => !!this.tilePieces.get(key) && this.holds(this.tilePieces.get(key)!)

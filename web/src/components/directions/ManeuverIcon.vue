@@ -16,8 +16,8 @@ const PATHS: Record<string, string> = {
   board: 'M8 3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3ZM5 10h14M9 21l1.5-4M15 21l-1.5-4',
 }
 
-const mirrored = computed(() => props.kind.endsWith('-left'))
-const path = computed(() => PATHS[props.kind.replace('-left', '-right')] ?? PATHS.straight)
+const mirrored = computed(() => props.kind === 'left' || props.kind.endsWith('-left'))
+const path = computed(() => PATHS[props.kind === 'left' ? 'right' : props.kind.replace('-left', '-right')] ?? PATHS.straight)
 </script>
 
 <template>

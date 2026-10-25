@@ -148,7 +148,10 @@ export class BakedBridgeLayer {
   }
   private changed = (event?: { sourceId?: string; isSourceLoaded?: boolean; tile?: any }) => {
     if (!event?.sourceId) this.failed.clear()
-    if (event?.tile && event.sourceId === this.sources.profiles?.source) this.takeTile(event.tile)
+    if (event?.tile && event.sourceId === this.sources.profiles?.source) {
+      this.takeTile(event.tile)
+      this.showTile(event.tile)
+    }
     // The ids as of the last styledata: listing them serialises the whole style, too slow for every tile.
     if (event?.sourceId && this.routeSources.includes(event.sourceId)) {
       this.routeDirty = true
@@ -394,6 +397,21 @@ export class BakedBridgeLayer {
     if (this.tilesRead.has(raw) && (this.tilePieces.has(key) || this.tileFailures.has(key))) return
     this.tilesRead.add(raw)
     this.readPieces(key, raw)
+  }
+  /** A tile that lands with its pieces read ahead: they are wanted now, so they draw in its first frame rather than after the next sync. */
+  private showTile(tile: any) {
+    const id = tile?.tileID?.canonical
+    if (!id || id.z < DECK_TILE_ZOOMS.min || !this.lastView || !this.expectsTiles() || !this.tileMode) return
+    const key = deckTileOf(id)
+    const ids = this.tilePieces.get(key)
+    if (!ids?.length || !this.holds(ids) || !meets(tileBounds(key), this.lastView.view)) return
+    const core = meets(tileBounds(key), this.lastView.core)
+    for (const piece of ids) {
+      this.wanted.add(piece)
+      if (core) this.inView.add(piece)
+    }
+    this.pump()
+    this.map.triggerRepaint()
   }
   /** Fetch a deck-zoom tile and read its pieces: the read's token, or null where there is nothing to start. */
   private readTile(key: string, signal?: AbortSignal): number | null {

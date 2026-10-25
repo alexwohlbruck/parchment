@@ -2,8 +2,8 @@
 // travelled part greyed, and a bubble naming the road at the next turn.
 
 import type { GeoJSONSource, Map as MaplibreMap } from 'maplibre-gl'
-import type { MeasuredLine, NavRoute } from '@/lib/guidance/nav-route'
-import { drawnProgress, laneOffset, pointBeside, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
+import type { NavRoute } from '@/lib/guidance/nav-route'
+import { drawnLine, drawnOffsetMeters, drawnPoint, drawnProgress, laneOffset, routeGradient, TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { CalloutSide } from '@/lib/guidance/turn-callout'
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import { TurnCalloutMarker } from './turn-callout-marker'
@@ -14,8 +14,6 @@ const ROUTE = 'guidance-route'
 /** Read by the 3D bridge decks, which lift the route onto themselves. */
 export const GUIDANCE_ROUTE_SOURCE = ROUTE
 const HAZARDS = 'guidance-hazards'
-/** Half a lane: a driven route runs in its lanes, not on the road's centre line. */
-const HALF_LANE_METERS = 1.8
 /** Radius the route turns through junctions with. */
 const CORNER_METERS = 8
 
@@ -93,16 +91,11 @@ export class GuidanceRouteLayer {
     }
   }
 
-  /** What is drawn: the route in its lanes where it has them, else its centreline. */
-  private drawn(): MeasuredLine {
-    return this.route.laneLine ?? this.route
-  }
-
   private routeData(): Feature {
     return {
       type: 'Feature',
       properties: {},
-      geometry: { type: 'LineString', coordinates: this.drawn().points.map(p => [p.lng, p.lat]) },
+      geometry: { type: 'LineString', coordinates: drawnLine(this.route).points.map(p => [p.lng, p.lat]) },
     }
   }
 
@@ -125,22 +118,12 @@ export class GuidanceRouteLayer {
     const key = callout && `${callout.at}|${callout.side}|${callout.kind}|${callout.text}|${callout.color}`
     if (key !== this.lastCallout) {
       this.lastCallout = key
-      this.callout.show(callout && { ...callout, at: pointBeside(this.drawn(), callout.at, this.offsetMetres()) })
+      this.callout.show(callout && { ...callout, at: drawnPoint(this.route, callout.at) })
     }
   }
 
-  /**
-   * Metres right of centre the route is drawn: none on a lane line, which is
-   * in its lanes already, and none off the road, as walking and cycling keep to paths.
-   */
-  private offsetMetres(): number {
-    if (this.route.laneLine) return 0
-    if (this.route.segments.length === 0 || this.route.segments.some(s => s.mode !== 'driving')) return 0
-    return this.route.drivingSide === 'left' ? -HALF_LANE_METERS : HALF_LANE_METERS
-  }
-
   private offset() {
-    return laneOffset(this.offsetMetres(), this.route.points[0]?.lat ?? 0)
+    return laneOffset(drawnOffsetMeters(this.route), this.route.points[0]?.lat ?? 0)
   }
 
   setRoute(route: NavRoute): void {

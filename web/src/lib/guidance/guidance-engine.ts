@@ -4,7 +4,6 @@
 import type { LngLat } from '@/types/map.types'
 import { projectLatLng, distanceMeters } from '@/lib/map/movement-interpolation'
 import {
-  pointAt,
   segmentAt,
   smoothedBearingAt,
   stepIndexAt,
@@ -15,6 +14,7 @@ import { matchToRoute, type RouteMatch } from './route-matcher'
 import { AlongRouteFilter, type FilterOptions } from './along-route-filter'
 import { HeadingFilter } from './heading-filter'
 import { OffRouteDetector } from './off-route'
+import { drawnLine, drawnPoint } from './route-line'
 import { StillnessDetector, YawRateEstimator, type MotionSample } from './motion'
 
 export interface Fix {
@@ -266,8 +266,8 @@ export class GuidanceEngine {
 
     const window = Math.max(5, speed * 0.75)
     return {
-      position: pointAt(this.route, s),
-      bearing: smoothedBearingAt(this.route, s, window),
+      position: drawnPoint(this.route, s),
+      bearing: smoothedBearingAt(drawnLine(this.route), s, window),
       s,
       speed,
       snapped: true,

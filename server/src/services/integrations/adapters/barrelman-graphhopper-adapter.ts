@@ -86,6 +86,8 @@ export class BarrelmanGraphHopperAdapter {
         speedLimit: seg.speedLimit,
         bikePriority: seg.bikePriority,
         crossing: seg.crossing,
+        osmWayId: seg.osmWayId,
+        country: seg.country,
       }))
 
     const bbox = path.bbox || [0, 0, 0, 0]

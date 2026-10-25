@@ -30,6 +30,8 @@ import {
   IntegrationId,
 } from '../../types/integration.types'
 import type {
+  RouteLanes,
+  RouteLanesRequest,
   RouteRequest,
   UnifiedRoute,
 } from '../../types/unified-routing.types'
@@ -48,6 +50,7 @@ import type {
   TransitStopRef,
 } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
+import { logWarn } from '../../lib/logger'
 import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
@@ -78,6 +81,8 @@ import { peliasLayerLabel } from '../../lib/place-type-label'
  * serialized, low enough that concurrent plans can't stampede the process.
  */
 const BARRELMAN_MAX_CONCURRENCY = 48
+/** How long to wait before asking a barrelman without lane geometry again. */
+const LANES_RETRY_MS = 10 * 60_000
 
 class Semaphore {
   private active = 0
@@ -308,6 +313,7 @@ export class BarrelmanIntegration
     } as GeocodingCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
+      getLanes: this.getLanes.bind(this),
       metadata: {
         supportedPreferences: {
           // Range preferences (GraphHopper supports via custom_model)
@@ -1359,6 +1365,22 @@ export class BarrelmanIntegration
           error instanceof Error ? error.message : 'Unknown error'
         }`,
       )
+    }
+  }
+
+  /** Until then, a barrelman without /route/lanes is not asked again. */
+  private lanesUnsupportedUntil = 0
+
+  private async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
+    if (!this.config.apiKey || Date.now() < this.lanesUnsupportedUntil) return null
+    const host = this.config.host.replace(/\/$/, '')
+    try {
+      const response = await barrelmanHttp.post(`${host}/route/lanes`, request, { headers: this.headers, timeout: 5_000 })
+      return response.data as RouteLanes
+    } catch (error: any) {
+      if (error.response?.status === 404) this.lanesUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman lanes unavailable: ${error.response?.status ?? error.message}`)
+      return null
     }
   }
 

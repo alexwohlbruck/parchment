@@ -2,6 +2,8 @@ import { IntegrationCapabilityId } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import type { Location } from '../types/valhalla.types'
 import {
+  RouteLanes,
+  RouteLanesRequest,
   RouteRequest,
   UnifiedRoute,
   TravelMode,
@@ -143,6 +145,15 @@ export class RoutingService {
         }`,
       )
     }
+  }
+
+  /** Lane geometry from the first routing engine that has it; null where none does. */
+  async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
+    for (const record of integrationManager.getConfiguredIntegrationsByCapability(IntegrationCapabilityId.ROUTING)) {
+      const routing = integrationManager.getCachedIntegrationInstance(record)?.capabilities.routing
+      if (routing?.getLanes) return routing.getLanes(request)
+    }
+    return null
   }
 
   // TODO: Deprecate this map

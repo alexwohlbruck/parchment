@@ -244,7 +244,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
     if (!this.mapAPI) return 'idle'
     const fullId = `${this.idPrefix}${MARKER_ID}`
     if (!this.mapAPI.hasMarker(fullId)) return 'idle'
-    if (guidanceEngine.active.value) return this.tickNavigation(fullId)
+    if (guidanceEngine.active.value) return this.tickNavigation(fullId, now)
     if (!this.track) return 'idle'
 
     const pos = predict(this.track, now)
@@ -261,7 +261,8 @@ export class UserLocationLayer extends BaseMarkerLayer {
   }
 
   /** While navigating the puck follows the engine; it is always animating. */
-  private tickNavigation(fullId: string): 'active' {
+  private tickNavigation(fullId: string, now: number): 'active' {
+    if (!guidanceEngine.frameDue(now)) return 'active'
     const puck = guidanceEngine.sample()
     if (!puck || !this.mapAPI) return 'active'
     this.mapAPI.setMarkerLngLat(fullId, puck.position)

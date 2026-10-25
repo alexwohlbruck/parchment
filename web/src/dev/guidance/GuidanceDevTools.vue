@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon } from 'lucide-vue-next'
+import { PauseIcon, PlayIcon, CarFrontIcon, BugIcon, SlidersHorizontalIcon } from 'lucide-vue-next'
+import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
 import { synthesizeDrive } from '@/dev/gpx-simulator/route-drive'
@@ -12,6 +13,17 @@ import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { attachGuidanceDebug } from './guidance-debug-layer'
 
 const RATES = [1, 2, 4, 8, 16]
+const TUNING_RANGES: Record<keyof CameraTuning, [min: number, max: number, step: number]> = {
+  aheadSeconds: [5, 60, 1],
+  maneuverSeconds: [4, 30, 1],
+  pastManeuver: [20, 300, 10],
+  cruisePitch: [0, 70, 1],
+  maneuverPitch: [0, 70, 1],
+  focal: [0.4, 0.9, 0.01],
+  lookAheadSeconds: [1, 12, 0.5],
+  lookAheadMaxDeg: [0, 90, 5],
+}
+const tuningOpen = ref(false)
 
 const guidance = useGuidanceStore()
 const sim = ref<SimulatorState>(simulatorStore.getState())
@@ -81,8 +93,26 @@ function toggleDebug() {
         {{ rate }}×
       </Button>
     </template>
-    <Button size="icon-sm" :variant="debugOn ? 'default' : 'ghost'" class="ml-auto" @click="toggleDebug">
+    <Button size="icon-sm" :variant="tuningOpen ? 'default' : 'ghost'" class="ml-auto" @click="tuningOpen = !tuningOpen">
+      <SlidersHorizontalIcon class="size-4" />
+    </Button>
+    <Button size="icon-sm" :variant="debugOn ? 'default' : 'ghost'" @click="toggleDebug">
       <BugIcon class="size-4" />
     </Button>
+    <div v-if="tuningOpen" class="grid w-full grid-cols-[auto_1fr_3rem] items-center gap-x-2 gap-y-1 pt-1 text-xs">
+      <template v-for="(range, key) in TUNING_RANGES" :key="key">
+        <span class="text-muted-foreground">{{ key }}</span>
+        <input
+          v-model.number="guidance.cameraTuning[key]"
+          type="range"
+          :min="range[0]"
+          :max="range[1]"
+          :step="range[2]"
+        />
+        <button class="tabular-nums text-right" @click="guidance.cameraTuning[key] = DEFAULT_CAMERA_TUNING[key]">
+          {{ guidance.cameraTuning[key] }}
+        </button>
+      </template>
+    </div>
   </div>
 </template>

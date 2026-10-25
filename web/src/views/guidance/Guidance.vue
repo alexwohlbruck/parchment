@@ -3,8 +3,9 @@ import { computed, defineAsyncComponent, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
-import { LocateFixedIcon } from 'lucide-vue-next'
+import { RouteIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import CameraModeButton from '@/components/guidance/CameraModeButton.vue'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
@@ -21,7 +22,7 @@ const { formatDistance, formatSpeed } = useUnits()
 
 if (!guidance.isActive) router.replace({ name: AppRoute.DIRECTIONS })
 
-const { following, resume } = useGuidanceCamera()
+const camera = useGuidanceCamera()
 
 const nextStep = computed(() => {
   const progress = guidance.progress
@@ -58,12 +59,24 @@ onBeforeUnmount(() => guidance.stop())
       <div v-else class="text-muted-foreground">{{ t('guidance.waitingForLocation') }}</div>
     </div>
 
-    <div class="mt-3 flex gap-2">
+    <div class="mt-3 flex items-center gap-2">
       <Button variant="secondary" size="sm" @click="exit">{{ t('guidance.exit') }}</Button>
-      <Button v-if="!following" variant="secondary" size="sm" @click="resume">
-        <LocateFixedIcon class="size-4" />
-        {{ t('guidance.follow') }}
-      </Button>
+      <div class="ml-auto flex gap-1.5">
+        <Button
+          size="icon"
+          :variant="camera.state.value === 'overview' ? 'default' : 'secondary'"
+          :title="t('guidance.camera.overview')"
+          :aria-label="t('guidance.camera.overview')"
+          @click="camera.state.value === 'overview' ? camera.follow() : camera.overview()"
+        >
+          <RouteIcon class="size-5" />
+        </Button>
+        <CameraModeButton
+          :mode="guidance.preferences.cameraMode"
+          :state="camera.state.value"
+          @press="camera.pressCameraButton"
+        />
+      </div>
     </div>
 
     <component :is="GuidanceDevTools" v-if="GuidanceDevTools" class="mt-3" />

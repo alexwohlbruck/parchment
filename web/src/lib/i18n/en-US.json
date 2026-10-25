@@ -1233,10 +1233,29 @@
   "guidance": {
     "start": "Start",
     "exit": "End navigation",
-    "follow": "Follow",
     "remaining": "{distance} left",
     "offRoute": "Off route",
-    "waitingForLocation": "Waiting for your location…"
+    "waitingForLocation": "Waiting for your location…",
+    "camera": {
+      "resume": "Follow your position",
+      "overview": "Show the whole route",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Heading up",
+        "north-up": "North up"
+      },
+      "bearing": {
+        "look-ahead": "Look ahead",
+        "straight": "Straight ahead"
+      }
+    },
+    "settings": {
+      "title": "Navigation",
+      "cameraMode": "Camera",
+      "cameraModeDescription": "How the map follows you while navigating",
+      "bearingMode": "Camera direction",
+      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading"
+    }
   },
   "attribution": {
     "poweredBy": "Powered by",

@@ -1267,16 +1267,20 @@ export class MaplibreStrategy extends MapStrategy {
       // Fallback: minimal empty style when no tile server is configured
       return { version: 8 as const, sources: {}, layers: [] }
     }
+    return buildMapStyle(this.styleOptions(this.tileServerUrl))
+  }
+
+  private styleOptions(tileServerUrl: string) {
     const theme = this.options.theme === 'dark' ? 'dark' : 'light'
-    return buildMapStyle({
-      tileServerUrl: this.tileServerUrl,
-      theme,
+    return {
+      tileServerUrl,
+      theme: theme as 'light' | 'dark',
       mapStyle: this.options.mapStyle,
       poiStyle: this.poiStyle(),
       hdRoads: this.hdRoads(),
       categoryColors: this.categoryColors(theme),
       decks: this.map3dObjects && this.terrainOn,
-    })
+    }
   }
 
   setMapTheme(theme: MapTheme) {
@@ -1507,15 +1511,7 @@ export class MaplibreStrategy extends MapStrategy {
     if (!this.tileServerUrl) {
       return { version: 8, sources: {}, layers: [] } as StyleSpecification
     }
-    const theme = this.options.theme === 'dark' ? 'dark' : 'light'
-    const styleOpts = {
-      tileServerUrl: this.tileServerUrl,
-      theme: theme as 'light' | 'dark',
-      mapStyle: this.options.mapStyle,
-      poiStyle: this.poiStyle(),
-      hdRoads: this.hdRoads(),
-      categoryColors: this.categoryColors(theme),
-    }
+    const styleOpts = this.styleOptions(this.tileServerUrl)
 
     const style = (() => {
       switch (this.currentBasemap) {

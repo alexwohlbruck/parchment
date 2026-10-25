@@ -381,6 +381,7 @@ export class BakedBridgeLayer {
     if (this.tileMode !== null) return
     this.tileMode = false
     this.waitingTiles.clear()
+    this.tilesFailed = false
     this.changed()
   }
   private acceptTile(key: string, pieces: DeckPiece[]) {

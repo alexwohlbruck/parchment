@@ -2077,7 +2077,9 @@
         "loopDescription": "Restart from the beginning when the track ends",
         "position": "Position",
         "speed": "Speed",
-        "heading": "Heading"
+        "heading": "Heading",
+        "simulateNavigation": "Simulate navigation",
+        "simulateNavigationDescription": "Drive each navigated route with simulated GPS as soon as navigation starts"
       },
       "impersonation": {
         "title": "Impersonate user"

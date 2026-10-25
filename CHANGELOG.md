@@ -4,9 +4,13 @@
 
 ### Changed
 
-* 3D bridge decks decode several times faster and take less graphics memory.
-
 ### Fixed
+
+## [0.16.8] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode several times faster and take less graphics memory.
 
 ## [0.16.7] - 2026-10-25
 

@@ -137,6 +137,35 @@ export interface RouteRequest {
   requestId?: string
 }
 
+export type RouteHazardKind =
+  | 'crosswalk'
+  | 'traffic_signals'
+  | 'uncontrolled_crossing'
+  | 'rail_crossing'
+  | 'tunnel'
+  | 'ford'
+  | 'ferry'
+  | 'steep_grade'
+  | 'steps'
+  | 'dismount'
+  | 'rough_surface'
+  | 'shared_space'
+  | 'sharp_curve'
+
+/** Something a route passes through that's worth knowing about, placed by distance along its segment. */
+export interface RouteHazard {
+  kind: RouteHazardKind
+  severity: 'low' | 'medium' | 'high'
+  startDistance: number
+  /** Present for stretches (a tunnel, a steep grade); absent for points. */
+  endDistance?: number
+  coordinate: Coordinate
+  /** Finer detail, e.g. a crosswalk's `marked` / `unmarked` / `uncontrolled`. */
+  variant?: string
+  /** Comfort and convenience kinds, shown to premium members only. Safety kinds never are. */
+  premium?: boolean
+}
+
 export interface RouteInstruction {
   type: string
   text: string
@@ -417,14 +446,7 @@ export interface TimelineSegment {
     amount: number
   }
 
-  // Hazards and alerts
-  hazards?: Array<{
-    type: string
-    description: string
-    severity: 'low' | 'medium' | 'high'
-    coordinate: Coordinate
-    timestamp: Date
-  }>
+  hazards?: RouteHazard[]
 
   // Status
   isRecommended?: boolean

@@ -22,6 +22,7 @@ export interface RerouteRequest {
 
 export interface RerouteSegment {
   mode: RerouteMode
+  hazards?: import('../types/unified-routing.types').RouteHazard[]
   duration: number
   distance: number
   geometry: Coordinate[]

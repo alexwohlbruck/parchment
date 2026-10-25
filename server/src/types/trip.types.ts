@@ -172,6 +172,7 @@ export interface TripWarning {
 
 export interface TripSegment {
   segmentIndex: number
+  hazards?: import('./unified-routing.types').RouteHazard[]
   legIndex?: number
   mode: Mode
   ownership?: OwnershipType

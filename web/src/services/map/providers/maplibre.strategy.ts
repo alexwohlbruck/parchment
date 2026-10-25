@@ -111,6 +111,7 @@ import {
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
+import type { RouteMeasure } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
@@ -998,6 +999,17 @@ export class MaplibreStrategy extends MapStrategy {
     this.deckLayer?.setPalette(this.deckPalette(this.options.theme === 'dark' ? 'dark' : 'light'))
   }
 
+  private deckRouteMeasure: RouteMeasure | null = null
+  measureDeckRoute(measure: RouteMeasure | null) {
+    this.deckRouteMeasure = measure
+    this.deckLayer?.setTravelled(-1)
+    this.deckLayer?.refreshRoutes()
+  }
+
+  setDeckRouteTravelled(metres: number) {
+    this.deckLayer?.setTravelled(metres)
+  }
+
   private centerLifted = false
   liftCenter(metres: number) {
     const map = this.mapInstance
@@ -1047,7 +1059,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     if (active && !this.deckLayer) {
       this.deckLayer = new BakedBridgeLayer(
-        { profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, hd: () => !!this.builtHdRoads },
+        { profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, measure: id => (id === GUIDANCE_ROUTE_SOURCE ? this.deckRouteMeasure : null), hd: () => !!this.builtHdRoads },
         this.deckPalette(flavor),
       )
       this.deckLayer.onBuilt = () => {

@@ -2,6 +2,7 @@ import type { FlavorId } from '@/lib/map-style/build'
 import lightTokens from '@/lib/map-style/tokens.light.json'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 import { palette } from '@/lib/palette'
+import { TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { DeckPalette } from './deck.types'
 
 type Rgb = [number, number, number]
@@ -40,6 +41,8 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     red: [0.8, 0.49, 0.44],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
+    travelled: rgb(TRAVELLED_COLOR),
+    travelledCasing: rgb(TRAVELLED_CASE_COLOR),
     ...basemap('light'),
   },
   dark: {
@@ -54,6 +57,8 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     red: [0.42, 0.27, 0.24],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
+    travelled: rgb(TRAVELLED_COLOR),
+    travelledCasing: rgb(TRAVELLED_CASE_COLOR),
     ...basemap('dark'),
   },
 }

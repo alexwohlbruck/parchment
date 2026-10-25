@@ -187,7 +187,7 @@ export function pointAt(route: MeasuredLine, s: number): LngLat {
 }
 
 /** Route distance of the point nearest `target`, searching forward from `fromS`. */
-export function distanceAlong(route: NavRoute, target: LngLat, fromS = 0): number {
+export function distanceAlong(route: MeasuredLine, target: LngLat, fromS = 0): number {
   if (route.points.length === 0) return 0
   return locateOnPolyline(route.points, route.cumulative, target, segmentIndexAt(route, fromS)).distance
 }

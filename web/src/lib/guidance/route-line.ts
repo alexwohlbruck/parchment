@@ -9,6 +9,9 @@ import { metersPerPixel } from './camera-framing'
 
 export type Expression = (string | number | Expression)[]
 
+export const TRAVELLED_COLOR = '#9ca3af'
+export const TRAVELLED_CASE_COLOR = '#6b7280'
+
 export function routeGradient(
   route: NavRoute,
   travelled: number,

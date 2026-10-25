@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, underWay, runsWith, TOUCHDOWN, SEAM, UNDER_SLACK, metresPerUnit, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, type Chain, type Point } from './decks'
+import { absorbPaths, absorbTracks, deckMeshOut, standing, touchdown, underWay, runsWith, TOUCHDOWN, SEAM, UNDER_SLACK, metresPerUnit, arch, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, parseShape, deckMesh, densify, fitEdges, joinNeighbours, onDeck, onOwnDeck, rounded, smooth, solve, steady, along, COLUMN_SIDES, LAYER_CLEARANCE, MAX_GRADE, ROUND_TURN, mercator, unmercator, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -592,4 +592,10 @@ describe('rounded', () => {
     const straight = chain(line(0, 50, 100), [true, true])
     expect(rounded(straight, [1, 2, 3], [0, 0, 0]).chain).toBe(straight)
   })
+})
+
+test('unmercator inverts mercator', () => {
+  const [lng, lat] = unmercator(mercator([-73.9969, 40.7061]))
+  expect(lng).toBeCloseTo(-73.9969, 9)
+  expect(lat).toBeCloseTo(40.7061, 9)
 })

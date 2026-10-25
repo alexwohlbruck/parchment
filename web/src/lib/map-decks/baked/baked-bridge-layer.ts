@@ -8,9 +8,10 @@ import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
-import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh } from './mesh-file'
+import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh, type MeshGeometry } from './mesh-file'
 import { INDEX_ZOOM, indexTiles, parseIndex } from './mesh-index'
-import { decodeMesh, DecoderLost } from './mesh-decoder'
+import { decodeMesh, decodeTilePieces, DecoderLost } from './mesh-decoder'
+import { deckField, type DeckPiece } from './deck-tile'
 import { deckCover } from './cover'
 import { deckFootprints } from '../footprints'
 
@@ -23,10 +24,14 @@ const MAX_REQUESTS = 12
 const MAX_DECODED = 48 * 1024 * 1024
 /** Milliseconds of mesh uploads one frame may spend, so a burst of arrivals draws within a few frames without a long one. */
 const UPLOAD_BUDGET_MS = 4
+/** Milliseconds a frame may spend on the view's own tile pieces once the decks cover: a tile's decks land within a frame or two. */
+const TILE_UPLOAD_BUDGET_MS = 12
 const LOAD_TIMEOUT_MS = 30_000
 /** Milliseconds between view syncs while the camera moves, so meshes load before it stops. */
 const MOVING_SYNC_MS = 250
 const TILE_SYNC_MS = 100
+/** Milliseconds before a tile whose pieces failed is read again. */
+const TILE_RETRY_MS = 10_000
 const REBUILD_MS = 300
 
 type Stand = NonNullable<ReturnType<typeof standing>>
@@ -68,6 +73,8 @@ export class BakedBridgeLayer {
   private lastView: { view: Bounds; core: Bounds; center: Point } | null = null
   private failed = new Set<string>()
   private indexWarned = false
+  /** Detail tiles in view at a deck zoom whose pieces are not decoded yet. */
+  private waitingTiles = new Set<string>()
   private scheduled?: ReturnType<typeof setTimeout>
   private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
@@ -78,6 +85,34 @@ export class BakedBridgeLayer {
   private missing = false
   private settled = false
   private lastSync = 0
+  /**
+   * Whether deck pieces arrive inside the detail tiles (barrelman answers `decks=1`): null until a tile at a deck
+   * zoom has said, false where they do not, and the meshes are then fetched per deck as before.
+   */
+  private tileMode: boolean | null = null
+  /** Each detail tile's pieces by `z/x/y`: their part ids, once decoded. */
+  private tilePieces = new Map<string, string[]>()
+  /** Raw tile data already read, as MapLibre reports a tile again for other reasons. */
+  private tilesRead = new WeakSet<ArrayBuffer>()
+  /** Reads started alongside MapLibre's own load of a tile, by the deck-zoom tile, with how many loading tiles they serve. */
+  private readAhead = new Map<string, Alongside>()
+  /** The read alongside each loading tile holds. */
+  private alongside = new WeakMap<object, Alongside>()
+  /** Reads in flight by tile, the newest one's token. */
+  private tileTokens = new Map<string, number>()
+  private tileReads = 0
+  /** When a tile's pieces last failed to load, and how many times in a row: each retry waits twice as long. */
+  private tileFailures = new Map<string, { at: number; count: number }>()
+  /** Tiles fetched afresh after a failure: MapLibre's own copy of them may be the bad one. */
+  private refetched = new Set<string>()
+  /** The deck-zoom tiles drawn for the view. */
+  private drawnTiles = new Set<string>()
+  private tilesFailed = false
+  private retryTimer?: ReturnType<typeof setTimeout>
+  /** Bumped as pieces' surfaces arrive after them, so what stands on the decks is placed again. */
+  private surfaces = 0
+  /** The parts drawn, in order, as of the wanted set and part count it was worked out for. */
+  private drawOrder: { parts: number; wanted: Set<string>; ids: string[] } | null = null
   /** DEV only: meshes baked from a local fixture, drawn wherever they meet the view, whatever the tiles hold. */
   private preview: Array<{ url: string; bounds: Bounds }> | null = null
 
@@ -96,6 +131,13 @@ export class BakedBridgeLayer {
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
   }
+  /**
+   * Whether the decks resident are drawn. Pieces from tiles draw as their tile lands, before the view's decks cover and the
+   * flat bridges are muted under them, unless the view cannot cover; meshes fetched per deck wait to cover together.
+   */
+  private get drawing() {
+    return this.covered || (!!this.tileMode && !this.missing && !this.tilesFailed)
+  }
   private exaggeration() { return this.map?.getTerrain?.()?.exaggeration ?? 1 }
   private routesChanged = () => {
     const sources = this.sources.routes()
@@ -104,8 +146,9 @@ export class BakedBridgeLayer {
     this.routeDirty = true
     this.syncRoute()
   }
-  private changed = (event?: { sourceId?: string; isSourceLoaded?: boolean }) => {
+  private changed = (event?: { sourceId?: string; isSourceLoaded?: boolean; tile?: any }) => {
     if (!event?.sourceId) this.failed.clear()
+    if (event?.tile && event.sourceId === this.sources.profiles?.source) this.takeTile(event.tile)
     // The ids as of the last styledata: listing them serialises the whole style, too slow for every tile.
     if (event?.sourceId && this.routeSources.includes(event.sourceId)) {
       this.routeDirty = true
@@ -121,6 +164,48 @@ export class BakedBridgeLayer {
     clearTimeout(this.scheduled)
     this.scheduled = setTimeout(() => this.sync(), 0)
   }
+  /**
+   * A detail tile starts loading: its deck pieces (or, past the deck zooms, its ancestor's) are read alongside, from the
+   * response MapLibre's own fetch puts in the HTTP cache, so they decode while MapLibre parses the tile rather than after.
+   */
+  private loading = (event: { sourceId?: string; tile?: any }) => {
+    if (event.sourceId === this.sources.profiles?.source) this.readAlongside(event.tile)
+  }
+  /** Read a loading tile's pieces alongside MapLibre's own fetch of it, once per tile. */
+  private readAlongside(tile: any) {
+    const id = tile?.tileID?.canonical
+    if (!id || id.z < DECK_TILE_ZOOMS.min || this.alongside.has(tile) || !this.expectsTiles() || this.tileMode === false) return
+    // WebKit fetches the same tile twice rather than share one response: there the pieces are read once MapLibre has the tile.
+    if (id.z <= DECK_TILE_ZOOMS.max && !sharesFetches()) return
+    const key = deckTileOf(id)
+    let entry = this.readAhead.get(key)
+    if (!entry) {
+      const controller = new AbortController()
+      const token = this.readTile(key, controller.signal)
+      if (token === null) return
+      entry = { key, token, controller, users: 0 }
+      this.readAhead.set(key, entry)
+    }
+    entry.users++
+    this.alongside.set(tile, entry)
+  }
+  /** MapLibre dropped a tile before it loaded: the read alongside it stops once no tile it serves is loading. */
+  private aborted = (event: { sourceId?: string; tile?: any }) => {
+    if (event.sourceId === this.sources.profiles?.source) this.release(event.tile, true)
+  }
+  /** A tile done loading, or dropped (`abort`): it lets go of the read alongside it, which ends once no loading tile holds it. */
+  private release(tile: any, abort: boolean): Alongside | null {
+    const entry = tile && this.alongside.get(tile)
+    if (!entry) return null
+    this.alongside.delete(tile)
+    if (--entry.users > 0) return entry
+    if (this.readAhead.get(entry.key) === entry) this.readAhead.delete(entry.key)
+    if (abort && this.tileTokens.get(entry.key) === entry.token) {
+      entry.controller.abort()
+      this.tileTokens.delete(entry.key)
+    }
+    return entry
+  }
   private moving = () => {
     if (performance.now() - this.lastSync < MOVING_SYNC_MS) return
     this.lastSync = performance.now()
@@ -132,6 +217,8 @@ export class BakedBridgeLayer {
     this.program = linkMeshProgram(gl, true)
     this.shadows.prepare(gl)
     map.on('sourcedata', this.changed)
+    map.on('sourcedataloading', this.loading)
+    map.on('sourcedataabort', this.aborted)
     map.on('moveend', this.changed)
     map.on('move', this.moving)
     map.on('terrain', this.changed)
@@ -144,6 +231,8 @@ export class BakedBridgeLayer {
   }
   onRemove(map: any, gl: WebGL2RenderingContext) {
     map.off('sourcedata', this.changed)
+    map.off('sourcedataloading', this.loading)
+    map.off('sourcedataabort', this.aborted)
     map.off('moveend', this.changed)
     map.off('move', this.moving)
     map.off('terrain', this.changed)
@@ -164,6 +253,18 @@ export class BakedBridgeLayer {
     this.decoded.clear()
     this.decodedBytes = 0
     this.pending.clear()
+    this.tilePieces.clear()
+    for (const { controller } of this.readAhead.values()) controller.abort()
+    this.readAhead.clear()
+    this.alongside = new WeakMap()
+    clearTimeout(this.retryTimer)
+    this.tileTokens.clear()
+    this.tileFailures.clear()
+    this.refetched.clear()
+    this.drawnTiles.clear()
+    this.tileMode = null
+    this.waitingTiles.clear()
+    this.tilesFailed = false
     this.routePending = null
     for (const id of this.parts.keys()) this.remove(id)
     if (this.route) deleteMesh(gl, this.route.buffers)
@@ -223,12 +324,15 @@ export class BakedBridgeLayer {
     }
     this.missing = [...decks.values()].some(d => !BRIDGE_MESH_FILE.test(d.file))
     this.settled = !!this.preview || (!!this.map.getSource(source) && !!this.map.isSourceLoaded?.(source))
-    const files = [...new Set([...decks.values()].flatMap(d => BRIDGE_MESH_FILE.test(d.file) ? [d.file] : []))]
-    this.wanted = new Set(files.sort((a, b) => Number(inside.has(b)) - Number(inside.has(a)) || (near.get(a) ?? 0) - (near.get(b) ?? 0)))
-    this.inView = new Set(files.filter(file => inside.has(file)))
     this.lastView = { view, core, center }
-    this.fetchIndexes(view, center)
-    this.planAhead()
+    if (this.expectsTiles() && this.tileMode !== false) this.wantTiles(view, core)
+    else {
+      const files = [...new Set([...decks.values()].flatMap(d => BRIDGE_MESH_FILE.test(d.file) ? [d.file] : []))]
+      this.wanted = new Set(files.sort((a, b) => Number(inside.has(b)) - Number(inside.has(a)) || (near.get(a) ?? 0) - (near.get(b) ?? 0)))
+      this.inView = new Set(files.filter(file => inside.has(file)))
+      this.fetchIndexes(view, center)
+      this.planAhead()
+    }
     for (const [id, entry] of this.pending) if (!this.wanted.has(id)) { this.pending.delete(id); this.keep(id, entry) }
     for (const [id, request] of this.requests) if (!this.wanted.has(id) && !this.aheadInView.has(id) && !this.ahead.includes(id)) { request.abort(); this.requests.delete(id) }
     for (const id of this.parts.keys()) if (!this.wanted.has(id) && this.bytes > MAX_BYTES) this.remove(id)
@@ -236,7 +340,7 @@ export class BakedBridgeLayer {
     this.pump()
   }
   private updateCover() {
-    const covered = deckCover(this.covered, { missing: this.missing, failed: [...this.wanted].some(id => this.failed.has(id)), wanted: this.inView.size, resident: [...this.inView].filter(id => this.parts.has(id)).length, settled: this.settled })
+    const covered = deckCover(this.covered, { missing: this.missing, failed: this.tilesFailed || [...this.wanted].some(id => this.failed.has(id)), wanted: this.inView.size + this.waitingTiles.size, resident: [...this.inView].filter(id => this.parts.has(id)).length, settled: this.settled })
     // Objects, routes and shadows rebuild on each change, so a deck set that shifts mid-move waits for moveend.
     if (covered === this.covered && this.map?.isMoving?.()) return
     const flipped = covered !== this.covered
@@ -250,7 +354,7 @@ export class BakedBridgeLayer {
     this.rebuildTimer = undefined
     if (!this.map) return
     const resident = this.covered ? [...this.wanted].filter(id => this.parts.has(id)) : []
-    const displayed = this.covered ? `${resident.sort().join(',')}|${this.exaggeration()}` : ''
+    const displayed = this.covered ? `${resident.sort().join(',')}|${this.exaggeration()}|${this.surfaces}` : ''
     if (displayed === this.displayed) return
     this.displayed = displayed
     this.routeDirty = true
@@ -266,8 +370,268 @@ export class BakedBridgeLayer {
     this.map.triggerRepaint()
   }
 
+  /** Whether the detail tiles are asked for their deck pieces. */
+  private expectsTiles() {
+    const template = this.map?.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
+    return !this.preview && !!template && DECK_PIECES_ASKED.test(template)
+  }
+
+  /** A detail tile that has loaded: its deck pieces decoded and, where it is in view, drawn on the next frame. */
+  private takeTile(tile: any) {
+    const id = tile?.tileID?.canonical
+    if (!id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
+    const alongside = this.release(tile, false)
+    // Past the source's maxzoom MapLibre cuts tiles from a deck-zoom one and drops what it does not read: that one is in the HTTP cache.
+    if (id.z > DECK_TILE_ZOOMS.max) return void this.readTile(deckTileOf(id))
+    // Out of the decks' reach: read if the view comes to want it.
+    if (!this.reaches(`${id.z}/${id.x}/${id.y}`)) return
+    const raw: ArrayBuffer | undefined = tile.latestRawTileData
+    const key = `${id.z}/${id.x}/${id.y}`
+    if (!raw) return
+    // Read alongside this very load, from the same response: in flight, or done.
+    if (alongside && (this.tileTokens.get(key) === alongside.token || this.tilePieces.has(key))) return void this.tilesRead.add(raw)
+    if (this.tileTokens.has(key)) return
+    if (this.tilesRead.has(raw) && (this.tilePieces.has(key) || this.tileFailures.has(key))) return
+    this.tilesRead.add(raw)
+    this.readPieces(key, raw)
+  }
+  /** Fetch a deck-zoom tile and read its pieces: the read's token, or null where there is nothing to start. */
+  private readTile(key: string, signal?: AbortSignal): number | null {
+    if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return null
+    const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
+    if (!template) return null
+    const [z, x, y] = key.split('/')
+    const token = this.begin(key)
+    const reload = this.tileFailures.has(key)
+    if (reload) this.refetched.add(key)
+    fetch(template.replace('{z}', z).replace('{x}', x).replace('{y}', y), { credentials: 'same-origin', cache: reload ? 'reload' : 'default', signal })
+      .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`Detail tile ${response.status}`))))
+      .then(raw => { if (this.tileTokens.get(key) === token) this.readPieces(key, raw, token) })
+      .catch(error => {
+        if (signal?.aborted) return
+        // MapLibre's own copy is the next thing to try, before backing off.
+        const tile = this.loadedTile(key)
+        if (tile && this.tileTokens.get(key) === token && !this.tileFailures.has(key)) {
+          this.tileTokens.delete(key)
+          return this.takeTile(tile)
+        }
+        this.tileFailed(key, token, error)
+      })
+    return token
+  }
+  /** MapLibre's loaded copy of a deck-zoom tile, if it has one. */
+  private loadedTile(key: string): any {
+    const source = this.sources.profiles?.source
+    const manager = source && (this.map?.style?.tileManagers?.[source] ?? this.map?.style?.sourceCaches?.[source])
+    const [z, x, y] = key.split('/').map(Number)
+    for (const id of manager?.getRenderableIds?.() ?? []) {
+      const tile = manager.getTileByID(id)
+      const c = tile?.tileID?.canonical
+      if (c && c.z === z && c.x === x && c.y === y && tile.latestRawTileData) return tile
+    }
+    return null
+  }
+  /** Whether a tile meets the view, as far as the decks reach from its centre; true before the first sync. */
+  private reaches(key: string) {
+    return !this.lastView || meets(tileBounds(key), this.lastView.view)
+  }
+  private begin(key: string) {
+    const token = ++this.tileReads
+    this.tileTokens.set(key, token)
+    return token
+  }
+  /** A deck-zoom tile's pieces, from its raw data; the newest read of a tile wins. */
+  private readPieces(key: string, raw: ArrayBuffer, token = this.begin(key)) {
+    let payload: Uint8Array | null
+    try {
+      payload = deckField(raw)
+    } catch (error) {
+      return this.tileFailed(key, token, error)
+    }
+    if (!payload) {
+      // Once tiles are known to carry pieces, one without is a stale answer, not an older barrelman.
+      if (this.tileMode) return this.tileFailed(key, token, new Error(`Detail tile ${key} has no deck pieces`))
+      this.tileTokens.delete(key)
+      return this.withoutPieces()
+    }
+    this.tileMode = true
+    decodeTilePieces(payload).then(({ pieces, failed, geometry }) => {
+      if (this.tileTokens.get(key) !== token) return
+      if (failed.length) return this.tileFailed(key, token, new Error(`Deck tile ${key}: ${failed.length} decks missing`))
+      this.tileTokens.delete(key)
+      const ids = this.acceptTile(key, pieces)
+      geometry.then(surfaces => this.takeGeometry(key, ids, surfaces), error => this.lostGeometry(key, ids, error))
+    }, error => this.tileFailed(key, token, error))
+  }
+  /** A tile whose pieces could not be had: its decks are unknown, so the flat bridges stay until it is read again. */
+  private tileFailed(key: string, token: number, error: unknown) {
+    if (this.tileTokens.get(key) !== token) return
+    this.tileTokens.delete(key)
+    if (!(error instanceof DecoderLost)) {
+      this.tileFailures.set(key, { at: performance.now(), count: (this.tileFailures.get(key)?.count ?? 0) + 1 })
+      console.warn('[bridges]', error)
+      clearTimeout(this.retryTimer)
+      this.retryTimer = setTimeout(() => this.map && this.changed(), TILE_RETRY_MS)
+    }
+    if (this.map) this.changed()
+  }
+  private recentlyFailed(key: string) {
+    const failure = this.tileFailures.get(key)
+    return failure !== undefined && performance.now() - failure.at < TILE_RETRY_MS * 2 ** Math.min(failure.count - 1, 5)
+  }
+  /** Barrelman (or the proxy before it) does not cut decks into tiles: they load per mesh, from the tiles' deck features. */
+  private withoutPieces() {
+    if (this.tileMode !== null) return
+    this.tileMode = false
+    this.waitingTiles.clear()
+    this.tilesFailed = false
+    this.changed()
+  }
+  private acceptTile(key: string, pieces: DeckPiece[]): string[] {
+    if (!this.map) return []
+    this.tileFailures.delete(key)
+    this.waitingTiles.delete(key)
+    for (const old of this.tilePieces.get(key) ?? []) this.drop(old)
+    const ids = pieces.map(({ file }) => `${key}|${file}`)
+    this.tilePieces.set(key, ids)
+    const shown = this.lastView && meets(tileBounds(key), this.lastView.view)
+    const core = this.lastView && meets(tileBounds(key), this.lastView.core)
+    pieces.forEach(({ mesh }, i) => {
+      const entry = { data: mesh, bytes: gpuBytes(mesh) }
+      if (!shown) return this.keep(ids[i], entry)
+      this.wanted.add(ids[i])
+      if (core) this.inView.add(ids[i])
+      this.pending.set(ids[i], entry)
+    })
+    if (shown) {
+      this.updateCover()
+      this.map.triggerRepaint()
+    }
+    return ids
+  }
+  /** A tile whose surfaces could not be read: its decks are dropped and it is read again, as a failed tile is. */
+  private lostGeometry(key: string, ids: string[], error: unknown) {
+    if (!this.map || this.tilePieces.get(key) !== ids) return
+    for (const id of ids) this.drop(id)
+    this.tilePieces.delete(key)
+    // A fresh read already under way stands in for the retry.
+    if (!this.tileTokens.has(key)) this.tileFailed(key, this.begin(key), error)
+  }
+  /** The surfaces a tile's pieces stand on, read after the pieces themselves: given to them wherever they now are. */
+  private takeGeometry(key: string, ids: string[], surfaces: Array<MeshGeometry | null>) {
+    if (!this.map || this.tilePieces.get(key) !== ids) return
+    let changed = false
+    ids.forEach((id, i) => {
+      const geometry = surfaces[i]
+      if (!geometry) return
+      const part = this.parts.get(id)
+      if (part) {
+        Object.assign(part.data, geometry)
+        part.bounds = standBounds(geometry.stands)
+      }
+      for (const entry of [this.pending.get(id), this.decoded.get(id)]) if (entry) Object.assign(entry.data, geometry)
+      changed ||= this.wanted.has(id)
+    })
+    if (!changed) return
+    this.surfaces++
+    this.rebuildTimer ??= setTimeout(() => { this.rebuildTimer = undefined; if (!this.map?.isMoving?.()) this.rebuild() }, REBUILD_MS)
+  }
+  /** A piece gone from the GPU, the upload queue and the decoded cache. */
+  private drop(id: string) {
+    this.remove(id)
+    this.pending.delete(id)
+    const decoded = this.decoded.get(id)
+    if (decoded) {
+      this.decoded.delete(id)
+      this.decodedBytes -= decoded.bytes
+    }
+  }
+  /** Whether each of a tile's pieces is on the GPU, queued, or decoded: one evicted means the tile is read again. */
+  private holds(ids: string[]) {
+    return ids.every(id => this.parts.has(id) || this.pending.has(id) || this.decoded.has(id))
+  }
+  /** The pieces of the detail tiles drawn for the view; until a tile in view has its pieces, the decks do not cover. */
+  private wantTiles(view: Bounds, core: Bounds) {
+    const source = this.sources.profiles!.source
+    const manager = this.map.style?.tileManagers?.[source] ?? this.map.style?.sourceCaches?.[source]
+    const tiles = new Map<string, any>()
+    for (const id of manager?.getRenderableIds?.() ?? []) {
+      const tile = manager.getTileByID(id)
+      const c = tile?.tileID?.canonical
+      if (c && c.z >= DECK_TILE_ZOOMS.min) tiles.set(deckTileOf(c), tile)
+    }
+    // A tile whose load was not announced (a reload after an error), or one that only now comes within the decks' reach;
+    // one that errored lets go of its read, so its reload starts another.
+    const along = sharesFetches()
+    for (const id of manager?.getIds?.() ?? []) {
+      const tile = manager.getTileByID(id)
+      if (tile?.state === 'errored') this.release(tile, false)
+      else if (along && tile?.state === 'loading') this.readAlongside(tile)
+    }
+    // While a tile's children load MapLibre draws it beside them, clipped; its pieces cannot be, so both draw until all its children's are held.
+    const ready = (key: string) => !!this.tilePieces.get(key) && this.holds(this.tilePieces.get(key)!)
+    const held = (key: string) => tiles.has(key) && ready(key)
+    const drawn = [...tiles.keys()].filter(key => !childrenDrawn(key, held))
+    // MapLibre drops a tile once its replacements have data, before their pieces are decoded: it draws on until they are.
+    const heldNow = (key: string) => drawn.includes(key) && ready(key)
+    for (const key of this.drawnTiles) if (!drawn.includes(key) && ready(key) && !coveredBy(key, heldNow)) drawn.push(key)
+    this.drawnTiles = new Set(drawn)
+    const wanted = new Set<string>(), inView = new Set<string>()
+    const waiting = new Set<string>()
+    let failed = false
+    for (const key of drawn) {
+      const bounds = tileBounds(key)
+      if (!meets(bounds, view)) continue
+      let ids = this.tilePieces.get(key)
+      if (ids && !this.holds(ids)) {
+        for (const id of ids) this.drop(id)
+        this.tilePieces.delete(key)
+        ids = undefined
+      }
+      if (!ids) {
+        const tile = tiles.get(key)
+        // A failed tile is fetched afresh once its retry is due; one evicted is read again from MapLibre's copy.
+        if (this.tileFailures.has(key) || this.refetched.has(key)) {
+          if (!this.recentlyFailed(key)) this.readTile(key)
+        } else {
+          if (tile?.latestRawTileData) this.tilesRead.delete(tile.latestRawTileData)
+          this.takeTile(tile)
+        }
+        if (meets(bounds, core)) {
+          waiting.add(key)
+          failed ||= this.recentlyFailed(key)
+        }
+        continue
+      }
+      for (const id of ids) {
+        wanted.add(id)
+        if (meets(bounds, core)) inView.add(id)
+      }
+    }
+    // Tiles long out of view keep nothing: their pieces are evicted like any part, and they are read again on return.
+    for (const [key, ids] of this.tilePieces) if (!this.drawnTiles.has(key) && !this.holds(ids)) {
+      for (const id of ids) this.drop(id)
+      this.tilePieces.delete(key)
+    }
+    this.wanted = wanted
+    this.inView = inView
+    this.waitingTiles = waiting
+    this.tilesFailed = failed
+  }
+
   private pump() {
     if (!this.map) return
+    if (this.expectsTiles() && this.tileMode !== false) {
+      for (const id of this.wanted) {
+        const ready = this.decoded.get(id)
+        if (!ready || this.parts.has(id) || this.pending.has(id)) continue
+        this.decoded.delete(id)
+        this.decodedBytes -= ready.bytes
+        this.pending.set(id, ready)
+        this.map.triggerRepaint()
+      }
+      return
+    }
     const template = this.map.getSource(this.sources.profiles?.source)?.tiles?.[0] as string | undefined
     if (!template || !template.includes('/detail/')) return
     for (const id of this.wanted) {
@@ -441,8 +805,9 @@ export class BakedBridgeLayer {
     if (this.pending.size) {
       const started = performance.now()
       for (const [id, { data, bytes }] of this.pending) {
-        // Until the decks cover, the view's own meshes go up together: the first frame drawn has them all.
-        if (performance.now() - started > UPLOAD_BUDGET_MS && (this.covered || !this.inView.has(id))) continue
+        // The view's own meshes go up together until the decks cover, and a tile's pieces always do: the frame that draws the tile has them.
+        const spent = performance.now() - started
+        if (spent > UPLOAD_BUDGET_MS && (!this.inView.has(id) || (this.covered && (!this.tileMode || spent > TILE_UPLOAD_BUDGET_MS)))) continue
         this.pending.delete(id)
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
@@ -458,9 +823,18 @@ export class BakedBridgeLayer {
       this.routePending = null
       this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
     }
-    if (!this.covered) return
-    for (const [id, part] of this.parts) if (this.wanted.has(id)) this.drawPart(gl, args, part)
-    if (this.route) this.drawPart(gl, args, this.route)
+    if (!this.drawing) return
+    // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
+    if (!this.drawOrder || this.drawOrder.parts !== this.parts.size || this.drawOrder.wanted !== this.wanted) {
+      const ids = [...this.parts.keys()].filter(id => this.wanted.has(id))
+      if (this.tileMode) ids.sort((a, b) => parseInt(a) - parseInt(b))
+      this.drawOrder = { parts: this.parts.size, wanted: this.wanted, ids }
+    }
+    for (const id of this.drawOrder.ids) {
+      const part = this.parts.get(id)
+      if (part) this.drawPart(gl, args, part)
+    }
+    if (this.route && this.covered) this.drawPart(gl, args, this.route)
     this.sun = null
   }
   private drawPart(gl: WebGL2RenderingContext, args: any, part: Part) {
@@ -518,3 +892,48 @@ function standBounds(stands: BakedMesh['stands']): Bounds | null {
 
 /** How far a point lies outside bounds, in mercator units: zero inside. */
 const distanceOutside = (b: Bounds, [x, y]: Point) => Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minY - y, 0, y - b.maxY))
+
+/** Detail tile urls that ask barrelman for deck pieces. */
+export const DECK_PIECES_ASKED = /[?&]decks=1(&|$)/
+/** A read of a deck-zoom tile started alongside MapLibre's load of it, and how many loading tiles hold it. */
+type Alongside = { key: string; token: number; controller: AbortController; users: number }
+
+/** Whether the browser answers two requests for one url at once with one download: true but for WebKit. */
+const sharesFetches = () => typeof navigator === 'undefined' || !/AppleWebKit/.test(navigator.userAgent) || /Chrome|Chromium|Edg/.test(navigator.userAgent)
+
+/** The zooms barrelman cuts deck pieces at. */
+export const DECK_TILE_ZOOMS = { min: 14, max: 16 } as const
+
+/** The deck-zoom tile, as `z/x/y`, that a detail tile's pieces come from: itself, or its ancestor past the deck zooms. */
+function deckTileOf({ z, x, y }: { z: number; x: number; y: number }): string {
+  const up = Math.max(0, z - DECK_TILE_ZOOMS.max)
+  return `${z - up}/${x >> up}/${y >> up}`
+}
+
+/** Whether a `z/x/y` tile's whole area is drawn by tiles `held` says are ready: itself, an ancestor, or all its descendants. */
+function coveredBy(key: string, held: (key: string) => boolean): boolean {
+  if (held(key)) return true
+  let [z, x, y] = key.split('/').map(Number)
+  while (z > DECK_TILE_ZOOMS.min) {
+    ;[z, x, y] = [z - 1, x >> 1, y >> 1]
+    if (held(`${z}/${x}/${y}`)) return true
+  }
+  return childrenDrawn(key, held)
+}
+
+/** Whether all of a `z/x/y` tile's area is covered by descendants that `held` says are ready to draw. */
+function childrenDrawn(key: string, held: (key: string) => boolean): boolean {
+  const [z, x, y] = key.split('/').map(Number)
+  if (z >= DECK_TILE_ZOOMS.max) return false
+  return [0, 1].every(i => [0, 1].every(j => {
+    const child = `${z + 1}/${2 * x + i}/${2 * y + j}`
+    return held(child) || childrenDrawn(child, held)
+  }))
+}
+
+/** A tile's bounds in mercator units, from `z/x/y`. */
+function tileBounds(key: string): Bounds {
+  const [z, x, y] = key.split('/').map(Number)
+  const n = 2 ** z
+  return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
+}

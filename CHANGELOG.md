@@ -22,6 +22,47 @@
 
 ### Fixed
 
+## [0.16.10] - 2026-10-25
+
+### Changed
+
+* 3D terrain sharpens as soon as the map around it loads, instead of lagging seconds behind in busy views.
+
+## [0.16.9] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks also keep up with map tiles that load again or load without notice.
+
+## [0.16.8] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode several times faster and take less graphics memory.
+
+## [0.16.7] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode while their map tile is still being read, so both appear in the same frame.
+
+## [0.16.6] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks draw as soon as their map tile lands and decode in parallel, so they keep up with the map.
+* Terrain cut away for tunnels is refined off the main thread.
+
+### Fixed
+
+* Road names on bridges no longer show through 3D decks after the road labels setting is reapplied.
+
+## [0.16.5] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks arrive inside the map tiles they are drawn over, so they appear with the map instead of after it.
+
 ## [0.16.4] - 2026-10-24
 
 ### Changed

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { BRIDGE_MESH_FILE, decodeBridge } from './mesh-file'
+import { BRIDGE_MESH_FILE, decodeBridge, decodeBridgeDeferred, readGeometry } from './mesh-file'
 
 const fixture = (name = 'arched-bridge') => {
   const bytes = readFileSync(`src/lib/map-decks/baked/fixtures/${name}.brm`)
@@ -17,7 +17,9 @@ describe('server-baked mesh contract', () => {
     const drawn = (m: typeof mesh, name: 'position' | 'normal' | 'color') => Array.from(m.indices).flatMap(i => Array.from(m[name].subarray(i * 3, i * 3 + 3)))
     drawn(mesh, 'position').forEach((v, k) => expect(Math.abs(v - drawn(floats, 'position')[k])).toBeLessThan(1.1e-10))
     expect(drawn(mesh, 'color')).toEqual(drawn(floats, 'color'))
-    drawn(mesh, 'normal').forEach((v, k) => expect(v).toBeCloseTo(drawn(floats, 'normal')[k], 2))
+    // Normals stay signed bytes, which the GPU reads normalised: byte / 127.
+    expect(mesh.normal).toBeInstanceOf(Int8Array)
+    drawn(mesh, 'normal').forEach((v, k) => expect(v / 127).toBeCloseTo(drawn(floats, 'normal')[k], 2))
   })
   test('reads a float mesh directly into GPU views without copying', () => {
     const buffer = fixture('arched-bridge-v2'), mesh = decodeBridge(buffer)
@@ -56,5 +58,12 @@ describe('server-baked mesh contract', () => {
     expect(BRIDGE_MESH_FILE.test(`${'a'.repeat(64)}.brm`)).toBe(true)
     expect(BRIDGE_MESH_FILE.test('../secret')).toBe(false)
     expect(BRIDGE_MESH_FILE.test(`${'a'.repeat(64)}.brm/extra`)).toBe(false)
+  })
+  test('leaves the surfaces unread for later, and reads them to the same as at once', () => {
+    const whole = decodeBridge(fixture())
+    const { mesh, geometry } = decodeBridgeDeferred(fixture())
+    expect(mesh.stands).toEqual([])
+    expect(Array.from(mesh.indices)).toEqual(Array.from(whole.indices))
+    expect(readGeometry(geometry!)).toEqual({ stands: whole.stands, under: whole.under, tracks: whole.tracks })
   })
 })

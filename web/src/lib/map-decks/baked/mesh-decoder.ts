@@ -74,7 +74,9 @@ export async function decodeTilePieces(payload: Uint8Array): Promise<DecodedTile
   }
   const parts = splitDeckTile(payload, workers.length).map(part => decodePart(part === payload ? part.slice() : part))
   const tiles = await Promise.all(parts.map(p => p.tile))
-  return { pieces: tiles.flatMap(t => t.pieces), failed: tiles.flatMap(t => t.failed), geometry: Promise.all(parts.map(p => p.geometry)).then(all => all.flat()) }
+  const geometry = Promise.all(parts.map(p => p.geometry)).then(all => all.flat())
+  geometry.catch(() => {})
+  return { pieces: tiles.flatMap(t => t.pieces), failed: tiles.flatMap(t => t.failed), geometry }
 }
 
 /** One part of a tile on the least busy decoder: its meshes, then the surfaces they stand on. */

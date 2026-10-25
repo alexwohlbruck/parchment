@@ -442,7 +442,7 @@ export class BakedBridgeLayer {
       if (failed.length) return this.tileFailed(key, token, new Error(`Deck tile ${key}: ${failed.length} decks missing`))
       this.tileTokens.delete(key)
       const ids = this.acceptTile(key, pieces)
-      geometry.then(surfaces => this.takeGeometry(key, ids, surfaces), error => console.warn('[bridges]', error))
+      geometry.then(surfaces => this.takeGeometry(key, ids, surfaces), error => this.lostGeometry(key, ids, error))
     }, error => this.tileFailed(key, token, error))
   }
   /** A tile whose pieces could not be had: its decks are unknown, so the flat bridges stay until it is read again. */
@@ -491,6 +491,14 @@ export class BakedBridgeLayer {
     }
     return ids
   }
+  /** A tile whose surfaces could not be read: its decks are dropped and it is read again, as a failed tile is. */
+  private lostGeometry(key: string, ids: string[], error: unknown) {
+    if (!this.map || this.tilePieces.get(key) !== ids) return
+    for (const id of ids) this.drop(id)
+    this.tilePieces.delete(key)
+    const token = this.begin(key)
+    this.tileFailed(key, token, error)
+  }
   /** The surfaces a tile's pieces stand on, read after the pieces themselves: given to them wherever they now are. */
   private takeGeometry(key: string, ids: string[], surfaces: Array<MeshGeometry | null>) {
     if (!this.map || this.tilePieces.get(key) !== ids) return
@@ -504,7 +512,7 @@ export class BakedBridgeLayer {
         part.bounds = standBounds(geometry.stands)
       }
       for (const entry of [this.pending.get(id), this.decoded.get(id)]) if (entry) Object.assign(entry.data, geometry)
-      changed = true
+      changed ||= this.wanted.has(id)
     })
     if (!changed) return
     this.surfaces++

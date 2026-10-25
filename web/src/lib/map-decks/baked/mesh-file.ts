@@ -34,8 +34,12 @@ export type MeshGeometry = Pick<BakedMesh, 'stands' | 'under' | 'tracks'>
 function splitHeader(text: string): { head: any; geometry: string } | null {
   const from = text.indexOf(',"stands":'), to = text.lastIndexOf(',"lengths":')
   if (from < 0 || to < from) return null
-  const head = JSON.parse(text.slice(0, from) + text.slice(to))
-  return Array.isArray(head.lengths) && head.ranges && head.origin ? { head, geometry: `{${text.slice(from + 1, to)}}` } : null
+  try {
+    const head = JSON.parse(text.slice(0, from) + text.slice(to))
+    return Array.isArray(head.lengths) && head.ranges && head.origin && head.version ? { head, geometry: `{${text.slice(from + 1, to)}}` } : null
+  } catch {
+    return null
+  }
 }
 
 /** A mesh's surfaces from the JSON `decodeBridge` left unread. */
@@ -63,7 +67,6 @@ export function decodeBridgeDeferred(buffer: ArrayBuffer, defer = true): { mesh:
   const text = new TextDecoder().decode(new Uint8Array(buffer, 12, length))
   const split = defer ? splitHeader(text) : null
   const header = split?.head ?? JSON.parse(text)
-  if (!split) header.stands ??= null
   // Version 1 has no lift stream: such a mesh is drawn exaggerated as a whole.
   const streams = header.version === 1 ? STREAMS.length - 1 : STREAMS.length
   const compact = header.version === 3

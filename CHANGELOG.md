@@ -7,6 +7,7 @@
 * Navigation shows the next turn with its distance, the road you're on, your speed against the limit, and arrival time, time and distance left, with the route ahead in its travel-mode colours.
 * Navigation reroutes within seconds when you leave the route, without starting the new route behind you, and says when you've arrived. Multi-stop trips continue with the next leg.
 * Spoken turn-by-turn directions, timed to your speed, with a choice of all prompts, alerts only or silent for each way of travelling.
+* Trips and navigation point out what's on the way: crosswalks drivers must yield at, railroad and uncontrolled crossings, sharp curves, stairs, steep climbs on foot or by bike, and more. Navigation warns you ahead of each one.
 
 ### Changed
 

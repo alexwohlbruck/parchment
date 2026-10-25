@@ -6,6 +6,10 @@ import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
 import { rerouteSegment } from '../services/reroute.service'
+import { attachHazards } from '../lib/route-hazards'
+import { optionalAuth } from '../middleware/auth.middleware'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionId } from '../types/auth.types'
 import {
   TripRequest,
   SelectedMode,
@@ -143,7 +147,13 @@ const TripRequestSchema = t.Object({
   timestamp: t.Optional(t.String()),
 })
 
-const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
+const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
+
+/** Comfort hazards are a premium feature; safety ones go to everyone. */
+async function seesPremiumHazards(userId: string | undefined): Promise<boolean> {
+  if (!userId) return false
+  return hasPermission(await getPermissions(userId), PermissionId.PREMIUM_NAVIGATION)
+}
 
 /**
  * Plan a multimodal trip (replaces original directions endpoint)
@@ -152,7 +162,7 @@ const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
 app.post(
   '/',
   async (ctx) => {
-    const { body, language } = ctx
+    const { body, language, user } = ctx
     try {
       const request: TripRequest = {
         language,
@@ -204,6 +214,8 @@ app.post(
 
       // Plan the trip using multimodal strategy
       const result = await multimodalTripService.planTrip(request)
+      const premium = await seesPremiumHazards(user?.id)
+      for (const candidate of result.trips) attachHazards((candidate.trip?.segments ?? []) as any[], { premium })
 
       return result
     } catch (error) {
@@ -228,7 +240,11 @@ app.post(
         + 'stops at that time. Its `shortName` names the line; a line with no GTFS short name '
         + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
         + 'segment with `streetTransfer` leaves the paid area '
-        + 'between stations the agency does not connect, so the next ride is a new fare.',
+        + 'between stations the agency does not connect, so the next ride is a new fare. '
+        + 'Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep '
+        + 'grades, stairs, sharp curves and the like, placed by distance along the segment. '
+        + 'Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users '
+        + 'with premium navigation.',
       tags: ['Trip Planning'],
     },
   },
@@ -236,13 +252,14 @@ app.post(
 
 app.post(
   '/reroute',
-  async ({ body, language, set }) => {
+  async ({ body, language, set, user }) => {
     try {
       const segment = await rerouteSegment({ ...body, language })
       if (!segment) {
         set.status = 404
         return { error: 'No route found' }
       }
+      attachHazards([segment], { premium: await seesPremiumHazards(user?.id) })
       return { segment }
     } catch (error) {
       logError('Reroute failed', error)

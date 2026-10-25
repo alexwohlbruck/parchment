@@ -71,6 +71,9 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import HazardSummary from '@/components/directions/trip/HazardSummary.vue'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
@@ -710,6 +713,7 @@ const boardCards = computed(() => {
 const hoveredInstructionKey = ref<string | null>(null)
 
 const guidanceStore = useGuidanceStore()
+const detailedHazards = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
 const legToStart = computed(() => (trip.value ? guidanceStore.legToStart(trip.value) : null))
 
 async function startGuidance() {
@@ -1828,6 +1832,12 @@ function showSegmentChart(segment: any): boolean {
                   <ExternalLinkIcon class="size-3.5" />
                 </a>
               </div>
+
+              <HazardSummary
+                v-if="entry.segment.hazards?.length"
+                :hazards="entry.segment.hazards"
+                :detailed="detailedHazards"
+              />
 
               <SegmentDetails
                 :segment="entry.segment"

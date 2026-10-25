@@ -9,6 +9,7 @@ import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/tra
 
 const ROUTE = 'guidance-route'
 const ARROW = 'guidance-maneuver'
+const HAZARDS = 'guidance-hazards'
 const TRAVELLED_COLOR = '#9ca3af'
 const TRAVELLED_CASE_COLOR = '#6b7280'
 const ARROW_COLOR = '#ffffff'
@@ -26,6 +27,7 @@ export class GuidanceRouteLayer {
     const beforeId = slotBeforeId(map.getStyle().layers, 'middle')
     map.addSource(ROUTE, { type: 'geojson', lineMetrics: true, data: this.routeData() })
     map.addSource(ARROW, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    map.addSource(HAZARDS, { type: 'geojson', data: this.hazardData() })
     map.addLayer(
       {
         id: `${ROUTE}-case`,
@@ -76,6 +78,33 @@ export class GuidanceRouteLayer {
       },
       beforeId,
     )
+    map.addLayer(
+      {
+        id: HAZARDS,
+        type: 'circle',
+        source: HAZARDS,
+        minzoom: 14,
+        paint: {
+          'circle-radius': ['match', ['get', 'severity'], 'high', 6, 'medium', 5, 3.5],
+          'circle-color': ['match', ['get', 'severity'], 'high', '#f59e0b', 'medium', '#fbbf24', '#9ca3af'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-pitch-alignment': 'map',
+        },
+      },
+      beforeId,
+    )
+  }
+
+  private hazardData(): GeoJSON.FeatureCollection {
+    return {
+      type: 'FeatureCollection',
+      features: this.route.hazards.map(h => ({
+        type: 'Feature',
+        properties: { severity: h.severity, kind: h.kind, at: h.startDistance },
+        geometry: { type: 'Point', coordinates: [h.coordinate.lng, h.coordinate.lat] },
+      })),
+    }
   }
 
   private routeData(): Feature {
@@ -100,6 +129,7 @@ export class GuidanceRouteLayer {
       this.lastTravelled = travelled
       this.map.setPaintProperty(ROUTE, 'line-gradient', this.gradient(travelled) as never)
       this.map.setPaintProperty(`${ROUTE}-case`, 'line-gradient', this.caseGradient(travelled) as never)
+      this.map.setFilter(HAZARDS, ['>=', ['get', 'at'], travelled])
     }
     if (maneuverAt !== this.lastManeuver) {
       this.lastManeuver = maneuverAt
@@ -120,13 +150,14 @@ export class GuidanceRouteLayer {
     this.lastTravelled = -1
     this.lastManeuver = null
     ;(this.map.getSource(ROUTE) as GeoJSONSource | undefined)?.setData(this.routeData())
+    ;(this.map.getSource(HAZARDS) as GeoJSONSource | undefined)?.setData(this.hazardData())
   }
 
   destroy(): void {
-    for (const id of [`${ARROW}-head`, `${ARROW}-shaft`, ROUTE, `${ROUTE}-case`]) {
+    for (const id of [HAZARDS, `${ARROW}-head`, `${ARROW}-shaft`, ROUTE, `${ROUTE}-case`]) {
       if (this.map.getLayer(id)) this.map.removeLayer(id)
     }
-    for (const id of [ARROW, ROUTE]) {
+    for (const id of [HAZARDS, ARROW, ROUTE]) {
       if (this.map.getSource(id)) this.map.removeSource(id)
     }
   }

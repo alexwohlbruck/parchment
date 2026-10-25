@@ -13,6 +13,8 @@ import ManeuverBanner from './ManeuverBanner.vue'
 import SpeedPanel from './SpeedPanel.vue'
 import RoadNameLabel from './RoadNameLabel.vue'
 import CameraModeButton from './CameraModeButton.vue'
+import HazardChip from './HazardChip.vue'
+import { upcomingHazard } from '@/lib/guidance/hazards'
 
 const props = defineProps<{
   camera: ReturnType<typeof useGuidanceCamera>
@@ -42,6 +44,12 @@ const mode = computed(() => {
   const route = guidance.route
   const puck = guidance.progress?.puck
   return route && puck ? travelModeAt(route, puck.s) : 'driving'
+})
+
+const hazardAhead = computed(() => {
+  const route = guidance.route
+  const puck = guidance.progress?.puck
+  return route && puck?.snapped && guidance.status === 'navigating' ? upcomingHazard(route, puck.s, puck.speed) : null
 })
 
 const SOUND_ICONS = { all: Volume2Icon, alerts: BellRingIcon, silent: VolumeXIcon }
@@ -78,6 +86,7 @@ const labelStyle = computed(() => {
         :metric="metric"
         class="mx-auto max-w-xl"
       />
+      <HazardChip v-if="hazardAhead" :hazard="hazardAhead.hazard" :distance="hazardAhead.distance" :metric="metric" />
     </div>
 
     <div

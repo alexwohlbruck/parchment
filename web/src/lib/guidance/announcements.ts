@@ -9,11 +9,22 @@ import { pointAt, bearingAt, type NavRoute, type NavStep } from './nav-route'
 import type { PuckState } from './guidance-engine'
 import { angleDelta } from './spring'
 import { travelModeAt } from './guidance-display'
+import { crosswalkAfter, upcomingHazard } from './hazards'
+import type { NavHazard } from './nav-route'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
 export type Announcement =
-  | { kind: 'maneuver'; phase: AnnouncementPhase; step: NavStep; distance: number; then: NavStep | null }
+  | {
+      kind: 'maneuver'
+      phase: AnnouncementPhase
+      step: NavStep
+      distance: number
+      then: NavStep | null
+      /** A crosswalk on the road being turned onto. */
+      pedestrians?: boolean
+    }
+  | { kind: 'hazard'; hazard: NavHazard; distance: number }
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
   | { kind: 'reroute' }
@@ -121,9 +132,15 @@ export class Announcer {
         const after = route.steps[next.index + 1]
         const then =
           phase === 'now' && after && after.startDistance - next.startDistance <= THEN_WITHIN_METERS ? after : null
-        due.push({ kind: 'maneuver', phase, step: next, distance, then })
+        const pedestrians = phase === 'now' && mode === 'driving' && crosswalkAfter(route, next) != null
+        due.push({ kind: 'maneuver', phase, step: next, distance, then, pedestrians })
       }
       break
+    }
+
+    const ahead = upcomingHazard(route, puck.s, puck.speed)
+    if (ahead && this.once(`hazard:${ahead.hazard.kind}:${Math.round(ahead.hazard.startDistance)}`)) {
+      due.push({ kind: 'hazard', hazard: ahead.hazard, distance: ahead.distance })
     }
     return due
   }

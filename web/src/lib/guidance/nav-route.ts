@@ -4,6 +4,7 @@
 import type { LngLat } from '@/types/map.types'
 import type {
   RouteEdgeSegment,
+  RouteHazard,
   RouteInstruction,
 } from '@/types/directions.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
@@ -14,6 +15,7 @@ export interface NavSegmentInput {
   geometry?: LngLat[]
   instructions?: RouteInstruction[]
   edgeSegments?: RouteEdgeSegment[]
+  hazards?: RouteHazard[]
 }
 
 export interface NavStep {
@@ -34,6 +36,10 @@ export interface NavEdge extends RouteEdgeSegment {
   segmentIndex: number
 }
 
+export interface NavHazard extends RouteHazard {
+  segmentIndex: number
+}
+
 export interface NavRoute {
   points: LngLat[]
   /** cumulative[i] = distance along the route at points[i]. */
@@ -43,6 +49,8 @@ export interface NavRoute {
   steps: NavStep[]
   /** Edge attributes rebased onto route distance, sorted by start. */
   edges: NavEdge[]
+  /** Hazards rebased onto route distance, sorted by start. */
+  hazards: NavHazard[]
 }
 
 export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
@@ -51,6 +59,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
   const segments: NavSegment[] = []
   const steps: NavStep[] = []
   const edges: NavEdge[] = []
+  const hazards: NavHazard[] = []
   let offset = 0
 
   inputs.forEach((input, segmentIndex) => {
@@ -78,6 +87,15 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
       steps.push({ index: steps.length, segmentIndex, startDistance: s.distance, instruction })
     }
 
+    for (const hazard of input.hazards ?? []) {
+      hazards.push({
+        ...hazard,
+        segmentIndex,
+        startDistance: startDistance + hazard.startDistance,
+        ...(hazard.endDistance != null && { endDistance: startDistance + hazard.endDistance }),
+      })
+    }
+
     for (const edge of input.edgeSegments ?? []) {
       edges.push({
         ...edge,
@@ -89,6 +107,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
   })
 
   edges.sort((a, b) => a.startDistance - b.startDistance)
+  hazards.sort((a, b) => a.startDistance - b.startDistance)
   return {
     points,
     cumulative: Float64Array.from(distances),
@@ -96,6 +115,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     segments,
     steps,
     edges,
+    hazards,
   }
 }
 

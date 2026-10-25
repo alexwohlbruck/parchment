@@ -1333,13 +1333,43 @@
         "left": "You have arrived. Your destination is on the left",
         "right": "You have arrived. Your destination is on the right"
       },
-      "rerouting": "Rerouting"
+      "rerouting": "Rerouting",
+      "watchPedestrians": "{action}, and watch for pedestrians",
+      "hazards": {
+        "crosswalk": "Crosswalk ahead",
+        "uncontrolled_crossing": "Uncontrolled crossing ahead",
+        "rail_crossing": "Railroad crossing ahead",
+        "ford": "Water crossing ahead",
+        "sharp_curve": "Sharp curve ahead",
+        "steep_grade": "Steep grade ahead",
+        "steps": "Stairs ahead",
+        "shared_space": "Shared street ahead, watch for people walking"
+      }
     },
     "sound": {
       "title": "Sound",
       "all": "All",
       "alerts": "Alerts only",
       "silent": "Silent"
+    },
+    "hazards": {
+      "crosswalk": "Crosswalk",
+      "traffic_signals": "Traffic light",
+      "uncontrolled_crossing": "Uncontrolled crossing",
+      "rail_crossing": "Railroad crossing",
+      "tunnel": "Tunnel",
+      "ford": "Water crossing",
+      "ferry": "Ferry",
+      "steep_grade": "Steep grade",
+      "steps": "Stairs",
+      "dismount": "Walk your bike",
+      "rough_surface": "Rough surface",
+      "shared_space": "Shared street",
+      "sharp_curve": "Sharp curve"
+    },
+    "hazardCounts": {
+      "crosswalk": "{n} crosswalk | {n} crosswalks",
+      "traffic_signals": "{n} light | {n} lights"
     }
   },
   "attribution": {

@@ -39,6 +39,8 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
   switch (announcement.kind) {
     case 'reroute':
       return t('guidance.voice.rerouting')
+    case 'hazard':
+      return t(`guidance.voice.hazards.${announcement.hazard.kind}`)
     case 'arrived':
       return announcement.side
         ? t(`guidance.voice.arrivedSide.${announcement.side}`)
@@ -58,7 +60,8 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
       }
       const action = maneuverPhrase(step.instruction, t)
       if (phase === 'now') {
-        return then ? t('guidance.voice.then', { action, next: inline(maneuverPhrase(then.instruction, t)) }) : action
+        const spoken = then ? t('guidance.voice.then', { action, next: inline(maneuverPhrase(then.instruction, t)) }) : action
+        return announcement.pedestrians ? t('guidance.voice.watchPedestrians', { action: spoken }) : spoken
       }
       return t('guidance.voice.in', { distance: spokenDistance(distance, metric, t), action: inline(action) })
     }

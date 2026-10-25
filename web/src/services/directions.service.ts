@@ -315,6 +315,7 @@ function directionsService() {
       maxElevation: seg.maxElevation,
       minElevation: seg.minElevation,
       edgeSegments: seg.edgeSegments,
+      hazards: seg.hazards ?? [],
       start: seg.start,
       end: seg.end,
       ownership: seg.ownership ?? 'personal',

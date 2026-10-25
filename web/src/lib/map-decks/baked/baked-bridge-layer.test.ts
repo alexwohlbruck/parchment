@@ -284,3 +284,16 @@ test('draws a tile\'s decks before the view covers, but not where a deck in view
   expect(bindMesh).not.toHaveBeenCalled()
   layer.onRemove(map, gl)
 })
+
+test('reads a deck-zoom tile\'s pieces as it starts loading, and not again when it lands', async () => {
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  expect(fetch).toHaveBeenCalledTimes(1)
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  layer.onRemove(map, gl)
+})

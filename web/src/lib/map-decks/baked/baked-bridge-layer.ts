@@ -158,10 +158,13 @@ export class BakedBridgeLayer {
     clearTimeout(this.scheduled)
     this.scheduled = setTimeout(() => this.sync(), 0)
   }
-  /** A tile past the deck zooms starts loading: its ancestor's pieces are read alongside, MapLibre's fetch of it filling the HTTP cache. */
+  /**
+   * A detail tile starts loading: its deck pieces (or, past the deck zooms, its ancestor's) are read alongside, from the
+   * response MapLibre's own fetch puts in the HTTP cache, so they decode while MapLibre parses the tile rather than after.
+   */
   private loading = (event: { sourceId?: string; tile?: any }) => {
     const id = event.tile?.tileID?.canonical
-    if (event.sourceId !== this.sources.profiles?.source || !id || id.z <= DECK_TILE_ZOOMS.max || !this.expectsTiles() || this.tileMode === false) return
+    if (event.sourceId !== this.sources.profiles?.source || !id || id.z < DECK_TILE_ZOOMS.min || !this.expectsTiles() || this.tileMode === false) return
     this.readTile(deckTileOf(id))
   }
   private moving = () => {
@@ -341,8 +344,10 @@ export class BakedBridgeLayer {
     const key = `${id.z}/${id.x}/${id.y}`
     if (!raw || this.tileTokens.has(key)) return
     if (this.tilesRead.has(raw) && (this.tilePieces.has(key) || this.tileFailures.has(key))) return
+    const read = this.tilePieces.has(key)
     this.tilesRead.add(raw)
-    this.readPieces(key, raw)
+    // Already read from the same response as it loaded.
+    if (!read) this.readPieces(key, raw)
   }
   private readTile(key: string) {
     if (this.tilePieces.has(key) || this.tileTokens.has(key) || this.recentlyFailed(key) || !this.reaches(key)) return

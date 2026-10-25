@@ -124,14 +124,14 @@ export type TerrainSampler = { source: string; ground: GroundSampler }
  * while the source is the same, a new one when it has changed, null without
  * terrain. `onLoad` runs as each of its tiles arrives.
  */
-export function terrainSampler(map: any, current: TerrainSampler | null, onLoad: () => void): TerrainSampler | null {
+export function terrainSampler(map: any, current: TerrainSampler | null, onLoad: () => void, load?: (template: string) => HeightsLoader | undefined): TerrainSampler | null {
   const id = map.getTerrain?.()?.source
   const source = id ? map.getSource(id) : null
   if (!source?.tiles?.[0]) return null
   const { tiles: template, maxzoom } = rawTerrainTiles(source.tiles[0], source.maxzoom ?? 15)
   if (current?.source === template) return current
   const zoom = Math.min(maxzoom, 15)
-  const ground = new GroundSampler(fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
+  const ground = new GroundSampler(load?.(template) ?? fetchHeights(template, source.encoding === 'mapbox' ? 'mapbox' : 'terrarium'), {
     zoom,
     minZoom: Math.max(0, zoom - 5),
     capacity: 24,

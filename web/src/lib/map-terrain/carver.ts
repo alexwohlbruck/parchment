@@ -6,7 +6,7 @@ import type { Bounds } from '@/lib/map-decks/decks'
 import { carveTile, tileUnder, type Elevation, type Footprint } from './carve'
 
 /** Milliseconds a frame may spend carving tiles. */
-const CARVE_BUDGET = 6
+const CARVE_BUDGET = 16
 
 /** A MapLibre DEM tile's pixels, read and written in metres. */
 function elevation(dem: any): Elevation {
@@ -56,7 +56,8 @@ export class TerrainCarver {
     this.focused = areas
     this.focus?.(areas)
     this.rounds++
-    this.reload([...removed, ...reached])
+    this.reload(removed)
+    this.reload(reached, tile => tile.state === 'errored')
   }
 
   /** Whether an elevation tile has been carved this round. */
@@ -109,13 +110,13 @@ export class TerrainCarver {
 
   /**
    * Load the elevation tiles under these areas afresh: uncarved where a
-   * footprint has gone, finer where one has arrived. Only those tiles, so the
-   * rest of the terrain, and the tiles cached off screen, are kept.
+   * footprint has gone, and finer where one has arrived on a tile that came back
+   * empty. Only those tiles, so the rest of the terrain, and the tiles cached off screen, are kept.
    */
-  private reload(areas: Bounds[]) {
+  private reload(areas: Bounds[], which: (tile: any) => boolean = () => true) {
     const manager = this.map()?.terrain?.tileManager?.tileManager
     if (!manager || !areas.length) return
-    const under = (tile: any) => tileUnder([tile.tileID.canonical.z, tile.tileID.canonical.x, tile.tileID.canonical.y], areas)
+    const under = (tile: any) => which(tile) && tileUnder([tile.tileID.canonical.z, tile.tileID.canonical.x, tile.tileID.canonical.y], areas)
     manager._outOfViewCache?.filter((tile: any) => !under(tile))
     manager.refreshTiles(this.tiles().filter(under).map(tile => tile.tileID.canonical))
   }

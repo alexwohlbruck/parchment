@@ -21,9 +21,10 @@ import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
-import { idle, queryFeatures } from '@/lib/map-decks/map-query'
+import { queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'
+import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
+import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, groupPortals, inside, splitAtFace, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
 
 /** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
@@ -45,8 +46,8 @@ const HEADWALLS = ['wall', 'retaining_wall', 'city_wall']
 const SAMPLE = 3
 const MEASURE = 40
 const REBASE = 1e-3
-/** Milliseconds a rebuild waits for the main thread to be idle before running anyway: the terrain is cut only once it has. */
-const IDLE_WAIT_MS = 250
+/** Milliseconds a rebuild waits after what it reads changes, so a burst of tile events is read at once. */
+const SETTLE_MS = 50
 const CACHE = 400
 
 export type TunnelSources = {
@@ -62,6 +63,15 @@ export type TunnelSources = {
 }
 
 type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind; face?: Point; piers?: Array<[number, number]> }
+
+/** Whether a source's tiles in view have all loaded; a source not in the style has nothing to wait for. */
+function loaded(map: any, id: string): boolean {
+  try {
+    return map.isSourceLoaded(id)
+  } catch {
+    return true
+  }
+}
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -116,10 +126,15 @@ export class TunnelLayer {
   /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
   private exposed: FloorRange[] = []
   private exposedFor = ''
-  private pending: (Built & { ground: Float32Array; exaggeration: number }) | null = null
+  private pending: (Built & { ground: Float32Array; exaggeration: number; complete: boolean }) | null = null
+  /** Whether a cut in the last build waited on ground still loading. */
+  private groundLoading = false
   private origin: Point = [0, 0]
   private scheduled = 0
-  private cancelIdle?: () => void
+  /** Whether the cuts carved are those of the roads in view, built once they had all loaded. */
+  private settled = false
+  /** The sources read for the cuts that have finished loading since the camera last came to rest. */
+  private loadedSince = new Set<string>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
   private sampler: TerrainSampler | null = null
@@ -146,12 +161,12 @@ export class TunnelLayer {
   }
 
   /**
-   * `focusTerrain` is told where cuts are carved, so finer terrain is served
-   * there; the terrain is reloaded when that reaches somewhere new.
+   * `terrain` serves finer elevation where cuts are carved, holding it back
+   * until the cuts in view are known, so it arrives finer the first time.
    */
-  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; focusTerrain?: (areas: Bounds[]) => void } = {}) {
+  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; terrain?: FineTerrain } = {}) {
     this.id = options.id ?? 'map-tunnels'
-    this.carver = new TerrainCarver(() => this.map, options.focusTerrain)
+    this.carver = new TerrainCarver(() => this.map, options.terrain && (areas => options.terrain!.focus(areas)))
   }
 
   setPalette(palette: DeckPalette) {
@@ -162,24 +177,48 @@ export class TunnelLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.program = linkMeshProgram(gl)
-    const tiled = new Set([this.sources.basemap, this.sources.surfaces?.source])
+    const tiled = this.tiled()
     this.onChange = event => {
       if (event?.tile && event.sourceId === this.map.getTerrain?.()?.source) {
         // A tile arriving fills its neighbours' borders from its own uncarved ground.
         this.carver.recarveAround(event.tile)
+        this.readAhead(event.tile)
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
+        this.settled = false
+        this.loadedSince.clear()
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
-      } else if (!event.isSourceLoaded) return
-      else if (tiled.has(event.sourceId)) this.invalidate(false)
+      } else {
+        if (!tiled.includes(event.sourceId)) return
+        if (event.tile) this.settled = false
+        if (!event.isSourceLoaded) return
+        this.loadedSince.add(event.sourceId)
+        this.invalidate(false)
+      }
     }
     this.onTerrain = () => this.invalidate()
     map.on('sourcedata', this.onChange)
     map.on('moveend', this.onChange)
     map.on('terrain', this.onTerrain)
+    this.options.terrain?.hold(() => (this.settled ? [] : null))
     this.invalidate()
+  }
+
+  /** Read the ground under an elevation tile as it arrives, so the cuts over it can be solved as soon as the roads are in. */
+  private readAhead(tile: any) {
+    const { z, x, y } = tile.tileID.canonical
+    if (z < TUNNEL_MIN_ZOOM || this.map.getZoom() < TUNNEL_MIN_ZOOM) return
+    this.sampler = this.samplerFor()
+    this.sampler?.ground.at([(x + 0.5) / 2 ** z, (y + 0.5) / 2 ** z])
+  }
+
+  private samplerFor(): TerrainSampler | null {
+    const terrain = this.options.terrain
+    const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate(), template => terrain && template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)
+    if (sampler !== this.sampler) this.cuts.clear()
+    return sampler
   }
 
   onRemove(map: any, gl: WebGL2RenderingContext) {
@@ -188,8 +227,9 @@ export class TunnelLayer {
       map.off('moveend', this.onChange)
     }
     if (this.onTerrain) map.off('terrain', this.onTerrain)
+    this.options.terrain?.hold(null)
     clearTimeout(this.scheduled)
-    this.cancelIdle?.()
+    this.scheduled = 0
     this.release(gl)
     this.shadow.delete(gl)
     gl.deleteProgram(this.program)
@@ -197,23 +237,38 @@ export class TunnelLayer {
     this.map = null
   }
 
-  /** Rebuild between frames, once a burst of tile events settles; unforced, only if what it reads has changed. */
+  private tiled(): string[] {
+    return [this.sources.basemap, this.sources.surfaces?.source].filter((id): id is string => !!id)
+  }
+
+  /** Rebuild between frames, a burst of tile events at once; unforced, only if what it reads has changed. */
   invalidate(force = true) {
     if (force) this.stale = true
-    clearTimeout(this.scheduled)
-    this.cancelIdle?.()
-    this.scheduled = setTimeout(() => {
-      this.cancelIdle = idle(() => {
-        if (!this.map) return
-        const mesh = this.build()
-        if (!mesh) return
-        // On the ground as it was before the cut, which is what the walls rise out of.
-        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-        const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
-        this.pending = { ...mesh, ground, exaggeration }
-        this.map.triggerRepaint?.()
-      }, IDLE_WAIT_MS)
-    }, 200) as unknown as number
+    if (this.scheduled) return
+    this.scheduled = setTimeout(() => this.rebuild(), SETTLE_MS) as unknown as number
+  }
+
+  private rebuild() {
+    this.scheduled = 0
+    if (!this.map) return
+    const complete = this.tiled().every(id => this.loadedSince.has(id) || loaded(this.map, id))
+    this.groundLoading = false
+    const mesh = this.build()
+    if (!mesh) {
+      if (complete && !this.groundLoading) this.settle()
+      return
+    }
+    // On the ground as it was before the cut, which is what the walls rise out of.
+    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+    const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
+    this.pending = { ...mesh, ground, exaggeration, complete: complete && !this.groundLoading }
+    this.map.triggerRepaint?.()
+  }
+
+  /** The cuts carved are final for the roads in view: finer terrain held back for them can now be served or turned away. */
+  private settle() {
+    this.settled = true
+    this.options.terrain?.release()
   }
 
   private query(source: string, sourceLayer?: string, filter?: any[]): any[] {
@@ -316,8 +371,7 @@ export class TunnelLayer {
 
   /** A portal's cut, from the ground along it; kept once read, null while the ground loads. */
   private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind, face?: Point, piers?: Array<[number, number]>): Solved | null {
-    const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
-    if (sampler !== this.sampler) this.cuts.clear()
+    const sampler = this.samplerFor()
     this.sampler = sampler
     if (!sampler) return null
     const key = `${kind}|${face?.map(v => v.toFixed(3))}|${piers?.flat().map(v => v.toFixed(1))}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
@@ -329,7 +383,10 @@ export class TunnelLayer {
     const sides = RIM.map(r => edgePoints({ points, edges: [edges[0] + KERB + r, edges[1] + KERB + r] } as any))
     const rims = [0, 1].map(k => points.map((_, i) => {
       const heights = sides.map(side => height(side[k][i]))
-      if (heights.some(g => g === null)) return null
+      if (heights.some(g => g === null)) {
+        this.groundLoading = true
+        return null
+      }
       const known = (heights as number[]).filter(g => !Number.isNaN(g))
       return known.length ? Math.min(...known) : NaN
     }))
@@ -339,7 +396,10 @@ export class TunnelLayer {
       while (i < points.length - 1 && d[i] - d[at] < m) i++
       return height(points[i])
     })
-    if ([...centre, ...rims.flat(), ...cover].some(g => g === null)) return null
+    if ([...centre, ...rims.flat(), ...cover].some(g => g === null)) {
+      this.groundLoading = true
+      return null
+    }
     const ground = centre as number[]
     if (ground.some(Number.isNaN)) return null
     const fill = (rim: Array<number | null>) => rim.map((g, i) => (Number.isFinite(g) ? (g as number) : ground[i]))
@@ -413,6 +473,7 @@ export class TunnelLayer {
       this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.floors = floors
       this.carver.set(footprints)
+      if (this.pending.complete) this.settle()
       this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
       // The shade layer drew this frame's shadows before the walls changed.

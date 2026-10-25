@@ -110,7 +110,7 @@ import {
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE } from '@/lib/map-decks/palette'
-import { flatBridgeLabelFilter, flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
+import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { SOURCE, withDeckPieces } from '@/lib/map-style/build'
@@ -257,8 +257,6 @@ const ROOF_EDGE_FADE_PITCH = 8
 
 /** The one custom layer every 3D scene object is drawn by. */
 const OBJECT_LAYER_ID = 'map-objects'
-/** Any footprint, to ask whether a layer's labels are ones decks leave out. */
-const EMPTY_FOOTPRINT: GeoJSON.MultiPolygon = { type: 'MultiPolygon', coordinates: [] }
 
 /** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
 const LANDMARK_LAYER_ID = 'map-landmarks'
@@ -470,6 +468,10 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('styledata', () => this.muteFlatTunnels())
     this.mapInstance.on('style.load', () => {
       this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
+      // The old decks' labels are not this style's to leave out.
+      this.mutedBridgeLabels.clear()
+      this.bridgeFootprint = null
+      this.bridgeLabelKey = null
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()
@@ -492,9 +494,6 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.deckLayer) shadowCasters.delete(this.deckLayer)
       this.deckLayer = null
       this.mutedBridges.clear()
-      this.mutedBridgeLabels.clear()
-      this.bridgeFootprint = null
-      this.bridgeLabelKey = null
       if (this.tunnelLayer) shadowCasters.delete(this.tunnelLayer)
       this.tunnelLayer = null
       this.mutedTunnels.clear()
@@ -1025,7 +1024,7 @@ export class MaplibreStrategy extends MapStrategy {
     if (footprint || !covered) this.bridgeFootprint = covered ? footprint : null
     for (const layer of map.getStyle()?.layers ?? []) {
       // The labels' filter is the basemap's, with the ways on decks left out; one writer keeps the two from undoing each other.
-      if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && flatBridgeLabelFilter(layer as any, EMPTY_FOOTPRINT)) {
+      if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && isFlatBridgeLabel(layer as any)) {
         if (covered) this.mutedBridgeLabels.add(layer.id)
         else this.mutedBridgeLabels.delete(layer.id)
         this.applyBasemapFilter(layer.id)
@@ -1255,7 +1254,7 @@ export class MaplibreStrategy extends MapStrategy {
   /** A new style brings its own filters, so ours are rebuilt on top of them. */
   private reapplyBasemapFilters() {
     this.baseFilters.clear()
-    const ids = new Set([...this.basemapHiders.keys(), ...layerGroups.poi, ...this.mutedBridgeLabels])
+    const ids = new Set([...this.basemapHiders.keys(), ...layerGroups.poi])
     for (const id of ids) this.applyBasemapFilter(id)
   }
 

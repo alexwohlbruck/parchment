@@ -8,6 +8,7 @@ import type {
   InstructionLanePlan,
   LaneArrow,
   LaneGeometry,
+  LanesProfile,
   RouteEdgeSegment,
   RouteInstruction,
   RouteLanes,
@@ -66,16 +67,24 @@ function haversine(a: Coordinate, b: Coordinate): number {
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
+/** The modes drawn in their lanes, as barrelman's lane profiles; planned trips say biking, reroutes cycling. */
+const LANE_PROFILES: Record<string, LanesProfile> = { driving: 'car', biking: 'bike', cycling: 'bike' }
+
+export function lanesProfile(mode: string): LanesProfile | undefined {
+  return LANE_PROFILES[mode]
+}
+
 /**
- * What /route/lanes needs for a driven segment, or null when its edges carry
- * no way ids (a graph built without osm_way_id).
+ * What /route/lanes needs for a driven or ridden segment, or null when its
+ * edges carry no way ids (a graph built without osm_way_id).
  */
 export function lanesRequest(segment: LanedSegment): RouteLanesRequest | null {
   const geometry = segment.geometry ?? []
+  const profile = lanesProfile(segment.mode)
   const ways = (segment.edgeSegments ?? [])
     .filter((e): e is RouteEdgeSegment & { osmWayId: number } => e.osmWayId != null)
     .map(e => ({ from: e.startDistance, to: e.endDistance, osmWayId: e.osmWayId }))
-  if (segment.mode !== 'driving' || geometry.length < 2 || ways.length === 0) return null
+  if (!profile || geometry.length < 2 || ways.length === 0) return null
 
   const cumulative = [0]
   for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + haversine(geometry[i - 1], geometry[i]))
@@ -94,6 +103,7 @@ export function lanesRequest(segment: LanedSegment): RouteLanesRequest | null {
     coordinates: geometry.map(p => [p.lng, p.lat]),
     ways,
     maneuvers,
+    profile,
     ...(country && { country }),
   }
 }
@@ -123,7 +133,7 @@ export function applyLanes(segment: LanedSegment, lanes: RouteLanes): void {
   if (lanes.laneGeometry && lanes.laneGeometry.coordinates.length >= 2) {
     segment.laneGeometry = { coordinates: lanes.laneGeometry.coordinates, measures: lanes.laneGeometry.measures }
   }
-  if (lanes.lanePlan.length) {
+  if (lanes.lanePlan.length && segment.mode === 'driving') {
     segment.lanePlan = lanes.lanePlan.map(p => ({
       instruction: p.maneuver,
       lanes: p.lanes.map(l => ({ arrows: laneArrows(l.turns), valid: l.valid, recommended: l.recommended })),

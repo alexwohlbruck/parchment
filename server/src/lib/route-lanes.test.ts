@@ -38,6 +38,12 @@ describe('lanesRequest', () => {
     expect(request.maneuvers.map(m => m.turn)).toEqual(['through', 'right', undefined])
     expect(request.maneuvers[1].distance).toBeCloseTo(200, -1)
     expect(request.country).toBe('USA')
+    expect(request.profile).toBe('car')
+  })
+
+  test('asks for a bike line for a ride, whichever name the mode goes by', () => {
+    expect(lanesRequest({ ...drive(), mode: 'biking' })?.profile).toBe('bike')
+    expect(lanesRequest({ ...drive(), mode: 'cycling' })?.profile).toBe('bike')
   })
 
   test('asks nothing of a graph without way ids, or a segment not driven', () => {
@@ -56,6 +62,13 @@ describe('applyLanes', () => {
       { arrows: ['through', 'right'], valid: true, recommended: true },
     ] }])
     expect(segment.laneGeometry?.measures).toEqual([0, 400])
+  })
+
+  test('keeps lane plans to driving', () => {
+    const ride = { ...drive(), mode: 'biking' }
+    applyLanes(ride, answer)
+    expect(ride.laneGeometry).toBeDefined()
+    expect(ride.lanePlan).toBeUndefined()
   })
 
   test('maps turn:lanes values to arrows', () => {
@@ -78,15 +91,17 @@ describe('driving side', () => {
 })
 
 describe('attachLanes', () => {
-  test('attaches lanes to driven segments only, and survives a failure', async () => {
+  test('attaches lanes to driven and ridden segments only, and survives a failure', async () => {
     const driven = drive()
+    const ridden = { ...drive(), mode: 'biking' }
     const walked = { ...drive(), mode: 'walking' }
     const failing = drive()
     let calls = 0
-    await attachLanes([driven, walked], async () => (calls++, answer))
+    await attachLanes([driven, ridden, walked], async () => (calls++, answer))
     await attachLanes([failing], async () => { throw new Error('down') })
-    expect(calls).toBe(1)
+    expect(calls).toBe(2)
     expect(driven.laneGeometry).toBeDefined()
+    expect(ridden.laneGeometry).toBeDefined()
     expect(walked.laneGeometry).toBeUndefined()
     expect(failing.drivingSide).toBe('right')
     expect(failing.laneGeometry).toBeUndefined()

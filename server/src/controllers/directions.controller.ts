@@ -254,10 +254,11 @@ app.post(
         + 'Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep '
         + 'grades, stairs, sharp curves and the like, placed by distance along the segment. '
         + 'Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users '
-        + 'with premium navigation. Driving segments carry `drivingSide`, and where the routing '
-        + 'engine knows the lanes, `laneGeometry` (the route drawn in the lanes it takes, with '
-        + '`measures` giving the distance along `geometry` each coordinate stands for) and '
-        + '`lanePlan` (per instruction index, the approach lanes left to right and which lead on).',
+        + 'with premium navigation. Driving and cycling segments carry `drivingSide`, and where the '
+        + 'routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for '
+        + 'cycling, the bike lane, or beside the traffic), with `measures` giving the distance along '
+        + '`geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per '
+        + 'instruction index, the approach lanes left to right and which lead on.',
       tags: ['Trip Planning'],
     },
   },

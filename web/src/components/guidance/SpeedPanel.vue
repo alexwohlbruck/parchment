@@ -26,34 +26,38 @@ const level = computed(() => speeding(current.value, limit.value))
 <template>
   <div
     v-if="guidance.progress && (limit != null || speedometer)"
-    class="nav-surface pointer-events-auto flex flex-col gap-1 rounded-[20px] bg-background/95 p-1.5 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md"
+    class="nav-surface pointer-events-auto flex flex-col gap-1.5 rounded-[20px] bg-background/95 p-1.5 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md"
     :class="dash ? 'w-20' : 'w-16'"
   >
     <!-- US / mph regions post a rectangular sign; metric regions a red ring. -->
     <div
       v-if="limit != null && !metric"
-      class="flex flex-col items-center rounded-[14px] border-2 border-zinc-900 bg-white pb-1 pt-1.5 text-zinc-900"
+      class="flex flex-col items-center justify-center gap-1 rounded-[14px] border-2 border-zinc-900 bg-white text-zinc-900"
+      :class="dash ? 'h-[76px]' : 'h-[60px]'"
     >
-      <span class="text-center font-bold leading-[1.1]" :class="dash ? 'text-[9px]' : 'text-[7px]'">{{ t('guidance.speed.limitSign') }}</span>
+      <span class="font-bold leading-none" :class="dash ? 'text-[11px]' : 'text-[9px]'">{{ t('guidance.speed.limitSign') }}</span>
       <span class="font-bold leading-none tabular-nums" :class="dash ? 'text-[32px]' : 'text-[26px]'">{{ limit }}</span>
     </div>
     <div
       v-else-if="limit != null"
-      class="flex aspect-square items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-bold text-zinc-900 tabular-nums"
-      :class="dash ? 'text-[26px]' : 'text-[22px]'"
+      class="flex aspect-square items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-bold leading-none text-zinc-900 tabular-nums"
+      :class="dash ? 'text-[28px]' : 'text-[22px]'"
     >
       {{ limit }}
     </div>
     <div
       v-if="speedometer"
-      class="flex flex-col items-center rounded-[14px] py-1.5 transition-colors"
-      :class="{
-        'text-amber-600 dark:text-amber-400': level === 'over',
-        'bg-coral-600 text-white': level === 'far-over',
-      }"
+      class="flex flex-col items-center justify-center gap-1 rounded-[14px] transition-colors"
+      :class="[
+        dash ? 'h-[76px]' : 'h-[60px]',
+        {
+          'text-amber-600 dark:text-amber-400': level === 'over',
+          'bg-coral-600 text-white': level === 'far-over',
+        },
+      ]"
     >
       <span class="font-bold leading-none tabular-nums" :class="dash ? 'text-[32px]' : 'text-[26px]'">{{ current }}</span>
-      <span class="mt-0.5 text-[11px]" :class="level === 'far-over' ? 'text-white/80' : 'text-muted-foreground'">
+      <span class="leading-none" :class="[dash ? 'text-[11px]' : 'text-[10px]', level === 'far-over' ? 'text-white/80' : 'text-muted-foreground']">
         {{ metric ? 'km/h' : 'mph' }}
       </span>
     </div>

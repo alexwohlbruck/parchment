@@ -1,3 +1,4 @@
+import type { SpeechCatalog, SpeechRequest } from '../../types/speech.types'
 import axios from 'axios'
 import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
 import type {
@@ -281,9 +282,26 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.TILE_SERVER,
     IntegrationCapabilityId.ROUTING,
     IntegrationCapabilityId.TRANSIT_ROUTING,
+    IntegrationCapabilityId.TTS,
   ]
 
   readonly capabilities = {
+    tts: {
+      getCatalog: async (signal?: AbortSignal): Promise<SpeechCatalog> => {
+        const response = await axios.get(`${this.config.host.replace(/\/$/, '')}/speech`, {
+          headers: this.headers, timeout: 3000, signal,
+        })
+        return response.data
+      },
+      synthesize: async (request: SpeechRequest, signal?: AbortSignal): Promise<Uint8Array> => {
+        const response = await axios.post(`${this.config.host.replace(/\/$/, '')}/speech`, request, {
+          headers: this.headers, timeout: 4000, signal, responseType: 'arraybuffer',
+          maxContentLength: 2 * 1024 * 1024,
+        })
+        if (!String(response.headers['content-type']).startsWith('audio/')) throw new Error('Invalid speech audio')
+        return new Uint8Array(response.data)
+      },
+    },
     search: {
       searchPlaces: this.searchPlaces.bind(this),
     } as SearchCapability,

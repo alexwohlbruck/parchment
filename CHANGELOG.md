@@ -2,6 +2,8 @@
 
 ### Added
 
+* Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.
+
 ### Changed
 
 ### Fixed

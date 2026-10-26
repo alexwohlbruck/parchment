@@ -1,3 +1,4 @@
+import type { SpeechCapability } from './speech.types'
 import type { TransitPriority } from '../lib/transit/transit-gate'
 import type { StopBoard } from '../lib/transit/route-options'
 import { Place, TransitDeparture } from './place.types'
@@ -663,6 +664,7 @@ export interface RideshareEstimateCapability {
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
+  tts?: SpeechCapability
   search?: SearchCapability
   searchCategory?: SearchCategoryCapability
   brandCatalog?: BrandCatalogCapability

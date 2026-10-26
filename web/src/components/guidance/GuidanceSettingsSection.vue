@@ -11,6 +11,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { PUCK_MODES } from '@/lib/guidance/vehicle-indicator'
 import VehiclePicker from './VehiclePicker.vue'
+import SpeechSettings from '@/components/speech/SpeechSettings.vue'
 import { SPEED_DISPLAYS } from '@/lib/guidance/speed-display'
 
 const { preferences } = storeToRefs(useGuidanceStore())
@@ -65,6 +66,10 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
           </SelectGroup>
         </SelectContent>
       </Select>
+    </SettingsItem>
+    <SpeechSettings />
+    <SettingsItem :title="$t('guidance.settings.adaptiveSpeech')" :description="$t('guidance.settings.adaptiveSpeechDescription')">
+      <Switch v-model="preferences.adaptiveSpeech" />
     </SettingsItem>
     <SettingsItem
       v-if="premium"

@@ -1,4 +1,4 @@
-import { computed, markRaw, reactive, ref, shallowRef } from 'vue'
+import { computed, markRaw, reactive, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useStorage } from '@vueuse/core'
 import type { TripOption } from '@/types/directions.types'
@@ -36,7 +36,9 @@ import { nextRunAfter, type LineRun } from '@/services/transit/transit-departure
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
-import { speak, stopVoice, unlockVoice } from '@/services/guidance/voice.service'
+import { speak, releaseSpeech, unlockSpeech, stopSpeech } from '@/services/speech/speech.service'
+import { navigationSpeechRate } from '@/lib/guidance/speech-rate'
+import { useSpeechStore } from '@/stores/speech.store'
 import { hapticImpact } from '@/lib/haptics'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
@@ -85,6 +87,7 @@ export interface GuidancePreferences {
   autoSwitchDocks: boolean
   vehicle: VehiclePreferences
   speedDisplay: SpeedDisplay
+  adaptiveSpeech: boolean
 }
 
 export interface TurnAround {
@@ -205,16 +208,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
       ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
       : announcementText(announcement, metric, translate)
     const urgent = announcement.kind === 'maneuver' && announcement.phase === 'now'
-    speak(text, { lang: storedLocale.value, urgent })
+    const speech = useSpeechStore().preferences
+    const speed = progress.value?.puck.speed ?? 0
+    const nextStep = route.value?.steps.find(step => step.startDistance > (announcement.kind === 'maneuver' ? announcement.step.startDistance : s) + 1)
+    const deadline = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? announcement.step.startDistance : nextStep?.startDistance
+    const available = preferences.value.adaptiveSpeech && deadline !== undefined && speed > 0.5 ? (deadline - s) / speed : undefined
+    const rate = navigationSpeechRate(text, speech.rate, available)
+    speak(text, { lang: storedLocale.value, urgent, rate, voice: speech.voices[storedLocale.value], maxAgeMs: available ? Math.max(500, Math.min(8000, available * 1000)) : 8000 })
     if (urgent) void hapticImpact('medium')
   }
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES, speedDisplay: 'both' },
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES, speedDisplay: 'both', adaptiveSpeech: true },
     undefined,
     { mergeDefaults: true },
   )
+  watch(() => preferences.value.sound[travelMode.value], () => stopSpeech())
   // Mutable so the dev tuning panel can adjust framing live.
   const cameraTuning = reactive({ ...DEFAULT_CAMERA_TUNING })
   let progressTimer: ReturnType<typeof setInterval> | null = null
@@ -367,6 +377,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (!segment || !destination || !canReroute(segment.mode)) return
 
     lastRerouteAt = Date.now()
+    stopSpeech()
     status.value = 'rerouting'
     announce({ kind: 'reroute' }, puck.s)
     try {
@@ -389,6 +400,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Swaps in a replanned leg mid-guidance, keeping the announcer's progress. */
   function reshape(next: LegSegment[]) {
+    stopSpeech()
     segments.value = next
     const navRoute = markRaw(buildNavRoute(next.map(withBoardingStep)))
     lanePlans.value = routeLanePlans(navRoute)
@@ -489,7 +501,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Drops whatever the session was following and roams free from here. */
   async function roam(mode: FreeMode) {
-    unlockVoice()
+    unlockSpeech()
     const fresh = !isActive.value
     leaveRoute()
     kind.value = 'free'
@@ -549,7 +561,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   async function start(option: TripOption, leg: number) {
-    unlockVoice()
+    unlockSpeech()
     await requestMotionPermission()
     leaveRoam()
     trip.value = markRaw(option)
@@ -608,7 +620,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   function stop() {
     guidanceEngine.stop()
     releaseScreenAwake()
-    stopVoice()
+    releaseSpeech()
     if (progressTimer) clearInterval(progressTimer)
     progressTimer = null
     leaveRoute()

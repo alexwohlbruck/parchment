@@ -40,6 +40,24 @@ describe('BarrelmanIntegration', () => {
     mockAxiosPost.mockClear()
   })
 
+  describe('speech capability', () => {
+    test('discovers voices using the instance credential and forwards cancellation', async () => {
+      integration.initialize({ host: 'http://barrelman.test/', apiKey: 'service-key' })
+      const signal = new AbortController().signal
+      mockAxiosGet.mockResolvedValueOnce({ data: { voices: [], inflection: false } })
+      await integration.capabilities.tts.getCatalog(signal)
+      expect(mockAxiosGet).toHaveBeenCalledWith('http://barrelman.test/speech', expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer service-key' }), signal,
+      }))
+    })
+    test('forwards speech controls and returns bounded audio bytes', async () => {
+      const request = { text: 'Turn left', language: 'en-US', voice: 'af_heart', rate: 1.25 }
+      mockAxiosPost.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]).buffer, headers: { 'content-type': 'audio/mpeg' } })
+      expect(await integration.capabilities.tts.synthesize(request)).toEqual(new Uint8Array([1, 2, 3]))
+      expect(mockAxiosPost).toHaveBeenCalledWith('http://localhost:3100/speech', request, expect.objectContaining({ responseType: 'arraybuffer', maxContentLength: 2097152 }))
+    })
+  })
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   describe('validateConfig', () => {

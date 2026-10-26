@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep grades, stairs, sharp curves and the like, placed by distance along the segment. Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users with premium navigation. Driving segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry` (the route drawn in the lanes it takes, with `measures` giving the distance along `geometry` each coordinate stands for) and `lanePlan` (per instruction index, the approach lanes left to right and which lead on).",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep grades, stairs, sharp curves and the like, placed by distance along the segment. Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it.",
         "tags": [
           "Trip Planning"
         ],
@@ -1239,6 +1239,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -1613,6 +1624,17 @@
                         "dwellTime": {
                           "minimum": 0,
                           "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -1985,6 +2007,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -2344,6 +2377,11 @@
                     "maximum": 360,
                     "type": "number"
                   },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
                   "destination": {
                     "type": "object",
                     "properties": {
@@ -2413,6 +2451,11 @@
                     "maximum": 360,
                     "type": "number"
                   },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
                   "destination": {
                     "type": "object",
                     "properties": {
@@ -2480,6 +2523,11 @@
                   "heading": {
                     "minimum": 0,
                     "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
                     "type": "number"
                   },
                   "destination": {
@@ -2570,6 +2618,11 @@
                     "maximum": 360,
                     "type": "number"
                   },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
                   "destination": {
                     "type": "object",
                     "properties": {
@@ -2639,6 +2692,11 @@
                     "maximum": 360,
                     "type": "number"
                   },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
                   "destination": {
                     "type": "object",
                     "properties": {
@@ -2706,6 +2764,11 @@
                   "heading": {
                     "minimum": 0,
                     "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
                     "type": "number"
                   },
                   "destination": {
@@ -2843,6 +2906,17 @@
                         "dwellTime": {
                           "minimum": 0,
                           "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -3216,6 +3290,17 @@
                         "dwellTime": {
                           "minimum": 0,
                           "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -3588,6 +3673,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -12587,6 +12683,7 @@
             "required": false
           },
           {
+            "description": "Latitude to bias results toward. Places are only searched when lat and lng are both given.",
             "schema": {
               "type": "string"
             },
@@ -12595,6 +12692,7 @@
             "required": false
           },
           {
+            "description": "Longitude to bias results toward.",
             "schema": {
               "type": "string"
             },
@@ -12653,6 +12751,7 @@
           "Search"
         ],
         "summary": "Search for places",
+        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.",
         "responses": {
           "200": {}
         }

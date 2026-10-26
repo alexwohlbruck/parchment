@@ -549,6 +549,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   function leaveRoute() {
+    stopSpeech()
     announcer = null
     turnAroundWatch = null
     route.value = null
@@ -574,6 +575,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Guides along `parts` from scratch: a new leg, or a leg reshaped by an added stop. */
   function follow(parts: LegSegment[]): NavRoute {
+    stopSpeech()
     const navRoute = markRaw(buildNavRoute(parts.map(withBoardingStep)))
     lanePlans.value = routeLanePlans(navRoute)
     segments.value = parts

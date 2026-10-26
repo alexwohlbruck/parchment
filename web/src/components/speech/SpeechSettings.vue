@@ -5,7 +5,7 @@ import { Volume2Icon } from 'lucide-vue-next'
 import { useSpeechStore } from '@/stores/speech.store'
 import { useSpeechCatalog } from '@/composables/speech/useSpeechCatalog'
 import { storedLocale, i18n } from '@/lib/i18n'
-import { speak, stopSpeech, unlockSpeech } from '@/services/speech/speech.service'
+import { speak, releaseSpeech, unlockSpeech } from '@/services/speech/speech.service'
 import { SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,7 @@ function preview() {
   unlockSpeech()
   speak((i18n.global as any).t('guidance.settings.speechSample'), { lang: storedLocale.value, voice: preferences.value.voices[storedLocale.value], rate: preferences.value.rate, urgent: true })
 }
-onBeforeUnmount(() => { if (previewed.value) stopSpeech() })
+onBeforeUnmount(() => { if (previewed.value) releaseSpeech() })
 </script>
 
 <template>

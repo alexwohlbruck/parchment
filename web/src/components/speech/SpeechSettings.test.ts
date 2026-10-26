@@ -8,7 +8,7 @@ import { useSpeechStore } from '@/stores/speech.store'
 import type { SpeechCatalog } from '@server/types/speech.types'
 import english from '@/lib/i18n/en-US.json'
 
-const mocks = vi.hoisted(() => ({ speak: vi.fn(), stopSpeech: vi.fn(), unlockSpeech: vi.fn() }))
+const mocks = vi.hoisted(() => ({ speak: vi.fn(), releaseSpeech: vi.fn(), unlockSpeech: vi.fn() }))
 vi.mock('@/services/speech/speech.service', () => mocks)
 vi.mock('@/components/ui/kbd/Kbd.vue', () => ({ default: { template: '<kbd />' } }))
 const catalog = shallowRef<SpeechCatalog | null>(null)

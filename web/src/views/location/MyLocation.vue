@@ -12,7 +12,7 @@ import { useStartFreeRoam } from '@/composables/guidance/useStartFreeRoam'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useGeocodingService } from '@/services/geocoding.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { getSearchResultName } from '@/lib/search/search-result'
+import { formatAddress } from '@/lib/place/place-details'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
@@ -34,7 +34,7 @@ watch(
     geocodedOnce = true
     try {
       const { results } = await reverseGeocode({ lat: position.lat, lng: position.lng, limit: 1 })
-      address.value = results[0] ? getSearchResultName(results[0]) : null
+      address.value = (results[0] && formatAddress(results[0])) || null
     } catch {
       address.value = null
     }

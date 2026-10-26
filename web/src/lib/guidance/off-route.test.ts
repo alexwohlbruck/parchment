@@ -44,6 +44,11 @@ describe('OffRouteDetector', () => {
     for (let i = 0; i < 5; i++) expect(detector.update(onRoute)).toBe(false)
   })
 
+  test('the departure grace forgives a start beside the route, not one far from it', () => {
+    expect(fixesToLeave('driving', { s: 0, offset: 120 })).toBeNull()
+    expect(fixesToLeave('driving', { s: 0, offset: 2000 })).toBe(2)
+  })
+
   test('walking back along the route counts, a sideways course does not', () => {
     expect(fixesToLeave('walking', { courseError: 170 })).toBe(6)
     expect(fixesToLeave('walking', { courseError: 90 })).toBeNull()

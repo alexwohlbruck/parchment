@@ -14,11 +14,11 @@ const indicators = computed(() => INDICATORS[props.mode])
 
 <template>
   <div class="space-y-2">
-    <div v-if="indicators.length > 1" class="flex flex-wrap gap-1.5">
+    <div v-if="indicators.length > 1" class="grid max-w-80 grid-cols-4 gap-1.5">
       <button
         v-for="indicator in indicators"
         :key="indicator"
-        class="flex flex-col items-center gap-0.5 rounded-xl border px-2 pb-1 pt-1.5 text-xs transition-colors"
+        class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl border px-1 pb-1 pt-1.5 text-xs transition-colors"
         :class="choice.indicator === indicator ? 'border-foreground/60 bg-muted font-medium' : 'border-transparent text-muted-foreground hover:bg-muted'"
         :aria-pressed="choice.indicator === indicator"
         @click="guidance.setVehicle(mode, { indicator })"

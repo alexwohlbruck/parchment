@@ -40,10 +40,21 @@ import { speak, stopVoice, unlockVoice } from '@/services/guidance/voice.service
 import { hapticImpact } from '@/lib/haptics'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
-import { UnitSystem } from '@/types/map.types'
+import { UnitSystem, type LngLat } from '@/types/map.types'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
+import { useGeolocationService } from '@/services/geolocation.service'
+import { distanceMeters } from '@/lib/map/movement-interpolation'
+import {
+  HazardWatch,
+  horizonSegment,
+  horizonTarget,
+  needsHorizon,
+  roamProgress,
+  straightSegment,
+  type FreeMode,
+} from '@/lib/guidance/free-roam'
 
 // The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
 const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
@@ -51,8 +62,15 @@ const translate = (i18n.global as any).t as (key: string, named?: Record<string,
 const PROGRESS_INTERVAL_MS = 250
 const REROUTE_MIN_INTERVAL_MS = 10_000
 const START_BEARING_WINDOW = 20
+const HORIZON_MIN_INTERVAL_MS = 3_000
+const HORIZON_RETRY_MS = 10_000
+/** Below this the puck is idling and its jitter isn't distance travelled. */
+const ODOMETER_MIN_SPEED = 0.5
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
+
+/** A session follows a route to a destination, or roams free along whatever road is ahead. */
+export type GuidanceKind = 'route' | 'free'
 
 export type SoundMode = 'all' | 'alerts' | 'silent'
 export const SOUND_MODES: SoundMode[] = ['all', 'alerts', 'silent']
@@ -148,9 +166,29 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const orientation = useOrientationService()
   let turnAroundWatch: TurnAroundWatch | null = null
 
+  const kind = ref<GuidanceKind>('route')
+  const freeMode = ref<FreeMode>('driving')
+  /** The path ahead free roam follows in place of a route. */
+  const horizon = shallowRef<NavRoute | null>(null)
+  const roamStartedAt = ref(0)
+  const travelledMeters = ref(0)
+  let lastRoamPosition: { lat: number; lng: number } | null = null
+  let horizonPending = false
+  let nextHorizonAt = 0
+  let hazardWatch: HazardWatch | null = null
+  const geolocation = useGeolocationService()
+
+  /** The line the engine follows: the route, or in free roam the path ahead. */
+  const followed = computed(() => route.value ?? horizon.value)
+
+  function modeAt(s: number): string {
+    if (route.value) return travelModeAt(route.value, s)
+    return kind.value === 'free' ? freeMode.value : 'driving'
+  }
+  const travelMode = computed(() => modeAt(progress.value?.puck.s ?? 0))
+
   function soundModeAt(s: number): SoundMode {
-    const mode = route.value ? travelModeAt(route.value, s) : 'driving'
-    return preferences.value.sound[mode] ?? 'all'
+    return preferences.value.sound[modeAt(s)] ?? 'all'
   }
 
   function announce(announcement: Announcement, s: number) {
@@ -177,9 +215,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const cameraTuning = reactive({ ...DEFAULT_CAMERA_TUNING })
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
-  const isActive = computed(() => route.value != null)
+  const isActive = computed(() => route.value != null || kind.value === 'free')
 
   function refreshProgress() {
+    if (kind.value === 'free') return refreshRoam()
     const navRoute = route.value
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck || status.value === 'arrived') return
@@ -376,9 +415,128 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return true
   }
 
+  function refreshRoam() {
+    const line = horizon.value
+    const puck = guidanceEngine.sample()
+    clockMs.value = Math.floor(guidanceClock.now() / 1000) * 1000
+    if (needsHorizon(line, puck, freeMode.value)) void extendHorizon()
+    if (!line || !puck) return
+    progress.value = { puck, ...roamProgress(line, puck), turnAround: null }
+    if (lastRoamPosition && puck.speed > ODOMETER_MIN_SPEED) travelledMeters.value += distanceMeters(lastRoamPosition, puck.position)
+    lastRoamPosition = puck.position
+    const hazard = hazardWatch?.update(line, puck)
+    if (hazard) announce({ kind: 'hazard', ...hazard }, puck.s)
+  }
+
+  /** Where the path ahead starts: the puck once there is one, else the latest fix. */
+  function roamOrigin(): { position: LngLat; heading: number | null; speed: number | null } | null {
+    const puck = guidanceEngine.sample()
+    if (puck) return { position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed }
+    const position = geolocation.lngLat.value
+    if (!position) return null
+    const speed = geolocation.coords.value.speed
+    const heading = travellerHeading({
+      course: geolocation.heading.value,
+      speed,
+      compass: orientation.heading.value,
+      compassAccuracy: orientation.headingAccuracy.value,
+    })
+    return { position, heading, speed }
+  }
+
+  async function extendHorizon() {
+    if (horizonPending || Date.now() < nextHorizonAt) return
+    const from = roamOrigin()
+    if (!from) return
+    const mode = freeMode.value
+    const heading = from.heading ?? 0
+    horizonPending = true
+    nextHorizonAt = Date.now() + HORIZON_MIN_INTERVAL_MS
+    let segment: NavSegmentInput | null = null
+    try {
+      const fresh = await requestReroute({ ...from, destination: horizonTarget(from.position, heading, mode), mode })
+      if (fresh) segment = horizonSegment(fresh, mode)
+    } catch {
+      nextHorizonAt = Date.now() + HORIZON_RETRY_MS
+    } finally {
+      horizonPending = false
+    }
+    if (kind.value !== 'free' || mode !== freeMode.value) return
+    if (!segment) {
+      if (horizon.value) return
+      segment = straightSegment(from.position, heading, mode)
+    }
+    const line = markRaw(buildNavRoute([segment]))
+    horizon.value = line
+    if (guidanceEngine.active.value) guidanceEngine.setRoute(line)
+    else guidanceEngine.start(line)
+  }
+
+  /** Drops whatever the session was following and roams free from here. */
+  async function roam(mode: FreeMode) {
+    unlockVoice()
+    const fresh = !isActive.value
+    leaveRoute()
+    kind.value = 'free'
+    freeMode.value = mode
+    horizon.value = null
+    progress.value = null
+    roamStartedAt.value = guidanceClock.now()
+    travelledMeters.value = 0
+    lastRoamPosition = null
+    nextHorizonAt = 0
+    hazardWatch = new HazardWatch()
+    if (fresh) {
+      await requestMotionPermission()
+      holdScreenAwake()
+    }
+    progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
+    void extendHorizon()
+  }
+
+  function setFreeMode(mode: FreeMode) {
+    if (kind.value !== 'free' || mode === freeMode.value) return
+    freeMode.value = mode
+    nextHorizonAt = 0
+    void extendHorizon()
+  }
+
+  /** Turns free roam into guidance to `stop`, without leaving the view. */
+  async function headTo(stop: AddedStop & { placeId?: string }): Promise<boolean> {
+    const from = roamOrigin()
+    const mode = freeMode.value
+    if (kind.value !== 'free' || !from) return false
+    const fresh = await requestReroute({ ...from, destination: stop.location, mode })
+    if (!fresh || kind.value !== 'free') return false
+    leaveRoam()
+    const navRoute = follow([{ ...fresh, mode, end: { label: stop.label, location: stop.location, place: stop.placeId ? { id: stop.placeId } : null } }])
+    if (guidanceEngine.active.value) guidanceEngine.setRoute(navRoute)
+    else guidanceEngine.start(navRoute)
+    return true
+  }
+
+  function leaveRoam() {
+    kind.value = 'route'
+    horizon.value = null
+    hazardWatch = null
+  }
+
+  function leaveRoute() {
+    announcer = null
+    turnAroundWatch = null
+    route.value = null
+    trip.value = null
+    segments.value = []
+    continuation.value = null
+    transit.value = null
+    handoff.value = null
+    status.value = 'navigating'
+  }
+
   async function start(option: TripOption, leg: number) {
     unlockVoice()
     await requestMotionPermission()
+    leaveRoam()
     trip.value = markRaw(option)
     legIndex.value = leg
     continuation.value = null
@@ -436,17 +594,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     guidanceEngine.stop()
     releaseScreenAwake()
     stopVoice()
-    announcer = null
-    turnAroundWatch = null
     if (progressTimer) clearInterval(progressTimer)
     progressTimer = null
-    route.value = null
+    leaveRoute()
+    leaveRoam()
     progress.value = null
-    trip.value = null
-    segments.value = []
-    continuation.value = null
-    transit.value = null
-    status.value = 'navigating'
   }
 
   const destinationLabel = computed(() => segments.value.at(-1)?.end?.label ?? null)
@@ -469,7 +621,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   function cycleSound() {
-    const mode = route.value && progress.value ? travelModeAt(route.value, progress.value.puck.s) : 'driving'
+    const mode = travelMode.value
     const current = preferences.value.sound[mode] ?? 'all'
     const next = SOUND_MODES[(SOUND_MODES.indexOf(current) + 1) % SOUND_MODES.length]
     preferences.value.sound = { ...preferences.value.sound, [mode]: next }
@@ -482,6 +634,16 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   return {
+    kind,
+    freeMode,
+    horizon,
+    followed,
+    travelMode,
+    roamStartedAt,
+    travelledMeters,
+    roam,
+    setFreeMode,
+    headTo,
     trip,
     tripId,
     legIndex,

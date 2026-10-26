@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { useStorage } from '@vueuse/core'
 import type { TripOption } from '@/types/directions.types'
 import { buildNavRoute, type NavRoute, type NavSegmentInput } from '@/lib/guidance/nav-route'
-import type { PuckState } from '@/lib/guidance/guidance-engine'
+import type { Fix, PuckState } from '@/lib/guidance/guidance-engine'
 import {
   DEFAULT_CAMERA_TUNING,
   type BearingMode,
@@ -16,6 +16,7 @@ import { travellerHeading } from '@/lib/directions/start-motion'
 import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
+import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
 import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
 import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
@@ -51,7 +52,7 @@ const PROGRESS_INTERVAL_MS = 250
 const REROUTE_MIN_INTERVAL_MS = 10_000
 const START_BEARING_WINDOW = 20
 
-export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived'
+export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
 
 export type SoundMode = 'all' | 'alerts' | 'silent'
 export const SOUND_MODES: SoundMode[] = ['all', 'alerts', 'silent']
@@ -119,6 +120,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Legs already finished, per trip, so the trip page offers the next one. */
   const completedLegs = ref<Record<string, number>>({})
   let lastRerouteAt = 0
+  /** Whether a fix has placed the traveller on or onto the route since this leg began. */
+  let joined = false
+  let lastJoinFixAt: number | null = null
   let announcer: Announcer | null = null
   const handoff = shallowRef<Handoff | null>(null)
   /** Segments whose handoff was accepted or dismissed; per route, cleared on reroute. */
@@ -182,8 +186,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
     clockMs.value = Math.floor(guidanceClock.now() / 1000) * 1000
     const summary = summarizeProgress(navRoute, puck, segmentDurations.value)
     const timetabled = timetabledRemaining(navRoute, segments.value, segmentDurations.value, puck.s, guidanceClock.now())
-    const turnAround = puck.snapped ? updateTurnAround(navRoute, puck) : null
+    if (!joined) checkJoin()
+    const turnAround = puck.snapped && status.value !== 'away' ? updateTurnAround(navRoute, puck) : null
     progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds, turnAround }
+    if (status.value === 'away') return
     updateTransit(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
     const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
@@ -209,6 +215,24 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const cue = { heading: cardinal(routeBearing), road: road.kind === 'named' ? road.name : null }
     if (raised) announce({ kind: 'turn-around', ...cue }, puck.s)
     return cue
+  }
+
+  /** Guidance waits while the traveller is too far from the route to follow it or plan onto it. */
+  function checkJoin() {
+    const fix = guidanceEngine.diagnostics?.lastFix
+    if (!fix || fix.t === lastJoinFixAt) return
+    lastJoinFixAt = fix.t
+    settleJoin(joinPlan(segments.value, fix), fix)
+  }
+
+  function settleJoin(plan: JoinPlan, fix: Fix) {
+    if (plan.kind === 'away') {
+      status.value = 'away'
+      return
+    }
+    joined = true
+    if (status.value === 'away') status.value = 'navigating'
+    if (plan.kind === 'join') void reroute({ segment: plan.segmentIndex, from: fix })
   }
 
   function updateHandoff(navRoute: NavRoute, puck: PuckState) {
@@ -277,12 +301,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (trip.value && !continuation.value) completedLegs.value = { ...completedLegs.value, [trip.value.id]: legIndex.value }
   }
 
-  async function reroute() {
+  /** `join` plans from a raw fix onto a segment, for a start away from the route. */
+  async function reroute(join?: { segment: number; from: Fix }) {
     const navRoute = route.value
     const puck = guidanceEngine.sample()
     if (!navRoute || !puck || status.value !== 'navigating') return
     if (Date.now() - lastRerouteAt < REROUTE_MIN_INTERVAL_MS) return
-    const index = segmentAt(navRoute, puck.s)?.index ?? 0
+    const index = join?.segment ?? segmentAt(navRoute, puck.s)?.index ?? 0
     const segment = segments.value[index]
     const destination = segment?.geometry?.at(-1)
     if (!segment || !destination || !canReroute(segment.mode)) return
@@ -292,15 +317,15 @@ export const useGuidanceStore = defineStore('guidance', () => {
     announce({ kind: 'reroute' }, puck.s)
     try {
       const fresh = await requestReroute({
-        position: rerouteOrigin(puck.position, puck.bearing, puck.speed),
-        heading: puck.bearing,
-        speed: puck.speed,
+        position: join ? join.from.position : rerouteOrigin(puck.position, puck.bearing, puck.speed),
+        heading: join ? join.from.heading : puck.bearing,
+        speed: join ? join.from.speed : puck.speed,
         destination,
         mode: segment.mode,
       })
       if (!fresh || route.value !== navRoute) return
       reshape(spliceReroute(segments.value, index, fresh))
-      turnAroundWatch = new TurnAroundWatch(route.value?.segments[index]?.startDistance ?? 0)
+      turnAroundWatch = new TurnAroundWatch()
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
@@ -371,6 +396,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress.value = null
     status.value = 'navigating'
     lastRerouteAt = 0
+    joined = false
+    lastJoinFixAt = null
     settledHandoffs = new Set()
     handoff.value = null
     slowSec = 0

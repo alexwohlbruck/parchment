@@ -32,6 +32,7 @@ const then = computed(() => (props.progress?.then ? maneuverKind(props.progress.
 const offRoute = computed(() => props.progress && !props.progress.puck.snapped)
 const headline = computed(() => {
   if (props.status === 'arrived') return t('guidance.banner.arrived')
+  if (props.status === 'away') return t('guidance.banner.away')
   if (props.status === 'rerouting') return t('guidance.banner.rerouting')
   return offRoute.value ? t('guidance.banner.offRoute') : null
 })
@@ -42,7 +43,10 @@ const turnAroundThen = computed(() => {
   const heading = t(`guidance.voice.headings.${cue.heading}`)
   return cue.road ? t('guidance.banner.headOn', { heading, road: cue.road }) : t('guidance.banner.head', { heading })
 })
-const subline = computed(() => (props.status === 'arrived' ? props.destination : t('guidance.banner.offRouteHint')))
+const subline = computed(() => {
+  if (props.status === 'arrived') return props.destination
+  return props.status === 'away' ? t('guidance.banner.awayHint') : t('guidance.banner.offRouteHint')
+})
 </script>
 
 <template>

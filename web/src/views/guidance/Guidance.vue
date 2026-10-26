@@ -55,6 +55,12 @@ function closePanel(outright = false) {
   if (leaving && MAP_PANELS.has(leaving)) camera.follow()
 }
 
+// Away from the route there is nothing to follow; show the whole of it until the traveller joins.
+watch(
+  () => guidance.status === 'away',
+  away => (away ? camera.overview() : camera.follow()),
+)
+
 const arrivedForGood = computed(() => guidance.status === 'arrived' && guidance.nextLeg == null)
 
 function exit() {

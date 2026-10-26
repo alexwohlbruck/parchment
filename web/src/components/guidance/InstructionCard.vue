@@ -7,6 +7,8 @@ import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { walkToStopSec } from '@/lib/guidance/transit-progress'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import { useGuidanceStore } from '@/stores/guidance.store'
+import { useRoutePreviewStore } from '@/stores/route-preview.store'
+import { Button } from '@/components/ui/button'
 import ManeuverBanner from './ManeuverBanner.vue'
 import TransitStageCard from './transit/TransitStageCard.vue'
 import TransitApproach from './transit/TransitApproach.vue'
@@ -58,6 +60,14 @@ function findAnotherWay() {
   guidance.stop()
   router.replace({ name: AppRoute.DIRECTIONS, query })
 }
+
+const routePreview = useRoutePreviewStore()
+function previewRoute() {
+  const option = guidance.trip
+  if (!option) return
+  routePreview.open(option, guidance.legIndex)
+  router.replace({ name: AppRoute.ROUTE_PREVIEW })
+}
 </script>
 
 <template>
@@ -90,6 +100,11 @@ function findAnotherWay() {
         :now-ms="guidance.clockMs"
         :walk-sec="approach.walkSec"
       />
+      <div v-if="guidance.status === 'away'" class="px-5 pb-4">
+        <Button variant="secondary" class="rounded-full" @click="previewRoute">
+          {{ t('guidance.preview.previewRoute') }}
+        </Button>
+      </div>
     </template>
   </div>
 </template>

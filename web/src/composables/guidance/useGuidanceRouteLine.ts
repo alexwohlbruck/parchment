@@ -7,17 +7,42 @@ import { useMapService } from '@/services/map/map.service'
 import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
 import { trackDeckLift } from '@/services/guidance/deck-lift.service'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
-import { distanceAlong, type NavStep } from '@/lib/guidance/nav-route'
+import { distanceAlong, type NavRoute, type NavStep } from '@/lib/guidance/nav-route'
 import { bridgeSpans, ridesAt } from '@/lib/guidance/deck-lift'
 import { drawnLine, drawnOffsetMeters } from '@/lib/guidance/route-line'
 import { turnCallout } from '@/lib/guidance/turn-callout'
 import { hazardCallouts } from '@/lib/guidance/hazard-callouts'
-import type { GuidanceProgress } from '@/stores/guidance.store'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
-/** Draws the navigated leg in place of the trip preview while guidance runs. */
-export function useGuidanceRouteLine() {
+/** Where along the route the line is drawn from: the travelled part, the next turn, and the hazards ahead. */
+export interface RouteLineFocus {
+  s: number
+  speed: number
+  travelled: number
+  next: NavStep | null
+  hazards: boolean
+}
+
+export interface RouteLineSource {
+  route: () => NavRoute | null
+  focus: () => RouteLineFocus | null
+}
+
+function guidanceSource(): RouteLineSource {
   const guidance = useGuidanceStore()
+  return {
+    route: () => guidance.route,
+    focus: () => {
+      const progress = guidance.progress
+      if (!progress) return null
+      const { puck } = progress
+      return { s: puck.s, speed: puck.speed, travelled: puck.snapped ? puck.s : 0, next: progress.next, hazards: puck.snapped }
+    },
+  }
+}
+
+/** Draws the guided or previewed leg in place of the trip's route lines. */
+export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource()) {
   const { t } = useI18n()
   const mapService = useMapService()
   const strategy = useMapStore().getMapStrategy()
@@ -26,7 +51,7 @@ export function useGuidanceRouteLine() {
   let stopLift: (() => void) | null = null
 
   const stopRoute = watch(
-    () => guidance.route,
+    source.route,
     route => {
       if (!map || !route) return
       if (layer) layer.setRoute(route)
@@ -48,30 +73,28 @@ export function useGuidanceRouteLine() {
   )
 
   const stopProgress = watch(
-    () => guidance.progress,
-    progress => {
-      if (!layer || !progress) return
-      const mode = guidance.route ? travelModeAt(guidance.route, progress.puck.s) : 'driving'
+    source.focus,
+    focus => {
+      const route = source.route()
+      if (!layer || !focus || !route) return
+      const mode = travelModeAt(route, focus.s)
       strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
-      const travelled = progress.puck.snapped ? progress.puck.s : 0
-      const callout = calloutFor(progress.next)
-      layer.update(travelled, callout, hazardsFor(progress, callout?.at ?? null))
-      strategy?.setDeckRouteTravelled(travelled)
+      const callout = calloutFor(route, focus.next)
+      layer.update(focus.travelled, callout, focus.hazards ? hazardsFor(route, focus, callout?.at ?? null) : [])
+      strategy?.setDeckRouteTravelled(focus.travelled)
     },
+    { immediate: true },
   )
 
-  function calloutFor(step: NavStep | null) {
-    const route = guidance.route
-    if (!route || !step || step.instruction.type === 'destination') return null
+  function calloutFor(route: NavRoute, step: NavStep | null) {
+    if (!step || step.instruction.type === 'destination') return null
     const { at, side, kind, road } = turnCallout(route, step)
     const text = road.kind === 'named' ? road.name : t(`guidance.roads.${road.key}`)
     return { at, side, kind, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
   }
 
-  function hazardsFor({ puck }: GuidanceProgress, turnAt: number | null) {
-    const route = guidance.route
-    if (!route || !puck.snapped) return []
-    return hazardCallouts(route, puck.s, puck.speed, turnAt).map(({ hazard, tone, compact }) => ({
+  function hazardsFor(route: NavRoute, { s, speed }: RouteLineFocus, turnAt: number | null) {
+    return hazardCallouts(route, s, speed, turnAt).map(({ hazard, tone, compact }) => ({
       at: hazard.startDistance,
       kind: hazard.kind,
       tone,

@@ -20,6 +20,8 @@ import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
+import { useRoutePreviewStore } from '@/stores/route-preview.store'
+import { useStartEligibility } from '@/composables/guidance/useStartEligibility'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -42,6 +44,7 @@ import {
   LogInIcon,
   LogOutIcon,
   NavigationIcon,
+  MapIcon,
   ShareIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
@@ -679,6 +682,13 @@ async function startGuidance() {
   router.push({ name: AppRoute.GUIDANCE })
 }
 
+const routePreview = useRoutePreviewStore()
+function previewRoute() {
+  if (!trip.value || legToStart.value == null) return
+  routePreview.open(trip.value, legToStart.value)
+  router.push({ name: AppRoute.ROUTE_PREVIEW })
+}
+
 const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -718,6 +728,8 @@ const trip = computed(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return list.find(t => tripSignature((t as any).segments) === sig) || null
 })
+
+const startEligibility = useStartEligibility(trip, legToStart)
 
 watch(
   () => [tripId.value, route.query.pt],
@@ -817,8 +829,9 @@ onBeforeRouteLeave(to => {
 onUnmounted(() => {
   // The board's run ids belong to this page's boards; the list page has none.
   tripFocusStore.setLegTripIds({})
-  // Guidance follows this trip and returns here on exit.
-  if (route.name === AppRoute.DIRECTIONS || route.name === AppRoute.GUIDANCE) return
+  // Guidance and the route preview follow this trip and return here on exit.
+  const keepsTrip = new Set<unknown>([AppRoute.DIRECTIONS, AppRoute.GUIDANCE, AppRoute.ROUTE_PREVIEW])
+  if (keepsTrip.has(route.name)) return
   directionsService.clearWaypoints()
   directionsStore.unsetTrips()
 })
@@ -1146,7 +1159,11 @@ function showSegmentChart(segment: any): boolean {
 
         <!-- Start + Share + Save -->
         <div class="flex items-center gap-0.5 shrink-0 -mr-2 -mb-1">
-          <Button v-if="legToStart != null" size="sm" class="mr-1.5" @click="startGuidance">
+          <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1.5" @click="previewRoute">
+            <MapIcon class="size-4" />
+            {{ translate('guidance.preview.action') }}
+          </Button>
+          <Button v-else-if="legToStart != null" size="sm" class="mr-1.5" @click="startGuidance">
             <NavigationIcon class="size-4" />
             {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
           </Button>

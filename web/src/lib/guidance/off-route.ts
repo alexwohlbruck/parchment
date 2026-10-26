@@ -21,6 +21,8 @@ export interface OffRouteOptions {
   courseLimit: number
   minCourseSpeed: number
   departureGrace: number
+  /** Offset past which the departure grace no longer holds: that far out, the traveller isn't at the start. */
+  departureReach: number
   rejoinFraction: number
   /** Strikes to leave the route; an outside fix scores two, a wrong course one. */
   minStrikes: number
@@ -33,6 +35,7 @@ export const DEFAULT_OFF_ROUTE_OPTIONS: OffRouteOptions = {
   courseLimit: 45,
   minCourseSpeed: 3,
   departureGrace: 40,
+  departureReach: 250,
   rejoinFraction: 0.5,
   minStrikes: 4,
 }
@@ -47,6 +50,7 @@ const MODE_OFF_ROUTE_OPTIONS: Record<string, OffRouteOptions> = {
     courseLimit: 90,
     minCourseSpeed: 2,
     departureGrace: 25,
+    departureReach: 150,
   },
   walking: {
     ...DEFAULT_OFF_ROUTE_OPTIONS,
@@ -57,6 +61,7 @@ const MODE_OFF_ROUTE_OPTIONS: Record<string, OffRouteOptions> = {
     courseLimit: 120,
     minCourseSpeed: 0.8,
     departureGrace: 10,
+    departureReach: 100,
     minStrikes: 6,
   },
 }
@@ -91,7 +96,7 @@ export class OffRouteDetector {
   }
 
   update(input: OffRouteInput): boolean {
-    const { courseLimit, minCourseSpeed, departureGrace, rejoinFraction, minStrikes } = this.options
+    const { courseLimit, minCourseSpeed, departureGrace, departureReach, rejoinFraction, minStrikes } = this.options
     const radius = this.radius(input)
 
     if (this.offRoute) {
@@ -104,7 +109,7 @@ export class OffRouteDetector {
       return this.offRoute
     }
 
-    if (input.s < departureGrace) {
+    if (input.s < departureGrace && input.offset <= departureReach) {
       this.strikes = 0
       return false
     }

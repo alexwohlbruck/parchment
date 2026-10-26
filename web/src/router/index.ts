@@ -34,6 +34,7 @@ export enum AppRoute {
   DIRECTIONS = 'directions',
   TRIP = 'trip',
   GUIDANCE = 'guidance',
+  ROUTE_PREVIEW = 'route-preview',
   SEARCH_RESULTS = 'search-results',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
@@ -166,6 +167,12 @@ const router = createRouter({
           name: AppRoute.GUIDANCE,
           component: () => import('@/views/guidance/Guidance.vue'),
           // Guidance takes over the whole screen: no rail, sheet or map chrome.
+          meta: { immersive: true },
+        },
+        {
+          path: '/navigate/preview',
+          name: AppRoute.ROUTE_PREVIEW,
+          component: () => import('@/views/guidance/RoutePreview.vue'),
           meta: { immersive: true },
         },
         {

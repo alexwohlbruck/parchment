@@ -173,6 +173,25 @@ describe('BarrelmanIntegration', () => {
     })
   })
 
+  describe('getAutocomplete — proximity', () => {
+    const codeHit = (i: number) => ({ ...baseResult, id: `way/${i}`, name: `Far ${i}`, text_rank: 0.98, distance_m: 2_000_000 + i })
+    const nearHit = { ...baseResult, id: 'relation/3005307', name: 'Central Park', text_rank: 1.5, distance_m: 3353 }
+
+    test('forwards the position and fetches a wider pool than it returns', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [] })
+      await integration.getAutocomplete('central park', 40.7549, -73.984, { limit: 5 })
+      expect(mockAxiosPost.mock.calls[0][1]).toMatchObject({ lat: 40.7549, lng: -73.984, limit: 15, autocomplete: true })
+    })
+
+    test('a nearby match beats distant pinned codes and survives the cap', async () => {
+      const codes = Array.from({ length: 5 }, (_, i) => codeHit(i))
+      mockAxiosPost.mockResolvedValueOnce({ data: [...codes, nearHit] })
+      const places = await integration.getAutocomplete('central park', 40.7549, -73.984, { limit: 5 })
+      expect(places).toHaveLength(5)
+      expect(places[0].name?.value).toBe('Central Park')
+    })
+  })
+
   // ── Place adaptation ───────────────────────────────────────────────────────
 
   describe('adaptPlace — IDs and metadata', () => {
@@ -629,17 +648,17 @@ describe('BarrelmanIntegration', () => {
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'http://localhost:3100/search',
         // Radius is passed as a hint; Barrelman uses proximity re-rank, not hard spatial filter
-        expect.objectContaining({ query: 'coffee', lat: 37.7749, lng: -122.4194, radius: 1000, limit: 10, semantic: true }),
+        expect.objectContaining({ query: 'coffee', lat: 37.7749, lng: -122.4194, radius: 1000, limit: 30, semantic: true }),
         expect.any(Object),
       )
     })
 
-    test('defaults limit to 20', async () => {
+    test('fetches a pool of three times the default 20 results', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.searchPlaces('test')
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ limit: 20 }),
+        expect.objectContaining({ limit: 60 }),
         expect.any(Object),
       )
     })
@@ -657,12 +676,12 @@ describe('BarrelmanIntegration', () => {
       )
     })
 
-    test('defaults limit to 10 and passes radius through', async () => {
+    test('fetches a pool of three times the default 10 results', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.getAutocomplete('test')
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ limit: 10 }),
+        expect.objectContaining({ limit: 30 }),
         expect.any(Object),
       )
     })

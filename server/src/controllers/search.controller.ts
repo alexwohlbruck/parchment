@@ -53,8 +53,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
     {
       query: t.Object({
         q: t.Optional(t.String()),
-        lat: t.Optional(t.String()),
-        lng: t.Optional(t.String()),
+        lat: t.Optional(t.String({ description: 'Latitude to bias results toward. Places are only searched when lat and lng are both given.' })),
+        lng: t.Optional(t.String({ description: 'Longitude to bias results toward.' })),
         radius: t.Optional(t.Union([t.String(), t.Number()])),
         maxResults: t.Optional(t.Union([t.String(), t.Number()])),
         autocomplete: t.Optional(t.Union([t.String(), t.Boolean()])),
@@ -62,6 +62,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search for places',
+        description:
+          'Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.',
       },
     },
   )

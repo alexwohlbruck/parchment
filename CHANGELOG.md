@@ -40,6 +40,7 @@
 ### Fixed
 * Navigation shows one traffic light per intersection instead of one on each side of it.
 * Walking navigation notices a wrong turn much sooner and reroutes, and cycling a little sooner.
+* Searching for a place shows matches near you first, instead of a same-named place in another state.
 
 * With 3D on, a route passing under a bridge disappears beneath the deck, and a route riding a deck no longer also draws on the ground or water below it.
 * Planning a trip with your car or bike saved in another city no longer freezes the app or suggests walking hundreds of kilometres to reach it.

@@ -61,6 +61,7 @@ import type { StopBoard } from '../../lib/transit/route-options'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 import { peliasLayerLabel } from '../../lib/place-type-label'
+import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -128,6 +129,9 @@ const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
  * so that merely-slow requests still return results instead of erroring empty.
  */
 const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/** Candidates fetched per result kept, so pinned codes hits cannot fill the page before the re-rank. */
+const CODES_RERANK_POOL = 3
 
 /**
  * Radius a sparse tag-only browse widens to (see `searchByCategory`). Metro
@@ -953,6 +957,7 @@ export class BarrelmanIntegration
     lng?: number,
     options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; language?: Language; signal?: AbortSignal },
   ): Promise<Place[]> {
+    const limit = options?.limit || 20
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -960,14 +965,15 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 20,
+        limit: options?.sort ? limit : limit * CODES_RERANK_POOL,
         semantic: true,
         ...(options?.sort ? { sort: options.sort } : {}),
         ...(options?.filter ? { filter: options.filter } : {}),
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    const hits = options?.sort ? (response.data || []) : rankCodesByProximity(response.data || [], limit)
+    return hits.map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
@@ -986,6 +992,7 @@ export class BarrelmanIntegration
     // while a slow-but-live request is allowed to finish rather than being killed
     // mid-flight and surfacing as an empty result. The timeout is only a backstop
     // for a genuinely hung Barrelman.
+    const limit = options?.limit || 10
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -993,13 +1000,13 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 10,
+        limit: limit * CODES_RERANK_POOL,
         semantic: false,
         autocomplete: true,
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    return rankCodesByProximity(response.data || [], limit).map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 

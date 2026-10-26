@@ -13,6 +13,7 @@ import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
+import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
 import { freeModeFor } from '@/lib/guidance/free-roam'
 import { getWaypointPlaceRoute } from '@/lib/place/place-route'
@@ -34,6 +35,7 @@ if (!guidance.isActive) router.replace({ name: AppRoute.DIRECTIONS })
 
 const camera = useGuidanceCamera()
 useGuidanceRouteLine()
+useGuidanceVehicle()
 useLaneGuidance()
 const docks = useDockWatch()
 const alternatives = useAlternativeRoutes()

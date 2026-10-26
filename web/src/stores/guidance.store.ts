@@ -55,6 +55,7 @@ import {
   straightSegment,
   type FreeMode,
 } from '@/lib/guidance/free-roam'
+import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice, type VehiclePreferences } from '@/lib/guidance/vehicle-indicator'
 
 // The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
 const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
@@ -81,6 +82,7 @@ export interface GuidancePreferences {
   /** Per travel mode: walkers mostly want quiet, drivers want every turn. */
   sound: Record<string, SoundMode>
   autoSwitchDocks: boolean
+  vehicle: VehiclePreferences
 }
 
 export interface TurnAround {
@@ -207,7 +209,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true },
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES },
     undefined,
     { mergeDefaults: true },
   )
@@ -216,6 +218,17 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
+
+  /** What the puck is drawn as for the travel mode underway. */
+  const vehicle = computed<VehicleChoice>(previous => {
+    const next = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    return previous?.indicator === next.indicator && previous.color === next.color ? previous : next
+  })
+
+  function setVehicle(mode: PuckMode, choice: Partial<VehicleChoice>) {
+    const current = vehicleChoice(preferences.value.vehicle, mode)
+    preferences.value.vehicle = { ...DEFAULT_VEHICLE_PREFERENCES, ...preferences.value.vehicle, [mode]: { ...current, ...choice } }
+  }
 
   function refreshProgress() {
     if (kind.value === 'free') return refreshRoam()
@@ -661,6 +674,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     legToStart,
     soundModeAt,
     cycleSound,
+    vehicle,
+    setVehicle,
     handoff,
     settleHandoff,
     segments,

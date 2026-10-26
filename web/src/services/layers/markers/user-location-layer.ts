@@ -32,6 +32,8 @@ import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
 import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import router, { AppRoute } from '@/router'
+import { useGuidanceStore } from '@/stores/guidance.store'
+import { headingKnown } from '@/lib/guidance/vehicle-indicator'
 
 const MARKER_ID = 'self'
 
@@ -116,6 +118,10 @@ export class UserLocationLayer extends BaseMarkerLayer {
   protected getData(): MarkerData[] {
     const lngLat = this.geolocation.lngLat.value
     if (!lngLat) return []
+    const navigating = guidanceEngine.active.value
+    const vehicle = navigating ? useGuidanceStore().vehicle : null
+    // A 3D vehicle is drawn by the guidance map layer instead.
+    if (vehicle && vehicle.indicator !== 'arrow') return []
 
     return [
       {
@@ -124,7 +130,8 @@ export class UserLocationLayer extends BaseMarkerLayer {
         props: {
           accuracy: this.geolocation.accuracy.value,
           heading: this.geolocation.heading.value,
-          mode: guidanceEngine.active.value ? 'navigation' : 'dot',
+          mode: navigating ? 'navigation' : 'dot',
+          color: vehicle?.color,
           onSelect: () => router.push({ name: AppRoute.MY_LOCATION }),
         },
       },
@@ -269,7 +276,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
     const puck = guidanceEngine.sample()
     if (!puck || !this.mapAPI) return 'active'
     this.mapAPI.setMarkerLngLat(fullId, puck.position)
-    this.mapAPI.setMarkerHeading(fullId, puck.bearing, 1, 'map')
+    this.mapAPI.setMarkerHeading(fullId, headingKnown(puck) ? puck.bearing : null, 1, 'map')
     this.mapAPI.setMarkerLift?.(fullId, deckLiftAt(puck.s))
     this.lastRendered = null
     this.headingDirty = true
@@ -342,8 +349,9 @@ export class UserLocationLayer extends BaseMarkerLayer {
     const p = markerData.props as {
       accuracy?: number | null
       mode?: 'dot' | 'navigation'
+      color?: string
     }
-    if (p.mode === 'navigation') return 'navigation'
+    if (p.mode === 'navigation') return `navigation|${p.color}`
     return [
       p.mode ?? 'dot',
       // 5m accuracy buckets — the pulse ring is roughly that resolution

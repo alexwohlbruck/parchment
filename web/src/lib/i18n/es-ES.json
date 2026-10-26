@@ -1537,6 +1537,23 @@
         "placeholder": "Buscar en el camino",
         "empty": "No se encontró nada adelante"
       }
+    },
+    "vehicle": {
+      "title": "Marcador de ubicación",
+      "description": "Cómo apareces en el mapa al navegar",
+      "color": "Color",
+      "modes": {
+        "driving": "En coche",
+        "cycling": "En bici",
+        "walking": "A pie"
+      },
+      "indicators": {
+        "arrow": "Flecha",
+        "hatchback": "Compacto",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bici"
+      }
     }
   },
   "attribution": {

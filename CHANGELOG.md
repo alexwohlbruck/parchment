@@ -25,6 +25,7 @@
 * Driving directions from your current location start off the way your car is facing, so you aren't told to turn where you can't.
 * When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
 * Navigate with no destination: tap your location and choose Drive, Walk or Cycle to follow the road with your speed, the speed limit and hazard warnings, and pick a destination along the way. Keep going after you arrive, too.
+* Choose how you appear while navigating: a direction arrow, a 3D car, SUV or pickup when driving, or a bike when cycling, each in a colour of your choice.
 
 ### Changed
 * Lane guidance draws each lane as one arrow that branches where it allows several turns, with the turn you need lit.

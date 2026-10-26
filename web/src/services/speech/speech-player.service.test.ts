@@ -81,3 +81,31 @@ describe('speech playback', () => {
     expect(output.playBrowser).toHaveBeenCalledWith('Turn left', options, expect.any(AbortSignal))
   })
 })
+
+
+it('abandons expired playback and advances the queue even if the decoder is stuck', async () => {
+  vi.useFakeTimers()
+  const output = outputs()
+  output.playAudio.mockImplementationOnce(() => new Promise(() => {}))
+  const player = new SpeechPlayer(output)
+  player.speak('Old instruction', { ...options, maxAgeMs: 100 })
+  player.speak('Next instruction', options)
+  await flush()
+  await vi.advanceTimersByTimeAsync(100)
+  expect(output.playAudio.mock.calls[0][1].aborted).toBe(true)
+  expect(output.synthesize.mock.calls.map(call => call[0])).toEqual(['Old instruction', 'Next instruction'])
+  expect(output.playBrowser).not.toHaveBeenCalled()
+})
+
+it('interrupts stalled browser playback for an urgent instruction', async () => {
+  const output = outputs()
+  output.synthesize.mockRejectedValue(new Error('Offline'))
+  output.playBrowser.mockImplementationOnce(() => new Promise(() => {}))
+  const player = new SpeechPlayer(output)
+  player.speak('Continue straight', options)
+  await flush()
+  player.speak('Turn now', { ...options, urgent: true })
+  await flush()
+  expect(output.playBrowser.mock.calls[0][2].aborted).toBe(true)
+  expect(output.playBrowser.mock.calls.map(call => call[0])).toEqual(['Continue straight', 'Turn now'])
+})

@@ -49,6 +49,7 @@ export class SpeechPlayer {
         const cancelled = new Promise<never>((_, reject) => { rejectCancelled = reject })
         const cancelRequest = () => { request.abort(); rejectCancelled?.(new Error('Speech cancelled')) }
         signal.addEventListener('abort', cancelRequest, { once: true })
+        const expiry = setTimeout(() => controller.abort(), Math.max(0, prompt.expires - Date.now()))
         let timer: ReturnType<typeof setTimeout> | undefined
         try {
           const timeout = new Promise<never>((_, reject) => {
@@ -57,13 +58,14 @@ export class SpeechPlayer {
           try {
             const audio = await Promise.race([this.output.synthesize(prompt.text, prompt.options, request.signal), timeout, cancelled])
             clearTimeout(timer)
-            if (!signal.aborted && prompt.expires > Date.now()) await this.output.playAudio(audio, signal)
+            if (!signal.aborted && prompt.expires > Date.now()) await Promise.race([this.output.playAudio(audio, signal), cancelled])
           } catch {
             clearTimeout(timer)
-            if (!signal.aborted && prompt.expires > Date.now()) await this.output.playBrowser(prompt.text, prompt.options, signal)
+            if (!signal.aborted && prompt.expires > Date.now()) await Promise.race([this.output.playBrowser(prompt.text, prompt.options, signal), cancelled])
           }
         } catch {
         } finally {
+          clearTimeout(expiry)
           clearTimeout(timer)
           signal.removeEventListener('abort', cancelRequest)
           if (this.active === controller) this.active = null

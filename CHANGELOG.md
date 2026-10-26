@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.
+
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.
 * Resending a sign-in code clears stale validation errors from the previous code.
 

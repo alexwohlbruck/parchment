@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { postedLimit } from '@/lib/guidance/guidance-display'
 import { modeProfile } from '@/lib/guidance/mode-profiles'
+import { displaySpeed, showsLimit, showsSpeedometer, speeding } from '@/lib/guidance/speed-display'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useGuidanceContext } from './context'
 
@@ -12,41 +13,49 @@ const guidance = useGuidanceStore()
 const { metric } = useGuidanceContext()
 
 const profile = computed(() => modeProfile(guidance.travelMode))
-const current = computed(() => {
-  const speed = guidance.progress?.puck.speed ?? 0
-  return Math.round(metric.value ? speed * 3.6 : speed * 2.236936)
-})
+const current = computed(() => displaySpeed(guidance.progress?.puck.speed ?? 0, metric.value))
 const limit = computed(() => {
   const kmh = guidance.progress?.speedLimitKmh
-  return kmh && profile.value.speedLimit ? postedLimit(kmh, metric.value) : null
+  const shown = profile.value.speedLimit && showsLimit(guidance.preferences.speedDisplay)
+  return kmh && shown ? postedLimit(kmh, metric.value) : null
 })
-const speeding = computed(() => limit.value != null && current.value > limit.value * 1.1)
+const speedometer = computed(() => profile.value.speedometer && showsSpeedometer(guidance.preferences.speedDisplay))
+const level = computed(() => speeding(current.value, limit.value))
 </script>
 
 <template>
-  <div v-if="profile.speedometer && guidance.progress" class="pointer-events-auto flex items-end gap-2">
+  <div
+    v-if="guidance.progress && (limit != null || speedometer)"
+    class="nav-surface pointer-events-auto flex flex-col gap-1 rounded-[20px] bg-background/95 p-1.5 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md"
+    :class="dash ? 'w-20' : 'w-16'"
+  >
     <!-- US / mph regions post a rectangular sign; metric regions a red ring. -->
     <div
       v-if="limit != null && !metric"
-      class="flex flex-col items-center rounded-lg border-2 border-zinc-900 bg-white px-1 py-1 text-zinc-900 shadow-lg"
-      :class="dash ? 'w-16' : 'w-13'"
+      class="flex flex-col items-center rounded-[14px] border-2 border-zinc-900 bg-white pb-1 pt-1.5 text-zinc-900"
     >
-      <span class="text-[7px] font-semibold leading-tight">{{ t('guidance.speed.limitSign') }}</span>
-      <span class="font-display leading-none tabular-nums" :class="dash ? 'text-3xl' : 'text-2xl'">{{ limit }}</span>
+      <span class="text-center font-bold leading-[1.1]" :class="dash ? 'text-[9px]' : 'text-[7px]'">{{ t('guidance.speed.limitSign') }}</span>
+      <span class="font-bold leading-none tabular-nums" :class="dash ? 'text-[32px]' : 'text-[26px]'">{{ limit }}</span>
     </div>
     <div
       v-else-if="limit != null"
-      class="flex items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-display text-zinc-900 shadow-lg tabular-nums"
-      :class="dash ? 'size-16 text-2xl' : 'size-13 text-xl'"
+      class="flex aspect-square items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-bold text-zinc-900 tabular-nums"
+      :class="dash ? 'text-[26px]' : 'text-[22px]'"
     >
       {{ limit }}
     </div>
     <div
-      class="nav-surface flex flex-col items-center justify-center rounded-full bg-background shadow-lg ring-1 ring-foreground/5"
-      :class="[dash ? 'size-16' : 'size-13', speeding ? 'text-red-600 dark:text-red-400' : 'text-foreground']"
+      v-if="speedometer"
+      class="flex flex-col items-center rounded-[14px] py-1.5 transition-colors"
+      :class="{
+        'text-amber-600 dark:text-amber-400': level === 'over',
+        'bg-coral-600 text-white': level === 'far-over',
+      }"
     >
-      <span class="font-display leading-none tabular-nums" :class="dash ? 'text-2xl' : 'text-xl'">{{ current }}</span>
-      <span class="text-[10px] text-muted-foreground">{{ metric ? 'km/h' : 'mph' }}</span>
+      <span class="font-bold leading-none tabular-nums" :class="dash ? 'text-[32px]' : 'text-[26px]'">{{ current }}</span>
+      <span class="mt-0.5 text-[11px]" :class="level === 'far-over' ? 'text-white/80' : 'text-muted-foreground'">
+        {{ metric ? 'km/h' : 'mph' }}
+      </span>
     </div>
   </div>
 </template>

@@ -36,7 +36,8 @@ function guidanceSource(): RouteLineSource {
       const progress = guidance.progress
       if (!progress) return null
       const { puck } = progress
-      return { s: puck.s, speed: puck.speed, travelled: puck.snapped ? puck.s : 0, next: progress.next, hazards: puck.snapped }
+      const next = guidance.status === 'away' ? null : progress.next
+      return { s: puck.s, speed: puck.speed, travelled: puck.snapped ? puck.s : 0, next, hazards: puck.snapped }
     },
   }
 }

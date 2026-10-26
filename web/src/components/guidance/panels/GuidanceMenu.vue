@@ -5,6 +5,8 @@ import { ListIcon, MapPinIcon, MegaphoneIcon, PlusIcon, SearchIcon, SplitIcon } 
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { FREE_MODES } from '@/lib/guidance/free-roam'
+import { modeProfile } from '@/lib/guidance/mode-profiles'
+import { SPEED_DISPLAYS } from '@/lib/guidance/speed-display'
 import { canSearchAhead } from '@/services/guidance/route-search.service'
 import { canReroute } from '@/services/guidance/reroute.service'
 import { SOUND_MODES, useGuidanceStore } from '@/stores/guidance.store'
@@ -50,6 +52,17 @@ const freeModeChoice = computed(() => guidance.kind === 'free' ? [{
   })),
 }] : [])
 
+const speedChoice = computed(() => modeProfile(travelMode.value).speedometer ? [{
+  key: 'speed',
+  title: t('guidance.settings.speedDisplay'),
+  options: SPEED_DISPLAYS.map(display => ({
+    key: display,
+    label: t(`guidance.speed.displaysShort.${display}`),
+    active: guidance.preferences.speedDisplay === display,
+    pick: () => (guidance.preferences.speedDisplay = display),
+  })),
+}] : [])
+
 const choices = computed(() => [
   ...freeModeChoice.value,
   {
@@ -85,6 +98,7 @@ const choices = computed(() => [
       pick: () => setSound(mode),
     })),
   },
+  ...speedChoice.value,
 ])
 </script>
 

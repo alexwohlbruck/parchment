@@ -66,7 +66,7 @@ const ride = computed(() => {
     </div>
 
     <template v-if="stage.kind === 'wait'">
-      <div class="font-display text-[28px] leading-none">{{ countdown }}</div>
+      <div class="font-display-heavy text-[28px] leading-none">{{ countdown }}</div>
       <div class="text-sm text-muted-foreground">
         {{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}
       </div>
@@ -74,7 +74,7 @@ const ride = computed(() => {
 
     <template v-else-if="ride">
       <div
-        class="font-display text-[28px] leading-none"
+        class="font-display-heavy text-[28px] leading-none"
         :class="ride.urgent && 'text-primary'"
       >
         {{ ride.headline }}
@@ -93,10 +93,10 @@ const ride = computed(() => {
         </div>
       </div>
       <div class="flex gap-2">
-        <Button class="h-11 flex-1 rounded-full" :disabled="busy || noLaterRun" @click="$emit('nextRun')">
+        <Button class="h-12 flex-1 rounded-full" :disabled="busy || noLaterRun" @click="$emit('nextRun')">
           {{ t('guidance.transit.nextDeparture') }}
         </Button>
-        <Button variant="secondary" class="h-11 flex-1 rounded-full" @click="$emit('anotherWay')">
+        <Button variant="secondary" class="h-12 flex-1 rounded-full" @click="$emit('anotherWay')">
           {{ t('guidance.transit.anotherWay') }}
         </Button>
       </div>
@@ -107,7 +107,7 @@ const ride = computed(() => {
         <div class="text-lg font-medium leading-snug">{{ t('guidance.transit.missedStop', { stop: stage.alight }) }}</div>
         <div class="text-sm text-muted-foreground">{{ t('guidance.transit.missedStopHint') }}</div>
       </div>
-      <Button variant="secondary" class="h-11 rounded-full" @click="$emit('anotherWay')">
+      <Button variant="secondary" class="h-12 rounded-full" @click="$emit('anotherWay')">
         {{ t('guidance.transit.anotherWay') }}
       </Button>
     </template>

@@ -34,7 +34,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex items-center gap-3">
-    <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
       <component :is="ICONS[handoff.nextMode] ?? FootprintsIcon" class="size-5" />
     </div>
     <div class="min-w-0 flex-1">
@@ -43,10 +43,10 @@ onBeforeUnmount(() => {
         {{ t('guidance.handoff.docksFree', handoff.docks) }}
       </div>
     </div>
-    <Button variant="ghost" class="h-11 rounded-full px-3 text-muted-foreground" @click="emit('settle')">
+    <Button variant="ghost" class="h-12 rounded-full px-3 text-muted-foreground" @click="emit('settle')">
       {{ t('guidance.handoff.notYet') }}
     </Button>
-    <Button class="relative h-11 overflow-hidden rounded-full px-5" @click="emit('settle')">
+    <Button class="relative h-12 overflow-hidden rounded-full px-5" @click="emit('settle')">
       <span
         class="absolute inset-y-0 left-0 bg-primary-foreground/20"
         :style="{ width: `${(1 - remaining) * 100}%` }"

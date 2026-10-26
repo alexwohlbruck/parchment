@@ -77,7 +77,7 @@ onBeforeUnmount(() => preview.close())
       class="absolute inset-y-0 left-0 flex w-[min(26rem,44vw)] flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pl-[calc(env(safe-area-inset-left)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)]"
     >
       <PreviewStepCard :metric="metric" @close="close" />
-      <div class="nav-surface pointer-events-auto min-h-0 overflow-y-auto rounded-[28px] bg-background/95 p-2 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md">
+      <div class="nav-card min-h-0 overflow-y-auto p-2">
         <PreviewStepList :metric="metric" />
       </div>
     </div>

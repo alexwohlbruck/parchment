@@ -16,7 +16,7 @@ const { t } = useI18n()
 
 const HURRY_MARGIN_SEC = 120
 const REACH_STYLES = {
-  ok: 'text-emerald-600 dark:text-emerald-400',
+  ok: 'text-forest-600 dark:text-forest-400',
   hurry: 'text-amber-600 dark:text-amber-400',
   late: 'text-red-600 dark:text-red-400',
 }

@@ -55,13 +55,13 @@ const subline = computed(() => {
       {{ t('guidance.waitingForLocation') }}
     </div>
     <div v-else-if="headline" class="px-5 py-4">
-      <div class="font-display leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ headline }}</div>
+      <div class="font-display-heavy leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ headline }}</div>
       <div v-if="subline" class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ subline }}</div>
     </div>
     <div v-else-if="turnAround" class="flex items-center" :class="dash ? 'gap-5 px-5 py-5' : 'gap-4 px-4 py-4'">
       <ManeuverIcon kind="uturn" class="shrink-0" :class="dash ? 'size-16' : 'size-12'" />
       <div class="min-w-0 flex-1">
-        <div class="font-display leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ t('guidance.banner.turnAround') }}</div>
+        <div class="font-display-heavy leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ t('guidance.banner.turnAround') }}</div>
         <div class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ turnAroundThen }}</div>
       </div>
     </div>
@@ -69,7 +69,7 @@ const subline = computed(() => {
       <ManeuverIcon :kind="kind" :exit="next.instruction.exitNumber" class="shrink-0" :class="dash ? 'size-16' : 'size-12'" />
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline gap-1 tabular-nums leading-none">
-          <span class="font-display" :class="dash ? 'text-[52px]' : 'text-[42px]'">{{ distance.value }}</span>
+          <span class="font-display-heavy" :class="dash ? 'text-[52px]' : 'text-[42px]'">{{ distance.value }}</span>
           <span class="text-muted-foreground" :class="dash ? 'text-2xl' : 'text-xl'">{{ t(`guidance.units.${distance.unit}`) }}</span>
         </div>
         <div class="mt-1.5 line-clamp-2 font-semibold leading-tight" :class="dash ? 'text-[26px]' : 'text-[22px]'">{{ road }}</div>

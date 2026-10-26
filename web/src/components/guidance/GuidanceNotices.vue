@@ -38,8 +38,6 @@ const offer = computed(() => {
   }
 })
 
-const NOTICE = 'nav-surface pointer-events-auto rounded-3xl bg-background/95 p-3.5 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md'
-
 const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'arrived')
 </script>
 
@@ -52,10 +50,10 @@ const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'a
     leave-active-class="transition duration-150 ease-in"
     leave-to-class="opacity-0"
   >
-    <div v-if="guidance.handoff" :key="`handoff:${guidance.handoff.from}`" :class="NOTICE">
+    <div v-if="guidance.handoff" :key="`handoff:${guidance.handoff.from}`" class="nav-card p-4">
       <SegmentHandoff :handoff="guidance.handoff" @settle="guidance.settleHandoff()" />
     </div>
-    <div v-if="offer" :key="offer.key" :class="NOTICE">
+    <div v-if="offer" :key="offer.key" class="nav-card p-4">
       <AlternativeOffer
         :headline="offer.headline"
         :detail="offer.detail"
@@ -64,7 +62,7 @@ const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'a
         @dismiss="offer.dismiss"
       />
     </div>
-    <div v-if="showDocks && docks.watched.value" key="docks" :class="NOTICE">
+    <div v-if="showDocks && docks.watched.value" key="docks" class="nav-card p-4">
       <DockWatchCard
         :need="docks.watched.value.need"
         :name="docks.watched.value.name"

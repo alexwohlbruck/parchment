@@ -26,6 +26,7 @@
 * When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
 * Navigate with no destination: tap your location and choose Drive, Walk or Cycle to follow the road with your speed, the speed limit and hazard warnings, and pick a destination along the way. Keep going after you arrive, too.
 * Choose how you appear while navigating: a direction arrow, a 3D car, SUV or pickup when driving, or a bike when cycling, each in a colour of your choice.
+* Choose what navigation's speed card shows: the speed limit, your speed, both, or nothing, in Settings or the navigation menu.
 
 ### Changed
 * Lane guidance draws each lane as one arrow that branches where it allows several turns, with the turn you need lit.
@@ -34,6 +35,7 @@
 * Sharp turns show as sharp in step-by-step directions.
 * Navigation's cards and buttons follow your light or dark theme instead of always being dark.
 * The trip card on phones follows your finger as you swipe it open or closed.
+* Your speed and the speed limit share one compact card that turns orange, then red, when you're over the limit. Navigation's cards, buttons and type now match the rest of the app.
 
 ### Fixed
 * Navigation shows one traffic light per intersection instead of one on each side of it.

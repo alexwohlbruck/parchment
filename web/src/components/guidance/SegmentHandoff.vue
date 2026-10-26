@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
     </Button>
     <Button class="relative h-11 overflow-hidden rounded-full px-5" @click="emit('settle')">
       <span
-        class="absolute inset-y-0 left-0 bg-white/20"
+        class="absolute inset-y-0 left-0 bg-primary-foreground/20"
         :style="{ width: `${(1 - remaining) * 100}%` }"
         aria-hidden="true"
       />

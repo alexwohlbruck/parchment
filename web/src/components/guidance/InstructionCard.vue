@@ -61,7 +61,7 @@ function findAnotherWay() {
 </script>
 
 <template>
-  <div class="nav-surface dark pointer-events-auto overflow-hidden rounded-[28px] bg-background/95 shadow-xl backdrop-blur-md">
+  <div class="nav-surface pointer-events-auto overflow-hidden rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md">
     <TransitStageCard
       v-if="stage"
       class="p-5"

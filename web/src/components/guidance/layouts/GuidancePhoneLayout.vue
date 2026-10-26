@@ -97,13 +97,13 @@ const sideInset = computed(() => {
 
     <div class="absolute right-3 flex flex-col items-end gap-2.5 transition-[bottom] duration-200" :style="sideInset">
       <slot name="dev" placement="above" />
-      <GuidanceMapButtons class="nav-surface dark" />
+      <GuidanceMapButtons class="nav-surface" />
     </div>
 
     <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">
       <div ref="dock" class="absolute inset-x-0 bottom-0 flex flex-col gap-2 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
         <GuidanceNotices />
-        <div class="pointer-events-auto overflow-hidden rounded-[28px] bg-background shadow-xl">
+        <div class="nav-surface pointer-events-auto overflow-hidden rounded-[28px] bg-background shadow-xl ring-1 ring-foreground/5">
           <div
             class="touch-none px-5 pb-4 pt-2"
             :aria-expanded="expanded"

@@ -30,7 +30,7 @@ const ahead = computed(() => {
     <div
       v-if="ahead"
       class="pointer-events-auto flex w-fit items-center gap-2 rounded-full px-3.5 py-2 text-[15px] font-semibold shadow-lg"
-      :class="ahead.hazard.severity === 'high' ? 'bg-amber-400 text-zinc-950' : 'nav-surface dark bg-background/95'"
+      :class="ahead.hazard.severity === 'high' ? 'bg-amber-400 text-zinc-950' : 'nav-surface bg-background/95 ring-1 ring-foreground/5'"
     >
       <TriangleAlertIcon class="size-4" />
       <span>{{ t(`guidance.hazards.${ahead.hazard.kind}`) }}</span>

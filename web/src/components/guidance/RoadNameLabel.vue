@@ -51,7 +51,7 @@ const position = computed(() => {
     >
       <div
         :key="label.name"
-        class="nav-surface dark flex max-w-[70vw] items-center gap-1.5 truncate rounded-full bg-background/95 px-3.5 py-1.5 text-[15px] font-semibold shadow-lg"
+        class="nav-surface flex max-w-[70vw] items-center gap-1.5 truncate rounded-full bg-background/95 px-3.5 py-1.5 text-[15px] font-semibold shadow-lg ring-1 ring-foreground/5"
       >
         <span v-if="label.ref" class="rounded bg-muted px-1 text-xs">{{ label.ref }}</span>
         <span class="truncate">{{ label.name }}</span>

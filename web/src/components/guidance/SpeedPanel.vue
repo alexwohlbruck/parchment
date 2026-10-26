@@ -46,8 +46,8 @@ const speeding = computed(() => limit.value != null && current.value > limit.val
       {{ limit }}
     </div>
     <div
-      class="nav-surface dark flex flex-col items-center justify-center rounded-full bg-background shadow-lg"
-      :class="[dash ? 'size-16' : 'size-13', speeding ? 'text-red-400' : 'text-foreground']"
+      class="nav-surface flex flex-col items-center justify-center rounded-full bg-background shadow-lg ring-1 ring-foreground/5"
+      :class="[dash ? 'size-16' : 'size-13', speeding ? 'text-red-600 dark:text-red-400' : 'text-foreground']"
     >
       <span class="font-display leading-none tabular-nums" :class="dash ? 'text-2xl' : 'text-xl'">{{ current }}</span>
       <span class="text-[10px] text-muted-foreground">{{ metric ? 'km/h' : 'mph' }}</span>

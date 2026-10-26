@@ -25,6 +25,7 @@
 ### Changed
 
 * Sharp turns show as sharp in step-by-step directions.
+* Navigation's cards and buttons follow your light or dark theme instead of always being dark.
 
 ### Fixed
 * Navigation shows one traffic light per intersection instead of one on each side of it.

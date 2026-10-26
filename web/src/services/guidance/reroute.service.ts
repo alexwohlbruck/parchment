@@ -28,12 +28,14 @@ export function canReroute(mode: string): boolean {
 export async function requestReroute(params: {
   position: LngLat
   heading: number | null
+  speed?: number | null
   destination: LngLat
   mode: string
 }): Promise<RerouteSegment | null> {
   const { data } = await api.post('/directions/reroute', {
     position: params.position,
     heading: params.heading ?? undefined,
+    speed: params.speed ?? undefined,
     destination: params.destination,
     mode: SERVER_MODES[params.mode],
   })
@@ -47,12 +49,14 @@ export interface AlternativeSegment extends RerouteSegment {
 export async function requestAlternatives(params: {
   position: LngLat
   heading: number | null
+  speed?: number | null
   destination: LngLat
   mode: string
 }): Promise<AlternativeSegment[]> {
   const { data } = await api.post('/directions/alternatives', {
     position: params.position,
     heading: params.heading ?? undefined,
+    speed: params.speed ?? undefined,
     destination: params.destination,
     mode: SERVER_MODES[params.mode],
   })

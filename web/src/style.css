@@ -701,12 +701,23 @@
   outline: none;
 }
 
-/* Prevent pull-to-refresh on mobile browsers */
+/* The app is a fixed full-screen surface: the document itself never scrolls,
+   so mobile toolbars stay put and pull-to-refresh can't fire. */
+html {
+  height: 100%;
+  height: 100dvh;
+}
+
 html,
 body {
+  overflow: hidden;
   background: transparent;
   overscroll-behavior: none;
-  height: 100dvh;
+}
+
+body,
+#app {
+  height: 100%;
 }
 
 /* Hide native scrollbars on every scroll container so toggling content

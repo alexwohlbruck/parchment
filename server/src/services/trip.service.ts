@@ -44,6 +44,7 @@ import { nameLegByRoute } from '../lib/transit/line-name'
 import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
 import { haversineMeters } from '../util/geometry-conversion'
+import { MemoCache } from '../lib/memo-cache'
 
 const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
@@ -647,30 +648,19 @@ export class TripService {
   }
 
   /** Boards are cached briefly per five-minute bucket, so nearby legs share one fetch. */
-  private stopBoardCache = new Map<string, { at: number; boards: Promise<StopBoard[] | null> }>()
+  private stopBoardCache = new MemoCache<StopBoard[] | null>({ max: 300, ttlMs: 60_000 })
   private static readonly STOP_BOARD_BUCKET_MS = 5 * 60_000
-  private static readonly STOP_BOARD_TTL_MS = 60_000
-  private static readonly STOP_BOARD_CACHE_MAX = 300
 
   private cachedStopBoards(feedId: string, stopId: string, fromMs: number): Promise<StopBoard[] | null> {
     const bucket = Math.floor(fromMs / TripService.STOP_BOARD_BUCKET_MS) * TripService.STOP_BOARD_BUCKET_MS
-    const key = `${feedId}|${stopId}|${bucket}`
-    const hit = this.stopBoardCache.get(key)
-    if (hit && Date.now() - hit.at < TripService.STOP_BOARD_TTL_MS) return hit.boards
-    const boards = transitRoutingService.getStopDepartures({
-      feedId,
-      stopId,
-      time: new Date(bucket).toISOString(),
-      windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
-      n: ROUTE_SERVICE_BOARD_EVENTS,
-    })
-    this.stopBoardCache.delete(key)
-    this.stopBoardCache.set(key, { at: Date.now(), boards })
-    if (this.stopBoardCache.size > TripService.STOP_BOARD_CACHE_MAX) {
-      const oldest = this.stopBoardCache.keys().next().value
-      if (oldest) this.stopBoardCache.delete(oldest)
-    }
-    return boards
+    return this.stopBoardCache.get(`${feedId}|${stopId}|${bucket}`, () =>
+      transitRoutingService.getStopDepartures({
+        feedId,
+        stopId,
+        time: new Date(bucket).toISOString(),
+        windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
+        n: ROUTE_SERVICE_BOARD_EVENTS,
+      }))
   }
 
   /**
@@ -2216,24 +2206,13 @@ export class TripService {
   private static readonly STREET_TRANSFER_PENALTY_SEC = 600
 
   /** Routes at a stop; static GTFS, cached for the process. */
-  private stopRouteCache = new Map<string, Promise<StopRouteResult[] | null>>()
-  private static readonly STOP_ROUTE_CACHE_MAX = 2000
+  private stopRouteCache = new MemoCache<StopRouteResult[] | null>({ max: 2000, keep: (r) => r != null })
 
   private stopRoutes(feedId: string, stopId: string): Promise<StopRouteResult[] | null> {
-    const key = `${feedId}|${stopId}`
-    let hit = this.stopRouteCache.get(key)
-    if (!hit) {
-      hit = Promise.resolve()
+    return this.stopRouteCache.get(`${feedId}|${stopId}`, () =>
+      Promise.resolve()
         .then(() => transitRoutingService.getRoutesForStop(feedId, stopId))
-        .catch(() => null)
-      this.stopRouteCache.set(key, hit)
-      hit.then((routes) => { if (!routes) this.stopRouteCache.delete(key) })
-      if (this.stopRouteCache.size > TripService.STOP_ROUTE_CACHE_MAX) {
-        const oldest = this.stopRouteCache.keys().next().value
-        if (oldest) this.stopRouteCache.delete(oldest)
-      }
-    }
-    return hit
+        .catch(() => null))
   }
 
   /** Lines reachable in-system from a station. */
@@ -2800,20 +2779,17 @@ export class TripService {
   /** Whether the transit provider checks bike carriage. Null until asked. */
   private enforcesBikeCarriage: boolean | null = null
 
-  /** Cached nearest-rack lookups — bicycle parking is static OSM data. */
-  private stationRackCache = new Map<string, Promise<Place | null>>()
-  private static readonly STATION_RACK_CACHE_MAX = 200
+  /**
+   * Nearest-rack lookups; bicycle parking is static OSM data. A failed POI
+   * search comes back empty, indistinguishable from a station with no rack,
+   * so only a rack actually found is remembered.
+   */
+  private stationRackCache = new MemoCache<Place | null>({ max: 200, keep: (rack) => rack != null })
 
   private cachedStationRack(at: Coordinate): Promise<Place | null> {
-    const key = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`
-    let hit = this.stationRackCache.get(key)
-    if (!hit) {
-      hit = this.searchNearbyParking(
-        at,
-        TripService.STATION_RACK_RADIUS_M,
-        'amenity/bicycle_parking',
-      ).then(places =>
-        places.reduce<Place | null>(
+    return this.stationRackCache.get(`${at.lat.toFixed(5)},${at.lng.toFixed(5)}`, () =>
+      this.searchNearbyParking(at, TripService.STATION_RACK_RADIUS_M, 'amenity/bicycle_parking')
+        .then((places) => places.reduce<Place | null>(
           (best, p) =>
             !best ||
             metersBetween(p.geometry.value.center, at) <
@@ -2821,20 +2797,7 @@ export class TripService {
               ? p
               : best,
           null,
-        ),
-      )
-      // A POI search that failed comes back empty, indistinguishable from a
-      // station with no rack — and caching that drops bike-to-station there
-      // for the life of the process. Only a rack we actually found is worth
-      // remembering.
-      hit.then((rack) => { if (!rack) this.stationRackCache.delete(key) })
-      this.stationRackCache.set(key, hit)
-      if (this.stationRackCache.size > TripService.STATION_RACK_CACHE_MAX) {
-        const oldest = this.stationRackCache.keys().next().value
-        if (oldest) this.stationRackCache.delete(oldest)
-      }
-    }
-    return hit
+        )))
   }
 
   /** One routed leg between two points, or null if routing can't answer. */
@@ -3445,12 +3408,16 @@ export class TripService {
     return type != null && TripService.STATION_ROUTE_TYPES.has(type)
   }
 
-  /** Cached station-entrance lookups — entrances are static OSM data. */
-  private entranceCache = new Map<
-    string,
-    Promise<import('../types/integration.types').StationEntrance | null>
-  >()
   private static readonly ENTRANCE_CACHE_MAX = 500
+
+  /**
+   * Station-entrance lookups; entrances are static OSM data. A failed lookup
+   * also comes back null, so only a found entrance is remembered.
+   */
+  private entranceCache = new MemoCache<import('../types/integration.types').StationEntrance | null>({
+    max: TripService.ENTRANCE_CACHE_MAX,
+    keep: (entrance) => entrance != null,
+  })
 
   /**
    * Cached pedestrian re-routes, keyed by endpoints and preferences.
@@ -3460,11 +3427,7 @@ export class TripService {
    * given station is identical in each itinerary boarding there. Without
    * this, the same route is fetched once per itinerary.
    */
-  private walkRouteCache = new Map<
-    string,
-    Promise<Awaited<ReturnType<typeof routingService.getRoute>>>
-  >()
-  private static readonly WALK_ROUTE_CACHE_MAX = 500
+  private walkRouteCache = new MemoCache<Awaited<ReturnType<typeof routingService.getRoute>>>({ max: 500 })
 
   private cachedWalkRoute(
     start: Coordinate,
@@ -3479,25 +3442,14 @@ export class TripService {
       JSON.stringify(preferences ?? null),
     ].join(',')
 
-    let hit = this.walkRouteCache.get(key)
-    if (!hit) {
-      hit = routingService.getRoute(
-        [
-          { type: 'coordinates', value: [start.lat, start.lng] },
-          { type: 'coordinates', value: [end.lat, end.lng] },
-        ],
-        'pedestrian',
-        preferences,
-      )
-      this.walkRouteCache.set(key, hit)
-      // A rejected route must not be cached — the next plan should retry.
-      hit.catch(() => this.walkRouteCache.delete(key))
-      if (this.walkRouteCache.size > TripService.WALK_ROUTE_CACHE_MAX) {
-        const oldest = this.walkRouteCache.keys().next().value
-        if (oldest) this.walkRouteCache.delete(oldest)
-      }
-    }
-    return hit
+    return this.walkRouteCache.get(key, () => routingService.getRoute(
+      [
+        { type: 'coordinates', value: [start.lat, start.lng] },
+        { type: 'coordinates', value: [end.lat, end.lng] },
+      ],
+      'pedestrian',
+      preferences,
+    ))
   }
 
   private cachedNearestEntrance(
@@ -3506,20 +3458,10 @@ export class TripService {
     radiusM: number,
     wheelchair = false,
   ): Promise<import('../types/integration.types').StationEntrance | null> {
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`
-    let hit = this.entranceCache.get(key)
-    if (!hit) {
-      hit = transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair)
-      this.entranceCache.set(key, hit)
-      // A failed lookup also comes back null, so only a found entrance is kept.
-      hit.then((entrance) => { if (!entrance) this.entranceCache.delete(key) })
-      if (this.entranceCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        // Drop the oldest entry — simple FIFO trim is enough here
-        const oldest = this.entranceCache.keys().next().value
-        if (oldest) this.entranceCache.delete(oldest)
-      }
-    }
-    return hit
+    return this.entranceCache.get(
+      `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`,
+      () => transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair),
+    )
   }
 
   /** Which way the train runs at the platform the rider uses. */
@@ -3568,34 +3510,22 @@ export class TripService {
   /** A signed destination nearer than this is where the station already is. */
   private static readonly SIGN_DESTINATION_MIN_M = 1000
 
-  private signDestinationCache = new Map<string, Promise<Coordinate | null>>()
+  private signDestinationCache = new MemoCache<Coordinate | null>({ max: TripService.ENTRANCE_CACHE_MAX })
 
   /** Compass bearing from a station to the place an entrance is signed for. */
   private async headingToward(place: string, station: Coordinate): Promise<number | null> {
     const key = `${place.toLowerCase()}|${station.lat.toFixed(2)},${station.lng.toFixed(2)}`
-    let hit = this.signDestinationCache.get(key)
-    if (!hit) {
-      hit = forwardGeocode(place, station.lat, station.lng)
-        .then(({ results }) => results[0]?.geometry?.value?.center ?? null)
-        .catch(() => {
-          this.signDestinationCache.delete(key)
-          return null
-        })
-      this.signDestinationCache.set(key, hit)
-      if (this.signDestinationCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        const oldest = this.signDestinationCache.keys().next().value
-        if (oldest) this.signDestinationCache.delete(oldest)
-      }
-    }
-    const target = await hit
+    const target = await this.signDestinationCache.get(key, () =>
+      forwardGeocode(place, station.lat, station.lng)
+        .then(({ results }) => results[0]?.geometry?.value?.center ?? null))
+      .catch(() => null)
     if (!target || metersBetween(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
     return bearingDeg(station, target)
   }
 
-  private entrancesAroundCache = new Map<
-    string,
-    Promise<import('../types/integration.types').StationEntrance[]>
-  >()
+  private entrancesAroundCache = new MemoCache<import('../types/integration.types').StationEntrance[]>({
+    max: TripService.ENTRANCE_CACHE_MAX,
+  })
 
   /** Every mapped entrance of one kind near a platform, nearest first. */
   private cachedEntrancesAround(
@@ -3606,11 +3536,10 @@ export class TripService {
   ): Promise<import('../types/integration.types').StationEntrance[]> {
     if (!TripService.LISTABLE_ENTRANCE_TYPES.has(accessType)) return Promise.resolve([])
     const key = `${platform.lat.toFixed(5)},${platform.lng.toFixed(5)},${accessType},${radiusM},${wheelchair ? 'w' : ''}`
-    let hit = this.entrancesAroundCache.get(key)
-    if (!hit) {
+    return this.entrancesAroundCache.get(key, () => {
       const dLat = radiusM / 111320
       const dLng = radiusM / (111320 * Math.cos((platform.lat * Math.PI) / 180))
-      hit = searchByCategory(`railway/${accessType}`, {
+      return searchByCategory(`railway/${accessType}`, {
         bounds: {
           north: platform.lat + dLat,
           south: platform.lat - dLat,
@@ -3639,17 +3568,7 @@ export class TripService {
           .filter((e): e is NonNullable<typeof e> =>
             e != null && e.distanceM <= radiusM && !(wheelchair && e.wheelchair === 'no'))
           .sort((a, b) => a.distanceM - b.distanceM))
-        .catch(() => {
-          this.entrancesAroundCache.delete(key)
-          return []
-        })
-      this.entrancesAroundCache.set(key, hit)
-      if (this.entrancesAroundCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        const oldest = this.entrancesAroundCache.keys().next().value
-        if (oldest) this.entrancesAroundCache.delete(oldest)
-      }
-    }
-    return hit
+    }).catch(() => [])
   }
 
   /** Entrance kinds the place search can list; vertical access is not signed by direction. */

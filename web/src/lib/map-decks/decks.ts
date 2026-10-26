@@ -1577,6 +1577,10 @@ export function mercator([lng, lat]: number[]): Point {
   return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)]
 }
 
+export function unmercator([x, y]: Point): [number, number] {
+  return [x * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI]
+}
+
 /** The bounds of the tile a queried feature came from, or null if it does not say. */
 export function tileBounds(feature: any): Bounds | null {
   const { _x: x, _y: y, _z: z } = feature

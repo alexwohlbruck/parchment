@@ -6,6 +6,47 @@
 
 ### Fixed
 
+## [0.17.0] - 2026-10-26
+
+### Added
+
+* Start navigation from a walking, cycling or driving trip: a direction arrow follows the road smoothly as you move, with the next turn and distance left.
+* While navigating, the map follows you in 3D, heading-up or north-up, zooming out on open road and in before turns. Pan freely and it returns after a few seconds, or show the whole route.
+* Navigation shows the next turn with its distance, the road you're on, your speed against the limit, and arrival time, time and distance left, with the route ahead in its travel-mode colours.
+* The next turn is marked on the map with a callout showing the turn arrow and the road you turn onto, on the side you turn to.
+* Navigation reroutes within seconds when you leave the route, without starting the new route behind you, and says when you've arrived. Multi-stop trips continue with the next leg.
+* Spoken turn-by-turn directions, timed to your speed, with a choice of all prompts, alerts only or silent for each way of travelling.
+* Trips and navigation point out what's on the way: crosswalks drivers must yield at, railroad and uncontrolled crossings, sharp curves, stairs, steep climbs on foot or by bike, and more. Navigation warns you ahead of each one.
+* Multimodal navigation pauses at each mode change, telling you to park, lock your bike or board, and continues on its own after a short countdown.
+* Navigation now guides transit trips: a countdown to your departure, the stops left on board, and a get-off alert before your stop. If you miss the bus or your stop, it offers the next departure or another way.
+* On a transit trip, navigation checks for a quicker plan every couple of minutes while you're off board, and offers to switch when one gets you there clearly sooner.
+* Search along your route while navigating, for gas, charging, coffee, restrooms and more, with how much time each detour adds. Add one as a stop and navigation routes you there first.
+* Bike share trips keep an eye on your station: if it is filling up or running out of bikes, navigation offers a nearby one, or switches for you when it's empty or full.
+* Navigation suggests a better route when one appears: faster, or with more protected bike lanes or quieter streets when riding or walking. Routes in the menu lists every option.
+* With 3D on, your route and position ride up onto bridge decks instead of running along the ground beneath them, while navigating and when previewing a trip. The part already travelled greys out on the deck too.
+* Driving navigation shows which lanes to use before a turn, from the arrows painted on the road, and says it too. The route line now sits in your travel lanes and curves through junctions.
+* Driving navigation draws your route in the lane to take, moving across before each turn, with lane guidance from the road's mapped lanes where it is known. In countries that drive on the left, the route keeps left.
+* Start navigation from anywhere along a trip's route, not only its start. Away from the route, Preview replaces Start and steps through each turn with street-level imagery.
+* Cycling routes run down the bike lane where a street has one, or just inside the outer traffic lane where it doesn't. Separate bike paths keep their own line, and your position arrow rides in the lane with it.
+* Navigation takes over the whole screen: a large turn card and a swipe-up trip card on phones, and a car-dashboard column with big buttons on wider screens. The rest of the app returns when you end.
+* Hazards ahead show on the navigation map: traffic lights and railroad crossings as signs on the route, and crosswalks, stairs, sharp curves and the like as warning callouts.
+* Driving directions from your current location start off the way your car is facing, so you aren't told to turn where you can't.
+* When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
+* Navigate with no destination: tap your location and choose Drive, Walk or Cycle to follow the road with your speed, the speed limit and hazard warnings, and pick a destination along the way. Keep going after you arrive, too.
+* Choose how you appear while navigating: a direction arrow, a 3D car, SUV or pickup when driving, or a bike when cycling, each in a colour of your choice.
+* Navigation's speed card shows the speed limit and your speed, turning orange, then red, when you're over. Choose to show either, both or neither.
+
+### Changed
+
+* Sharp turns show as sharp in step-by-step directions.
+
+### Fixed
+
+* Searching for a place shows matches near you first, instead of a same-named place in another state.
+* With 3D on, a route passing under a bridge disappears beneath the deck, and a route riding a deck no longer also draws on the ground or water below it.
+* Planning a trip with your car or bike saved in another city no longer freezes the app or suggests walking hundreds of kilometres to reach it.
+* On phones, the app now fits the screen exactly instead of scrolling by the height of the browser toolbar, which hid the bottom card.
+
 ## [0.16.14] - 2026-10-26
 
 ### Changed

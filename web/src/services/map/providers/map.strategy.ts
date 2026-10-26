@@ -24,7 +24,10 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
-import { impactFeedback } from '@tauri-apps/plugin-haptics'
+import { hapticImpact } from '@/lib/haptics'
+import { liftPixels } from '@/lib/guidance/deck-lift'
+import type { RouteTrack } from '@/lib/map-decks/deck.types'
+import { metersPerPixel } from '@/lib/guidance/camera-framing'
 import {
   mapPoiClickPolicy,
   PoiTapController,
@@ -66,11 +69,7 @@ export class MapStrategy {
     lngLat: { lng: number; lat: number },
     point: { x: number; y: number },
   ) {
-    try {
-      await impactFeedback('medium')
-    } catch {
-      // Haptics not available (e.g., web/desktop)
-    }
+    await hapticImpact('medium')
     mapEventBus.emit('contextmenu', { lngLat, point })
   }
 
@@ -283,6 +282,42 @@ export class MapStrategy {
   }
 
   /** Update an existing marker's position without removing it (e.g. during drag of another marker). */
+  /** Draws a mounted marker this many metres above the ground, as on a bridge deck. */
+  setMarkerLift(id: string, metres: number) {
+    const marker = this.markers.get(id)
+    if (!marker?.setOffset) return
+    const lat = marker.getLngLat?.().lat ?? 0
+    const px = liftPixels(metres, metersPerPixel(this.mapInstance.getZoom(), lat), this.mapInstance.getPitch())
+    marker.setOffset([0, -px])
+  }
+
+  /** A 3D bridge deck's height under a point, in terrain metres, or null where there is none. */
+  deckHeight(_lng: number, _lat: number, _along?: [number, number]): number | null {
+    return null
+  }
+
+  /** The terrain's height at a point, or null without terrain. */
+  groundHeight(_lng: number, _lat: number): number | null {
+    return null
+  }
+
+  /** Runs whenever the drawn decks change; returns an unsubscribe. */
+  onDecksChanged(_listener: () => void): () => void {
+    return () => {}
+  }
+
+  /** Raises the camera's centre this far above the ground, as over a bridge deck; 0 rests it on the ground. */
+  liftCenter(_metres: number) {}
+
+  /** Colours routes lifted onto bridge decks, or restores the default with null. */
+  setDeckRouteColors(_colors: { route: string; casing: string } | null) {}
+
+  /** Lays the navigated route over bridge decks as its track says, and tells it where; null stops. */
+  trackDeckRoute(_track: RouteTrack | null) {}
+
+  /** Metres of the measured route already travelled. */
+  setDeckRouteTravelled(_metres: number) {}
+
   setMarkerLngLat(id: string, lngLat: LngLat) {
     const marker = this.markers.get(id)
     if (marker && typeof marker.setLngLat === 'function') {
@@ -294,10 +329,16 @@ export class MapStrategy {
    * Rotate an existing marker to a compass heading without recreating it, and
    * toggle the `--heading-opacity` cue its element uses to show/hide the beam.
    * The marker is switched to `rotationAlignment: 'map'` so the heading stays
-   * north-relative as the map rotates (pitch stays viewport-flat so the dot
-   * doesn't distort when the map is tilted). `null` hides the beam.
+   * north-relative as the map rotates. Pitch defaults to viewport-flat so the
+   * dot doesn't distort when tilted; the navigation arrow lies on the map.
+   * `null` hides the beam.
    */
-  setMarkerHeading(id: string, heading: number | null, spread = 1) {
+  setMarkerHeading(
+    id: string,
+    heading: number | null,
+    spread = 1,
+    pitchAlignment: 'map' | 'viewport' = 'viewport',
+  ) {
     const marker = this.markers.get(id)
     if (!marker || typeof marker.setRotation !== 'function') return
 
@@ -312,7 +353,7 @@ export class MapStrategy {
       marker.setRotationAlignment('map')
     }
     if (typeof marker.setPitchAlignment === 'function') {
-      marker.setPitchAlignment('viewport')
+      marker.setPitchAlignment(pitchAlignment)
     }
     marker.setRotation(heading)
     element?.style.setProperty('--beam-spread', String(spread))

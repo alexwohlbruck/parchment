@@ -29,6 +29,11 @@ import {
   type Tick,
 } from '@/lib/map/animation-scheduler'
 import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
+import { deckLiftAt } from '@/services/guidance/deck-lift.service'
+import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import router, { AppRoute } from '@/router'
+import { useGuidanceStore } from '@/stores/guidance.store'
+import { headingKnown } from '@/lib/guidance/vehicle-indicator'
 
 const MARKER_ID = 'self'
 
@@ -113,6 +118,10 @@ export class UserLocationLayer extends BaseMarkerLayer {
   protected getData(): MarkerData[] {
     const lngLat = this.geolocation.lngLat.value
     if (!lngLat) return []
+    const navigating = guidanceEngine.active.value
+    const vehicle = navigating ? useGuidanceStore().vehicle : null
+    // A 3D vehicle is drawn by the guidance map layer instead.
+    if (vehicle && vehicle.indicator !== 'arrow') return []
 
     return [
       {
@@ -121,7 +130,9 @@ export class UserLocationLayer extends BaseMarkerLayer {
         props: {
           accuracy: this.geolocation.accuracy.value,
           heading: this.geolocation.heading.value,
-          mode: 'dot',
+          mode: navigating ? 'navigation' : 'dot',
+          color: vehicle?.color,
+          onSelect: () => router.push({ name: AppRoute.MY_LOCATION }),
         },
       },
     ]
@@ -204,7 +215,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
    * redundant updates unless the marker was just recreated (`headingDirty`).
    */
   private applyHeading = () => {
-    if (!this.mapAPI) return
+    if (!this.mapAPI || guidanceEngine.active.value) return
     const fullId = `${this.idPrefix}${MARKER_ID}`
     if (!this.mapAPI.hasMarker(fullId)) return
 
@@ -240,9 +251,11 @@ export class UserLocationLayer extends BaseMarkerLayer {
    * `this` reference.
    */
   private tick: Tick = (now) => {
-    if (!this.mapAPI || !this.track) return 'idle'
+    if (!this.mapAPI) return 'idle'
     const fullId = `${this.idPrefix}${MARKER_ID}`
     if (!this.mapAPI.hasMarker(fullId)) return 'idle'
+    if (guidanceEngine.active.value) return this.tickNavigation(fullId, now)
+    if (!this.track) return 'idle'
 
     const pos = predict(this.track, now)
     if (
@@ -254,6 +267,19 @@ export class UserLocationLayer extends BaseMarkerLayer {
     }
     this.mapAPI.setMarkerLngLat(fullId, pos)
     this.lastRendered = { lat: pos.lat, lng: pos.lng }
+    return 'active'
+  }
+
+  /** While navigating the puck follows the engine; it is always animating. */
+  private tickNavigation(fullId: string, now: number): 'active' {
+    if (!guidanceEngine.frameDue(now)) return 'active'
+    const puck = guidanceEngine.sample()
+    if (!puck || !this.mapAPI) return 'active'
+    this.mapAPI.setMarkerLngLat(fullId, puck.position)
+    this.mapAPI.setMarkerHeading(fullId, headingKnown(puck) ? puck.bearing : null, 1, 'map')
+    this.mapAPI.setMarkerLift?.(fullId, deckLiftAt(puck.s))
+    this.lastRendered = null
+    this.headingDirty = true
     return 'active'
   }
 
@@ -323,7 +349,9 @@ export class UserLocationLayer extends BaseMarkerLayer {
     const p = markerData.props as {
       accuracy?: number | null
       mode?: 'dot' | 'navigation'
+      color?: string
     }
+    if (p.mode === 'navigation') return `navigation|${p.color}`
     return [
       p.mode ?? 'dot',
       // 5m accuracy buckets — the pulse ring is roughly that resolution

@@ -23,6 +23,16 @@ from the loaded GPX track at the current playback position.
 3. Pick or drop a `.gpx` file. The track loads.
 4. Hit Play. The rest of the app sees simulated GPS.
 
+## Simulating a route
+
+During navigation, the dev tools under the guidance panel can drive the
+route being navigated instead of a recorded file. `route-drive.ts` builds a
+plausible trip from the route (speed limits, slowing for curves, stops at
+some turns, a pause at each mode change), and `fix-model.ts` turns it into
+what a phone would report: 1 Hz fixes with correlated position error,
+wandering accuracy, latency, dropouts and the odd bad fix. Pass a fix model
+to `simulatorStore.load()` to get that cadence for a GPX file too.
+
 ## How to record a GPX
 
 Any tracker that produces standard GPX with `<trkpt>` elements works:
@@ -56,5 +66,7 @@ only coupling point. To remove the feature entirely:
   rate / loop) with a tiny pub-sub. No Vue, no Pinia.
 - `geolocation-override.ts` — installs the `navigator.geolocation`
   proxy. Forwards real GPS through when the simulator is stopped.
+- `route-drive.ts` — synthesizes a timed track along a navigation route.
+- `fix-model.ts` — realistic GPS noise and cadence over ground truth.
 - `index.ts` — `install()` entry point and re-exports the store +
   parser for the settings page UI.

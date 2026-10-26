@@ -43,11 +43,17 @@ import {
 } from '@/components/ui/select'
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { AppRoute } from '@/router'
+import { freeModeFor } from '@/lib/guidance/free-roam'
+import { useStartFreeRoam } from '@/composables/guidance/useStartFreeRoam'
+import { FREE_MODE_ICONS } from '@/components/guidance/free-mode-icons'
 
 dayjs.extend(duration)
 
 const route = useRoute()
+const { t } = useI18n()
+const startFreeRoam = useStartFreeRoam()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
@@ -184,6 +190,13 @@ const allModes: Array<{ type: SelectedMode; icon: any; label: string }> = [
 const modes = allModes.filter(
   m => m.type !== 'rideshare' || RIDESHARE_ENABLED,
 )
+
+// From here with nowhere chosen yet, navigation can start without a destination.
+const freeRoamMode = computed(() => {
+  const [origin, ...rest] = waypoints.value
+  if (origin?.place?.id !== 'current-location' || rest.some(wp => wp.lngLat)) return null
+  return freeModeFor(selectedMode.value === 'multi' ? 'driving' : selectedMode.value)
+})
 
 // Override default click behavior to add waypoints instead of navigating
 useMapListener(
@@ -376,6 +389,13 @@ useMapListener(
       />
       <TripList v-else :trips="trips" class="-mx-3" />
     </template>
+
+    <div v-else-if="freeRoamMode" class="flex min-h-[30dvh] items-center justify-center">
+      <Button variant="secondary" class="rounded-full" @click="startFreeRoam(freeRoamMode)">
+        <component :is="FREE_MODE_ICONS[freeRoamMode]" class="mr-2 size-4" />
+        {{ t(`guidance.free.withoutDestination.${freeRoamMode}`) }}
+      </Button>
+    </div>
 
     <!-- No results -->
     <div

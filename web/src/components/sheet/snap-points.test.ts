@@ -108,6 +108,17 @@ describe('resolveSnapPoints', () => {
     expect(px).toEqual([...px].sort((a, b) => a - b))
   })
 
+  test('lifts every detent off the bottom edge, in pixels', () => {
+    expect(
+      resolveSnapPoints({
+        base: ['120px', 0.5],
+        viewportHeight: VH,
+        insets: { top: 40, bottom: 0 },
+        lift: 20,
+      }),
+    ).toEqual(['140px', `${VH / 2 + 20}px`])
+  })
+
   test('handles an empty list', () => {
     expect(resolveSnapPoints({ base: [], viewportHeight: VH })).toEqual([])
   })

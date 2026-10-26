@@ -162,6 +162,11 @@ export class MapLayerGroup {
 export class TripGroup extends MapLayerGroup {
   trip: Trip
   private sources: Set<string> = new Set() // Track all sources created by this group
+
+  /** The sources carrying the trip's route lines. */
+  routeSources(): string[] {
+    return [...this.sources].filter(id => id.includes('-segment-'))
+  }
   private _routeProfiles: Map<number, RouteProfileType | null> = new Map()
 
   constructor(map: MapStrategy, trip: Trip, routeProfile?: RouteProfileType | null) {

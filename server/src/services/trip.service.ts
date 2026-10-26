@@ -41,6 +41,7 @@ import {
 } from '../lib/transit/route-options'
 import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
 import { nameLegByRoute } from '../lib/transit/line-name'
+import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
 
 /**
@@ -1059,6 +1060,7 @@ export class TripService {
 
     // Multimodal: walk to car + drive
     const carLocation = car.location!
+    if (TripService.vehicleOutOfReach(from.location, carLocation)) return null
 
     try {
       // Walk to car
@@ -1177,6 +1179,7 @@ export class TripService {
         ],
         'auto',
         preferences,
+        { startHeading: startHeading(from, 'driving') },
       )
 
       if (!route.routes.length) return null
@@ -1270,6 +1273,17 @@ export class TripService {
       request.preferredDepartureTime || new Date().toISOString()
     const maxWalkDistance = preferences.maxWalkingDistance ?? 1000 // meters
 
+    // Determine drive origin (may need to walk to car first)
+    const availableVehicles = request.availableVehicles || []
+    const car = availableVehicles.find((v) => v.type === 'car')
+    const useKnownLocations = preferences.useKnownVehicleLocations !== false
+    const carLocation =
+      useKnownLocations && car?.location
+        ? car.location
+        : null
+
+    if (TripService.vehicleOutOfReach(from.location, carLocation)) return null
+
     // Search for parking lots near the destination. Private/inaccessible
     // lots are excluded unless the user opts in.
     const parkingPlaces = await this.searchNearbyParking(
@@ -1293,15 +1307,6 @@ export class TripService {
       })
       .sort((a, b) => a.distToDest - b.distToDest)
       .slice(0, TripService.PARKING_MAX_CANDIDATES)
-
-    // Determine drive origin (may need to walk to car first)
-    const availableVehicles = request.availableVehicles || []
-    const car = availableVehicles.find((v) => v.type === 'car')
-    const useKnownLocations = preferences.useKnownVehicleLocations !== false
-    const carLocation =
-      useKnownLocations && car?.location
-        ? car.location
-        : null
 
     // Evaluate each candidate parking spot concurrently and pick the best
     // total time. Previously a serial loop: the drive+walk route calls within
@@ -1384,6 +1389,7 @@ export class TripService {
           ],
           'auto',
           preferences,
+          { startHeading: driveFrom === from.location ? startHeading(from, 'driving') : undefined },
         )
 
         if (!driveRoute.routes.length) return null
@@ -1551,6 +1557,19 @@ export class TripService {
       request.preferredDepartureTime || new Date().toISOString()
     const maxWalkDistance = preferences.maxWalkingDistance ?? 1000 // meters
 
+    // Determine ride origin (may need to walk to bike first)
+    const availableVehicles = request.availableVehicles || []
+    const bike = availableVehicles.find((v) =>
+      v.type === 'bike' || v.type === 'e-bike' || v.type === 'scooter' || v.type === 'e-scooter',
+    )
+    const useKnownLocations = preferences.useKnownVehicleLocations !== false
+    const bikeLocation =
+      useKnownLocations && bike?.location
+        ? bike.location
+        : null
+
+    if (TripService.vehicleOutOfReach(from.location, bikeLocation)) return null
+
     // Search for bicycle parking near the destination
     const parkingPlaces = await this.searchNearbyParking(
       to.location,
@@ -1572,17 +1591,6 @@ export class TripService {
       })
       .sort((a, b) => a.distToDest - b.distToDest)
       .slice(0, TripService.BIKE_PARKING_MAX_CANDIDATES)
-
-    // Determine ride origin (may need to walk to bike first)
-    const availableVehicles = request.availableVehicles || []
-    const bike = availableVehicles.find((v) =>
-      v.type === 'bike' || v.type === 'e-bike' || v.type === 'scooter' || v.type === 'e-scooter',
-    )
-    const useKnownLocations = preferences.useKnownVehicleLocations !== false
-    const bikeLocation =
-      useKnownLocations && bike?.location
-        ? bike.location
-        : null
 
     // Evaluate each candidate parking spot concurrently and pick the best
     // total time. Previously a serial loop where per-candidate route calls
@@ -1662,6 +1670,7 @@ export class TripService {
           ],
           'bicycle',
           preferences,
+          { startHeading: rideOrigin === from.location ? startHeading(from, 'cycling') : undefined },
         )
 
         if (!bikeRoute.routes.length) return null
@@ -1871,6 +1880,7 @@ export class TripService {
 
     // Multimodal: walk to bike + ride
     const bikeLocation = bike.location!
+    if (TripService.vehicleOutOfReach(from.location, bikeLocation)) return null
 
     try {
       // Walk to bike
@@ -1980,6 +1990,7 @@ export class TripService {
         ],
         'bicycle',
         preferences,
+        { startHeading: startHeading(from, 'cycling') },
       )
 
       if (!route.routes.length) {
@@ -2629,6 +2640,7 @@ export class TripService {
     try {
       const vehicleLocation =
         useKnownLocation && vehicle?.location ? vehicle.location : null
+      if (TripService.vehicleOutOfReach(from.location, vehicleLocation)) return []
 
       let walkToVehicle: TripSegment | null = null
       let queryFrom = from.location
@@ -4203,6 +4215,13 @@ export class TripService {
       requestId: undefined,
       generatedAt: new Date().toISOString(),
     }
+  }
+
+  /** Further than this from the origin, a parked vehicle isn't one to walk to. */
+  private static readonly VEHICLE_WALK_MAX_M = 5000
+
+  private static vehicleOutOfReach(from: Coordinate, vehicleLocation: Coordinate | null | undefined): boolean {
+    return !!vehicleLocation && TripService.haversineDistance(from, vehicleLocation) > TripService.VEHICLE_WALK_MAX_M
   }
 
   /**

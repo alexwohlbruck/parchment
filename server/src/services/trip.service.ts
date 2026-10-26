@@ -48,10 +48,6 @@ import { MemoCache } from '../lib/memo-cache'
 
 const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
-/**
- * Simplified multimodal trip planning service
- * Supports: walking, driving, biking with optional vehicle locations
- */
 /** A leg that carries an already-chosen journey on to the next stop. */
 interface Continuation {
   strategy: string
@@ -2157,17 +2153,6 @@ export class TripService {
 
   // ── Intermodal transit planning (MOTIS unified graph) ─────────────
 
-  /**
-   * Plan transit trips using MOTIS intermodal routing.
-   *
-   * Instead of manually enumerating access/egress mode combinations and
-   * querying MOTIS separately for each, this sends 1-3 MOTIS queries that
-   * handle walk/bike/car/bikeshare access/egress natively within the
-   * unified graph (OSM + GTFS + GBFS).
-   *
-   * Rideshare combinations are derived from the walk-access results since
-   * rideshare isn't a MOTIS-routable mode.
-   */
   /** What leaving the paid area costs a transfer, as time: a second fare
    *  at the value of time plus finding the other station's entrance. */
   private static readonly STREET_TRANSFER_PENALTY_SEC = 600
@@ -2236,6 +2221,16 @@ export class TripService {
       .join('|')
   }
 
+  /**
+   * Plan transit trips using MOTIS intermodal routing, which handles walk,
+   * bike, car and bikeshare access and egress natively within one graph
+   * (OSM + GTFS + GBFS). Each access strategy is its own query: walk, a
+   * few-transfers walk sweep, rental egress, park-and-ride, bike-to-station
+   * and bike carry-on, trimmed to what a continuation still needs.
+   *
+   * Rideshare combinations are derived from the walk-access results since
+   * rideshare isn't a MOTIS-routable mode.
+   */
   private async planIntermodalTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
@@ -2302,9 +2297,9 @@ export class TripService {
     }, TransitPriority.Core)
 
     // Few-transfers sweep: time-optimal RAPTOR never returns a one-seat ride
-    // that arrives after a transfer combo — a heavy per-interchange pad makes
-    // it surface simpler itineraries. Skipped in multi mode (3 itineraries is
-    // already enough for a mode overview).
+    // that arrives after a transfer combo, so a heavy per-interchange pad
+    // surfaces simpler itineraries. Only works because barrelman forwards
+    // `additionalTransferTime` to MOTIS. Skipped in multi and continuations.
     const fewTransfersFetch = isMulti || isContinuation
       ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
       : fetchMotis('fewTransfers', {
@@ -3187,15 +3182,6 @@ export class TripService {
   }
 
   /**
-   * Convert a max-walking-distance preference (meters) into the MOTIS
-   * street-leg time budget (seconds). MOTIS measures the budget in walk
-   * time along the street network, so a naive meters/speed conversion
-   * silently undershoots the user's stated distance — street routes detour,
-   * and a walk a few seconds over the cap kills otherwise-perfect one-seat
-   * itineraries. 20% detour headroom plus a minute of slack keeps the cap
-   * meaning "about this far", erring on inclusion (scoring handles the rest).
-   */
-  /**
    * Floor (seconds) for the MOTIS transit access/egress walk budget. Decouples
    * transit *discovery* from the user's walking preference: a tight
    * maxWalkingDistance (e.g. 1000 m → ~917 s) must not make transit vanish
@@ -3215,6 +3201,10 @@ export class TripService {
    * `minSec`. See TRANSIT_ACCESS_WALK_FLOOR_SEC for why transit callers pass a
    * floor; non-transit callers (shared-vehicle dock walks) pass none, since
    * walking 25 min to a rental dock is never sensible.
+   *
+   * MOTIS spends the budget as walk time along streets, which detour, so a
+   * plain meters/speed conversion undershoots the stated distance; 20%
+   * headroom and a minute of slack keep it meaning "about this far".
    */
   private static walkSecondsBudget(
     maxWalkingDistanceM: number | undefined,
@@ -3289,7 +3279,7 @@ export class TripService {
   /**
    * Cached pedestrian re-routes, keyed by endpoints and preferences.
    *
-   * One plan enriches every walk leg of every itinerary across ~5 MOTIS
+   * One plan enriches every walk leg of every itinerary across all its MOTIS
    * queries, and those itineraries overlap heavily — the access walk to a
    * given station is identical in each itinerary boarding there. Without
    * this, the same route is fetched once per itinerary.
@@ -4534,14 +4524,6 @@ export class TripService {
     }
   }
 
-  /**
-   * Time score: based on arrival offset from the requested departure time.
-   *
-   * Uses `arrivalTime - referenceTime` instead of raw trip duration so that
-   * trips with long waits (e.g. transit not departing for 6 hours) are
-   * properly penalized. For immediate-departure modes (driving, walking,
-   * cycling) the arrival offset ≈ duration, so this is backward-compatible.
-   */
   /** Value of time for generalized cost: 200 s/$ ≈ $18/hour. A paid trip
    *  must save about 3.3 minutes per dollar to beat a free alternative. */
   private static readonly VALUE_OF_TIME_SEC_PER_DOLLAR = 200
@@ -4566,6 +4548,11 @@ export class TripService {
     )
   }
 
+  /**
+   * Time score: based on arrival offset from the requested departure time,
+   * rather than raw duration, so trips with long waits (transit not leaving
+   * for six hours) are penalized. For street modes the two are about equal.
+   */
   private scoreTime(trip: TripResponse, referenceTime: string): number {
     const refMs = new Date(referenceTime).getTime()
     const arrMs = new Date(trip.latestEndTime).getTime()
@@ -4800,12 +4787,6 @@ export class TripService {
   }
 
   /**
-   * Direct ranking: overwrite each candidate's overall score with its
-   * min-max-normalized primary metric (lower metric = higher score), plus
-   * the balanced weighted score scaled down to a pure tiebreaker.
-   * Non-finite metric values rank last.
-   */
-  /**
    * Score every candidate and put the best first.
    *
    * The reference time is when the rider wants to set off, so a transit trip
@@ -4857,6 +4838,12 @@ export class TripService {
     return scored.sort((a, b) => b.score.overall - a.score.overall)
   }
 
+  /**
+   * Direct ranking: overwrite each candidate's overall score with its
+   * min-max-normalized primary metric (lower metric = higher score), plus
+   * the balanced weighted score scaled down to a pure tiebreaker.
+   * Non-finite metric values rank last.
+   */
   private rankByMetric(
     candidates: Array<{ trip: TripResponse; score: TripScore }>,
     metric: (c: { trip: TripResponse; score: TripScore }) => number,

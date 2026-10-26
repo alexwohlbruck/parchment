@@ -64,9 +64,11 @@ import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
  *
- * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
- * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
- * — 100+ concurrent requests for one user action, none of it capped. Under
+ * A single intermodal trip plan fans out hard: up to seven intermodal queries
+ * of up to 10 itineraries each (and barrelman fans a walk search out to up to
+ * 16 station-pair MOTIS queries of its own), each itinerary re-routing 2-3
+ * walk legs through GraphHopper — 100+ concurrent requests for one user
+ * action, none of it capped. Under
  * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
  * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
  * closed unexpectedly"). Every later request blocks behind it and the app

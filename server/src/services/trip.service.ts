@@ -176,10 +176,13 @@ export class TripService {
     // Collapse trips that differ only by an interchangeable route (the 4 vs the
     // 5 on shared express tracks) into a single "4 or 5" trip, so the rider
     // sees one option boarding whichever train comes first.
-    const mergedCandidates = this.mergeInterchangeableTrips(candidates)
+    const arrivalTarget = this.getArrivalTarget(request)
+    const mergedCandidates = this.mergeInterchangeableTrips(
+      candidates, request.sortPreference, arrivalTarget != null,
+    )
 
     const rankedTrips: TripCandidate[] = this.filterQualityTrips(
-      this.scoreAndOrder(request, mergedCandidates, this.getArrivalTarget(request)),
+      this.scoreAndOrder(request, mergedCandidates, arrivalTarget),
       request.sortPreference,
       request.selectedMode === 'multi',
     )
@@ -570,8 +573,8 @@ export class TripService {
   /**
    * Collapse trips that are identical except for an interchangeable transit
    * route — same board→…→alight stop sequence and direction, different route
-   * id (the 4 and the 5 sharing express tracks). The survivor keeps the
-   * soonest-departing trip's timing and gains `routeOptions` on each merged
+   * id (the 4 and the 5 sharing express tracks). The survivor is the one
+   * scoreAndOrder would rank first, and gains `routeOptions` on each merged
    * transit leg; the trip-detail board later unions their schedules.
    *
    * Trips merge only when EVERY corresponding segment matches: non-transit
@@ -582,7 +585,11 @@ export class TripService {
    * express→local-transfer case falls out for free: each leg is keyed
    * independently, so the express legs merge and the local leg stays put.
    */
-  private mergeInterchangeableTrips(trips: TripResponse[]): TripResponse[] {
+  private mergeInterchangeableTrips(
+    trips: TripResponse[],
+    sortPreference?: SortPreference,
+    arriveBy = false,
+  ): TripResponse[] {
     const groups = new Map<string, TripResponse[]>()
     for (const trip of trips) {
       const sig = TripService.tripMergeSignature(trip)
@@ -592,7 +599,7 @@ export class TripService {
     }
     const out: TripResponse[] = []
     for (const group of groups.values()) {
-      out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group))
+      out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group, sortPreference, arriveBy))
     }
     return out
   }
@@ -690,18 +697,18 @@ export class TripService {
   }
 
   /**
-   * Merge a group of interchangeable trips into the soonest-departing one,
+   * Merge a group of interchangeable trips into its best departure,
    * annotating each transit leg with the full set of routes that serve it.
-   * Also de-duplicates repeated departures of the same route (keeping the
-   * soonest) since those share the signature too.
+   * Also de-duplicates repeated departures of the same route, since those
+   * share the signature too.
    */
-  private mergeTripGroup(group: TripResponse[]): TripResponse {
+  private mergeTripGroup(
+    group: TripResponse[],
+    sortPreference?: SortPreference,
+    arriveBy = false,
+  ): TripResponse {
     const survivor = group.reduce((a, b) =>
-      new Date(b.earliestStartTime).getTime() <
-      new Date(a.earliestStartTime).getTime()
-        ? b
-        : a,
-    )
+      TripService.betterDeparture(a, b, sortPreference, arriveBy))
     survivor.segments = survivor.segments.map((seg, idx) => {
       if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
       if (!TripService.offersRouteOptions(seg.details.transitDetails.route.type)) return seg
@@ -735,6 +742,33 @@ export class TripService {
       }
     })
     return survivor
+  }
+
+  /**
+   * The better of two departures of one journey, by the keys scoreAndOrder
+   * ranks on: the named sort's metric, then for an unsorted arrive-by the
+   * latest departure, otherwise the earliest arrival, then the shorter ride.
+   */
+  private static betterDeparture(
+    a: TripResponse,
+    b: TripResponse,
+    sortPreference: SortPreference | undefined,
+    arriveBy: boolean,
+  ): TripResponse {
+    const ms = (iso: string) => new Date(iso).getTime()
+    const keys: Array<(t: TripResponse) => number> = [
+      (t) => (sortPreference ? TripService.SORT_METRICS[sortPreference]({ trip: t }) : 0),
+      arriveBy && !sortPreference
+        ? (t) => -ms(t.earliestStartTime)
+        : (t) => ms(t.latestEndTime),
+      (t) => t.tripStats.totalDuration,
+    ]
+    for (const key of keys) {
+      const d = key(a) - key(b)
+      if (d < 0) return a
+      if (d > 0) return b
+    }
+    return a
   }
 
   /**

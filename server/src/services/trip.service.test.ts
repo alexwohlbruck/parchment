@@ -443,6 +443,8 @@ describe('TripService — buildTransitSegment', () => {
     // twice — dedupe by shortName instead.
     const mk = (start: string, routeId: string, shortName: string) => ({
       earliestStartTime: start,
+      latestEndTime: start,
+      tripStats: { totalDuration: 600 },
       segments: [
         {
           mode: 'transit',
@@ -467,6 +469,45 @@ describe('TripService — buildTransitSegment', () => {
     const opts = merged.segments[0].details.transitDetails.routeOptions
 
     expect(opts.map((o: { shortName?: string }) => o.shortName)).toEqual(['2', '3'])
+  })
+
+  describe('mergeTripGroup survivor', () => {
+    // Same stops, different departures: the 4 leaves first but is slower.
+    const departure = (route: string, start: string, end: string, duration: number) => ({
+      earliestStartTime: start,
+      latestEndTime: end,
+      tripStats: { totalDuration: duration },
+      segments: [{
+        mode: 'transit',
+        endTime: end,
+        details: { transitDetails: { route: { id: route, shortName: route } } },
+      }],
+    })
+    const early = departure('4', '2026-01-15T08:00:00Z', '2026-01-15T08:30:00Z', 1800)
+    const late = departure('5', '2026-01-15T08:05:00Z', '2026-01-15T08:25:00Z', 1200)
+    const merge = (group: unknown[], sort?: string, arriveBy = false) =>
+      (tripService as any).mergeTripGroup(group, sort, arriveBy)
+
+    test('depart-at keeps the earliest arrival, not the first to leave', () => {
+      expect(merge([early, late]).earliestStartTime).toBe(late.earliestStartTime)
+    })
+
+    test('depart-at breaks an arrival tie on the shorter ride', () => {
+      const slow = departure('4', '2026-01-15T08:00:00Z', '2026-01-15T08:25:00Z', 1500)
+      expect(merge([slow, late]).tripStats.totalDuration).toBe(1200)
+    })
+
+    test('arrive-by keeps the latest departure', () => {
+      const lastOut = departure('5', '2026-01-15T08:10:00Z', '2026-01-15T08:29:00Z', 1140)
+      expect(merge([late, lastOut, early], undefined, true).earliestStartTime)
+        .toBe(lastOut.earliestStartTime)
+    })
+
+    test('a named sort decides before arrive-by does', () => {
+      const slowLast = departure('5', '2026-01-15T08:10:00Z', '2026-01-15T08:45:00Z', 2100)
+      expect(merge([slowLast, early], undefined, true)).toBe(slowLast)
+      expect(merge([slowLast, early], 'shortest', true)).toBe(early)
+    })
   })
 
   test('realtime without delay only sets realTimeData flag', () => {

@@ -48,7 +48,7 @@ async function resendEmail() {
 
   try {
     await authService.verifyEmail(email)
-    resetField('pin', { value: [] })
+    resetForm()
     autoSubmit.value = true
     resendStatus.value = 'sent'
     startResendCooldown()
@@ -72,7 +72,7 @@ const formSchema = toTypedSchema(
   }),
 )
 
-const { handleSubmit, setFieldValue, resetField, values } = useForm({
+const { handleSubmit, setFieldValue, resetForm, values } = useForm({
   validationSchema: formSchema,
   initialValues: {
     pin: [],

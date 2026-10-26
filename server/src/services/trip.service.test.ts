@@ -309,12 +309,7 @@ describe('TripService — buildTransitSegment', () => {
       routeId: 'route-9x',
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.co2).toBeCloseTo(5000 * 0.00005, 5) // ~50g/km
     expect(segment.mode).toBe('transit')
@@ -336,12 +331,7 @@ describe('TripService — buildTransitSegment', () => {
       departureDelay: 120, // 2 minutes late
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBe(true)
     expect(segment.details.transitDetails.delay).toBe(120)
@@ -361,12 +351,7 @@ describe('TripService — buildTransitSegment', () => {
       headsign: 'Downtown',
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBeUndefined()
     expect(segment.details.transitDetails.delay).toBeUndefined()
@@ -394,12 +379,7 @@ describe('TripService — buildTransitSegment', () => {
       ],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     const opts = segment.details.transitDetails.routeOptions
     expect(opts).toBeDefined()
@@ -421,12 +401,7 @@ describe('TripService — buildTransitSegment', () => {
       interchangeableRoutes: [{ routeId: 'r9x', shortName: '9X' }],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.routeOptions).toBeUndefined()
   })
@@ -520,12 +495,7 @@ describe('TripService — buildTransitSegment', () => {
       // no departureDelay field
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBe(true)
     expect(segment.details.transitDetails.delay).toBeUndefined()
@@ -549,12 +519,7 @@ describe('TripService — buildTransitSegment', () => {
       },
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.geometry).toHaveLength(3)
     expect(segment.geometry[0]).toEqual({ lat: 35.21, lng: -80.85 })
@@ -579,12 +544,7 @@ describe('TripService — buildTransitSegment', () => {
       },
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     // Should compute a non-zero distance from the geometry
     expect(segment.distance).toBeGreaterThan(0)
@@ -607,12 +567,7 @@ describe('TripService — buildTransitSegment', () => {
       ],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     // stops = [departure, ...intermediate, arrival]
     const stops = segment.details.transitDetails.stops

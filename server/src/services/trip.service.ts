@@ -3748,6 +3748,8 @@ export class TripService {
   private adaptIntermodalLeg(
     leg: import('../types/integration.types').TransitLeg,
   ): TripSegment | null {
+    if (leg.transitLeg) return this.buildTransitSegment(leg)
+
     let geometry: any = null
     if (leg.geometry?.coordinates) {
       geometry = leg.geometry.coordinates.map(
@@ -3758,11 +3760,6 @@ export class TripService {
     const distance = leg.distance > 0
       ? leg.distance
       : TripService.computeDistanceFromGeometry(geometry)
-
-    // Transit legs use the existing buildTransitSegment pattern
-    if (leg.transitLeg) {
-      return this.buildTransitSegment(leg, { location: { lat: leg.from.lat, lng: leg.from.lng }, type: 'via' } as Waypoint, { location: { lat: leg.to.lat, lng: leg.to.lng }, type: 'via' } as Waypoint, leg.startTime)
-    }
 
     // Street-mode legs (WALK, BIKE, CAR, CAR_PARKING, RENTAL)
     const mode = this.mapIntermodalStreetMode(leg.mode)
@@ -4106,12 +4103,7 @@ export class TripService {
    * Build a TripSegment from a MOTIS transit leg.
    * Maps MOTIS OTPAPI fields to our TransitDetails type.
    */
-  private buildTransitSegment(
-    leg: any,
-    tripFrom: Waypoint,
-    tripTo: Waypoint,
-    startTime: string,
-  ): TripSegment {
+  private buildTransitSegment(leg: any): TripSegment {
     const departureStop: TransitStop = {
       id: leg.from.stopId || '',
       name: leg.from.name || '',

@@ -57,7 +57,7 @@ const subline = computed(() => (props.status === 'arrived' ? props.destination :
         <div class="mt-1.5 line-clamp-2 font-semibold leading-tight" :class="dash ? 'text-[26px]' : 'text-[22px]'">{{ road }}</div>
       </div>
     </div>
-    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" :dash="dash" />
+    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" :kind="kind" :dash="dash" />
     <div
       v-if="then && !headline"
       class="flex items-center gap-2 border-t px-5 text-muted-foreground"

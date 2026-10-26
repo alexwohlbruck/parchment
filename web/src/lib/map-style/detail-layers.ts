@@ -96,6 +96,10 @@ export const GOLF_TILES = 'golf_features'
 export const GOLF_PIN_SOURCE = 'golf-pins'
 /** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
 export const BRIDGE_DECK_TILES = 'bridge_decks'
+/** The cut down to each tunnel portal, solved by barrelman; read by the tunnel layer, not styled. */
+export const TUNNEL_CUT_TILES = 'tunnel_cuts'
+/** Its own small source, so a view's cuts land well ahead of its heavy detail tiles. */
+export const TUNNEL_CUT_SOURCE = 'tunnel-cuts'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -268,6 +272,13 @@ export function detailSources(tileUrl: (source: string) => string) {
       minzoom: 12,
       maxzoom: 14,
     },
+    // A few kilobytes for 2 km of street, over-zoomed from 14.
+    [TUNNEL_CUT_SOURCE]: {
+      type: 'vector' as const,
+      tiles: [tileUrl(TUNNEL_CUT_TILES)],
+      minzoom: 14,
+      maxzoom: 14,
+    },
   }
 }
 
@@ -299,15 +310,15 @@ export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DEC
  * source layers some style layer uses, so without these they vanish above z16.
  */
 export function readOnlyDetailLayers(): any[] {
-  return READ_ONLY_DETAIL_TILES.map(keepDetailLayer)
+  return [...READ_ONLY_DETAIL_TILES.map(layer => keepDetailLayer(layer)), keepDetailLayer(TUNNEL_CUT_TILES, TUNNEL_CUT_SOURCE)]
 }
 
 /** An invisible layer that keeps one detail source layer in overzoomed tiles. */
-export function keepDetailLayer(sourceLayer: string): any {
+export function keepDetailLayer(sourceLayer: string, source = DETAIL_SOURCE): any {
   return {
     id: `Keep ${sourceLayer}`,
     type: 'circle',
-    source: DETAIL_SOURCE,
+    source,
     'source-layer': sourceLayer,
     minzoom: 14,
     paint: { 'circle-opacity': 0, 'circle-radius': 1 },

@@ -13,7 +13,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, holds, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
@@ -41,6 +41,8 @@ const CUT_ZOOM = 14
 const CUT_PAD = 0.15
 /** Cut tiles kept once read. */
 const CUT_TILES = 64
+/** Metres past its line a cut's walls and carving reach. */
+const CUT_REACH = 30
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -165,14 +167,20 @@ export class TunnelLayer {
     this.invalidate()
   }
 
+  /** The view in mercator units. */
+  private view(): Bounds {
+    const b = this.map.getBounds()
+    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    return { minX: nw.x, minY: nw.y, maxX: se.x, maxY: se.y }
+  }
+
   /** The cut tiles the view reaches into, by `z/x/y`; none below street zoom. */
   private cutTilesInView(): string[] {
     if (!this.sources.tiles || this.map.getZoom() < TUNNEL_MIN_ZOOM) return []
     const n = 2 ** CUT_ZOOM
-    const b = this.map.getBounds()
-    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    const v = this.view()
     const span = (lo: number, hi: number) => [Math.floor(lo * n - CUT_PAD), Math.floor(hi * n + CUT_PAD)]
-    const [[x0, x1], [y0, y1]] = [span(nw.x, se.x), span(nw.y, se.y)]
+    const [[x0, x1], [y0, y1]] = [span(v.minX, v.maxX), span(v.minY, v.maxY)]
     const keys: string[] = []
     for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) keys.push(`${CUT_ZOOM}/${x}/${y}`)
     return keys
@@ -261,8 +269,13 @@ export class TunnelLayer {
 
   /** The cuts in the cut tiles read for the view, one copy each. */
   private served(): ServedCut[] {
+    // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
+    const v = this.view()
+    const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
+    const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
     const found = new Map<string, ServedCut>()
-    for (const key of this.cutTilesInView()) for (const cut of this.cutTiles.get(key) ?? []) found.set(cut.key, cut)
+    for (const key of this.cutTilesInView())
+      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
     return [...found.values()]
   }
 

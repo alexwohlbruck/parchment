@@ -31,6 +31,7 @@
 
 * Sharp turns show as sharp in step-by-step directions.
 * Navigation's cards and buttons follow your light or dark theme instead of always being dark.
+* The trip card on phones follows your finger as you swipe it open or closed.
 
 ### Fixed
 * Navigation shows one traffic light per intersection instead of one on each side of it.

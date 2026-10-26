@@ -1,25 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAboard, panelAfterClose, restingFootprint } from './guidance-layout'
-
-describe('restingFootprint', () => {
-  const card = { x: 8, y: 600.4, width: 374, height: 220 }
-
-  it('reports a resting card as it is, rounded', () => {
-    expect(restingFootprint(card, 0)).toEqual({ x: 8, y: 600, width: 374, height: 220 })
-  })
-
-  it('keeps the same rect at every height while expanding', () => {
-    const rest = restingFootprint(card, 0)
-    for (const extra of [12.3, 80, 160.7]) {
-      const open = { ...card, y: card.y - extra, height: card.height + extra }
-      expect(restingFootprint(open, extra)).toEqual(rest)
-    }
-  })
-
-  it('never reports a negative height', () => {
-    expect(restingFootprint(card, 999).height).toBe(0)
-  })
-})
+import { isAboard, panelAfterClose } from './guidance-layout'
 
 describe('panelAfterClose', () => {
   it('returns to the menu from a panel opened there', () => {

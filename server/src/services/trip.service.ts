@@ -2489,9 +2489,6 @@ export class TripService {
     request: TripRequest,
     dataSources: DataSource[],
   ): Promise<TripResponse[]> {
-    // Single origin→destination only — chained shared rides aren't modelled.
-    if (request.waypoints.length > 2) return []
-
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]

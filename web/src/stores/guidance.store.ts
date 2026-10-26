@@ -68,7 +68,7 @@ type LegSegment = NavSegmentInput & TransitSegmentInput & {
   legIndex?: number
   duration?: number
   ownership?: string
-  end?: { label?: string; location?: { lat: number; lng: number } }
+  end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
   sharedMobilityDetails?: { stationName?: string; toStationName?: string; availableDocks?: number } | null
 }
 

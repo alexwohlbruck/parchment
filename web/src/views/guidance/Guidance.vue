@@ -14,6 +14,7 @@ import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
+import { getWaypointPlaceRoute } from '@/lib/place/place-route'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
@@ -54,10 +55,14 @@ function closePanel(outright = false) {
   if (leaving && MAP_PANELS.has(leaving)) camera.follow()
 }
 
+const arrivedForGood = computed(() => guidance.status === 'arrived' && guidance.nextLeg == null)
+
 function exit() {
   panel.value = null
+  const destination = arrivedForGood.value ? getWaypointPlaceRoute(guidance.segments.at(-1)?.end) : null
   guidance.stop()
-  router.back()
+  if (destination) router.replace(destination)
+  else router.back()
 }
 
 // Back closes an open panel before it leaves navigation.
@@ -80,16 +85,13 @@ provide(GUIDANCE_CONTEXT, {
   exit,
 })
 
-// With nothing left to navigate, the arrival card closes itself.
-const ARRIVAL_DISMISS_MS = 30_000
+// With nothing left to navigate, the arrival card hands over to the destination's page.
+const ARRIVAL_DISMISS_MS = 8_000
 let dismissTimer: ReturnType<typeof setTimeout> | null = null
-watch(
-  () => guidance.status,
-  status => {
-    if (dismissTimer) clearTimeout(dismissTimer)
-    dismissTimer = status === 'arrived' && guidance.nextLeg == null ? setTimeout(exit, ARRIVAL_DISMISS_MS) : null
-  },
-)
+watch(arrivedForGood, arrived => {
+  if (dismissTimer) clearTimeout(dismissTimer)
+  dismissTimer = arrived ? setTimeout(exit, ARRIVAL_DISMISS_MS) : null
+})
 onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)
   guidance.stop()

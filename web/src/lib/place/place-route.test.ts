@@ -3,6 +3,7 @@ import {
   getPlaceRoute,
   getPlaceRouteFromExternalIds,
   getTransitStopRoute,
+  getWaypointPlaceRoute,
 } from '@/lib/place/place-route'
 import { AppRoute } from '@/router'
 
@@ -85,6 +86,26 @@ describe('getPlaceRoute — transit ids', () => {
       name: AppRoute.PLACE,
       params: { type: 'node', id: '123' },
     })
+  })
+})
+
+describe('getWaypointPlaceRoute', () => {
+  it("opens the waypoint's place", () => {
+    expect(getWaypointPlaceRoute({ place: { id: 'osm/way/42' }, location: { lat: 1, lng: 2 } })).toEqual({
+      name: AppRoute.PLACE,
+      params: { type: 'way', id: '42' },
+    })
+  })
+
+  it('falls back to the coordinates of an unnamed point', () => {
+    expect(getWaypointPlaceRoute({ location: { lat: 40.7, lng: -74 } })).toEqual({
+      name: AppRoute.PLACE_COORDS,
+      params: { lat: '40.7', lng: '-74' },
+    })
+  })
+
+  it('has nowhere to go without a place or a location', () => {
+    expect(getWaypointPlaceRoute(undefined)).toBeNull()
   })
 })
 

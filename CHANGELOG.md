@@ -23,6 +23,7 @@
 * Hazards ahead show on the navigation map: traffic lights and railroad crossings as signs on the route, and crosswalks, stairs, sharp curves and the like as warning callouts.
 
 ### Changed
+* Arriving at your destination ends navigation on the destination's place page.
 
 * Sharp turns show as sharp in step-by-step directions.
 * Navigation's cards and buttons follow your light or dark theme instead of always being dark.

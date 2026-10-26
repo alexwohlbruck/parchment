@@ -762,6 +762,7 @@ function mapService() {
    * scene, even when it lands late (a cold load readies the map after the fit).
    */
   let fitOwesPadding = false
+  let paddingAfterMove = false
 
   /**
    * Change the transform padding without moving anything on screen.
@@ -1158,6 +1159,17 @@ function mapService() {
     const target = roundPadding(padding as Padding)
     if (paddingEquals(target, map.getPadding())) {
       fitOwesPadding = false
+      return
+    }
+    // setPadding's jumpTo would cut short a drag or ease under way; apply it once the camera rests.
+    if (map.isMoving?.()) {
+      if (!paddingAfterMove) {
+        paddingAfterMove = true
+        map.once('moveend', () => {
+          paddingAfterMove = false
+          updateMapPadding()
+        })
+      }
       return
     }
     if (fitOwesPadding) {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute } from './nav-route'
-import { frameCamera, type FramingInput } from './camera-framing'
+import { DEFAULT_CAMERA_TUNING, PUCK_FOOTROOM, frameCamera, puckFocal, type FramingInput } from './camera-framing'
 import type { PuckState } from './guidance-engine'
 import { cityDrive, polyline } from './test-routes'
 import { angleDelta } from './spring'
@@ -76,5 +76,20 @@ describe('frameCamera', () => {
     expect(frame(straight, 1000, 1.4, { travelMode: 'walking' }).zoom).toBeGreaterThan(
       frame(straight, 1000, 1.4).zoom,
     )
+  })
+})
+
+describe('puckFocal', () => {
+  test('sits low on a tall phone map', () => {
+    expect(puckFocal('follow-3d', DEFAULT_CAMERA_TUNING, 700)).toBe(DEFAULT_CAMERA_TUNING.focal)
+  })
+
+  test('rises on a short map so the road name still fits below', () => {
+    const focal = puckFocal('heading-up', DEFAULT_CAMERA_TUNING, 300)
+    expect(300 * (1 - focal)).toBeCloseTo(PUCK_FOOTROOM)
+  })
+
+  test('centres north-up', () => {
+    expect(puckFocal('north-up', DEFAULT_CAMERA_TUNING, 700)).toBe(0.5)
   })
 })

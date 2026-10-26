@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+import { DialogType } from '@/types/app.types'
+import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
+import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
+import PromptDialog from '@/components/dialogs/PromptDialog.vue'
+import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
+import SignOutDialog from '@/components/identity/SignOutDialog.vue'
+
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -103,6 +110,15 @@ watch(
 
 const { openExternalLink } = useExternalLink()
 
+const dialogComponents = {
+  [DialogType.Component]: ComponentDialog,
+  [DialogType.Confirm]: ConfirmDialog,
+  [DialogType.Prompt]: PromptDialog,
+  [DialogType.AutoForm]: AutoformDialog,
+  [DialogType.Template]: ConfirmDialog,
+  [DialogType.SignOut]: SignOutDialog,
+}
+
 const { dialogs } = appStore
 // Collapsed by default, and remembered — the rail's width changes the map's
 // viewport, so relearning it on every load is a visible layout shift.
@@ -117,7 +133,7 @@ const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
-  hideUI.value = route.meta?.hideUI ?? false
+  hideUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
 })
 
 // Global click handler for external links
@@ -296,7 +312,7 @@ function beforeNavTransition(value: boolean) {
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component
-      :is="dialog.component"
+      :is="dialogComponents[dialog.type]"
       v-bind="dialog.props"
       @submit="async e => dialog.onSubmit(await e)"
       :loading="dialog.loading"
@@ -304,7 +320,7 @@ function beforeNavTransition(value: boolean) {
   </div>
 
   <div
-    class="flex flex-row h-[100vh] items-stretch"
+    class="flex flex-row h-full items-stretch"
     :class="isTauri ? '' : 'bg-background'"
   >
     <!-- Desktop navigation -->

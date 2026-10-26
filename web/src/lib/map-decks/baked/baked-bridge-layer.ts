@@ -1,4 +1,4 @@
-import type { DeckPalette, DeckSources } from '../deck.types'
+import type { DeckPalette, DeckSources, RouteSpan } from '../deck.types'
 import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
 import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
@@ -50,6 +50,7 @@ export class BakedBridgeLayer {
   private route: Part | null = null
   private routeDirty = true
   private routeSources: string[] = []
+  private travelled = -1
   private notifyPending = false
   private map: any
   private gl!: WebGL2RenderingContext
@@ -269,6 +270,7 @@ export class BakedBridgeLayer {
     this.waitingTiles.clear()
     this.tilesFailed = false
     this.routePending = null
+    this.reportLaid(new Map())
     for (const id of this.parts.keys()) this.remove(id)
     if (this.route) deleteMesh(gl, this.route.buffers)
     this.shadows.delete(gl)
@@ -774,20 +776,43 @@ export class BakedBridgeLayer {
     }
   }
   private syncRoute() {
-    if (!this.map || !this.covered || !this.routeDirty) return
+    if (!this.map || !this.routeDirty) return
+    if (!this.covered) return this.reportLaid(new Map())
     this.routeDirty = false
     if (this.route) deleteMesh(this.gl, this.route.buffers)
     this.route = null
     this.routePending = null
     const parts = [...this.parts].filter(([id]) => this.wanted.has(id)).map(([, part]) => part)
-    if (!parts.length) return
-    const lines = this.routeSources.flatMap(id => queryFeatures(this.map, id).flatMap(f => linesOf(f.geometry).map(line => line.map(mercator))))
-    if (!lines.length) return
-    const origin = parts[0].data.origin
-    const mesh = { ...deckMeshOut(), lift: [] as number[] }
-    routeOverlay(mesh, lines, parts.flatMap(p => p.data.stands.map(s => s.surface)), origin)
-    this.routePending = { mesh, origin }
-    this.map.triggerRepaint()
+    const lines = parts.length ? this.routeSources.flatMap(source => {
+      const track = this.sources.track?.(source)
+      return queryFeatures(this.map, source).flatMap(f => linesOf(f.geometry).map(line => ({ source, points: line.map(mercator), measure: track?.measure, offset: track?.offset, rides: track?.rides })))
+    }) : []
+    const laid = new Map<string, RouteSpan[]>()
+    if (lines.length) {
+      const origin = parts[0].data.origin
+      const mesh = { ...deckMeshOut(), lift: [] as number[] }
+      routeOverlay(mesh, lines, parts.flatMap(p => p.data.stands.map(s => s.surface)), origin).forEach((spans, i) => {
+        laid.set(lines[i].source, [...(laid.get(lines[i].source) ?? []), ...spans])
+      })
+      this.routePending = { mesh, origin }
+      this.map.triggerRepaint()
+    }
+    this.reportLaid(laid)
+  }
+  /** Tells each tracked route where it is laid over the decks now; nowhere while they do not cover. */
+  private reportLaid(laid: Map<string, RouteSpan[]>) {
+    for (const source of this.routeSources) this.sources.track?.(source)?.laid?.(laid.get(source) ?? [])
+  }
+  /** Rebuilds the routes laid over the decks, as when a route's measure changes. */
+  refreshRoutes() {
+    this.routeDirty = true
+    this.syncRoute()
+  }
+  /** Metres of the measured route already travelled, drawn in the travelled colours. */
+  setTravelled(metres: number) {
+    if (Math.abs(metres - this.travelled) < 1) return
+    this.travelled = metres
+    if (this.route) this.map?.triggerRepaint()
   }
   surfaceAt(lng: number, lat: number): number | null {
     if (!this.covered) return null
@@ -856,10 +881,10 @@ export class BakedBridgeLayer {
       const part = this.parts.get(id)
       if (part) this.drawPart(gl, args, part)
     }
-    if (this.route && this.covered) this.drawPart(gl, args, this.route)
+    if (this.route && this.covered) this.drawPart(gl, args, this.route, this.travelled)
     this.sun = null
   }
-  private drawPart(gl: WebGL2RenderingContext, args: any, part: Part) {
+  private drawPart(gl: WebGL2RenderingContext, args: any, part: Part, travelled = -1) {
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const matrix = translate(projection, [part.data.origin[0], part.data.origin[1], 0])
     const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
@@ -872,7 +897,7 @@ export class BakedBridgeLayer {
     const sun = this.sun
 
     const shade = liveBuildingShade()
-    const mesh = bindMesh(gl, this.program, part.buffers, matrix, light, { hd, palette: this.colors, elevationScale: exaggeration, eye: relative, perMetre: (part.buffers.lift ? 1 : exaggeration) / metresPerUnit(part.data.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
+    const mesh = bindMesh(gl, this.program, part.buffers, matrix, light, { hd, palette: this.colors, travelled, elevationScale: exaggeration, eye: relative, perMetre: (part.buffers.lift ? 1 : exaggeration) / metresPerUnit(part.data.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
       sun: { frame: sun, origin: part.data.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: shade?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
     })
     const { paintFrom, railsFrom, routesFrom } = part.data.ranges

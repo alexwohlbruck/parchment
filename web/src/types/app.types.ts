@@ -10,6 +10,7 @@ export enum DialogType {
   Prompt,
   AutoForm,
   Template,
+  SignOut,
 }
 
 export type AppEvents = {

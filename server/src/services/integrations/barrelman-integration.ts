@@ -19,8 +19,6 @@ import type {
   TransitRouteRequest,
   IntermodalRouteRequest,
   TransitRouteResponse,
-  NearbyStopsRequest,
-  NearbyStopResult,
   StopRouteResult,
   StopDeparturesQuery,
   MapBounds,
@@ -30,6 +28,8 @@ import {
   IntegrationId,
 } from '../../types/integration.types'
 import type {
+  RouteLanes,
+  RouteLanesRequest,
   RouteRequest,
   UnifiedRoute,
 } from '../../types/unified-routing.types'
@@ -48,6 +48,7 @@ import type {
   TransitStopRef,
 } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
+import { logWarn } from '../../lib/logger'
 import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
@@ -58,13 +59,16 @@ import type { StopBoard } from '../../lib/transit/route-options'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 import { peliasLayerLabel } from '../../lib/place-type-label'
+import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
  *
- * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
- * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
- * — 100+ concurrent requests for one user action, none of it capped. Under
+ * A single intermodal trip plan fans out hard: up to seven intermodal queries
+ * of up to 10 itineraries each (and barrelman fans a walk search out to up to
+ * 16 station-pair MOTIS queries of its own), each itinerary re-routing 2-3
+ * walk legs through GraphHopper — 100+ concurrent requests for one user
+ * action, none of it capped. Under
  * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
  * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
  * closed unexpectedly"). Every later request blocks behind it and the app
@@ -78,6 +82,8 @@ import { peliasLayerLabel } from '../../lib/place-type-label'
  * serialized, low enough that concurrent plans can't stampede the process.
  */
 const BARRELMAN_MAX_CONCURRENCY = 48
+/** How long to wait before asking a barrelman without lane geometry again. */
+const LANES_RETRY_MS = 10 * 60_000
 
 class Semaphore {
   private active = 0
@@ -123,6 +129,9 @@ const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
  * so that merely-slow requests still return results instead of erroring empty.
  */
 const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/** Candidates fetched per result kept, so pinned codes hits cannot fill the page before the re-rank. */
+const CODES_RERANK_POOL = 3
 
 /**
  * Radius a sparse tag-only browse widens to (see `searchByCategory`). Metro
@@ -183,6 +192,9 @@ const transitGate = new TransitGate({
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
+  /** Another barrelman to route through (`/route`, `/route/lanes`); `host` answers when it can't. */
+  routingHost?: string
+  routingApiKey?: string
 }
 
 /**
@@ -308,6 +320,7 @@ export class BarrelmanIntegration
     } as GeocodingCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
+      getLanes: this.getLanes.bind(this),
       metadata: {
         supportedPreferences: {
           // Range preferences (GraphHopper supports via custom_model)
@@ -352,7 +365,6 @@ export class BarrelmanIntegration
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
-      getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
       getStopDepartures: this.getStopDepartures.bind(this),
@@ -944,6 +956,7 @@ export class BarrelmanIntegration
     lng?: number,
     options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; language?: Language; signal?: AbortSignal },
   ): Promise<Place[]> {
+    const limit = options?.limit || 20
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -951,14 +964,15 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 20,
+        limit: options?.sort ? limit : limit * CODES_RERANK_POOL,
         semantic: true,
         ...(options?.sort ? { sort: options.sort } : {}),
         ...(options?.filter ? { filter: options.filter } : {}),
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    const hits = options?.sort ? (response.data || []) : rankCodesByProximity(response.data || [], limit)
+    return hits.map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
@@ -977,6 +991,7 @@ export class BarrelmanIntegration
     // while a slow-but-live request is allowed to finish rather than being killed
     // mid-flight and surfacing as an empty result. The timeout is only a backstop
     // for a genuinely hung Barrelman.
+    const limit = options?.limit || 10
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -984,13 +999,13 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 10,
+        limit: limit * CODES_RERANK_POOL,
         semantic: false,
         autocomplete: true,
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    return rankCodesByProximity(response.data || [], limit).map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
@@ -1297,9 +1312,6 @@ export class BarrelmanIntegration
       throw new Error('At least 2 waypoints are required for routing')
     }
 
-    const host = this.config.host.replace(/\/$/, '')
-    const url = `${host}/route`
-
     const lang = request.language ? getLanguageCode(request.language) : 'en'
 
     // Build GraphHopper request body
@@ -1323,6 +1335,12 @@ export class BarrelmanIntegration
       ],
     }
 
+    // Favour leaving in the direction already travelled, so a reroute
+    // doesn't start with a U-turn.
+    if (request.startHeading != null) {
+      requestBody.headings = [request.startHeading]
+    }
+
     // Alternatives
     if (request.preferences?.alternatives) {
       requestBody.algorithm = 'alternative_route'
@@ -1335,8 +1353,18 @@ export class BarrelmanIntegration
       requestBody.custom_model = customModel
     }
 
+    const routing = this.routingTarget()
+    if (routing) {
+      try {
+        const response = await barrelmanHttp.post(`${routing.host}/route`, requestBody, { headers: routing.headers, timeout: 30_000 })
+        return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+      } catch (error: any) {
+        logWarn(`Barrelman routing host failed, using the main host: ${error.response?.status ?? error.message}`)
+      }
+    }
+
     try {
-      const response = await barrelmanHttp.post(url, requestBody, {
+      const response = await barrelmanHttp.post(`${this.config.host.replace(/\/$/, '')}/route`, requestBody, {
         headers: this.headers,
         timeout: 30_000,
       })
@@ -1355,6 +1383,31 @@ export class BarrelmanIntegration
       )
     }
   }
+
+  /** Until then, a barrelman without /route/lanes is not asked again. */
+  private lanesUnsupportedUntil = 0
+
+  private async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
+    // Way ids come from the routing graph, so the lanes come from the instance that routed.
+    const target = this.routingTarget() ?? (this.config.apiKey ? { host: this.config.host.replace(/\/$/, ''), headers: this.headers } : null)
+    if (!target || Date.now() < this.lanesUnsupportedUntil) return null
+    try {
+      const response = await barrelmanHttp.post(`${target.host}/route/lanes`, request, { headers: target.headers, timeout: 5_000 })
+      return response.data as RouteLanes
+    } catch (error: any) {
+      if (error.response?.status === 404) this.lanesUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman lanes unavailable: ${error.response?.status ?? error.message}`)
+      return null
+    }
+  }
+
+  private routingTarget(): { host: string; headers: Record<string, string> } | null {
+    const host = this.config.routingHost?.replace(/\/$/, '')
+    if (!host) return null
+    const key = this.config.routingApiKey ?? this.config.apiKey
+    return { host, headers: { 'Content-Type': 'application/json', ...(key && { Authorization: `Bearer ${key}` }) } }
+  }
+
 
   // ── GraphHopper profile mapping ───────────────────────────────
 
@@ -1441,36 +1494,6 @@ export class BarrelmanIntegration
       throw new Error(
         `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       )
-    }
-  }
-
-  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
-    const { host, apiKey } = this.config
-    if (!apiKey) throw new Error('Barrelman API key not configured')
-
-    const params = new URLSearchParams({
-      lat: String(request.lat),
-      lng: String(request.lng),
-    })
-    if (request.radius != null) params.set('radius', String(request.radius))
-    if (request.limit != null) params.set('limit', String(request.limit))
-
-    try {
-      const response = await transitGate.run(TransitPriority.Enrichment, () =>
-        barrelmanHttp.get(
-          `${host}/transit/stops?${params}`,
-          {
-            headers: this.headers,
-            timeout: 10_000,
-          },
-        ),
-      )
-      return response.data
-    } catch (error: any) {
-      if (error.response) {
-        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
-      }
-      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

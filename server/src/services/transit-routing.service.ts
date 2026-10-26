@@ -1,10 +1,7 @@
 import {
   IntegrationCapabilityId,
-  type TransitRouteRequest,
   type IntermodalRouteRequest,
   type TransitRouteResponse,
-  type NearbyStopsRequest,
-  type NearbyStopResult,
   type StopRouteResult,
   type StationEntrance,
   type StopDeparturesQuery,
@@ -23,25 +20,10 @@ import type { TransitPriority } from '../lib/transit/transit-gate'
  */
 export class TransitRoutingService {
   /**
-   * Plan a transit trip between two points.
-   *
-   * Delegates to the configured transit routing integration (Barrelman →
-   * MOTIS). The response contains itineraries with walking + transit legs;
-   * callers (e.g. TripService) are responsible for replacing walking legs
-   * with accurate GraphHopper routes.
-   */
-  async getTransitRoute(
-    request: TransitRouteRequest,
-  ): Promise<TransitRouteResponse> {
-    const capability = this.getTransitRoutingCapability()
-    return capability.getTransitRoute(request)
-  }
-
-  /**
    * Intermodal routing with pre/post-transit mode selection.
    *
-   * Requires MOTIS to have OSM street data loaded. Falls back to
-   * getTransitRoute() if the integration doesn't support intermodal.
+   * Requires MOTIS to have OSM street data loaded. Falls back to the
+   * capability's plain transit route if it doesn't support intermodal.
    */
   async getIntermodalRoute(
     request: IntermodalRouteRequest,
@@ -52,16 +34,6 @@ export class TransitRoutingService {
       return capability.getIntermodalRoute(request, priority)
     }
     return capability.getTransitRoute(request)
-  }
-
-  /**
-   * Find transit stops near a coordinate.
-   */
-  async getNearbyStops(
-    request: NearbyStopsRequest,
-  ): Promise<NearbyStopResult[]> {
-    const capability = this.getTransitRoutingCapability()
-    return capability.getNearbyStops(request)
   }
 
   /**
@@ -107,17 +79,6 @@ export class TransitRoutingService {
     } catch {
       return null
     }
-  }
-
-  /**
-   * Check if transit routing is available.
-   */
-  isTransitRoutingAvailable(): boolean {
-    const integrations =
-      integrationManager.getConfiguredIntegrationsByCapability(
-        IntegrationCapabilityId.TRANSIT_ROUTING,
-      )
-    return integrations.length > 0
   }
 
   /**

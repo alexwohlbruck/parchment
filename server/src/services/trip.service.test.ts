@@ -40,10 +40,6 @@ mock.module('./routing.service', () => ({
 }))
 
 // Mock transit routing service — used for transit legs
-const mockGetTransitRoute = mock<AnyAsync>(async () => ({
-  itineraries: [],
-  metadata: { searchWindow: 3600 },
-}))
 const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
@@ -53,7 +49,6 @@ const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
-    getTransitRoute: mockGetTransitRoute,
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
     getRoutesForStop: mockGetRoutesForStop,
@@ -226,7 +221,6 @@ let tripService: InstanceType<typeof TripService>
 
 beforeEach(() => {
   mockGetRoute.mockReset()
-  mockGetTransitRoute.mockReset()
   mockGetIntermodalRoute.mockReset()
   mockGetNearestEntrance.mockReset()
   mockGetNearestEntrance.mockImplementation(async () => null)
@@ -315,12 +309,7 @@ describe('TripService — buildTransitSegment', () => {
       routeId: 'route-9x',
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.co2).toBeCloseTo(5000 * 0.00005, 5) // ~50g/km
     expect(segment.mode).toBe('transit')
@@ -342,12 +331,7 @@ describe('TripService — buildTransitSegment', () => {
       departureDelay: 120, // 2 minutes late
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBe(true)
     expect(segment.details.transitDetails.delay).toBe(120)
@@ -367,12 +351,7 @@ describe('TripService — buildTransitSegment', () => {
       headsign: 'Downtown',
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBeUndefined()
     expect(segment.details.transitDetails.delay).toBeUndefined()
@@ -400,12 +379,7 @@ describe('TripService — buildTransitSegment', () => {
       ],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     const opts = segment.details.transitDetails.routeOptions
     expect(opts).toBeDefined()
@@ -427,12 +401,7 @@ describe('TripService — buildTransitSegment', () => {
       interchangeableRoutes: [{ routeId: 'r9x', shortName: '9X' }],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.routeOptions).toBeUndefined()
   })
@@ -443,6 +412,8 @@ describe('TripService — buildTransitSegment', () => {
     // twice — dedupe by shortName instead.
     const mk = (start: string, routeId: string, shortName: string) => ({
       earliestStartTime: start,
+      latestEndTime: start,
+      tripStats: { totalDuration: 600 },
       segments: [
         {
           mode: 'transit',
@@ -469,6 +440,45 @@ describe('TripService — buildTransitSegment', () => {
     expect(opts.map((o: { shortName?: string }) => o.shortName)).toEqual(['2', '3'])
   })
 
+  describe('mergeTripGroup survivor', () => {
+    // Same stops, different departures: the 4 leaves first but is slower.
+    const departure = (route: string, start: string, end: string, duration: number) => ({
+      earliestStartTime: start,
+      latestEndTime: end,
+      tripStats: { totalDuration: duration },
+      segments: [{
+        mode: 'transit',
+        endTime: end,
+        details: { transitDetails: { route: { id: route, shortName: route } } },
+      }],
+    })
+    const early = departure('4', '2026-01-15T08:00:00Z', '2026-01-15T08:30:00Z', 1800)
+    const late = departure('5', '2026-01-15T08:05:00Z', '2026-01-15T08:25:00Z', 1200)
+    const merge = (group: unknown[], sort?: string, arriveBy = false) =>
+      (tripService as any).mergeTripGroup(group, sort, arriveBy)
+
+    test('depart-at keeps the earliest arrival, not the first to leave', () => {
+      expect(merge([early, late]).earliestStartTime).toBe(late.earliestStartTime)
+    })
+
+    test('depart-at breaks an arrival tie on the shorter ride', () => {
+      const slow = departure('4', '2026-01-15T08:00:00Z', '2026-01-15T08:25:00Z', 1500)
+      expect(merge([slow, late]).tripStats.totalDuration).toBe(1200)
+    })
+
+    test('arrive-by keeps the latest departure', () => {
+      const lastOut = departure('5', '2026-01-15T08:10:00Z', '2026-01-15T08:29:00Z', 1140)
+      expect(merge([late, lastOut, early], undefined, true).earliestStartTime)
+        .toBe(lastOut.earliestStartTime)
+    })
+
+    test('a named sort decides before arrive-by does', () => {
+      const slowLast = departure('5', '2026-01-15T08:10:00Z', '2026-01-15T08:45:00Z', 2100)
+      expect(merge([slowLast, early], undefined, true)).toBe(slowLast)
+      expect(merge([slowLast, early], 'shortest', true)).toBe(early)
+    })
+  })
+
   test('realtime without delay only sets realTimeData flag', () => {
     const leg = {
       mode: 'BUS',
@@ -485,12 +495,7 @@ describe('TripService — buildTransitSegment', () => {
       // no departureDelay field
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.details.transitDetails.realTimeData).toBe(true)
     expect(segment.details.transitDetails.delay).toBeUndefined()
@@ -514,12 +519,7 @@ describe('TripService — buildTransitSegment', () => {
       },
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     expect(segment.geometry).toHaveLength(3)
     expect(segment.geometry[0]).toEqual({ lat: 35.21, lng: -80.85 })
@@ -544,12 +544,7 @@ describe('TripService — buildTransitSegment', () => {
       },
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     // Should compute a non-zero distance from the geometry
     expect(segment.distance).toBeGreaterThan(0)
@@ -572,12 +567,7 @@ describe('TripService — buildTransitSegment', () => {
       ],
     }
 
-    const segment = (tripService as any).buildTransitSegment(
-      leg,
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      '2026-01-15T08:05:00Z',
-    )
+    const segment = (tripService as any).buildTransitSegment(leg)
 
     // stops = [departure, ...intermediate, arrival]
     const stops = segment.details.transitDetails.stops
@@ -739,7 +729,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -760,7 +749,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -781,7 +769,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:15:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -803,7 +790,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -822,7 +808,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -843,7 +828,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -862,7 +846,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -1410,7 +1393,7 @@ describe('TripService — scoring', () => {
       expect(modes).toContain('transit')
     })
 
-    test('car+transit trip populates parkedVehicles at the parking spot', async () => {
+    test('car+transit trip rides the registered car', async () => {
       mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
@@ -1426,15 +1409,7 @@ describe('TripService — scoring', () => {
       )
       expect(carTransit).toBeDefined()
 
-      // Parked where the driving leg ends, when it ends
-      expect(carTransit!.trip.parkedVehicles).toBeDefined()
-      expect(carTransit!.trip.parkedVehicles!.length).toBe(1)
-      const parked = carTransit!.trip.parkedVehicles![0]
-      expect(parked.vehicle.type).toBe('car')
-      expect(parked.parkedAt).toBe('2026-01-15T08:05:00Z')
       const driveSeg = carTransit!.trip.segments.find((s) => s.mode === 'driving')!
-      expect(parked.location).toEqual(driveSeg.end.location)
-      // The ride segment is tagged with the user's vehicle
       expect(driveSeg.vehicle?.id).toBe('car-1')
     })
 
@@ -1582,6 +1557,26 @@ describe('TripService — scoring', () => {
       expect(bikeEnd).toBeLessThanOrEqual(transitStart)
     })
 
+    test('a vehicle parked in another city is never walked to', async () => {
+      const elsewhere = { lat: 40.7128, lng: -74.006 }
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        availableVehicles: [
+          { ...carVehicle, location: elsewhere },
+          { ...bikeVehicle, location: elsewhere },
+        ],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThan(0)
+      const requested = JSON.stringify([...mockGetRoute.mock.calls, ...mockGetIntermodalRoute.mock.calls])
+      expect(requested).not.toContain(String(elsewhere.lat))
+    })
+
     // Park-and-ride and bike-to-station describe the network, not the user's
     // garage. A rider who has never registered a vehicle must still be offered
     // them — MOTIS locates the parking and the rack.
@@ -1635,7 +1630,6 @@ describe('TripService — scoring', () => {
         )!
         const driveSeg = carTransit.trip.segments.find((s) => s.mode === 'driving')!
         expect(driveSeg.vehicle).toBeUndefined()
-        expect(carTransit.trip.parkedVehicles).toBeUndefined()
       })
 
       test('starts at the origin rather than a vehicle location', async () => {
@@ -1962,9 +1956,7 @@ describe('TripService — scoring', () => {
       expect(segs[rideIdx + 1].mode).toBe('walking')
       expect(segs[rideIdx + 2].mode).toBe('transit')
 
-      expect(trip!.trip.parkedVehicles?.[0].location).toEqual(
-        stationRack.geometry.value.center,
-      )
+      expect(segs[rideIdx].end.location).toEqual(stationRack.geometry.value.center)
     })
 
     test('locks the bike, then walks in without missing the boarding', async () => {
@@ -2174,42 +2166,6 @@ describe('TripService — scoring', () => {
       }
     })
 
-    test('parking trip populates parkedVehicles on response', async () => {
-      const car = {
-        id: 'car-1',
-        type: 'car' as const,
-        location: { lat: 35.209, lng: -80.860 },
-      }
-      mockSearchByCategory.mockImplementation(async () => [mockParking[0]])
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
-
-      const response = await tripService.planTrip({
-        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
-        selectedMode: 'driving',
-        availableVehicles: [car],
-        routingPreferences: { useKnownParkingLocations: true },
-        preferredDepartureTime: '2026-01-15T08:00:00Z',
-      })
-
-      const parkingTrip = response.trips.find((t) => {
-        const segs = t.trip.segments
-        return (
-          segs.length >= 2 &&
-          segs[segs.length - 1].mode === 'walking' &&
-          segs.some((s) => s.mode === 'driving')
-        )
-      })
-
-      if (parkingTrip) {
-        expect(parkingTrip.trip.parkedVehicles).toBeDefined()
-        expect(parkingTrip.trip.parkedVehicles!.length).toBe(1)
-        expect(parkingTrip.trip.parkedVehicles![0].vehicle.type).toBe('car')
-        expect(parkingTrip.trip.parkedVehicles![0].location.lat).toBe(mockParking[0].geometry.value.center.lat)
-        expect(parkingTrip.trip.parkedVehicles![0].location.lng).toBe(mockParking[0].geometry.value.center.lng)
-        expect(parkingTrip.trip.parkedVehicles![0].parkedAt).toBeDefined()
-      }
-    })
-
     test('handles parking search failure gracefully', async () => {
       mockSearchByCategory.mockImplementation(async () => {
         throw new Error('Overpass timeout')
@@ -2357,39 +2313,6 @@ describe('TripService — validateRequest', () => {
 })
 
 // ── Haversine distance ──────────────────────────────────────────────────────
-
-describe('TripService — haversineDistance', () => {
-  const haversine = (a: any, b: any) =>
-    (TripService as any).haversineDistance(a, b)
-
-  test('same point returns 0', () => {
-    const p = { lat: 35.2271, lng: -80.8431 }
-    expect(haversine(p, p)).toBe(0)
-  })
-
-  test('Charlotte to Raleigh ~209km', () => {
-    const charlotte = { lat: 35.2271, lng: -80.8431 }
-    const raleigh = { lat: 35.7796, lng: -78.6382 }
-    const dist = haversine(charlotte, raleigh)
-    // Allow ±5km tolerance
-    expect(dist).toBeGreaterThan(204_000)
-    expect(dist).toBeLessThan(214_000)
-  })
-
-  test('short distance ~500m', () => {
-    const a = { lat: 35.2271, lng: -80.8431 }
-    const b = { lat: 35.2316, lng: -80.8431 }
-    const dist = haversine(a, b)
-    expect(dist).toBeGreaterThan(400)
-    expect(dist).toBeLessThan(600)
-  })
-
-  test('symmetry: distance(a,b) === distance(b,a)', () => {
-    const a = { lat: 35.2271, lng: -80.8431 }
-    const b = { lat: 35.7796, lng: -78.6382 }
-    expect(haversine(a, b)).toBe(haversine(b, a))
-  })
-})
 
 // ── getTripMode ─────────────────────────────────────────────────────────────
 
@@ -2761,6 +2684,36 @@ describe('TripService — filterQualityTrips', () => {
     const strategies = result.map((c: any) => (tripService as any).getTripMode(c.trip))
     expect(strategies).toContain('driving+transit:access')
   })
+
+  test('strategy representatives leave walk+transit most of its lines', () => {
+    function via(strategySegments: any[], line: string, totalDuration: number) {
+      const c = makeTransitCandidate(null, totalDuration)
+      c.trip.segments = [
+        ...strategySegments,
+        { mode: 'transit', duration: totalDuration - 600, details: { transitDetails: { shortName: line } } },
+        { mode: 'walking', duration: 300 },
+      ]
+      return c
+    }
+    const ride = (mode: string, extra: object = {}) => ({ mode, duration: 300, ...extra })
+    // Five other ways of reaching transit, every one ranked ahead of walking.
+    const others = [
+      via([ride('driving')], 'P', 1700),
+      via([ride('biking')], 'Q', 1710),
+      via([ride('biking', { ownership: 'shared' })], 'R', 1720),
+      via([ride('rideshare')], 'S', 1730),
+      via([ride('walking'), { ...ride('transit'), details: { transitDetails: { shortName: 'T' } } }, ride('biking')], 'U', 1740),
+    ]
+    const walkLines = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(
+      (line, i) => via([ride('walking')], line, 1800 + i * 10),
+    )
+
+    const result = (tripService as any).filterQualityTrips([...others, ...walkLines])
+    const strategies: string[] = result.map((c: any) => (tripService as any).getTripMode(c.trip))
+
+    expect(strategies.filter((s) => s === 'transit').length).toBe(5)
+    expect(new Set(strategies).size).toBe(6)
+  })
 })
 
 // ── rankByMetric (direct ranking) ──────────────────────────────────────────────────────────
@@ -2830,6 +2783,23 @@ describe('TripService — fare gate delay', () => {
         itineraries: [],
         metadata: { searchWindow: 0 },
       }) as any)
+    }
+  })
+})
+
+describe('TripService — entrance cache', () => {
+  test('retries a lookup that found nothing instead of caching it', async () => {
+    const found = { osmId: 'n9', lat: 40.1, lon: -73.1, accessType: 'subway_entrance' }
+    let calls = 0
+    mockGetNearestEntrance.mockImplementation(async () => (++calls === 1 ? null : found) as any)
+    try {
+      const lookup = () => (tripService as any).cachedNearestEntrance(40.1, -73.1, 150)
+      expect(await lookup()).toBeNull()
+      expect(await lookup()).toEqual(found)
+      expect(await lookup()).toEqual(found)
+      expect(calls).toBe(2)
+    } finally {
+      mockGetNearestEntrance.mockImplementation(async () => null)
     }
   })
 })
@@ -3352,7 +3322,6 @@ describe('TripService — segment planners', () => {
     currentTime: '2026-01-15T08:00:00Z',
     currentLocation: CHARLOTTE_ORIGIN.location,
     currentMode: 'walking' as const,
-    parkedVehicles: [],
   }
 
   describe('planWalkingSegment', () => {
@@ -3403,24 +3372,6 @@ describe('TripService — segment planners', () => {
         baseState,
       )
       expect(result).toBeNull()
-    })
-
-    test('preserves parkedVehicles in resulting state', async () => {
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
-      const parkedVehicles = [
-        {
-          vehicle: { id: 'car-1', type: 'car' },
-          location: { lat: 35.21, lng: -80.85 },
-          parkedAt: '2026-01-15T07:50:00Z',
-        },
-      ]
-
-      const result = await (tripService as any).planWalkingSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        { ...baseState, parkedVehicles },
-      )
-      expect(result.state.parkedVehicles).toEqual(parkedVehicles)
     })
 
     test('calculates endTime from startTime + duration', async () => {
@@ -3571,8 +3522,6 @@ describe('TripService — segment planners', () => {
         { useKnownVehicleLocations: true },
       )
       expect(result).not.toBeNull()
-      expect(result.state.parkedVehicles.length).toBe(1)
-      expect(result.state.parkedVehicles[0].vehicle.type).toBe('car')
     })
   })
 })

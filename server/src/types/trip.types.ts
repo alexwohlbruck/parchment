@@ -2,6 +2,7 @@
 // Based on detailed requirements specification
 
 import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { Place } from './place.types'
 
@@ -85,6 +86,10 @@ export interface Waypoint {
   arriveBy?: string
   /** Minutes to spend at this waypoint before continuing. */
   dwellTime?: number
+
+  /** The traveller's compass heading and speed (m/s) when the origin is where they are now. */
+  heading?: number
+  speed?: number
 }
 
 export interface Vehicle {
@@ -158,8 +163,6 @@ export interface TripResponse {
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
-  /** Vehicles parked during this trip (for return-trip planning). */
-  parkedVehicles?: ParkedVehicle[]
 }
 
 export interface TripWarning {
@@ -172,6 +175,7 @@ export interface TripWarning {
 
 export interface TripSegment {
   segmentIndex: number
+  hazards?: import('./unified-routing.types').RouteHazard[]
   legIndex?: number
   mode: Mode
   ownership?: OwnershipType
@@ -201,6 +205,12 @@ export interface TripSegment {
   minElevation?: number // meters
   // Per-edge surface/road/safety data
   edgeSegments?: RouteEdgeSegment[]
+
+  // Driving: the side traffic keeps to, and where barrelman has the lanes, the
+  // route drawn in them and the lanes to take at each maneuver
+  drivingSide?: DrivingSide
+  laneGeometry?: LaneGeometry
+  lanePlan?: InstructionLanePlan[]
   /** Station entrance this walk uses (snapped during enrichment). `role`
    *  is 'enter' for an access walk into a station, 'exit' for an egress
    *  walk out of one. */
@@ -463,15 +473,7 @@ export interface SegmentState {
   currentLocation: Coordinate
   currentMode: Mode
   carryingVehicle?: Vehicle
-  parkedVehicles: ParkedVehicle[]
   energy?: EnergyState // For electric vehicles
-}
-
-export interface ParkedVehicle {
-  vehicle: Vehicle
-  location: Coordinate
-  parkedAt: string // ISO timestamp
-  cost?: CurrencyAmount // Parking cost
 }
 
 export interface EnergyState {

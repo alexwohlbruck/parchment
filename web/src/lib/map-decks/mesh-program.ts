@@ -3,6 +3,7 @@
  * buffers a built mesh is uploaded into.
  */
 import type { Mesh } from './decks'
+import { MATERIALS } from './baked/mesh-file'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 
 // `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
@@ -12,7 +13,8 @@ const VS = `#version 300 es
   uniform float u_elevation_scale;
   uniform bool u_lifted;
   uniform bool u_materials;
-  uniform vec3 u_palette[17];
+  uniform vec3 u_palette[${MATERIALS.length}];
+  uniform float u_travelled;
   uniform mat4 u_sunLight;
   uniform vec3 u_light;
   uniform float u_hd;
@@ -32,14 +34,19 @@ const VS = `#version 300 es
   out float v_slope;
   out float v_grade;
   uniform float u_grade_bias;
+  int routeSlot(int slot, int shift) {
+    return slot == ${MATERIALS.indexOf('route')} || slot == ${MATERIALS.indexOf('routeCasing')} ? slot + shift : slot;
+  }
   void main() {
     vec3 n = normalize(vec3(a_normal.xy, u_lifted ? a_normal.z : a_normal.z / u_elevation_scale));
     float sun = dot(n, u_light) * 0.5 + 0.5;
     float sky = n.z * 0.5 + 0.5;
     float lit = mix(0.62, 1.0, mix(sun, sky, 0.6));
     // A deck's top is the flat road's colour, unshaded, so it meets the road it carries.
-    vec3 high = u_materials ? u_palette[int(a_color.x)] : a_color;
-    vec3 low = u_materials ? u_palette[int(a_low.x)] : a_low;
+    // A route vertex carries its metres along the route in y; behind u_travelled it takes the travelled slot.
+    int shift = a_color.y >= 0.0 && a_color.y < u_travelled ? ${MATERIALS.indexOf('travelled') - MATERIALS.indexOf('route')} : 0;
+    vec3 high = u_materials ? u_palette[routeSlot(int(a_color.x), shift)] : a_color;
+    vec3 low = u_materials ? u_palette[routeSlot(int(a_low.x), shift)] : a_low;
     v_color = mix(low, high, u_hd) * max(lit, n.z);
     // Lifted: a structure stands its true height over the exaggerated ground beneath it.
     vec3 p = vec3(a_position.xy, u_lifted ? a_position.z + (u_elevation_scale - 1.0) * a_lift : a_position.z * u_elevation_scale);
@@ -177,6 +184,8 @@ export function eyeOf(m: ArrayLike<number>): [number, number, number] | null {
 /** What a draw needs besides the matrix and light: how far toward street zoom it is (1 there) and the eye, for biased vertices. */
 export type MeshView = {
   elevationScale?: number; palette?: Float32Array
+  /** Metres of route already travelled: route vertices measured short of it are drawn travelled. */
+  travelled?: number
   hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number; pixelRatio?: number
   /**
    * The buildings' shadows: their sun shadow map, the origin the mesh is drawn about and how dark a shadow is;
@@ -190,7 +199,7 @@ export type MeshView = {
  * its attributes; returns a draw for a range of vertices and an unbind. A mesh
  * without low colours or biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
 const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
 
@@ -214,7 +223,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   if (!at) {
     const u = (name: string) => gl.getUniformLocation(program, name)
     at = {
-      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
+      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
       sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
       attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
     }
@@ -224,6 +233,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   gl.uniform1f(at.uniforms.elevationScale, view.elevationScale ?? 1)
   gl.uniform1i(at.uniforms.materials, view.palette ? 1 : 0)
   if (view.palette) gl.uniform3fv(at.uniforms.palette, view.palette)
+  gl.uniform1f(at.uniforms.travelled, view.travelled ?? -1)
   gl.uniformMatrix4fv(at.uniforms.matrix, false, matrix)
   const l = Math.hypot(light[0], light[1], light[2]) || 1
   gl.uniform3f(at.uniforms.light, light[0] / l, light[1] / l, light[2] / l)

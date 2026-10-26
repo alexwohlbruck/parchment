@@ -8,6 +8,7 @@ import { BaseMarkerLayer, type MarkerData } from './base-marker-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
+import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 
 export class WaypointsLayer extends BaseMarkerLayer {
   private directionsStore = useDirectionsStore()
@@ -24,10 +25,12 @@ export class WaypointsLayer extends BaseMarkerLayer {
 
   protected getData(): MarkerData[] {
     const waypoints = this.directionsStore.waypoints
+    // The puck marks where a navigated trip is; its start would only label it twice.
+    const guiding = guidanceEngine.active.value
 
     return waypoints
       .map((waypoint, index) => {
-        if (!waypoint.lngLat) return null
+        if (!waypoint.lngLat || (guiding && index === 0)) return null
 
         return {
           id: String(index),

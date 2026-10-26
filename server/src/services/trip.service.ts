@@ -43,6 +43,9 @@ import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from 
 import { nameLegByRoute } from '../lib/transit/line-name'
 import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
+import { haversineMeters } from '../util/geometry-conversion'
+
+const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
 /**
  * Simplified multimodal trip planning service
@@ -140,7 +143,7 @@ export class TripService {
     // routed drive and walk for every candidate space, which is most of the
     // routing a short trip does. An explicit driving request still gets it.
     const drivingIsPlausible = request.selectedMode === 'driving'
-      || TripService.haversineDistance(
+      || metersBetween(
         request.waypoints[0].location,
         request.waypoints[request.waypoints.length - 1].location,
       ) >= TripService.PARK_AND_RIDE_MIN_M
@@ -1336,7 +1339,7 @@ export class TripService {
         return {
           place: p,
           coord: center,
-          distToDest: TripService.haversineDistance(center, to.location),
+          distToDest: metersBetween(center, to.location),
         }
       })
       .sort((a, b) => a.distToDest - b.distToDest)
@@ -1365,7 +1368,7 @@ export class TripService {
 
         // Step 1: Walk to car (if car is elsewhere)
         if (carLocation) {
-          const distToCar = TripService.haversineDistance(
+          const distToCar = metersBetween(
             from.location,
             carLocation,
           )
@@ -1620,7 +1623,7 @@ export class TripService {
         return {
           place: p,
           coord: center,
-          distToDest: TripService.haversineDistance(center, to.location),
+          distToDest: metersBetween(center, to.location),
         }
       })
       .sort((a, b) => a.distToDest - b.distToDest)
@@ -1649,7 +1652,7 @@ export class TripService {
         // Step 1: Walk to bike (if bike is elsewhere)
         let rideOrigin = from.location
         if (bikeLocation) {
-          const distToBike = TripService.haversineDistance(
+          const distToBike = metersBetween(
             from.location,
             bikeLocation,
           )
@@ -1841,7 +1844,7 @@ export class TripService {
     const start = second?.[0]
     if (!end || !start) return true // can't tell — don't reject
     return (
-      TripService.haversineDistance(end, start) <=
+      metersBetween(end, start) <=
       TripService.PARKING_CONNECT_MAX_GAP
     )
   }
@@ -2302,7 +2305,7 @@ export class TripService {
     // searches transit even when walking is clearly faster, causing
     // multi-second delays for trips under ~1.5km. An explicit transit
     // request always runs the query.
-    const dist = TripService.haversineDistance(from.location, to.location)
+    const dist = metersBetween(from.location, to.location)
     if (dist < 1500 && request.selectedMode !== 'transit') return []
 
     // Scale search scope to trip distance — shorter trips need less
@@ -2528,7 +2531,7 @@ export class TripService {
     const to = request.waypoints[request.waypoints.length - 1]
 
     // Under ~500 m walking wins and fetching a bike is pointless overhead.
-    const dist = TripService.haversineDistance(from.location, to.location)
+    const dist = metersBetween(from.location, to.location)
     if (dist < 500) return []
 
     const arrivalTarget = this.getArrivalTarget(request)
@@ -2682,7 +2685,7 @@ export class TripService {
 
       if (vehicleLocation) {
         queryFrom = vehicleLocation
-        const distToVehicle = TripService.haversineDistance(
+        const distToVehicle = metersBetween(
           from.location,
           vehicleLocation,
         )
@@ -2813,8 +2816,8 @@ export class TripService {
         places.reduce<Place | null>(
           (best, p) =>
             !best ||
-            TripService.haversineDistance(p.geometry.value.center, at) <
-              TripService.haversineDistance(best.geometry.value.center, at)
+            metersBetween(p.geometry.value.center, at) <
+              metersBetween(best.geometry.value.center, at)
               ? p
               : best,
           null,
@@ -3312,7 +3315,7 @@ export class TripService {
     const collapsed = segments.map((seg) => {
       if (seg.mode !== 'transit') return seg
       if (seg.duration > TripService.COLLAPSE_MAX_RIDE_SEC) return seg
-      const crow = TripService.haversineDistance(
+      const crow = metersBetween(
         seg.start.location,
         seg.end.location,
       )
@@ -3585,7 +3588,7 @@ export class TripService {
       }
     }
     const target = await hit
-    if (!target || TripService.haversineDistance(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
+    if (!target || metersBetween(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
     return bearingDeg(station, target)
   }
 
@@ -3630,7 +3633,7 @@ export class TripService {
               accessType,
               lat: center.lat,
               lon: center.lng,
-              distanceM: TripService.haversineDistance(platform, center),
+              distanceM: metersBetween(platform, center),
             }
           })
           .filter((e): e is NonNullable<typeof e> =>
@@ -3717,7 +3720,7 @@ export class TripService {
         // catch the express A that skips Franklin). Those are real street
         // walks — fall through so they get snapped + GraphHopper-routed and
         // show an honest distance, not "0 ft".
-        const transferGap = TripService.haversineDistance(
+        const transferGap = metersBetween(
           seg.start.location,
           seg.end.location,
         )
@@ -4057,11 +4060,11 @@ export class TripService {
 
     // Only offer a rideshare leg where it replaces a substantial walk —
     // a paid ride for a couple hundred meters is never a sensible option.
-    const accessDist = TripService.haversineDistance(
+    const accessDist = metersBetween(
       origin.location,
       firstTransit.start.location,
     )
-    const egressDist = TripService.haversineDistance(
+    const egressDist = metersBetween(
       lastTransit.end.location,
       destination.location,
     )
@@ -4257,21 +4260,7 @@ export class TripService {
   private static readonly VEHICLE_WALK_MAX_M = 5000
 
   private static vehicleOutOfReach(from: Coordinate, vehicleLocation: Coordinate | null | undefined): boolean {
-    return !!vehicleLocation && TripService.haversineDistance(from, vehicleLocation) > TripService.VEHICLE_WALK_MAX_M
-  }
-
-  /**
-   * Haversine distance between two coordinates in meters.
-   */
-  private static haversineDistance(a: Coordinate, b: Coordinate): number {
-    const dLat = ((b.lat - a.lat) * Math.PI) / 180
-    const dLng = ((b.lng - a.lng) * Math.PI) / 180
-    const sinHalf =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((a.lat * Math.PI) / 180) *
-        Math.cos((b.lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2
-    return 6371000 * 2 * Math.atan2(Math.sqrt(sinHalf), Math.sqrt(1 - sinHalf))
+    return !!vehicleLocation && metersBetween(from, vehicleLocation) > TripService.VEHICLE_WALK_MAX_M
   }
 
   /**
@@ -4425,16 +4414,7 @@ export class TripService {
     if (!geometry || geometry.length < 2) return 0
     let total = 0
     for (let i = 1; i < geometry.length; i++) {
-      const p1 = geometry[i - 1]
-      const p2 = geometry[i]
-      const dLat = ((p2.lat - p1.lat) * Math.PI) / 180
-      const dLng = ((p2.lng - p1.lng) * Math.PI) / 180
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((p1.lat * Math.PI) / 180) *
-          Math.cos((p2.lat * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2
-      total += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      total += metersBetween(geometry[i - 1], geometry[i])
     }
     return total
   }

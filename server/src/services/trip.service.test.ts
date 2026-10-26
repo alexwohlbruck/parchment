@@ -2419,39 +2419,6 @@ describe('TripService — validateRequest', () => {
 
 // ── Haversine distance ──────────────────────────────────────────────────────
 
-describe('TripService — haversineDistance', () => {
-  const haversine = (a: any, b: any) =>
-    (TripService as any).haversineDistance(a, b)
-
-  test('same point returns 0', () => {
-    const p = { lat: 35.2271, lng: -80.8431 }
-    expect(haversine(p, p)).toBe(0)
-  })
-
-  test('Charlotte to Raleigh ~209km', () => {
-    const charlotte = { lat: 35.2271, lng: -80.8431 }
-    const raleigh = { lat: 35.7796, lng: -78.6382 }
-    const dist = haversine(charlotte, raleigh)
-    // Allow ±5km tolerance
-    expect(dist).toBeGreaterThan(204_000)
-    expect(dist).toBeLessThan(214_000)
-  })
-
-  test('short distance ~500m', () => {
-    const a = { lat: 35.2271, lng: -80.8431 }
-    const b = { lat: 35.2316, lng: -80.8431 }
-    const dist = haversine(a, b)
-    expect(dist).toBeGreaterThan(400)
-    expect(dist).toBeLessThan(600)
-  })
-
-  test('symmetry: distance(a,b) === distance(b,a)', () => {
-    const a = { lat: 35.2271, lng: -80.8431 }
-    const b = { lat: 35.7796, lng: -78.6382 }
-    expect(haversine(a, b)).toBe(haversine(b, a))
-  })
-})
-
 // ── getTripMode ─────────────────────────────────────────────────────────────
 
 describe('TripService — getTripMode', () => {

@@ -78,7 +78,7 @@ type Upsampler = { worker: Worker; jobs: Map<number, Job>; alive: boolean }
 export type HeldAreas = () => Bounds[] | null
 
 /** Milliseconds a finer tile outside every area waits to learn whether it is carved before it is turned away, asking again every `RECHECK_MS`. */
-const HOLD_MS = 4000
+const HOLD_MS = 10000
 const RECHECK_MS = 100
 
 export class FineTerrain {
@@ -131,16 +131,19 @@ export class FineTerrain {
     const meets = (areas: Bounds[]) => areas.some(a => a.maxX >= x / n && a.minX <= (x + 1) / n && a.maxY >= y / n && a.minY <= (y + 1) / n)
     if (meets(this.areas)) return served(this.upsample(z, x, y))
     if (!this.held) throw missing()
+    // Cut while it waits, so a tile a cut reaches is ready the moment the cut is known.
+    const ahead = this.upsample(z, x, y)
     const deadline = performance.now() + HOLD_MS
     for (;;) {
       const known = this.held?.()
-      if (meets(this.areas) || (known && meets(known))) return served(this.upsample(z, x, y))
+      if (meets(this.areas) || (known && meets(known))) return served(ahead)
       if (known || !this.held || performance.now() >= deadline) break
       await new Promise<void>(wake => {
         const timer = setTimeout(wake, Math.min(RECHECK_MS, deadline - performance.now()))
         this.waiting.add(() => { clearTimeout(timer); wake() })
       })
     }
+    void ahead.then(image => image?.close(), () => {})
     throw missing()
   }
 

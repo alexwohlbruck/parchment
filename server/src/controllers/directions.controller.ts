@@ -30,6 +30,7 @@ const CoordinateSchema = t.Object({
 const RerouteBodySchema = t.Object({
   position: CoordinateSchema,
   heading: t.Optional(t.Number({ minimum: 0, maximum: 360 })),
+  speed: t.Optional(t.Number({ minimum: 0, description: 'Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.' })),
   destination: CoordinateSchema,
   mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
   routingPreferences: t.Optional(t.Record(t.String(), t.Any())),

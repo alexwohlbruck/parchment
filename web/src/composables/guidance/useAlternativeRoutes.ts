@@ -50,6 +50,7 @@ export function useAlternativeRoutes() {
       const routes = await requestAlternatives({
         position: rerouteOrigin(here.puck.position, here.puck.bearing, here.puck.speed),
         heading: here.puck.bearing,
+        speed: here.puck.speed,
         destination: here.end,
         mode: here.segment.mode,
       })

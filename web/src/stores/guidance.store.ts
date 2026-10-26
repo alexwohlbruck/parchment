@@ -294,6 +294,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
       const fresh = await requestReroute({
         position: rerouteOrigin(puck.position, puck.bearing, puck.speed),
         heading: puck.bearing,
+        speed: puck.speed,
         destination,
         mode: segment.mode,
       })
@@ -341,7 +342,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const end = after?.geometry?.at(-1)
     if (!navRoute || !puck || !before || !after || !end) return false
     const [into, outOf] = await Promise.all([
-      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, destination: station.location, mode: before.mode }),
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: station.location, mode: before.mode }),
       requestReroute({ position: station.location, heading: null, destination: end, mode: after.mode }),
     ])
     if (!into || !outOf || route.value !== navRoute) return false
@@ -393,7 +394,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const end = segment?.geometry?.at(-1)
     if (!segment || !end || !canReroute(segment.mode)) return false
     const [toStop, fromStop] = await Promise.all([
-      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, destination: stop.location, mode: segment.mode }),
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: stop.location, mode: segment.mode }),
       requestReroute({ position: stop.location, heading: null, destination: end, mode: segment.mode }),
     ])
     if (!toStop || !fromStop || route.value !== navRoute) return false

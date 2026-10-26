@@ -9,6 +9,7 @@ import type {
 } from '../types/unified-routing.types'
 import type { Language } from '../lib/i18n'
 import type { Location } from '../types/valhalla.types'
+import { startHeading } from '../lib/start-heading'
 import { routeMetrics, type RouteMetrics } from '../lib/route-metrics'
 
 export type RerouteMode = 'walking' | 'cycling' | 'driving'
@@ -22,6 +23,7 @@ export const MODE_COSTING: Record<RerouteMode, string> = {
 export interface RerouteRequest {
   position: { lat: number; lng: number }
   heading?: number
+  speed?: number
   destination: { lat: number; lng: number }
   mode: RerouteMode
   routingPreferences?: Record<string, unknown>
@@ -54,7 +56,7 @@ async function segmentRoutes(request: RerouteRequest, alternatives?: number): Pr
     locations,
     MODE_COSTING[request.mode],
     { ...request.routingPreferences, language: request.language },
-    { startHeading: request.heading, alternatives },
+    { startHeading: startHeading(request, request.mode), alternatives },
   )
   return route.routes
     .map(r => r.legs[0])

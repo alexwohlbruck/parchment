@@ -18,6 +18,7 @@ export class SpeechPlayer {
   private queue: Prompt[] = []
   private active: AbortController | null = null
   private running = false
+  private starting = true
 
   constructor(private readonly output: SpeechOutput) {}
 
@@ -30,6 +31,7 @@ export class SpeechPlayer {
   }
 
   stop(): void {
+    this.starting = true
     this.queue = []
     this.active?.abort()
   }
@@ -41,6 +43,8 @@ export class SpeechPlayer {
       while (this.queue.length) {
         const prompt = this.queue.shift()!
         if (prompt.expires <= Date.now()) continue
+        const synthesisBudget = this.starting && !prompt.options.urgent ? 3000 : 1500
+        this.starting = false
         const controller = new AbortController()
         this.active = controller
         const signal = controller.signal
@@ -53,7 +57,7 @@ export class SpeechPlayer {
         let timer: ReturnType<typeof setTimeout> | undefined
         try {
           const timeout = new Promise<never>((_, reject) => {
-            timer = setTimeout(() => { request.abort(); reject(new Error('Speech deadline exceeded')) }, Math.min(1500, prompt.expires - Date.now()))
+            timer = setTimeout(() => { request.abort(); reject(new Error('Speech deadline exceeded')) }, Math.min(synthesisBudget, prompt.expires - Date.now()))
           })
           try {
             const audio = await Promise.race([this.output.synthesize(prompt.text, prompt.options, request.signal), timeout, cancelled])

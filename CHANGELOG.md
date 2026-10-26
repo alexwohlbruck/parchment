@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.
+
 * Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.
 
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.

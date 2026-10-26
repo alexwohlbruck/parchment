@@ -29,7 +29,7 @@ describe('speech playback', () => {
     const output = outputs()
     let complete!: (blob: Blob) => void
     output.synthesize.mockImplementation(() => new Promise(resolve => { complete = resolve }))
-    new SpeechPlayer(output).speak('Turn right', options)
+    new SpeechPlayer(output).speak('Turn right', { ...options, urgent: true })
     await vi.advanceTimersByTimeAsync(1500)
     expect(output.playBrowser).toHaveBeenCalledTimes(1)
     complete(new Blob(['late']))
@@ -108,4 +108,32 @@ it('interrupts stalled browser playback for an urgent instruction', async () => 
   await flush()
   expect(output.playBrowser.mock.calls[0][2].aborted).toBe(true)
   expect(output.playBrowser.mock.calls.map(call => call[0])).toEqual(['Continue straight', 'Turn now'])
+})
+
+
+it('allows startup latency only for the first non-urgent prompt', async () => {
+  vi.useFakeTimers()
+  const output = outputs()
+  output.synthesize.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(new Blob(['audio'])), 2000)))
+  const player = new SpeechPlayer(output)
+  player.speak('First instruction', options)
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(output.playAudio).toHaveBeenCalledTimes(1)
+  expect(output.playBrowser).not.toHaveBeenCalled()
+  player.speak('Later instruction', options)
+  await vi.advanceTimersByTimeAsync(1500)
+  expect(output.playBrowser).toHaveBeenCalledTimes(1)
+  player.stop()
+})
+
+it('does not extend the first prompt beyond its maneuver deadline', async () => {
+  vi.useFakeTimers()
+  const output = outputs()
+  output.synthesize.mockImplementation(() => new Promise(() => {}))
+  const player = new SpeechPlayer(output)
+  player.speak('Turn soon', { ...options, maxAgeMs: 500 })
+  await vi.advanceTimersByTimeAsync(500)
+  expect(output.synthesize.mock.calls[0][2].aborted).toBe(true)
+  expect(output.playAudio).not.toHaveBeenCalled()
+  expect(output.playBrowser).not.toHaveBeenCalled()
 })

@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Copy your recovery key directly from the sign-out confirmation before leaving your account.
+
 ## [0.17.1] - 2026-10-26
 
 ### Fixed

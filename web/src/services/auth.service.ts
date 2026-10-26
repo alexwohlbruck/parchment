@@ -194,7 +194,7 @@ function authService() {
     // Cast avoids vue-i18n's "excessively deep" inference on the
     // global typed schema — this call site is fine at runtime.
     const t = (i18n.global as unknown as { t: (key: string) => string }).t
-    const confirmed = await appService.confirm({
+    const confirmed = await appService.confirmSignOut({
       title: t('palette.commands.signOut.confirmTitle'),
       description: t('palette.commands.signOut.confirmDescription'),
       destructive: true,

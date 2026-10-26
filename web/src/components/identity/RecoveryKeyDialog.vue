@@ -22,7 +22,6 @@ import CopyButton from '@/components/CopyButton.vue'
 import {
   Key,
   Check,
-  Copy,
   Download,
   AtSign,
   Fingerprint,
@@ -34,7 +33,7 @@ import RecoveryKeySetupContent from './RecoveryKeySetupContent.vue'
 import PasskeyOfferContent from './PasskeyOfferContent.vue'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import { useDialogCompletion } from '@/composables/useDialogCompletion'
-import { useClipboard } from '@/composables/useClipboard'
+import RecoveryKeyDisplay from './RecoveryKeyDisplay.vue'
 
 type Mode = 'setup' | 'import' | 'view'
 type SetupStep =
@@ -70,7 +69,6 @@ const isOpen = computed({
 
 const recoveryKeyInput = ref('')
 const existingRecoveryKey = ref<string | null>(null)
-const { copied: recoveryCopied, copy: copyText } = useClipboard()
 const error = ref<string | null>(null)
 const setupStep = ref<SetupStep>('generate')
 const importStep = ref<ImportStep>('choose')
@@ -106,17 +104,6 @@ watch(
     }
   },
 )
-
-const displayedKey = computed(() => {
-  if (props.mode === 'view') return existingRecoveryKey.value
-  return null
-})
-
-const formattedKey = computed(() => {
-  const k = displayedKey.value
-  if (!k) return ''
-  return k.match(/.{1,5}/g)?.join(' ') ?? k
-})
 
 function handleSetupConfirm() {
   setupStep.value = 'passkey-offer'
@@ -200,10 +187,6 @@ function handleClose() {
   recoveryKeySetupRef.value?.reset()
 }
 
-async function copyRecoveryKey() {
-  if (!existingRecoveryKey.value) return
-  await copyText(existingRecoveryKey.value, t('settings.identity.recoveryKey.setup.keyCopiedToast'))
-}
 </script>
 
 <template>
@@ -439,29 +422,7 @@ async function copyRecoveryKey() {
             </AlertDescription>
           </Alert>
 
-          <div class="flex flex-col gap-1.5">
-            <Label class="text-xs text-muted-foreground font-normal">
-              {{ t('settings.identity.recoveryKey.view.keyLabel') }}
-            </Label>
-            <Code
-              class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
-            >
-              {{ formattedKey || t('general.loading') }}
-            </Code>
-            <Button
-              v-if="existingRecoveryKey"
-              variant="outline"
-              class="self-start mt-1"
-              @click="copyRecoveryKey"
-            >
-              <component
-                :is="recoveryCopied ? Check : Copy"
-                class="h-4 w-4 mr-2"
-                :class="recoveryCopied ? 'text-forest-600' : ''"
-              />
-              {{ recoveryCopied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
-            </Button>
-          </div>
+          <RecoveryKeyDisplay :recovery-key="existingRecoveryKey" />
         </div>
 
         <DialogFooter>

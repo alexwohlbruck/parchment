@@ -4,11 +4,6 @@ import { Component, computed, ref, watch, markRaw } from 'vue'
 import { useWindowSize, useStorage } from '@vueuse/core'
 import { UnitSystem, FloorNumbering } from '@/types/map.types'
 
-import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
-import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
-import PromptDialog from '@/components/dialogs/PromptDialog.vue'
-import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
-
 export interface ManualBounds {
   x: number
   y: number
@@ -215,7 +210,7 @@ export const useAppStore = defineStore('app', () => {
   const dialogs = ref<
     {
       id: number
-      component: Component
+      type: DialogType
       props: any
       onSubmit: (payload: any) => void
       loading?: boolean
@@ -228,13 +223,6 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<any> {
     return new Promise(resolve => {
       const id = new Date().getTime()
-      const dialogTypesMap = {
-        [DialogType.Component]: ComponentDialog,
-        [DialogType.Confirm]: ConfirmDialog,
-        [DialogType.Prompt]: PromptDialog,
-        [DialogType.AutoForm]: AutoformDialog,
-        [DialogType.Template]: ConfirmDialog, // TODO: Implement template dialog
-      }
 
       if (
         type === DialogType.Component &&
@@ -248,13 +236,13 @@ export const useAppStore = defineStore('app', () => {
 
       const newDialog: {
         id: number
-        component: Component
+        type: DialogType
         props: any
         onSubmit: (payload: any) => void
         loading?: boolean
       } = {
         id,
-        component: markRaw(dialogTypesMap[type]),
+        type,
         props: options,
         onSubmit: async (payload: any) => {
           // If payload is falsy, it's a cancel action.

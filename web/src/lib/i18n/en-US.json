@@ -1571,6 +1571,23 @@
         "placeholder": "Search along the way",
         "empty": "Nothing found ahead"
       }
+    },
+    "vehicle": {
+      "title": "Location marker",
+      "description": "How you appear on the map while navigating",
+      "color": "Color",
+      "modes": {
+        "driving": "Driving",
+        "cycling": "Cycling",
+        "walking": "Walking"
+      },
+      "indicators": {
+        "arrow": "Arrow",
+        "hatchback": "Hatchback",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bike"
+      }
     }
   },
   "attribution": {

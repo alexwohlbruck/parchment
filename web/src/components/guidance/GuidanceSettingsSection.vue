@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { BikeIcon, CameraIcon, ScanEyeIcon } from 'lucide-vue-next'
+import { BikeIcon, CameraIcon, NavigationIcon, ScanEyeIcon } from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -9,6 +9,8 @@ import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
+import { PUCK_MODES } from '@/lib/guidance/vehicle-indicator'
+import VehiclePicker from './VehiclePicker.vue'
 
 const { preferences } = storeToRefs(useGuidanceStore())
 const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
@@ -55,5 +57,16 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
     >
       <Switch v-model="preferences.autoSwitchDocks" />
     </SettingsItem>
+    <SettingsItem
+      :title="$t('guidance.vehicle.title')"
+      :description="$t('guidance.vehicle.description')"
+      :icon="NavigationIcon"
+    />
+    <div class="-mt-1 space-y-4 pl-8">
+      <div v-for="mode in PUCK_MODES" :key="mode" class="space-y-1.5">
+        <div class="text-sm text-muted-foreground">{{ $t(`guidance.vehicle.modes.${mode}`) }}</div>
+        <VehiclePicker :mode="mode" />
+      </div>
+    </div>
   </SettingsSection>
 </template>

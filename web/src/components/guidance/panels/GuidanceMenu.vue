@@ -8,6 +8,8 @@ import { FREE_MODES } from '@/lib/guidance/free-roam'
 import { canSearchAhead } from '@/services/guidance/route-search.service'
 import { canReroute } from '@/services/guidance/reroute.service'
 import { SOUND_MODES, useGuidanceStore } from '@/stores/guidance.store'
+import { puckMode } from '@/lib/guidance/vehicle-indicator'
+import VehiclePicker from '../VehiclePicker.vue'
 import LiveTransitTimeline from '../transit/LiveTransitTimeline.vue'
 import { useGuidanceContext } from '../context'
 
@@ -124,6 +126,11 @@ const choices = computed(() => [
           {{ option.label }}
         </button>
       </div>
+    </section>
+
+    <section>
+      <div class="mb-2 text-sm text-muted-foreground">{{ t('guidance.vehicle.title') }}</div>
+      <VehiclePicker :mode="puckMode(travelMode)" />
     </section>
   </div>
 </template>

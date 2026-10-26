@@ -404,11 +404,16 @@ function settle() {
   isAnimating.value = false
   if (!isDragging.value) stopLiveTracking()
 }
+function settleUnlessMoving() {
+  const moving = sheet.value?.getAnimations().some(a => a instanceof CSSTransition)
+  if (moving) settleTimer = setTimeout(settleUnlessMoving, SETTLE_FALLBACK_MS)
+  else settle()
+}
 function trackUntilSettled() {
   isAnimating.value = true
   startLiveTracking()
   clearTimeout(settleTimer)
-  settleTimer = setTimeout(settle, SETTLE_FALLBACK_MS)
+  settleTimer = setTimeout(settleUnlessMoving, SETTLE_FALLBACK_MS)
 }
 useEventListener(sheet, 'transitionend', (event: TransitionEvent) => {
   if (event.target === sheet.value && event.propertyName === 'transform' && props.open) settle()

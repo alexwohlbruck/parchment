@@ -1263,7 +1263,10 @@
       "offRoute": "Off route",
       "offRouteHint": "Head back to the route",
       "arrived": "You have arrived",
-      "rerouting": "Rerouting…"
+      "rerouting": "Rerouting…",
+      "turnAround": "Turn around",
+      "head": "Then head {heading}",
+      "headOn": "Then head {heading} on {road}"
     },
     "units": {
       "ft": "ft",
@@ -1345,6 +1348,18 @@
         "right": "You have arrived. Your destination is on the right"
       },
       "rerouting": "Rerouting",
+      "turnAround": "Turn around, then head {heading}",
+      "turnAroundOn": "Turn around, then head {heading} on {road}",
+      "headings": {
+        "north": "north",
+        "northeast": "northeast",
+        "east": "east",
+        "southeast": "southeast",
+        "south": "south",
+        "southwest": "southwest",
+        "west": "west",
+        "northwest": "northwest"
+      },
       "watchPedestrians": "{action}, and watch for pedestrians",
       "hazards": {
         "crosswalk": "Crosswalk ahead",

@@ -35,6 +35,13 @@ const headline = computed(() => {
   if (props.status === 'rerouting') return t('guidance.banner.rerouting')
   return offRoute.value ? t('guidance.banner.offRoute') : null
 })
+const turnAround = computed(() => (headline.value ? null : props.progress?.turnAround ?? null))
+const turnAroundThen = computed(() => {
+  const cue = turnAround.value
+  if (!cue) return ''
+  const heading = t(`guidance.voice.headings.${cue.heading}`)
+  return cue.road ? t('guidance.banner.headOn', { heading, road: cue.road }) : t('guidance.banner.head', { heading })
+})
 const subline = computed(() => (props.status === 'arrived' ? props.destination : t('guidance.banner.offRouteHint')))
 </script>
 
@@ -47,6 +54,13 @@ const subline = computed(() => (props.status === 'arrived' ? props.destination :
       <div class="font-display leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ headline }}</div>
       <div v-if="subline" class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ subline }}</div>
     </div>
+    <div v-else-if="turnAround" class="flex items-center" :class="dash ? 'gap-5 px-5 py-5' : 'gap-4 px-4 py-4'">
+      <ManeuverIcon kind="uturn" class="shrink-0" :class="dash ? 'size-16' : 'size-12'" />
+      <div class="min-w-0 flex-1">
+        <div class="font-display leading-tight" :class="dash ? 'text-[32px]' : 'text-[28px]'">{{ t('guidance.banner.turnAround') }}</div>
+        <div class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ turnAroundThen }}</div>
+      </div>
+    </div>
     <div v-else-if="next" class="flex items-center" :class="dash ? 'gap-5 px-5 py-5' : 'gap-4 px-4 py-4'">
       <ManeuverIcon :kind="kind" :exit="next.instruction.exitNumber" class="shrink-0" :class="dash ? 'size-16' : 'size-12'" />
       <div class="min-w-0 flex-1">
@@ -57,9 +71,9 @@ const subline = computed(() => (props.status === 'arrived' ? props.destination :
         <div class="mt-1.5 line-clamp-2 font-semibold leading-tight" :class="dash ? 'text-[26px]' : 'text-[22px]'">{{ road }}</div>
       </div>
     </div>
-    <LaneStrip v-if="lanes && next && !headline" :plan="lanes" :kind="kind" :dash="dash" />
+    <LaneStrip v-if="lanes && next && !headline && !turnAround" :plan="lanes" :kind="kind" :dash="dash" />
     <div
-      v-if="then && !headline"
+      v-if="then && !headline && !turnAround"
       class="flex items-center gap-2 border-t px-5 text-muted-foreground"
       :class="dash ? 'py-2.5 text-lg' : 'py-2 text-base'"
     >

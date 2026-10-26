@@ -54,6 +54,12 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
   switch (announcement.kind) {
     case 'reroute':
       return t('guidance.voice.rerouting')
+    case 'turn-around': {
+      const heading = t(`guidance.voice.headings.${announcement.heading}`)
+      return announcement.road
+        ? t('guidance.voice.turnAroundOn', { heading, road: announcement.road })
+        : t('guidance.voice.turnAround', { heading })
+    }
     case 'dock-switch':
       return t('guidance.docks.voice.switched', { station: announcement.station })
     case 'hazard':

@@ -9,8 +9,11 @@ import {
   type BearingMode,
   type CameraMode,
 } from '@/lib/guidance/camera-framing'
-import { hasArrived, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
-import { segmentAt } from '@/lib/guidance/nav-route'
+import { hasArrived, roadLabel, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
+import { segmentAt, smoothedBearingAt } from '@/lib/guidance/nav-route'
+import { cardinal, TurnAroundWatch, type Cardinal } from '@/lib/guidance/turn-around'
+import { travellerHeading } from '@/lib/directions/start-motion'
+import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
@@ -46,6 +49,7 @@ const translate = (i18n.global as any).t as (key: string, named?: Record<string,
 
 const PROGRESS_INTERVAL_MS = 250
 const REROUTE_MIN_INTERVAL_MS = 10_000
+const START_BEARING_WINDOW = 20
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived'
 
@@ -60,8 +64,14 @@ export interface GuidancePreferences {
   autoSwitchDocks: boolean
 }
 
+export interface TurnAround {
+  heading: Cardinal
+  road: string | null
+}
+
 export interface GuidanceProgress extends ProgressSummary {
   puck: PuckState
+  turnAround: TurnAround | null
 }
 
 type LegSegment = NavSegmentInput & TransitSegmentInput & {
@@ -131,6 +141,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** The timetable clock, to the second, for countdowns. */
   const clockMs = ref(guidanceClock.now())
   const appStore = useAppStore()
+  const orientation = useOrientationService()
+  let turnAroundWatch: TurnAroundWatch | null = null
 
   function soundModeAt(s: number): SoundMode {
     const mode = route.value ? travelModeAt(route.value, s) : 'driving'
@@ -170,13 +182,33 @@ export const useGuidanceStore = defineStore('guidance', () => {
     clockMs.value = Math.floor(guidanceClock.now() / 1000) * 1000
     const summary = summarizeProgress(navRoute, puck, segmentDurations.value)
     const timetabled = timetabledRemaining(navRoute, segments.value, segmentDurations.value, puck.s, guidanceClock.now())
-    progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds }
+    const turnAround = puck.snapped ? updateTurnAround(navRoute, puck) : null
+    progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds, turnAround }
     updateTransit(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
     const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
     if (puck.snapped && !turnsMuted) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
     if (puck.snapped && hasArrived(navRoute, puck)) arrive()
     else if (!puck.snapped && transit.value?.kind !== 'missed-stop') void reroute()
+  }
+
+  function updateTurnAround(navRoute: NavRoute, puck: PuckState): TurnAround | null {
+    if (!turnAroundWatch) return null
+    const fix = guidanceEngine.diagnostics?.lastFix
+    const speed = fix?.speed ?? null
+    const heading = travellerHeading({
+      course: fix?.heading ?? null,
+      speed,
+      compass: orientation.heading.value,
+      compassAccuracy: orientation.headingAccuracy.value,
+    })
+    const routeBearing = smoothedBearingAt(navRoute, puck.s, START_BEARING_WINDOW)
+    const raised = turnAroundWatch.update({ mode: travelModeAt(navRoute, puck.s), speed, heading, routeBearing, s: puck.s })
+    if (!turnAroundWatch.active) return null
+    const road = roadLabel(navRoute, puck.s)
+    const cue = { heading: cardinal(routeBearing), road: road.kind === 'named' ? road.name : null }
+    if (raised) announce({ kind: 'turn-around', ...cue }, puck.s)
+    return cue
   }
 
   function updateHandoff(navRoute: NavRoute, puck: PuckState) {
@@ -267,6 +299,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
       })
       if (!fresh || route.value !== navRoute) return
       reshape(spliceReroute(segments.value, index, fresh))
+      turnAroundWatch = new TurnAroundWatch(route.value?.segments[index]?.startDistance ?? 0)
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
     } finally {
@@ -343,6 +376,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     transit.value = null
     spokenTransit = new Set()
     furthestS = 0
+    turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
     const end = parts.at(-1)?.end?.location
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
@@ -375,6 +409,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     releaseScreenAwake()
     stopVoice()
     announcer = null
+    turnAroundWatch = null
     if (progressTimer) clearInterval(progressTimer)
     progressTimer = null
     route.value = null

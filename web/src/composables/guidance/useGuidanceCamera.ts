@@ -12,6 +12,7 @@ import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { CAMERA_MODES, frameCamera, framingSpeed, metersPerPixel } from '@/lib/guidance/camera-framing'
 import { createFramingSpeed, holdZoom, stepFramingSpeed } from '@/lib/guidance/framing-speed'
 import { segmentAt } from '@/lib/guidance/nav-route'
+import { trackHeldPointers } from '@/lib/map/held-pointers'
 import { isUserGesture, stateAfterGesture, type CameraState } from '@/lib/guidance/camera-gesture'
 
 const ZOOM_SMOOTH_SEC = 1.2
@@ -27,7 +28,6 @@ const FOCAL_GAIN = 0.5
 const OVERVIEW_DURATION_MS = 800
 const USER_MOVE_START = ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'] as const
 const USER_MOVE_END = ['dragend', 'zoomend', 'rotateend', 'pitchend'] as const
-const POINTER_RELEASE = ['pointerup', 'pointercancel'] as const
 
 type GestureEvent = MapLibreEvent & { originalEvent?: Event }
 
@@ -47,7 +47,7 @@ export function useGuidanceCamera() {
   let heldZoom: number | null = null
   let lastMs = performance.now()
   let resumeTimer: ReturnType<typeof setTimeout> | null = null
-  const heldPointers = new Set<number>()
+  const heldPointers = trackHeldPointers(() => map?.getCanvasContainer())
 
   function clearResumeTimer() {
     if (resumeTimer) clearTimeout(resumeTimer)
@@ -65,7 +65,7 @@ export function useGuidanceCamera() {
     lastMs = nowMs
     if (!map || state.value !== 'following') return 'idle'
     // Each jump resets MapLibre's gesture handlers, so a held pointer pauses it or a drag could never start.
-    if (heldPointers.size > 0) return 'active'
+    if (heldPointers.count > 0) return 'active'
     if (!guidanceEngine.frameDue(nowMs)) return 'active'
     const route = guidanceEngine.route
     const puck = guidanceEngine.sample()
@@ -173,15 +173,10 @@ export function useGuidanceCamera() {
     resumeTimer = setTimeout(follow, AUTO_RESUME_MS)
   }
 
-  const onPointerDown = (event: PointerEvent) => heldPointers.add(event.pointerId)
-  const onPointerUp = (event: PointerEvent) => heldPointers.delete(event.pointerId)
-
   let unregister: (() => void) | null = null
   if (map) {
     for (const type of USER_MOVE_START) map.on(type, onUserMoveStart)
     for (const type of USER_MOVE_END) map.on(type, onUserMoveEnd)
-    map.getCanvasContainer().addEventListener('pointerdown', onPointerDown)
-    for (const type of POINTER_RELEASE) window.addEventListener(type, onPointerUp)
     unregister = registerTick(tick)
   }
 
@@ -192,9 +187,8 @@ export function useGuidanceCamera() {
     if (map) {
       for (const type of USER_MOVE_START) map.off(type, onUserMoveStart)
       for (const type of USER_MOVE_END) map.off(type, onUserMoveEnd)
-      map.getCanvasContainer().removeEventListener('pointerdown', onPointerDown)
     }
-    for (const type of POINTER_RELEASE) window.removeEventListener(type, onPointerUp)
+    heldPointers.dispose()
   })
 
   return {

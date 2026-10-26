@@ -34,6 +34,7 @@ import { usePortolanTransitService } from '@/services/layers/features/portolan/p
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '@/stores/app.store'
 import { createAnimationHold } from '@/lib/map/animation-hold'
+import { trackHeldPointers } from '@/lib/map/held-pointers'
 import {
   calculateCameraPadding,
   calculateFitPadding,
@@ -52,7 +53,7 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
-import { createSharedComposable, useDark } from '@vueuse/core'
+import { createSharedComposable, tryOnScopeDispose, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/services/map/providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/services/map/providers/maplibre.strategy'
@@ -763,6 +764,8 @@ function mapService() {
    */
   let fitOwesPadding = false
   let paddingAfterMove = false
+  const heldPointers = trackHeldPointers(() => mapContainer, () => updateMapPadding())
+  tryOnScopeDispose(() => heldPointers.dispose())
 
   /**
    * Change the transform padding without moving anything on screen.
@@ -1161,7 +1164,8 @@ function mapService() {
       fitOwesPadding = false
       return
     }
-    // setPadding's jumpTo would cut short a drag or ease under way; apply it once the camera rests.
+    // setPadding's jumpTo cancels gestures and eases; a finger down may be starting one.
+    if (heldPointers.count > 0) return
     if (map.isMoving?.()) {
       if (!paddingAfterMove) {
         paddingAfterMove = true

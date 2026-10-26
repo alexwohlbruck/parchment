@@ -55,23 +55,34 @@ function bearing(a: Coordinate, b: Coordinate): number {
   return (Math.atan2(y, x) * 180) / Math.PI
 }
 
+/** First index in [lo, hi) whose value is >= target (or > target when `after`), else hi. */
+function search(values: number[], target: number, lo: number, hi: number, after = false): number {
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (after ? values[mid] <= target : values[mid] < target) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
 /** A polyline with lookups by distance along it. */
 function measure(geometry: Coordinate[]) {
   const cumulative = [0]
   for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + haversine(geometry[i - 1], geometry[i]))
   const length = cumulative[cumulative.length - 1] ?? 0
+  /** End index of the span holding distance d. */
+  const spanAt = (d: number) => search(cumulative, d, 1, Math.max(1, cumulative.length - 1))
   const at = (d: number): Coordinate => {
     if (geometry.length === 0) return { lat: 0, lng: 0 }
     const target = Math.min(Math.max(0, d), length)
-    let i = 1
-    while (i < cumulative.length - 1 && cumulative[i] < target) i++
+    const i = spanAt(target)
     const span = cumulative[i] - cumulative[i - 1] || 1
     const t = Math.min(1, Math.max(0, (target - cumulative[i - 1]) / span))
     const a = geometry[i - 1]
     const b = geometry[i] ?? a
     return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t }
   }
-  return { length, at, cumulative }
+  return { length, at, spanAt, cumulative }
 }
 
 function crossingHazard(mode: string, crossing: string): { kind: RouteHazardKind; severity: RouteHazard['severity'] } | null {
@@ -165,18 +176,24 @@ function steepGrades(segment: HazardSegment, path: ReturnType<typeof measure>): 
   if (!threshold || path.length < GRADE_WINDOW_METERS * 2) return []
   // An elevation of exactly 0 is the model's "no data" (tunnels, gaps), not sea level.
   const known = (i: number) => geometry[i]?.elevation != null && geometry[i].elevation !== 0
+  const unknownBefore = [0]
+  for (let i = 0; i < geometry.length; i++) unknownBefore.push(unknownBefore[i] + (known(i) ? 0 : 1))
   const coveredBetween = (from: number, to: number) => {
-    for (let i = 0; i < geometry.length; i++) {
-      if (path.cumulative[i] >= from && path.cumulative[i] <= to && !known(i)) return false
-    }
-    return true
+    const first = search(path.cumulative, from, 0, geometry.length)
+    const end = search(path.cumulative, to, first, geometry.length, true)
+    return unknownBefore[end] === unknownBefore[first]
   }
+  /** Smoothing windows overlap on the sample grid, so each grid point is read many times. */
+  const elevations = new Map<number, number>()
   const elevationAt = (d: number) => {
-    let i = 1
-    while (i < path.cumulative.length - 1 && path.cumulative[i] < d) i++
+    const cached = elevations.get(d)
+    if (cached !== undefined) return cached
+    const i = path.spanAt(d)
     const span = path.cumulative[i] - path.cumulative[i - 1] || 1
     const t = Math.min(1, Math.max(0, (d - path.cumulative[i - 1]) / span))
-    return geometry[i - 1].elevation! + (geometry[i].elevation! - geometry[i - 1].elevation!) * t
+    const elevation = geometry[i - 1].elevation! + (geometry[i].elevation! - geometry[i - 1].elevation!) * t
+    elevations.set(d, elevation)
+    return elevation
   }
   const smoothed = (d: number) => {
     let total = 0
@@ -212,21 +229,43 @@ function steepGrades(segment: HazardSegment, path: ReturnType<typeof measure>): 
   return grades
 }
 
+/**
+ * Index of the first sample closest to a point. Samples are at most a step apart, so
+ * a sample `gap` away rules out the next (gap - best) / step as any closer.
+ */
+function nearestSample(samples: Coordinate[], point: Coordinate): number {
+  const step = 2 * CURVE_SAMPLE_METERS
+  let best = 0
+  let bestGap = Infinity
+  const consider = (k: number) => {
+    const gap = haversine(samples[k], point)
+    if (gap < bestGap || (gap === bestGap && k < best)) {
+      bestGap = gap
+      best = k
+    }
+    return gap
+  }
+  const stride = Math.ceil(Math.sqrt(samples.length))
+  for (let k = 0; k < samples.length; k += stride) consider(k)
+  for (let k = 0; k < samples.length; ) {
+    const gap = consider(k)
+    k += Math.max(1, Math.floor((gap - bestGap) / step))
+  }
+  return best
+}
+
 /** Bends sharp enough to slow for that aren't themselves a turn instruction. */
 function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): RouteHazard[] {
   if (segment.mode === 'walking' || path.length < CURVE_PROBE_METERS * 3) return []
-  const maneuvers = (segment.instructions ?? []).map((instruction) => {
-    let best = 0
-    let bestD = Infinity
-    for (let d = 0; d <= path.length; d += CURVE_SAMPLE_METERS) {
-      const gap = haversine(path.at(d), instruction.coordinate)
-      if (gap < bestD) {
-        bestD = gap
-        best = d
-      }
-    }
-    return best
-  })
+  const samples: Coordinate[] = []
+  for (let d = 0; d <= path.length; d += CURVE_SAMPLE_METERS) samples.push(path.at(d))
+  const maneuvers = (segment.instructions ?? [])
+    .map((instruction) => nearestSample(samples, instruction.coordinate) * CURVE_SAMPLE_METERS)
+    .sort((a, b) => a - b)
+  const nearManeuver = (d: number) => {
+    const next = maneuvers[search(maneuvers, d - MANEUVER_CLEARANCE_METERS, 0, maneuvers.length, true)]
+    return next !== undefined && next < d + MANEUVER_CLEARANCE_METERS
+  }
   const curves: RouteHazard[] = []
   let lastCurve = -Infinity
   for (let d = CURVE_PROBE_METERS; d <= path.length - CURVE_PROBE_METERS; d += CURVE_SAMPLE_METERS) {
@@ -234,7 +273,7 @@ function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): 
     const after = bearing(path.at(d), path.at(d + CURVE_PROBE_METERS))
     const turn = Math.abs(((after - before + 540) % 360) - 180)
     if (turn < SHARP_CURVE_DEG || d - lastCurve < 60) continue
-    if (maneuvers.some((m) => Math.abs(m - d) < MANEUVER_CLEARANCE_METERS)) continue
+    if (nearManeuver(d)) continue
     lastCurve = d
     curves.push({ kind: 'sharp_curve', severity: turn >= 90 ? 'high' : 'medium', startDistance: d, coordinate: path.at(d), variant: String(Math.round(turn)) })
   }

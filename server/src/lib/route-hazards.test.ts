@@ -73,6 +73,26 @@ describe('routeHazards', () => {
     const atTurn = routeHazards({ mode: 'driving', geometry, instructions: [{ type: 'turn', text: '', coordinate: geometry[29], distance: 0, duration: 0 }] })
     expect(atTurn.filter((h) => h.kind === 'sharp_curve')).toHaveLength(0)
   })
+
+  test('a climb with an elevation gap and a bend reads at fixed distances', () => {
+    const geometry: Coordinate[] = Array.from({ length: 301 }, (_, i) => ({
+      lat: 40 + Math.min(i, 150) * 0.00009,
+      lng: -74 + Math.max(0, i - 150) * 0.00012,
+      elevation: i >= 40 && i < 50 ? 0 : 20 + (i > 60 && i < 120 ? (i - 60) * 1.2 : i >= 120 ? 72 - (i - 120) * 0.2 : 0),
+    }))
+    expect(routeHazards({ mode: 'biking', geometry }).map((h) => [h.kind, h.severity, h.startDistance, h.endDistance, h.variant])).toEqual([
+      ['steep_grade', 'high', 600, 1250, '12'],
+      ['sharp_curve', 'medium', 1505, undefined, '71'],
+    ])
+  })
+
+  test('a very long segment stays fast', () => {
+    const geometry: Coordinate[] = Array.from({ length: 50_000 }, (_, i) => ({ lat: 35 + i * 0.0002, lng: -80 + Math.sin(i / 50) * 0.01, elevation: 100 + Math.sin(i / 200) * 80 }))
+    const instructions = Array.from({ length: 2000 }, (_, i) => ({ type: 'turn', text: '', coordinate: geometry[i * 25], distance: 0, duration: 0 }))
+    const started = performance.now()
+    for (const mode of ['walking', 'biking', 'driving']) routeHazards({ mode, geometry, instructions })
+    expect(performance.now() - started).toBeLessThan(3000)
+  }, 20_000)
 })
 
 describe('tiers', () => {

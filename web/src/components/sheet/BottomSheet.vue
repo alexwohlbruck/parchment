@@ -354,9 +354,9 @@ useObstructingComponent(sheet, props.obstructingKey, manualBounds)
 
 // Mirror DrawerContent's $el into `sheet` for the composable.
 watch(
-  () => drawerContentRef.value?.$el as HTMLElement | undefined,
+  () => drawerContentRef.value?.$el as Node | undefined,
   el => {
-    sheet.value = el ?? null
+    sheet.value = el instanceof HTMLElement ? el : null
   },
   { immediate: true, flush: 'post' },
 )

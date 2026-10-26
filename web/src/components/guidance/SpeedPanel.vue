@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { postedLimit, travelModeAt } from '@/lib/guidance/guidance-display'
+import { postedLimit } from '@/lib/guidance/guidance-display'
 import { modeProfile } from '@/lib/guidance/mode-profiles'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useGuidanceContext } from './context'
@@ -11,11 +11,7 @@ const { t } = useI18n()
 const guidance = useGuidanceStore()
 const { metric } = useGuidanceContext()
 
-const profile = computed(() => {
-  const route = guidance.route
-  const puck = guidance.progress?.puck
-  return modeProfile(route && puck ? travelModeAt(route, puck.s) : 'driving')
-})
+const profile = computed(() => modeProfile(guidance.travelMode))
 const current = computed(() => {
   const speed = guidance.progress?.puck.speed ?? 0
   return Math.round(metric.value ? speed * 3.6 : speed * 2.236936)

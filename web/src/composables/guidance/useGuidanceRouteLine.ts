@@ -50,10 +50,20 @@ export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource())
   let layer: GuidanceRouteLayer | null = null
   let stopLift: (() => void) | null = null
 
+  function clear() {
+    stopLift?.()
+    stopLift = null
+    strategy?.setDeckRouteColors(null)
+    strategy?.trackDeckRoute(null)
+    layer?.destroy()
+    layer = null
+  }
+
   const stopRoute = watch(
     source.route,
     route => {
-      if (!map || !route) return
+      if (!route) return clear()
+      if (!map) return
       if (layer) layer.setRoute(route)
       else {
         mapService.setVisibleTrips([])
@@ -105,10 +115,6 @@ export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource())
   onScopeDispose(() => {
     stopRoute()
     stopProgress()
-    stopLift?.()
-    strategy?.setDeckRouteColors(null)
-    strategy?.trackDeckRoute(null)
-    layer?.destroy()
-    layer = null
+    clear()
   })
 }

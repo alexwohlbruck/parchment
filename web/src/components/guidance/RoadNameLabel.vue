@@ -17,11 +17,13 @@ const guidance = useGuidanceStore()
 const { camera } = useGuidanceContext()
 
 const label = computed(() => {
-  const route = guidance.route
+  const route = guidance.followed
   const puck = guidance.progress?.puck
   if (!route || !puck?.snapped || !camera.following.value || isAboard(guidance.transit)) return null
   const road = roadLabel(route, puck.s)
-  return road.kind === 'named' ? { name: road.name, ref: road.ref } : { name: t(`guidance.roads.${road.key}`) }
+  if (road.kind === 'named') return { name: road.name, ref: road.ref }
+  // Off any road, free roam's straight path ahead has nothing to name.
+  return guidance.kind === 'free' ? null : { name: t(`guidance.roads.${road.key}`) }
 })
 
 const PUCK_CLEARANCE = 30

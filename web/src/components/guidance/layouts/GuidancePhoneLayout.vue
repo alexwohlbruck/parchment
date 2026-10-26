@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useElementBounding, useElementSize, useScreenSafeArea, useWindowSize } from '@vueuse/core'
 import { useAppStore } from '@/stores/app.store'
+import { useGuidanceStore } from '@/stores/guidance.store'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import InstructionCard from '../InstructionCard.vue'
@@ -15,6 +16,7 @@ import GuidancePanel from '../panels/GuidancePanel.vue'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
 
 const appStore = useAppStore()
+const guidance = useGuidanceStore()
 defineSlots<{ dev?: (props: { placement: 'above' | 'below' }) => unknown }>()
 const { panel, openPanel, closePanel } = useGuidanceContext()
 
@@ -82,7 +84,7 @@ const sideInset = computed(() => {
 
     <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">
       <div ref="banner" class="absolute inset-x-0 top-0 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
-        <InstructionCard />
+        <InstructionCard v-if="guidance.kind === 'route'" />
         <div class="absolute inset-x-0 top-full flex justify-center pt-2">
           <HazardChip />
         </div>

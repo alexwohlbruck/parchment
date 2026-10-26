@@ -3,9 +3,10 @@ import { useI18n } from 'vue-i18n'
 import { FlagIcon, NavigationIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { formatClock } from '@/lib/directions/trip-display'
+import type { FreeMode } from '@/lib/guidance/free-roam'
 
-defineProps<{ destination: string | null; hasNextLeg: boolean }>()
-defineEmits<{ done: []; next: [] }>()
+defineProps<{ destination: string | null; hasNextLeg: boolean; keepGoing?: FreeMode | null }>()
+defineEmits<{ done: []; next: []; keepGoing: [] }>()
 const { t } = useI18n()
 const arrivedAt = formatClock(new Date())
 </script>
@@ -22,6 +23,9 @@ const arrivedAt = formatClock(new Date())
     <Button v-if="hasNextLeg" class="h-11 rounded-full px-4" @click="$emit('next')">
       <NavigationIcon class="size-4" />
       {{ t('guidance.arrival.nextLeg') }}
+    </Button>
+    <Button v-else-if="keepGoing" variant="secondary" class="h-11 rounded-full px-4" @click="$emit('keepGoing')">
+      {{ t(`guidance.free.keepGoing.${keepGoing}`) }}
     </Button>
     <Button :variant="hasNextLeg ? 'secondary' : 'default'" class="h-11 rounded-full px-5" @click="$emit('done')">
       {{ t('guidance.arrival.done') }}

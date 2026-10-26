@@ -12,7 +12,7 @@ const guidance = useGuidanceStore()
 const { metric } = useGuidanceContext()
 
 const ahead = computed(() => {
-  const route = guidance.route
+  const route = guidance.followed
   const puck = guidance.progress?.puck
   if (!route || !puck?.snapped || guidance.status !== 'navigating') return null
   const hazard = upcomingHazard(route, puck.s, puck.speed)

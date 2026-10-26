@@ -11,12 +11,13 @@ import GuidanceMapButtons from '../GuidanceMapButtons.vue'
 import GuidanceNotices from '../GuidanceNotices.vue'
 import GuidanceEta from '../GuidanceEta.vue'
 import ArrivalPanel from '../ArrivalPanel.vue'
+import FreeRoamSummary from '../FreeRoamSummary.vue'
 import GuidancePanel from '../panels/GuidancePanel.vue'
 import { useGuidanceContext } from '../context'
 
 defineSlots<{ dev?: (props: { placement: 'above' | 'below' }) => unknown }>()
 const guidance = useGuidanceStore()
-const { panel, exit, metric } = useGuidanceContext()
+const { panel, exit, metric, keepGoing } = useGuidanceContext()
 
 const root = ref<HTMLElement | null>(null)
 const column = ref<HTMLElement | null>(null)
@@ -43,7 +44,7 @@ const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 sh
         <slot name="dev" placement="below" />
       </div>
       <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">
-        <InstructionCard :dash="roomy" />
+        <InstructionCard v-if="guidance.kind === 'route'" :dash="roomy" />
       </Transition>
       <HazardChip class="self-center" />
       <GuidanceNotices />
@@ -68,9 +69,12 @@ const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 sh
               v-if="guidance.status === 'arrived'"
               :destination="guidance.destinationLabel"
               :has-next-leg="guidance.nextLeg != null"
+              :keep-going="keepGoing"
               @done="exit"
               @next="guidance.startNextLeg()"
+              @keep-going="keepGoing && guidance.roam(keepGoing)"
             />
+            <FreeRoamSummary v-else-if="guidance.kind === 'free'" :dash="roomy" />
             <GuidanceEta v-else :dash="roomy" :progress="guidance.progress" :metric="metric" @exit="exit" />
           </div>
         </Transition>

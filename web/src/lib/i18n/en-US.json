@@ -1299,7 +1299,9 @@
       "back": "Back",
       "close": "Close",
       "show": "Show trip options",
-      "hide": "Hide trip options"
+      "hide": "Hide trip options",
+      "destination": "Destination",
+      "alongTheWay": "Along the way"
     },
     "startLeg": "Start leg {leg}",
     "arrival": {
@@ -1535,6 +1537,40 @@
       "for": "for {distance}",
       "steps": "{n} steps",
       "streetView": "Street-level view at this step"
+    },
+    "free": {
+      "title": {
+        "driving": "Free drive",
+        "cycling": "Free ride",
+        "walking": "Free walk"
+      },
+      "start": {
+        "driving": "Drive",
+        "cycling": "Cycle",
+        "walking": "Walk"
+      },
+      "keepGoing": {
+        "driving": "Keep driving",
+        "cycling": "Keep riding",
+        "walking": "Keep walking"
+      },
+      "withoutDestination": {
+        "driving": "Drive without a destination",
+        "cycling": "Ride without a destination",
+        "walking": "Walk without a destination"
+      },
+      "otherModes": "Other ways to go",
+      "mode": "Travel mode",
+      "whereTo": "Where to?",
+      "searchPlaceholder": "Search for a destination",
+      "empty": "No places found",
+      "go": "Go",
+      "goFailed": "Could not plan a route there",
+      "ahead": {
+        "title": "Along the way",
+        "placeholder": "Search along the way",
+        "empty": "Nothing found ahead"
+      }
     }
   },
   "attribution": {
@@ -3103,5 +3139,9 @@
     },
     "wikiLink": "About {label} on the OpenStreetMap wiki",
     "viewChangeset": "View"
+  },
+  "myLocation": {
+    "title": "My location",
+    "accuracy": "Within {distance}"
   }
 }

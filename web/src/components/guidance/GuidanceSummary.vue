@@ -4,13 +4,14 @@ import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import GuidanceEta from './GuidanceEta.vue'
 import ArrivalPanel from './ArrivalPanel.vue'
+import FreeRoamSummary from './FreeRoamSummary.vue'
 import { useGuidanceContext } from './context'
 
 defineProps<{ expanded: boolean }>()
 const emit = defineEmits<{ toggle: [] }>()
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const { exit, metric } = useGuidanceContext()
+const { exit, metric, keepGoing } = useGuidanceContext()
 const { peekRef } = useSheetPeek()
 
 const TAP_SLOP_PX = 10
@@ -37,9 +38,12 @@ function onClick(event: MouseEvent) {
       v-if="guidance.status === 'arrived'"
       :destination="guidance.destinationLabel"
       :has-next-leg="guidance.nextLeg != null"
+      :keep-going="keepGoing"
       @done="exit"
       @next="guidance.startNextLeg()"
+      @keep-going="keepGoing && guidance.roam(keepGoing)"
     />
+    <FreeRoamSummary v-else-if="guidance.kind === 'free'" />
     <GuidanceEta v-else :progress="guidance.progress" :metric="metric" @exit="exit" />
   </div>
 </template>

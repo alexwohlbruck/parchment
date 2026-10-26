@@ -21,6 +21,8 @@
 * Cycling routes run down the bike lane where a street has one, or just inside the outer traffic lane where it doesn't. Separate bike paths keep their own line, and your position arrow rides in the lane with it.
 * Navigation takes over the whole screen: a large turn card and a swipe-up trip card on phones, and a car-dashboard column with big buttons on wider screens. The rest of the app returns when you end.
 * Hazards ahead show on the navigation map: traffic lights and railroad crossings as signs on the route, and crosswalks, stairs, sharp curves and the like as warning callouts.
+* Driving directions from your current location start off the way your car is facing, so you aren't told to turn where you can't.
+* When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
 
 ### Changed
 * Lane guidance draws each lane as one arrow that branches where it allows several turns, with the turn you need lit.

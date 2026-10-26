@@ -1229,7 +1229,10 @@
       "offRoute": "Fuera de ruta",
       "offRouteHint": "Vuelve a la ruta",
       "arrived": "Has llegado",
-      "rerouting": "Recalculando…"
+      "rerouting": "Recalculando…",
+      "turnAround": "Da la vuelta",
+      "head": "Luego ve hacia el {heading}",
+      "headOn": "Luego ve hacia el {heading} por {road}"
     },
     "units": {
       "ft": "pies",
@@ -1311,6 +1314,18 @@
         "right": "Has llegado. Tu destino está a la derecha"
       },
       "rerouting": "Recalculando la ruta",
+      "turnAround": "Da la vuelta y ve hacia el {heading}",
+      "turnAroundOn": "Da la vuelta y ve hacia el {heading} por {road}",
+      "headings": {
+        "north": "norte",
+        "northeast": "noreste",
+        "east": "este",
+        "southeast": "sureste",
+        "south": "sur",
+        "southwest": "suroeste",
+        "west": "oeste",
+        "northwest": "noroeste"
+      },
       "watchPedestrians": "{action} y atención a los peatones",
       "hazards": {
         "crosswalk": "Paso de peatones más adelante",

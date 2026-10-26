@@ -41,6 +41,7 @@ import {
 } from '../lib/transit/route-options'
 import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
 import { nameLegByRoute } from '../lib/transit/line-name'
+import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
 
 /**
@@ -1178,6 +1179,7 @@ export class TripService {
         ],
         'auto',
         preferences,
+        { startHeading: startHeading(from, 'driving') },
       )
 
       if (!route.routes.length) return null
@@ -1387,6 +1389,7 @@ export class TripService {
           ],
           'auto',
           preferences,
+          { startHeading: driveFrom === from.location ? startHeading(from, 'driving') : undefined },
         )
 
         if (!driveRoute.routes.length) return null
@@ -1667,6 +1670,7 @@ export class TripService {
           ],
           'bicycle',
           preferences,
+          { startHeading: rideOrigin === from.location ? startHeading(from, 'cycling') : undefined },
         )
 
         if (!bikeRoute.routes.length) return null
@@ -1986,6 +1990,7 @@ export class TripService {
         ],
         'bicycle',
         preferences,
+        { startHeading: startHeading(from, 'cycling') },
       )
 
       if (!route.routes.length) {

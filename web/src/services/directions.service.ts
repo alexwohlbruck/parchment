@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useOrientationService } from '@/services/orientation.service'
+import { startMotion } from '@/lib/directions/start-motion'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
@@ -24,6 +26,7 @@ import {
 } from '@/lib/directions/directions-url'
 
 const MIN_WAYPOINTS = 2
+const CURRENT_LOCATION_ID = 'current-location'
 
 function directionsService() {
   const store = useDirectionsStore()
@@ -39,6 +42,16 @@ function directionsService() {
     isSupported: isGeolocationSupported,
     resume,
   } = useGeolocationService()
+  const orientation = useOrientationService()
+
+  function currentMotion() {
+    return startMotion({
+      course: coords.value.heading,
+      speed: coords.value.speed,
+      compass: orientation.heading.value,
+      compassAccuracy: orientation.headingAccuracy.value,
+    })
+  }
 
   /**
    * Generate unique key for request deduplication
@@ -85,6 +98,7 @@ function directionsService() {
         label: wp.place ? getSearchResultName(wp.place as Place) : '',
         // Per-waypoint time constraints
         ...constraintRequestFields(wp.timeConstraint),
+        ...(i === 0 && wp.place?.id === CURRENT_LOCATION_ID && currentMotion()),
       })),
       selectedMode: selectedMode.value,
       ...(sortPreference.value && { sortPreference: sortPreference.value }),
@@ -217,7 +231,8 @@ function directionsService() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function planCacheKey(request: any): string {
     const { requestId: _id, availableVehicles: _v, ...stable } = request
-    return JSON.stringify(stable)
+    const waypoints = stable.waypoints.map(({ heading: _h, speed: _s, ...wp }: { heading?: number; speed?: number }) => wp)
+    return JSON.stringify({ ...stable, waypoints })
   }
 
   function readPlanCache(key: string): TripsResponse | null {
@@ -394,7 +409,7 @@ function directionsService() {
     }
 
     const currentLocationPlace: Place = {
-      id: 'current-location',
+      id: CURRENT_LOCATION_ID,
       name: { value: 'Current Location' },
       geometry: {
         value: {

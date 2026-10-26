@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { roadLabel } from '@/lib/guidance/guidance-display'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import { toContainerRect } from '@/lib/map/map-padding'
+import { boxesCrowd } from '@/lib/guidance/declutter'
 import { useAppStore } from '@/stores/app.store'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -14,7 +15,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const mapStore = useMapStore()
 const guidance = useGuidanceStore()
-const { camera } = useGuidanceContext()
+const { camera, routeLine } = useGuidanceContext()
 
 const label = computed(() => {
   const route = guidance.followed
@@ -27,6 +28,8 @@ const label = computed(() => {
 })
 
 const PUCK_CLEARANCE = 30
+/** Naming the same road as the turn bubble, the pill gives way from further off. */
+const CALLOUT_MARGIN = { other: 4, same: 48 }
 
 // The puck is pinned to the camera's focal point while following, so the
 // label can sit there without tracking the marker frame by frame.
@@ -40,10 +43,30 @@ const position = computed(() => {
     top: `${visible.y + visible.height * focal + PUCK_CLEARANCE}px`,
   }
 })
+
+const pill = useTemplateRef<HTMLElement>('pill')
+const yielding = ref(false)
+watch(
+  () => guidance.progress,
+  () => {
+    const callout = routeLine.turnCalloutOnScreen()
+    const box = pill.value?.getBoundingClientRect()
+    if (!callout || !box || !label.value) return (yielding.value = false)
+    const margin = callout.text === label.value.name ? CALLOUT_MARGIN.same : CALLOUT_MARGIN.other
+    yielding.value = boxesCrowd(box, callout.box, margin)
+  },
+  { flush: 'post' },
+)
 </script>
 
 <template>
-  <div v-if="label" class="absolute -translate-x-1/2" :style="position">
+  <div
+    v-if="label"
+    ref="pill"
+    class="absolute -translate-x-1/2 transition-opacity duration-200"
+    :class="{ 'opacity-0': yielding }"
+    :style="position"
+  >
     <Transition
       mode="out-in"
       enter-active-class="transition-opacity duration-300"

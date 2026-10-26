@@ -437,7 +437,7 @@ export function withDeckPieces(url: string, on: boolean): string {
   return on ? `${plain}&decks=1` : plain
 }
 
-function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
+export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
 }
 

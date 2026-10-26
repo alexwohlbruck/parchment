@@ -13,7 +13,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, holds, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
@@ -22,28 +22,27 @@ import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
-import { hasLayer, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
-import { KERB, MARGIN, parseCut, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
+import { readCutTile } from './cut-tile'
+import { KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
 /** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
 const SETTLE_MS = 16
 const CACHE = 400
 
-/** The detail source and its layer of cuts, solved by barrelman and served whole in every tile they reach. */
-export type TunnelSources = { source: string; layer: string }
+/** Barrelman's `tunnel_cuts` tile url, `{z}/{x}/{y}` filled in; read at `CUT_ZOOM`, a few kilobytes for 2 km of street. */
+export type TunnelSources = { tiles: string }
 
-/** Whether a source's tiles in view have all loaded; a source not in the style has nothing to wait for. */
-function loaded(map: any, id: string): boolean {
-  try {
-    return map.isSourceLoaded(id)
-  } catch {
-    return true
-  }
-}
+const CUT_ZOOM = 14
+/** How far past the view the cuts are read, in tiles at `CUT_ZOOM`, so a cut reaching into it from beside is known. */
+const CUT_PAD = 0.15
+/** Cut tiles kept once read. */
+const CUT_TILES = 64
+/** Metres past its line a cut's walls and carving reach. */
+const CUT_REACH = 30
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -100,16 +99,15 @@ export class TunnelLayer {
   private pending: (Built & { ground: Float32Array; exaggeration: number; complete: boolean }) | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
-  /** Whether the cuts carved are those of the roads in view, built once they had all loaded. */
+  /** Whether the cuts carved are those of every cut tile in view. */
   private settled = false
-  /** The sources read for the cuts that have finished loading since the camera last came to rest. */
-  private loadedSince = new Set<string>()
+  /** Cut tiles read, by `z/x/y`, most recent last; and those being read. */
+  private cutTiles = new Map<string, ServedCut[]>()
+  private reading = new Map<string, AbortController>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
   /** The ground the walls rise out of, for their shadows. */
   private sampler: TerrainSampler | null = null
-  /** Each served cut, parsed once, by id. */
-  private cuts = new Map<string, ServedCut>()
   private built = ''
   /** The floors carved into the terrain, keyed by their cut. */
   private carver: TerrainCarver
@@ -154,16 +152,10 @@ export class TunnelLayer {
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
         this.settled = false
-        this.loadedSince.clear()
+        this.readCuts()
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
-      } else if (event.sourceId === this.sources.source) {
-        if (event.tile) this.settled = false
-        if (event.isSourceLoaded) this.loadedSince.add(event.sourceId)
-        // A tile bringing cuts is read at once, so they carve in the frame that first draws it.
-        if (event.tile?.state === 'loaded' && hasLayer(event.tile.latestRawTileData, this.sources.layer)) this.rebuildNow()
-        else if (event.tile || event.isSourceLoaded) this.invalidate(false)
       }
     }
     this.onTerrain = () => this.invalidate()
@@ -171,7 +163,50 @@ export class TunnelLayer {
     map.on('moveend', this.onChange)
     map.on('terrain', this.onTerrain)
     this.options.terrain?.hold(() => (this.settled ? [] : null))
+    this.readCuts()
     this.invalidate()
+  }
+
+  /** The view in mercator units. */
+  private view(): Bounds {
+    const b = this.map.getBounds()
+    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    return { minX: nw.x, minY: nw.y, maxX: se.x, maxY: se.y }
+  }
+
+  /** The cut tiles the view reaches into, by `z/x/y`; none below street zoom. */
+  private cutTilesInView(): string[] {
+    if (!this.sources.tiles || this.map.getZoom() < TUNNEL_MIN_ZOOM) return []
+    const n = 2 ** CUT_ZOOM
+    const v = this.view()
+    const span = (lo: number, hi: number) => [Math.floor(lo * n - CUT_PAD), Math.floor(hi * n + CUT_PAD)]
+    const [[x0, x1], [y0, y1]] = [span(v.minX, v.maxX), span(v.minY, v.maxY)]
+    const keys: string[] = []
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) keys.push(`${CUT_ZOOM}/${x}/${y}`)
+    return keys
+  }
+
+  /** Fetch the view's cut tiles not yet read, off the map's tile worker so they land ahead of the heavy tiles; each is drawn as it lands. */
+  private readCuts() {
+    const wanted = this.cutTilesInView()
+    for (const [key, request] of this.reading) if (!wanted.includes(key)) { request.abort(); this.reading.delete(key) }
+    for (const key of wanted) {
+      if (this.cutTiles.has(key) || this.reading.has(key)) continue
+      const request = new AbortController()
+      this.reading.set(key, request)
+      const [z, x, y] = key.split('/')
+      fetch(this.sources.tiles.replace('{z}', z).replace('{x}', x).replace('{y}', y), { signal: request.signal })
+        .then(res => (res.ok ? res.arrayBuffer() : res.status === 404 || res.status === 204 ? null : Promise.reject(new Error(`Tunnel cuts ${res.status}`))))
+        .then(raw => {
+          this.cutTiles.set(key, raw ? readCutTile(raw) : [])
+          for (const old of this.cutTiles.keys()) if (this.cutTiles.size > CUT_TILES) this.cutTiles.delete(old)
+          if (this.reading.get(key) === request) this.reading.delete(key)
+          if (this.map) this.rebuildNow()
+        })
+        .catch(() => {
+          if (this.reading.get(key) === request) this.reading.delete(key)
+        })
+    }
   }
 
   private samplerFor(): TerrainSampler | null {
@@ -186,6 +221,8 @@ export class TunnelLayer {
     }
     if (this.onTerrain) map.off('terrain', this.onTerrain)
     this.options.terrain?.hold(null)
+    for (const request of this.reading.values()) request.abort()
+    this.reading.clear()
     clearTimeout(this.scheduled)
     this.scheduled = 0
     this.release(gl)
@@ -210,7 +247,7 @@ export class TunnelLayer {
   private rebuild() {
     this.scheduled = 0
     if (!this.map) return
-    const complete = this.loadedSince.has(this.sources.source) || loaded(this.map, this.sources.source)
+    const complete = this.cutTilesInView().every(key => this.cutTiles.has(key))
     const mesh = this.build()
     if (!mesh) {
       if (complete) this.settle()
@@ -230,21 +267,15 @@ export class TunnelLayer {
     this.options.terrain?.release()
   }
 
-  /** The cuts served in the loaded tiles, one copy each. */
+  /** The cuts in the cut tiles read for the view, one copy each. */
   private served(): ServedCut[] {
+    // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
+    const v = this.view()
+    const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
+    const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
     const found = new Map<string, ServedCut>()
-    for (const f of queryFeatures(this.map, this.sources.source, this.sources.layer)) {
-      const id = f.properties?.id
-      if (id === undefined || found.has(id)) continue
-      let cut = this.cuts.get(id)
-      if (!cut) {
-        const parsed = parseCut(f.properties)
-        if (!parsed) continue
-        if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
-        this.cuts.set(id, (cut = parsed))
-      }
-      found.set(id, cut)
-    }
+    for (const key of this.cutTilesInView())
+      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
     return [...found.values()]
   }
 

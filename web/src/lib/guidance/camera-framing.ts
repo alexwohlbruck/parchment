@@ -34,11 +34,22 @@ export const DEFAULT_CAMERA_TUNING: CameraTuning = {
   pastManeuver: 100,
   cruisePitch: 55,
   maneuverPitch: 35,
-  focal: 0.72,
+  focal: 0.86,
   lookAheadSeconds: 4,
   lookAheadMaxDeg: 45,
 }
 
+
+/** Room kept under the puck for the road-name pill, in CSS pixels. */
+export const PUCK_FOOTROOM = 84
+/** Zoom is sized to this share of the map, so a lower puck shows more road ahead rather than zooming in. */
+const FRAMED_SHARE = 0.72
+
+/** Where the puck sits, 0 (top) … 1 (bottom) of the visible map; low on screen, but never so low the road name is cut off. */
+export function puckFocal(mode: CameraMode, tuning: CameraTuning, visibleHeight: number): number {
+  if (mode === 'north-up') return 0.5
+  return Math.max(0.5, Math.min(tuning.focal, 1 - PUCK_FOOTROOM / Math.max(1, visibleHeight)))
+}
 
 const FRAMED_TYPE = /turn|roundabout|destination|arrive/
 
@@ -144,8 +155,8 @@ export function frameCamera(input: FramingInput): CameraTarget {
     }
   }
 
-  const focal = mode === 'north-up' ? 0.5 : tuning.focal
-  const aheadPixels = input.visibleHeight * focal
+  const focal = puckFocal(mode, tuning, input.visibleHeight)
+  const aheadPixels = input.visibleHeight * Math.min(focal, FRAMED_SHARE)
   const zoom = Math.min(
     range.maxZoom,
     Math.max(range.minZoom, zoomForGroundSpan(ahead, aheadPixels, puck.position.lat, pitch)),

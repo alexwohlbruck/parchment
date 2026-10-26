@@ -678,7 +678,8 @@ watch(activeSnapPoint, val => {
 watch(
   snapPoints,
   points => {
-    if (!props.open || snapIndex.value < 0) return
+    // A detent that moves mid-drag must not yank the sheet from under the finger.
+    if (!props.open || snapIndex.value < 0 || isDragging.value) return
     const target = points[snapIndex.value]
     if (target && activeSnapPoint.value !== target) {
       activeSnapPoint.value = target

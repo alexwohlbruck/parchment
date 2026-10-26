@@ -39,14 +39,14 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
       <Button
         size="icon"
         variant="ghost"
-        class="-ml-2 size-11 shrink-0 rounded-full"
+        class="-ml-2 size-12 shrink-0 rounded-full"
         :aria-label="panelReturnsToMenu ? t('guidance.menu.back') : t('guidance.menu.close')"
         @click="closePanel()"
       >
         <ChevronLeftIcon v-if="panelReturnsToMenu" class="size-5" />
         <XIcon v-else class="size-5" />
       </Button>
-      <h2 class="text-lg font-semibold">{{ t(title) }}</h2>
+      <h2 class="font-sans text-lg font-semibold">{{ t(title) }}</h2>
     </div>
     <GuidanceMenu v-if="kind === 'menu'" />
     <GuidanceSteps v-else-if="kind === 'steps'" />

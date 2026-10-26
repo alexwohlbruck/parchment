@@ -23,7 +23,7 @@ const distance = computed(() => bannerDistance(props.progress?.remainingMeters ?
     <div class="min-w-0 flex-1">
       <template v-if="progress">
         <div
-          class="font-display leading-none text-emerald-600 tabular-nums dark:text-emerald-400"
+          class="font-display-heavy leading-none text-forest-600 tabular-nums dark:text-forest-400"
           :class="dash ? 'text-[40px]' : 'text-[34px]'"
         >
           {{ arrival }}

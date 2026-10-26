@@ -495,6 +495,14 @@
   font-variation-settings: 'EXPO' -7;
 }
 
+/* Exposure has no weight axis; navigation's large figures want its thickest cut. */
+@utility font-display-heavy {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  font-feature-settings: 'liga' 0, 'ss01' 0, 'ss02' 0, 'ss03' 0, 'ss04' 0, 'ss05' 0, 'ss06' 0;
+  font-variation-settings: 'EXPO' -80;
+}
+
 @utility depth {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),

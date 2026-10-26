@@ -293,7 +293,7 @@ export function landmarkLayers(): any[] {
 }
 
 /** Detail layers the map only reads through `querySourceFeatures`, never draws. */
-export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DECK_TILES]
+export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DECK_TILES, TUNNEL_CUT_TILES]
 
 /**
  * Invisible layers that keep the read-only detail layers in every tile. Past

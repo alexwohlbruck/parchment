@@ -32,7 +32,7 @@ const level = computed(() => speeding(current.value, limit.value))
     <!-- US / mph regions post a rectangular sign; metric regions a red ring. -->
     <div
       v-if="limit != null && !metric"
-      class="flex flex-col items-center justify-center gap-1 rounded-[14px] border-2 border-zinc-900 bg-white text-zinc-900"
+      class="flex flex-col items-center justify-center gap-1 rounded-[14px] border-2 border-zinc-900 bg-white text-zinc-900 dark:border-zinc-100 dark:bg-zinc-900 dark:text-zinc-100"
       :class="dash ? 'h-[76px]' : 'h-[60px]'"
     >
       <span class="font-bold leading-none" :class="dash ? 'text-[11px]' : 'text-[9px]'">{{ t('guidance.speed.limitSign') }}</span>
@@ -40,7 +40,7 @@ const level = computed(() => speeding(current.value, limit.value))
     </div>
     <div
       v-else-if="limit != null"
-      class="flex aspect-square items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-bold leading-none text-zinc-900 tabular-nums"
+      class="flex aspect-square items-center justify-center rounded-full border-[5px] border-red-600 bg-white font-bold leading-none text-zinc-900 tabular-nums dark:border-red-500 dark:bg-zinc-900 dark:text-zinc-100"
       :class="dash ? 'text-[28px]' : 'text-[22px]'"
     >
       {{ limit }}

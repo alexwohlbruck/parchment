@@ -46,6 +46,15 @@ export class CalloutMarker {
     this.marker = new Marker({ element: bubble(view), anchor: ANCHOR[view.placement] }).setLngLat(at).addTo(this.map)
   }
 
+  bounds(): DOMRect | null {
+    return this.marker?.getElement().getBoundingClientRect() ?? null
+  }
+
+  setVisible(visible: boolean): void {
+    const element = this.marker?.getElement()
+    if (element) element.style.visibility = visible ? '' : 'hidden'
+  }
+
   hide(): void {
     this.marker?.remove()
     this.marker = null

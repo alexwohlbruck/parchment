@@ -12,7 +12,7 @@ import { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
-import { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
+import { guidanceRouteSource, useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
 import { freeModeFor } from '@/lib/guidance/free-roam'
@@ -34,7 +34,7 @@ const metric = computed(() => unitSystem.value === UnitSystem.METRIC)
 if (!guidance.isActive) router.replace({ name: AppRoute.DIRECTIONS })
 
 const camera = useGuidanceCamera()
-useGuidanceRouteLine()
+const routeLine = useGuidanceRouteLine(guidanceRouteSource(camera.state))
 useGuidanceVehicle()
 useLaneGuidance()
 const docks = useDockWatch()
@@ -84,6 +84,7 @@ onBeforeRouteLeave(() => {
 
 provide(GUIDANCE_CONTEXT, {
   camera,
+  routeLine,
   alternatives,
   itinerary,
   docks,

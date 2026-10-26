@@ -1,5 +1,6 @@
 import { inject, type ComputedRef, type InjectionKey, type Ref } from 'vue'
 import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
+import type { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import type { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import type { useDockWatch } from '@/composables/guidance/useDockWatch'
@@ -9,6 +10,7 @@ export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destin
 
 export interface GuidanceContext {
   camera: ReturnType<typeof useGuidanceCamera>
+  routeLine: ReturnType<typeof useGuidanceRouteLine>
   alternatives: ReturnType<typeof useAlternativeRoutes>
   itinerary: ReturnType<typeof useBetterItinerary>
   docks: ReturnType<typeof useDockWatch>

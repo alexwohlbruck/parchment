@@ -78,7 +78,7 @@ export function hexToLinear(hex: string): [number, number, number] {
 
 const EARTH_CIRCUMFERENCE = 40075016.686
 /** On-screen length a model aims for, in CSS pixels. */
-const TARGET_PIXELS: Record<VehicleModel, number> = { hatchback: 50, suv: 54, pickup: 58, bike: 40 }
+const TARGET_PIXELS: Record<VehicleModel, number> = { hatchback: 64, suv: 68, pickup: 72, bike: 56 }
 /** The most a model is enlarged past life size, so zoomed-out views do not draw a city block of car. */
 const MAX_EXAGGERATION = 10
 

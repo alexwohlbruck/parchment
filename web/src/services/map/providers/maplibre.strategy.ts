@@ -102,7 +102,6 @@ import {
   LANDMARK_TILES,
   DETAIL_SOURCE,
   BRIDGE_DECK_TILES,
-  TUNNEL_CUT_SOURCE,
   TUNNEL_CUT_TILES,
   WOOD_LAYER,
   forestFloorColor,
@@ -114,7 +113,7 @@ import { DECK_PALETTE } from '@/lib/map-decks/palette'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
-import { withDeckPieces } from '@/lib/map-style/build'
+import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -992,7 +991,7 @@ export class MaplibreStrategy extends MapStrategy {
       return ids
     }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ source: TUNNEL_CUT_SOURCE, layer: TUNNEL_CUT_TILES }, DECK_PALETTE[flavor], { terrain: fineTerrain })
+      this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, DECK_PALETTE[flavor], { terrain: fineTerrain })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {

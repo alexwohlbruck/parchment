@@ -23,7 +23,7 @@ const ROUTE = 'guidance-route'
 export const GUIDANCE_ROUTE_SOURCE = ROUTE
 const HAZARDS = 'guidance-hazards'
 const SIGN_MIN_ZOOM = 14
-const OVERVIEW_SIGN_MIN_ZOOM = 11
+const OVERVIEW_SIGN_MIN_ZOOM = 12
 /** Closest two bubbles may sit in the overview before the farther one gives way. */
 const BUBBLE_SPACING_PX = 36
 /** Radius the route turns through junctions with. */
@@ -94,7 +94,7 @@ export class GuidanceRouteLayer {
         minzoom: SIGN_MIN_ZOOM,
         layout: {
           'icon-image': HAZARD_SIGN_IMAGE as never,
-          'icon-size': ['interpolate', ['linear'], ['zoom'], OVERVIEW_SIGN_MIN_ZOOM, 0.5, SIGN_MIN_ZOOM, 0.8, 18, 1.15],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], OVERVIEW_SIGN_MIN_ZOOM, 0.6, SIGN_MIN_ZOOM, 0.8, 18, 1.15],
           'symbol-sort-key': ['get', 'at'],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,

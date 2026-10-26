@@ -22,7 +22,7 @@ import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
-import { queryFeatures } from '@/lib/map-decks/map-query'
+import { hasLayer, queryFeatures } from '@/lib/map-decks/map-query'
 import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
@@ -159,10 +159,11 @@ export class TunnelLayer {
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
       } else if (event.sourceId === this.sources.source) {
-        // Each tile carries the cuts it reaches, so they are drawn as it arrives.
         if (event.tile) this.settled = false
         if (event.isSourceLoaded) this.loadedSince.add(event.sourceId)
-        if (event.tile || event.isSourceLoaded) this.invalidate(false)
+        // A tile bringing cuts is read at once, so they carve in the frame that first draws it.
+        if (event.tile?.state === 'loaded' && hasLayer(event.tile.latestRawTileData, this.sources.layer)) this.rebuildNow()
+        else if (event.tile || event.isSourceLoaded) this.invalidate(false)
       }
     }
     this.onTerrain = () => this.invalidate()
@@ -199,6 +200,11 @@ export class TunnelLayer {
     if (force) this.stale = true
     if (this.scheduled) return
     this.scheduled = setTimeout(() => this.rebuild(), SETTLE_MS) as unknown as number
+  }
+
+  private rebuildNow() {
+    clearTimeout(this.scheduled)
+    this.rebuild()
   }
 
   private rebuild() {

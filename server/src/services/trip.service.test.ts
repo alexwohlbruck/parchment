@@ -40,10 +40,6 @@ mock.module('./routing.service', () => ({
 }))
 
 // Mock transit routing service — used for transit legs
-const mockGetTransitRoute = mock<AnyAsync>(async () => ({
-  itineraries: [],
-  metadata: { searchWindow: 3600 },
-}))
 const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
@@ -53,7 +49,6 @@ const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
-    getTransitRoute: mockGetTransitRoute,
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
     getRoutesForStop: mockGetRoutesForStop,
@@ -226,7 +221,6 @@ let tripService: InstanceType<typeof TripService>
 
 beforeEach(() => {
   mockGetRoute.mockReset()
-  mockGetTransitRoute.mockReset()
   mockGetIntermodalRoute.mockReset()
   mockGetNearestEntrance.mockReset()
   mockGetNearestEntrance.mockImplementation(async () => null)

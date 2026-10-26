@@ -100,24 +100,6 @@ function makeTransitRouteResponse() {
   }
 }
 
-function makeNearbyStops() {
-  return [
-    {
-      stopId: 'stop-a',
-      feedId: 'cats',
-      stopName: 'Stop A',
-      stopCode: null,
-      lat: 35.21,
-      lng: -80.81,
-      distance: 120,
-      locationType: 0,
-      parentStation: null,
-      wheelchairBoarding: 1,
-      platformCode: null,
-    },
-  ]
-}
-
 function makeStopRoutes() {
   return [
     {
@@ -146,8 +128,28 @@ beforeEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('TransitRoutingService', () => {
-  describe('getTransitRoute', () => {
-    test('delegates to capability and returns response', async () => {
+  describe('getIntermodalRoute', () => {
+    test('uses the intermodal capability when there is one', async () => {
+      const expected = makeTransitRouteResponse()
+      const mockGetIntermodal = mock(async () => expected)
+      const mockGetTransitRoute = mock(async () => makeTransitRouteResponse())
+      mockGetConfiguredIntegrationsByCapability.mockReturnValue([makeIntegrationRecord()])
+      mockGetCachedIntegrationInstance.mockReturnValue({
+        capabilities: {
+          transitRouting: {
+            getIntermodalRoute: mockGetIntermodal,
+            getTransitRoute: mockGetTransitRoute,
+          },
+        },
+      })
+
+      const request = { from: { lat: 35.2, lng: -80.8 }, to: { lat: 35.23, lng: -80.83 } }
+      expect(await service.getIntermodalRoute(request)).toBe(expected)
+      expect(mockGetIntermodal).toHaveBeenCalledTimes(1)
+      expect(mockGetTransitRoute).not.toHaveBeenCalled()
+    })
+
+    test('falls back to getTransitRoute without an intermodal capability', async () => {
       const record = makeIntegrationRecord()
       const expected = makeTransitRouteResponse()
       const mockGetTransitRoute = mock(async () => expected)
@@ -159,7 +161,7 @@ describe('TransitRoutingService', () => {
         },
       })
 
-      const result = await service.getTransitRoute({
+      const result = await service.getIntermodalRoute({
         from: { lat: 35.2, lng: -80.8 },
         to: { lat: 35.23, lng: -80.83 },
       })
@@ -197,7 +199,7 @@ describe('TransitRoutingService', () => {
         wheelchair: true,
       }
 
-      await service.getTransitRoute(request)
+      await service.getIntermodalRoute(request)
       expect(mockGetTransitRoute).toHaveBeenCalledWith(request)
     })
 
@@ -205,7 +207,7 @@ describe('TransitRoutingService', () => {
       mockGetConfiguredIntegrationsByCapability.mockReturnValue([])
 
       await expect(
-        service.getTransitRoute({
+        service.getIntermodalRoute({
           from: { lat: 35.2, lng: -80.8 },
           to: { lat: 35.23, lng: -80.83 },
         }),
@@ -218,7 +220,7 @@ describe('TransitRoutingService', () => {
       mockGetCachedIntegrationInstance.mockReturnValue(null)
 
       await expect(
-        service.getTransitRoute({
+        service.getIntermodalRoute({
           from: { lat: 35.2, lng: -80.8 },
           to: { lat: 35.23, lng: -80.83 },
         }),
@@ -233,7 +235,7 @@ describe('TransitRoutingService', () => {
       })
 
       await expect(
-        service.getTransitRoute({
+        service.getIntermodalRoute({
           from: { lat: 35.2, lng: -80.8 },
           to: { lat: 35.23, lng: -80.83 },
         }),
@@ -254,47 +256,11 @@ describe('TransitRoutingService', () => {
       })
 
       await expect(
-        service.getTransitRoute({
+        service.getIntermodalRoute({
           from: { lat: 35.2, lng: -80.8 },
           to: { lat: 35.23, lng: -80.83 },
         }),
       ).rejects.toThrow('MOTIS upstream timeout')
-    })
-  })
-
-  describe('getNearbyStops', () => {
-    test('delegates to capability and returns stops', async () => {
-      const record = makeIntegrationRecord()
-      const expected = makeNearbyStops()
-      const mockGetNearbyStops = mock(async () => expected)
-
-      mockGetConfiguredIntegrationsByCapability.mockReturnValue([record])
-      mockGetCachedIntegrationInstance.mockReturnValue({
-        capabilities: {
-          transitRouting: { getNearbyStops: mockGetNearbyStops },
-        },
-      })
-
-      const result = await service.getNearbyStops({
-        lat: 35.21,
-        lng: -80.81,
-        radius: 500,
-      })
-
-      expect(result).toBe(expected)
-      expect(mockGetNearbyStops).toHaveBeenCalledWith({
-        lat: 35.21,
-        lng: -80.81,
-        radius: 500,
-      })
-    })
-
-    test('throws when no transit routing integrations configured', async () => {
-      mockGetConfiguredIntegrationsByCapability.mockReturnValue([])
-
-      await expect(
-        service.getNearbyStops({ lat: 35.21, lng: -80.81 }),
-      ).rejects.toThrow('No transit routing integrations configured')
     })
   })
 
@@ -326,20 +292,6 @@ describe('TransitRoutingService', () => {
     })
   })
 
-  describe('isTransitRoutingAvailable', () => {
-    test('returns true when integrations are configured', () => {
-      mockGetConfiguredIntegrationsByCapability.mockReturnValue([
-        makeIntegrationRecord(),
-      ])
-      expect(service.isTransitRoutingAvailable()).toBe(true)
-    })
-
-    test('returns false when no integrations configured', () => {
-      mockGetConfiguredIntegrationsByCapability.mockReturnValue([])
-      expect(service.isTransitRoutingAvailable()).toBe(false)
-    })
-  })
-
   describe('integration selection', () => {
     test('uses highest-priority integration (first in list)', async () => {
       const record1 = makeIntegrationRecord({ id: 'primary' })
@@ -358,7 +310,7 @@ describe('TransitRoutingService', () => {
         },
       })
 
-      await service.getTransitRoute({
+      await service.getIntermodalRoute({
         from: { lat: 35.2, lng: -80.8 },
         to: { lat: 35.23, lng: -80.83 },
       })

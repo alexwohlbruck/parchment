@@ -19,8 +19,6 @@ import type {
   TransitRouteRequest,
   IntermodalRouteRequest,
   TransitRouteResponse,
-  NearbyStopsRequest,
-  NearbyStopResult,
   StopRouteResult,
   StopDeparturesQuery,
   MapBounds,
@@ -365,7 +363,6 @@ export class BarrelmanIntegration
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
-      getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
       getStopDepartures: this.getStopDepartures.bind(this),
@@ -1495,36 +1492,6 @@ export class BarrelmanIntegration
       throw new Error(
         `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       )
-    }
-  }
-
-  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
-    const { host, apiKey } = this.config
-    if (!apiKey) throw new Error('Barrelman API key not configured')
-
-    const params = new URLSearchParams({
-      lat: String(request.lat),
-      lng: String(request.lng),
-    })
-    if (request.radius != null) params.set('radius', String(request.radius))
-    if (request.limit != null) params.set('limit', String(request.limit))
-
-    try {
-      const response = await transitGate.run(TransitPriority.Enrichment, () =>
-        barrelmanHttp.get(
-          `${host}/transit/stops?${params}`,
-          {
-            headers: this.headers,
-            timeout: 10_000,
-          },
-        ),
-      )
-      return response.data
-    } catch (error: any) {
-      if (error.response) {
-        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
-      }
-      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

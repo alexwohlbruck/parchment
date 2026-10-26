@@ -11,7 +11,7 @@ const { t } = useI18n()
 
 <template>
   <div
-    class="flex items-center justify-center gap-1 border-t"
+    class="flex items-center justify-center gap-0.5 border-t"
     :class="dash ? 'px-5 py-2.5' : 'px-4 py-2'"
     role="img"
     :aria-label="t('guidance.lanes.label')"
@@ -26,7 +26,7 @@ const { t } = useI18n()
       stroke-linecap="round"
       stroke-linejoin="round"
       class="shrink-0"
-      :class="dash ? 'size-10' : 'size-9'"
+      :class="dash ? 'size-12' : 'size-11'"
       aria-hidden="true"
     >
       <path

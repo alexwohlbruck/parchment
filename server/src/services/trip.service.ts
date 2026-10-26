@@ -2319,15 +2319,8 @@ export class TripService {
     const fetchMotis = (
       label: string,
       req: import('../types/integration.types').IntermodalRouteRequest,
-      priority = TransitPriority.Variant,
-    ) => {
-      return transitRoutingService.getIntermodalRoute(req, priority)
-        .then(r => r.itineraries ?? [])
-        .catch(e => {
-          logError(`Intermodal query (${label}) failed`, e)
-          return [] as import('../types/integration.types').TransitItinerary[]
-        })
-    }
+      priority?: TransitPriority,
+    ) => this.queryIntermodal(label, req, priority).then(r => r?.itineraries ?? [])
 
     // Barrelman ranks by ride duration and returns each departure once per
     // access-walk variant, so a short page is spent on later trains with
@@ -2454,16 +2447,11 @@ export class TripService {
       }
     }
 
-    const [adapted, extraResults] = await Promise.all([
-      Promise.all(
-        uniqueItineraries.map(itin =>
-          this.adaptIntermodalItinerary(itin, from, to, startTime, dataSources, preferences),
-        ),
-      ),
+    const [adaptedTrips, extraResults] = await Promise.all([
+      this.adaptIntermodalItineraries(uniqueItineraries, from, to, startTime, dataSources, preferences),
       extraPromise,
     ])
 
-    const adaptedTrips = adapted.filter((t): t is TripResponse => t !== null)
     await this.flagStreetTransfers(adaptedTrips)
     const transitTrips = dropAvoidableStreetTransfers(
       adaptedTrips,
@@ -2520,6 +2508,7 @@ export class TripService {
     )
 
     const trips = await this.executeIntermodalQuery(
+      'shared',
       {
         from: from.location,
         to: to.location,
@@ -2686,6 +2675,7 @@ export class TripService {
       }
 
       const trips = await this.executeIntermodalQuery(
+        `${rideMode}-access`,
         { ...query, from: queryFrom, time: queryTime },
         from, to, startTime, dataSources, preferences,
       )
@@ -2961,7 +2951,8 @@ export class TripService {
     preferences: any,
   ): Promise<TripResponse[]> {
     try {
-      const response = await transitRoutingService.getIntermodalRoute(query, TransitPriority.Variant)
+      const response = await this.queryIntermodal('bike-carry', query)
+      if (!response) return []
 
       // Only offer to take the bike aboard on a provider that says it checked.
       // An older one drops the flag silently, and its results would be ordinary
@@ -2970,16 +2961,9 @@ export class TripService {
       // spending a MOTIS round trip on it every time a trip is planned.
       this.enforcesBikeCarriage = response.metadata?.requireBikeTransport === true
       if (!this.enforcesBikeCarriage) return []
-      if (!response.itineraries?.length) return []
-
-      const adapted = await Promise.all(
-        response.itineraries.map(itinerary =>
-          this.adaptIntermodalItinerary(
-            itinerary, from, to, startTime, dataSources, preferences,
-          ),
-        ),
+      const trips = await this.adaptIntermodalItineraries(
+        response.itineraries ?? [], from, to, startTime, dataSources, preferences,
       )
-      const trips = adapted.filter((t): t is TripResponse => t !== null)
 
       const kept: TripResponse[] = []
       for (const trip of trips) {
@@ -3063,8 +3047,21 @@ export class TripService {
     }
   }
 
+  /** The one door to MOTIS. A failed query is logged and comes back null. */
+  private queryIntermodal(
+    label: string,
+    query: import('../types/integration.types').IntermodalRouteRequest,
+    priority = TransitPriority.Variant,
+  ): Promise<import('../types/integration.types').TransitRouteResponse | null> {
+    return transitRoutingService.getIntermodalRoute(query, priority).catch((error) => {
+      logError(`Intermodal query (${label}) failed`, error)
+      return null
+    })
+  }
+
   private async executeIntermodalQuery(
-    request: import('../types/integration.types').IntermodalRouteRequest,
+    label: string,
+    query: import('../types/integration.types').IntermodalRouteRequest,
     from: Waypoint,
     to: Waypoint,
     startTime: string,
@@ -3072,20 +3069,24 @@ export class TripService {
     preferences?: any,
     opts?: { deferSharedRideEnrichment?: boolean },
   ): Promise<TripResponse[]> {
-    try {
-      const response = await transitRoutingService.getIntermodalRoute(request, TransitPriority.Variant)
-      if (!response.itineraries?.length) return []
+    const response = await this.queryIntermodal(label, query)
+    return this.adaptIntermodalItineraries(
+      response?.itineraries ?? [], from, to, startTime, dataSources, preferences, opts,
+    )
+  }
 
-      const adapted = await Promise.all(
-        response.itineraries.map(itinerary =>
-          this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences, opts),
-        ),
-      )
-      return adapted.filter((t): t is TripResponse => t !== null)
-    } catch (error) {
-      logError('Intermodal query failed', error)
-      return []
-    }
+  private async adaptIntermodalItineraries(
+    itineraries: import('../types/integration.types').TransitItinerary[],
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    dataSources: DataSource[],
+    preferences?: any,
+    opts?: { deferSharedRideEnrichment?: boolean },
+  ): Promise<TripResponse[]> {
+    const adapted = await Promise.all(itineraries.map((itinerary) =>
+      this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences, opts)))
+    return adapted.filter((t): t is TripResponse => t !== null)
   }
 
   /**

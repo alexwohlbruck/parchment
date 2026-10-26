@@ -230,7 +230,6 @@ export class TripService {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: waypoints[0].location,
       currentMode: 'transit',
-      parkedVehicles: [],
     })
 
     const first = await this.planLegTrip(
@@ -301,7 +300,6 @@ export class TripService {
       currentTime: seed.trip.latestEndTime,
       currentLocation: waypoints[1].location,
       currentMode: 'transit',
-      parkedVehicles: [],
     }
 
     for (let i = 1; i < waypoints.length - 1; i++) {
@@ -515,8 +513,6 @@ export class TripService {
     const fare = this.sumLegFares(legs)
     if (fare) tripStats.totalCost = fare
 
-    const parkedVehicles = legs.flatMap((trip) => trip.parkedVehicles ?? [])
-
     return {
       segments,
       tripStats,
@@ -526,7 +522,6 @@ export class TripService {
       latestEndTime: segments[segments.length - 1]?.endTime
         ?? new Date().toISOString(),
       ...(warnings.length > 0 && { warnings }),
-      ...(parkedVehicles.length > 0 && { parkedVehicles }),
       dataSources,
       requestId: request.requestId,
       generatedAt: new Date().toISOString(),
@@ -786,7 +781,6 @@ export class TripService {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: request.waypoints[0].location,
       currentMode: mode,
-      parkedVehicles: [],
     }
 
     const preferencesWithLanguage = {
@@ -1053,7 +1047,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'walking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -1169,14 +1162,6 @@ export class TripService {
           currentTime: driveSegment.endTime,
           currentLocation: to.location,
           currentMode: 'driving',
-          parkedVehicles: [
-            ...state.parkedVehicles,
-            {
-              vehicle: car,
-              location: to.location,
-              parkedAt: driveSegment.endTime,
-            },
-          ],
         },
       }
     } catch (error) {
@@ -1242,7 +1227,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'driving',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -1522,14 +1506,6 @@ export class TripService {
           dataSources,
           requestId: request.requestId,
           generatedAt: new Date().toISOString(),
-          parkedVehicles: car
-            ? [{
-                vehicle: car,
-                location: parkingCoord,
-                parkedAt: driveSegment.endTime,
-                cost: parkingCost,
-              }]
-            : undefined,
         }
         return { trip, totalDuration }
       } catch (error) {
@@ -1782,13 +1758,6 @@ export class TripService {
           dataSources,
           requestId: request.requestId,
           generatedAt: new Date().toISOString(),
-          parkedVehicles: bike
-            ? [{
-                vehicle: bike,
-                location: parkingCoord,
-                parkedAt: bikeSegment.endTime,
-              }]
-            : undefined,
         }
         return { trip, totalDuration }
       } catch (error) {
@@ -1988,7 +1957,6 @@ export class TripService {
           currentTime: bikeSegment.endTime,
           currentLocation: to.location,
           currentMode: 'biking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -2058,7 +2026,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'biking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -2701,12 +2668,6 @@ export class TripService {
               totalCost.value += driveCost
             }
             // Non-USD fare: skip folding rather than mixing currencies
-
-            trip.parkedVehicles = [{
-              vehicle,
-              location: rideSeg.end.location,
-              parkedAt: rideSeg.endTime,
-            }]
           }
         }
 
@@ -2720,7 +2681,7 @@ export class TripService {
           const earliestRide = new Date(startTime).getTime()
             + (walkToVehicle ? walkToVehicle.duration * 1000 : 0)
           if (!(await this.parkBike(
-            trip, { at: 'boarding', earliestRide }, vehicle, preferences,
+            trip, { at: 'boarding', earliestRide }, preferences,
           ))) continue
         }
 
@@ -2820,7 +2781,6 @@ export class TripService {
   private async parkBike(
     trip: TripResponse,
     end: { at: 'boarding'; earliestRide: number } | { at: 'destination'; destination: Waypoint },
-    vehicle: Vehicle | null,
     preferences: any,
   ): Promise<boolean> {
     const boarding = end.at === 'boarding'
@@ -2905,14 +2865,6 @@ export class TripService {
     trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
     if (boarding) trip.earliestStartTime = parkedRide.startTime
 
-    if (vehicle) {
-      trip.parkedVehicles = [{
-        vehicle,
-        location: rackWaypoint.location,
-        parkedAt: parkedRide.endTime,
-      }]
-    }
-
     return true
   }
 
@@ -2983,7 +2935,7 @@ export class TripService {
         }
 
         if (!(await this.parkBike(
-          trip, { at: 'destination', destination: to }, vehicle, preferences,
+          trip, { at: 'destination', destination: to }, preferences,
         ))) continue
         kept.push(trip)
       }

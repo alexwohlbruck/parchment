@@ -163,8 +163,6 @@ export interface TripResponse {
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
-  /** Vehicles parked during this trip (for return-trip planning). */
-  parkedVehicles?: ParkedVehicle[]
 }
 
 export interface TripWarning {
@@ -475,15 +473,7 @@ export interface SegmentState {
   currentLocation: Coordinate
   currentMode: Mode
   carryingVehicle?: Vehicle
-  parkedVehicles: ParkedVehicle[]
   energy?: EnergyState // For electric vehicles
-}
-
-export interface ParkedVehicle {
-  vehicle: Vehicle
-  location: Coordinate
-  parkedAt: string // ISO timestamp
-  cost?: CurrencyAmount // Parking cost
 }
 
 export interface EnergyState {

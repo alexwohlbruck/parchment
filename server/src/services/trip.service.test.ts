@@ -729,7 +729,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -750,7 +749,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -771,7 +769,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:15:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -793,7 +790,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:30:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -812,7 +808,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -833,7 +828,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -852,7 +846,6 @@ describe('TripService — time constraints', () => {
           currentTime: '2026-01-15T08:00:00Z',
           currentLocation: { lat: 35.21, lng: -80.85 },
           currentMode: 'walking',
-          parkedVehicles: [],
         },
       )
 
@@ -1400,7 +1393,7 @@ describe('TripService — scoring', () => {
       expect(modes).toContain('transit')
     })
 
-    test('car+transit trip populates parkedVehicles at the parking spot', async () => {
+    test('car+transit trip rides the registered car', async () => {
       mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
@@ -1416,15 +1409,7 @@ describe('TripService — scoring', () => {
       )
       expect(carTransit).toBeDefined()
 
-      // Parked where the driving leg ends, when it ends
-      expect(carTransit!.trip.parkedVehicles).toBeDefined()
-      expect(carTransit!.trip.parkedVehicles!.length).toBe(1)
-      const parked = carTransit!.trip.parkedVehicles![0]
-      expect(parked.vehicle.type).toBe('car')
-      expect(parked.parkedAt).toBe('2026-01-15T08:05:00Z')
       const driveSeg = carTransit!.trip.segments.find((s) => s.mode === 'driving')!
-      expect(parked.location).toEqual(driveSeg.end.location)
-      // The ride segment is tagged with the user's vehicle
       expect(driveSeg.vehicle?.id).toBe('car-1')
     })
 
@@ -1645,7 +1630,6 @@ describe('TripService — scoring', () => {
         )!
         const driveSeg = carTransit.trip.segments.find((s) => s.mode === 'driving')!
         expect(driveSeg.vehicle).toBeUndefined()
-        expect(carTransit.trip.parkedVehicles).toBeUndefined()
       })
 
       test('starts at the origin rather than a vehicle location', async () => {
@@ -1972,9 +1956,7 @@ describe('TripService — scoring', () => {
       expect(segs[rideIdx + 1].mode).toBe('walking')
       expect(segs[rideIdx + 2].mode).toBe('transit')
 
-      expect(trip!.trip.parkedVehicles?.[0].location).toEqual(
-        stationRack.geometry.value.center,
-      )
+      expect(segs[rideIdx].end.location).toEqual(stationRack.geometry.value.center)
     })
 
     test('locks the bike, then walks in without missing the boarding', async () => {
@@ -2181,42 +2163,6 @@ describe('TripService — scoring', () => {
         const driveSeg = parkingTrip.trip.segments.find((s) => s.mode === 'driving')!
         expect(driveSeg.details?.vehicleDetails?.parkingCost).toBeDefined()
         expect(driveSeg.details!.vehicleDetails!.parkingCost!.value).toBeGreaterThan(0)
-      }
-    })
-
-    test('parking trip populates parkedVehicles on response', async () => {
-      const car = {
-        id: 'car-1',
-        type: 'car' as const,
-        location: { lat: 35.209, lng: -80.860 },
-      }
-      mockSearchByCategory.mockImplementation(async () => [mockParking[0]])
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
-
-      const response = await tripService.planTrip({
-        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
-        selectedMode: 'driving',
-        availableVehicles: [car],
-        routingPreferences: { useKnownParkingLocations: true },
-        preferredDepartureTime: '2026-01-15T08:00:00Z',
-      })
-
-      const parkingTrip = response.trips.find((t) => {
-        const segs = t.trip.segments
-        return (
-          segs.length >= 2 &&
-          segs[segs.length - 1].mode === 'walking' &&
-          segs.some((s) => s.mode === 'driving')
-        )
-      })
-
-      if (parkingTrip) {
-        expect(parkingTrip.trip.parkedVehicles).toBeDefined()
-        expect(parkingTrip.trip.parkedVehicles!.length).toBe(1)
-        expect(parkingTrip.trip.parkedVehicles![0].vehicle.type).toBe('car')
-        expect(parkingTrip.trip.parkedVehicles![0].location.lat).toBe(mockParking[0].geometry.value.center.lat)
-        expect(parkingTrip.trip.parkedVehicles![0].location.lng).toBe(mockParking[0].geometry.value.center.lng)
-        expect(parkingTrip.trip.parkedVehicles![0].parkedAt).toBeDefined()
       }
     })
 
@@ -3376,7 +3322,6 @@ describe('TripService — segment planners', () => {
     currentTime: '2026-01-15T08:00:00Z',
     currentLocation: CHARLOTTE_ORIGIN.location,
     currentMode: 'walking' as const,
-    parkedVehicles: [],
   }
 
   describe('planWalkingSegment', () => {
@@ -3427,24 +3372,6 @@ describe('TripService — segment planners', () => {
         baseState,
       )
       expect(result).toBeNull()
-    })
-
-    test('preserves parkedVehicles in resulting state', async () => {
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
-      const parkedVehicles = [
-        {
-          vehicle: { id: 'car-1', type: 'car' },
-          location: { lat: 35.21, lng: -80.85 },
-          parkedAt: '2026-01-15T07:50:00Z',
-        },
-      ]
-
-      const result = await (tripService as any).planWalkingSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        { ...baseState, parkedVehicles },
-      )
-      expect(result.state.parkedVehicles).toEqual(parkedVehicles)
     })
 
     test('calculates endTime from startTime + duration', async () => {
@@ -3595,8 +3522,6 @@ describe('TripService — segment planners', () => {
         { useKnownVehicleLocations: true },
       )
       expect(result).not.toBeNull()
-      expect(result.state.parkedVehicles.length).toBe(1)
-      expect(result.state.parkedVehicles[0].vehicle.type).toBe('car')
     })
   })
 })

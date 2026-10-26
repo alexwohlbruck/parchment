@@ -27,7 +27,7 @@ const ink = computed(() => inkOn(props.color))
 </script>
 
 <template>
-  <svg viewBox="0 0 56 36" class="h-9 w-14" aria-hidden="true">
+  <svg viewBox="0 0 56 36" class="h-auto w-full max-w-14" aria-hidden="true">
     <template v-if="indicator === 'arrow'">
       <circle cx="28" cy="18" r="14" fill="white" class="drop-shadow-sm" />
       <circle cx="28" cy="18" r="11.5" :fill="color" />
@@ -44,13 +44,13 @@ const ink = computed(() => inkOn(props.color))
     </template>
     <g v-else transform="translate(56 0) scale(-1 1)">
       <ellipse cx="28" cy="32" rx="20" ry="1.6" fill="currentColor" opacity="0.12" />
-      <g fill="none" stroke="#1b1c1e" stroke-width="2">
+      <g fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="16" cy="25" r="6.5" />
         <circle cx="40" cy="25" r="6.5" />
       </g>
       <path d="M16 25l7-10h11l-7 10zM34 15l6 10M23 15l-1.5-3M35 12.5l-1 2.5" fill="none" :stroke="color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M22 11.5l10-6.5M32 5l3.5 7" fill="none" :stroke="color" stroke-width="3.6" stroke-linecap="round" />
-      <circle cx="34" cy="3.6" r="2.4" fill="#2a2d31" />
+      <circle cx="34" cy="3.6" r="2.4" fill="currentColor" />
     </g>
   </svg>
 </template>

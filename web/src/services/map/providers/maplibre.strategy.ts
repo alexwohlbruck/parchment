@@ -102,7 +102,7 @@ import {
   LANDMARK_TILES,
   DETAIL_SOURCE,
   BRIDGE_DECK_TILES,
-  OBJECT_LINE_TILES,
+  TUNNEL_CUT_TILES,
   WOOD_LAYER,
   forestFloorColor,
   woodColorOf,
@@ -113,8 +113,7 @@ import { DECK_PALETTE } from '@/lib/map-decks/palette'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
-import { SOURCE, withDeckPieces } from '@/lib/map-style/build'
-import { ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
+import { withDeckPieces } from '@/lib/map-style/build'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -991,9 +990,8 @@ export class MaplibreStrategy extends MapStrategy {
       for (let i = 0; map.getSource(`route-${i}`); i++) ids.push(`route-${i}`)
       return ids
     }
-    const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', surfaces, walls: { source: DETAIL_SOURCE, layer: OBJECT_LINE_TILES }, buildings: () => this.buildingSources() }, DECK_PALETTE[flavor], { terrain: fineTerrain })
+      this.tunnelLayer = new TunnelLayer({ source: DETAIL_SOURCE, layer: TUNNEL_CUT_TILES }, DECK_PALETTE[flavor], { terrain: fineTerrain })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {

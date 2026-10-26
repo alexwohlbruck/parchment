@@ -96,6 +96,8 @@ export const GOLF_TILES = 'golf_features'
 export const GOLF_PIN_SOURCE = 'golf-pins'
 /** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
 export const BRIDGE_DECK_TILES = 'bridge_decks'
+/** The cut down to each tunnel portal, solved by barrelman; read by the tunnel layer, not styled. */
+export const TUNNEL_CUT_TILES = 'tunnel_cuts'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'

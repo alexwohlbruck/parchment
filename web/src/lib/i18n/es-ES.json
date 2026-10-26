@@ -1232,7 +1232,9 @@
       "rerouting": "Recalculando…",
       "turnAround": "Da la vuelta",
       "head": "Luego ve hacia el {heading}",
-      "headOn": "Luego ve hacia el {heading} por {road}"
+      "headOn": "Luego ve hacia el {heading} por {road}",
+      "away": "Estás lejos de la ruta",
+      "awayHint": "La guía empieza cuando estés cerca"
     },
     "units": {
       "ft": "pies",
@@ -1486,6 +1488,19 @@
     },
     "lanes": {
       "label": "Carriles"
+    },
+    "preview": {
+      "action": "Vista previa",
+      "title": "Vista previa de la ruta",
+      "previewRoute": "Ver la ruta",
+      "overview": "Vista general",
+      "previous": "Paso anterior",
+      "next": "Paso siguiente",
+      "close": "Cerrar vista previa",
+      "stepOf": "{n} de {total}",
+      "for": "durante {distance}",
+      "steps": "{n} pasos",
+      "streetView": "Vista a pie de calle en este paso"
     }
   },
   "attribution": {

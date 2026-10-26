@@ -1266,7 +1266,9 @@
       "rerouting": "Rerouting…",
       "turnAround": "Turn around",
       "head": "Then head {heading}",
-      "headOn": "Then head {heading} on {road}"
+      "headOn": "Then head {heading} on {road}",
+      "away": "You're away from the route",
+      "awayHint": "Guidance starts once you're near it"
     },
     "units": {
       "ft": "ft",
@@ -1520,6 +1522,19 @@
     },
     "lanes": {
       "label": "Lanes"
+    },
+    "preview": {
+      "action": "Preview",
+      "title": "Route preview",
+      "previewRoute": "Preview route",
+      "overview": "Overview",
+      "previous": "Previous step",
+      "next": "Next step",
+      "close": "Close preview",
+      "stepOf": "{n} of {total}",
+      "for": "for {distance}",
+      "steps": "{n} steps",
+      "streetView": "Street-level view at this step"
     }
   },
   "attribution": {

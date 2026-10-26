@@ -52,14 +52,27 @@ describe('FineTerrain held tiles', () => {
     await expect(tile).resolves.toBe(image)
   })
 
-  test('a held tile no cut reaches is turned away without being upsampled', async () => {
-    const { fine } = terrain()
+  test('a held tile is cut while it waits, and served from that cut', async () => {
+    const { fine, image } = terrain()
+    let known: Bounds[] | null = null
+    fine.hold(() => known)
+    const tile = fine.tile(url)
+    expect((fine as any).upsample).toHaveBeenCalledTimes(1)
+    known = [over]
+    fine.release()
+    await expect(tile).resolves.toBe(image)
+    expect((fine as any).upsample).toHaveBeenCalledTimes(1)
+  })
+
+  test('a held tile no cut reaches is turned away, and its cut let go', async () => {
+    const { fine, image } = terrain()
     let known: Bounds[] | null = null
     fine.hold(() => known)
     const tile = fine.tile(url)
     known = []
     fine.release()
     await expect(tile).rejects.toMatchObject({ status: 404 })
-    expect((fine as any).upsample).not.toHaveBeenCalled()
+    await Promise.resolve()
+    expect(image.close).toHaveBeenCalled()
   })
 })

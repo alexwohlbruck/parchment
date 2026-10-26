@@ -2,7 +2,7 @@
 
 import { Marker, type Map as MaplibreMap } from 'maplibre-gl'
 import type { LngLat } from '@/types/map.types'
-import { MIRROR_TRANSFORM } from '@/lib/directions/maneuver-icon'
+import { MANEUVER_FAINT_OPACITY, MIRROR_TRANSFORM } from '@/lib/directions/maneuver-icon'
 
 /** Where the bubble sits relative to its point. */
 export type CalloutPlacement = 'left' | 'right' | 'above'
@@ -11,7 +11,7 @@ export interface CalloutView {
   at: LngLat
   placement: CalloutPlacement
   /** A stroked path in a 24×24 box. */
-  icon: { d: string; stroke: number; mirrored?: boolean }
+  icon: { d: string; faint?: string; stroke: number; mirrored?: boolean }
   text: string | null
   background: string
   foreground: string
@@ -55,7 +55,7 @@ export class CalloutMarker {
 
 const SVG = 'http://www.w3.org/2000/svg'
 
-function glyph({ d, stroke, mirrored }: CalloutView['icon'], small: boolean): SVGSVGElement {
+function glyph({ d, faint, stroke, mirrored }: CalloutView['icon'], small: boolean): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg')
   svg.setAttribute('viewBox', '0 0 24 24')
   svg.setAttribute('class', `${small ? 'size-4' : 'size-[18px]'} shrink-0`)
@@ -65,10 +65,16 @@ function glyph({ d, stroke, mirrored }: CalloutView['icon'], small: boolean): SV
   svg.setAttribute('stroke-linecap', 'round')
   svg.setAttribute('stroke-linejoin', 'round')
   svg.setAttribute('aria-hidden', 'true')
-  const path = document.createElementNS(SVG, 'path')
-  path.setAttribute('d', d)
-  if (mirrored) path.setAttribute('transform', MIRROR_TRANSFORM)
-  svg.append(path)
+  const group = document.createElementNS(SVG, 'g')
+  if (mirrored) group.setAttribute('transform', MIRROR_TRANSFORM)
+  for (const [shape, opacity] of [[faint, MANEUVER_FAINT_OPACITY], [d, 1]] as const) {
+    if (!shape) continue
+    const path = document.createElementNS(SVG, 'path')
+    path.setAttribute('d', shape)
+    if (opacity < 1) path.setAttribute('opacity', String(opacity))
+    group.append(path)
+  }
+  svg.append(group)
   return svg
 }
 

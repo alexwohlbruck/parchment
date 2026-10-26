@@ -109,6 +109,7 @@ import {
   useScroll,
   useScreenSafeArea,
   useElementSize,
+  useEventListener,
 } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
@@ -395,18 +396,23 @@ function onVaulDrag(_percentageDragged: number) {
 }
 
 // Vaul only reports an animation end when the sheet opens or closes, so a
-// move between detents is tracked for as long as its transition runs.
-const SNAP_TRANSITION_MS = 550
+// move between detents is tracked until its transform transition ends.
+const SETTLE_FALLBACK_MS = 1500
 let settleTimer: ReturnType<typeof setTimeout> | undefined
+function settle() {
+  clearTimeout(settleTimer)
+  isAnimating.value = false
+  if (!isDragging.value) stopLiveTracking()
+}
 function trackUntilSettled() {
   isAnimating.value = true
   startLiveTracking()
   clearTimeout(settleTimer)
-  settleTimer = setTimeout(() => {
-    isAnimating.value = false
-    if (!isDragging.value) stopLiveTracking()
-  }, SNAP_TRANSITION_MS)
+  settleTimer = setTimeout(settle, SETTLE_FALLBACK_MS)
 }
+useEventListener(sheet, 'transitionend', (event: TransitionEvent) => {
+  if (event.target === sheet.value && event.propertyName === 'transform' && props.open) settle()
+})
 
 function onVaulRelease() {
   handleVaulRelease()

@@ -231,6 +231,12 @@ export const configSchemas: Record<
       .url('Please enter a valid URL')
       .default('https://api.barrelman.dev'),
     apiKey: z.string().optional(),
+    routingHost: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .describe('Another Barrelman to route through. The host above answers when it cannot.'),
+    routingApiKey: z.string().optional().describe('API key for the routing host, if it differs'),
   }),
 
   axiomSchema: z.object({

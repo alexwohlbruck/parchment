@@ -117,7 +117,7 @@ const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
-  hideUI.value = route.meta?.hideUI ?? false
+  hideUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
 })
 
 // Global click handler for external links
@@ -304,7 +304,7 @@ function beforeNavTransition(value: boolean) {
   </div>
 
   <div
-    class="flex flex-row h-[100vh] items-stretch"
+    class="flex flex-row h-full items-stretch"
     :class="isTauri ? '' : 'bg-background'"
   >
     <!-- Desktop navigation -->

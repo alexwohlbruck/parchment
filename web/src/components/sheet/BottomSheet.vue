@@ -109,6 +109,7 @@ import {
   useScroll,
   useScreenSafeArea,
   useElementSize,
+  useEventListener,
 } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
@@ -175,6 +176,17 @@ const props = withDefaults(
      * fall back to `peekHeight`.
      */
     dynamicPeek?: boolean
+    /**
+     * An inset card resting above the bottom edge, rounded on every corner.
+     * It grows from its bottom edge as it is dragged, rather than sliding a
+     * full-height panel, and the last detent is the height of the card.
+     */
+    floating?: boolean
+    /**
+     * Highest detent that pushes the map aside. Above it the sheet overlays
+     * the map, so opening it further doesn't move the camera.
+     */
+    maxObstructingSnapIndex?: number
   }>(),
   {
     open: true,
@@ -312,6 +324,21 @@ function snapPointBounds(point: SnapPoint | null): ManualBounds | null {
 // during drag because Vaul only commits activeSnapPoint on @release and was
 // causing drag bounds to be frozen at the cap while the drawer visibly moved).
 
+const aboveHost = ref<HTMLElement | null>(null)
+const { height: aboveHeight } = useElementSize(aboveHost, undefined, {
+  box: 'border-box',
+})
+
+function obstruction(bounds: ManualBounds): ManualBounds {
+  const cap = props.maxObstructingSnapIndex
+  const capPoint = cap == null ? undefined : snapPoints.value[cap]
+  const visible = windowHeight.value - bounds.y
+  const height =
+    Math.min(visible, capPoint == null ? visible : snapPointToPixels(capPoint))
+    + aboveHeight.value
+  return { ...bounds, y: windowHeight.value - height, height }
+}
+
 const manualBounds = computed<ManualBounds | null>(() => {
   if (!props.adjustMapPadding) return null
   // Fully closed + no animation in flight → drawer is off-screen, clear
@@ -319,17 +346,17 @@ const manualBounds = computed<ManualBounds | null>(() => {
   if (!props.open && !isAnimating.value) return null
   // Drag, snap-back, open, or close animation → live bounds so the
   // vanishing point tracks the drawer's actual position.
-  if (liveBounds.value) return liveBounds.value
-  return snapPointBounds(activeSnapPoint.value)
+  const bounds = liveBounds.value ?? snapPointBounds(activeSnapPoint.value)
+  return bounds && obstruction(bounds)
 })
 
 useObstructingComponent(sheet, props.obstructingKey, manualBounds)
 
 // Mirror DrawerContent's $el into `sheet` for the composable.
 watch(
-  () => drawerContentRef.value?.$el as HTMLElement | undefined,
+  () => drawerContentRef.value?.$el as Node | undefined,
   el => {
-    sheet.value = el ?? null
+    sheet.value = el instanceof HTMLElement ? el : null
   },
   { immediate: true, flush: 'post' },
 )
@@ -368,15 +395,34 @@ function onVaulDrag(_percentageDragged: number) {
   startLiveTracking()
 }
 
-// Vaul fires @release when the user ends a drag. Vaul then runs the CSS
-// transition to snap the drawer to the nearest allowed snap point. We flip
-// from drag mode to animation mode so the rAF keeps ticking through the
-// transition, and let @animation-end clear it.
+// Vaul only reports an animation end when the sheet opens or closes, so a
+// move between detents is tracked until its transform transition ends.
+const SETTLE_FALLBACK_MS = 1500
+let settleTimer: ReturnType<typeof setTimeout> | undefined
+function settle() {
+  clearTimeout(settleTimer)
+  isAnimating.value = false
+  if (!isDragging.value) stopLiveTracking()
+}
+function settleUnlessMoving() {
+  const moving = sheet.value?.getAnimations().some(a => a instanceof CSSTransition)
+  if (moving) settleTimer = setTimeout(settleUnlessMoving, SETTLE_FALLBACK_MS)
+  else settle()
+}
+function trackUntilSettled() {
+  isAnimating.value = true
+  startLiveTracking()
+  clearTimeout(settleTimer)
+  settleTimer = setTimeout(settleUnlessMoving, SETTLE_FALLBACK_MS)
+}
+useEventListener(sheet, 'transitionend', (event: TransitionEvent) => {
+  if (event.target === sheet.value && event.propertyName === 'transform' && props.open) settle()
+})
+
 function onVaulRelease() {
   handleVaulRelease()
   isDragging.value = false
-  isAnimating.value = true
-  startLiveTracking()
+  trackUntilSettled()
 }
 
 // Programmatic open / close also triggers a CSS transition on the drawer.
@@ -424,6 +470,7 @@ onUnmounted(() => {
   window.removeEventListener('pointerup', onPointerEnd, true)
   window.removeEventListener('pointercancel', onPointerEnd, true)
   if (rafId) cancelAnimationFrame(rafId)
+  clearTimeout(settleTimer)
 })
 
 const { y: scrollY } = useScroll(scrollContainer)
@@ -472,6 +519,13 @@ watch(
 // area is added separately by `adjustForSafeArea`).
 
 const DYNAMIC_PEEK_BUFFER = 12
+const FLOATING_GAP = 8
+
+const lift = computed(() =>
+  props.floating
+    ? FLOATING_GAP + (props.respectSafeArea ? safeAreaInsetBottom.value : 0)
+    : 0,
+)
 
 const peekEl = ref<HTMLElement | null>(null)
 let peekOwner: symbol | null = null
@@ -510,7 +564,7 @@ function measureDynamicPeek() {
   if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
   const top = contentEl.getBoundingClientRect().top
   const bottom = peekEl.value.getBoundingClientRect().bottom
-  const h = bottom - top + DYNAMIC_PEEK_BUFFER
+  const h = bottom - top + (props.floating ? 0 : DYNAMIC_PEEK_BUFFER)
   if (h <= 0) return
 
   // `clampPeek` keeps the result below the next detent once the footer
@@ -566,10 +620,19 @@ const snapPoints = computed<SnapPoint[]>(() =>
     measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
     viewportHeight: windowHeight.value,
     insets: props.respectSafeArea
-      ? { top: safeAreaInsetTop.value, bottom: safeAreaInsetBottom.value }
+      ? {
+          top: safeAreaInsetTop.value,
+          bottom: props.floating ? 0 : safeAreaInsetBottom.value,
+        }
       : null,
+    lift: lift.value,
   }),
 )
+
+const floatingCardHeight = computed(() => {
+  const top = snapPoints.value.at(-1)
+  return top == null ? 0 : snapPointToPixels(top) - lift.value
+})
 
 // ==================== SNAP POINT STATE ====================
 
@@ -615,6 +678,7 @@ const footerSpace = computed(() => {
 
 // When user drags to a new snap point, update our tracked index
 watch(activeSnapPoint, val => {
+  if (!isDragging.value && props.open) trackUntilSettled()
   if (val === null) return
   const idx = snapPoints.value.indexOf(val)
   if (idx >= 0) snapIndex.value = idx
@@ -625,7 +689,8 @@ watch(activeSnapPoint, val => {
 watch(
   snapPoints,
   points => {
-    if (!props.open || snapIndex.value < 0) return
+    // A detent that moves mid-drag must not yank the sheet from under the finger.
+    if (!props.open || snapIndex.value < 0 || isDragging.value) return
     const target = points[snapIndex.value]
     if (target && activeSnapPoint.value !== target) {
       activeSnapPoint.value = target
@@ -840,9 +905,12 @@ function handleAnimationEnd(open: boolean) {
         ref="drawerContentRef"
         :class="
           cn(
-            'bg-background rounded-t-md shadow-lg flex flex-col border-t',
+            'flex flex-col',
+            props.floating
+              ? 'pointer-events-none'
+              : 'bg-background rounded-t-md shadow-lg border-t',
             props.fitContent
-              ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100vh-env(safe-area-inset-top))]'
+              ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100dvh-env(safe-area-inset-top))]'
               : 'min-h-full absolute top-0 bottom-0 left-0 right-0',
             props.class,
           )
@@ -857,117 +925,142 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
-        <!-- Chrome: drag handle + action buttons. Always an overlay that takes
-             no layout space, so content sits high near the handle at rest. A
-             view that pins its own header opts into the chrome bar (sets
-             the chrome bar): its opaque backing then fades in as you scroll
-             so content reads cleanly under the handle / buttons, and the pinned
-             header docks below the bar via `--sheet-sticky-top`. -->
-        <!-- z above the trip-row content (dots/caps at z-20) so it hides
-             everything scrolling under it, but below the pinned header
-             (controls z-30, axis z-25) so it never clips them. -->
+        <!-- Rides the sheet's top edge, and counts towards what it covers. -->
         <div
-          v-if="props.showDragHandle || $slots.actions"
-          ref="headerRef"
-          class="absolute top-0 left-0 right-0 z-[22] grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
-          :class="showChromeBar ? 'min-h-[2.75rem]' : ''"
+          v-if="$slots.above"
+          ref="aboveHost"
+          class="pointer-events-auto absolute inset-x-2 bottom-full"
         >
-          <!-- Opaque backing (chrome views only) — fades in with scroll so the
-               pinned header / content reads cleanly under the handle. -->
-          <div
-            v-if="showChromeBar"
-            class="absolute inset-0 bg-background"
-            :style="{ opacity: chromeFade }"
-          />
-
-          <!-- Col 1: left spacer -->
-          <div />
-
-          <!-- Col 2: drag handle (centered) -->
-          <div class="relative flex justify-center pb-1.5 pt-2">
-            <DrawerHandle
-              v-if="props.showDragHandle"
-              class="h-1 w-16 rounded-full bg-muted-foreground"
-            />
-          </div>
-
-          <!-- Col 3: actions slot (right-aligned) -->
-          <div
-            class="relative flex items-center justify-end pt-3 pr-2 pointer-events-auto"
-          >
-            <slot name="actions" />
-          </div>
+          <slot name="above" />
         </div>
 
-        <!-- Close button: absolutely positioned so it never affects flow -->
-        <DrawerClose v-if="props.showCloseButton" as-child>
-          <Button
-            variant="secondary"
-            size="icon-sm"
-            class="rounded-full absolute top-2 right-2 z-50"
-          >
-            <X class="size-4" />
-          </Button>
-        </DrawerClose>
-
         <div
-          ref="scrollContainer"
-          data-sheet-scroll
           :class="
-            cn('pb-[env(safe-area-inset-bottom)]', {
-              'flex-1 h-[200vh]': !props.fitContent,
-              // A content-sized sheet is capped by its own max-height, so the
-              // surface has to be allowed to shrink under its content before it
-              // will scroll rather than overflow the drawer.
-              'min-h-0': props.fitContent,
-              'overflow-y-auto': isFullyExpanded,
-              'overflow-y-hidden': !isFullyExpanded,
-            })
+            props.floating
+              ? 'pointer-events-auto absolute inset-x-2 top-0 flex flex-col overflow-hidden rounded-[28px] bg-background shadow-xl ring-1 ring-foreground/5'
+              : 'contents'
           "
-          :style="{
-            touchAction: isFullyExpanded ? 'pan-y' : 'none',
-            overscrollBehavior: 'none',
-            // Sticky headers in chrome views dock just below the overlay bar.
-            '--sheet-sticky-top': showChromeBar ? '2.75rem' : '0px',
-          }"
-          @touchstart="handleTouchStart"
-          @touchmove="handleTouchMove"
-          @touchend="handleTouchEnd"
+          :style="
+            props.floating
+              ? { height: `max(0px, calc(var(--sheet-visible-height) - ${lift}px))` }
+              : undefined
+          "
         >
-          <slot />
-          <!-- Spacer to account for safe area inset bottom -->
-          <div class="w-full h-[env(safe-area-inset-bottom)]"></div>
-          <!-- Clear the pinned footer so the last row can still be read. -->
-          <div v-if="hasFooter" :style="{ height: `${footerHeight}px` }"></div>
-          <!-- And clear the on-screen keyboard, so reaching the end of a list
-               doesn't mean dismissing the keyboard you're typing into. -->
-          <div class="w-full h-[var(--keyboard-inset-height,0px)]"></div>
-        </div>
-
-        <!-- Pinned footer. A fit-content sheet really does end at the viewport
-             bottom, so its footer is just the last child in the column. A
-             snap-point sheet does not, so the footer rides a layer sized to the
-             visible height, and slides away with the sheet once the sheet gets
-             shorter than the footer itself (closing, or dragged below peek). -->
-        <div
-          v-if="props.fitContent"
-          ref="footerHost"
-          :class="hasFooter ? 'shrink-0 pb-[env(safe-area-inset-bottom)]' : ''"
-        ></div>
-        <div
-          v-else
-          class="pointer-events-none absolute inset-x-0 top-0 z-[23]"
-          :style="{ height: 'var(--sheet-visible-height)' }"
-        >
+          <!-- Chrome: drag handle + action buttons. Always an overlay that takes
+               no layout space, so content sits high near the handle at rest. A
+               view that pins its own header opts into the chrome bar (sets
+               the chrome bar): its opaque backing then fades in as you scroll
+               so content reads cleanly under the handle / buttons, and the pinned
+               header docks below the bar via `--sheet-sticky-top`. -->
+          <!-- z above the trip-row content (dots/caps at z-20) so it hides
+               everything scrolling under it, but below the pinned header
+               (controls z-30, axis z-25) so it never clips them. -->
           <div
-            ref="footerHost"
-            class="pointer-events-auto absolute inset-x-0 bottom-0"
-            :class="hasFooter ? 'pb-[env(safe-area-inset-bottom)]' : ''"
+            v-if="props.showDragHandle || $slots.actions"
+            ref="headerRef"
+            class="absolute top-0 left-0 right-0 z-[22] grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+            :class="showChromeBar ? 'min-h-[2.75rem]' : ''"
+          >
+            <!-- Opaque backing (chrome views only) — fades in with scroll so the
+                 pinned header / content reads cleanly under the handle. -->
+            <div
+              v-if="showChromeBar"
+              class="absolute inset-0 bg-background"
+              :style="{ opacity: chromeFade }"
+            />
+
+            <!-- Col 1: left spacer -->
+            <div />
+
+            <!-- Col 2: drag handle (centered) -->
+            <div class="relative flex justify-center pb-1.5 pt-2">
+              <DrawerHandle
+                v-if="props.showDragHandle"
+                class="h-1 w-16 rounded-full bg-muted-foreground"
+              />
+            </div>
+
+            <!-- Col 3: actions slot (right-aligned) -->
+            <div
+              class="relative flex items-center justify-end pt-3 pr-2 pointer-events-auto"
+            >
+              <slot name="actions" />
+            </div>
+          </div>
+
+          <!-- Close button: absolutely positioned so it never affects flow -->
+          <DrawerClose v-if="props.showCloseButton" as-child>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              class="rounded-full absolute top-2 right-2 z-50"
+            >
+              <X class="size-4" />
+            </Button>
+          </DrawerClose>
+
+          <div
+            ref="scrollContainer"
+            data-sheet-scroll
+            :class="
+              cn({
+                'pb-[env(safe-area-inset-bottom)]': !props.floating,
+                'shrink-0': props.floating,
+                'flex-1 h-[200vh]': !props.fitContent && !props.floating,
+                // A content-sized sheet is capped by its own max-height, so the
+                // surface has to be allowed to shrink under its content before it
+                // will scroll rather than overflow the drawer.
+                'min-h-0': props.fitContent,
+                'overflow-y-auto': isFullyExpanded,
+                'overflow-y-hidden': !isFullyExpanded,
+              })
+            "
             :style="{
-              transform:
-                'translateY(calc(max(0px, calc(var(--sheet-footer-height) - var(--sheet-footer-space))) - var(--keyboard-inset-height, 0px)))',
+              touchAction: isFullyExpanded ? 'pan-y' : 'none',
+              height: props.floating ? `${floatingCardHeight}px` : undefined,
+              overscrollBehavior: 'none',
+              // Sticky headers in chrome views dock just below the overlay bar.
+              '--sheet-sticky-top': showChromeBar ? '2.75rem' : '0px',
             }"
+            @touchstart="handleTouchStart"
+            @touchmove="handleTouchMove"
+            @touchend="handleTouchEnd"
+          >
+            <slot />
+            <!-- Spacer to account for safe area inset bottom -->
+            <div v-if="!props.floating" class="w-full h-[env(safe-area-inset-bottom)]"></div>
+            <!-- Clear the pinned footer so the last row can still be read. -->
+            <div v-if="hasFooter" :style="{ height: `${footerHeight}px` }"></div>
+            <!-- And clear the on-screen keyboard, so reaching the end of a list
+                 doesn't mean dismissing the keyboard you're typing into. -->
+            <div class="w-full h-[var(--keyboard-inset-height,0px)]"></div>
+          </div>
+
+          <!-- Pinned footer. A fit-content sheet really does end at the viewport
+               bottom, so its footer is just the last child in the column. A
+               snap-point sheet does not, so the footer rides a layer sized to the
+               visible height, and slides away with the sheet once the sheet gets
+               shorter than the footer itself (closing, or dragged below peek). -->
+          <div
+            v-if="props.fitContent"
+            ref="footerHost"
+            :class="hasFooter ? 'shrink-0 pb-[env(safe-area-inset-bottom)]' : ''"
           ></div>
+          <div
+            v-else
+            class="pointer-events-none absolute inset-x-0 top-0 z-[23]"
+            :style="{ height: props.floating ? '100%' : 'var(--sheet-visible-height)' }"
+          >
+            <div
+              ref="footerHost"
+              class="pointer-events-auto absolute inset-x-0 bottom-0"
+              :class="hasFooter && !props.floating ? 'pb-[env(safe-area-inset-bottom)]' : ''"
+              :style="{
+                transform:
+                  'translateY(calc(max(0px, calc(var(--sheet-footer-height) - var(--sheet-footer-space))) - var(--keyboard-inset-height, 0px)))',
+              }"
+            ></div>
+          </div>
         </div>
       </DrawerContent>
     </DrawerPortal>

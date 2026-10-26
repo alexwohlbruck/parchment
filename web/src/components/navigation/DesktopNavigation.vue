@@ -8,7 +8,7 @@ import { useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/lib/string'
 import { isTauri, getIsTauri } from '@/lib/api'
-import { useWindowSize } from '@vueuse/core'
+import { useEventListener, useWindowSize } from '@vueuse/core'
 import { useMapService } from '@/services/map/map.service'
 import { useUpdater } from '@/composables/useUpdater'
 import { appEventBus } from '@/lib/event-bus'
@@ -142,6 +142,9 @@ function handleSidebarResize() {
 watch([windowWidth, windowHeight], () => nextTick(publishBounds), {
   flush: 'post',
 })
+
+// The rail slides in after mounting; measure where it settled.
+useEventListener(() => sidebarRef.value?.$el as HTMLElement | undefined, 'transitionend', publishBounds)
 
 onMounted(async () => {
   // The obstructing-components map is keyed by name; we publish bounds

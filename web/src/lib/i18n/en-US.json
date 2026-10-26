@@ -1230,6 +1230,380 @@
     "toggle": "Toggle navigation",
     "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
+  "guidance": {
+    "start": "Start",
+    "exit": "End navigation",
+    "waitingForLocation": "Waiting for your location…",
+    "camera": {
+      "resume": "Follow your position",
+      "overview": "Show the whole route",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Heading up",
+        "north-up": "North up"
+      },
+      "bearing": {
+        "look-ahead": "Look ahead",
+        "straight": "Straight ahead"
+      }
+    },
+    "settings": {
+      "title": "Navigation",
+      "cameraMode": "Camera",
+      "cameraModeDescription": "How the map follows you while navigating",
+      "bearingMode": "Camera direction",
+      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading",
+      "autoSwitchDocks": "Switch bike share stations",
+      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes",
+      "speedDisplay": "Speed display",
+      "speedDisplayDescription": "Show the posted limit, your current speed, or both while driving"
+    },
+    "exitShort": "End",
+    "banner": {
+      "arrive": "Your destination",
+      "then": "Then",
+      "offRoute": "Off route",
+      "offRouteHint": "Head back to the route",
+      "arrived": "You have arrived",
+      "rerouting": "Rerouting…",
+      "turnAround": "Turn around",
+      "head": "Then head {heading}",
+      "headOn": "Then head {heading} on {road}",
+      "away": "You're away from the route",
+      "awayHint": "Guidance starts once you're near it"
+    },
+    "units": {
+      "ft": "ft",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "LIMIT",
+      "displays": {
+        "both": "Limit and speed",
+        "limit": "Speed limit only",
+        "speedometer": "Speedometer only",
+        "none": "Hidden"
+      },
+      "displaysShort": {
+        "both": "Both",
+        "limit": "Limit",
+        "speedometer": "Speed",
+        "none": "Off"
+      }
+    },
+    "roads": {
+      "path": "Path",
+      "pedestrian": "Pedestrian street",
+      "cycleway": "Bike path",
+      "steps": "Stairs",
+      "track": "Track",
+      "service": "Service road",
+      "road": "Unnamed road"
+    },
+    "menu": {
+      "searchAlongRoute": "Search along route",
+      "search": "Search",
+      "addStop": "Add stop",
+      "report": "Report",
+      "steps": "Steps",
+      "routes": "Routes",
+      "title": "Options",
+      "back": "Back",
+      "close": "Close",
+      "show": "Show trip options",
+      "hide": "Hide trip options",
+      "destination": "Destination",
+      "alongTheWay": "Along the way"
+    },
+    "startLeg": "Start leg {leg}",
+    "arrival": {
+      "destination": "Your destination",
+      "at": "Arrived at {time}",
+      "nextLeg": "Next leg",
+      "done": "Done"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} feet",
+        "mile": "{value} mile",
+        "miles": "{value} miles",
+        "meters": "{value} meters",
+        "kilometer": "{value} kilometer",
+        "kilometers": "{value} kilometers"
+      },
+      "maneuvers": {
+        "straight": "Continue straight",
+        "slight-left": "Bear left",
+        "slight-right": "Bear right",
+        "left": "Turn left",
+        "right": "Turn right",
+        "sharp-left": "Make a sharp left",
+        "sharp-right": "Make a sharp right",
+        "keep-left": "Keep left",
+        "keep-right": "Keep right",
+        "uturn": "Make a U-turn",
+        "roundabout": "Enter the roundabout",
+        "roundaboutExit": "At the roundabout, take exit {exit}",
+        "arrive": "Arrive",
+        "board": "Board",
+        "boardAt": "Board at {stop}"
+      },
+      "onto": "{action} onto {road}",
+      "in": "In {distance}, {action}",
+      "then": "{action}, then {next}",
+      "continue": "Continue for {distance}",
+      "continueOn": "Continue on {road} for {distance}",
+      "arrive": "In {distance}, you will arrive",
+      "arriveSide": {
+        "left": "In {distance}, your destination is on the left",
+        "right": "In {distance}, your destination is on the right"
+      },
+      "arrived": "You have arrived",
+      "arrivedSide": {
+        "left": "You have arrived. Your destination is on the left",
+        "right": "You have arrived. Your destination is on the right"
+      },
+      "rerouting": "Rerouting",
+      "turnAround": "Turn around, then head {heading}",
+      "turnAroundOn": "Turn around, then head {heading} on {road}",
+      "headings": {
+        "north": "north",
+        "northeast": "northeast",
+        "east": "east",
+        "southeast": "southeast",
+        "south": "south",
+        "southwest": "southwest",
+        "west": "west",
+        "northwest": "northwest"
+      },
+      "watchPedestrians": "{action}, and watch for pedestrians",
+      "hazards": {
+        "crosswalk": "Crosswalk ahead",
+        "uncontrolled_crossing": "Uncontrolled crossing ahead",
+        "rail_crossing": "Railroad crossing ahead",
+        "ford": "Water crossing ahead",
+        "sharp_curve": "Sharp curve ahead",
+        "steep_grade": "Steep grade ahead",
+        "steps": "Stairs ahead",
+        "shared_space": "Shared street ahead, watch for people walking"
+      },
+      "useLanes": "{action}. Use {lanes}",
+      "lanes": {
+        "left": "the left lane",
+        "leftMany": "the left {n} lanes",
+        "right": "the right lane",
+        "rightMany": "the right {n} lanes",
+        "middle": "the middle lane",
+        "middleMany": "the middle {n} lanes"
+      }
+    },
+    "sound": {
+      "title": "Sound",
+      "all": "All",
+      "alerts": "Alerts only",
+      "silent": "Silent"
+    },
+    "hazards": {
+      "crosswalk": "Crosswalk",
+      "traffic_signals": "Traffic light",
+      "uncontrolled_crossing": "Uncontrolled crossing",
+      "rail_crossing": "Railroad crossing",
+      "tunnel": "Tunnel",
+      "ford": "Water crossing",
+      "ferry": "Ferry",
+      "steep_grade": "Steep grade",
+      "steps": "Stairs",
+      "dismount": "Walk your bike",
+      "rough_surface": "Rough surface",
+      "shared_space": "Shared street",
+      "sharp_curve": "Sharp curve"
+    },
+    "hazardCounts": {
+      "crosswalk": "{n} crosswalk | {n} crosswalks",
+      "traffic_signals": "{n} light | {n} lights"
+    },
+    "handoff": {
+      "park": "Park",
+      "lock-bike": "Lock up your bike",
+      "dock-bike": "Dock the bike at {station}",
+      "unlock-bike": "Unlock a bike at {station}",
+      "get-in-car": "Get in your car",
+      "get-on-bike": "Get on your bike",
+      "continue": "Carry on",
+      "then": "then {mode} {duration}",
+      "thenTo": "then {mode} {duration} to {place}",
+      "modes": {
+        "walking": "walk",
+        "cycling": "ride",
+        "driving": "drive",
+        "transit": "ride"
+      },
+      "go": "Go",
+      "notYet": "Not yet",
+      "docksFree": "{n} dock free | {n} docks free"
+    },
+    "transit": {
+      "voice": {
+        "board": "Board the {line}",
+        "boardToward": "Board the {line} toward {headsign}",
+        "alight-next": "Get off at the next stop, {stop}",
+        "alight-now": "Get off at {stop}",
+        "missed-vehicle": "The {line} has left. Catch the next one or find another way",
+        "missed-stop": "You passed {stop}. Get off at the next stop"
+      },
+      "departsIn": "Departs in {duration}",
+      "departingNow": "Departing now",
+      "from": "from {stop}",
+      "stopsLeft": "{n} stop | {n} stops",
+      "getOffAt": "Get off at {stop}",
+      "getOffNext": "Get off at the next stop",
+      "getOffNow": "Get off now",
+      "nextStop": "Next: {stop}",
+      "missedVehicle": "The {line} has left",
+      "missedVehicleHint": "Catch the next one or find another way",
+      "nextDeparture": "Next departure",
+      "anotherWay": "Another way",
+      "noLaterRun": "No later departure today",
+      "missedStop": "You passed {stop}",
+      "missedStopHint": "Get off at the next stop",
+      "reach": {
+        "ok": "On track",
+        "hurry": "Hurry",
+        "late": "You may miss it"
+      },
+      "inDuration": "in {duration}",
+      "leg": {
+        "walking": "Walk {duration}",
+        "cycling": "Ride {duration}",
+        "driving": "Drive {duration}"
+      },
+      "toPlace": "to {place}"
+    },
+    "ahead": {
+      "title": "Along the route",
+      "placeholder": "Search along the route",
+      "categories": {
+        "fuel": "Gas",
+        "charging": "EV charging",
+        "coffee": "Coffee",
+        "food": "Food",
+        "restrooms": "Restrooms",
+        "parking": "Parking",
+        "water": "Water",
+        "bikeRepair": "Bike repair"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "On the way",
+      "ahead": "{distance} ahead",
+      "add": "Add stop",
+      "empty": "Nothing found along the route",
+      "failed": "Search is unavailable right now",
+      "addFailed": "Could not add that stop"
+    },
+    "docks": {
+      "docks": "{n} dock | {n} docks",
+      "bikes": "{n} bike | {n} bikes",
+      "atRisk": {
+        "dock": "{station} may be full when you arrive",
+        "bike": "{station} may run out of bikes"
+      },
+      "gone": {
+        "dock": "{station} is full",
+        "bike": "{station} has no bikes"
+      },
+      "switchTo": "Switch to {station}",
+      "keep": "Keep",
+      "voice": {
+        "switched": "Switching to {station}"
+      }
+    },
+    "alternatives": {
+      "faster": "{duration} faster",
+      "slower": "{duration} slower",
+      "sameTime": "Same time",
+      "via": "via {street}",
+      "protected": "More protected bike lanes",
+      "quieter": "Quieter streets",
+      "switch": "Switch",
+      "title": "Routes",
+      "current": "Current route",
+      "protectedShare": "{n}% protected",
+      "empty": "No other routes right now"
+    },
+    "itinerary": {
+      "sooner": "Arrive {duration} sooner",
+      "take": "Take the {lines}"
+    },
+    "lanes": {
+      "label": "Lanes"
+    },
+    "preview": {
+      "action": "Preview",
+      "title": "Route preview",
+      "previewRoute": "Preview route",
+      "overview": "Overview",
+      "previous": "Previous step",
+      "next": "Next step",
+      "close": "Close preview",
+      "stepOf": "{n} of {total}",
+      "for": "for {distance}",
+      "steps": "{n} steps",
+      "streetView": "Street-level view at this step"
+    },
+    "free": {
+      "title": {
+        "driving": "Free drive",
+        "cycling": "Free ride",
+        "walking": "Free walk"
+      },
+      "start": {
+        "driving": "Drive",
+        "cycling": "Cycle",
+        "walking": "Walk"
+      },
+      "keepGoing": {
+        "driving": "Keep driving",
+        "cycling": "Keep riding",
+        "walking": "Keep walking"
+      },
+      "withoutDestination": {
+        "driving": "Drive without a destination",
+        "cycling": "Ride without a destination",
+        "walking": "Walk without a destination"
+      },
+      "otherModes": "Other ways to go",
+      "mode": "Travel mode",
+      "whereTo": "Where to?",
+      "searchPlaceholder": "Search for a destination",
+      "empty": "No places found",
+      "go": "Go",
+      "goFailed": "Could not plan a route there",
+      "ahead": {
+        "title": "Along the way",
+        "placeholder": "Search along the way",
+        "empty": "Nothing found ahead"
+      }
+    },
+    "vehicle": {
+      "title": "Location marker",
+      "description": "How you appear on the map while navigating",
+      "color": "Color",
+      "modes": {
+        "driving": "Driving",
+        "cycling": "Cycling",
+        "walking": "Walking"
+      },
+      "indicators": {
+        "arrow": "Arrow",
+        "hatchback": "Hatchback",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bike"
+      }
+    }
+  },
   "attribution": {
     "poweredBy": "Powered by",
     "contribute": "Contribute",
@@ -1809,7 +2183,9 @@
         "loopDescription": "Restart from the beginning when the track ends",
         "position": "Position",
         "speed": "Speed",
-        "heading": "Heading"
+        "heading": "Heading",
+        "simulateNavigation": "Simulate navigation",
+        "simulateNavigationDescription": "Drive each navigated route with simulated GPS as soon as navigation starts"
       },
       "impersonation": {
         "title": "Impersonate user"
@@ -2794,5 +3170,9 @@
     },
     "wikiLink": "About {label} on the OpenStreetMap wiki",
     "viewChangeset": "View"
+  },
+  "myLocation": {
+    "title": "My location",
+    "accuracy": "Within {distance}"
   }
 }

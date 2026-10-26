@@ -129,9 +129,41 @@ export interface RouteRequest {
   // Timing
   departureTime?: Date
 
+  /** Compass bearing the traveller is already moving in at the first waypoint. */
+  startHeading?: number
+
   // Provider selection
   preferredProvider?: string
   requestId?: string
+}
+
+export type RouteHazardKind =
+  | 'crosswalk'
+  | 'traffic_signals'
+  | 'uncontrolled_crossing'
+  | 'rail_crossing'
+  | 'tunnel'
+  | 'ford'
+  | 'ferry'
+  | 'steep_grade'
+  | 'steps'
+  | 'dismount'
+  | 'rough_surface'
+  | 'shared_space'
+  | 'sharp_curve'
+
+/** Something a route passes through that's worth knowing about, placed by distance along its segment. */
+export interface RouteHazard {
+  kind: RouteHazardKind
+  severity: 'low' | 'medium' | 'high'
+  startDistance: number
+  /** Present for stretches (a tunnel, a steep grade); absent for points. */
+  endDistance?: number
+  coordinate: Coordinate
+  /** Finer detail, e.g. a crosswalk's `marked` / `unmarked` / `uncontrolled`. */
+  variant?: string
+  /** Comfort and convenience kinds, shown to premium members only. Safety kinds never are. */
+  premium?: boolean
 }
 
 export interface RouteInstruction {
@@ -142,6 +174,8 @@ export interface RouteInstruction {
   duration: number // seconds to next instruction
   heading?: number
   streetName?: string
+  /** Route number of the road, e.g. "I 85" */
+  streetRef?: string
 
   // Turn details
   modifier?:
@@ -150,6 +184,8 @@ export interface RouteInstruction {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
 
@@ -181,6 +217,8 @@ export interface RouteEdgeSegment {
   averageSpeed?: number     // km/h — actual routing speed used
   bikePriority?: number     // 0–1 — GraphHopper's bike-friendliness (higher = safer/friendlier)
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
+  osmWayId?: number         // the OSM way the edge belongs to
+  country?: string          // ISO 3166-1 alpha-3
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string
@@ -190,6 +228,50 @@ export interface RouteEdgeSegment {
   laneCount?: number
   weightedGrade?: number
   meanElevation?: number
+}
+
+export type DrivingSide = 'right' | 'left'
+
+export type LaneArrow = 'left' | 'slight-left' | 'through' | 'slight-right' | 'right' | 'uturn'
+
+export interface Lane {
+  arrows: LaneArrow[]
+  /** Leads on to the maneuver. */
+  valid: boolean
+  recommended: boolean
+}
+
+/** The approach lanes at a maneuver, left to right as the driver sees them. */
+export interface LanePlan {
+  lanes: Lane[]
+}
+
+/** A lane plan for one of a segment's instructions. */
+export interface InstructionLanePlan extends LanePlan {
+  instruction: number
+}
+
+/** A driven route drawn in its lanes; `measures[i]` is the distance along the segment's geometry that coordinate stands for. */
+export interface LaneGeometry {
+  coordinates: [lng: number, lat: number][]
+  measures: number[]
+}
+
+export interface RouteLanesRequest {
+  coordinates: [lng: number, lat: number][]
+  ways: { from: number; to: number; osmWayId: number }[]
+  maneuvers: { distance: number; turn?: string }[]
+  country?: string
+  /** `bike` rides the bike lane, or beside the traffic, and has no lane plan. */
+  profile: LanesProfile
+}
+
+export type LanesProfile = 'car' | 'bike'
+
+export interface RouteLanes {
+  drivingSide: DrivingSide
+  lanePlan: { maneuver: number; lanes: { turns: string[]; valid: boolean; recommended: boolean }[] }[]
+  laneGeometry: { coordinates: [number, number][]; measures: number[] } | null
 }
 
 export interface RouteLeg {
@@ -410,14 +492,7 @@ export interface TimelineSegment {
     amount: number
   }
 
-  // Hazards and alerts
-  hazards?: Array<{
-    type: string
-    description: string
-    severity: 'low' | 'medium' | 'high'
-    coordinate: Coordinate
-    timestamp: Date
-  }>
+  hazards?: RouteHazard[]
 
   // Status
   isRecommended?: boolean

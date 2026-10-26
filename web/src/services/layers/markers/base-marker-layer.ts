@@ -61,7 +61,14 @@ export interface MapMarkerAPI {
    * heading stays north-relative as the map turns. `spread` is a horizontal
    * scale for the beam cone (wider = less certain heading); defaults to 1.
    */
-  setMarkerHeading(id: string, heading: number | null, spread?: number): void
+  setMarkerHeading(
+    id: string,
+    heading: number | null,
+    spread?: number,
+    pitchAlignment?: 'map' | 'viewport',
+  ): void
+  /** Raise a mounted marker this many metres, as onto a bridge deck. */
+  setMarkerLift?(id: string, metres: number): void
 }
 
 /**

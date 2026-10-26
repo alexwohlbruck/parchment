@@ -57,8 +57,7 @@ const canvasesStore = useCanvasesStore()
 const { currentPlace } = usePlaceService()
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
-  const isNotDialog = !route.meta.dialog
-  return isSubview && isNotDialog
+  return isSubview && !route.meta.dialog && !route.meta.immersive
 })
 
 // Back button mirrors browser-back behavior. vue-router stores the previous
@@ -130,7 +129,9 @@ watch(
     // Directions opens at peek (just the inputs) and expands to full once
     // suggestions load — see the watcher below. Other views open at half.
     bottomSheetSnapIndex.value =
-      name === AppRoute.DIRECTIONS ? 0 : MOBILE_DEFAULT_SNAP_INDEX
+      name === AppRoute.DIRECTIONS
+        ? 0
+        : MOBILE_DEFAULT_SNAP_INDEX
   },
 )
 
@@ -158,6 +159,8 @@ const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI)
+// A view that takes over the whole map (turn-by-turn) replaces the sheets and the map's chrome.
+const immersive = computed(() => !!route.meta?.immersive)
 
 // ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
 // Tracks whether entering street view auto-enabled the street view layer group,
@@ -265,7 +268,7 @@ watch(isBottomSheetView, async (isOpen, wasOpen) => {
     // dialog route (e.g. /settings/integrations) or a full-screen takeover
     // (e.g. /street/:id street view). The user wants to stay there; pushing to
     // MAP here would bounce them back immediately.
-    if (wasOpen && !route.meta.dialog && !route.meta.hideUI) {
+    if (wasOpen && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
       router.push({ name: AppRoute.MAP })
     }
   }
@@ -277,7 +280,7 @@ watch(isBottomSheetView, async (isOpen, wasOpen) => {
 // sheet's close event would bounce mobile street view straight back to the map.
 function onOpenChange(value: boolean) {
   bottomSheetOpen.value = value
-  if (!value && !route.meta.dialog && !route.meta.hideUI) {
+  if (!value && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
     router.push({ name: AppRoute.MAP })
   }
 }
@@ -451,7 +454,7 @@ defineExpose({
             @home="handleHome"
           />
         </template>
-        <router-view />
+        <router-view v-if="!immersive" />
       </bottom-sheet>
     </template>
 
@@ -471,14 +474,14 @@ defineExpose({
         @back="handleBack"
         @home="handleHome"
       >
-        <router-view />
+        <router-view v-if="!immersive" />
       </LeftSheet>
     </template>
 
     <!-- Map canvas -->
     <div id="mainContent" class="flex-1 relative w-full h-full">
       <!-- Map UI controls positioned within map container -->
-      <template v-if="!hideUI">
+      <template v-if="!hideUI && !immersive">
         <!-- z-50 above drawers -->
         <div
           class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
@@ -646,6 +649,8 @@ defineExpose({
           <StreetImageryPeek />
         </div>
       </Transition>
+
+      <router-view v-if="immersive" />
 
       <template v-if="mountTeleports">
         <Teleport

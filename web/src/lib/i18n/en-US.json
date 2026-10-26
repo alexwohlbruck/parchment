@@ -1254,7 +1254,9 @@
       "bearingMode": "Camera direction",
       "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading",
       "autoSwitchDocks": "Switch bike share stations",
-      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes"
+      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes",
+      "speedDisplay": "Speed display",
+      "speedDisplayDescription": "Show the posted limit, your current speed, or both while driving"
     },
     "exitShort": "End",
     "banner": {
@@ -1277,7 +1279,19 @@
       "km": "km"
     },
     "speed": {
-      "limitSign": "SPEED LIMIT"
+      "limitSign": "SPEED LIMIT",
+      "displays": {
+        "both": "Limit and speed",
+        "limit": "Speed limit only",
+        "speedometer": "Speedometer only",
+        "none": "Hidden"
+      },
+      "displaysShort": {
+        "both": "Both",
+        "limit": "Limit",
+        "speedometer": "Speed",
+        "none": "Off"
+      }
     },
     "roads": {
       "path": "Path",

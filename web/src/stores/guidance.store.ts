@@ -56,6 +56,7 @@ import {
   type FreeMode,
 } from '@/lib/guidance/free-roam'
 import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice, type VehiclePreferences } from '@/lib/guidance/vehicle-indicator'
+import type { SpeedDisplay } from '@/lib/guidance/speed-display'
 
 // The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
 const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
@@ -83,6 +84,7 @@ export interface GuidancePreferences {
   sound: Record<string, SoundMode>
   autoSwitchDocks: boolean
   vehicle: VehiclePreferences
+  speedDisplay: SpeedDisplay
 }
 
 export interface TurnAround {
@@ -209,7 +211,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const progress = shallowRef<GuidanceProgress | null>(null)
   const preferences = useStorage<GuidancePreferences>(
     'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES },
+    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES, speedDisplay: 'both' },
     undefined,
     { mergeDefaults: true },
   )

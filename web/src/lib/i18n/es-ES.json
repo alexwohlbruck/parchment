@@ -1220,7 +1220,9 @@
       "bearingMode": "Dirección de la cámara",
       "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección",
       "autoSwitchDocks": "Cambiar de estación",
-      "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis"
+      "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis",
+      "speedDisplay": "Indicador de velocidad",
+      "speedDisplayDescription": "Muestra el límite de velocidad, tu velocidad actual o ambos al conducir"
     },
     "exitShort": "Terminar",
     "banner": {
@@ -1243,7 +1245,19 @@
       "km": "km"
     },
     "speed": {
-      "limitSign": "VELOCIDAD MÁXIMA"
+      "limitSign": "VELOCIDAD MÁXIMA",
+      "displays": {
+        "both": "Límite y velocidad",
+        "limit": "Solo el límite",
+        "speedometer": "Solo el velocímetro",
+        "none": "Oculto"
+      },
+      "displaysShort": {
+        "both": "Ambos",
+        "limit": "Límite",
+        "speedometer": "Velocidad",
+        "none": "No"
+      }
     },
     "roads": {
       "path": "Sendero",

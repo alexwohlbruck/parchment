@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { BikeIcon, CameraIcon, NavigationIcon, ScanEyeIcon } from 'lucide-vue-next'
+import { BikeIcon, CameraIcon, GaugeIcon, NavigationIcon, ScanEyeIcon } from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -11,6 +11,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { PUCK_MODES } from '@/lib/guidance/vehicle-indicator'
 import VehiclePicker from './VehiclePicker.vue'
+import { SPEED_DISPLAYS } from '@/lib/guidance/speed-display'
 
 const { preferences } = storeToRefs(useGuidanceStore())
 const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
@@ -45,6 +46,22 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
           <SelectGroup>
             <SelectItem value="look-ahead">{{ $t('guidance.camera.bearing.look-ahead') }}</SelectItem>
             <SelectItem value="straight">{{ $t('guidance.camera.bearing.straight') }}</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </SettingsItem>
+    <SettingsItem
+      :title="$t('guidance.settings.speedDisplay')"
+      :description="$t('guidance.settings.speedDisplayDescription')"
+      :icon="GaugeIcon"
+    >
+      <Select v-model="preferences.speedDisplay">
+        <SelectTrigger class="w-fit"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem v-for="display in SPEED_DISPLAYS" :key="display" :value="display">
+              {{ $t(`guidance.speed.displays.${display}`) }}
+            </SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>

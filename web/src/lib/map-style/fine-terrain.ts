@@ -37,6 +37,12 @@ export function encodeTerrarium({ size, data }: Heights): Uint8ClampedArray<Arra
 
 const missing = () => Object.assign(new Error('No terrain here'), { status: 404 })
 
+async function served(image: Promise<ImageBitmap | null>): Promise<ImageBitmap> {
+  const found = await image
+  if (!found) throw missing()
+  return found
+}
+
 /** Recently read source tiles' heights, shared by the finer tiles cut from them. */
 export class ParentHeights {
   private parents = new Map<string, Promise<Heights | null>>()
@@ -65,8 +71,15 @@ export async function upsampledTile(z: number, x: number, y: number, parents: Pa
   return null
 }
 
-type Job = { tile: [number, number, number]; resolve: (image: ImageBitmap | null) => void }
+type Job = { resolve: (data: any) => void; fallback: () => Promise<any> }
 type Upsampler = { worker: Worker; jobs: Map<number, Job>; alive: boolean }
+
+/** What a held tile waits on: the areas carved there, or null while the map tiles that say so are loading. */
+export type HeldAreas = () => Bounds[] | null
+
+/** Milliseconds a finer tile outside every area waits to learn whether it is carved before it is turned away, asking again every `RECHECK_MS`. */
+const HOLD_MS = 10000
+const RECHECK_MS = 100
 
 export class FineTerrain {
   private parents: ParentHeights | null = null
@@ -74,57 +87,103 @@ export class FineTerrain {
   private next = 0
   private owners = new Map<string, Bounds[]>()
   private areas: Bounds[] = []
+  private held: HeldAreas | null = null
+  private waiting = new Set<() => void>()
 
   /** Serve finer tiles over these areas, in mercator units, as asked by one owner; another's areas are kept. */
   focus(areas: Bounds[], owner = '') {
     this.owners.set(owner, areas)
     this.areas = [...this.owners.values()].flat()
+    this.release()
+  }
+
+  /**
+   * Hold finer tiles outside every area until `areas` can say whether they are
+   * carved, so they arrive finer the first time rather than being reloaded; null stops holding.
+   */
+  hold(areas: HeldAreas | null) {
+    this.held = areas
+    this.release()
+  }
+
+  /** Have the held tiles ask again. */
+  release() {
+    for (const wake of this.waiting) wake()
+    this.waiting.clear()
+  }
+
+  /** Heights of a source tile, read off the main thread where it can be. */
+  heights(z: number, x: number, y: number): Promise<Heights | null> {
+    return this.ask({ heights: [z, x, y] }, () => this.parentHeights().get(z, x, y))
   }
 
   /** The image for a `fine-terrain://z/x/y` tile: fetched as it is up to the source's zoom, upsampled past it, off the main thread where it can be. */
   async tile(url: string): Promise<ArrayBuffer | ImageBitmap> {
     const [z, x, y] = url.slice(FINE_TERRAIN_PROTOCOL.length + 3).split('/').map(Number)
-    // Started with the terrain, so it is ready by the time something is cut into it.
-    if (this.upsampler === undefined) this.upsampler = startUpsampler((z, x, y) => this.here(z, x, y))
+    this.start()
     if (z <= SOURCE_MAXZOOM) {
-      const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)))
+      const res = await fetch(TERRAIN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)), { priority: 'high' })
       if (res.status === 404 || res.status === 204) throw missing()
       if (!res.ok) throw new Error(`terrain ${res.status}`)
       return res.arrayBuffer()
     }
     const n = 2 ** z
-    if (!this.areas.some(a => a.maxX >= x / n && a.minX <= (x + 1) / n && a.maxY >= y / n && a.minY <= (y + 1) / n)) throw missing()
-    const image = await this.upsample(z, x, y)
-    if (!image) throw missing()
-    return image
+    const meets = (areas: Bounds[]) => areas.some(a => a.maxX >= x / n && a.minX <= (x + 1) / n && a.maxY >= y / n && a.minY <= (y + 1) / n)
+    if (meets(this.areas)) return served(this.upsample(z, x, y))
+    if (!this.held) throw missing()
+    // Cut while it waits, so a tile a cut reaches is ready the moment the cut is known.
+    const ahead = this.upsample(z, x, y)
+    const deadline = performance.now() + HOLD_MS
+    for (;;) {
+      const known = this.held?.()
+      if (meets(this.areas) || (known && meets(known))) return served(ahead)
+      if (known || !this.held || performance.now() >= deadline) break
+      await new Promise<void>(wake => {
+        const timer = setTimeout(wake, Math.min(RECHECK_MS, deadline - performance.now()))
+        this.waiting.add(() => { clearTimeout(timer); wake() })
+      })
+    }
+    void ahead.then(image => image?.close(), () => {})
+    throw missing()
+  }
+
+  /** Started with the terrain, so it is ready by the time something is cut into it. */
+  private start() {
+    if (this.upsampler === undefined) this.upsampler = startUpsampler()
+  }
+
+  private parentHeights() {
+    return (this.parents ??= new ParentHeights())
   }
 
   private upsample(z: number, x: number, y: number): Promise<ImageBitmap | null> {
-    const upsampler = this.upsampler
-    if (!upsampler?.alive) return this.here(z, x, y)
-    const id = this.next++
-    return new Promise(resolve => {
-      upsampler.jobs.set(id, { tile: [z, x, y], resolve })
-      upsampler.worker.postMessage({ id, z, x, y })
-    })
+    return this.ask({ tile: [z, x, y] }, () => upsampledTile(z, x, y, this.parentHeights()))
   }
 
-  private here(z: number, x: number, y: number): Promise<ImageBitmap | null> {
-    return upsampledTile(z, x, y, (this.parents ??= new ParentHeights()))
+  /** A job for the worker, or done here where it cannot be. */
+  private ask<T>(job: object, here: () => Promise<T>): Promise<T> {
+    this.start()
+    const upsampler = this.upsampler
+    if (!upsampler?.alive) return here()
+    const id = this.next++
+    return new Promise(resolve => {
+      upsampler.jobs.set(id, { resolve, fallback: here })
+      upsampler.worker.postMessage({ id, ...job })
+    })
   }
 }
 
-/** A worker cutting finer tiles; null where workers are unavailable. One that fails hands what it held, and every later tile, to `here`. */
-function startUpsampler(here: (z: number, x: number, y: number) => Promise<ImageBitmap | null>): Upsampler | null {
+/** A worker cutting finer tiles; null where workers are unavailable. One that fails hands what it held to the main thread, and so does every later job. */
+function startUpsampler(): Upsampler | null {
   try {
     const upsampler: Upsampler = { worker: new Worker(new URL('./fine-terrain.worker.ts', import.meta.url), { type: 'module' }), jobs: new Map(), alive: true }
-    upsampler.worker.onmessage = ({ data }: MessageEvent<{ id: number; image: ImageBitmap | null }>) => {
-      upsampler.jobs.get(data.id)?.resolve(data.image)
+    upsampler.worker.onmessage = ({ data }: MessageEvent<{ id: number; result: unknown }>) => {
+      upsampler.jobs.get(data.id)?.resolve(data.result)
       upsampler.jobs.delete(data.id)
     }
     upsampler.worker.onerror = upsampler.worker.onmessageerror = () => {
       upsampler.alive = false
-      for (const { tile, resolve } of upsampler.jobs.values()) void here(...tile).then(resolve, () => resolve(null))
+      for (const { fallback, resolve } of upsampler.jobs.values()) void fallback().then(resolve, () => resolve(null))
       upsampler.jobs.clear()
       upsampler.worker.terminate()
     }

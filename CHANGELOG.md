@@ -39,6 +39,30 @@
 * Planning a trip with your car or bike saved in another city no longer freezes the app or suggests walking hundreds of kilometres to reach it.
 * On phones, the app now fits the screen exactly instead of scrolling by the height of the browser toolbar, which hid the bottom card.
 
+## [0.16.14] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear sooner on a first visit or a slow connection, ahead of the rest of the street detail.
+
+## [0.16.13] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear with the map tiles around them, instead of up to a few seconds later.
+
+## [0.16.12] - 2026-10-25
+
+### Changed
+
+* Tunnel entrances cut into 3D terrain within about a second of the map loading, instead of several seconds later.
+
+## [0.16.11] - 2026-10-25
+
+### Changed
+
+* 3D terrain and bridge decks keep up with the map in busy views on slower connections too.
+
 ## [0.16.10] - 2026-10-25
 
 ### Changed

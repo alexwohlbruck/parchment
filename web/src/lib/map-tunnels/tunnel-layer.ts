@@ -1,7 +1,8 @@
 /**
  * Road tunnels drawn in 3D: under the terrain, and opening out of it.
  *
- * A MapLibre custom layer. Each cut is carved into the terrain's elevation
+ * A MapLibre custom layer over the cuts barrelman serves in the detail tiles,
+ * each drawn as its tile arrives. Each cut is carved into the terrain's elevation
  * tiles, so the map drapes its own ground, paths and paint down the ramp; the
  * layer stands the retaining walls and headwall in it. The bore runs under
  * the terrain, so it is drawn through its mouth alone: the mouth is marked in
@@ -12,7 +13,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, boundsOf, chains, clip, dedupe, densify, edgePoints, holds, linesOf, meets, mercator, metresPerUnit, onEdge, polygonsOf, tileBounds, type Bounds, type Mesh, type Piece, type Point } from '@/lib/map-decks/decks'
+import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
@@ -21,47 +22,27 @@ import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
-import { idle, queryFeatures } from '@/lib/map-decks/map-query'
-import { TUNNEL_MIN_ZOOM, UNDERGROUND } from './flat-tunnels'
-import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'
-import { BORE, COVER_AT, CUT_MAX, KERB, MARGIN, RIM, approach, emerge, faceWall, groupPortals, inside, splitAtFace, measureEdges, portalLine, portalMesh, solveCut, truncate, PROFILES, type Approach, type BoreKind, type Cut, type Opening } from './tunnels'
+import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
+import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
+import type { FineTerrain } from '@/lib/map-style/fine-terrain'
+import { readCutTile } from './cut-tile'
+import { KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
 
-/** Widths by OpenMapTiles class, in metres, for a way with no surface to measure. */
-const WIDTH: Record<string, number> = {
-  motorway: 11, trunk: 10, primary: 9, secondary: 8, tertiary: 7, minor: 6, service: 4,
-  path: 2, pedestrian: 4, rail: 5, transit: 5,
-}
-const CLASSES: Record<BoreKind, string[]> = {
-  road: ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service'],
-  path: ['path', 'pedestrian'],
-  rail: ['rail', 'transit'],
-}
-const kindOf = (cls: string): BoreKind => (CLASSES.path.includes(cls) ? 'path' : CLASSES.rail.includes(cls) ? 'rail' : 'road')
-
-/** Object line kinds that may stand across a bore as its headwall. */
-const HEADWALLS = ['wall', 'retaining_wall', 'city_wall']
-
-/** Metres between samples along a cut, and how far down the approach its width is measured. */
-const SAMPLE = 3
-const MEASURE = 40
 const REBASE = 1e-3
-/** Milliseconds a rebuild waits for the main thread to be idle before running anyway: the terrain is cut only once it has. */
-const IDLE_WAIT_MS = 250
+/** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
+const SETTLE_MS = 16
 const CACHE = 400
 
-export type TunnelSources = {
-  /** The basemap source and its road layer. */
-  basemap: string
-  roads: string
-  /** Barrelman's carriageways at their real width, which the cuts are fitted to. */
-  surfaces?: { source: string; layer: string }
-  /** Walls stood up from barrelman's object lines; one mapped across a bore is its headwall. */
-  walls?: { source: string; layer: string }
-  /** Where the style draws buildings, whose faces a covered portal opens at. */
-  buildings: () => Array<{ source: string; sourceLayer: string }>
-}
+/** Barrelman's `tunnel_cuts` tile url, `{z}/{x}/{y}` filled in; read at `CUT_ZOOM`, a few kilobytes for 2 km of street. */
+export type TunnelSources = { tiles: string }
 
-type Solved = { key: string; points: Point[]; at: number; edges: [number, number]; cut: Cut; kind: BoreKind; face?: Point; piers?: Array<[number, number]> }
+const CUT_ZOOM = 14
+/** How far past the view the cuts are read, in tiles at `CUT_ZOOM`, so a cut reaching into it from beside is known. */
+const CUT_PAD = 0.15
+/** Cut tiles kept once read. */
+const CUT_TILES = 64
+/** Metres past its line a cut's walls and carving reach. */
+const CUT_REACH = 30
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -75,7 +56,6 @@ const emptyBuilt = (): Built => ({ walls: emptyMesh(), mouth: emptyMesh(), lid: 
 /** The coarsest elevation tile a cut carves into cleanly; coarser, the floor blurs into a ramp across the mouth. */
 const CARVED_ZOOM = FINE_TERRAIN_MAXZOOM - 1
 
-/** MapLibre's elevation pixels for a loaded tile, read and written in metres. */
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
 /** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
@@ -89,7 +69,7 @@ const BACKFILL = [1.5, 6]
  * just behind the headwall's face, and to each wall's top beside them,
  * banking up past its coping; and filled over the bore behind the headwall.
  */
-function carving({ points, at, edges, cut }: Solved): Footprint[] {
+function carving({ points, at, edges, cut }: ServedCut): Footprint[] {
   const sill = truncate(points.slice(at), SILL).at(-1)!
   const wall = edges.map(e => e + KERB)
   const out = (m: number) => wall.map(w => w + m) as [number, number]
@@ -116,15 +96,18 @@ export class TunnelLayer {
   /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
   private exposed: FloorRange[] = []
   private exposedFor = ''
-  private pending: (Built & { ground: Float32Array; exaggeration: number }) | null = null
+  private pending: (Built & { ground: Float32Array; exaggeration: number; complete: boolean }) | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
-  private cancelIdle?: () => void
+  /** Whether the cuts carved are those of every cut tile in view. */
+  private settled = false
+  /** Cut tiles read, by `z/x/y`, most recent last; and those being read. */
+  private cutTiles = new Map<string, ServedCut[]>()
+  private reading = new Map<string, AbortController>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
+  /** The ground the walls rise out of, for their shadows. */
   private sampler: TerrainSampler | null = null
-  /** Each portal's solved cut, keyed by its line and width. */
-  private cuts = new Map<string, Solved>()
   private built = ''
   /** The floors carved into the terrain, keyed by their cut. */
   private carver: TerrainCarver
@@ -146,12 +129,12 @@ export class TunnelLayer {
   }
 
   /**
-   * `focusTerrain` is told where cuts are carved, so finer terrain is served
-   * there; the terrain is reloaded when that reaches somewhere new.
+   * `terrain` serves finer elevation where cuts are carved, holding it back
+   * until the cuts in view are known, so it arrives finer the first time.
    */
-  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; focusTerrain?: (areas: Bounds[]) => void } = {}) {
+  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; terrain?: FineTerrain } = {}) {
     this.id = options.id ?? 'map-tunnels'
-    this.carver = new TerrainCarver(() => this.map, options.focusTerrain)
+    this.carver = new TerrainCarver(() => this.map, options.terrain && (areas => options.terrain!.focus(areas)))
   }
 
   setPalette(palette: DeckPalette) {
@@ -162,24 +145,73 @@ export class TunnelLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.program = linkMeshProgram(gl)
-    const tiled = new Set([this.sources.basemap, this.sources.surfaces?.source])
     this.onChange = event => {
       if (event?.tile && event.sourceId === this.map.getTerrain?.()?.source) {
         // A tile arriving fills its neighbours' borders from its own uncarved ground.
         this.carver.recarveAround(event.tile)
         this.map.triggerRepaint()
       } else if (!event?.sourceId) {
+        this.settled = false
+        this.readCuts()
         const c = MercatorCoordinate.fromLngLat(this.map.getCenter())
         if (Math.abs(c.x - this.origin[0]) >= REBASE || Math.abs(c.y - this.origin[1]) >= REBASE) this.invalidate()
         else this.invalidate(false)
-      } else if (!event.isSourceLoaded) return
-      else if (tiled.has(event.sourceId)) this.invalidate(false)
+      }
     }
     this.onTerrain = () => this.invalidate()
     map.on('sourcedata', this.onChange)
     map.on('moveend', this.onChange)
     map.on('terrain', this.onTerrain)
+    this.options.terrain?.hold(() => (this.settled ? [] : null))
+    this.readCuts()
     this.invalidate()
+  }
+
+  /** The view in mercator units. */
+  private view(): Bounds {
+    const b = this.map.getBounds()
+    const [nw, se] = [MercatorCoordinate.fromLngLat(b.getNorthWest()), MercatorCoordinate.fromLngLat(b.getSouthEast())]
+    return { minX: nw.x, minY: nw.y, maxX: se.x, maxY: se.y }
+  }
+
+  /** The cut tiles the view reaches into, by `z/x/y`; none below street zoom. */
+  private cutTilesInView(): string[] {
+    if (!this.sources.tiles || this.map.getZoom() < TUNNEL_MIN_ZOOM) return []
+    const n = 2 ** CUT_ZOOM
+    const v = this.view()
+    const span = (lo: number, hi: number) => [Math.floor(lo * n - CUT_PAD), Math.floor(hi * n + CUT_PAD)]
+    const [[x0, x1], [y0, y1]] = [span(v.minX, v.maxX), span(v.minY, v.maxY)]
+    const keys: string[] = []
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) keys.push(`${CUT_ZOOM}/${x}/${y}`)
+    return keys
+  }
+
+  /** Fetch the view's cut tiles not yet read, off the map's tile worker so they land ahead of the heavy tiles; each is drawn as it lands. */
+  private readCuts() {
+    const wanted = this.cutTilesInView()
+    for (const [key, request] of this.reading) if (!wanted.includes(key)) { request.abort(); this.reading.delete(key) }
+    for (const key of wanted) {
+      if (this.cutTiles.has(key) || this.reading.has(key)) continue
+      const request = new AbortController()
+      this.reading.set(key, request)
+      const [z, x, y] = key.split('/')
+      fetch(this.sources.tiles.replace('{z}', z).replace('{x}', x).replace('{y}', y), { signal: request.signal })
+        .then(res => (res.ok ? res.arrayBuffer() : res.status === 404 || res.status === 204 ? null : Promise.reject(new Error(`Tunnel cuts ${res.status}`))))
+        .then(raw => {
+          this.cutTiles.set(key, raw ? readCutTile(raw) : [])
+          for (const old of this.cutTiles.keys()) if (this.cutTiles.size > CUT_TILES) this.cutTiles.delete(old)
+          if (this.reading.get(key) === request) this.reading.delete(key)
+          if (this.map) this.rebuildNow()
+        })
+        .catch(() => {
+          if (this.reading.get(key) === request) this.reading.delete(key)
+        })
+    }
+  }
+
+  private samplerFor(): TerrainSampler | null {
+    const terrain = this.options.terrain
+    return terrainSampler(this.map, this.sampler, () => this.invalidate(), template => terrain && template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)
   }
 
   onRemove(map: any, gl: WebGL2RenderingContext) {
@@ -188,8 +220,11 @@ export class TunnelLayer {
       map.off('moveend', this.onChange)
     }
     if (this.onTerrain) map.off('terrain', this.onTerrain)
+    this.options.terrain?.hold(null)
+    for (const request of this.reading.values()) request.abort()
+    this.reading.clear()
     clearTimeout(this.scheduled)
-    this.cancelIdle?.()
+    this.scheduled = 0
     this.release(gl)
     this.shadow.delete(gl)
     gl.deleteProgram(this.program)
@@ -197,114 +232,69 @@ export class TunnelLayer {
     this.map = null
   }
 
-  /** Rebuild between frames, once a burst of tile events settles; unforced, only if what it reads has changed. */
+  /** Rebuild between frames, a burst of tile events at once; unforced, only if what it reads has changed. */
   invalidate(force = true) {
     if (force) this.stale = true
+    if (this.scheduled) return
+    this.scheduled = setTimeout(() => this.rebuild(), SETTLE_MS) as unknown as number
+  }
+
+  private rebuildNow() {
     clearTimeout(this.scheduled)
-    this.cancelIdle?.()
-    this.scheduled = setTimeout(() => {
-      this.cancelIdle = idle(() => {
-        if (!this.map) return
-        const mesh = this.build()
-        if (!mesh) return
-        // On the ground as it was before the cut, which is what the walls rise out of.
-        const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-        const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
-        this.pending = { ...mesh, ground, exaggeration }
-        this.map.triggerRepaint?.()
-      }, IDLE_WAIT_MS)
-    }, 200) as unknown as number
+    this.rebuild()
   }
 
-  private query(source: string, sourceLayer?: string, filter?: any[]): any[] {
-    return queryFeatures(this.map, source, sourceLayer, filter)
-  }
-
-
-  /** Basemap ways of the given kinds as lines clipped to their tiles, one copy each. */
-  private roads(brunnel: 'tunnel' | null, kinds: BoreKind[]): Piece[] {
-    const filter = ['all', ['in', ['get', 'class'], ['literal', kinds.flatMap(k => CLASSES[k])]],
-      ...(brunnel ? [['==', ['get', 'brunnel'], brunnel], UNDERGROUND] : [['!', ['has', 'brunnel']]])]
-    const pieces: Piece[] = []
-    for (const f of this.query(this.sources.basemap, this.sources.roads, filter)) {
-      const props = f.properties ?? {}
-      const tile = tileBounds(f)
-      for (const line of linesOf(f.geometry))
-        for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: Number(props.layer ?? 0) || 0, width: WIDTH[props.class] ?? 6, kind: kindOf(props.class), zoom: f._z, tile: tile ?? undefined })
+  private rebuild() {
+    this.scheduled = 0
+    if (!this.map) return
+    const complete = this.cutTilesInView().every(key => this.cutTiles.has(key))
+    const mesh = this.build()
+    if (!mesh) {
+      if (complete) this.settle()
+      return
     }
-    return dedupe(pieces)
+    // On the ground as it was before the cut, which is what the walls rise out of.
+    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
+    this.sampler = this.samplerFor()
+    const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
+    this.pending = { ...mesh, ground, exaggeration, complete }
+    this.map.triggerRepaint?.()
+  }
+
+  /** The cuts carved are final for the roads in view: finer terrain held back for them can now be served or turned away. */
+  private settle() {
+    this.settled = true
+    this.options.terrain?.release()
+  }
+
+  /** The cuts in the cut tiles read for the view, one copy each. */
+  private served(): ServedCut[] {
+    // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
+    const v = this.view()
+    const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
+    const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
+    const found = new Map<string, ServedCut>()
+    for (const key of this.cutTilesInView())
+      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
+    return [...found.values()]
   }
 
   private build(): Built | null {
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const zoom = this.map.getZoom()
-    const tunnels = zoom >= TUNNEL_MIN_ZOOM ? this.roads('tunnel', ['road', 'path', 'rail']) : []
-    const read = `${tunnels.map(t => `${t.zoom}:${t.points[0]}`).sort().join(' ')}|${zoom >= TUNNEL_MIN_ZOOM}`
+    const cuts = this.map.getZoom() >= TUNNEL_MIN_ZOOM ? this.served() : []
+    const read = cuts.map(c => c.key).sort().join(' ')
     const close = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && close && read === this.built) return null
     this.stale = false
     this.built = read
     if (!close) this.origin = [center.x, center.y]
-    const empty = emptyBuilt()
-    if (!tunnels.length) return empty
-
-    const tolerance = 1.5 / metresPerUnit(center.y)
-    const loaded = tunnels.reduce<Bounds | null>((u, { tile: t }) => !t ? u : u
-      ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
-      : { ...t }, null)
-    // One tunnel's ways may step between layers; each portal reads its own way's layer.
-    const layerAt = (q: Point, kind: BoreKind) => {
-      let best = { layer: -1, apart: tolerance }
-      for (const t of tunnels)
-        for (const e of [t.points[0], t.points.at(-1)!]) {
-          const apart = Math.hypot(e[0] - q[0], e[1] - q[1])
-          if (t.kind === kind && apart < best.apart) best = { layer: t.layer, apart }
-        }
-      return best.layer
-    }
-    const bores = chains(tunnels.map(t => ({ ...t, layer: -1 })), p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
-    const portals = bores.flatMap(bore => [0, 1].filter(e => bore.grounded[e]).map(e => {
-      const line = e ? [...bore.points].reverse() : bore.points
-      // Where both ends open, each draws its bore halfway, so the two never overlap.
-      const reach = bore.grounded[0] && bore.grounded[1] ? Math.min(BORE, along(line).at(-1)! / 2) : BORE
-      return { line, reach, width: bore.width, kind: bore.kind, layer: layerAt(line[0], bore.kind), bounds: boundsOf([line[0]], CUT_MAX) }
-    }))
-    if (!portals.length) return empty
-    const area = portals.slice(1).reduce((u, { bounds: b }) =>
-      ({ minX: Math.min(u.minX, b.minX), minY: Math.min(u.minY, b.minY), maxX: Math.max(u.maxX, b.maxX), maxY: Math.max(u.maxY, b.maxY) }), portals[0].bounds)
-    const kinds = [...new Set(portals.map(p => p.kind))]
-    const atGrade = Object.fromEntries(kinds.map(k => [k, this.roads(null, [k]).map(p => p.points).filter(line => meets(boundsOf(line), area))]))
-    const rings = this.surfaceRings(area)
-    const footprints = this.footprints(area)
-    const covered = (q: Point) => footprints.some(f => holds(f.bounds, q) && inside(q, f.rings))
-    const walls = this.walls(area)
-
-    const openings: Opening[] = []
-    for (const { line, reach, width, kind, layer } of portals) {
-      const found = approach(line[0], line[1], atGrade[kind], tolerance, PROFILES[kind].reach)
-      // A headwall mapped across the bore is where it opens, and which way it faces.
-      const face = faceWall(line, walls)
-      const split = face ? splitAtFace(line, face) : { out: [line[0]], bore: line }
-      const outward = [...split.out, ...found.points.slice(1)]
-      const moved = outward.length > 1 ? emerge(outward, split.bore, covered) : null
-      if (!moved || moved.out.length < 2) continue
-      const out = { ...found, points: moved.out }
-      // Measured running in, as the bore does, so its left is the bore's.
-      const measured = kind === 'road' ? measureEdges(densify(truncate(out.points, MEASURE), SAMPLE).reverse(), rings) : null
-      openings.push({ out, bore: truncate(moved.bore, reach), edges: measured ?? [width / 2, width / 2], kind, layer, face: moved.out === outward ? face?.along : undefined })
-    }
-    const solved: Solved[] = []
-    for (const { out, bore, edges, kind, face, piers } of groupPortals(openings)) {
-      const cut = this.solve(out, bore, edges, kind, face, piers)
-      if (cut) solved.push(cut)
-    }
+    const mesh = emptyBuilt()
+    if (!cuts.length) return mesh
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
     const p = this.palette
     const floors: Record<BoreKind, number[]> = { road: p.surface, path: p.concrete, rail: p.concrete.map(c => c * 0.8) }
-    const mesh = emptyBuilt()
-    for (const s of solved) {
+    for (const s of cuts) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration, base: s.cut.base * exaggeration }
       const from = mesh.floor.position.length / 3
       portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers)
@@ -312,74 +302,6 @@ export class TunnelLayer {
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
     return mesh
-  }
-
-  /** A portal's cut, from the ground along it; kept once read, null while the ground loads. */
-  private solve(out: Approach, bore: Point[], edges: [number, number], kind: BoreKind, face?: Point, piers?: Array<[number, number]>): Solved | null {
-    const sampler = terrainSampler(this.map, this.sampler, () => this.invalidate())
-    if (sampler !== this.sampler) this.cuts.clear()
-    this.sampler = sampler
-    if (!sampler) return null
-    const key = `${kind}|${face?.map(v => v.toFixed(3))}|${piers?.flat().map(v => v.toFixed(1))}|${edges.map(e => e.toFixed(1))}|${out.junction}|${[...out.points, ...bore].map(q => `${Math.round(q[0] * 2 ** 26)},${Math.round(q[1] * 2 ** 26)}`).join(';')}`
-    const known = this.cuts.get(key)
-    if (known) return known
-    const { points, at } = portalLine(out.points, bore, SAMPLE)
-    const height = (q: Point) => sampler.ground.at(q)
-    const centre = points.map(height)
-    const sides = RIM.map(r => edgePoints({ points, edges: [edges[0] + KERB + r, edges[1] + KERB + r] } as any))
-    const rims = [0, 1].map(k => points.map((_, i) => {
-      const heights = sides.map(side => height(side[k][i]))
-      if (heights.some(g => g === null)) return null
-      const known = (heights as number[]).filter(g => !Number.isNaN(g))
-      return known.length ? Math.min(...known) : NaN
-    }))
-    const d = along(points)
-    const cover = COVER_AT.map(m => {
-      let i = at
-      while (i < points.length - 1 && d[i] - d[at] < m) i++
-      return height(points[i])
-    })
-    if ([...centre, ...rims.flat(), ...cover].some(g => g === null)) return null
-    const ground = centre as number[]
-    if (ground.some(Number.isNaN)) return null
-    const fill = (rim: Array<number | null>) => rim.map((g, i) => (Number.isFinite(g) ? (g as number) : ground[i]))
-    const over = cover.filter(g => !Number.isNaN(g)) as number[]
-    const cut = solveCut(d, at, ground, [fill(rims[0]), fill(rims[1])], over.length ? Math.max(...over) : ground[at], out.junction, PROFILES[kind])
-    if (!cut || cut.open >= at) return null
-    const solved = { key, points, at, edges, cut, kind, face, piers }
-    if (this.cuts.size >= CACHE) this.cuts.delete(this.cuts.keys().next().value!)
-    this.cuts.set(key, solved)
-    return solved
-  }
-
-  /** Building footprints around the portals. */
-  private footprints(area: Bounds): Array<{ rings: Point[][]; bounds: Bounds }> {
-    return this.sources.buildings()
-      .flatMap(({ source, sourceLayer }) => this.query(source, sourceLayer))
-      .flatMap(f => polygonsOf(f.geometry))
-      .map(polygon => polygon.map(ring => ring.map(mercator)))
-      .map(rings => ({ rings, bounds: boundsOf(rings[0]) }))
-      .filter(({ bounds }) => meets(bounds, area))
-  }
-
-  /** Walls mapped around the portals, any of which may stand across a bore as its headwall. */
-  private walls(area: Bounds): Point[][] {
-    if (!this.sources.walls) return []
-    const { source, layer } = this.sources.walls
-    return this.query(source, layer, ['in', ['get', 'kind'], ['literal', HEADWALLS]])
-      .flatMap(f => linesOf(f.geometry))
-      .map(line => line.map(mercator))
-      .filter(line => line.length > 1 && meets(boundsOf(line), area))
-  }
-
-  /** Outlines of the carriageways at grade around the portals. */
-  private surfaceRings(area: Bounds): Point[][] {
-    if (!this.sources.surfaces) return []
-    const { source, layer } = this.sources.surfaces
-    return this.query(source, layer, ['!=', ['get', 'bridge'], true])
-      .flatMap(f => polygonsOf(f.geometry).flat())
-      .map(ring => ring.map(mercator))
-      .filter(ring => ring.length > 1 && meets(boundsOf(ring), area))
   }
 
   private release(gl: WebGL2RenderingContext) {
@@ -413,6 +335,7 @@ export class TunnelLayer {
       this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.floors = floors
       this.carver.set(footprints)
+      if (this.pending.complete) this.settle()
       this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null
       // The shade layer drew this frame's shadows before the walls changed.

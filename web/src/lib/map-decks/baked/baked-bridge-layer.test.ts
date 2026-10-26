@@ -299,6 +299,25 @@ test('reads a deck-zoom tile\'s pieces as it starts loading, and not again when 
   layer.onRemove(map, gl)
 })
 
+test('a tile whose pieces were read ahead draws them in the frame it lands, before the next sync', async () => {
+  vi.stubGlobal('navigator', { userAgent: 'Chrome' })
+  const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))
+  const manager = (map as any).style.tileManagers.detail
+  vi.mocked(fetch).mockImplementation(async () => new Response(vectorTile(deckTile([new Uint8Array(bytes)]))))
+  Object.assign(manager, { getRenderableIds: () => [] })
+  handlers.get('sourcedataloading')!({ sourceId: 'detail', tile })
+  await vi.advanceTimersByTimeAsync(10)
+  handlers.get('moveend')!()
+  await vi.advanceTimersByTimeAsync(10)
+  expect(uploadMesh).not.toHaveBeenCalled()
+  Object.assign(manager, { getRenderableIds: () => ['t'] })
+  handlers.get('sourcedata')!({ sourceId: 'detail', tile })
+  layer.render(gl, frame)
+  expect(uploadMesh).toHaveBeenCalledTimes(1)
+  expect(bindMesh).toHaveBeenCalled()
+  layer.onRemove(map, gl)
+})
+
 test('on WebKit a deck-zoom tile is read once MapLibre has it, not alongside', async () => {
   vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1' })
   const { layer, map, gl, handlers, tile } = tileMode(deckTile([new Uint8Array(bytes)]))

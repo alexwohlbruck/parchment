@@ -1245,7 +1245,7 @@
       "km": "km"
     },
     "speed": {
-      "limitSign": "VELOCIDAD MÁXIMA",
+      "limitSign": "LÍMITE",
       "displays": {
         "both": "Límite y velocidad",
         "limit": "Solo el límite",

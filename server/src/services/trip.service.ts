@@ -4487,8 +4487,8 @@ export class TripService {
    *
    * Rules:
    * 1. Quality floor — drop trips >4× the fastest AND >60 min
-   * 2. Transit — keep the best-ranked trip per distinct line signature
-   *    (e.g. "3", "2>F", "bike:A"), up to MAX_TRANSIT_OPTIONS. A dense
+   * 2. Transit — one trip per access strategy, then the best-ranked trip
+   *    per distinct line signature (e.g. "3", "2>F", "bike:A"). A dense
    *    network has many real alternatives; show them rather than two.
    * 3. Non-transit — max MAX_PER_MODE per mode + near-duplicate removal.
    */
@@ -4496,6 +4496,9 @@ export class TripService {
   private static readonly MAX_PER_MODE = 2
   /** Distinct transit routings (by line signature) to surface. */
   private static readonly MAX_TRANSIT_OPTIONS = 8
+  /** Walk+transit routings kept however many other strategies took a slot.
+   *  Most riders walk to transit, so most of the shortlist stays theirs. */
+  private static readonly MIN_WALK_TRANSIT_OPTIONS = 5
   /** Below this, park-and-ride isn't offered unless driving was asked for.
    *  Matches the floor transit already uses for the same reason. */
   private static readonly PARK_AND_RIDE_MIN_M = 1500
@@ -4538,16 +4541,30 @@ export class TripService {
 
     // Multi is a survey of what's possible, so it stops at one per strategy.
     // A transit-only search is a shortlist of departures, and there the
-    // remaining slots go to genuinely different lines.
+    // remaining slots go to genuinely different lines — walk+transit's first,
+    // so the strategy representatives can't crowd its lines out.
     if (!oneOfEachStrategy) {
-      for (const c of sorted) {
-        if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
-        if (!this.getTripMode(c.trip).includes('transit')) continue
-        const sig = this.transitSignature(c.trip)
-        if (seenSignatures.has(sig)) continue
-        seenSignatures.add(sig)
-        transitPreferred.add(c)
+      const walkTransitCount = () =>
+        [...transitPreferred].filter((c) => this.getTripMode(c.trip) === 'transit').length
+      const addDistinct = (accepts: (strategy: string) => boolean, full: () => boolean) => {
+        for (const c of sorted) {
+          if (full()) return
+          const strategy = this.getTripMode(c.trip)
+          if (!strategy.includes('transit') || !accepts(strategy)) continue
+          const sig = this.transitSignature(c.trip)
+          if (seenSignatures.has(sig)) continue
+          seenSignatures.add(sig)
+          transitPreferred.add(c)
+        }
       }
+      addDistinct(
+        (strategy) => strategy === 'transit',
+        () => walkTransitCount() >= TripService.MIN_WALK_TRANSIT_OPTIONS,
+      )
+      addDistinct(
+        () => true,
+        () => transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS,
+      )
     }
 
     // Pre-select the best trip per mode so we always show at least one

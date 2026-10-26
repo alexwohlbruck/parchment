@@ -2822,6 +2822,36 @@ describe('TripService — filterQualityTrips', () => {
     const strategies = result.map((c: any) => (tripService as any).getTripMode(c.trip))
     expect(strategies).toContain('driving+transit:access')
   })
+
+  test('strategy representatives leave walk+transit most of its lines', () => {
+    function via(strategySegments: any[], line: string, totalDuration: number) {
+      const c = makeTransitCandidate(null, totalDuration)
+      c.trip.segments = [
+        ...strategySegments,
+        { mode: 'transit', duration: totalDuration - 600, details: { transitDetails: { shortName: line } } },
+        { mode: 'walking', duration: 300 },
+      ]
+      return c
+    }
+    const ride = (mode: string, extra: object = {}) => ({ mode, duration: 300, ...extra })
+    // Five other ways of reaching transit, every one ranked ahead of walking.
+    const others = [
+      via([ride('driving')], 'P', 1700),
+      via([ride('biking')], 'Q', 1710),
+      via([ride('biking', { ownership: 'shared' })], 'R', 1720),
+      via([ride('rideshare')], 'S', 1730),
+      via([ride('walking'), { ...ride('transit'), details: { transitDetails: { shortName: 'T' } } }, ride('biking')], 'U', 1740),
+    ]
+    const walkLines = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(
+      (line, i) => via([ride('walking')], line, 1800 + i * 10),
+    )
+
+    const result = (tripService as any).filterQualityTrips([...others, ...walkLines])
+    const strategies: string[] = result.map((c: any) => (tripService as any).getTripMode(c.trip))
+
+    expect(strategies.filter((s) => s === 'transit').length).toBe(5)
+    expect(new Set(strategies).size).toBe(6)
+  })
 })
 
 // ── rankByMetric (direct ranking) ──────────────────────────────────────────────────────────

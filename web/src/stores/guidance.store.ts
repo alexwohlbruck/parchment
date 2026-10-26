@@ -221,7 +221,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** What the puck is drawn as for the travel mode underway. */
   const vehicle = computed<VehicleChoice>(previous => {
-    const next = vehicleChoice(preferences.value.vehicle, route.value ? travelModeAt(route.value, progress.value?.puck.s ?? 0) : 'driving')
+    const next = vehicleChoice(preferences.value.vehicle, travelMode.value)
     return previous?.indicator === next.indicator && previous.color === next.color ? previous : next
   })
 

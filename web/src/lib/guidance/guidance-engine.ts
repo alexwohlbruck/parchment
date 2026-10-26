@@ -13,7 +13,8 @@ import { modeProfile } from './mode-profiles'
 import { matchToRoute, type RouteMatch } from './route-matcher'
 import { AlongRouteFilter, type FilterOptions } from './along-route-filter'
 import { HeadingFilter } from './heading-filter'
-import { OffRouteDetector } from './off-route'
+import { OffRouteDetector, offRouteOptionsFor } from './off-route'
+import { angleDelta } from './spring'
 import { drawnLine, drawnPoint } from './route-line'
 import { StillnessDetector, YawRateEstimator, type MotionSample } from './motion'
 
@@ -134,11 +135,12 @@ export class GuidanceEngine {
     this.lastMatch = match
 
     const step = this.route.steps[stepIndexAt(this.route, match.s) + 1]
+    this.offRoute.configure(offRouteOptionsFor(segmentAt(this.route, match.s)?.mode ?? 'driving'))
     const offRoute = this.offRoute.update({
       offset: match.offset,
       accuracy: fix.accuracy,
       speed: fix.speed,
-      courseError: match.courseError,
+      courseError: fix.heading == null ? null : angleDelta(match.bearing, fix.heading),
       s: match.s,
       distanceToManeuver: step ? step.startDistance - match.s : Infinity,
     })

@@ -22,6 +22,8 @@ export interface OffRouteOptions {
   minCourseSpeed: number
   departureGrace: number
   rejoinFraction: number
+  /** Strikes to leave the route; an outside fix scores two, a wrong course one. */
+  minStrikes: number
 }
 
 export const DEFAULT_OFF_ROUTE_OPTIONS: OffRouteOptions = {
@@ -32,13 +34,43 @@ export const DEFAULT_OFF_ROUTE_OPTIONS: OffRouteOptions = {
   minCourseSpeed: 3,
   departureGrace: 40,
   rejoinFraction: 0.5,
+  minStrikes: 4,
+}
+
+const MODE_OFF_ROUTE_OPTIONS: Record<string, OffRouteOptions> = {
+  driving: DEFAULT_OFF_ROUTE_OPTIONS,
+  cycling: {
+    ...DEFAULT_OFF_ROUTE_OPTIONS,
+    minRadius: 30,
+    accuracyMargin: 10,
+    maneuverZone: 25,
+    courseLimit: 90,
+    minCourseSpeed: 2,
+    departureGrace: 25,
+  },
+  walking: {
+    ...DEFAULT_OFF_ROUTE_OPTIONS,
+    minRadius: 20,
+    accuracyMargin: 8,
+    maneuverZone: 15,
+    // Walking course is noisy; only heading back along the route counts.
+    courseLimit: 120,
+    minCourseSpeed: 0.8,
+    departureGrace: 10,
+    minStrikes: 6,
+  },
+}
+
+export function offRouteOptionsFor(mode: string): OffRouteOptions {
+  const key = mode === 'biking' ? 'cycling' : mode
+  return MODE_OFF_ROUTE_OPTIONS[key] ?? DEFAULT_OFF_ROUTE_OPTIONS
 }
 
 export class OffRouteDetector {
   private offRoute = false
   private strikes = 0
   private rejoinStreak = 0
-  private readonly options: OffRouteOptions
+  private options: OffRouteOptions
 
   constructor(options?: Partial<OffRouteOptions>) {
     this.options = { ...DEFAULT_OFF_ROUTE_OPTIONS, ...options }
@@ -48,6 +80,10 @@ export class OffRouteDetector {
     return this.offRoute
   }
 
+  configure(options: OffRouteOptions): void {
+    this.options = options
+  }
+
   radius(input: Pick<OffRouteInput, 'accuracy' | 'distanceToManeuver'>): number {
     const { minRadius, accuracyMargin, maneuverZone } = this.options
     const base = Math.max(minRadius, input.accuracy + accuracyMargin)
@@ -55,7 +91,7 @@ export class OffRouteDetector {
   }
 
   update(input: OffRouteInput): boolean {
-    const { courseLimit, minCourseSpeed, departureGrace, rejoinFraction } = this.options
+    const { courseLimit, minCourseSpeed, departureGrace, rejoinFraction, minStrikes } = this.options
     const radius = this.radius(input)
 
     if (this.offRoute) {
@@ -88,7 +124,7 @@ export class OffRouteDetector {
       this.strikes = 0
     }
 
-    const needed = Math.max(4, Math.round(input.accuracy / 4))
+    const needed = Math.max(minStrikes, Math.round(input.accuracy / 4))
     if (this.strikes >= needed) {
       this.offRoute = true
       this.rejoinStreak = 0

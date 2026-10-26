@@ -86,6 +86,8 @@ export class BarrelmanGraphHopperAdapter {
         speedLimit: seg.speedLimit,
         bikePriority: seg.bikePriority,
         crossing: seg.crossing,
+        osmWayId: seg.osmWayId,
+        country: seg.country,
       }))
 
     const bbox = path.bbox || [0, 0, 0, 0]
@@ -143,6 +145,7 @@ export class BarrelmanGraphHopperAdapter {
       distance: instr.distance || 0,
       duration: (instr.time || 0) / 1000,
       streetName: instr.street_name || undefined,
+      streetRef: instr.street_ref || undefined,
       modifier: this.mapInstructionModifier(instr.sign),
       exitNumber: instr.exit_number ?? undefined,
     }
@@ -192,6 +195,8 @@ export class BarrelmanGraphHopperAdapter {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
     | undefined {
     switch (sign) {
@@ -199,8 +204,8 @@ export class BarrelmanGraphHopperAdapter {
       case 1: return 'slight-right'
       case -2: return 'left'
       case 2: return 'right'
-      case -3: return 'left'  // sharp left
-      case 3: return 'right'  // sharp right
+      case -3: return 'sharp-left'
+      case 3: return 'sharp-right'
       case -7: return 'slight-left'  // keep left
       case 7: return 'slight-right'  // keep right
       case -8: case 8: case -98: return 'u-turn'

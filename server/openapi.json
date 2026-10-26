@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare.",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep grades, stairs, sharp curves and the like, placed by distance along the segment. Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users with premium navigation. Driving segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry` (the route drawn in the lanes it takes, with `measures` giving the distance along `geometry` each coordinate stands for) and `lanePlan` (per instruction index, the approach lanes left to right and which lead on).",
         "tags": [
           "Trip Planning"
         ],
@@ -2298,6 +2298,458 @@
                 },
                 "required": [
                   "waypoints"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/directions/reroute": {
+      "post": {
+        "parameters": [],
+        "operationId": "postDirectionsReroute",
+        "summary": "Reroute the current segment during navigation",
+        "description": "Plans a fresh street route from where the traveller is to the end of the segment they are on, favouring the direction they are already heading so the new route does not open with a U-turn. Send a position projected a few seconds ahead of the last fix. Returns one segment in the same shape as a `/directions` trip segment.",
+        "tags": [
+          "Trip Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/directions/alternatives": {
+      "post": {
+        "parameters": [],
+        "operationId": "postDirectionsAlternatives",
+        "summary": "Alternative routes for the rest of the current segment",
+        "description": "The same request as `/reroute`, answered with up to three routes from where the traveller is to the end of their segment. Each is a segment like `/reroute` returns, plus `metrics`: `duration`, `distance`, `turns`, `protectedShare` and `majorRoadShare` (fractions of distance), `crossings`, and `via`, the street carrying most of the route.",
+        "tags": [
+          "Trip Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
                 ]
               }
             }
@@ -4292,6 +4744,92 @@
           "GBFS"
         ],
         "summary": "GBFS system catalog",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/gbfs/station": {
+      "get": {
+        "operationId": "getGbfsStation",
+        "tags": [
+          "GBFS"
+        ],
+        "summary": "One station with live availability",
+        "description": "By `systemId` + `stationId`, or the station nearest `lat`/`lng` within `radius` metres.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/gbfs/station/alternatives": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "lat",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "lng",
+            "required": true
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "dock",
+                  "type": "string"
+                },
+                {
+                  "const": "bike",
+                  "type": "string"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "need",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 1
+            },
+            "in": "query",
+            "name": "min",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "toLat",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "toLng",
+            "required": false
+          }
+        ],
+        "operationId": "getGbfsStationAlternatives",
+        "tags": [
+          "GBFS"
+        ],
+        "summary": "Stations to switch to when one fills up or runs dry",
+        "description": "Nearby stations within 700 m of `lat`/`lng` holding at least `min` (default 3) free docks (`need=dock`) or bikes (`need=bike`), excluding the original. Ranked by distance to `toLat`/`toLng` (where the traveller goes next) when given, else to the original. Requires the premium navigation permission.",
         "responses": {
           "200": {}
         }
@@ -12404,6 +12942,208 @@
                 },
                 "required": [
                   "route"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/search/along-route": {
+      "post": {
+        "parameters": [],
+        "operationId": "postSearchAlong-route",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search ahead on the route being navigated",
+        "description": "Finds places within a corridor around the route still ahead (250 m walking, 500 m cycling, 2 km driving), ordered by distance along it. Each result carries `alongDistance` in metres and `detourSeconds`: the extra time stopping there adds over staying on the route, or null when the detour could not be routed. Send the remaining route from the current position, simplified to at most 500 points.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
                 ]
               }
             }

@@ -20,6 +20,7 @@ import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map/map.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import GuidanceSettingsSection from '@/components/guidance/GuidanceSettingsSection.vue'
 import { useResponsive } from '@/lib/utils'
 import { useFeedback } from '@/composables/integrations/useFeedback'
 import { useShakeGesture } from '@/composables/useShakeGesture'
@@ -358,6 +359,8 @@ watch(
         </Select>
       </SettingsItem>
     </SettingsSection>
+
+    <GuidanceSettingsSection />
 
     <SettingsSection
       v-if="isMobileScreen && feedbackAvailable && shake.isSupported"

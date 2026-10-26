@@ -1582,6 +1582,26 @@ describe('TripService — scoring', () => {
       expect(bikeEnd).toBeLessThanOrEqual(transitStart)
     })
 
+    test('a vehicle parked in another city is never walked to', async () => {
+      const elsewhere = { lat: 40.7128, lng: -74.006 }
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        availableVehicles: [
+          { ...carVehicle, location: elsewhere },
+          { ...bikeVehicle, location: elsewhere },
+        ],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThan(0)
+      const requested = JSON.stringify([...mockGetRoute.mock.calls, ...mockGetIntermodalRoute.mock.calls])
+      expect(requested).not.toContain(String(elsewhere.lat))
+    })
+
     // Park-and-ride and bike-to-station describe the network, not the user's
     // garage. A rider who has never registered a vehicle must still be offered
     // them — MOTIS locates the parking and the rack.

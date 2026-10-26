@@ -73,22 +73,28 @@ export function adjustForSafeArea(
 /**
  * The final list handed to Vaul: the measured peek swapped into the first
  * slot when dynamic peek is active, clamped, then safe-area adjusted.
+ * `lift` raises every detent by that many pixels, for a sheet that floats
+ * above the bottom edge.
  */
 export function resolveSnapPoints(options: {
   base: SnapPoint[]
   measuredPeekPx?: number | null
   viewportHeight: number
   insets?: SafeAreaInsets | null
+  lift?: number
 }): SnapPoint[] {
-  const { base, measuredPeekPx, viewportHeight, insets } = options
+  const { base, measuredPeekPx, viewportHeight, insets, lift = 0 } = options
   if (!base.length) return base
 
   const peek = measuredPeekPx != null ? `${measuredPeekPx}px` : base[0]
   const points = [peek, ...base.slice(1)]
 
-  const adjusted = insets
+  const safe = insets
     ? points.map((point, i) => adjustForSafeArea(point, i, insets, viewportHeight))
     : points
+  const adjusted = lift > 0
+    ? safe.map(point => `${snapPointToPixels(point, viewportHeight) + lift}px`)
+    : safe
 
   // Clamp last: the home-indicator inset is added to the peek, so clamping
   // before it would let the peek land above the next detent anyway.

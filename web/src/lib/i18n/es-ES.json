@@ -1196,6 +1196,380 @@
     "toggle": "Alternar navegación",
     "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida"
   },
+  "guidance": {
+    "start": "Iniciar",
+    "exit": "Finalizar navegación",
+    "waitingForLocation": "Esperando tu ubicación…",
+    "camera": {
+      "resume": "Seguir tu posición",
+      "overview": "Ver toda la ruta",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Rumbo arriba",
+        "north-up": "Norte arriba"
+      },
+      "bearing": {
+        "look-ahead": "Anticipar curvas",
+        "straight": "Rumbo recto"
+      }
+    },
+    "settings": {
+      "title": "Navegación",
+      "cameraMode": "Cámara",
+      "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
+      "bearingMode": "Dirección de la cámara",
+      "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección",
+      "autoSwitchDocks": "Cambiar de estación",
+      "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis",
+      "speedDisplay": "Indicador de velocidad",
+      "speedDisplayDescription": "Muestra el límite de velocidad, tu velocidad actual o ambos al conducir"
+    },
+    "exitShort": "Terminar",
+    "banner": {
+      "arrive": "Tu destino",
+      "then": "Luego",
+      "offRoute": "Fuera de ruta",
+      "offRouteHint": "Vuelve a la ruta",
+      "arrived": "Has llegado",
+      "rerouting": "Recalculando…",
+      "turnAround": "Da la vuelta",
+      "head": "Luego ve hacia el {heading}",
+      "headOn": "Luego ve hacia el {heading} por {road}",
+      "away": "Estás lejos de la ruta",
+      "awayHint": "La guía empieza cuando estés cerca"
+    },
+    "units": {
+      "ft": "pies",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "LÍMITE",
+      "displays": {
+        "both": "Límite y velocidad",
+        "limit": "Solo el límite",
+        "speedometer": "Solo el velocímetro",
+        "none": "Oculto"
+      },
+      "displaysShort": {
+        "both": "Ambos",
+        "limit": "Límite",
+        "speedometer": "Velocidad",
+        "none": "No"
+      }
+    },
+    "roads": {
+      "path": "Sendero",
+      "pedestrian": "Calle peatonal",
+      "cycleway": "Ciclovía",
+      "steps": "Escaleras",
+      "track": "Camino",
+      "service": "Vía de servicio",
+      "road": "Calle sin nombre"
+    },
+    "menu": {
+      "searchAlongRoute": "Buscar en la ruta",
+      "search": "Buscar",
+      "addStop": "Añadir parada",
+      "report": "Reportar",
+      "steps": "Pasos",
+      "routes": "Rutas",
+      "title": "Opciones",
+      "back": "Atrás",
+      "close": "Cerrar",
+      "show": "Mostrar opciones del viaje",
+      "hide": "Ocultar opciones del viaje",
+      "destination": "Destino",
+      "alongTheWay": "En el camino"
+    },
+    "startLeg": "Iniciar tramo {leg}",
+    "arrival": {
+      "destination": "Tu destino",
+      "at": "Llegada a las {time}",
+      "nextLeg": "Siguiente tramo",
+      "done": "Listo"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} pies",
+        "mile": "{value} milla",
+        "miles": "{value} millas",
+        "meters": "{value} metros",
+        "kilometer": "{value} kilómetro",
+        "kilometers": "{value} kilómetros"
+      },
+      "maneuvers": {
+        "straight": "Sigue recto",
+        "slight-left": "Gira ligeramente a la izquierda",
+        "slight-right": "Gira ligeramente a la derecha",
+        "left": "Gira a la izquierda",
+        "right": "Gira a la derecha",
+        "sharp-left": "Gira bruscamente a la izquierda",
+        "sharp-right": "Gira bruscamente a la derecha",
+        "keep-left": "Mantente a la izquierda",
+        "keep-right": "Mantente a la derecha",
+        "uturn": "Da la vuelta",
+        "roundabout": "Entra en la rotonda",
+        "roundaboutExit": "En la rotonda, toma la salida {exit}",
+        "arrive": "Llega",
+        "board": "Sube",
+        "boardAt": "Sube en {stop}"
+      },
+      "onto": "{action} hacia {road}",
+      "in": "En {distance}, {action}",
+      "then": "{action} y luego {next}",
+      "continue": "Sigue durante {distance}",
+      "continueOn": "Sigue por {road} durante {distance}",
+      "arrive": "En {distance}, llegarás",
+      "arriveSide": {
+        "left": "En {distance}, tu destino estará a la izquierda",
+        "right": "En {distance}, tu destino estará a la derecha"
+      },
+      "arrived": "Has llegado",
+      "arrivedSide": {
+        "left": "Has llegado. Tu destino está a la izquierda",
+        "right": "Has llegado. Tu destino está a la derecha"
+      },
+      "rerouting": "Recalculando la ruta",
+      "turnAround": "Da la vuelta y ve hacia el {heading}",
+      "turnAroundOn": "Da la vuelta y ve hacia el {heading} por {road}",
+      "headings": {
+        "north": "norte",
+        "northeast": "noreste",
+        "east": "este",
+        "southeast": "sureste",
+        "south": "sur",
+        "southwest": "suroeste",
+        "west": "oeste",
+        "northwest": "noroeste"
+      },
+      "watchPedestrians": "{action} y atención a los peatones",
+      "hazards": {
+        "crosswalk": "Paso de peatones más adelante",
+        "uncontrolled_crossing": "Cruce sin semáforo más adelante",
+        "rail_crossing": "Paso a nivel más adelante",
+        "ford": "Vado más adelante",
+        "sharp_curve": "Curva cerrada más adelante",
+        "steep_grade": "Pendiente pronunciada más adelante",
+        "steps": "Escaleras más adelante",
+        "shared_space": "Calle compartida más adelante, atención a los peatones"
+      },
+      "useLanes": "{action}. Usa {lanes}",
+      "lanes": {
+        "left": "el carril izquierdo",
+        "leftMany": "los {n} carriles de la izquierda",
+        "right": "el carril derecho",
+        "rightMany": "los {n} carriles de la derecha",
+        "middle": "el carril central",
+        "middleMany": "los {n} carriles centrales"
+      }
+    },
+    "sound": {
+      "title": "Sonido",
+      "all": "Todo",
+      "alerts": "Solo alertas",
+      "silent": "Silencio"
+    },
+    "hazards": {
+      "crosswalk": "Paso de peatones",
+      "traffic_signals": "Semáforo",
+      "uncontrolled_crossing": "Cruce sin semáforo",
+      "rail_crossing": "Paso a nivel",
+      "tunnel": "Túnel",
+      "ford": "Vado",
+      "ferry": "Ferri",
+      "steep_grade": "Pendiente pronunciada",
+      "steps": "Escaleras",
+      "dismount": "Bájate de la bici",
+      "rough_surface": "Firme irregular",
+      "shared_space": "Calle compartida",
+      "sharp_curve": "Curva cerrada"
+    },
+    "hazardCounts": {
+      "crosswalk": "{n} paso de peatones | {n} pasos de peatones",
+      "traffic_signals": "{n} semáforo | {n} semáforos"
+    },
+    "handoff": {
+      "park": "Aparca",
+      "lock-bike": "Asegura tu bici",
+      "dock-bike": "Deja la bici en {station}",
+      "unlock-bike": "Desbloquea una bici en {station}",
+      "get-in-car": "Sube a tu coche",
+      "get-on-bike": "Sube a tu bici",
+      "continue": "Sigue",
+      "then": "luego {mode} {duration}",
+      "thenTo": "luego {mode} {duration} hasta {place}",
+      "modes": {
+        "walking": "camina",
+        "cycling": "pedalea",
+        "driving": "conduce",
+        "transit": "viaja"
+      },
+      "go": "Vamos",
+      "notYet": "Todavía no",
+      "docksFree": "{n} anclaje libre | {n} anclajes libres"
+    },
+    "transit": {
+      "voice": {
+        "board": "Sube al {line}",
+        "boardToward": "Sube al {line} hacia {headsign}",
+        "alight-next": "Bájate en la próxima parada, {stop}",
+        "alight-now": "Bájate en {stop}",
+        "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
+        "missed-stop": "Pasaste {stop}. Bájate en la próxima parada"
+      },
+      "departsIn": "Sale en {duration}",
+      "departingNow": "Saliendo ahora",
+      "from": "desde {stop}",
+      "stopsLeft": "{n} parada | {n} paradas",
+      "getOffAt": "Bájate en {stop}",
+      "getOffNext": "Bájate en la próxima parada",
+      "getOffNow": "Bájate ahora",
+      "nextStop": "Próxima: {stop}",
+      "missedVehicle": "El {line} ya salió",
+      "missedVehicleHint": "Toma el siguiente o busca otra ruta",
+      "nextDeparture": "Siguiente salida",
+      "anotherWay": "Otra ruta",
+      "noLaterRun": "No hay más salidas hoy",
+      "missedStop": "Pasaste {stop}",
+      "missedStopHint": "Bájate en la próxima parada",
+      "reach": {
+        "ok": "A tiempo",
+        "hurry": "Date prisa",
+        "late": "Puede que no llegues"
+      },
+      "inDuration": "en {duration}",
+      "leg": {
+        "walking": "Camina {duration}",
+        "cycling": "Pedalea {duration}",
+        "driving": "Conduce {duration}"
+      },
+      "toPlace": "hasta {place}"
+    },
+    "ahead": {
+      "title": "En la ruta",
+      "placeholder": "Buscar en la ruta",
+      "categories": {
+        "fuel": "Gasolina",
+        "charging": "Carga eléctrica",
+        "coffee": "Café",
+        "food": "Comida",
+        "restrooms": "Baños",
+        "parking": "Estacionamiento",
+        "water": "Agua",
+        "bikeRepair": "Taller de bicis"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "De camino",
+      "ahead": "a {distance}",
+      "add": "Añadir parada",
+      "empty": "No hay nada en la ruta",
+      "failed": "La búsqueda no está disponible ahora",
+      "addFailed": "No se pudo añadir la parada"
+    },
+    "docks": {
+      "docks": "{n} anclaje | {n} anclajes",
+      "bikes": "{n} bici | {n} bicis",
+      "atRisk": {
+        "dock": "Puede que {station} esté llena cuando llegues",
+        "bike": "Puede que {station} se quede sin bicis"
+      },
+      "gone": {
+        "dock": "{station} está llena",
+        "bike": "{station} no tiene bicis"
+      },
+      "switchTo": "Cambiar a {station}",
+      "keep": "Mantener",
+      "voice": {
+        "switched": "Cambiando a {station}"
+      }
+    },
+    "alternatives": {
+      "faster": "{duration} más rápido",
+      "slower": "{duration} más lento",
+      "sameTime": "Mismo tiempo",
+      "via": "por {street}",
+      "protected": "Más carriles bici protegidos",
+      "quieter": "Calles más tranquilas",
+      "switch": "Cambiar",
+      "title": "Rutas",
+      "current": "Ruta actual",
+      "protectedShare": "{n}% protegido",
+      "empty": "No hay otras rutas ahora"
+    },
+    "itinerary": {
+      "sooner": "Llega {duration} antes",
+      "take": "Toma el {lines}"
+    },
+    "lanes": {
+      "label": "Carriles"
+    },
+    "preview": {
+      "action": "Vista previa",
+      "title": "Vista previa de la ruta",
+      "previewRoute": "Ver la ruta",
+      "overview": "Vista general",
+      "previous": "Paso anterior",
+      "next": "Paso siguiente",
+      "close": "Cerrar vista previa",
+      "stepOf": "{n} de {total}",
+      "for": "durante {distance}",
+      "steps": "{n} pasos",
+      "streetView": "Vista a pie de calle en este paso"
+    },
+    "free": {
+      "title": {
+        "driving": "Conducción libre",
+        "cycling": "Paseo libre",
+        "walking": "Caminata libre"
+      },
+      "start": {
+        "driving": "Conducir",
+        "cycling": "Pedalear",
+        "walking": "Caminar"
+      },
+      "keepGoing": {
+        "driving": "Seguir conduciendo",
+        "cycling": "Seguir pedaleando",
+        "walking": "Seguir caminando"
+      },
+      "withoutDestination": {
+        "driving": "Conducir sin destino",
+        "cycling": "Pedalear sin destino",
+        "walking": "Caminar sin destino"
+      },
+      "otherModes": "Otras formas de ir",
+      "mode": "Modo de viaje",
+      "whereTo": "¿Adónde?",
+      "searchPlaceholder": "Busca un destino",
+      "empty": "No se encontraron lugares",
+      "go": "Ir",
+      "goFailed": "No se pudo planificar una ruta hasta allí",
+      "ahead": {
+        "title": "En el camino",
+        "placeholder": "Buscar en el camino",
+        "empty": "No se encontró nada adelante"
+      }
+    },
+    "vehicle": {
+      "title": "Marcador de ubicación",
+      "description": "Cómo apareces en el mapa al navegar",
+      "color": "Color",
+      "modes": {
+        "driving": "En coche",
+        "cycling": "En bici",
+        "walking": "A pie"
+      },
+      "indicators": {
+        "arrow": "Flecha",
+        "hatchback": "Compacto",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bici"
+      }
+    }
+  },
   "attribution": {
     "poweredBy": "Desarrollado por",
     "contribute": "Contribuir",
@@ -2589,5 +2963,9 @@
       "title": "Esta vista debe cargarse primero",
       "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
+  },
+  "myLocation": {
+    "title": "Mi ubicación",
+    "accuracy": "Precisión de {distance}"
   }
 }

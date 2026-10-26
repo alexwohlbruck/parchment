@@ -1,14 +1,7 @@
 <script setup lang="ts">
-import {
-  ChevronDownIcon,
-  ArrowUp,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpLeft,
-  ArrowUpRight,
-  FlagIcon,
-  Undo2Icon,
-} from 'lucide-vue-next'
+import { ChevronDownIcon } from 'lucide-vue-next'
+import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
+import { maneuverKind } from '@/lib/directions/maneuver'
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -70,19 +63,8 @@ function hasSegmentRouteInfo(segment: any): boolean {
   )
 }
 
-function getInstructionIcon(instruction: string | RouteInstruction) {
-  if (typeof instruction === 'string') return ArrowUp
-  if (instruction.type === 'arrive' || instruction.type === 'destination')
-    return FlagIcon
-  switch (instruction.modifier) {
-    case 'left': return ArrowLeft
-    case 'right': return ArrowRight
-    case 'straight': return ArrowUp
-    case 'slight-left': return ArrowUpLeft
-    case 'slight-right': return ArrowUpRight
-    case 'u-turn': return Undo2Icon
-    default: return ArrowUp
-  }
+function instructionKind(instruction: string | RouteInstruction) {
+  return typeof instruction === 'string' ? 'straight' : maneuverKind(instruction)
 }
 
 const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
@@ -165,7 +147,7 @@ const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
         >
           <span class="step-num">{{ Number(index) + 1 }}</span>
           <span class="step-icon">
-            <component :is="getInstructionIcon(instruction)" class="size-3.5" />
+            <ManeuverIcon :kind="instructionKind(instruction)" class="size-3.5" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium text-foreground leading-snug">

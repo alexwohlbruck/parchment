@@ -18,6 +18,7 @@ export type GeolocationPermissionState = 'granted' | 'denied' | 'prompt' | 'unkn
 function geolocationService() {
   const {
     coords,
+    locatedAt,
     error,
     isSupported,
     resume,
@@ -84,6 +85,7 @@ function geolocationService() {
 
   return {
     coords,
+    locatedAt,
     error,
     isSupported,
     permissionState,

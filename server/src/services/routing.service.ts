@@ -2,6 +2,8 @@ import { IntegrationCapabilityId } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import type { Location } from '../types/valhalla.types'
 import {
+  RouteLanes,
+  RouteLanesRequest,
   RouteRequest,
   UnifiedRoute,
   TravelMode,
@@ -23,6 +25,7 @@ export class RoutingService {
     locations: Location[],
     costing: string = 'auto',
     preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
+    options: { startHeading?: number; alternatives?: number } = {},
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -83,6 +86,7 @@ export class RoutingService {
       mode,
       includeInstructions: true,
       includeGeometry: true,
+      startHeading: options.startHeading,
       language: (preferences as { language?: import('../lib/i18n').Language })
         ?.language,
       preferences: preferences
@@ -123,6 +127,10 @@ export class RoutingService {
           },
     }
 
+    if (options.alternatives) {
+      request.preferences = { ...request.preferences, alternatives: true, maxAlternatives: options.alternatives }
+    }
+
     try {
       const result =
         await integrationInstance.capabilities.routing.getRoute(request)
@@ -137,6 +145,15 @@ export class RoutingService {
         }`,
       )
     }
+  }
+
+  /** Lane geometry from the first routing engine that has it; null where none does. */
+  async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
+    for (const record of integrationManager.getConfiguredIntegrationsByCapability(IntegrationCapabilityId.ROUTING)) {
+      const routing = integrationManager.getCachedIntegrationInstance(record)?.capabilities.routing
+      if (routing?.getLanes) return routing.getLanes(request)
+    }
+    return null
   }
 
   // TODO: Deprecate this map

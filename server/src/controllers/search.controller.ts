@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
+import { searchAlongNavRoute } from '../services/route-search.service'
 import * as searchService from '../services/search.service'
 import * as brandService from '../services/brand.service'
 import { integrationManager } from '../services/integrations'
@@ -52,8 +53,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
     {
       query: t.Object({
         q: t.Optional(t.String()),
-        lat: t.Optional(t.String()),
-        lng: t.Optional(t.String()),
+        lat: t.Optional(t.String({ description: 'Latitude to bias results toward. Places are only searched when lat and lng are both given.' })),
+        lng: t.Optional(t.String({ description: 'Longitude to bias results toward.' })),
         radius: t.Optional(t.Union([t.String(), t.Number()])),
         maxResults: t.Optional(t.Union([t.String(), t.Number()])),
         autocomplete: t.Optional(t.Union([t.String(), t.Boolean()])),
@@ -61,6 +62,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search for places',
+        description:
+          'Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.',
       },
     },
   )
@@ -169,6 +172,39 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search along a route corridor',
+      },
+    },
+  )
+
+  .post(
+    '/along-route',
+    async ({ body, status, t }) => {
+      try {
+        return { results: await searchAlongNavRoute(body) }
+      } catch (err) {
+        logError('Error searching along the navigated route', err)
+        return status(500, {
+          message: err instanceof Error ? err.message : t('errors.search.routeSearchFailed'),
+        })
+      }
+    },
+    {
+      body: t.Object({
+        route: t.Array(t.Object({ lat: t.Number(), lng: t.Number() }), { minItems: 2, maxItems: 500 }),
+        mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
+        query: t.Optional(t.String()),
+        categories: t.Optional(t.Array(t.String())),
+        limit: t.Optional(t.Number({ minimum: 1, maximum: 20 })),
+      }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search ahead on the route being navigated',
+        description:
+          'Finds places within a corridor around the route still ahead (250 m walking, 500 m cycling, '
+          + '2 km driving), ordered by distance along it. Each result carries `alongDistance` in metres '
+          + 'and `detourSeconds`: the extra time stopping there adds over staying on the route, or null '
+          + 'when the detour could not be routed. Send the remaining route from the current position, '
+          + 'simplified to at most 500 points.',
       },
     },
   )

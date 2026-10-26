@@ -4,9 +4,13 @@
 
 ### Changed
 
-* Tunnel entrances appear sooner on a first visit or a slow connection, ahead of the rest of the street detail.
-
 ### Fixed
+
+## [0.16.14] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear sooner on a first visit or a slow connection, ahead of the rest of the street detail.
 
 ## [0.16.13] - 2026-10-26
 

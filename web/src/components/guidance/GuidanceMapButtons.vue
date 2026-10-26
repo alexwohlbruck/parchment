@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BellRingIcon, RouteIcon, SearchIcon, Settings2Icon, SplitIcon, Volume2Icon, VolumeXIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { canSearchAhead } from '@/services/guidance/route-search.service'
 import { canReroute } from '@/services/guidance/reroute.service'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -21,18 +20,16 @@ const { camera, panel, openPanel, closePanel } = useGuidanceContext()
 
 const SOUND_ICONS = { all: Volume2Icon, alerts: BellRingIcon, silent: VolumeXIcon }
 const sound = computed(() => guidance.soundModeAt(guidance.progress?.puck.s ?? 0))
-const travelMode = computed(() =>
-  guidance.route ? travelModeAt(guidance.route, guidance.progress?.puck.s ?? 0) : 'driving',
-)
+const free = computed(() => guidance.kind === 'free')
 const overview = computed(() => camera.state.value === 'overview')
 
 const panelButtons = computed(() =>
   props.panels
     ? [
-        { kind: 'search' as const, icon: SearchIcon, label: t('guidance.menu.searchAlongRoute'), enabled: canSearchAhead(travelMode.value) },
-        { kind: 'routes' as const, icon: SplitIcon, label: t('guidance.menu.routes'), enabled: canReroute(travelMode.value) },
+        { kind: 'search' as const, icon: SearchIcon, label: t(free.value ? 'guidance.menu.alongTheWay' : 'guidance.menu.searchAlongRoute'), enabled: canSearchAhead(guidance.travelMode) },
+        { kind: 'routes' as const, icon: SplitIcon, label: t('guidance.menu.routes'), enabled: canReroute(guidance.travelMode) },
         { kind: 'menu' as const, icon: Settings2Icon, label: t('guidance.menu.title'), enabled: true },
-      ]
+      ].filter(item => !free.value || item.kind !== 'routes')
     : [],
 )
 
@@ -58,6 +55,7 @@ const size = computed(() => (props.large ? 'size-16 [&_svg]:size-6' : 'size-12 [
       <component :is="SOUND_ICONS[sound]" />
     </Button>
     <Button
+      v-if="!free"
       size="icon"
       class="rounded-full shadow-lg"
       :class="size"

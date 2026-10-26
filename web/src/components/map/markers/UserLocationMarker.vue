@@ -8,12 +8,14 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   mode: 'dot',
 })
+const emit = defineEmits<{ select: [] }>()
 </script>
 
 <template>
   <div
     class="user-location-marker"
     :class="{ 'navigation-mode': props.mode === 'navigation' }"
+    @click="props.mode === 'dot' && emit('select')"
   >
     <!--
       Compass direction beam (dot mode). Points "up" in the marker's local
@@ -65,6 +67,10 @@ const props = withDefaults(defineProps<Props>(), {
   justify-content: center;
   width: 48px;
   height: 48px;
+}
+
+.user-location-marker:not(.navigation-mode) {
+  cursor: pointer;
 }
 
 .location-dot {

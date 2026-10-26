@@ -14,6 +14,7 @@ import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
+import { freeModeFor } from '@/lib/guidance/free-roam'
 import { getWaypointPlaceRoute } from '@/lib/place/place-route'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useAppStore } from '@/stores/app.store'
@@ -40,7 +41,7 @@ const itinerary = useBetterItinerary()
 
 const panel = ref<GuidancePanelKind | null>(null)
 const openedFrom = ref<GuidancePanelKind | null>(null)
-const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes'])
+const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes', 'destination'])
 
 function openPanel(next: GuidancePanelKind) {
   openedFrom.value = panel.value
@@ -62,6 +63,7 @@ watch(
 )
 
 const arrivedForGood = computed(() => guidance.status === 'arrived' && guidance.nextLeg == null)
+const keepGoing = computed(() => (arrivedForGood.value ? freeModeFor(guidance.segments.at(-1)?.mode ?? '') : null))
 
 function exit() {
   panel.value = null
@@ -89,6 +91,7 @@ provide(GUIDANCE_CONTEXT, {
   openPanel,
   closePanel,
   exit,
+  keepGoing,
 })
 
 // With nothing left to navigate, the arrival card hands over to the destination's page.

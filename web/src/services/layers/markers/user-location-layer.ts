@@ -31,6 +31,7 @@ import {
 import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
 import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import router, { AppRoute } from '@/router'
 
 const MARKER_ID = 'self'
 
@@ -124,6 +125,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
           accuracy: this.geolocation.accuracy.value,
           heading: this.geolocation.heading.value,
           mode: guidanceEngine.active.value ? 'navigation' : 'dot',
+          onSelect: () => router.push({ name: AppRoute.MY_LOCATION }),
         },
       },
     ]

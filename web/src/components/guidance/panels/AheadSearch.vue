@@ -18,7 +18,7 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { useAheadSearch } from '@/composables/guidance/useAheadSearch'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { AHEAD_CATEGORIES, aheadCategoriesFor, type AheadCategoryKey } from '@/lib/guidance/along-route-categories'
-import { bannerDistance, travelModeAt } from '@/lib/guidance/guidance-display'
+import { bannerDistance } from '@/lib/guidance/guidance-display'
 import { formatDurationCompact } from '@/lib/time-format'
 import {
   getSearchResultCategory,
@@ -49,10 +49,8 @@ const ICONS: Record<AheadCategoryKey, unknown> = {
   bikeRepair: WrenchIcon,
 }
 
-const mode = computed(() =>
-  guidance.route ? travelModeAt(guidance.route, guidance.progress?.puck.s ?? 0) : 'driving',
-)
-const categories = computed(() => aheadCategoriesFor(mode.value))
+const free = computed(() => guidance.kind === 'free')
+const categories = computed(() => aheadCategoriesFor(guidance.travelMode))
 const active = ref<AheadCategoryKey | null>(null)
 const query = ref('')
 const searched = ref(false)
@@ -90,11 +88,11 @@ function detour(result: AheadResult) {
 
 async function add(result: AheadResult) {
   adding.value = result.place.id
-  const center = result.place.geometry.value.center
-  const added = await guidance.addStop({ label: getSearchResultName(result.place), location: center })
+  const stop = { label: getSearchResultName(result.place), location: result.place.geometry.value.center }
+  const added = free.value ? await guidance.headTo({ ...stop, placeId: result.place.id }) : await guidance.addStop(stop)
   adding.value = null
   if (added) emit('done')
-  else toast.error(t('guidance.ahead.addFailed'))
+  else toast.error(t(free.value ? 'guidance.free.goFailed' : 'guidance.ahead.addFailed'))
 }
 </script>
 
@@ -103,7 +101,12 @@ async function add(result: AheadResult) {
 
     <form class="relative" @submit.prevent="submit">
       <SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input v-model="query" class="h-11 rounded-full pl-9" :placeholder="t('guidance.ahead.placeholder')" enterkeyhint="search" />
+      <Input
+        v-model="query"
+        class="h-11 rounded-full pl-9"
+        :placeholder="t(free ? 'guidance.free.ahead.placeholder' : 'guidance.ahead.placeholder')"
+        enterkeyhint="search"
+      />
     </form>
 
     <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -123,7 +126,7 @@ async function add(result: AheadResult) {
     <div v-if="loading" class="py-6 text-center text-sm text-muted-foreground">…</div>
     <div v-else-if="failed" class="py-6 text-center text-sm text-muted-foreground">{{ t('guidance.ahead.failed') }}</div>
     <div v-else-if="searched && !results.length" class="py-6 text-center text-sm text-muted-foreground">
-      {{ t('guidance.ahead.empty') }}
+      {{ t(free ? 'guidance.free.ahead.empty' : 'guidance.ahead.empty') }}
     </div>
     <ol v-else class="divide-y">
       <li v-for="(result, i) in results" :key="result.place.id" class="flex items-center gap-3 py-3">
@@ -146,7 +149,7 @@ async function add(result: AheadResult) {
           </div>
         </div>
         <Button variant="secondary" class="h-10 shrink-0 rounded-full px-4" :disabled="adding != null" @click="add(result)">
-          {{ t('guidance.ahead.add') }}
+          {{ t(free ? 'guidance.free.go' : 'guidance.ahead.add') }}
         </Button>
       </li>
     </ol>

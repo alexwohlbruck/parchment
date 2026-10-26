@@ -1265,7 +1265,9 @@
       "back": "Atrás",
       "close": "Cerrar",
       "show": "Mostrar opciones del viaje",
-      "hide": "Ocultar opciones del viaje"
+      "hide": "Ocultar opciones del viaje",
+      "destination": "Destino",
+      "alongTheWay": "En el camino"
     },
     "startLeg": "Iniciar tramo {leg}",
     "arrival": {
@@ -1501,6 +1503,40 @@
       "for": "durante {distance}",
       "steps": "{n} pasos",
       "streetView": "Vista a pie de calle en este paso"
+    },
+    "free": {
+      "title": {
+        "driving": "Conducción libre",
+        "cycling": "Paseo libre",
+        "walking": "Caminata libre"
+      },
+      "start": {
+        "driving": "Conducir",
+        "cycling": "Pedalear",
+        "walking": "Caminar"
+      },
+      "keepGoing": {
+        "driving": "Seguir conduciendo",
+        "cycling": "Seguir pedaleando",
+        "walking": "Seguir caminando"
+      },
+      "withoutDestination": {
+        "driving": "Conducir sin destino",
+        "cycling": "Pedalear sin destino",
+        "walking": "Caminar sin destino"
+      },
+      "otherModes": "Otras formas de ir",
+      "mode": "Modo de viaje",
+      "whereTo": "¿Adónde?",
+      "searchPlaceholder": "Busca un destino",
+      "empty": "No se encontraron lugares",
+      "go": "Ir",
+      "goFailed": "No se pudo planificar una ruta hasta allí",
+      "ahead": {
+        "title": "En el camino",
+        "placeholder": "Buscar en el camino",
+        "empty": "No se encontró nada adelante"
+      }
     }
   },
   "attribution": {
@@ -2896,5 +2932,9 @@
       "title": "Esta vista debe cargarse primero",
       "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
+  },
+  "myLocation": {
+    "title": "Mi ubicación",
+    "accuracy": "Precisión de {distance}"
   }
 }

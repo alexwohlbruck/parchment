@@ -30,6 +30,7 @@ export enum AppRoute {
   PLACE_PROVIDER = 'place-provider',
   PLACE_LOCATION = 'place-location',
   PLACE_COORDS = 'place-coords',
+  MY_LOCATION = 'my-location',
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
@@ -194,6 +195,11 @@ const router = createRouter({
           path: '/place/coords/:lat/:lng',
           name: AppRoute.PLACE_COORDS,
           component: Place,
+        },
+        {
+          path: '/location',
+          name: AppRoute.MY_LOCATION,
+          component: () => import('@/views/location/MyLocation.vue'),
         },
         {
           path: '/transit/route/:feedId/:routeId',

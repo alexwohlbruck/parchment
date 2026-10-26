@@ -4,7 +4,6 @@ import { useAbortController } from '@/composables/useAbortController'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { routeAhead } from '@/lib/guidance/nav-route'
-import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { searchAhead, type AheadResult } from '@/services/guidance/route-search.service'
 import { AheadResultsLayer } from '@/services/guidance/ahead-results-layer'
 
@@ -19,7 +18,7 @@ export function useAheadSearch() {
   const layer = map ? new AheadResultsLayer(map) : null
 
   async function search(params: { query?: string; categories?: string[] }) {
-    const route = guidance.route
+    const route = guidance.followed
     const s = guidance.progress?.puck.s ?? 0
     if (!route) return
     loading.value = true
@@ -27,7 +26,7 @@ export function useAheadSearch() {
     try {
       results.value = await searchAhead({
         route: routeAhead(route, s),
-        mode: travelModeAt(route, s),
+        mode: guidance.travelMode,
         ...params,
         signal: nextSignal(),
       })

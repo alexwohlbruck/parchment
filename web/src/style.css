@@ -545,6 +545,10 @@
   }
 }
 
+@utility nav-card {
+  @apply nav-surface pointer-events-auto rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md;
+}
+
 @utility depth-floating {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),

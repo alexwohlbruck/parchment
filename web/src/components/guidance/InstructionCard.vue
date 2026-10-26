@@ -71,7 +71,7 @@ function previewRoute() {
 </script>
 
 <template>
-  <div class="nav-surface pointer-events-auto overflow-hidden rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md">
+  <div class="nav-card overflow-hidden">
     <TransitStageCard
       v-if="stage"
       class="p-5"
@@ -101,7 +101,7 @@ function previewRoute() {
         :walk-sec="approach.walkSec"
       />
       <div v-if="guidance.status === 'away'" class="px-5 pb-4">
-        <Button variant="secondary" class="rounded-full" @click="previewRoute">
+        <Button variant="secondary" class="h-12 rounded-full px-5" @click="previewRoute">
           {{ t('guidance.preview.previewRoute') }}
         </Button>
       </div>

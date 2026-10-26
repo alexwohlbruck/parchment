@@ -30,8 +30,6 @@ useObstructingComponent(root, 'guidance-column', undefined, undefined, rect => (
 // Landscape phones get the column without the arm's-length sizing.
 const { height } = useWindowSize()
 const roomy = computed(() => height.value >= 600)
-
-const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md'
 </script>
 
 <template>
@@ -56,7 +54,7 @@ const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 sh
         leave-active-class="transition duration-150 ease-in"
         leave-to-class="opacity-0 -translate-x-3"
       >
-        <div v-if="panel" :key="panel" class="min-h-0 overflow-y-auto p-5" :class="CARD">
+        <div v-if="panel" :key="panel" class="nav-card min-h-0 overflow-y-auto p-5">
           <GuidancePanel :kind="panel" menu-header />
         </div>
       </Transition>
@@ -64,7 +62,7 @@ const CARD = 'nav-surface pointer-events-auto rounded-[28px] bg-background/95 sh
       <div class="mt-auto flex flex-col items-start gap-3">
         <SpeedPanel :dash="roomy" />
         <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">
-          <div class="w-full p-5" :class="CARD">
+          <div class="nav-card w-full p-5">
             <ArrivalPanel
               v-if="guidance.status === 'arrived'"
               :destination="guidance.destinationLabel"

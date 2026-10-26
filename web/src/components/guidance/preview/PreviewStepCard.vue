@@ -49,7 +49,7 @@ function openStreetView() {
 </script>
 
 <template>
-  <div class="nav-surface pointer-events-auto overflow-hidden rounded-[28px] bg-background/95 shadow-xl ring-1 ring-foreground/5 backdrop-blur-md">
+  <div class="nav-card overflow-hidden">
     <div class="flex items-start gap-3.5 px-5 pb-3 pt-4">
       <template v-if="step">
         <ManeuverIcon :kind="maneuverKind(step.instruction)" :exit="step.instruction.exitNumber" class="mt-0.5 size-9 shrink-0" />
@@ -66,7 +66,7 @@ function openStreetView() {
           {{ duration }} · {{ distanceLabel(preview.route.length) }}
         </div>
       </div>
-      <Button variant="ghost" size="icon-sm" class="-mr-2 -mt-1 shrink-0 rounded-full" :aria-label="t('guidance.preview.close')" @click="$emit('close')">
+      <Button variant="ghost" size="icon" class="-mr-2 -mt-1.5 shrink-0 rounded-full" :aria-label="t('guidance.preview.close')" @click="$emit('close')">
         <XIcon class="size-5" />
       </Button>
     </div>
@@ -89,18 +89,18 @@ function openStreetView() {
     </button>
 
     <div class="flex items-center gap-2 px-3 pb-3 pt-1">
-      <Button variant="ghost" size="sm" class="gap-1.5 rounded-full" :disabled="!step" @click="preview.select(null)">
+      <Button variant="ghost" class="h-12 gap-1.5 rounded-full px-4" :disabled="!step" @click="preview.select(null)">
         <MapIcon class="size-4" />
         {{ t('guidance.preview.overview') }}
       </Button>
       <div class="ml-auto flex items-center gap-1">
-        <Button variant="ghost" size="icon" class="rounded-full" :disabled="!preview.hasPrevious" :aria-label="t('guidance.preview.previous')" @click="preview.previous()">
+        <Button variant="ghost" size="icon-lg" class="rounded-full" :disabled="!preview.hasPrevious" :aria-label="t('guidance.preview.previous')" @click="preview.previous()">
           <ChevronLeftIcon class="size-5" />
         </Button>
         <span class="min-w-16 text-center text-sm text-muted-foreground tabular-nums">
           {{ step ? t('guidance.preview.stepOf', { n: step.index + 1, total: preview.steps.length }) : t('guidance.preview.steps', { n: preview.steps.length }) }}
         </span>
-        <Button variant="secondary" size="icon" class="rounded-full" :disabled="!preview.hasNext" :aria-label="t('guidance.preview.next')" @click="preview.next()">
+        <Button variant="secondary" size="icon-lg" class="rounded-full" :disabled="!preview.hasNext" :aria-label="t('guidance.preview.next')" @click="preview.next()">
           <ChevronRightIcon class="size-5" />
         </Button>
       </div>

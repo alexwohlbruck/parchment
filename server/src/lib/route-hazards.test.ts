@@ -34,6 +34,26 @@ describe('routeHazards', () => {
     expect(routeHazards(route).filter((h) => h.kind === 'rail_crossing')).toHaveLength(1)
   })
 
+  /** Point crossings at the given distances along the straight line. */
+  const crossings = (crossing: string, at: number[]) => ({
+    ...straight(),
+    edgeSegments: at.map((d) => ({ startDistance: d, endDistance: d + 5, crossing })),
+  })
+
+  test('the signalled crosswalks either side of a junction read as one light at its centre', () => {
+    const lights = routeHazards(crossings('traffic_signals', [100, 140, 300])).filter((h) => h.kind === 'traffic_signals')
+    expect(lights.map((h) => h.startDistance)).toEqual([120, 300])
+    expect(lights[0].coordinate.lat).toBeCloseTo(40 + 120 / 111195 * 1, 4)
+  })
+
+  test('lights at neighbouring junctions stay apart', () => {
+    expect(routeHazards(crossings('traffic_signals', [100, 160])).filter((h) => h.kind === 'traffic_signals')).toHaveLength(2)
+  })
+
+  test('plain crosswalks either side of a junction both stay', () => {
+    expect(routeHazards(crossings('marked', [100, 140]))).toHaveLength(2)
+  })
+
   test('adjacent edges of one stretch merge', () => {
     const hazards = routeHazards(straight([{ roadEnvironment: 'tunnel' }, { roadEnvironment: 'tunnel' }, {}]))
     expect(hazards).toHaveLength(1)

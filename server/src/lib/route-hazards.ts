@@ -143,23 +143,33 @@ function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate): Rou
       push(edge, 'rough_surface', 'low', { stretch: true, variant: edge.surface })
     }
   }
-  return mergeAdjacent(hazards)
+  return mergeAdjacent(hazards, at)
 }
 
 /** A crossing node sits between two edges, so one crossing can arrive twice. */
 const SAME_POINT_METERS = 25
+/** OSM signals each crosswalk of a junction, so one junction reads as a light on either side of it. */
+const SIGNAL_JUNCTION_METERS = 45
 
 /** Edges come in short runs; one stretch, or one crossing, of the same hazard reads as one. */
-function mergeAdjacent(hazards: RouteHazard[]): RouteHazard[] {
+function mergeAdjacent(hazards: RouteHazard[], at: (d: number) => Coordinate): RouteHazard[] {
   const merged: RouteHazard[] = []
+  const firstAt = new Map<RouteHazard, number>()
   for (const hazard of hazards) {
     const last = merged.findLast((h) => h.kind === hazard.kind)
     if (last && last.endDistance != null && hazard.endDistance != null && hazard.startDistance - last.endDistance < 1) {
       last.endDistance = hazard.endDistance
       continue
     }
-    if (last && last.endDistance == null && hazard.endDistance == null && hazard.startDistance - last.startDistance < SAME_POINT_METERS) {
-      continue
+    if (last && last.endDistance == null && hazard.endDistance == null) {
+      const first = firstAt.get(last) ?? last.startDistance
+      if (hazard.kind === 'traffic_signals' && hazard.startDistance - first < SIGNAL_JUNCTION_METERS) {
+        firstAt.set(last, first)
+        last.startDistance = (first + hazard.startDistance) / 2
+        last.coordinate = at(last.startDistance)
+        continue
+      }
+      if (hazard.startDistance - first < SAME_POINT_METERS) continue
     }
     merged.push(hazard)
   }

@@ -102,6 +102,7 @@ import {
   LANDMARK_TILES,
   DETAIL_SOURCE,
   BRIDGE_DECK_TILES,
+  TUNNEL_CUT_SOURCE,
   TUNNEL_CUT_TILES,
   WOOD_LAYER,
   forestFloorColor,
@@ -991,7 +992,7 @@ export class MaplibreStrategy extends MapStrategy {
       return ids
     }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ source: DETAIL_SOURCE, layer: TUNNEL_CUT_TILES }, DECK_PALETTE[flavor], { terrain: fineTerrain })
+      this.tunnelLayer = new TunnelLayer({ source: TUNNEL_CUT_SOURCE, layer: TUNNEL_CUT_TILES }, DECK_PALETTE[flavor], { terrain: fineTerrain })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {

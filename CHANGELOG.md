@@ -24,6 +24,7 @@
 * Hazards ahead show on the navigation map: traffic lights and railroad crossings as signs on the route, and crosswalks, stairs, sharp curves and the like as warning callouts.
 * Driving directions from your current location start off the way your car is facing, so you aren't told to turn where you can't.
 * When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
+* Navigate with no destination: tap your location and choose Drive, Walk or Cycle to follow the road with your speed, the speed limit and hazard warnings, and pick a destination along the way. Keep going after you arrive, too.
 
 ### Changed
 * Lane guidance draws each lane as one arrow that branches where it allows several turns, with the turn you need lit.

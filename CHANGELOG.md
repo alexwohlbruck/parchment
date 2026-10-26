@@ -4,9 +4,13 @@
 
 ### Changed
 
-* Tunnel entrances appear with the map tiles around them, instead of up to a few seconds later.
-
 ### Fixed
+
+## [0.16.13] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear with the map tiles around them, instead of up to a few seconds later.
 
 ## [0.16.12] - 2026-10-25
 

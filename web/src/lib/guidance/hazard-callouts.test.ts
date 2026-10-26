@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
-import { hazardCallouts } from './hazard-callouts'
+import { hazardCallouts, routeHazardCallouts } from './hazard-callouts'
 import { cityDrive } from './test-routes'
 import type { RouteHazard } from '@/types/directions.types'
 
@@ -47,5 +47,20 @@ describe('hazardCallouts', () => {
   test('hazards bunched together show once', () => {
     const route = routeWith([hazard('crosswalk', 100), hazard('crosswalk', 110), hazard('steps', 140)])
     expect(kindsAt(route, 0)).toEqual(['crosswalk@100', 'steps@140'])
+  })
+})
+
+describe('routeHazardCallouts', () => {
+  test('every bubble left on the route, icon only, past any range', () => {
+    const route = routeWith([hazard('steps', 50), hazard('ford', 150), hazard('rail_crossing', 400), hazard('steep_grade', 900)])
+    expect(routeHazardCallouts(route, 100, null).map(c => [c.hazard.kind, c.compact])).toEqual([
+      ['ford', true],
+      ['steep_grade', true],
+    ])
+  })
+
+  test('keeps clear of signs and the turn callout', () => {
+    const route = routeWith([hazard('crosswalk', 105), hazard('traffic_signals', 120, 'low'), hazard('steps', 590), hazard('sharp_curve', 900)])
+    expect(routeHazardCallouts(route, 0, 600).map(c => c.hazard.startDistance)).toEqual([900])
   })
 })

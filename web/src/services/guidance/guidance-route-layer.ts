@@ -12,6 +12,7 @@ import { maneuverIcon, MANEUVER_ICON_STROKE } from '@/lib/directions/maneuver-ic
 import { HAZARD_TONE_COLORS, isHazardSign, SIGN_PASS_METERS, SIGN_TURN_CLEARANCE_METERS, type HazardTone } from '@/lib/guidance/hazard-callouts'
 import { hazardIcon, HAZARD_ICON_STROKE } from '@/lib/guidance/hazard-icon'
 import { CalloutMarker } from './callout-marker'
+import { declutter } from '@/lib/guidance/declutter'
 import { ensureHazardSignImages, HAZARD_SIGN_IMAGE } from './hazard-sign-images'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import type { RouteSpan } from '@/lib/map-decks/deck.types'
@@ -21,6 +22,10 @@ const ROUTE = 'guidance-route'
 /** Read by the 3D bridge decks, which lift the route onto themselves. */
 export const GUIDANCE_ROUTE_SOURCE = ROUTE
 const HAZARDS = 'guidance-hazards'
+const SIGN_MIN_ZOOM = 14
+const OVERVIEW_SIGN_MIN_ZOOM = 12
+/** Closest two bubbles may sit in the overview before the farther one gives way. */
+const BUBBLE_SPACING_PX = 36
 /** Radius the route turns through junctions with. */
 const CORNER_METERS = 8
 
@@ -32,8 +37,11 @@ export interface HazardBubble { at: number; kind: RouteHazardKind; tone: HazardT
 export class GuidanceRouteLayer {
   private lastTravelled = -1
   private lastCallout: string | null = null
+  private calloutText: string | null = null
   private readonly callout: CalloutMarker
-  private readonly hazardMarkers = new Map<string, CalloutMarker>()
+  private readonly hazardMarkers = new Map<string, { marker: CalloutMarker; at: number }>()
+  private overview = false
+  private turnAt: number | null = null
   private lastHazards = ''
   private lastSignFilter = ''
   private progressAt: ((d: number) => number) | undefined
@@ -83,10 +91,11 @@ export class GuidanceRouteLayer {
         id: HAZARDS,
         type: 'symbol',
         source: HAZARDS,
-        minzoom: 14,
+        minzoom: SIGN_MIN_ZOOM,
         layout: {
           'icon-image': HAZARD_SIGN_IMAGE as never,
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 18, 1.15],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], OVERVIEW_SIGN_MIN_ZOOM, 0.6, SIGN_MIN_ZOOM, 0.8, 18, 1.15],
+          'symbol-sort-key': ['get', 'at'],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-pitch-alignment': 'viewport',
@@ -95,6 +104,27 @@ export class GuidanceRouteLayer {
       },
       slotBeforeId(map.getStyle().layers, 'top'),
     )
+    map.on('moveend', this.declutterHazards)
+  }
+
+  /** Browsing the route: signs from further out, colliding among themselves, and bubbles thinned on screen. */
+  setOverview(overview: boolean): void {
+    if (overview === this.overview) return
+    this.overview = overview
+    this.map.setLayerZoomRange(HAZARDS, overview ? OVERVIEW_SIGN_MIN_ZOOM : SIGN_MIN_ZOOM, 24)
+    this.map.setLayoutProperty(HAZARDS, 'icon-allow-overlap', !overview)
+    this.map.setLayoutProperty(HAZARDS, 'icon-ignore-placement', !overview)
+    if (overview) this.declutterHazards()
+    else for (const { marker } of this.hazardMarkers.values()) marker.setVisible(true)
+  }
+
+  private readonly declutterHazards = () => {
+    if (!this.overview) return
+    const entries = [...this.hazardMarkers.values()]
+    const project = (at: number) => this.map.project(lngLat(drawnPoint(this.route, at)))
+    const turn = this.turnAt == null ? [] : [project(this.turnAt)]
+    const kept = declutter([...turn, ...entries.map(({ at }) => project(at))], BUBBLE_SPACING_PX).slice(turn.length)
+    entries.forEach(({ marker }, i) => marker.setVisible(kept[i]))
   }
 
   private hazardData(): GeoJSON.FeatureCollection {
@@ -130,10 +160,12 @@ export class GuidanceRouteLayer {
       this.lastTravelled = travelled
       this.paint()
     }
-    this.filterSigns(travelled, callout?.at ?? null)
+    this.turnAt = callout?.at ?? null
+    this.filterSigns(travelled, this.turnAt)
     const key = callout && `${callout.at}|${callout.side}|${callout.kind}|${callout.text}|${callout.color}`
     if (key !== this.lastCallout) {
       this.lastCallout = key
+      this.calloutText = callout?.text ?? null
       this.callout.show(callout && {
         at: drawnPoint(this.route, callout.at),
         placement: callout.side,
@@ -163,8 +195,8 @@ export class GuidanceRouteLayer {
     for (const hazard of hazards) {
       const id = `${hazard.at}|${hazard.kind}`
       shown.add(id)
-      let marker = this.hazardMarkers.get(id)
-      if (!marker) this.hazardMarkers.set(id, (marker = new CalloutMarker(this.map)))
+      let marker = this.hazardMarkers.get(id)?.marker
+      if (!marker) this.hazardMarkers.set(id, { marker: (marker = new CalloutMarker(this.map)), at: hazard.at })
       marker.show({
         at: drawnPoint(this.route, hazard.at),
         placement: 'above',
@@ -174,11 +206,18 @@ export class GuidanceRouteLayer {
         ...HAZARD_TONE_COLORS[hazard.tone],
       })
     }
-    for (const [id, marker] of this.hazardMarkers) {
+    for (const [id, { marker }] of this.hazardMarkers) {
       if (shown.has(id)) continue
       marker.hide()
       this.hazardMarkers.delete(id)
     }
+    this.declutterHazards()
+  }
+
+  /** The next turn's bubble as drawn on screen. */
+  turnCalloutOnScreen(): { box: DOMRect; text: string } | null {
+    const box = this.callout.bounds()
+    return box && this.calloutText != null ? { box, text: this.calloutText } : null
   }
 
   /** Leaves the stretches laid over bridge decks to them. */
@@ -213,6 +252,7 @@ export class GuidanceRouteLayer {
   }
 
   destroy(): void {
+    this.map.off('moveend', this.declutterHazards)
     this.callout.hide()
     this.showHazards([])
     for (const id of [HAZARDS, ROUTE, `${ROUTE}-case`]) {

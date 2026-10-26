@@ -26,6 +26,8 @@ export type HazardSignKind = (typeof HAZARD_SIGN_KINDS)[number]
 const SIGNS = new Set<RouteHazardKind>(HAZARD_SIGN_KINDS)
 const DANGER_KINDS = new Set<RouteHazardKind>(['ford'])
 const MAX_CALLOUTS = 3
+/** Bounds the DOM markers a long route's overview mounts. */
+const MAX_ROUTE_CALLOUTS = 60
 const MIN_RANGE_METERS = 250
 const RANGE_SEC = 30
 /** Nearer the next turn than this, a bubble would sit on the turn's. */
@@ -49,20 +51,36 @@ export function hazardTone(kind: RouteHazardKind): HazardTone {
 export function hazardCallouts(route: NavRoute, s: number, speed: number, turnAt: number | null): HazardCallout[] {
   const range = Math.max(MIN_RANGE_METERS, speed * RANGE_SEC)
   const callouts: HazardCallout[] = []
-  let last = -Infinity
-  for (const hazard of route.hazards) {
-    const distance = hazard.startDistance - s
-    if (distance < 0) continue
-    if (distance > range || callouts.length === MAX_CALLOUTS) break
-    if (!isAlertable(hazard) || isHazardSign(hazard.kind) || isAtTurn(route, hazard)) continue
-    if (turnAt != null && Math.abs(hazard.startDistance - turnAt) < TURN_CLEARANCE_METERS) continue
-    if (hazard.startDistance - last < SPACING_METERS || nearSign(route, hazard)) continue
-    last = hazard.startDistance
+  for (const hazard of bubbleHazards(route, s, turnAt)) {
+    if (hazard.startDistance - s > range || callouts.length === MAX_CALLOUTS) break
     callouts.push({ hazard, tone: hazardTone(hazard.kind), compact: callouts.length > 0 })
   }
   return callouts
 }
 
-function nearSign(route: NavRoute, hazard: NavHazard): boolean {
-  return route.hazards.some(h => isHazardSign(h.kind) && Math.abs(h.startDistance - hazard.startDistance) < SPACING_METERS)
+/** Every bubble along the rest of the route, icon only, for browsing it zoomed out. */
+export function routeHazardCallouts(route: NavRoute, s: number, turnAt: number | null): HazardCallout[] {
+  const callouts: HazardCallout[] = []
+  for (const hazard of bubbleHazards(route, s, turnAt)) {
+    if (callouts.length === MAX_ROUTE_CALLOUTS) break
+    callouts.push({ hazard, tone: hazardTone(hazard.kind), compact: true })
+  }
+  return callouts
+}
+
+function* bubbleHazards(route: NavRoute, s: number, turnAt: number | null): Generator<NavHazard> {
+  const signs = route.hazards.filter(h => isHazardSign(h.kind)).map(h => h.startDistance)
+  let sign = 0
+  let last = -Infinity
+  for (const hazard of route.hazards) {
+    const at = hazard.startDistance
+    if (at < s) continue
+    if (!isAlertable(hazard) || isHazardSign(hazard.kind) || isAtTurn(route, hazard)) continue
+    if (turnAt != null && Math.abs(at - turnAt) < TURN_CLEARANCE_METERS) continue
+    while (sign < signs.length && signs[sign] <= at - SPACING_METERS) sign++
+    const nearSign = sign < signs.length && signs[sign] - at < SPACING_METERS
+    if (at - last < SPACING_METERS || nearSign) continue
+    last = at
+    yield hazard
+  }
 }

@@ -68,6 +68,8 @@ export interface FramingInput {
   travelMode: string
   /** Height of the unobstructed map, px. */
   visibleHeight: number
+  /** Speed to size the view for, m/s; defaults to the puck's, floored by `framingSpeed`. */
+  speed?: number
   tuning?: CameraTuning
 }
 
@@ -79,6 +81,8 @@ export interface CameraTarget {
   focal: number
   /** Seconds until the next framed maneuver; Infinity when none is near. */
   secondsToManeuver: number
+  /** A maneuver is close enough to be sizing the view instead of speed. */
+  framingManeuver: boolean
 }
 
 /** Continue, keep, merge and ramps don't change which road you're on; framing ignores them. */
@@ -98,7 +102,7 @@ function framedManeuversAhead(route: NavRoute, puck: PuckState, within: number) 
 }
 
 /** Speed the view is sized for: not below a share of the limit, so a red light doesn't zoom in. */
-function framingSpeed(route: NavRoute, puck: PuckState, travelMode: string): number {
+export function framingSpeed(route: NavRoute, puck: PuckState, travelMode: string): number {
   if (travelMode !== 'driving') return Math.max(puck.speed, travelMode === 'cycling' ? 4 : 1.3)
   const limitKmh = edgeAt(route, puck.s)?.speedLimit ?? edgeAt(route, puck.s)?.averageSpeed
   const floor = limitKmh ? (limitKmh / 3.6) * 0.7 : 6
@@ -118,7 +122,7 @@ export function frameCamera(input: FramingInput): CameraTarget {
   const tuning = input.tuning ?? DEFAULT_CAMERA_TUNING
   const { route, puck, mode, travelMode } = input
   const range = modeRange(travelMode)
-  const speed = framingSpeed(route, puck, travelMode)
+  const speed = input.speed ?? framingSpeed(route, puck, travelMode)
 
   const cruise = Math.min(range.maxAhead, Math.max(range.minAhead, speed * tuning.aheadSeconds))
   const upcoming = framedManeuversAhead(route, puck, cruise)
@@ -129,7 +133,8 @@ export function frameCamera(input: FramingInput): CameraTarget {
   const maneuver = upcoming[0] ?? null
   const toManeuver = maneuver ? maneuver.startDistance - puck.s : Infinity
   const zone = Math.max(range.minManeuverZone, speed * tuning.maneuverSeconds)
-  if (maneuver && toManeuver < zone) {
+  const framingManeuver = maneuver != null && toManeuver < zone
+  if (maneuver && framingManeuver) {
     const closeness = 1 - toManeuver / zone
     const framed = Math.max(range.minAhead, toManeuver + tuning.pastManeuver)
     ahead = Math.min(ahead, Math.max(framed, ahead * (1 - closeness)))
@@ -159,5 +164,6 @@ export function frameCamera(input: FramingInput): CameraTarget {
     bearing,
     focal,
     secondsToManeuver: maneuver ? toManeuver / Math.max(0.5, puck.speed) : Infinity,
+    framingManeuver,
   }
 }

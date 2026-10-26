@@ -29,6 +29,7 @@
 * Choose what navigation's speed card shows: the speed limit, your speed, both, or nothing, in Settings or the navigation menu.
 
 ### Changed
+* The route overview while navigating shows every hazard left on the route, thinned out when zoomed out.
 * Lane guidance draws each lane as one arrow that branches where it allows several turns, with the turn you need lit.
 * Arriving at your destination ends navigation on the destination's place page.
 
@@ -38,6 +39,9 @@
 * Your speed and the speed limit share one compact card that turns orange, then red, when you're over the limit. Navigation's cards, buttons and type now match the rest of the app.
 
 ### Fixed
+* Dragging, rotating or tilting the map while navigating lets you look around, not just zooming.
+* The navigation camera holds its zoom when your speed wavers by a few mph, and changes once when you really speed up or slow down.
+* Navigation no longer labels your position "Current Location", and the road name under it gives way to the turn callout instead of overlapping it.
 * Navigation shows one traffic light per intersection instead of one on each side of it.
 * Walking navigation notices a wrong turn much sooner and reroutes, and cycling a little sooner.
 * Searching for a place shows matches near you first, instead of a same-named place in another state.

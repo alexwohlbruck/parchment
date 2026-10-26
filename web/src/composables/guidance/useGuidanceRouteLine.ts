@@ -1,4 +1,4 @@
-import { onScopeDispose, watch } from 'vue'
+import { onScopeDispose, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useMapStore } from '@/stores/map.store'
@@ -11,7 +11,8 @@ import { distanceAlong, type NavRoute, type NavStep } from '@/lib/guidance/nav-r
 import { bridgeSpans, ridesAt } from '@/lib/guidance/deck-lift'
 import { drawnLine, drawnOffsetMeters } from '@/lib/guidance/route-line'
 import { turnCallout } from '@/lib/guidance/turn-callout'
-import { hazardCallouts } from '@/lib/guidance/hazard-callouts'
+import { hazardCallouts, routeHazardCallouts } from '@/lib/guidance/hazard-callouts'
+import type { CameraState } from '@/lib/guidance/camera-gesture'
 import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 
 /** Where along the route the line is drawn from: the travelled part, the next turn, and the hazards ahead. */
@@ -21,6 +22,8 @@ export interface RouteLineFocus {
   travelled: number
   next: NavStep | null
   hazards: boolean
+  /** Browsing the route rather than following: hazards along all of it. */
+  overview?: boolean
 }
 
 export interface RouteLineSource {
@@ -28,7 +31,7 @@ export interface RouteLineSource {
   focus: () => RouteLineFocus | null
 }
 
-function guidanceSource(): RouteLineSource {
+export function guidanceRouteSource(cameraState: Ref<CameraState>): RouteLineSource {
   const guidance = useGuidanceStore()
   return {
     route: () => guidance.route,
@@ -36,14 +39,20 @@ function guidanceSource(): RouteLineSource {
       const progress = guidance.progress
       if (!progress) return null
       const { puck } = progress
-      const next = guidance.status === 'away' ? null : progress.next
-      return { s: puck.s, speed: puck.speed, travelled: puck.snapped ? puck.s : 0, next, hazards: puck.snapped }
+      return {
+        s: puck.s,
+        speed: puck.speed,
+        travelled: puck.snapped ? puck.s : 0,
+        next: guidance.status === 'away' ? null : progress.next,
+        hazards: puck.snapped,
+        overview: cameraState.value !== 'following',
+      }
     },
   }
 }
 
 /** Draws the guided or previewed leg in place of the trip's route lines. */
-export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource()) {
+export function useGuidanceRouteLine(source: RouteLineSource) {
   const { t } = useI18n()
   const mapService = useMapService()
   const strategy = useMapStore().getMapStrategy()
@@ -88,6 +97,7 @@ export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource())
     focus => {
       const route = source.route()
       if (!layer || !focus || !route) return
+      layer.setOverview(!!focus.overview)
       const mode = travelModeAt(route, focus.s)
       strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
       const callout = calloutFor(route, focus.next)
@@ -104,8 +114,9 @@ export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource())
     return { at, side, kind, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
   }
 
-  function hazardsFor(route: NavRoute, { s, speed }: RouteLineFocus, turnAt: number | null) {
-    return hazardCallouts(route, s, speed, turnAt).map(({ hazard, tone, compact }) => ({
+  function hazardsFor(route: NavRoute, { s, speed, overview }: RouteLineFocus, turnAt: number | null) {
+    const callouts = overview ? routeHazardCallouts(route, s, turnAt) : hazardCallouts(route, s, speed, turnAt)
+    return callouts.map(({ hazard, tone, compact }) => ({
       at: hazard.startDistance,
       kind: hazard.kind,
       tone,
@@ -118,4 +129,6 @@ export function useGuidanceRouteLine(source: RouteLineSource = guidanceSource())
     stopProgress()
     clear()
   })
+
+  return { turnCalloutOnScreen: () => layer?.turnCalloutOnScreen() ?? null }
 }

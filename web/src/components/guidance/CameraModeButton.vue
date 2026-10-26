@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { BoxIcon, CompassIcon, LocateFixedIcon, Navigation2Icon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import type { CameraMode } from '@/lib/guidance/camera-framing'
-import type { CameraState } from '@/composables/guidance/useGuidanceCamera'
+import type { CameraState } from '@/lib/guidance/camera-gesture'
 
 const props = defineProps<{ mode: CameraMode; state: CameraState }>()
 defineEmits<{ press: [] }>()

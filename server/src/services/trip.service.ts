@@ -3508,6 +3508,8 @@ export class TripService {
     if (!hit) {
       hit = transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair)
       this.entranceCache.set(key, hit)
+      // A failed lookup also comes back null, so only a found entrance is kept.
+      hit.then((entrance) => { if (!entrance) this.entranceCache.delete(key) })
       if (this.entranceCache.size > TripService.ENTRANCE_CACHE_MAX) {
         // Drop the oldest entry — simple FIFO trim is enough here
         const oldest = this.entranceCache.keys().next().value

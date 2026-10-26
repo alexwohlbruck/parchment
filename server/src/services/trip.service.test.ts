@@ -2925,6 +2925,23 @@ describe('TripService — fare gate delay', () => {
   })
 })
 
+describe('TripService — entrance cache', () => {
+  test('retries a lookup that found nothing instead of caching it', async () => {
+    const found = { osmId: 'n9', lat: 40.1, lon: -73.1, accessType: 'subway_entrance' }
+    let calls = 0
+    mockGetNearestEntrance.mockImplementation(async () => (++calls === 1 ? null : found) as any)
+    try {
+      const lookup = () => (tripService as any).cachedNearestEntrance(40.1, -73.1, 150)
+      expect(await lookup()).toBeNull()
+      expect(await lookup()).toEqual(found)
+      expect(await lookup()).toEqual(found)
+      expect(calls).toBe(2)
+    } finally {
+      mockGetNearestEntrance.mockImplementation(async () => null)
+    }
+  })
+})
+
 describe('TripService — destination-signed entrances', () => {
   // The ride runs north from Stop A to Stop B; one side of Stop B is signed
   // for a place to the south, the other for a place to the north.

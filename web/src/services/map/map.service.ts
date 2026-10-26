@@ -707,6 +707,8 @@ function mapService() {
 
   function flyTo(camera: Partial<MapCamera>) {
     const adjustedCamera = adjustCameraForVisibleCenter(camera)
+    // A padding change mid-flight is a jumpTo that would stop the flight dead.
+    paddingHold.begin((camera.duration ?? 1000) + 100)
     mapStrategy.flyTo(adjustedCamera)
   }
 

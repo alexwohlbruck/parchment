@@ -86,6 +86,10 @@ export interface Waypoint {
   arriveBy?: string
   /** Minutes to spend at this waypoint before continuing. */
   dwellTime?: number
+
+  /** The traveller's compass heading and speed (m/s) when the origin is where they are now. */
+  heading?: number
+  speed?: number
 }
 
 export interface Vehicle {

@@ -48,6 +48,12 @@ const WaypointSchema = t.Object({
   departAfter: t.Optional(t.String({ format: 'date-time' })),
   arriveBy: t.Optional(t.String({ format: 'date-time' })),
   dwellTime: t.Optional(t.Number({ minimum: 0 })),
+  heading: t.Optional(t.Number({
+    minimum: 0,
+    maximum: 360,
+    description: 'Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.',
+  })),
+  speed: t.Optional(t.Number({ minimum: 0, description: 'Origin only: the device speed in m/s.' })),
 })
 
 const VehicleSchema = t.Object({
@@ -186,6 +192,8 @@ app.post(
           departAfter: wp.departAfter,
           arriveBy: wp.arriveBy,
           dwellTime: wp.dwellTime,
+          heading: wp.heading,
+          speed: wp.speed,
         })),
         selectedMode: body.selectedMode,
         sortPreference: body.sortPreference as any,
@@ -258,7 +266,9 @@ app.post(
         + 'routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for '
         + 'cycling, the bike lane, or beside the traffic), with `measures` giving the distance along '
         + '`geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per '
-        + 'instruction index, the approach lanes left to right and which lead on.',
+        + 'instruction index, the approach lanes left to right and which lead on. An origin with '
+        + '`heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that '
+        + 'direction; walking routes ignore it.',
       tags: ['Trip Planning'],
     },
   },

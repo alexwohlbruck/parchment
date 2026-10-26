@@ -19,8 +19,6 @@ import type {
   TransitRouteRequest,
   IntermodalRouteRequest,
   TransitRouteResponse,
-  NearbyStopsRequest,
-  NearbyStopResult,
   StopRouteResult,
   StopDeparturesQuery,
   MapBounds,
@@ -66,9 +64,11 @@ import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
  *
- * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
- * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
- * — 100+ concurrent requests for one user action, none of it capped. Under
+ * A single intermodal trip plan fans out hard: up to seven intermodal queries
+ * of up to 10 itineraries each (and barrelman fans a walk search out to up to
+ * 16 station-pair MOTIS queries of its own), each itinerary re-routing 2-3
+ * walk legs through GraphHopper — 100+ concurrent requests for one user
+ * action, none of it capped. Under
  * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
  * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
  * closed unexpectedly"). Every later request blocks behind it and the app
@@ -365,7 +365,6 @@ export class BarrelmanIntegration
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
-      getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
       getStopDepartures: this.getStopDepartures.bind(this),
@@ -1495,36 +1494,6 @@ export class BarrelmanIntegration
       throw new Error(
         `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       )
-    }
-  }
-
-  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
-    const { host, apiKey } = this.config
-    if (!apiKey) throw new Error('Barrelman API key not configured')
-
-    const params = new URLSearchParams({
-      lat: String(request.lat),
-      lng: String(request.lng),
-    })
-    if (request.radius != null) params.set('radius', String(request.radius))
-    if (request.limit != null) params.set('limit', String(request.limit))
-
-    try {
-      const response = await transitGate.run(TransitPriority.Enrichment, () =>
-        barrelmanHttp.get(
-          `${host}/transit/stops?${params}`,
-          {
-            headers: this.headers,
-            timeout: 10_000,
-          },
-        ),
-      )
-      return response.data
-    } catch (error: any) {
-      if (error.response) {
-        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
-      }
-      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

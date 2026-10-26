@@ -294,7 +294,6 @@ export interface TransitRoutingCapability {
     request: IntermodalRouteRequest,
     priority?: TransitPriority,
   ): Promise<TransitRouteResponse>
-  getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
   getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
   /** Departure boards for one stop's station, from `time` for `windowMinutes`. */
@@ -426,27 +425,6 @@ export interface TransitLegPlace {
   arrival?: string
   departure?: string
   platformCode?: string
-}
-
-export interface NearbyStopsRequest {
-  lat: number
-  lng: number
-  radius?: number
-  limit?: number
-}
-
-export interface NearbyStopResult {
-  stopId: string
-  feedId: string
-  stopName: string
-  stopCode: string | null
-  lat: number
-  lng: number
-  distance: number
-  locationType: number
-  parentStation: string | null
-  wheelchairBoarding: number
-  platformCode: string | null
 }
 
 export interface StopRouteResult {

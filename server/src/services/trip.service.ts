@@ -43,11 +43,11 @@ import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from 
 import { nameLegByRoute } from '../lib/transit/line-name'
 import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
+import { haversineMeters } from '../util/geometry-conversion'
+import { MemoCache } from '../lib/memo-cache'
 
-/**
- * Simplified multimodal trip planning service
- * Supports: walking, driving, biking with optional vehicle locations
- */
+const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
+
 /** A leg that carries an already-chosen journey on to the next stop. */
 interface Continuation {
   strategy: string
@@ -140,10 +140,10 @@ export class TripService {
     // routed drive and walk for every candidate space, which is most of the
     // routing a short trip does. An explicit driving request still gets it.
     const drivingIsPlausible = request.selectedMode === 'driving'
-      || TripService.haversineDistance(
+      || metersBetween(
         request.waypoints[0].location,
         request.waypoints[request.waypoints.length - 1].location,
-      ) >= TripService.PARK_AND_RIDE_MIN_M
+      ) >= TripService.WALKABLE_TRIP_M
 
     if (useParking) {
       if (modes.includes('driving') && drivingIsPlausible) {
@@ -176,10 +176,13 @@ export class TripService {
     // Collapse trips that differ only by an interchangeable route (the 4 vs the
     // 5 on shared express tracks) into a single "4 or 5" trip, so the rider
     // sees one option boarding whichever train comes first.
-    const mergedCandidates = this.mergeInterchangeableTrips(candidates)
+    const arrivalTarget = this.getArrivalTarget(request)
+    const mergedCandidates = this.mergeInterchangeableTrips(
+      candidates, request.sortPreference, arrivalTarget != null,
+    )
 
     const rankedTrips: TripCandidate[] = this.filterQualityTrips(
-      this.scoreAndOrder(request, mergedCandidates, this.getArrivalTarget(request)),
+      this.scoreAndOrder(request, mergedCandidates, arrivalTarget),
       request.sortPreference,
       request.selectedMode === 'multi',
     )
@@ -223,7 +226,6 @@ export class TripService {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: waypoints[0].location,
       currentMode: 'transit',
-      parkedVehicles: [],
     })
 
     const first = await this.planLegTrip(
@@ -294,7 +296,6 @@ export class TripService {
       currentTime: seed.trip.latestEndTime,
       currentLocation: waypoints[1].location,
       currentMode: 'transit',
-      parkedVehicles: [],
     }
 
     for (let i = 1; i < waypoints.length - 1; i++) {
@@ -508,8 +509,6 @@ export class TripService {
     const fare = this.sumLegFares(legs)
     if (fare) tripStats.totalCost = fare
 
-    const parkedVehicles = legs.flatMap((trip) => trip.parkedVehicles ?? [])
-
     return {
       segments,
       tripStats,
@@ -519,7 +518,6 @@ export class TripService {
       latestEndTime: segments[segments.length - 1]?.endTime
         ?? new Date().toISOString(),
       ...(warnings.length > 0 && { warnings }),
-      ...(parkedVehicles.length > 0 && { parkedVehicles }),
       dataSources,
       requestId: request.requestId,
       generatedAt: new Date().toISOString(),
@@ -570,8 +568,8 @@ export class TripService {
   /**
    * Collapse trips that are identical except for an interchangeable transit
    * route — same board→…→alight stop sequence and direction, different route
-   * id (the 4 and the 5 sharing express tracks). The survivor keeps the
-   * soonest-departing trip's timing and gains `routeOptions` on each merged
+   * id (the 4 and the 5 sharing express tracks). The survivor is the one
+   * scoreAndOrder would rank first, and gains `routeOptions` on each merged
    * transit leg; the trip-detail board later unions their schedules.
    *
    * Trips merge only when EVERY corresponding segment matches: non-transit
@@ -582,7 +580,11 @@ export class TripService {
    * express→local-transfer case falls out for free: each leg is keyed
    * independently, so the express legs merge and the local leg stays put.
    */
-  private mergeInterchangeableTrips(trips: TripResponse[]): TripResponse[] {
+  private mergeInterchangeableTrips(
+    trips: TripResponse[],
+    sortPreference?: SortPreference,
+    arriveBy = false,
+  ): TripResponse[] {
     const groups = new Map<string, TripResponse[]>()
     for (const trip of trips) {
       const sig = TripService.tripMergeSignature(trip)
@@ -592,7 +594,7 @@ export class TripService {
     }
     const out: TripResponse[] = []
     for (const group of groups.values()) {
-      out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group))
+      out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group, sortPreference, arriveBy))
     }
     return out
   }
@@ -637,30 +639,19 @@ export class TripService {
   }
 
   /** Boards are cached briefly per five-minute bucket, so nearby legs share one fetch. */
-  private stopBoardCache = new Map<string, { at: number; boards: Promise<StopBoard[] | null> }>()
+  private stopBoardCache = new MemoCache<StopBoard[] | null>({ max: 300, ttlMs: 60_000 })
   private static readonly STOP_BOARD_BUCKET_MS = 5 * 60_000
-  private static readonly STOP_BOARD_TTL_MS = 60_000
-  private static readonly STOP_BOARD_CACHE_MAX = 300
 
   private cachedStopBoards(feedId: string, stopId: string, fromMs: number): Promise<StopBoard[] | null> {
     const bucket = Math.floor(fromMs / TripService.STOP_BOARD_BUCKET_MS) * TripService.STOP_BOARD_BUCKET_MS
-    const key = `${feedId}|${stopId}|${bucket}`
-    const hit = this.stopBoardCache.get(key)
-    if (hit && Date.now() - hit.at < TripService.STOP_BOARD_TTL_MS) return hit.boards
-    const boards = transitRoutingService.getStopDepartures({
-      feedId,
-      stopId,
-      time: new Date(bucket).toISOString(),
-      windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
-      n: ROUTE_SERVICE_BOARD_EVENTS,
-    })
-    this.stopBoardCache.delete(key)
-    this.stopBoardCache.set(key, { at: Date.now(), boards })
-    if (this.stopBoardCache.size > TripService.STOP_BOARD_CACHE_MAX) {
-      const oldest = this.stopBoardCache.keys().next().value
-      if (oldest) this.stopBoardCache.delete(oldest)
-    }
-    return boards
+    return this.stopBoardCache.get(`${feedId}|${stopId}|${bucket}`, () =>
+      transitRoutingService.getStopDepartures({
+        feedId,
+        stopId,
+        time: new Date(bucket).toISOString(),
+        windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
+        n: ROUTE_SERVICE_BOARD_EVENTS,
+      }))
   }
 
   /**
@@ -690,18 +681,18 @@ export class TripService {
   }
 
   /**
-   * Merge a group of interchangeable trips into the soonest-departing one,
+   * Merge a group of interchangeable trips into its best departure,
    * annotating each transit leg with the full set of routes that serve it.
-   * Also de-duplicates repeated departures of the same route (keeping the
-   * soonest) since those share the signature too.
+   * Also de-duplicates repeated departures of the same route, since those
+   * share the signature too.
    */
-  private mergeTripGroup(group: TripResponse[]): TripResponse {
+  private mergeTripGroup(
+    group: TripResponse[],
+    sortPreference?: SortPreference,
+    arriveBy = false,
+  ): TripResponse {
     const survivor = group.reduce((a, b) =>
-      new Date(b.earliestStartTime).getTime() <
-      new Date(a.earliestStartTime).getTime()
-        ? b
-        : a,
-    )
+      TripService.betterDeparture(a, b, sortPreference, arriveBy))
     survivor.segments = survivor.segments.map((seg, idx) => {
       if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
       if (!TripService.offersRouteOptions(seg.details.transitDetails.route.type)) return seg
@@ -738,6 +729,33 @@ export class TripService {
   }
 
   /**
+   * The better of two departures of one journey, by the keys scoreAndOrder
+   * ranks on: the named sort's metric, then for an unsorted arrive-by the
+   * latest departure, otherwise the earliest arrival, then the shorter ride.
+   */
+  private static betterDeparture(
+    a: TripResponse,
+    b: TripResponse,
+    sortPreference: SortPreference | undefined,
+    arriveBy: boolean,
+  ): TripResponse {
+    const ms = (iso: string) => new Date(iso).getTime()
+    const keys: Array<(t: TripResponse) => number> = [
+      (t) => (sortPreference ? TripService.SORT_METRICS[sortPreference]({ trip: t }) : 0),
+      arriveBy && !sortPreference
+        ? (t) => -ms(t.earliestStartTime)
+        : (t) => ms(t.latestEndTime),
+      (t) => t.tripStats.totalDuration,
+    ]
+    for (const key of keys) {
+      const d = key(a) - key(b)
+      if (d < 0) return a
+      if (d > 0) return b
+    }
+    return a
+  }
+
+  /**
    * Commuter rail branches share a trunk but not a destination, and their
    * short names are train numbers, so a rail leg names the one train boarded.
    */
@@ -759,7 +777,6 @@ export class TripService {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: request.waypoints[0].location,
       currentMode: mode,
-      parkedVehicles: [],
     }
 
     const preferencesWithLanguage = {
@@ -1026,7 +1043,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'walking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -1142,14 +1158,6 @@ export class TripService {
           currentTime: driveSegment.endTime,
           currentLocation: to.location,
           currentMode: 'driving',
-          parkedVehicles: [
-            ...state.parkedVehicles,
-            {
-              vehicle: car,
-              location: to.location,
-              parkedAt: driveSegment.endTime,
-            },
-          ],
         },
       }
     } catch (error) {
@@ -1215,7 +1223,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'driving',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -1302,7 +1309,7 @@ export class TripService {
         return {
           place: p,
           coord: center,
-          distToDest: TripService.haversineDistance(center, to.location),
+          distToDest: metersBetween(center, to.location),
         }
       })
       .sort((a, b) => a.distToDest - b.distToDest)
@@ -1331,7 +1338,7 @@ export class TripService {
 
         // Step 1: Walk to car (if car is elsewhere)
         if (carLocation) {
-          const distToCar = TripService.haversineDistance(
+          const distToCar = metersBetween(
             from.location,
             carLocation,
           )
@@ -1495,14 +1502,6 @@ export class TripService {
           dataSources,
           requestId: request.requestId,
           generatedAt: new Date().toISOString(),
-          parkedVehicles: car
-            ? [{
-                vehicle: car,
-                location: parkingCoord,
-                parkedAt: driveSegment.endTime,
-                cost: parkingCost,
-              }]
-            : undefined,
         }
         return { trip, totalDuration }
       } catch (error) {
@@ -1586,7 +1585,7 @@ export class TripService {
         return {
           place: p,
           coord: center,
-          distToDest: TripService.haversineDistance(center, to.location),
+          distToDest: metersBetween(center, to.location),
         }
       })
       .sort((a, b) => a.distToDest - b.distToDest)
@@ -1615,7 +1614,7 @@ export class TripService {
         // Step 1: Walk to bike (if bike is elsewhere)
         let rideOrigin = from.location
         if (bikeLocation) {
-          const distToBike = TripService.haversineDistance(
+          const distToBike = metersBetween(
             from.location,
             bikeLocation,
           )
@@ -1755,13 +1754,6 @@ export class TripService {
           dataSources,
           requestId: request.requestId,
           generatedAt: new Date().toISOString(),
-          parkedVehicles: bike
-            ? [{
-                vehicle: bike,
-                location: parkingCoord,
-                parkedAt: bikeSegment.endTime,
-              }]
-            : undefined,
         }
         return { trip, totalDuration }
       } catch (error) {
@@ -1807,7 +1799,7 @@ export class TripService {
     const start = second?.[0]
     if (!end || !start) return true // can't tell — don't reject
     return (
-      TripService.haversineDistance(end, start) <=
+      metersBetween(end, start) <=
       TripService.PARKING_CONNECT_MAX_GAP
     )
   }
@@ -1961,7 +1953,6 @@ export class TripService {
           currentTime: bikeSegment.endTime,
           currentLocation: to.location,
           currentMode: 'biking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -2031,7 +2022,6 @@ export class TripService {
           currentTime: segment.endTime,
           currentLocation: to.location,
           currentMode: 'biking',
-          parkedVehicles: state.parkedVehicles,
         },
       }
     } catch (error) {
@@ -2163,40 +2153,18 @@ export class TripService {
 
   // ── Intermodal transit planning (MOTIS unified graph) ─────────────
 
-  /**
-   * Plan transit trips using MOTIS intermodal routing.
-   *
-   * Instead of manually enumerating access/egress mode combinations and
-   * querying MOTIS separately for each, this sends 1-3 MOTIS queries that
-   * handle walk/bike/car/bikeshare access/egress natively within the
-   * unified graph (OSM + GTFS + GBFS).
-   *
-   * Rideshare combinations are derived from the walk-access results since
-   * rideshare isn't a MOTIS-routable mode.
-   */
   /** What leaving the paid area costs a transfer, as time: a second fare
    *  at the value of time plus finding the other station's entrance. */
   private static readonly STREET_TRANSFER_PENALTY_SEC = 600
 
   /** Routes at a stop; static GTFS, cached for the process. */
-  private stopRouteCache = new Map<string, Promise<StopRouteResult[] | null>>()
-  private static readonly STOP_ROUTE_CACHE_MAX = 2000
+  private stopRouteCache = new MemoCache<StopRouteResult[] | null>({ max: 2000, keep: (r) => r != null })
 
   private stopRoutes(feedId: string, stopId: string): Promise<StopRouteResult[] | null> {
-    const key = `${feedId}|${stopId}`
-    let hit = this.stopRouteCache.get(key)
-    if (!hit) {
-      hit = Promise.resolve()
+    return this.stopRouteCache.get(`${feedId}|${stopId}`, () =>
+      Promise.resolve()
         .then(() => transitRoutingService.getRoutesForStop(feedId, stopId))
-        .catch(() => null)
-      this.stopRouteCache.set(key, hit)
-      hit.then((routes) => { if (!routes) this.stopRouteCache.delete(key) })
-      if (this.stopRouteCache.size > TripService.STOP_ROUTE_CACHE_MAX) {
-        const oldest = this.stopRouteCache.keys().next().value
-        if (oldest) this.stopRouteCache.delete(oldest)
-      }
-    }
-    return hit
+        .catch(() => null))
   }
 
   /** Lines reachable in-system from a station. */
@@ -2253,6 +2221,16 @@ export class TripService {
       .join('|')
   }
 
+  /**
+   * Plan transit trips using MOTIS intermodal routing, which handles walk,
+   * bike, car and bikeshare access and egress natively within one graph
+   * (OSM + GTFS + GBFS). Each access strategy is its own query: walk, a
+   * few-transfers walk sweep, rental egress, park-and-ride, bike-to-station
+   * and bike carry-on, trimmed to what a continuation still needs.
+   *
+   * Rideshare combinations are derived from the walk-access results since
+   * rideshare isn't a MOTIS-routable mode.
+   */
   private async planIntermodalTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
@@ -2264,12 +2242,10 @@ export class TripService {
     const from = request.waypoints[0]
     const to = request.waypoints[request.waypoints.length - 1]
 
-    // Skip transit for very short trips in multi-mode — MOTIS exhaustively
-    // searches transit even when walking is clearly faster, causing
-    // multi-second delays for trips under ~1.5km. An explicit transit
-    // request always runs the query.
-    const dist = TripService.haversineDistance(from.location, to.location)
-    if (dist < 1500 && request.selectedMode !== 'transit') return []
+    // MOTIS searches exhaustively even when walking clearly wins, which
+    // costs seconds on a walkable trip nobody asked to ride.
+    const dist = metersBetween(from.location, to.location)
+    if (dist < TripService.WALKABLE_TRIP_M && request.selectedMode !== 'transit') return []
 
     // Scale search scope to trip distance — shorter trips need less
     // walking radius, longer trips can afford more RAPTOR iterations
@@ -2303,19 +2279,11 @@ export class TripService {
     const fetchMotis = (
       label: string,
       req: import('../types/integration.types').IntermodalRouteRequest,
-      priority = TransitPriority.Variant,
-    ) => {
-      return transitRoutingService.getIntermodalRoute(req, priority)
-        .then(r => r.itineraries ?? [])
-        .catch(e => {
-          logError(`Intermodal query (${label}) failed`, e)
-          return [] as import('../types/integration.types').TransitItinerary[]
-        })
-    }
+      priority?: TransitPriority,
+    ) => this.queryIntermodal(label, req, priority).then(r => r?.itineraries ?? [])
 
-    // Barrelman ranks by ride duration and returns each departure once per
-    // access-walk variant, so a short page is spent on later trains with
-    // quicker rides and drops the one leaving first. Ask for its maximum.
+    // Barrelman ranks by arrival and lists each ride once, so its maximum is
+    // ten distinct departures and lines to build the shortlist from.
     const walkFetch = fetchMotis('walk', {
       ...baseRequest,
       numItineraries: isContinuation || isMulti
@@ -2328,9 +2296,9 @@ export class TripService {
     }, TransitPriority.Core)
 
     // Few-transfers sweep: time-optimal RAPTOR never returns a one-seat ride
-    // that arrives after a transfer combo — a heavy per-interchange pad makes
-    // it surface simpler itineraries. Skipped in multi mode (3 itineraries is
-    // already enough for a mode overview).
+    // that arrives after a transfer combo, so a heavy per-interchange pad
+    // surfaces simpler itineraries. Only works because barrelman forwards
+    // `additionalTransferTime` to MOTIS. Skipped in multi and continuations.
     const fewTransfersFetch = isMulti || isContinuation
       ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
       : fetchMotis('fewTransfers', {
@@ -2438,16 +2406,11 @@ export class TripService {
       }
     }
 
-    const [adapted, extraResults] = await Promise.all([
-      Promise.all(
-        uniqueItineraries.map(itin =>
-          this.adaptIntermodalItinerary(itin, from, to, startTime, dataSources, preferences),
-        ),
-      ),
+    const [adaptedTrips, extraResults] = await Promise.all([
+      this.adaptIntermodalItineraries(uniqueItineraries, from, to, startTime, dataSources, preferences),
       extraPromise,
     ])
 
-    const adaptedTrips = adapted.filter((t): t is TripResponse => t !== null)
     await this.flagStreetTransfers(adaptedTrips)
     const transitTrips = dropAvoidableStreetTransfers(
       adaptedTrips,
@@ -2485,16 +2448,13 @@ export class TripService {
     request: TripRequest,
     dataSources: DataSource[],
   ): Promise<TripResponse[]> {
-    // Single origin→destination only — chained shared rides aren't modelled.
-    if (request.waypoints.length > 2) return []
-
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]
     const to = request.waypoints[request.waypoints.length - 1]
 
     // Under ~500 m walking wins and fetching a bike is pointless overhead.
-    const dist = TripService.haversineDistance(from.location, to.location)
+    const dist = metersBetween(from.location, to.location)
     if (dist < 500) return []
 
     const arrivalTarget = this.getArrivalTarget(request)
@@ -2504,6 +2464,7 @@ export class TripService {
     )
 
     const trips = await this.executeIntermodalQuery(
+      'shared',
       {
         from: from.location,
         to: to.location,
@@ -2648,7 +2609,7 @@ export class TripService {
 
       if (vehicleLocation) {
         queryFrom = vehicleLocation
-        const distToVehicle = TripService.haversineDistance(
+        const distToVehicle = metersBetween(
           from.location,
           vehicleLocation,
         )
@@ -2670,6 +2631,7 @@ export class TripService {
       }
 
       const trips = await this.executeIntermodalQuery(
+        `${rideMode}-access`,
         { ...query, from: queryFrom, time: queryTime },
         from, to, startTime, dataSources, preferences,
       )
@@ -2698,12 +2660,6 @@ export class TripService {
               totalCost.value += driveCost
             }
             // Non-USD fare: skip folding rather than mixing currencies
-
-            trip.parkedVehicles = [{
-              vehicle,
-              location: rideSeg.end.location,
-              parkedAt: rideSeg.endTime,
-            }]
           }
         }
 
@@ -2716,8 +2672,8 @@ export class TripService {
           // departure the rider hasn't reached yet.
           const earliestRide = new Date(startTime).getTime()
             + (walkToVehicle ? walkToVehicle.duration * 1000 : 0)
-          if (!(await this.parkBikeBeforeBoarding(
-            trip, vehicle, preferences, earliestRide,
+          if (!(await this.parkBike(
+            trip, { at: 'boarding', earliestRide }, preferences,
           ))) continue
         }
 
@@ -2763,41 +2719,25 @@ export class TripService {
   /** Whether the transit provider checks bike carriage. Null until asked. */
   private enforcesBikeCarriage: boolean | null = null
 
-  /** Cached nearest-rack lookups — bicycle parking is static OSM data. */
-  private stationRackCache = new Map<string, Promise<Place | null>>()
-  private static readonly STATION_RACK_CACHE_MAX = 200
+  /**
+   * Nearest-rack lookups; bicycle parking is static OSM data. A failed POI
+   * search comes back empty, indistinguishable from a station with no rack,
+   * so only a rack actually found is remembered.
+   */
+  private stationRackCache = new MemoCache<Place | null>({ max: 200, keep: (rack) => rack != null })
 
   private cachedStationRack(at: Coordinate): Promise<Place | null> {
-    const key = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`
-    let hit = this.stationRackCache.get(key)
-    if (!hit) {
-      hit = this.searchNearbyParking(
-        at,
-        TripService.STATION_RACK_RADIUS_M,
-        'amenity/bicycle_parking',
-      ).then(places =>
-        places.reduce<Place | null>(
+    return this.stationRackCache.get(`${at.lat.toFixed(5)},${at.lng.toFixed(5)}`, () =>
+      this.searchNearbyParking(at, TripService.STATION_RACK_RADIUS_M, 'amenity/bicycle_parking')
+        .then((places) => places.reduce<Place | null>(
           (best, p) =>
             !best ||
-            TripService.haversineDistance(p.geometry.value.center, at) <
-              TripService.haversineDistance(best.geometry.value.center, at)
+            metersBetween(p.geometry.value.center, at) <
+              metersBetween(best.geometry.value.center, at)
               ? p
               : best,
           null,
-        ),
-      )
-      // A POI search that failed comes back empty, indistinguishable from a
-      // station with no rack — and caching that drops bike-to-station there
-      // for the life of the process. Only a rack we actually found is worth
-      // remembering.
-      hit.then((rack) => { if (!rack) this.stationRackCache.delete(key) })
-      this.stationRackCache.set(key, hit)
-      if (this.stationRackCache.size > TripService.STATION_RACK_CACHE_MAX) {
-        const oldest = this.stationRackCache.keys().next().value
-        if (oldest) this.stationRackCache.delete(oldest)
-      }
-    }
-    return hit
+        )))
   }
 
   /** One routed leg between two points, or null if routing can't answer. */
@@ -2821,29 +2761,33 @@ export class TripService {
   }
 
   /**
-   * Rewrite a bike-access transit trip so the ride ends locked to a real rack.
+   * Re-aim a bike leg at the nearest real rack and walk on from it, because
+   * MOTIS never puts the bike down. At `boarding` the ride to the station is
+   * timed back from the hand-off, so boarding is unchanged and the rider sets
+   * off earlier. At `destination` a carried bike's closing ride is timed
+   * forward from its start, so the trip simply arrives later.
    *
-   * MOTIS's BIKE access mode rides to the boarding stop and says nothing about
-   * what becomes of the bike, so everything after it walks away from a bike it
-   * never put down. Re-aims the ride at the nearest rack and walks in from
-   * there, back-timed off the original hand-off so boarding time is unchanged
-   * — the rider sets off earlier instead.
-   *
-   * Returns false when the stop has no reachable rack: there is nowhere to
-   * leave the bike, so it isn't a trip the rider could actually take.
+   * Returns false when there is nowhere reachable to leave the bike, so it
+   * isn't a trip the rider could actually take.
    */
-  private async parkBikeBeforeBoarding(
+  private async parkBike(
     trip: TripResponse,
-    vehicle: Vehicle | null,
+    end: { at: 'boarding'; earliestRide: number } | { at: 'destination'; destination: Waypoint },
     preferences: any,
-    earliestRide: number,
   ): Promise<boolean> {
-    const rideIdx = trip.segments.findIndex(s => s.mode === 'biking')
-    const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
-    if (rideIdx === -1 || boardIdx === -1 || rideIdx > boardIdx) return true
+    const boarding = end.at === 'boarding'
+    const rideIdx = boarding
+      ? trip.segments.findIndex(s => s.mode === 'biking')
+      : trip.segments.findLastIndex(s => s.mode === 'biking')
+    if (rideIdx === -1) return true
+    if (boarding) {
+      const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
+      if (boardIdx === -1 || rideIdx > boardIdx) return true
+    }
 
     const ride = trip.segments[rideIdx]
-    const rack = await this.cachedStationRack(ride.end.location)
+    const walkTo = end.at === 'boarding' ? ride.end : end.destination
+    const rack = await this.cachedStationRack(walkTo.location)
     if (!rack) return false
 
     const rackWaypoint: Waypoint = {
@@ -2853,82 +2797,82 @@ export class TripService {
       place: rack,
     }
 
-    const [toRack, toStop] = await Promise.all([
+    const [toRack, walk] = await Promise.all([
       this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
-      this.routeLeg(rackWaypoint.location, ride.end.location, 'pedestrian', preferences),
+      this.routeLeg(rackWaypoint.location, walkTo.location, 'pedestrian', preferences),
     ])
 
     // A routing outage says nothing about whether the rack is usable, so the
     // trip stands as MOTIS planned it rather than vanishing over a blip.
-    if (!toRack || !toStop) return true
-    // Rack snapped across a barrier — walking in from it would teleport.
-    if (!this.segmentsConnect(toRack.geometry, toStop.geometry)) return false
+    if (!toRack || !walk) return true
+    // Rack snapped across a barrier — walking on from it would teleport.
+    if (!this.segmentsConnect(toRack.geometry, walk.geometry)) return false
 
-    const handoff = new Date(ride.endTime).getTime()
-    const walkStart = handoff - toStop.duration * 1000
-    const rideEnd = walkStart - TripService.BIKE_LOCK_DELAY_SEC * 1000
-    const rideStart = rideEnd - toRack.duration * 1000
-
-    // Setting off before the rider can leave isn't a trip — this boarding is
-    // out of reach by way of the rack, so the next itinerary gets a turn.
-    if (rideStart < earliestRide) return false
+    const lockMs = TripService.BIKE_LOCK_DELAY_SEC * 1000
+    let rideStart: number, rideEnd: number, walkStart: number, walkEnd: number
+    if (end.at === 'boarding') {
+      walkEnd = new Date(ride.endTime).getTime()
+      walkStart = walkEnd - walk.duration * 1000
+      rideEnd = walkStart - lockMs
+      rideStart = rideEnd - toRack.duration * 1000
+      // Setting off before the rider can leave isn't a trip — this boarding is
+      // out of reach by way of the rack, so the next itinerary gets a turn.
+      if (rideStart < end.earliestRide) return false
+    } else {
+      rideStart = new Date(ride.startTime).getTime()
+      rideEnd = rideStart + toRack.duration * 1000
+      walkStart = rideEnd + lockMs
+      walkEnd = walkStart + walk.duration * 1000
+    }
 
     const parkedRide: TripSegment = {
       ...ride,
+      ...TripService.routedLegFields(toRack),
       end: rackWaypoint,
       startTime: new Date(rideStart).toISOString(),
       endTime: new Date(rideEnd).toISOString(),
-      duration: toRack.duration,
-      distance: toRack.distance,
-      geometry: toRack.geometry,
-      instructions: toRack.instructions,
-      totalElevationGain: toRack.totalElevationGain,
-      totalElevationLoss: toRack.totalElevationLoss,
-      maxElevation: toRack.maxElevation,
-      minElevation: toRack.minElevation,
-      edgeSegments: toRack.edgeSegments,
     }
-
-    const walkIn: TripSegment = {
+    const walkOn: TripSegment = {
+      ...TripService.routedLegFields(walk),
       segmentIndex: 0,
       mode: 'walking',
       start: rackWaypoint,
-      end: ride.end,
+      end: walkTo,
       startTime: new Date(walkStart).toISOString(),
-      endTime: new Date(handoff).toISOString(),
-      duration: toStop.duration,
-      distance: toStop.distance,
-      geometry: toStop.geometry,
-      instructions: toStop.instructions,
+      endTime: new Date(walkEnd).toISOString(),
       co2: 0,
-      totalElevationGain: toStop.totalElevationGain,
-      totalElevationLoss: toStop.totalElevationLoss,
-      maxElevation: toStop.maxElevation,
-      minElevation: toStop.minElevation,
-      edgeSegments: toStop.edgeSegments,
     }
 
-    trip.segments.splice(rideIdx, 1, parkedRide, walkIn)
+    // A closing ride replaces everything after it: MOTIS's own egress walk
+    // started from a ride end that no longer exists.
+    trip.segments.splice(rideIdx, boarding ? 1 : trip.segments.length - rideIdx, parkedRide, walkOn)
     trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
 
-    // Incremental, not recomputed — calculateStats would drop the
-    // itinerary-level fare already folded into totalCost.
-    trip.tripStats.totalDuration += (handoff - rideStart) / 1000 - ride.duration
-    trip.tripStats.totalDistance +=
-      toRack.distance + toStop.distance - ride.distance
-    trip.tripStats.totalWalkingDistance =
-      (trip.tripStats.totalWalkingDistance ?? 0) + toStop.distance
-    trip.earliestStartTime = parkedRide.startTime
-
-    if (vehicle) {
-      trip.parkedVehicles = [{
-        vehicle,
-        location: rackWaypoint.location,
-        parkedAt: parkedRide.endTime,
-      }]
-    }
+    // Not a full recompute — calculateStats would drop the itinerary-level
+    // fare already folded into totalCost. Locking up before boarding moves
+    // the rider's departure, so that minute counts toward the trip.
+    const stats = this.calculateStats(trip.segments)
+    trip.tripStats.totalDuration = stats.totalDuration + (boarding ? TripService.BIKE_LOCK_DELAY_SEC : 0)
+    trip.tripStats.totalDistance = stats.totalDistance
+    trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
+    if (boarding) trip.earliestStartTime = parkedRide.startTime
 
     return true
+  }
+
+  /** The parts of a segment that come from its routed leg. */
+  private static routedLegFields(leg: NonNullable<Awaited<ReturnType<TripService['routeLeg']>>>) {
+    return {
+      duration: leg.duration,
+      distance: leg.distance,
+      geometry: leg.geometry,
+      instructions: leg.instructions,
+      totalElevationGain: leg.totalElevationGain,
+      totalElevationLoss: leg.totalElevationLoss,
+      maxElevation: leg.maxElevation,
+      minElevation: leg.minElevation,
+      edgeSegments: leg.edgeSegments,
+    }
   }
 
   /**
@@ -2948,7 +2892,8 @@ export class TripService {
     preferences: any,
   ): Promise<TripResponse[]> {
     try {
-      const response = await transitRoutingService.getIntermodalRoute(query, TransitPriority.Variant)
+      const response = await this.queryIntermodal('bike-carry', query)
+      if (!response) return []
 
       // Only offer to take the bike aboard on a provider that says it checked.
       // An older one drops the flag silently, and its results would be ordinary
@@ -2957,16 +2902,9 @@ export class TripService {
       // spending a MOTIS round trip on it every time a trip is planned.
       this.enforcesBikeCarriage = response.metadata?.requireBikeTransport === true
       if (!this.enforcesBikeCarriage) return []
-      if (!response.itineraries?.length) return []
-
-      const adapted = await Promise.all(
-        response.itineraries.map(itinerary =>
-          this.adaptIntermodalItinerary(
-            itinerary, from, to, startTime, dataSources, preferences,
-          ),
-        ),
+      const trips = await this.adaptIntermodalItineraries(
+        response.itineraries ?? [], from, to, startTime, dataSources, preferences,
       )
-      const trips = adapted.filter((t): t is TripResponse => t !== null)
 
       const kept: TripResponse[] = []
       for (const trip of trips) {
@@ -2988,7 +2926,9 @@ export class TripService {
           }
         }
 
-        if (!(await this.parkBikeAfterAlighting(trip, to, vehicle, preferences))) continue
+        if (!(await this.parkBike(
+          trip, { at: 'destination', destination: to }, preferences,
+        ))) continue
         kept.push(trip)
       }
 
@@ -2997,102 +2937,6 @@ export class TripService {
       logError('Bike carry-on transit query failed', error)
       return []
     }
-  }
-
-  /**
-   * Rewrite the closing ride of a carry-on trip so it ends locked to a real
-   * rack, walking the remainder. Timed forward from the alighting, so the
-   * trip simply arrives later rather than arriving by teleport.
-   *
-   * Returns false when the destination has no reachable rack.
-   */
-  private async parkBikeAfterAlighting(
-    trip: TripResponse,
-    to: Waypoint,
-    vehicle: Vehicle | null,
-    preferences: any,
-  ): Promise<boolean> {
-    const rideIdx = trip.segments.findLastIndex(s => s.mode === 'biking')
-    if (rideIdx === -1) return true
-
-    const ride = trip.segments[rideIdx]
-    const rack = await this.cachedStationRack(to.location)
-    if (!rack) return false
-
-    const rackWaypoint: Waypoint = {
-      location: rack.geometry.value.center,
-      type: 'via',
-      label: rack.name?.value || 'Bike parking',
-      place: rack,
-    }
-
-    const [toRack, toDest] = await Promise.all([
-      this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
-      this.routeLeg(rackWaypoint.location, to.location, 'pedestrian', preferences),
-    ])
-
-    if (!toRack || !toDest) return true
-    if (!this.segmentsConnect(toRack.geometry, toDest.geometry)) return false
-
-    const rideStart = new Date(ride.startTime).getTime()
-    const rideEnd = rideStart + toRack.duration * 1000
-    const walkStart = rideEnd + TripService.BIKE_LOCK_DELAY_SEC * 1000
-    const walkEnd = walkStart + toDest.duration * 1000
-
-    const parkedRide: TripSegment = {
-      ...ride,
-      end: rackWaypoint,
-      startTime: new Date(rideStart).toISOString(),
-      endTime: new Date(rideEnd).toISOString(),
-      duration: toRack.duration,
-      distance: toRack.distance,
-      geometry: toRack.geometry,
-      instructions: toRack.instructions,
-      totalElevationGain: toRack.totalElevationGain,
-      totalElevationLoss: toRack.totalElevationLoss,
-      maxElevation: toRack.maxElevation,
-      minElevation: toRack.minElevation,
-      edgeSegments: toRack.edgeSegments,
-    }
-
-    const walkOut: TripSegment = {
-      segmentIndex: 0,
-      mode: 'walking',
-      start: rackWaypoint,
-      end: to,
-      startTime: new Date(walkStart).toISOString(),
-      endTime: new Date(walkEnd).toISOString(),
-      duration: toDest.duration,
-      distance: toDest.distance,
-      geometry: toDest.geometry,
-      instructions: toDest.instructions,
-      co2: 0,
-      totalElevationGain: toDest.totalElevationGain,
-      totalElevationLoss: toDest.totalElevationLoss,
-      maxElevation: toDest.maxElevation,
-      minElevation: toDest.minElevation,
-      edgeSegments: toDest.edgeSegments,
-    }
-
-    // Everything after the closing ride is replaced: MOTIS's own egress walk
-    // started from the old ride end, which no longer exists.
-    trip.segments.splice(rideIdx, trip.segments.length - rideIdx, parkedRide, walkOut)
-    trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
-
-    const stats = this.calculateStats(trip.segments)
-    trip.tripStats.totalDuration = stats.totalDuration
-    trip.tripStats.totalDistance = stats.totalDistance
-    trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
-
-    if (vehicle) {
-      trip.parkedVehicles = [{
-        vehicle,
-        location: rackWaypoint.location,
-        parkedAt: parkedRide.endTime,
-      }]
-    }
-
-    return true
   }
 
   /**
@@ -3144,8 +2988,21 @@ export class TripService {
     }
   }
 
+  /** The one door to MOTIS. A failed query is logged and comes back null. */
+  private queryIntermodal(
+    label: string,
+    query: import('../types/integration.types').IntermodalRouteRequest,
+    priority = TransitPriority.Variant,
+  ): Promise<import('../types/integration.types').TransitRouteResponse | null> {
+    return transitRoutingService.getIntermodalRoute(query, priority).catch((error) => {
+      logError(`Intermodal query (${label}) failed`, error)
+      return null
+    })
+  }
+
   private async executeIntermodalQuery(
-    request: import('../types/integration.types').IntermodalRouteRequest,
+    label: string,
+    query: import('../types/integration.types').IntermodalRouteRequest,
     from: Waypoint,
     to: Waypoint,
     startTime: string,
@@ -3153,20 +3010,24 @@ export class TripService {
     preferences?: any,
     opts?: { deferSharedRideEnrichment?: boolean },
   ): Promise<TripResponse[]> {
-    try {
-      const response = await transitRoutingService.getIntermodalRoute(request, TransitPriority.Variant)
-      if (!response.itineraries?.length) return []
+    const response = await this.queryIntermodal(label, query)
+    return this.adaptIntermodalItineraries(
+      response?.itineraries ?? [], from, to, startTime, dataSources, preferences, opts,
+    )
+  }
 
-      const adapted = await Promise.all(
-        response.itineraries.map(itinerary =>
-          this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences, opts),
-        ),
-      )
-      return adapted.filter((t): t is TripResponse => t !== null)
-    } catch (error) {
-      logError('Intermodal query failed', error)
-      return []
-    }
+  private async adaptIntermodalItineraries(
+    itineraries: import('../types/integration.types').TransitItinerary[],
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    dataSources: DataSource[],
+    preferences?: any,
+    opts?: { deferSharedRideEnrichment?: boolean },
+  ): Promise<TripResponse[]> {
+    const adapted = await Promise.all(itineraries.map((itinerary) =>
+      this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences, opts)))
+    return adapted.filter((t): t is TripResponse => t !== null)
   }
 
   /**
@@ -3278,7 +3139,7 @@ export class TripService {
     const collapsed = segments.map((seg) => {
       if (seg.mode !== 'transit') return seg
       if (seg.duration > TripService.COLLAPSE_MAX_RIDE_SEC) return seg
-      const crow = TripService.haversineDistance(
+      const crow = metersBetween(
         seg.start.location,
         seg.end.location,
       )
@@ -3320,15 +3181,6 @@ export class TripService {
   }
 
   /**
-   * Convert a max-walking-distance preference (meters) into the MOTIS
-   * street-leg time budget (seconds). MOTIS measures the budget in walk
-   * time along the street network, so a naive meters/speed conversion
-   * silently undershoots the user's stated distance — street routes detour,
-   * and a walk a few seconds over the cap kills otherwise-perfect one-seat
-   * itineraries. 20% detour headroom plus a minute of slack keeps the cap
-   * meaning "about this far", erring on inclusion (scoring handles the rest).
-   */
-  /**
    * Floor (seconds) for the MOTIS transit access/egress walk budget. Decouples
    * transit *discovery* from the user's walking preference: a tight
    * maxWalkingDistance (e.g. 1000 m → ~917 s) must not make transit vanish
@@ -3348,6 +3200,10 @@ export class TripService {
    * `minSec`. See TRANSIT_ACCESS_WALK_FLOOR_SEC for why transit callers pass a
    * floor; non-transit callers (shared-vehicle dock walks) pass none, since
    * walking 25 min to a rental dock is never sensible.
+   *
+   * MOTIS spends the budget as walk time along streets, which detour, so a
+   * plain meters/speed conversion undershoots the stated distance; 20%
+   * headroom and a minute of slack keep it meaning "about this far".
    */
   private static walkSecondsBudget(
     maxWalkingDistanceM: number | undefined,
@@ -3408,26 +3264,26 @@ export class TripService {
     return type != null && TripService.STATION_ROUTE_TYPES.has(type)
   }
 
-  /** Cached station-entrance lookups — entrances are static OSM data. */
-  private entranceCache = new Map<
-    string,
-    Promise<import('../types/integration.types').StationEntrance | null>
-  >()
   private static readonly ENTRANCE_CACHE_MAX = 500
+
+  /**
+   * Station-entrance lookups; entrances are static OSM data. A failed lookup
+   * also comes back null, so only a found entrance is remembered.
+   */
+  private entranceCache = new MemoCache<import('../types/integration.types').StationEntrance | null>({
+    max: TripService.ENTRANCE_CACHE_MAX,
+    keep: (entrance) => entrance != null,
+  })
 
   /**
    * Cached pedestrian re-routes, keyed by endpoints and preferences.
    *
-   * One plan enriches every walk leg of every itinerary across ~5 MOTIS
+   * One plan enriches every walk leg of every itinerary across all its MOTIS
    * queries, and those itineraries overlap heavily — the access walk to a
    * given station is identical in each itinerary boarding there. Without
    * this, the same route is fetched once per itinerary.
    */
-  private walkRouteCache = new Map<
-    string,
-    Promise<Awaited<ReturnType<typeof routingService.getRoute>>>
-  >()
-  private static readonly WALK_ROUTE_CACHE_MAX = 500
+  private walkRouteCache = new MemoCache<Awaited<ReturnType<typeof routingService.getRoute>>>({ max: 500 })
 
   private cachedWalkRoute(
     start: Coordinate,
@@ -3442,25 +3298,14 @@ export class TripService {
       JSON.stringify(preferences ?? null),
     ].join(',')
 
-    let hit = this.walkRouteCache.get(key)
-    if (!hit) {
-      hit = routingService.getRoute(
-        [
-          { type: 'coordinates', value: [start.lat, start.lng] },
-          { type: 'coordinates', value: [end.lat, end.lng] },
-        ],
-        'pedestrian',
-        preferences,
-      )
-      this.walkRouteCache.set(key, hit)
-      // A rejected route must not be cached — the next plan should retry.
-      hit.catch(() => this.walkRouteCache.delete(key))
-      if (this.walkRouteCache.size > TripService.WALK_ROUTE_CACHE_MAX) {
-        const oldest = this.walkRouteCache.keys().next().value
-        if (oldest) this.walkRouteCache.delete(oldest)
-      }
-    }
-    return hit
+    return this.walkRouteCache.get(key, () => routingService.getRoute(
+      [
+        { type: 'coordinates', value: [start.lat, start.lng] },
+        { type: 'coordinates', value: [end.lat, end.lng] },
+      ],
+      'pedestrian',
+      preferences,
+    ))
   }
 
   private cachedNearestEntrance(
@@ -3469,18 +3314,10 @@ export class TripService {
     radiusM: number,
     wheelchair = false,
   ): Promise<import('../types/integration.types').StationEntrance | null> {
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`
-    let hit = this.entranceCache.get(key)
-    if (!hit) {
-      hit = transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair)
-      this.entranceCache.set(key, hit)
-      if (this.entranceCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        // Drop the oldest entry — simple FIFO trim is enough here
-        const oldest = this.entranceCache.keys().next().value
-        if (oldest) this.entranceCache.delete(oldest)
-      }
-    }
-    return hit
+    return this.entranceCache.get(
+      `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`,
+      () => transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair),
+    )
   }
 
   /** Which way the train runs at the platform the rider uses. */
@@ -3529,34 +3366,22 @@ export class TripService {
   /** A signed destination nearer than this is where the station already is. */
   private static readonly SIGN_DESTINATION_MIN_M = 1000
 
-  private signDestinationCache = new Map<string, Promise<Coordinate | null>>()
+  private signDestinationCache = new MemoCache<Coordinate | null>({ max: TripService.ENTRANCE_CACHE_MAX })
 
   /** Compass bearing from a station to the place an entrance is signed for. */
   private async headingToward(place: string, station: Coordinate): Promise<number | null> {
     const key = `${place.toLowerCase()}|${station.lat.toFixed(2)},${station.lng.toFixed(2)}`
-    let hit = this.signDestinationCache.get(key)
-    if (!hit) {
-      hit = forwardGeocode(place, station.lat, station.lng)
-        .then(({ results }) => results[0]?.geometry?.value?.center ?? null)
-        .catch(() => {
-          this.signDestinationCache.delete(key)
-          return null
-        })
-      this.signDestinationCache.set(key, hit)
-      if (this.signDestinationCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        const oldest = this.signDestinationCache.keys().next().value
-        if (oldest) this.signDestinationCache.delete(oldest)
-      }
-    }
-    const target = await hit
-    if (!target || TripService.haversineDistance(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
+    const target = await this.signDestinationCache.get(key, () =>
+      forwardGeocode(place, station.lat, station.lng)
+        .then(({ results }) => results[0]?.geometry?.value?.center ?? null))
+      .catch(() => null)
+    if (!target || metersBetween(station, target) < TripService.SIGN_DESTINATION_MIN_M) return null
     return bearingDeg(station, target)
   }
 
-  private entrancesAroundCache = new Map<
-    string,
-    Promise<import('../types/integration.types').StationEntrance[]>
-  >()
+  private entrancesAroundCache = new MemoCache<import('../types/integration.types').StationEntrance[]>({
+    max: TripService.ENTRANCE_CACHE_MAX,
+  })
 
   /** Every mapped entrance of one kind near a platform, nearest first. */
   private cachedEntrancesAround(
@@ -3567,11 +3392,10 @@ export class TripService {
   ): Promise<import('../types/integration.types').StationEntrance[]> {
     if (!TripService.LISTABLE_ENTRANCE_TYPES.has(accessType)) return Promise.resolve([])
     const key = `${platform.lat.toFixed(5)},${platform.lng.toFixed(5)},${accessType},${radiusM},${wheelchair ? 'w' : ''}`
-    let hit = this.entrancesAroundCache.get(key)
-    if (!hit) {
+    return this.entrancesAroundCache.get(key, () => {
       const dLat = radiusM / 111320
       const dLng = radiusM / (111320 * Math.cos((platform.lat * Math.PI) / 180))
-      hit = searchByCategory(`railway/${accessType}`, {
+      return searchByCategory(`railway/${accessType}`, {
         bounds: {
           north: platform.lat + dLat,
           south: platform.lat - dLat,
@@ -3594,23 +3418,13 @@ export class TripService {
               accessType,
               lat: center.lat,
               lon: center.lng,
-              distanceM: TripService.haversineDistance(platform, center),
+              distanceM: metersBetween(platform, center),
             }
           })
           .filter((e): e is NonNullable<typeof e> =>
             e != null && e.distanceM <= radiusM && !(wheelchair && e.wheelchair === 'no'))
           .sort((a, b) => a.distanceM - b.distanceM))
-        .catch(() => {
-          this.entrancesAroundCache.delete(key)
-          return []
-        })
-      this.entrancesAroundCache.set(key, hit)
-      if (this.entrancesAroundCache.size > TripService.ENTRANCE_CACHE_MAX) {
-        const oldest = this.entrancesAroundCache.keys().next().value
-        if (oldest) this.entrancesAroundCache.delete(oldest)
-      }
-    }
-    return hit
+    }).catch(() => [])
   }
 
   /** Entrance kinds the place search can list; vertical access is not signed by direction. */
@@ -3681,7 +3495,7 @@ export class TripService {
         // catch the express A that skips Franklin). Those are real street
         // walks — fall through so they get snapped + GraphHopper-routed and
         // show an honest distance, not "0 ft".
-        const transferGap = TripService.haversineDistance(
+        const transferGap = metersBetween(
           seg.start.location,
           seg.end.location,
         )
@@ -3870,6 +3684,8 @@ export class TripService {
   private adaptIntermodalLeg(
     leg: import('../types/integration.types').TransitLeg,
   ): TripSegment | null {
+    if (leg.transitLeg) return this.buildTransitSegment(leg)
+
     let geometry: any = null
     if (leg.geometry?.coordinates) {
       geometry = leg.geometry.coordinates.map(
@@ -3880,11 +3696,6 @@ export class TripService {
     const distance = leg.distance > 0
       ? leg.distance
       : TripService.computeDistanceFromGeometry(geometry)
-
-    // Transit legs use the existing buildTransitSegment pattern
-    if (leg.transitLeg) {
-      return this.buildTransitSegment(leg, { location: { lat: leg.from.lat, lng: leg.from.lng }, type: 'via' } as Waypoint, { location: { lat: leg.to.lat, lng: leg.to.lng }, type: 'via' } as Waypoint, leg.startTime)
-    }
 
     // Street-mode legs (WALK, BIKE, CAR, CAR_PARKING, RENTAL)
     const mode = this.mapIntermodalStreetMode(leg.mode)
@@ -4021,11 +3832,11 @@ export class TripService {
 
     // Only offer a rideshare leg where it replaces a substantial walk —
     // a paid ride for a couple hundred meters is never a sensible option.
-    const accessDist = TripService.haversineDistance(
+    const accessDist = metersBetween(
       origin.location,
       firstTransit.start.location,
     )
-    const egressDist = TripService.haversineDistance(
+    const egressDist = metersBetween(
       lastTransit.end.location,
       destination.location,
     )
@@ -4221,33 +4032,14 @@ export class TripService {
   private static readonly VEHICLE_WALK_MAX_M = 5000
 
   private static vehicleOutOfReach(from: Coordinate, vehicleLocation: Coordinate | null | undefined): boolean {
-    return !!vehicleLocation && TripService.haversineDistance(from, vehicleLocation) > TripService.VEHICLE_WALK_MAX_M
-  }
-
-  /**
-   * Haversine distance between two coordinates in meters.
-   */
-  private static haversineDistance(a: Coordinate, b: Coordinate): number {
-    const dLat = ((b.lat - a.lat) * Math.PI) / 180
-    const dLng = ((b.lng - a.lng) * Math.PI) / 180
-    const sinHalf =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((a.lat * Math.PI) / 180) *
-        Math.cos((b.lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2
-    return 6371000 * 2 * Math.atan2(Math.sqrt(sinHalf), Math.sqrt(1 - sinHalf))
+    return !!vehicleLocation && metersBetween(from, vehicleLocation) > TripService.VEHICLE_WALK_MAX_M
   }
 
   /**
    * Build a TripSegment from a MOTIS transit leg.
    * Maps MOTIS OTPAPI fields to our TransitDetails type.
    */
-  private buildTransitSegment(
-    leg: any,
-    tripFrom: Waypoint,
-    tripTo: Waypoint,
-    startTime: string,
-  ): TripSegment {
+  private buildTransitSegment(leg: any): TripSegment {
     const departureStop: TransitStop = {
       id: leg.from.stopId || '',
       name: leg.from.name || '',
@@ -4389,16 +4181,7 @@ export class TripService {
     if (!geometry || geometry.length < 2) return 0
     let total = 0
     for (let i = 1; i < geometry.length; i++) {
-      const p1 = geometry[i - 1]
-      const p2 = geometry[i]
-      const dLat = ((p2.lat - p1.lat) * Math.PI) / 180
-      const dLng = ((p2.lng - p1.lng) * Math.PI) / 180
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((p1.lat * Math.PI) / 180) *
-          Math.cos((p2.lat * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2
-      total += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      total += metersBetween(geometry[i - 1], geometry[i])
     }
     return total
   }
@@ -4453,8 +4236,8 @@ export class TripService {
    *
    * Rules:
    * 1. Quality floor — drop trips >4× the fastest AND >60 min
-   * 2. Transit — keep the best-ranked trip per distinct line signature
-   *    (e.g. "3", "2>F", "bike:A"), up to MAX_TRANSIT_OPTIONS. A dense
+   * 2. Transit — one trip per access strategy, then the best-ranked trip
+   *    per distinct line signature (e.g. "3", "2>F", "bike:A"). A dense
    *    network has many real alternatives; show them rather than two.
    * 3. Non-transit — max MAX_PER_MODE per mode + near-duplicate removal.
    */
@@ -4462,9 +4245,12 @@ export class TripService {
   private static readonly MAX_PER_MODE = 2
   /** Distinct transit routings (by line signature) to surface. */
   private static readonly MAX_TRANSIT_OPTIONS = 8
-  /** Below this, park-and-ride isn't offered unless driving was asked for.
-   *  Matches the floor transit already uses for the same reason. */
-  private static readonly PARK_AND_RIDE_MIN_M = 1500
+  /** Walk+transit routings kept however many other strategies took a slot.
+   *  Most riders walk to transit, so most of the shortlist stays theirs. */
+  private static readonly MIN_WALK_TRANSIT_OPTIONS = 5
+  /** Below this a trip is short enough to walk, so transit and park-and-ride
+   *  are only planned when their own mode was asked for. */
+  private static readonly WALKABLE_TRIP_M = 1500
   /** Whole journeys a multi-stop trip offers. Each one costs a full plan per
    *  remaining stop, so this bounds the fan-out as stops are added. */
   private static readonly MAX_MULTI_STOP_STRATEGIES = 5
@@ -4504,16 +4290,30 @@ export class TripService {
 
     // Multi is a survey of what's possible, so it stops at one per strategy.
     // A transit-only search is a shortlist of departures, and there the
-    // remaining slots go to genuinely different lines.
+    // remaining slots go to genuinely different lines — walk+transit's first,
+    // so the strategy representatives can't crowd its lines out.
     if (!oneOfEachStrategy) {
-      for (const c of sorted) {
-        if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
-        if (!this.getTripMode(c.trip).includes('transit')) continue
-        const sig = this.transitSignature(c.trip)
-        if (seenSignatures.has(sig)) continue
-        seenSignatures.add(sig)
-        transitPreferred.add(c)
+      const walkTransitCount = () =>
+        [...transitPreferred].filter((c) => this.getTripMode(c.trip) === 'transit').length
+      const addDistinct = (accepts: (strategy: string) => boolean, full: () => boolean) => {
+        for (const c of sorted) {
+          if (full()) return
+          const strategy = this.getTripMode(c.trip)
+          if (!strategy.includes('transit') || !accepts(strategy)) continue
+          const sig = this.transitSignature(c.trip)
+          if (seenSignatures.has(sig)) continue
+          seenSignatures.add(sig)
+          transitPreferred.add(c)
+        }
       }
+      addDistinct(
+        (strategy) => strategy === 'transit',
+        () => walkTransitCount() >= TripService.MIN_WALK_TRANSIT_OPTIONS,
+      )
+      addDistinct(
+        () => true,
+        () => transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS,
+      )
     }
 
     // Pre-select the best trip per mode so we always show at least one
@@ -4723,14 +4523,6 @@ export class TripService {
     }
   }
 
-  /**
-   * Time score: based on arrival offset from the requested departure time.
-   *
-   * Uses `arrivalTime - referenceTime` instead of raw trip duration so that
-   * trips with long waits (e.g. transit not departing for 6 hours) are
-   * properly penalized. For immediate-departure modes (driving, walking,
-   * cycling) the arrival offset ≈ duration, so this is backward-compatible.
-   */
   /** Value of time for generalized cost: 200 s/$ ≈ $18/hour. A paid trip
    *  must save about 3.3 minutes per dollar to beat a free alternative. */
   private static readonly VALUE_OF_TIME_SEC_PER_DOLLAR = 200
@@ -4755,6 +4547,11 @@ export class TripService {
     )
   }
 
+  /**
+   * Time score: based on arrival offset from the requested departure time,
+   * rather than raw duration, so trips with long waits (transit not leaving
+   * for six hours) are penalized. For street modes the two are about equal.
+   */
   private scoreTime(trip: TripResponse, referenceTime: string): number {
     const refMs = new Date(referenceTime).getTime()
     const arrMs = new Date(trip.latestEndTime).getTime()
@@ -4989,12 +4786,6 @@ export class TripService {
   }
 
   /**
-   * Direct ranking: overwrite each candidate's overall score with its
-   * min-max-normalized primary metric (lower metric = higher score), plus
-   * the balanced weighted score scaled down to a pure tiebreaker.
-   * Non-finite metric values rank last.
-   */
-  /**
    * Score every candidate and put the best first.
    *
    * The reference time is when the rider wants to set off, so a transit trip
@@ -5046,6 +4837,12 @@ export class TripService {
     return scored.sort((a, b) => b.score.overall - a.score.overall)
   }
 
+  /**
+   * Direct ranking: overwrite each candidate's overall score with its
+   * min-max-normalized primary metric (lower metric = higher score), plus
+   * the balanced weighted score scaled down to a pure tiebreaker.
+   * Non-finite metric values rank last.
+   */
   private rankByMetric(
     candidates: Array<{ trip: TripResponse; score: TripScore }>,
     metric: (c: { trip: TripResponse; score: TripScore }) => number,

@@ -6,6 +6,9 @@
 
 ### Fixed
 
+* When several lines run the same trip, transit results show the one that arrives first, or with an arrive-by time the one that leaves latest, rather than whichever leaves first.
+* Transit searches keep several walk-to-transit routes even when park-and-ride, bike-to-station and other options are offered alongside them.
+
 ## [0.17.0] - 2026-10-26
 
 ### Added

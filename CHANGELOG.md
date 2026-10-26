@@ -7,6 +7,7 @@
 ### Fixed
 
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.
+* Resending a sign-in code clears stale validation errors from the previous code.
 
 ## [0.17.1] - 2026-10-26
 

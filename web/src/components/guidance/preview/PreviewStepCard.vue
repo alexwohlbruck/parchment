@@ -89,7 +89,7 @@ function openStreetView() {
     </button>
 
     <div class="flex items-center gap-2 px-3 pb-3 pt-1">
-      <Button variant="ghost" size="sm" class="rounded-full" :disabled="!step" @click="preview.select(null)">
+      <Button variant="ghost" size="sm" class="gap-1.5 rounded-full" :disabled="!step" @click="preview.select(null)">
         <MapIcon class="size-4" />
         {{ t('guidance.preview.overview') }}
       </Button>

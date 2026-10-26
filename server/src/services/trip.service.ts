@@ -2282,9 +2282,8 @@ export class TripService {
       priority?: TransitPriority,
     ) => this.queryIntermodal(label, req, priority).then(r => r?.itineraries ?? [])
 
-    // Barrelman ranks by ride duration and returns each departure once per
-    // access-walk variant, so a short page is spent on later trains with
-    // quicker rides and drops the one leaving first. Ask for its maximum.
+    // Barrelman ranks by arrival and lists each ride once, so its maximum is
+    // ten distinct departures and lines to build the shortlist from.
     const walkFetch = fetchMotis('walk', {
       ...baseRequest,
       numItineraries: isContinuation || isMulti

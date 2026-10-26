@@ -113,7 +113,7 @@ const sideInset = computed(() => {
       @update:active-snap-point-index="onSnapIndex"
     >
       <template #above>
-        <GuidanceNotices class="transition-opacity duration-200" :class="{ 'pointer-events-none opacity-0': expanded }" />
+        <GuidanceNotices class="pb-2 transition-opacity duration-200 empty:hidden" :class="{ 'pointer-events-none opacity-0': expanded }" />
       </template>
       <div ref="content">
         <GuidanceSummary :expanded="expanded" @toggle="toggle" />

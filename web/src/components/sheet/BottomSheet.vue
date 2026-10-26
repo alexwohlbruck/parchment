@@ -917,7 +917,7 @@ function handleAnimationEnd(open: boolean) {
         <div
           v-if="$slots.above"
           ref="aboveHost"
-          class="pointer-events-auto absolute inset-x-2 bottom-full pb-2"
+          class="pointer-events-auto absolute inset-x-2 bottom-full"
         >
           <slot name="above" />
         </div>

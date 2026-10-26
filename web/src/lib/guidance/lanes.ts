@@ -37,7 +37,7 @@ const SAME_LANE_METERS = 1.6
 const METERS_PER_DEGREE = 111_320
 
 /** What a maneuver needs a lane to allow. */
-function needs(kind: ManeuverKind): LaneArrow[] {
+export function laneArrowsFor(kind: ManeuverKind): LaneArrow[] {
   switch (kind) {
     case 'left':
     case 'sharp-left':
@@ -89,7 +89,7 @@ export function lanePlan(glyphs: RoadGlyph[], at: LngLat, bearing: number, kind:
   if (lanes.length < 2) return null
   lanes.sort((a, b) => a.across - b.across)
 
-  const wanted = needs(kind)
+  const wanted = laneArrowsFor(kind)
   const plan = lanes.map(l => {
     const arrows = ARROWS[l.glyph.glyph]
     return { arrows, valid: arrows.some(a => wanted.includes(a)), recommended: false }

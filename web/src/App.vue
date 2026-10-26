@@ -304,7 +304,7 @@ function beforeNavTransition(value: boolean) {
   </div>
 
   <div
-    class="flex flex-row h-[100vh] items-stretch"
+    class="flex flex-row h-full items-stretch"
     :class="isTauri ? '' : 'bg-background'"
   >
     <!-- Desktop navigation -->

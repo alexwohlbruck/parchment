@@ -2732,8 +2732,8 @@ export class TripService {
           // departure the rider hasn't reached yet.
           const earliestRide = new Date(startTime).getTime()
             + (walkToVehicle ? walkToVehicle.duration * 1000 : 0)
-          if (!(await this.parkBikeBeforeBoarding(
-            trip, vehicle, preferences, earliestRide,
+          if (!(await this.parkBike(
+            trip, { at: 'boarding', earliestRide }, vehicle, preferences,
           ))) continue
         }
 
@@ -2821,29 +2821,34 @@ export class TripService {
   }
 
   /**
-   * Rewrite a bike-access transit trip so the ride ends locked to a real rack.
+   * Re-aim a bike leg at the nearest real rack and walk on from it, because
+   * MOTIS never puts the bike down. At `boarding` the ride to the station is
+   * timed back from the hand-off, so boarding is unchanged and the rider sets
+   * off earlier. At `destination` a carried bike's closing ride is timed
+   * forward from its start, so the trip simply arrives later.
    *
-   * MOTIS's BIKE access mode rides to the boarding stop and says nothing about
-   * what becomes of the bike, so everything after it walks away from a bike it
-   * never put down. Re-aims the ride at the nearest rack and walks in from
-   * there, back-timed off the original hand-off so boarding time is unchanged
-   * — the rider sets off earlier instead.
-   *
-   * Returns false when the stop has no reachable rack: there is nowhere to
-   * leave the bike, so it isn't a trip the rider could actually take.
+   * Returns false when there is nowhere reachable to leave the bike, so it
+   * isn't a trip the rider could actually take.
    */
-  private async parkBikeBeforeBoarding(
+  private async parkBike(
     trip: TripResponse,
+    end: { at: 'boarding'; earliestRide: number } | { at: 'destination'; destination: Waypoint },
     vehicle: Vehicle | null,
     preferences: any,
-    earliestRide: number,
   ): Promise<boolean> {
-    const rideIdx = trip.segments.findIndex(s => s.mode === 'biking')
-    const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
-    if (rideIdx === -1 || boardIdx === -1 || rideIdx > boardIdx) return true
+    const boarding = end.at === 'boarding'
+    const rideIdx = boarding
+      ? trip.segments.findIndex(s => s.mode === 'biking')
+      : trip.segments.findLastIndex(s => s.mode === 'biking')
+    if (rideIdx === -1) return true
+    if (boarding) {
+      const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
+      if (boardIdx === -1 || rideIdx > boardIdx) return true
+    }
 
     const ride = trip.segments[rideIdx]
-    const rack = await this.cachedStationRack(ride.end.location)
+    const walkTo = end.at === 'boarding' ? ride.end : end.destination
+    const rack = await this.cachedStationRack(walkTo.location)
     if (!rack) return false
 
     const rackWaypoint: Waypoint = {
@@ -2853,72 +2858,65 @@ export class TripService {
       place: rack,
     }
 
-    const [toRack, toStop] = await Promise.all([
+    const [toRack, walk] = await Promise.all([
       this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
-      this.routeLeg(rackWaypoint.location, ride.end.location, 'pedestrian', preferences),
+      this.routeLeg(rackWaypoint.location, walkTo.location, 'pedestrian', preferences),
     ])
 
     // A routing outage says nothing about whether the rack is usable, so the
     // trip stands as MOTIS planned it rather than vanishing over a blip.
-    if (!toRack || !toStop) return true
-    // Rack snapped across a barrier — walking in from it would teleport.
-    if (!this.segmentsConnect(toRack.geometry, toStop.geometry)) return false
+    if (!toRack || !walk) return true
+    // Rack snapped across a barrier — walking on from it would teleport.
+    if (!this.segmentsConnect(toRack.geometry, walk.geometry)) return false
 
-    const handoff = new Date(ride.endTime).getTime()
-    const walkStart = handoff - toStop.duration * 1000
-    const rideEnd = walkStart - TripService.BIKE_LOCK_DELAY_SEC * 1000
-    const rideStart = rideEnd - toRack.duration * 1000
-
-    // Setting off before the rider can leave isn't a trip — this boarding is
-    // out of reach by way of the rack, so the next itinerary gets a turn.
-    if (rideStart < earliestRide) return false
+    const lockMs = TripService.BIKE_LOCK_DELAY_SEC * 1000
+    let rideStart: number, rideEnd: number, walkStart: number, walkEnd: number
+    if (end.at === 'boarding') {
+      walkEnd = new Date(ride.endTime).getTime()
+      walkStart = walkEnd - walk.duration * 1000
+      rideEnd = walkStart - lockMs
+      rideStart = rideEnd - toRack.duration * 1000
+      // Setting off before the rider can leave isn't a trip — this boarding is
+      // out of reach by way of the rack, so the next itinerary gets a turn.
+      if (rideStart < end.earliestRide) return false
+    } else {
+      rideStart = new Date(ride.startTime).getTime()
+      rideEnd = rideStart + toRack.duration * 1000
+      walkStart = rideEnd + lockMs
+      walkEnd = walkStart + walk.duration * 1000
+    }
 
     const parkedRide: TripSegment = {
       ...ride,
+      ...TripService.routedLegFields(toRack),
       end: rackWaypoint,
       startTime: new Date(rideStart).toISOString(),
       endTime: new Date(rideEnd).toISOString(),
-      duration: toRack.duration,
-      distance: toRack.distance,
-      geometry: toRack.geometry,
-      instructions: toRack.instructions,
-      totalElevationGain: toRack.totalElevationGain,
-      totalElevationLoss: toRack.totalElevationLoss,
-      maxElevation: toRack.maxElevation,
-      minElevation: toRack.minElevation,
-      edgeSegments: toRack.edgeSegments,
     }
-
-    const walkIn: TripSegment = {
+    const walkOn: TripSegment = {
+      ...TripService.routedLegFields(walk),
       segmentIndex: 0,
       mode: 'walking',
       start: rackWaypoint,
-      end: ride.end,
+      end: walkTo,
       startTime: new Date(walkStart).toISOString(),
-      endTime: new Date(handoff).toISOString(),
-      duration: toStop.duration,
-      distance: toStop.distance,
-      geometry: toStop.geometry,
-      instructions: toStop.instructions,
+      endTime: new Date(walkEnd).toISOString(),
       co2: 0,
-      totalElevationGain: toStop.totalElevationGain,
-      totalElevationLoss: toStop.totalElevationLoss,
-      maxElevation: toStop.maxElevation,
-      minElevation: toStop.minElevation,
-      edgeSegments: toStop.edgeSegments,
     }
 
-    trip.segments.splice(rideIdx, 1, parkedRide, walkIn)
+    // A closing ride replaces everything after it: MOTIS's own egress walk
+    // started from a ride end that no longer exists.
+    trip.segments.splice(rideIdx, boarding ? 1 : trip.segments.length - rideIdx, parkedRide, walkOn)
     trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
 
-    // Incremental, not recomputed — calculateStats would drop the
-    // itinerary-level fare already folded into totalCost.
-    trip.tripStats.totalDuration += (handoff - rideStart) / 1000 - ride.duration
-    trip.tripStats.totalDistance +=
-      toRack.distance + toStop.distance - ride.distance
-    trip.tripStats.totalWalkingDistance =
-      (trip.tripStats.totalWalkingDistance ?? 0) + toStop.distance
-    trip.earliestStartTime = parkedRide.startTime
+    // Not a full recompute — calculateStats would drop the itinerary-level
+    // fare already folded into totalCost. Locking up before boarding moves
+    // the rider's departure, so that minute counts toward the trip.
+    const stats = this.calculateStats(trip.segments)
+    trip.tripStats.totalDuration = stats.totalDuration + (boarding ? TripService.BIKE_LOCK_DELAY_SEC : 0)
+    trip.tripStats.totalDistance = stats.totalDistance
+    trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
+    if (boarding) trip.earliestStartTime = parkedRide.startTime
 
     if (vehicle) {
       trip.parkedVehicles = [{
@@ -2929,6 +2927,21 @@ export class TripService {
     }
 
     return true
+  }
+
+  /** The parts of a segment that come from its routed leg. */
+  private static routedLegFields(leg: NonNullable<Awaited<ReturnType<TripService['routeLeg']>>>) {
+    return {
+      duration: leg.duration,
+      distance: leg.distance,
+      geometry: leg.geometry,
+      instructions: leg.instructions,
+      totalElevationGain: leg.totalElevationGain,
+      totalElevationLoss: leg.totalElevationLoss,
+      maxElevation: leg.maxElevation,
+      minElevation: leg.minElevation,
+      edgeSegments: leg.edgeSegments,
+    }
   }
 
   /**
@@ -2988,7 +3001,9 @@ export class TripService {
           }
         }
 
-        if (!(await this.parkBikeAfterAlighting(trip, to, vehicle, preferences))) continue
+        if (!(await this.parkBike(
+          trip, { at: 'destination', destination: to }, vehicle, preferences,
+        ))) continue
         kept.push(trip)
       }
 
@@ -2997,102 +3012,6 @@ export class TripService {
       logError('Bike carry-on transit query failed', error)
       return []
     }
-  }
-
-  /**
-   * Rewrite the closing ride of a carry-on trip so it ends locked to a real
-   * rack, walking the remainder. Timed forward from the alighting, so the
-   * trip simply arrives later rather than arriving by teleport.
-   *
-   * Returns false when the destination has no reachable rack.
-   */
-  private async parkBikeAfterAlighting(
-    trip: TripResponse,
-    to: Waypoint,
-    vehicle: Vehicle | null,
-    preferences: any,
-  ): Promise<boolean> {
-    const rideIdx = trip.segments.findLastIndex(s => s.mode === 'biking')
-    if (rideIdx === -1) return true
-
-    const ride = trip.segments[rideIdx]
-    const rack = await this.cachedStationRack(to.location)
-    if (!rack) return false
-
-    const rackWaypoint: Waypoint = {
-      location: rack.geometry.value.center,
-      type: 'via',
-      label: rack.name?.value || 'Bike parking',
-      place: rack,
-    }
-
-    const [toRack, toDest] = await Promise.all([
-      this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
-      this.routeLeg(rackWaypoint.location, to.location, 'pedestrian', preferences),
-    ])
-
-    if (!toRack || !toDest) return true
-    if (!this.segmentsConnect(toRack.geometry, toDest.geometry)) return false
-
-    const rideStart = new Date(ride.startTime).getTime()
-    const rideEnd = rideStart + toRack.duration * 1000
-    const walkStart = rideEnd + TripService.BIKE_LOCK_DELAY_SEC * 1000
-    const walkEnd = walkStart + toDest.duration * 1000
-
-    const parkedRide: TripSegment = {
-      ...ride,
-      end: rackWaypoint,
-      startTime: new Date(rideStart).toISOString(),
-      endTime: new Date(rideEnd).toISOString(),
-      duration: toRack.duration,
-      distance: toRack.distance,
-      geometry: toRack.geometry,
-      instructions: toRack.instructions,
-      totalElevationGain: toRack.totalElevationGain,
-      totalElevationLoss: toRack.totalElevationLoss,
-      maxElevation: toRack.maxElevation,
-      minElevation: toRack.minElevation,
-      edgeSegments: toRack.edgeSegments,
-    }
-
-    const walkOut: TripSegment = {
-      segmentIndex: 0,
-      mode: 'walking',
-      start: rackWaypoint,
-      end: to,
-      startTime: new Date(walkStart).toISOString(),
-      endTime: new Date(walkEnd).toISOString(),
-      duration: toDest.duration,
-      distance: toDest.distance,
-      geometry: toDest.geometry,
-      instructions: toDest.instructions,
-      co2: 0,
-      totalElevationGain: toDest.totalElevationGain,
-      totalElevationLoss: toDest.totalElevationLoss,
-      maxElevation: toDest.maxElevation,
-      minElevation: toDest.minElevation,
-      edgeSegments: toDest.edgeSegments,
-    }
-
-    // Everything after the closing ride is replaced: MOTIS's own egress walk
-    // started from the old ride end, which no longer exists.
-    trip.segments.splice(rideIdx, trip.segments.length - rideIdx, parkedRide, walkOut)
-    trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
-
-    const stats = this.calculateStats(trip.segments)
-    trip.tripStats.totalDuration = stats.totalDuration
-    trip.tripStats.totalDistance = stats.totalDistance
-    trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
-
-    if (vehicle) {
-      trip.parkedVehicles = [{
-        vehicle,
-        location: rackWaypoint.location,
-        parkedAt: parkedRide.endTime,
-      }]
-    }
-
-    return true
   }
 
   /**

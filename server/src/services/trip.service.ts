@@ -147,7 +147,7 @@ export class TripService {
       || metersBetween(
         request.waypoints[0].location,
         request.waypoints[request.waypoints.length - 1].location,
-      ) >= TripService.PARK_AND_RIDE_MIN_M
+      ) >= TripService.WALKABLE_TRIP_M
 
     if (useParking) {
       if (modes.includes('driving') && drivingIsPlausible) {
@@ -2247,12 +2247,10 @@ export class TripService {
     const from = request.waypoints[0]
     const to = request.waypoints[request.waypoints.length - 1]
 
-    // Skip transit for very short trips in multi-mode — MOTIS exhaustively
-    // searches transit even when walking is clearly faster, causing
-    // multi-second delays for trips under ~1.5km. An explicit transit
-    // request always runs the query.
+    // MOTIS searches exhaustively even when walking clearly wins, which
+    // costs seconds on a walkable trip nobody asked to ride.
     const dist = metersBetween(from.location, to.location)
-    if (dist < 1500 && request.selectedMode !== 'transit') return []
+    if (dist < TripService.WALKABLE_TRIP_M && request.selectedMode !== 'transit') return []
 
     // Scale search scope to trip distance — shorter trips need less
     // walking radius, longer trips can afford more RAPTOR iterations
@@ -4261,9 +4259,9 @@ export class TripService {
   /** Walk+transit routings kept however many other strategies took a slot.
    *  Most riders walk to transit, so most of the shortlist stays theirs. */
   private static readonly MIN_WALK_TRANSIT_OPTIONS = 5
-  /** Below this, park-and-ride isn't offered unless driving was asked for.
-   *  Matches the floor transit already uses for the same reason. */
-  private static readonly PARK_AND_RIDE_MIN_M = 1500
+  /** Below this a trip is short enough to walk, so transit and park-and-ride
+   *  are only planned when their own mode was asked for. */
+  private static readonly WALKABLE_TRIP_M = 1500
   /** Whole journeys a multi-stop trip offers. Each one costs a full plan per
    *  remaining stop, so this bounds the fan-out as stops are added. */
   private static readonly MAX_MULTI_STOP_STRATEGIES = 5

@@ -34,6 +34,7 @@
 
 * With 3D on, a route passing under a bridge disappears beneath the deck, and a route riding a deck no longer also draws on the ground or water below it.
 * Planning a trip with your car or bike saved in another city no longer freezes the app or suggests walking hundreds of kilometres to reach it.
+* On phones, the app now fits the screen exactly instead of scrolling by the height of the browser toolbar, which hid the bottom card.
 
 ## [0.16.10] - 2026-10-25
 

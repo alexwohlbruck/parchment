@@ -1,14 +1,21 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { DEFAULT_VEHICLE_COLOR, inkOn } from '@/lib/guidance/vehicle-indicator'
+
 interface Props {
   accuracy: number | null
   heading: number | null
   mode?: 'dot' | 'navigation'
+  color?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'dot',
+  color: DEFAULT_VEHICLE_COLOR,
 })
 const emit = defineEmits<{ select: [] }>()
+
+const ink = computed(() => inkOn(props.color))
 </script>
 
 <template>
@@ -44,18 +51,15 @@ const emit = defineEmits<{ select: [] }>()
     <!-- Blue dot (dot mode) -->
     <div v-if="props.mode === 'dot'" class="location-dot" />
 
-    <!-- Rotated and laid on the map by the layer (setMarkerHeading). -->
-    <div v-if="props.mode === 'navigation'" class="navigation-arrow">
-      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M22 5L35 35L22 28.5L9 35L22 5Z"
-          fill="hsl(var(--primary))"
-          stroke="white"
-          stroke-width="3"
-          stroke-linejoin="round"
-        />
+    <!-- Rotated and laid on the map by the layer; fades to a dot while the heading is unknown. -->
+    <template v-if="props.mode === 'navigation'">
+      <svg class="navigation-arrow" width="46" height="46" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="23" cy="23" r="20" fill="white" />
+        <circle cx="23" cy="23" r="16.5" :fill="props.color" />
+        <path d="M23 10.5L31.5 32L23 27.2L14.5 32Z" :fill="ink" stroke-linejoin="round" :stroke="ink" stroke-width="1.5" />
       </svg>
-    </div>
+      <div class="navigation-dot" :style="{ background: props.color }" />
+    </template>
   </div>
 </template>
 
@@ -118,9 +122,28 @@ const emit = defineEmits<{ select: [] }>()
   z-index: 1;
 }
 
-.navigation-arrow {
+.navigation-arrow,
+.navigation-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 2;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  transition: opacity 0.3s ease;
+}
+
+.navigation-arrow {
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
+  opacity: var(--heading-opacity, 1);
+}
+
+.navigation-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  opacity: calc(1 - var(--heading-opacity, 1));
 }
 
 @keyframes pulse {

@@ -83,8 +83,8 @@ function mapSegment(seg: any, id: string, legIndex: number) {
   }
 }
 
-/** Map one scored backend candidate to the flattened UI trip. */
-export function mapCandidate(candidate: any, idx: number): any {
+/** Map one scored backend candidate to the flattened UI trip; `placeIds` holds each waypoint's place, by index. */
+export function mapCandidate(candidate: any, idx: number, placeIds: (string | undefined)[] = []): any {
   const stats = candidate.trip.tripStats
   return {
     id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
@@ -97,7 +97,7 @@ export function mapCandidate(candidate: any, idx: number): any {
       hasHighways: false,
       hasFerries: false,
     },
-    segments: flattenSegments(candidate.trip.segments),
+    segments: withLegEndPlaces(flattenSegments(candidate.trip.segments), placeIds),
     startTime: new Date(candidate.trip.earliestStartTime),
     endTime: new Date(candidate.trip.latestEndTime),
     isRecommended: candidate.rank === 1,
@@ -108,6 +108,16 @@ export function mapCandidate(candidate: any, idx: number): any {
       : undefined,
     co2Emissions: stats.totalCo2 ?? undefined,
   }
+}
+
+/** Gives each leg's last segment the place of the waypoint it ends at, which the planner only knows by coordinates. */
+function withLegEndPlaces(segments: any[], placeIds: (string | undefined)[]): any[] {
+  return segments.map((seg, i) => {
+    const id = placeIds[seg.legIndex + 1]
+    const lastOfLeg = segments[i + 1]?.legIndex !== seg.legIndex
+    if (!id || !lastOfLeg || seg.end?.place) return seg
+    return { ...seg, end: { ...seg.end, place: { id } } }
+  })
 }
 
 /**

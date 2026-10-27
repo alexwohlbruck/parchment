@@ -170,6 +170,7 @@ function directionsService() {
       })
 
       // Transform response to UI format
+      const placeIds = validWaypoints.map(wp => shareableWaypointId(wp.place))
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
@@ -192,7 +193,7 @@ function directionsService() {
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },
         },
-        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i)),
+        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds)),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:

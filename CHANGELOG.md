@@ -4,6 +4,12 @@
 
 ### Changed
 
+### Fixed
+
+## [0.18.1] - 2026-10-27
+
+### Changed
+
 * Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
 
 * Navigation on larger screens uses the same swipeable sheet as on phones for the trip summary and menu.

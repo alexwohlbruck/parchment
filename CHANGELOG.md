@@ -6,6 +6,10 @@
 
 ### Fixed
 
+## [0.17.1-1] - 2026-10-26
+
+### Fixed
+
 * Transit trips with a timed transfer at the same station offer Start navigation.
 
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.

@@ -1248,6 +1248,16 @@
       }
     },
     "settings": {
+      "speechVoice": "Navigation voice",
+      "speechVoiceDescription": "Uses voices for your app language when server speech is available.",
+      "speechFallback": "Browser voice is used when server speech is unavailable.",
+      "speechAutomatic": "Automatic",
+      "speechRate": "Speaking speed",
+      "speechRateDescription": "Choose a comfortable pace for spoken instructions.",
+      "speechPreview": "Listen",
+      "speechSample": "In 200 feet, turn right, then keep left.",
+      "adaptiveSpeech": "Faster speech for close turns",
+      "adaptiveSpeechDescription": "Increase the pace when several maneuvers are close together, up to 1.5×.",
       "title": "Navigation",
       "cameraMode": "Camera",
       "cameraModeDescription": "How the map follows you while navigating",
@@ -1365,6 +1375,8 @@
         "left": "You have arrived. Your destination is on the left",
         "right": "You have arrived. Your destination is on the right"
       },
+      "head": "Head {heading}",
+      "headOn": "Head {heading} on {road}",
       "rerouting": "Rerouting",
       "turnAround": "Turn around, then head {heading}",
       "turnAroundOn": "Turn around, then head {heading} on {road}",
@@ -2502,6 +2514,7 @@
         "tileServer": "Tile Server",
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
+        "tts": "Speech synthesis",
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback"

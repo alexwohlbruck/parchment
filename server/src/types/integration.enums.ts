@@ -58,4 +58,5 @@ export enum IntegrationCapabilityId {
   TRANSIT_ROUTING = 'transitRouting',
   RIDESHARE_ESTIMATE = 'rideshareEstimate',
   FEEDBACK = 'feedback',
+  TTS = 'tts',
 }

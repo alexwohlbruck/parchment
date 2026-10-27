@@ -2,7 +2,7 @@
 // travelled part greyed. Rebuilt a few times a second, never per frame.
 
 import type { LngLat } from '@/types/map.types'
-import { pointAt, segmentIndexAt, smoothedBearingAt, type MeasuredLine, type NavRoute } from './nav-route'
+import { pointAt, segmentIndexAt, smoothedBearingAt, type MeasuredLine, type NavRoute, type NavSegment } from './nav-route'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { metersPerPixel } from './camera-framing'
@@ -17,7 +17,7 @@ const HIDDEN_COLOR = 'rgba(0, 0, 0, 0)'
 export function routeGradient(
   route: NavRoute,
   travelled: number,
-  colorFor: (mode: string) => string,
+  colorFor: (segment: NavSegment) => string,
   travelledColor: string,
   /** Where route distance `d` falls along the drawn line, 0 to 1; by default the route itself. */
   progressAt?: (d: number) => number,
@@ -30,7 +30,7 @@ export function routeGradient(
     if (hidden.some(([start, end]) => d >= start && d < end)) return HIDDEN_COLOR
     if (d < travelled) return travelledColor
     const segment = route.segments.find(s => d < s.endDistance) ?? route.segments.at(-1)
-    return segment ? colorFor(segment.mode) : travelledColor
+    return segment ? colorFor(segment) : travelledColor
   }
   const breaks = [travelled, ...route.segments.map(s => s.startDistance), ...hidden.flat()]
     .filter(d => d > 0 && d < route.length)

@@ -6,14 +6,51 @@
 
 ### Fixed
 
+## [0.18.1] - 2026-10-27
+
+### Changed
+
+* Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
+
+* Navigation on larger screens uses the same swipeable sheet as on phones for the trip summary and menu.
+
+### Fixed
+
+* Arriving at a destination now opens that place's page instead of a page for its coordinates.
+
+* Finishing navigation clears the trip's route and pins from the map.
+
+## [0.18.0] - 2026-10-27
+
+### Added
+
+* Hear an opening direction as soon as route navigation starts, even before you begin moving.
+
+* Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.
+
+### Changed
+
+* Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
+
+### Fixed
+
+* Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
+
+* Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.
+
+* Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.
+
 ## [0.17.1-1] - 2026-10-26
 
 ### Fixed
+
+* Transit navigation uses the same line colors, station labels, route bullets, and live vehicle focus as the trip preview.
 
 * Transit trips with a timed transfer at the same station offer Start navigation.
 
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.
 * Resending a sign-in code clears stale validation errors from the previous code.
+* Lane guidance no longer jumbles the lanes at divided crossroads, and bearing onto the road ahead lights the through lanes instead of the turning ones.
 
 ## [0.17.1] - 2026-10-26
 

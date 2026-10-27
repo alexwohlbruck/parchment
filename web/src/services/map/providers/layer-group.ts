@@ -9,17 +9,13 @@ import { Layer, LayerType, MapEngine } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import { FeatureCollection } from 'geojson'
 import { toRaw } from 'vue'
-import {
-  getTravelModeColor,
-  getTravelModeCaseColor,
-} from '@/lib/directions/travel-mode-colors'
+import { getSegmentColor, getSegmentCaseColor } from '@/lib/directions/segment-colors'
 import {
   type RouteProfileType,
   getEdgeColor,
   getEdgeCaseColor,
 } from '@/lib/directions/route-profile-colors'
 import type { RouteEdgeSegment } from '@/types/directions.types'
-import { adjustLightness } from '@/lib/utils'
 
 /** A collection of map layers created and torn down as one unit. */
 export class MapLayerGroup {
@@ -340,7 +336,7 @@ export class TripGroup extends MapLayerGroup {
           'circle-radius': 3,
           'circle-color': '#ffffff',
           'circle-stroke-width': 1.5,
-          'circle-stroke-color': this._getSegmentColor(segment),
+          'circle-stroke-color': getSegmentColor(segment),
           'circle-opacity': 1,
         },
       } as any,
@@ -406,7 +402,7 @@ export class TripGroup extends MapLayerGroup {
         slot: 'middle',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': this._getSegmentCaseColor(segment),
+          'line-color': getSegmentCaseColor(segment),
           'line-width': 8,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
@@ -432,7 +428,7 @@ export class TripGroup extends MapLayerGroup {
         slot: 'middle',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': this._getSegmentColor(segment),
+          'line-color': getSegmentColor(segment),
           'line-width': 6,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
@@ -455,8 +451,8 @@ export class TripGroup extends MapLayerGroup {
     if (!segment.geometry || !Array.isArray(segment.geometry)) return
     const geometry = segment.geometry
     const edgeSegments = segment.edgeSegments!
-    const defaultColor = this._getSegmentColor(segment)
-    const defaultCaseColor = this._getSegmentCaseColor(segment)
+    const defaultColor = getSegmentColor(segment)
+    const defaultCaseColor = getSegmentCaseColor(segment)
 
     const sourceId = `${this.id}-segment-${segmentIndex}`
     const layerId = `${this.id}-segment-layer-${segmentIndex}`
@@ -791,30 +787,5 @@ export class TripGroup extends MapLayerGroup {
       }
     }
     this.sources.clear()
-  }
-
-  private _getSegmentColor(segment: TripSegment): string {
-    const { mode, lineColor } = segment
-    if (lineColor) {
-      // GTFS route colors often lack the '#' prefix — Mapbox silently ignores invalid colors
-      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
-    }
-
-    // Use the travel mode color constants to match the trip list UI
-    return getTravelModeColor(mode)
-  }
-
-  private _getSegmentCaseColor(segment: TripSegment): string {
-    const { mode, lineColor } = segment
-    if (lineColor) {
-      // Transit segments carry a GTFS route color. Derive a darker shade so the
-      // casing reads as an outline rather than blending into the main line,
-      // matching the main/case contrast used for other travel modes.
-      const hex = lineColor.startsWith('#') ? lineColor : `#${lineColor}`
-      return adjustLightness(hex, -12)
-    }
-
-    // Use the travel mode case color constants to match the trip list UI
-    return getTravelModeCaseColor(mode)
   }
 }

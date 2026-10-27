@@ -7,13 +7,13 @@ import { useMapService } from '@/services/map/map.service'
 import { GuidanceRouteLayer } from '@/services/guidance/guidance-route-layer'
 import { trackDeckLift } from '@/services/guidance/deck-lift.service'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
-import { distanceAlong, type NavRoute, type NavStep } from '@/lib/guidance/nav-route'
+import { distanceAlong, segmentAt, type NavRoute, type NavStep } from '@/lib/guidance/nav-route'
 import { bridgeSpans, ridesAt } from '@/lib/guidance/deck-lift'
 import { drawnLine, drawnOffsetMeters } from '@/lib/guidance/route-line'
 import { turnCallout } from '@/lib/guidance/turn-callout'
 import { hazardCallouts, routeHazardCallouts } from '@/lib/guidance/hazard-callouts'
 import type { CameraState } from '@/lib/guidance/camera-gesture'
-import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { getSegmentCaseColor, getSegmentColor } from '@/lib/directions/segment-colors'
 
 /** Where along the route the line is drawn from: the travelled part, the next turn, and the hazards ahead. */
 export interface RouteLineFocus {
@@ -98,8 +98,8 @@ export function useGuidanceRouteLine(source: RouteLineSource) {
       const route = source.route()
       if (!layer || !focus || !route) return
       layer.setOverview(!!focus.overview)
-      const mode = travelModeAt(route, focus.s)
-      strategy?.setDeckRouteColors({ route: getTravelModeColor(mode), casing: getTravelModeCaseColor(mode) })
+      const segment = segmentAt(route, focus.s) ?? { mode: travelModeAt(route, focus.s) }
+      strategy?.setDeckRouteColors({ route: getSegmentColor(segment), casing: getSegmentCaseColor(segment) })
       const callout = calloutFor(route, focus.next)
       layer.update(focus.travelled, callout, focus.hazards ? hazardsFor(route, focus, callout?.at ?? null) : [])
       strategy?.setDeckRouteTravelled(focus.travelled)
@@ -111,7 +111,7 @@ export function useGuidanceRouteLine(source: RouteLineSource) {
     if (!step || step.instruction.type === 'destination') return null
     const { at, side, kind, road } = turnCallout(route, step)
     const text = road.kind === 'named' ? road.name : t(`guidance.roads.${road.key}`)
-    return { at, side, kind, text, color: getTravelModeCaseColor(travelModeAt(route, at)) }
+    return { at, side, kind, text, color: getSegmentCaseColor(segmentAt(route, at) ?? { mode: travelModeAt(route, at) }) }
   }
 
   function hazardsFor(route: NavRoute, { s, speed, overview }: RouteLineFocus, turnAt: number | null) {

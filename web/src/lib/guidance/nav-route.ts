@@ -12,6 +12,7 @@ import { haversineMeters } from '@/lib/geo/geo-line'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 
 export interface NavSegmentInput {
+  lineColor?: string | null
   mode: string
   geometry?: LngLat[]
   instructions?: RouteInstruction[]
@@ -31,6 +32,7 @@ export interface NavStep {
 }
 
 export interface NavSegment {
+  lineColor?: string | null
   index: number
   mode: string
   startDistance: number
@@ -93,7 +95,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
       points.push(p)
       distances.push(offset)
     }
-    segments.push({ index: segmentIndex, mode: input.mode, startDistance, endDistance: offset })
+    segments.push({ index: segmentIndex, mode: input.mode, lineColor: input.lineColor, startDistance, endDistance: offset })
 
     if (laned) {
       const lane = input.laneGeometry

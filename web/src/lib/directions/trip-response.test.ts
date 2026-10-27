@@ -30,3 +30,12 @@ test('flattens multimodal segments and reads transit details', () => {
   expect(trip.segments.map((s: { mode: string }) => s.mode)).toEqual(['walking', 'transit'])
   expect(trip.segments[1]).toMatchObject({ lineName: 'M22', headsign: 'Lower East Side', intermediateStops: [{ name: 'b' }] })
 })
+
+test("ends each leg at its waypoint's place", () => {
+  const trip = mapCandidate(candidate([
+    segment({ segmentIndex: 0, legIndex: 0, end: { label: 'Parking' } }),
+    segment({ segmentIndex: 1, legIndex: 0, end: { label: 'Cafe' } }),
+    segment({ segmentIndex: 2, legIndex: 1, end: { label: 'Home', place: { id: 'osm/way/9' } } }),
+  ]), 0, [undefined, 'osm/node/1', 'osm/node/2'])
+  expect(trip.segments.map((s: any) => s.end.place?.id)).toEqual([undefined, 'osm/node/1', 'osm/way/9'])
+})

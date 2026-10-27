@@ -1,5 +1,5 @@
 import type { ManeuverKind } from '@/lib/directions/maneuver'
-import { laneArrowsFor, type Lane, type LaneArrow } from './lanes'
+import { arrowsUsed, type Lane, type LaneArrow } from './lanes'
 
 // Drawn for a 24×24 box from one shared stem; left arrows mirror the right ones.
 const PATHS: Record<'through' | 'right' | 'slight-right' | 'uturn', string> = {
@@ -18,8 +18,7 @@ export interface LaneStroke {
 
 /** One lane's arrows as strokes off a shared stem, the ones the maneuver uses lit and drawn last. */
 export function laneStrokes(lane: Lane, kind: ManeuverKind): LaneStroke[] {
-  const wanted = laneArrowsFor(kind)
-  const used = lane.valid ? lane.arrows.filter(a => wanted.includes(a)) : []
+  const used = lane.valid ? arrowsUsed(lane.arrows, kind) : []
   const lit = lane.valid && used.length === 0 ? lane.arrows : used
   return lane.arrows
     .map(arrow => {

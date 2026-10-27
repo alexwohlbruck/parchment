@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMapService } from '@/services/map/map.service'
 import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
+import { PLACE_AREA_ZOOM, PLACE_POINT_ZOOM } from '@/lib/place/place-camera'
 import { usePlaceService } from '@/services/place/place.service'
 import { useAbortController } from '@/composables/useAbortController'
 import Place from '@/components/place/PlacePanel.vue'
@@ -167,7 +168,7 @@ function framePlace(place: any) {
     // For points or geometries without bounds, use traditional flyTo with appropriate zoom
     flyTo({
       center: new LngLat(center.lng, center.lat),
-      zoom: type === 'point' ? 17 : 16,
+      zoom: type === 'point' ? PLACE_POINT_ZOOM : PLACE_AREA_ZOOM,
     })
   }
 }

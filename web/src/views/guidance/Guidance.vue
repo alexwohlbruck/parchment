@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, provide, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { computed, defineAsyncComponent, onBeforeUnmount, onUnmounted, provide, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
@@ -18,6 +18,7 @@ import { panelAfterClose } from '@/lib/guidance/guidance-layout'
 import { freeModeFor } from '@/lib/guidance/free-roam'
 import { getWaypointPlaceRoute } from '@/lib/place/place-route'
 import { useGuidanceStore } from '@/stores/guidance.store'
+import { useDirectionsService } from '@/services/directions.service'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
 
@@ -103,10 +104,21 @@ let dismissTimer: ReturnType<typeof setTimeout> | null = null
 watch(arrivedForGood, arrived => {
   if (dismissTimer) clearTimeout(dismissTimer)
   dismissTimer = arrived ? setTimeout(exit, ARRIVAL_DISMISS_MS) : null
+  const destination = arrived ? guidance.segments.at(-1)?.end?.location : null
+  if (destination) camera.arrive(destination)
+  else if (!arrived && guidance.isActive) camera.follow()
 })
 onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)
   guidance.stop()
+})
+
+// Back returns to the trip; anywhere else, the trip's lines and pins go with navigation.
+const route = useRoute()
+const directionsService = useDirectionsService()
+onUnmounted(() => {
+  const keepsTrip = new Set<unknown>([AppRoute.TRIP, AppRoute.DIRECTIONS, AppRoute.ROUTE_PREVIEW])
+  if (!keepsTrip.has(route.name)) directionsService.clearTrip()
 })
 </script>
 

@@ -1214,6 +1214,16 @@
       }
     },
     "settings": {
+      "speechVoice": "Voz de navegación",
+      "speechVoiceDescription": "Usa voces del idioma de la app cuando la voz del servidor está disponible.",
+      "speechFallback": "Se usa la voz del navegador si la voz del servidor no está disponible.",
+      "speechAutomatic": "Automática",
+      "speechRate": "Velocidad de voz",
+      "speechRateDescription": "Elige un ritmo cómodo para las instrucciones.",
+      "speechPreview": "Escuchar",
+      "speechSample": "En 200 metros, gira a la derecha y luego mantente a la izquierda.",
+      "adaptiveSpeech": "Voz más rápida en giros seguidos",
+      "adaptiveSpeechDescription": "Aumenta el ritmo cuando hay varias maniobras seguidas, hasta 1,5×.",
       "title": "Navegación",
       "cameraMode": "Cámara",
       "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
@@ -1331,6 +1341,8 @@
         "left": "Has llegado. Tu destino está a la izquierda",
         "right": "Has llegado. Tu destino está a la derecha"
       },
+      "head": "Ve hacia el {heading}",
+      "headOn": "Ve hacia el {heading} por {road}",
       "rerouting": "Recalculando la ruta",
       "turnAround": "Da la vuelta y ve hacia el {heading}",
       "turnAroundOn": "Da la vuelta y ve hacia el {heading} por {road}",
@@ -2392,6 +2404,7 @@
         "tileServer": "Servidor de teselas",
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
+        "tts": "Síntesis de voz",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios"

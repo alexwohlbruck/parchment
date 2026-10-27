@@ -34,28 +34,43 @@ const ACROSS_METERS = 14
 const SAME_HEADING_DEG = 35
 /** Arrows this close across the road are one lane. */
 const SAME_LANE_METERS = 1.6
+/** One row of arrows: painted this close along the road, facing the same way. */
+const ROW_DEPTH_METERS = 6
+const ROW_HEADING_DEG = 10
 const METERS_PER_DEGREE = 111_320
 
-/** What a maneuver needs a lane to allow. */
-export function laneArrowsFor(kind: ManeuverKind): LaneArrow[] {
+/**
+ * The arrows a maneuver can use, best first: a lane leads on when it has an
+ * arrow from the first group any lane has. A bend onto the road ahead uses the
+ * through lanes, not the ones turning off.
+ */
+export function laneArrowTiers(kind: ManeuverKind): LaneArrow[][] {
   switch (kind) {
     case 'left':
     case 'sharp-left':
-      return ['left']
+      return [['left']]
     case 'right':
     case 'sharp-right':
-      return ['right']
+      return [['right']]
     case 'slight-left':
-    case 'keep-left':
-      return ['slight-left', 'left', 'through']
+      return [['slight-left'], ['through'], ['left']]
     case 'slight-right':
+      return [['slight-right'], ['through'], ['right']]
+    case 'keep-left':
+      return [['slight-left', 'left'], ['through']]
     case 'keep-right':
-      return ['slight-right', 'right', 'through']
+      return [['slight-right', 'right'], ['through']]
     case 'uturn':
-      return ['uturn', 'left']
+      return [['uturn', 'left']]
     default:
-      return ['through']
+      return [['through']]
   }
+}
+
+/** The arrows of `lane` that the best group it shares with the maneuver names. */
+export function arrowsUsed(arrows: LaneArrow[], kind: ManeuverKind): LaneArrow[] {
+  const tier = laneArrowTiers(kind).find(t => arrows.some(a => t.includes(a)))
+  return tier ? arrows.filter(a => tier.includes(a)) : []
 }
 
 /** Metres along and across the approach heading, right positive. */
@@ -81,21 +96,27 @@ export function lanePlan(glyphs: RoadGlyph[], at: LngLat, bearing: number, kind:
     .filter(g => g.along <= PAST_METERS && g.along >= -BEFORE_METERS && Math.abs(g.across) <= ACROSS_METERS)
     .sort((a, b) => b.along - a.along)
 
-  // The row nearest the stop line: one arrow per lane.
+  // The row nearest the stop line only: a divided crossroad paints a second
+  // row, at another angle, that must not fill in this one's lanes.
+  const first = near[0]
+  if (!first) return null
+  const row = near.filter(
+    g => first.along - g.along <= ROW_DEPTH_METERS && Math.abs(angleDelta(g.glyph.direction, first.glyph.direction)) <= ROW_HEADING_DEG,
+  )
   const lanes: typeof near = []
-  for (const g of near) {
+  for (const g of row) {
     if (!lanes.some(l => Math.abs(l.across - g.across) < SAME_LANE_METERS)) lanes.push(g)
   }
   if (lanes.length < 2) return null
   lanes.sort((a, b) => a.across - b.across)
 
-  const wanted = laneArrowsFor(kind)
+  const tier = laneArrowTiers(kind).find(t => lanes.some(l => ARROWS[l.glyph.glyph].some(a => t.includes(a))))
+  if (!tier) return null
   const plan = lanes.map(l => {
     const arrows = ARROWS[l.glyph.glyph]
-    return { arrows, valid: arrows.some(a => wanted.includes(a)), recommended: false }
+    return { arrows, valid: arrows.some(a => tier.includes(a)), recommended: false }
   })
   const valid = plan.map((l, i) => (l.valid ? i : -1)).filter(i => i >= 0)
-  if (valid.length === 0) return null
   const pick = kind.includes('left') || kind === 'uturn' ? valid[0] : kind.includes('right') ? valid.at(-1)! : valid[Math.floor((valid.length - 1) / 2)]
   plan[pick].recommended = true
   return { lanes: plan }

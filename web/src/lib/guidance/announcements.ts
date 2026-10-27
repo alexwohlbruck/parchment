@@ -14,7 +14,7 @@ import { crosswalkAfter, upcomingHazard } from './hazards'
 import { modeProfile } from './mode-profiles'
 import type { NavHazard } from './nav-route'
 import type { Handoff } from './handoff'
-import type { Cardinal } from './turn-around'
+import { cardinal, type Cardinal } from './turn-around'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -32,6 +32,7 @@ export type Announcement =
   | { kind: 'handoff'; handoff: Handoff }
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
+  | { kind: 'start'; heading: Cardinal; road: string | null; step: NavStep | null; then?: NavStep | null }
   | { kind: 'reroute' }
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
@@ -46,7 +47,6 @@ const PREPARE_SEC = 115
 const APPROACH_SEC = 22
 const MIN_NOW_METERS = 12
 const CONTINUE_OVER_METERS = 2000
-const THEN_WITHIN_METERS = 100
 /** Early prompts wait this long after the previous maneuver, so they don't talk over it. */
 const MIN_GAP_SEC = 8
 
@@ -72,22 +72,60 @@ export function destinationSide(route: NavRoute, destination: LngLat | null): 'l
 export class Announcer {
   private fired = new Set<string>()
   private lastStepIndex = -1
+  private speechUntil = 0
 
   constructor(
     private route: NavRoute,
     private destination: LngLat | null,
+    private speechSeconds: (announcement: Announcement, available?: number) => number = () => 4,
   ) {}
 
   setRoute(route: NavRoute): void {
     this.route = route
     this.fired.clear()
     this.lastStepIndex = -1
+    this.speechUntil = 0
   }
 
   private once(key: string): boolean {
     if (this.fired.has(key)) return false
     this.fired.add(key)
     return true
+  }
+
+  start(): Announcement | null {
+    if (this.route.points.length < 2 || !this.once('start')) return null
+    const step = this.route.steps.find(step => step.startDistance <= MIN_NOW_METERS) ?? null
+    const next = this.route.steps[1]
+    if (next) this.fired.add(`continue:${next.index}`)
+    const initial: Announcement = {
+      kind: 'start',
+      heading: cardinal(bearingAt(this.route, 0)),
+      road: step?.instruction.streetName || step?.instruction.streetRef || null,
+      step,
+    }
+    this.combine(initial, 0, modeProfile(travelModeAt(this.route, 0)).baseSpeed)
+    return initial
+  }
+
+  private cover(step: NavStep) {
+    for (const phase of ['continue', 'prepare', 'approach', 'now']) this.fired.add(`${phase}:${step.index}`)
+  }
+
+  private combine(announcement: Announcement, s: number, speed: number) {
+    if (announcement.kind !== 'start' && announcement.kind !== 'maneuver') return
+    const v = speed > 0.5 ? speed : modeProfile(travelModeAt(this.route, s)).baseSpeed
+    const next = this.route.steps[(announcement.step?.index ?? 0) + 1]
+    const deadline = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? announcement.step : next
+    const seconds = this.speechSeconds(announcement, deadline ? (deadline.startDistance - s) / v : undefined) + 2
+    if ((announcement.kind === 'start' || announcement.phase === 'now') && next
+      && maneuverKind(next.instruction) !== 'arrive'
+      && next.segmentIndex === announcement.step?.segmentIndex
+      && next.startDistance - s - leadDistances(travelModeAt(this.route, s), v).now <= v * seconds) {
+      announcement.then = next
+      this.cover(next)
+    }
+    this.speechUntil = s + v * (this.speechSeconds(announcement) + 2)
   }
 
   /** Prompts due at this puck position, in speaking order. */
@@ -128,17 +166,16 @@ export class Announcer {
     for (let i = phases.length - 1; i >= 0; i--) {
       const [phase, at] = phases[i]
       if (at == null || distance > at) continue
-      if (phase !== 'now' && !settled) continue
+      if (phase !== 'now' && (!settled || puck.s < this.speechUntil)) continue
       for (const [earlier] of phases.slice(0, i)) this.fired.add(`${earlier}:${next.index}`)
       if (!this.once(`${phase}:${next.index}`)) break
       if (arriving) {
         if (phase !== 'now') due.push({ kind: 'arrive', distance, side })
       } else {
-        const after = route.steps[next.index + 1]
-        const then =
-          phase === 'now' && after && after.startDistance - next.startDistance <= THEN_WITHIN_METERS ? after : null
         const pedestrians = phase === 'now' && mode === 'driving' && crosswalkAfter(route, next) != null
-        due.push({ kind: 'maneuver', phase, step: next, distance, then, pedestrians })
+        const announcement: Announcement = { kind: 'maneuver', phase, step: next, distance, then: null, pedestrians }
+        this.combine(announcement, puck.s, puck.speed)
+        due.push(announcement)
       }
       break
     }

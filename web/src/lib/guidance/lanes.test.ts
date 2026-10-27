@@ -45,6 +45,43 @@ describe('lanePlan', () => {
   })
 })
 
+describe('lanePlan at a divided crossroad', () => {
+  // Delancey St westbound at the Bowery, bearing right onto Kenmare St: a row of
+  // arrows at each carriageway's stop line, at different angles.
+  const glyphs: RoadGlyph[] = [
+    ['road-arrow-right', 265, 40.720362, -73.993781],
+    ['road-arrow-through', 265, 40.720332, -73.993778],
+    ['road-arrow-through', 265, 40.720301, -73.993775],
+    ['road-arrow-left', 265, 40.720271, -73.993772],
+    ['road-arrow-left', 292, 40.720183, -73.993466],
+    ['road-arrow-through', 292, 40.720211, -73.993451],
+    ['road-arrow-through', 292, 40.720239, -73.993436],
+    ['road-arrow-right', 292, 40.720268, -73.993421],
+  ].map(([glyph, direction, lat, lng]) => ({ glyph, direction, position: { lat, lng } }) as RoadGlyph)
+  const plan = lanePlan(glyphs, { lat: 40.720302, lng: -73.993994 }, 265, 'slight-right')!
+
+  test('reads only the row nearest the stop line', () => {
+    expect(plan.lanes.map(l => l.arrows.join('+'))).toEqual(['left', 'through', 'through', 'right'])
+  })
+
+  test('a bend onto the road ahead keeps to the through lanes', () => {
+    expect(plan.lanes.map(l => l.valid)).toEqual([false, true, true, false])
+    expect(plan.lanes.findIndex(l => l.recommended)).toBe(2)
+  })
+})
+
+describe('lanePlan for a slight turn', () => {
+  test('uses lanes painted for it ahead of the through lanes', () => {
+    const lanes = [glyph('road-arrow-through', 20, -1.5), glyph('road-arrow-slight-right', 20, 1.5)]
+    expect(lanePlan(lanes, at, 0, 'slight-right')!.lanes.map(l => l.valid)).toEqual([false, true])
+  })
+
+  test('turns off with the turning lanes when nothing goes ahead', () => {
+    const lanes = [glyph('road-arrow-left', 20, -1.5), glyph('road-arrow-right', 20, 1.5)]
+    expect(lanePlan(lanes, at, 0, 'slight-right')!.lanes.map(l => l.valid)).toEqual([false, true])
+  })
+})
+
 describe('laneHint', () => {
   test('names the lanes to use only when some do not work', () => {
     expect(laneHint(lanePlan(approach, at, 0, 'right')!)).toEqual({ side: 'right', count: 1 })

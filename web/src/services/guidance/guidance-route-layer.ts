@@ -16,7 +16,7 @@ import { declutter } from '@/lib/guidance/declutter'
 import { ensureHazardSignImages, HAZARD_SIGN_IMAGE } from './hazard-sign-images'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import type { RouteSpan } from '@/lib/map-decks/deck.types'
-import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { getSegmentCaseColor, getSegmentColor } from '@/lib/directions/segment-colors'
 
 const ROUTE = 'guidance-route'
 /** Read by the 3D bridge decks, which lift the route onto themselves. */
@@ -147,11 +147,11 @@ export class GuidanceRouteLayer {
   }
 
   private gradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeColor, TRAVELLED_COLOR, this.progressAt, this.hidden)
+    return routeGradient(this.route, travelled, getSegmentColor, TRAVELLED_COLOR, this.progressAt, this.hidden)
   }
 
   private caseGradient(travelled: number) {
-    return routeGradient(this.route, travelled, getTravelModeCaseColor, TRAVELLED_CASE_COLOR, this.progressAt, this.hidden)
+    return routeGradient(this.route, travelled, getSegmentCaseColor, TRAVELLED_CASE_COLOR, this.progressAt, this.hidden)
   }
 
   /** `travelled`, and the bubbles for the next turn and hazards at their route distance; cheap to call often. */

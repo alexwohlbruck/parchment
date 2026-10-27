@@ -378,6 +378,12 @@ function directionsService() {
     store.setWaypoints([{ lngLat: null }, { lngLat: null }] as Waypoint[])
   }
 
+  /** Drops the planned trip and its waypoints, and with them everything they draw on the map. */
+  function clearTrip() {
+    clearWaypoints()
+    store.unsetTrips()
+  }
+
   function removeWaypoint(index: number) {
     if (waypoints.value.length <= MIN_WAYPOINTS) {
       store.setWaypoint(index, { ...waypoints.value[index], lngLat: null })
@@ -585,6 +591,7 @@ function directionsService() {
     setWaypoint,
     setWaypoints,
     clearWaypoints,
+    clearTrip,
     removeWaypoint,
     addWaypoint,
     moveWaypoint,

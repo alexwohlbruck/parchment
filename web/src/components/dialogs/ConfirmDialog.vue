@@ -42,6 +42,8 @@ watch(isOpen, value => {
         </AlertDialogDescription>
       </AlertDialogHeader>
 
+      <slot />
+
       <AlertDialogFooter class="flex flex-col sm:flex-row gap-2">
         <Button
           @click="isOpen = false"

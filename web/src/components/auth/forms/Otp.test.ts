@@ -89,6 +89,7 @@ describe('resending the email', () => {
     expect(verifyEmail).toHaveBeenCalledTimes(1)
     resolveSend()
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(10)
     expect(wrapper.get('[role="status"]').text()).toBe('auth.otp.resent')
     expect(wrapper.find('[aria-invalid="true"]').exists()).toBe(false)
     expect(wrapper.findAll('input[autocomplete="one-time-code"]').every(input => !(input.element as HTMLInputElement).value)).toBe(true)
@@ -102,6 +103,7 @@ describe('resending the email', () => {
   })
 
   it('shows an error, keeps the existing code, and permits an immediate retry', async () => {
+    vi.useFakeTimers()
     verifyEmail.mockRejectedValueOnce(new Error('Network error'))
     const wrapper = mountOtp()
     await paste(wrapper, '12')
@@ -113,7 +115,10 @@ describe('resending the email', () => {
     expect((wrapper.get('input[autocomplete="one-time-code"]').element as HTMLInputElement).value).toBe('1')
     await button.trigger('click')
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(10)
     expect(wrapper.get('[role="status"]').text()).toBe('auth.otp.resent')
     expect(wrapper.find('[aria-invalid="true"]').exists()).toBe(false)
+    expect(wrapper.findAll('input[autocomplete="one-time-code"]').every(input => !(input.element as HTMLInputElement).value)).toBe(true)
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 })

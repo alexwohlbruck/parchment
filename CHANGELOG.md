@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Finishing navigation clears the trip's route and pins from the map.
+
 ## [0.18.0] - 2026-10-27
 
 ### Added

@@ -832,8 +832,7 @@ onUnmounted(() => {
   // Guidance and the route preview follow this trip and return here on exit.
   const keepsTrip = new Set<unknown>([AppRoute.DIRECTIONS, AppRoute.GUIDANCE, AppRoute.ROUTE_PREVIEW])
   if (keepsTrip.has(route.name)) return
-  directionsService.clearWaypoints()
-  directionsStore.unsetTrips()
+  directionsService.clearTrip()
 })
 
 function onInstructionHover(

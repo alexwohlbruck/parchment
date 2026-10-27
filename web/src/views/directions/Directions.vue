@@ -150,8 +150,7 @@ function clearDepartureTime() {
 onUnmounted(() => {
   // Keep trips alive when drilling into a trip detail — TripDetail needs them.
   if (route.name === AppRoute.TRIP) return
-  directionsService.clearWaypoints()
-  directionsStore.unsetTrips()
+  directionsService.clearTrip()
 })
 
 const allModes: Array<{ type: SelectedMode; icon: any; label: string }> = [

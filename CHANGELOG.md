@@ -4,9 +4,13 @@
 
 ### Changed
 
+* Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
+
 * Navigation on larger screens uses the same swipeable sheet as on phones for the trip summary and menu.
 
 ### Fixed
+
+* Arriving at a destination now opens that place's page instead of a page for its coordinates.
 
 * Finishing navigation clears the trip's route and pins from the map.
 
@@ -20,13 +24,9 @@
 
 ### Changed
 
-* Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
-
 * Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
 
 ### Fixed
-
-* Arriving at a destination now opens that place's page instead of a page for its coordinates.
 
 * Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
 

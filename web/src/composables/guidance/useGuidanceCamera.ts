@@ -1,6 +1,9 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import type { Map as MaplibreMap, MapLibreEvent } from 'maplibre-gl'
+import { LngLat } from 'mapbox-gl'
 import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map/map.service'
+import { PLACE_POINT_ZOOM } from '@/lib/place/place-camera'
 import { useAppStore } from '@/stores/app.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
@@ -37,6 +40,8 @@ export function useGuidanceCamera() {
   const strategy = useMapStore().getMapStrategy()
   const map = strategy?.mapInstance as MaplibreMap | undefined
   const state = ref<CameraState>('following')
+  const mapService = useMapService()
+  const entryView = { pitch: map?.getPitch() ?? 0, bearing: map?.getBearing() ?? 0 }
 
   const zoom = createSpring(map?.getZoom() ?? 15)
   const pitch = createSpring(map?.getPitch() ?? 0)
@@ -154,6 +159,15 @@ export function useGuidanceCamera() {
     )
   }
 
+  /** Stops following and settles on the destination as its page frames it, at the tilt and heading navigation began with. */
+  function arrive(destination: { lat: number; lng: number }) {
+    clearResumeTimer()
+    state.value = 'free'
+    guidanceEngine.setFrameInterval(0)
+    strategy?.liftCenter(0)
+    mapService.flyTo({ center: new LngLat(destination.lng, destination.lat), zoom: PLACE_POINT_ZOOM, ...entryView })
+  }
+
   /** The camera button: resumes following when free, otherwise cycles the mode. */
   function pressCameraButton() {
     if (state.value !== 'following') return follow()
@@ -196,6 +210,7 @@ export function useGuidanceCamera() {
     following: computed(() => state.value === 'following'),
     follow,
     overview,
+    arrive,
     pressCameraButton,
   }
 }

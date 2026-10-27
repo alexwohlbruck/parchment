@@ -170,6 +170,7 @@ function directionsService() {
       })
 
       // Transform response to UI format
+      const placeIds = validWaypoints.map(wp => shareableWaypointId(wp.place))
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
@@ -192,7 +193,7 @@ function directionsService() {
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },
         },
-        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i)),
+        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds)),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
@@ -375,6 +376,12 @@ function directionsService() {
 
   function clearWaypoints() {
     store.setWaypoints([{ lngLat: null }, { lngLat: null }] as Waypoint[])
+  }
+
+  /** Drops the planned trip and its waypoints, and with them everything they draw on the map. */
+  function clearTrip() {
+    clearWaypoints()
+    store.unsetTrips()
   }
 
   function removeWaypoint(index: number) {
@@ -584,6 +591,7 @@ function directionsService() {
     setWaypoint,
     setWaypoints,
     clearWaypoints,
+    clearTrip,
     removeWaypoint,
     addWaypoint,
     moveWaypoint,

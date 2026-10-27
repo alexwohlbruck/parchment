@@ -2,9 +2,21 @@
 
 ### Added
 
+* Hear an opening direction as soon as route navigation starts, even before you begin moving.
+
+* Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.
+
 ### Changed
 
+* Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
+
 ### Fixed
+
+* Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
+
+* Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.
+
+* Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.
 
 ## [0.17.1-1] - 2026-10-26
 

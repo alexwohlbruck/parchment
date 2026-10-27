@@ -14447,6 +14447,135 @@
         }
       }
     },
+    "/speech/": {
+      "get": {
+        "operationId": "getSpeech",
+        "tags": [
+          "Speech"
+        ],
+        "summary": "List speech voices, languages and supported controls",
+        "responses": {
+          "200": {}
+        }
+      },
+      "post": {
+        "parameters": [],
+        "operationId": "postSpeech",
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Synthesize a short instruction",
+        "description": "Returns MP3 audio from a configured TTS integration. Rate 1 is normal; larger values speak faster. Returns 503 when unavailable or the voice/language is unsupported; clients should use browser speech fallback.",
+        "responses": {
+          "200": {
+            "description": "Synthesized MP3",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/subscriptions/config": {
       "get": {
         "operationId": "getSubscriptionsConfig",
@@ -14454,6 +14583,150 @@
           "Subscriptions"
         ],
         "summary": "Get billing configuration and product info",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/webhook": {
+      "post": {
+        "operationId": "postSubscriptionsWebhook",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Handle Polar webhook events",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/checkout": {
+      "post": {
+        "parameters": [],
+        "operationId": "postSubscriptionsCheckout",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Create a Polar checkout session for subscription upgrade",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/portal": {
+      "get": {
+        "operationId": "getSubscriptionsPortal",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get Polar customer portal URL",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/status": {
+      "get": {
+        "operationId": "getSubscriptionsStatus",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get current subscription status",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/details": {
+      "get": {
+        "operationId": "getSubscriptionsDetails",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get rich subscription details from Polar",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/verify": {
+      "post": {
+        "operationId": "postSubscriptionsVerify",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Verify subscription status directly with Polar",
         "responses": {
           "200": {}
         }

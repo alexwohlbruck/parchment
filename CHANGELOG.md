@@ -20,6 +20,8 @@
 
 ### Fixed
 
+* Arriving at a destination now opens that place's page instead of a page for its coordinates.
+
 * Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
 
 * Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.

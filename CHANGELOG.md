@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Transit navigation uses the same line colors, station labels, route bullets, and live vehicle focus as the trip preview.
+
 * Transit trips with a timed transfer at the same station offer Start navigation.
 
 * Copy your recovery key directly from the sign-out confirmation before leaving your account.

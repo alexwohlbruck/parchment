@@ -1,6 +1,9 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import type { Map as MaplibreMap, MapLibreEvent } from 'maplibre-gl'
+import { LngLat } from 'mapbox-gl'
 import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map/map.service'
+import { PLACE_POINT_ZOOM } from '@/lib/place/place-camera'
 import { useAppStore } from '@/stores/app.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
@@ -26,7 +29,6 @@ const CALM_MANEUVER_SEC = 7
 const CALM_FRAME_MS = 33
 const FOCAL_GAIN = 0.5
 const OVERVIEW_DURATION_MS = 800
-const RESTORE_DURATION_MS = 800
 const USER_MOVE_START = ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'] as const
 const USER_MOVE_END = ['dragend', 'zoomend', 'rotateend', 'pitchend'] as const
 
@@ -38,8 +40,8 @@ export function useGuidanceCamera() {
   const strategy = useMapStore().getMapStrategy()
   const map = strategy?.mapInstance as MaplibreMap | undefined
   const state = ref<CameraState>('following')
-  const entryView = map ? { zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() } : null
-  let restored = false
+  const mapService = useMapService()
+  const entryView = { pitch: map?.getPitch() ?? 0, bearing: map?.getBearing() ?? 0 }
 
   const zoom = createSpring(map?.getZoom() ?? 15)
   const pitch = createSpring(map?.getPitch() ?? 0)
@@ -124,18 +126,7 @@ export function useGuidanceCamera() {
     zoom.velocity = pitch.velocity = bearing.velocity = 0
   }
 
-  /** Gives the map back the zoom, tilt and heading it had before navigation, wherever it stands. */
-  function restoreEntryView() {
-    if (!map || !entryView || restored) return
-    restored = true
-    clearResumeTimer()
-    state.value = 'free'
-    guidanceEngine.setFrameInterval(0)
-    map.easeTo({ ...entryView, duration: RESTORE_DURATION_MS })
-  }
-
   function follow() {
-    restored = false
     clearResumeTimer()
     heldZoom = null
     syncSpringsToMap()
@@ -166,6 +157,15 @@ export function useGuidanceCamera() {
         duration: OVERVIEW_DURATION_MS,
       },
     )
+  }
+
+  /** Stops following and settles on the destination as its page frames it, at the tilt and heading navigation began with. */
+  function arrive(destination: { lat: number; lng: number }) {
+    clearResumeTimer()
+    state.value = 'free'
+    guidanceEngine.setFrameInterval(0)
+    strategy?.liftCenter(0)
+    mapService.flyTo({ center: new LngLat(destination.lng, destination.lat), zoom: PLACE_POINT_ZOOM, ...entryView })
   }
 
   /** The camera button: resumes following when free, otherwise cycles the mode. */
@@ -203,7 +203,6 @@ export function useGuidanceCamera() {
       for (const type of USER_MOVE_END) map.off(type, onUserMoveEnd)
     }
     heldPointers.dispose()
-    restoreEntryView()
   })
 
   return {
@@ -211,7 +210,7 @@ export function useGuidanceCamera() {
     following: computed(() => state.value === 'following'),
     follow,
     overview,
-    restoreEntryView,
+    arrive,
     pressCameraButton,
   }
 }

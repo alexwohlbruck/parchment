@@ -103,8 +103,9 @@ let dismissTimer: ReturnType<typeof setTimeout> | null = null
 watch(arrivedForGood, arrived => {
   if (dismissTimer) clearTimeout(dismissTimer)
   dismissTimer = arrived ? setTimeout(exit, ARRIVAL_DISMISS_MS) : null
-  if (arrived) camera.restoreEntryView()
-  else if (guidance.isActive) camera.follow()
+  const destination = arrived ? guidance.segments.at(-1)?.end?.location : null
+  if (destination) camera.arrive(destination)
+  else if (!arrived && guidance.isActive) camera.follow()
 })
 onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)

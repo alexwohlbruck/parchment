@@ -8,7 +8,7 @@
 
 ### Changed
 
-* Ending navigation returns the map to the zoom, tilt and heading it had before you started.
+* Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
 
 * Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
 

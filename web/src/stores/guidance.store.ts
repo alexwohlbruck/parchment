@@ -1,3 +1,5 @@
+import { nextNavigableLeg } from '@/lib/guidance/leg-navigation'
+export { isLegNavigable, nextNavigableLeg } from '@/lib/guidance/leg-navigation'
 import { computed, markRaw, reactive, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useStorage } from '@vueuse/core'
@@ -112,21 +114,6 @@ export function legSegments(trip: TripOption, legIndex: number): LegSegment[] {
   return (trip.segments as LegSegment[]).filter(
     s => (s.legIndex ?? 0) === legIndex && (s.geometry?.length ?? 0) > 1,
   )
-}
-
-/** Navigation can follow a leg once every segment in it has a shape to follow. */
-export function isLegNavigable(trip: TripOption, legIndex: number): boolean {
-  const leg = (trip.segments as LegSegment[]).filter(s => (s.legIndex ?? 0) === legIndex)
-  return leg.length > 0 && leg.every(s => (s.geometry?.length ?? 0) > 1)
-}
-
-/** First leg after the ones already navigated that can be followed, or null. */
-export function nextNavigableLeg(trip: TripOption, after: number): number | null {
-  const legs = new Set((trip.segments as LegSegment[]).map(s => s.legIndex ?? 0))
-  for (const leg of [...legs].sort((a, b) => a - b)) {
-    if (leg > after && isLegNavigable(trip, leg)) return leg
-  }
-  return null
 }
 
 /** The lane plans the route came with, by step. */

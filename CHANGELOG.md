@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Navigation on larger screens uses the same swipeable sheet as on phones for the trip summary and menu.
+
 ### Fixed
 
 * Finishing navigation clears the trip's route and pins from the map.

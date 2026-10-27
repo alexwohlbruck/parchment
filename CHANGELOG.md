@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.18.0] - 2026-10-27
+
+### Added
+
 * Hear an opening direction as soon as route navigation starts, even before you begin moving.
 
 * Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.

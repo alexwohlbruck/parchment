@@ -31,20 +31,6 @@ const USER_MOVE_START = ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'] 
 const USER_MOVE_END = ['dragend', 'zoomend', 'rotateend', 'pitchend'] as const
 
 type GestureEvent = MapLibreEvent & { originalEvent?: Event }
-type View = { zoom: number; pitch: number; bearing: number }
-
-/** Eases back to `view` where the map stands; if another flight cuts in, its tilt and heading are restored once it lands. */
-function restoreView(map: MaplibreMap, view: View) {
-  map.easeTo({ ...view, duration: RESTORE_DURATION_MS })
-  const settle = () => setTimeout(() => {
-    if (map.isMoving()) return
-    map.off('moveend', settle)
-    if (Math.abs(map.getPitch() - view.pitch) > 0.5 || Math.abs(map.getBearing() - view.bearing) > 0.5) {
-      map.easeTo({ pitch: view.pitch, bearing: view.bearing, duration: RESTORE_DURATION_MS })
-    }
-  })
-  map.on('moveend', settle)
-}
 
 export function useGuidanceCamera() {
   const guidance = useGuidanceStore()
@@ -52,7 +38,8 @@ export function useGuidanceCamera() {
   const strategy = useMapStore().getMapStrategy()
   const map = strategy?.mapInstance as MaplibreMap | undefined
   const state = ref<CameraState>('following')
-  const entryView: View | null = map ? { zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() } : null
+  const entryView = map ? { zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() } : null
+  let restored = false
 
   const zoom = createSpring(map?.getZoom() ?? 15)
   const pitch = createSpring(map?.getPitch() ?? 0)
@@ -137,7 +124,18 @@ export function useGuidanceCamera() {
     zoom.velocity = pitch.velocity = bearing.velocity = 0
   }
 
+  /** Gives the map back the zoom, tilt and heading it had before navigation, wherever it stands. */
+  function restoreEntryView() {
+    if (!map || !entryView || restored) return
+    restored = true
+    clearResumeTimer()
+    state.value = 'free'
+    guidanceEngine.setFrameInterval(0)
+    map.easeTo({ ...entryView, duration: RESTORE_DURATION_MS })
+  }
+
   function follow() {
+    restored = false
     clearResumeTimer()
     heldZoom = null
     syncSpringsToMap()
@@ -205,7 +203,7 @@ export function useGuidanceCamera() {
       for (const type of USER_MOVE_END) map.off(type, onUserMoveEnd)
     }
     heldPointers.dispose()
-    if (map && entryView) restoreView(map, entryView)
+    restoreEntryView()
   })
 
   return {
@@ -213,6 +211,7 @@ export function useGuidanceCamera() {
     following: computed(() => state.value === 'following'),
     follow,
     overview,
+    restoreEntryView,
     pressCameraButton,
   }
 }

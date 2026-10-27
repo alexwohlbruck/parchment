@@ -111,7 +111,7 @@ it('interrupts stalled browser playback for an urgent instruction', async () => 
 })
 
 
-it('allows startup latency only for the first non-urgent prompt', async () => {
+it('allows brief network delays for each non-urgent prompt', async () => {
   vi.useFakeTimers()
   const output = outputs()
   output.synthesize.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(new Blob(['audio'])), 2000)))
@@ -121,8 +121,9 @@ it('allows startup latency only for the first non-urgent prompt', async () => {
   expect(output.playAudio).toHaveBeenCalledTimes(1)
   expect(output.playBrowser).not.toHaveBeenCalled()
   player.speak('Later instruction', options)
-  await vi.advanceTimersByTimeAsync(1500)
-  expect(output.playBrowser).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(output.playAudio).toHaveBeenCalledTimes(2)
+  expect(output.playBrowser).not.toHaveBeenCalled()
   player.stop()
 })
 
@@ -136,4 +137,20 @@ it('does not extend the first prompt beyond its maneuver deadline', async () => 
   expect(output.synthesize.mock.calls[0][2].aborted).toBe(true)
   expect(output.playAudio).not.toHaveBeenCalled()
   expect(output.playBrowser).not.toHaveBeenCalled()
+})
+
+
+it('reports the fallback reason without reporting cancelled or expired prompts', async () => {
+  const output = { ...outputs(), onFallback: vi.fn() }
+  const error = new Error('Provider unavailable')
+  output.synthesize.mockRejectedValueOnce(error)
+  const player = new SpeechPlayer(output)
+  player.speak('Turn left', options)
+  await flush()
+  expect(output.onFallback).toHaveBeenCalledWith(error, options)
+  output.synthesize.mockImplementationOnce(() => new Promise(() => {}))
+  player.speak('Cancelled', options)
+  player.stop()
+  await flush()
+  expect(output.onFallback).toHaveBeenCalledTimes(1)
 })

@@ -3,9 +3,7 @@ import { SpeechPlayer, type SpeechOptions } from './speech-player.service'
 import type { SpeechCatalog } from '@server/types/speech.types'
 
 let context: AudioContext | null = null
-let activation: Promise<void> | null = null
 let voices: SpeechSynthesisVoice[] = []
-let retryAfter = 0
 
 function browserSpeech() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null
@@ -46,10 +44,29 @@ function playBrowser(text: string, options: SpeechOptions, signal: AbortSignal):
   })
 }
 
+async function resumeAudio(audioContext: AudioContext, signal: AbortSignal): Promise<void> {
+  if (audioContext.state === 'running' || signal.aborted) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let cancel: (() => void) | undefined
+  try {
+    await Promise.race([
+      audioContext.resume(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Audio activation timed out')), 1000)
+        cancel = () => reject(new Error('Speech cancelled'))
+        signal.addEventListener('abort', cancel, { once: true })
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+    if (cancel) signal.removeEventListener('abort', cancel)
+  }
+}
+
 async function playAudio(audio: Blob, signal: AbortSignal): Promise<void> {
   const audioContext = context
   if (!audioContext) throw new Error('Audio is not unlocked')
-  await activation
+  await resumeAudio(audioContext, signal)
   if (signal.aborted || context !== audioContext) return
   if (audioContext.state !== 'running') throw new Error('Audio is not unlocked')
   const buffer = await audioContext.decodeAudioData(await audio.arrayBuffer())
@@ -73,20 +90,20 @@ async function playAudio(audio: Blob, signal: AbortSignal): Promise<void> {
 
 const player = new SpeechPlayer({
   synthesize: async (text, options, signal) => {
-    if (Date.now() < retryAfter) throw new Error('Speech temporarily unavailable')
-    try {
-      const { data } = await api.post<Blob>('/speech', {
-        text, language: options.lang, voice: options.voice || undefined, rate: options.rate ?? 1,
-      }, { signal, responseType: 'blob', silent: true, timeout: 3000 })
-      if (!data.type.startsWith('audio/')) throw new Error('Invalid speech audio')
-      return data
-    } catch (error) {
-      if (!signal.aborted) retryAfter = Date.now() + 30_000
-      throw error
-    }
+    const { data } = await api.post<Blob>('/speech', {
+      text, language: options.lang, voice: options.voice || undefined, rate: options.rate ?? 1,
+    }, { signal, responseType: 'blob', silent: true, timeout: 3000 })
+    if (!data.type.startsWith('audio/')) throw new Error('Invalid speech audio')
+    return data
   },
   playAudio,
   playBrowser,
+  onFallback: (error, options) => {
+    console.warn('[Speech] Browser fallback', {
+      reason: error instanceof Error ? error.message : 'Speech unavailable',
+      urgent: !!options.urgent,
+    })
+  },
 })
 
 export function unlockSpeech(): void {
@@ -101,7 +118,7 @@ export function unlockSpeech(): void {
   }
   if (typeof AudioContext !== 'undefined') {
     context ??= new AudioContext()
-    activation = context.resume().catch(() => {})
+    void context.resume().catch(() => {})
   }
 }
 
@@ -114,6 +131,5 @@ export function releaseSpeech(): void {
   browserSpeech()?.removeEventListener('voiceschanged', loadVoices)
   const previous = context
   context = null
-  activation = null
   void previous?.close().catch(() => {})
 }

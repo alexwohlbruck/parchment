@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
+
 * Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.
 
 * Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.

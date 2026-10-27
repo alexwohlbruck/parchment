@@ -10,6 +10,7 @@ interface SpeechOutput {
   synthesize(text: string, options: SpeechOptions, signal: AbortSignal): Promise<Blob>
   playAudio(audio: Blob, signal: AbortSignal): Promise<void>
   playBrowser(text: string, options: SpeechOptions, signal: AbortSignal): Promise<void>
+  onFallback?(error: unknown, options: SpeechOptions): void
 }
 
 interface Prompt { text: string; options: SpeechOptions; expires: number }
@@ -18,7 +19,6 @@ export class SpeechPlayer {
   private queue: Prompt[] = []
   private active: AbortController | null = null
   private running = false
-  private starting = true
 
   constructor(private readonly output: SpeechOutput) {}
 
@@ -31,7 +31,6 @@ export class SpeechPlayer {
   }
 
   stop(): void {
-    this.starting = true
     this.queue = []
     this.active?.abort()
   }
@@ -43,8 +42,7 @@ export class SpeechPlayer {
       while (this.queue.length) {
         const prompt = this.queue.shift()!
         if (prompt.expires <= Date.now()) continue
-        const synthesisBudget = this.starting && !prompt.options.urgent ? 3000 : 1500
-        this.starting = false
+        const synthesisBudget = prompt.options.urgent ? 1500 : 3000
         const controller = new AbortController()
         this.active = controller
         const signal = controller.signal
@@ -63,9 +61,12 @@ export class SpeechPlayer {
             const audio = await Promise.race([this.output.synthesize(prompt.text, prompt.options, request.signal), timeout, cancelled])
             clearTimeout(timer)
             if (!signal.aborted && prompt.expires > Date.now()) await Promise.race([this.output.playAudio(audio, signal), cancelled])
-          } catch {
+          } catch (error) {
             clearTimeout(timer)
-            if (!signal.aborted && prompt.expires > Date.now()) await Promise.race([this.output.playBrowser(prompt.text, prompt.options, signal), cancelled])
+            if (!signal.aborted && prompt.expires > Date.now()) {
+              this.output.onFallback?.(error, prompt.options)
+              await Promise.race([this.output.playBrowser(prompt.text, prompt.options, signal), cancelled])
+            }
           }
         } catch {
         } finally {

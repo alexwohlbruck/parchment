@@ -8,6 +8,8 @@
 
 ### Changed
 
+* Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
+
 ### Fixed
 
 * Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.

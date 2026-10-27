@@ -37,7 +37,7 @@ import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, releaseSpeech, unlockSpeech, stopSpeech } from '@/services/speech/speech.service'
-import { navigationSpeechRate } from '@/lib/guidance/speech-rate'
+import { navigationSpeechRate, speechDuration } from '@/lib/guidance/speech-rate'
 import { useSpeechStore } from '@/stores/speech.store'
 import { hapticImpact } from '@/lib/haptics'
 import { i18n, storedLocale } from '@/lib/i18n'
@@ -198,23 +198,29 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return preferences.value.sound[modeAt(s)] ?? 'all'
   }
 
-  function announce(announcement: Announcement, s: number) {
-    const sound = soundModeAt(s)
-    if (sound === 'silent' || (sound === 'alerts' && !isAlert(announcement))) return
+  function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
     const hint = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? lanePlans.value.get(announcement.step.index) : undefined
     const lanes = hint ? laneHint(hint) : null
-    const text = lanes
+    return lanes
       ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
       : announcementText(announcement, metric, translate)
-    const urgent = announcement.kind === 'maneuver' && announcement.phase === 'now'
+  }
+
+  function announce(announcement: Announcement, s: number) {
+    const sound = soundModeAt(s)
+    if (sound === 'silent' || (sound === 'alerts' && !isAlert(announcement))) return
+    const text = speechText(announcement)
+    const urgent = (announcement.kind === 'hazard' && announcement.hazard.severity === 'high') || (announcement.kind === 'maneuver' && announcement.phase === 'now')
     const speech = useSpeechStore().preferences
     const speed = progress.value?.puck.speed ?? 0
     const nextStep = route.value?.steps.find(step => step.startDistance > (announcement.kind === 'maneuver' ? announcement.step.startDistance : s) + 1)
     const deadline = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? announcement.step.startDistance : nextStep?.startDistance
     const available = preferences.value.adaptiveSpeech && deadline !== undefined && speed > 0.5 ? (deadline - s) / speed : undefined
     const rate = navigationSpeechRate(text, speech.rate, available)
-    speak(text, { lang: storedLocale.value, urgent, rate, voice: speech.voices[storedLocale.value], maxAgeMs: available ? Math.max(500, Math.min(8000, available * 1000)) : 8000 })
+    const playbackBudget = Math.min(30_000, Math.max(8000, (speechDuration(text, rate) + 3) * 1000))
+    const maxAgeMs = available ? Math.max(500, Math.min(playbackBudget, available * 1000)) : playbackBudget
+    speak(text, { lang: storedLocale.value, urgent, rate, voice: speech.voices[storedLocale.value], maxAgeMs })
     if (urgent) void hapticImpact('medium')
   }
   const progress = shallowRef<GuidanceProgress | null>(null)
@@ -594,7 +600,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
     const end = parts.at(-1)?.end?.location
-    announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
+    announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
+      const text = speechText(announcement)
+      const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
+      return speechDuration(text, rate)
+    })
     const initial = announcer.start()
     if (initial) announce(initial, 0)
     return navRoute

@@ -5,6 +5,7 @@ import { announcementText } from './phrases'
 import type { PuckState } from './guidance-engine'
 import { cityDrive, polyline } from './test-routes'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
+import { speechDuration } from './speech-rate'
 import en from '@/lib/i18n/en-US.json'
 
 function puckAt(route: NavRoute, s: number, speed: number): PuckState {
@@ -141,5 +142,46 @@ describe('initial navigation instruction', () => {
 
   test('does not speak an opening direction for an empty route', () => {
     expect(new Announcer(buildNavRoute([]), null).start()).toBeNull()
+  })
+})
+
+
+describe('speech timing', () => {
+  test('combines turns at a slow chosen rate and spends their separate prompts', () => {
+    const route = buildNavRoute([cityDrive()])
+    route.steps[2].startDistance = 750
+    const slow = new Announcer(route, null, () => 8 / 0.75)
+    const fast = new Announcer(route, null, () => 8 / 1.5)
+    expect(new Announcer(route, null, () => 8 / 0.75).update(puckAt(route, 580, 1.4)).find(a => a.kind === 'maneuver')).toMatchObject({ then: null })
+    const walkingRoute = buildNavRoute([{ ...cityDrive(), mode: 'walking' }])
+    walkingRoute.steps[2].startDistance = 750
+    const walking = new Announcer(walkingRoute, null, () => 8 / 0.75)
+    expect(walking.update(puckAt(walkingRoute, 590, 1.4)).find(a => a.kind === 'maneuver')).toMatchObject({ then: null })
+    const combined = slow.update(puckAt(route, 440, 20)).find(a => a.kind === 'maneuver')
+    expect(combined).toMatchObject({ phase: 'now', then: { index: 2 } })
+    expect(fast.update(puckAt(route, 440, 20)).find(a => a.kind === 'maneuver')).toMatchObject({ then: null })
+    for (let s = 442; s < 750; s += 2) {
+      expect(slow.update(puckAt(route, s, 20)).filter(a => a.kind === 'maneuver' && a.step.index === 2)).toEqual([])
+    }
+    slow.setRoute(route)
+    expect(slow.update(puckAt(route, 650, 20)).some(a => a.kind === 'maneuver' && a.step.index === 2)).toBe(true)
+  })
+
+  test('combines the opening direction with an imminent turn in one localized phrase', () => {
+    const route = buildNavRoute([cityDrive()])
+    route.steps[1].startDistance = 120
+    const announcer = new Announcer(route, null, a => speechDuration(announcementText(a, true, t), 1))
+    const opening = announcer.start()!
+    expect(opening).toMatchObject({ kind: 'start', then: { index: 1 } })
+    expect(announcementText(opening, true, t)).toMatch(/Head north, then in .*turn right/)
+    expect(announcer.update(puckAt(route, 30, 13.9)).filter(a => a.kind === 'maneuver')).toEqual([])
+  })
+
+  test('keeps distant turns and different route segments separate', () => {
+    const route = buildNavRoute([cityDrive()])
+    expect((new Announcer(route, null).start() as { then?: unknown }).then).toBeUndefined()
+    route.steps[2].startDistance = 650
+    route.steps[2].segmentIndex = 1
+    expect(new Announcer(route, null).update(puckAt(route, 440, 20)).find(a => a.kind === 'maneuver')).toMatchObject({ then: null })
   })
 })

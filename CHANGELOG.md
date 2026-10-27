@@ -8,6 +8,8 @@
 
 ### Changed
 
+* Ending navigation returns the map to the zoom, tilt and heading it had before you started.
+
 * Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
 
 ### Fixed

@@ -26,10 +26,25 @@ const CALM_MANEUVER_SEC = 7
 const CALM_FRAME_MS = 33
 const FOCAL_GAIN = 0.5
 const OVERVIEW_DURATION_MS = 800
+const RESTORE_DURATION_MS = 800
 const USER_MOVE_START = ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'] as const
 const USER_MOVE_END = ['dragend', 'zoomend', 'rotateend', 'pitchend'] as const
 
 type GestureEvent = MapLibreEvent & { originalEvent?: Event }
+type View = { zoom: number; pitch: number; bearing: number }
+
+/** Eases back to `view` where the map stands; if another flight cuts in, its tilt and heading are restored once it lands. */
+function restoreView(map: MaplibreMap, view: View) {
+  map.easeTo({ ...view, duration: RESTORE_DURATION_MS })
+  const settle = () => setTimeout(() => {
+    if (map.isMoving()) return
+    map.off('moveend', settle)
+    if (Math.abs(map.getPitch() - view.pitch) > 0.5 || Math.abs(map.getBearing() - view.bearing) > 0.5) {
+      map.easeTo({ pitch: view.pitch, bearing: view.bearing, duration: RESTORE_DURATION_MS })
+    }
+  })
+  map.on('moveend', settle)
+}
 
 export function useGuidanceCamera() {
   const guidance = useGuidanceStore()
@@ -37,6 +52,7 @@ export function useGuidanceCamera() {
   const strategy = useMapStore().getMapStrategy()
   const map = strategy?.mapInstance as MaplibreMap | undefined
   const state = ref<CameraState>('following')
+  const entryView: View | null = map ? { zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() } : null
 
   const zoom = createSpring(map?.getZoom() ?? 15)
   const pitch = createSpring(map?.getPitch() ?? 0)
@@ -189,6 +205,7 @@ export function useGuidanceCamera() {
       for (const type of USER_MOVE_END) map.off(type, onUserMoveEnd)
     }
     heldPointers.dispose()
+    if (map && entryView) restoreView(map, entryView)
   })
 
   return {

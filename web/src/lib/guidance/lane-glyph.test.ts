@@ -10,6 +10,11 @@ describe('laneStrokes', () => {
     ])
   })
 
+  it('lights the through arrow of a shared lane for a bend onto the road ahead', () => {
+    const strokes = laneStrokes({ arrows: ['through', 'right'], valid: true, recommended: true }, 'slight-right')
+    expect(strokes.filter(s => s.lit).map(s => s.arrow)).toEqual(['through'])
+  })
+
   it('mirrors left arrows from the right-hand drawings', () => {
     const [left] = laneStrokes({ arrows: ['left'], valid: true, recommended: false }, 'left')
     const [right] = laneStrokes({ arrows: ['right'], valid: true, recommended: false }, 'right')

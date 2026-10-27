@@ -38,7 +38,7 @@ const roomy = computed(() => height.value >= 600)
       ref="column"
       class="absolute inset-y-0 left-0 flex w-[min(26rem,44vw)] flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pl-[calc(env(safe-area-inset-left)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)]"
     >
-      <div class="absolute left-full top-[calc(env(safe-area-inset-top)+1rem)] ml-3">
+      <div class="absolute left-full top-[calc(env(safe-area-inset-top)+1rem)] z-10 ml-3">
         <slot name="dev" placement="below" />
       </div>
       <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">

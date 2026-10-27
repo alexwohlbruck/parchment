@@ -595,6 +595,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     placeRides(navRoute)
     const end = parts.at(-1)?.end?.location
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
+    const initial = announcer.start()
+    if (initial) announce(initial, 0)
     return navRoute
   }
 

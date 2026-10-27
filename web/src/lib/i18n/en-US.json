@@ -1375,6 +1375,8 @@
         "left": "You have arrived. Your destination is on the left",
         "right": "You have arrived. Your destination is on the right"
       },
+      "head": "Head {heading}",
+      "headOn": "Head {heading} on {road}",
       "rerouting": "Rerouting",
       "turnAround": "Turn around, then head {heading}",
       "turnAroundOn": "Turn around, then head {heading} on {road}",

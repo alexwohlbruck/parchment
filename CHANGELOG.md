@@ -2,6 +2,8 @@
 
 ### Added
 
+* Hear an opening direction as soon as route navigation starts, even before you begin moving.
+
 * Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.
 
 ### Changed

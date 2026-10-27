@@ -14,7 +14,7 @@ import { crosswalkAfter, upcomingHazard } from './hazards'
 import { modeProfile } from './mode-profiles'
 import type { NavHazard } from './nav-route'
 import type { Handoff } from './handoff'
-import type { Cardinal } from './turn-around'
+import { cardinal, type Cardinal } from './turn-around'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -32,6 +32,7 @@ export type Announcement =
   | { kind: 'handoff'; handoff: Handoff }
   | { kind: 'arrive'; distance: number; side: 'left' | 'right' | null }
   | { kind: 'arrived'; side: 'left' | 'right' | null }
+  | { kind: 'start'; heading: Cardinal; road: string | null; step: NavStep | null }
   | { kind: 'reroute' }
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
@@ -88,6 +89,19 @@ export class Announcer {
     if (this.fired.has(key)) return false
     this.fired.add(key)
     return true
+  }
+
+  start(): Announcement | null {
+    if (this.route.points.length < 2 || !this.once('start')) return null
+    const step = this.route.steps.find(step => step.startDistance <= MIN_NOW_METERS) ?? null
+    const next = this.route.steps[1]
+    if (next) this.fired.add(`continue:${next.index}`)
+    return {
+      kind: 'start',
+      heading: cardinal(bearingAt(this.route, 0)),
+      road: step?.instruction.streetName || step?.instruction.streetRef || null,
+      step,
+    }
   }
 
   /** Prompts due at this puck position, in speaking order. */

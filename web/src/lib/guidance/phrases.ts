@@ -52,6 +52,15 @@ export function handoffText(handoff: Handoff, t: TFn): string {
 
 export function announcementText(announcement: Announcement, metric: boolean, t: TFn): string {
   switch (announcement.kind) {
+    case 'start': {
+      if (announcement.step && maneuverKind(announcement.step.instruction) !== 'straight') {
+        return maneuverPhrase(announcement.step.instruction, t)
+      }
+      const heading = t(`guidance.voice.headings.${announcement.heading}`)
+      return announcement.road
+        ? t('guidance.voice.headOn', { heading, road: announcement.road })
+        : t('guidance.voice.head', { heading })
+    }
     case 'reroute':
       return t('guidance.voice.rerouting')
     case 'turn-around': {

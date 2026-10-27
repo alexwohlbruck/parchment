@@ -97,3 +97,49 @@ describe('announcementText', () => {
     expect(announcementText({ kind: 'arrive', distance: 1609, side: 'left' }, false, t)).toBe('In 1.0 mile, your destination is on the left')
   })
 })
+
+
+describe('initial navigation instruction', () => {
+  test('gives the route heading immediately without a position update, once per route', () => {
+    const input = cityDrive()
+    input.instructions![0].streetName = 'Main Street'
+    const route = buildNavRoute([input])
+    const announcer = new Announcer(route, null)
+    const initial = announcer.start()!
+    expect(initial).toMatchObject({ kind: 'start', heading: 'north', road: 'Main Street' })
+    expect(announcementText(initial, true, t)).toBe('Head north on Main Street')
+    expect(announcer.start()).toBeNull()
+    expect(announcer.update(puckAt(route, 0, 0))).toEqual([])
+    announcer.setRoute(route)
+    expect(announcer.start()).toMatchObject({ kind: 'start' })
+  })
+
+  test('gives a heading without inventing a street when instructions are absent', () => {
+    const route = buildNavRoute([{ mode: 'walking', geometry: polyline([[90, 500]]) }])
+    const initial = new Announcer(route, null).start()!
+    expect(announcementText(initial, true, t)).toBe('Head east')
+  })
+
+  test('speaks an immediate opening turn instead of telling the traveller to go straight', () => {
+    const input = cityDrive()
+    input.instructions![0] = { ...input.instructions![0], type: 'turn', modifier: 'right', streetName: 'Main Street' }
+    const initial = new Announcer(buildNavRoute([input]), null).start()!
+    expect(announcementText(initial, true, t)).toBe('Turn right onto Main Street')
+  })
+
+  test('does not repeat a long-straight continuation immediately after the opening instruction', () => {
+    const geometry = polyline([[0, 6000], [90, 500]])
+    const route = buildNavRoute([{ mode: 'driving', geometry, instructions: [
+      { type: 'depart', text: '', coordinate: geometry[0], distance: 6000, duration: 600, streetName: 'I 85' },
+      { type: 'turn', modifier: 'right', text: '', coordinate: geometry[600], distance: 500, duration: 50 },
+    ] }])
+    const announcer = new Announcer(route, null)
+    expect(announcementText(announcer.start()!, true, t)).toBe('Head north on I 85')
+    expect(announcer.update(puckAt(route, 0, 0))).toEqual([])
+    expect(announcer.update(puckAt(route, 5000, 20)).some(a => a.kind === 'maneuver')).toBe(true)
+  })
+
+  test('does not speak an opening direction for an empty route', () => {
+    expect(new Announcer(buildNavRoute([]), null).start()).toBeNull()
+  })
+})

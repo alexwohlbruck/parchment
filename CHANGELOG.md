@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Keep place searches working when the server build moves between machines.
+
 ## [0.18.1] - 2026-10-27
 
 ### Changed

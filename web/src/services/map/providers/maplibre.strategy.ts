@@ -116,7 +116,7 @@ import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
-import { ELEVATION_PROFILE, OCCLUSION_PROPERTY, PROFILE_PROPERTY, elevatesLine, seesThrough } from '@/lib/map-elevation/elevated-lines'
+import { ELEVATION_PROFILE, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, elevatesLine, holdsWidth, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -1119,6 +1119,7 @@ export class MaplibreStrategy extends MapStrategy {
       if (!!map.getLayoutProperty(id, PROFILE_PROPERTY as any) === active) continue
       map.setLayoutProperty(id, PROFILE_PROPERTY as any, active ? ELEVATION_PROFILE : undefined)
       if (seesThrough(layer)) map.setPaintProperty(id, OCCLUSION_PROPERTY as any, active ? 0 : undefined)
+      if (holdsWidth(layer)) map.setPaintProperty(id, PITCH_PROPERTY as any, active ? 'viewport' : undefined)
     }
   }
 

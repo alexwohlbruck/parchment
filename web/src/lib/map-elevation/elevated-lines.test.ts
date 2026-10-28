@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { expression } from '@maplibre/maplibre-gl-style-spec'
-import { ELEVATION_PROFILE, elevatesLine, seesThrough } from './elevated-lines'
+import { ELEVATION_PROFILE, elevatesLine, holdsWidth, seesThrough } from './elevated-lines'
 
 describe('elevated lines', () => {
   test('are the cycling ways and the transit ribbons, tiled or copied out', () => {
@@ -13,6 +13,12 @@ describe('elevated lines', () => {
     expect(elevatesLine({ id: 'Minor road', type: 'line', source: 'openmaptiles', sourceLayer: 'transportation' })).toBe(false)
     expect(elevatesLine({ id: 'route-0', type: 'line', source: 'route-0' })).toBe(false)
     expect(elevatesLine({ id: 'portolan-stations', type: 'symbol', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(false)
+  })
+
+  test('hold their width under tilt for the ribbons only', () => {
+    expect(holdsWidth({ id: 'portolan-ribbon-15-steady-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
+    expect(holdsWidth({ id: 'portolan-ribbon-15-transition', type: 'line', source: 'portolan-build-15' })).toBe(true)
+    expect(holdsWidth({ id: 'Cycling lane left bridge', type: 'line', source: 'detail', sourceLayer: 'bicycle_ways' })).toBe(false)
   })
 
   test('see through only the dimmed ribbon copies', () => {

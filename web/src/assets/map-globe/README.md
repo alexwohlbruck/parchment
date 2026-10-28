@@ -58,3 +58,18 @@ public-domain 1:50m land polygons, version 5.1.2. White marks ocean, black land.
 Regenerate with `node web/scripts/build-ocean-mask.mjs`. The 115 KiB mask limits
 satellite/hybrid ocean tint and sun glint to water; polar reflectivity fades
 out toward the ice caps. It adds no live data dependency.
+
+# Moon
+
+`moon.webp` is a 1024 × 512 reduction of the 2025 LROC color map from
+[NASA's CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/).
+Credit: NASA's Scientific Visualization Studio. The equirectangular map has
+north at the top and the near side centred at 0° longitude. Regenerate with
+`node web/scripts/build-moon.mjs`.
+
+The satellite/hybrid globe loads this 92 KB texture locally. The Moon uses a
+low-precision [SunCalc lunar orbit](https://github.com/mourner/suncalc/blob/v1.9.0/suncalc.js)
+and Earth-fixed sidereal rotation, with physical distance and radius. Sunlight
+creates the phase directly on the sphere. The near side stays facing Earth;
+libration, eclipses, and terrain shadows are not modelled. The sky refreshes
+every minute and when the page becomes visible, without continuous animation.

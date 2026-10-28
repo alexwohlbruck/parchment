@@ -1,3 +1,4 @@
+import { MOON_GLSL, moonPosition } from './moon'
 import { OCEAN_GLSL } from './ocean'
 import { CLOUDS_GLSL, CLOUDS_URL, CLOUD_REFRESH_MS } from './clouds'
 import { ATMOSPHERE_GLSL } from './atmosphere'
@@ -7,6 +8,7 @@ import { galacticRotation } from './celestial'
 import { DAYNIGHT_LAYER_ID, globeSunDirection } from '@/lib/daynight/daynight'
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl'
 
+const moonUrl = new URL('../../assets/map-globe/moon.webp', import.meta.url).href
 const oceanMaskUrl = new URL('../../assets/map-globe/ocean-mask.webp', import.meta.url).href
 const cloudsUrl = new URL('../../assets/map-globe/clouds.webp', import.meta.url).href
 const nightLightsUrl = new URL('../../assets/map-globe/night-lights.webp', import.meta.url).href
@@ -52,6 +54,7 @@ out vec4 fragColor;
 ${ATMOSPHERE_GLSL}
 ${CLOUDS_GLSL}
 ${OCEAN_GLSL}
+${MOON_GLSL}
 vec3 hash(vec2 p) {
     vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     q += dot(q, q.yxz + 33.33);
@@ -130,6 +133,8 @@ void main() {
     spaceColor += galaxy * u_galaxy_blend * (0.06 + 0.045 * (u_exposure - 1.0));
     spaceColor += sunGlow(ray);
     spaceColor += vec3(0.86, 0.91, 1.0) * stars(galactic) * (1.0 - min(1.0, outerHaze * scatter)) * mix(1.0, 0.6, u_galaxy_blend) * atmosphereExposure;
+    vec4 moon = moonSurface(v_near, ray);
+    spaceColor = mix(spaceColor, moon.rgb, moon.a);
     float hazeAlpha = min(0.8, innerHaze * scatter * atmosphereExposure * 0.55);
     vec3 surfaceColor = atmosphereColor * innerHaze * scatter * atmosphereExposure + vec3(0.004, 0.008, 0.02) * shadow;
     vec3 transmission = vec3(1.0);
@@ -207,6 +212,18 @@ export class GlobeSky implements CustomLayerInterface {
   private galaxyBlend?: WebGLUniformLocation | null
   private exposureUniform?: WebGLUniformLocation | null
 
+  private moon = new GlobeTexture(moonUrl)
+  private moonUniform?: WebGLUniformLocation | null
+  private moonVisible?: WebGLUniformLocation | null
+  private moonSampler?: WebGLUniformLocation | null
+  private moonBlend?: WebGLUniformLocation | null
+  private skyTimer?: ReturnType<typeof setInterval>
+  private refreshSky = () => {
+    if (document.visibilityState !== 'hidden' && this.satellite() && this.map && this.map.getZoom() < 6) {
+      this.map.triggerRepaint()
+    }
+  }
+
   constructor(private readonly satellite: () => boolean = () => false) {}
 
   onAdd(map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
@@ -248,6 +265,12 @@ export class GlobeSky implements CustomLayerInterface {
     this.cloudBlend = gl.getUniformLocation(program, 'u_cloud_blend')
     this.oceanSampler = gl.getUniformLocation(program, 'u_ocean')
     this.oceanBlend = gl.getUniformLocation(program, 'u_ocean_blend')
+    this.moonUniform = gl.getUniformLocation(program, 'u_moon')
+    this.moonVisible = gl.getUniformLocation(program, 'u_moon_visible')
+    this.moonSampler = gl.getUniformLocation(program, 'u_moon_texture')
+    this.moonBlend = gl.getUniformLocation(program, 'u_moon_blend')
+    this.skyTimer = setInterval(this.refreshSky, 60_000)
+    document.addEventListener('visibilitychange', this.refreshSky)
   }
 
   render(context: WebGLRenderingContext | WebGL2RenderingContext, input: CustomRenderMethodInput) {
@@ -273,6 +296,12 @@ export class GlobeSky implements CustomLayerInterface {
     const lighting = !!dayNight && this.map.getLayoutProperty(DAYNIGHT_LAYER_ID, 'visibility') !== 'none'
     const date = new Date()
     const sun = globeSunDirection(date)
+    gl.uniform3fv(this.moonUniform!, moonPosition(date))
+    gl.uniform1f(this.moonVisible!, satellite ? 1 : 0)
+    if (satellite) this.moon.load(() => this.map?.triggerRepaint())
+    this.moon.bind(gl, 5)
+    gl.uniform1i(this.moonSampler!, 5)
+    gl.uniform1f(this.moonBlend!, this.moon.blend)
     const targetExposure = lighting ? meterExposure(inverseMatrix, sun) : 1
     gl.uniform1f(this.exposureUniform!, this.exposure.update(targetExposure, performance.now()))
     if (satellite) this.clouds.load(() => this.map?.triggerRepaint())
@@ -302,7 +331,7 @@ export class GlobeSky implements CustomLayerInterface {
     gl.uniform1f(this.nightBrightness!, this.satellite() ? 0.09 : 0.18)
     gl.uniform1f(this.pixelRatio!, this.map.getPixelRatio())
     gl.uniform1f(this.opacity!, fade * fade * (3 - 2 * fade))
-    const fading = [this.galaxy, this.atmosphere, this.clouds, this.ocean, this.lights].some(texture => texture.ready && texture.blend < 1)
+    const fading = [this.galaxy, this.atmosphere, this.clouds, this.ocean, this.lights, this.moon].some(texture => texture.ready && texture.blend < 1)
     if (!this.exposure.settled || fading) this.map.triggerRepaint()
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     gl.bindVertexArray(null)
@@ -310,6 +339,10 @@ export class GlobeSky implements CustomLayerInterface {
 
   onRemove(_map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
     const gl = context as WebGL2RenderingContext
+    clearInterval(this.skyTimer)
+    this.skyTimer = undefined
+    document.removeEventListener('visibilitychange', this.refreshSky)
+    this.moon.dispose(gl)
     this.lights.dispose(gl)
     this.galaxy.dispose(gl)
     this.atmosphere.dispose(gl)

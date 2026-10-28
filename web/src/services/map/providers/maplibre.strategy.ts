@@ -872,6 +872,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   private async applyMapObjects() {
     await this.applyObjectLayer()
+    if (!this.mapInstance.style?._loaded) return
     this.applyDecks()
   }
 
@@ -939,6 +940,7 @@ export class MaplibreStrategy extends MapStrategy {
     // The setting may have been turned back off, or the style swapped, while
     // the models were in flight.
     if (!this.map3dObjects) return flat()
+    if (!map.style?._loaded) return
 
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Already drawing: a flavor change is a uniform, not a rebuild.

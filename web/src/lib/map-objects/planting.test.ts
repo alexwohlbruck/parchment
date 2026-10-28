@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { blockedAlong, buildExclusions, falloff, keeps, latticeLevel, plant, plantingCamera, plantingLevel, polygonsOf, screenSpacing, spansAt, MERCATOR_METRE, type PlantedPoint } from './planting'
+import { blockedAlong, buildExclusions, exclusionSteps, falloff, keeps, latticeLevel, plant, plantingCamera, plantingLevel, polygonsOf, screenSpacing, spansAt, MERCATOR_METRE, type PlantedPoint } from './planting'
 import { forestTree, levelGrowth, woodFamily, CROWN_SUFFIX, FOREST_GRID, type WoodTags } from './forest'
 import { TREE_FAMILIES } from './trees'
 
@@ -242,4 +242,20 @@ describe('planting falloff', () => {
     expect(cam.altitude).toBeCloseTo((cam.y - 0.5) / Math.tan(Math.PI / 3))
     expect(cam.spacing).toBeGreaterThan(5)
   })
+})
+
+
+test('yields before projecting every exclusion area', () => {
+  let reads = 0
+  const areas = Array.from({ length: 200 }, () => ({
+    get geometry() { reads++; return square(-80.85, 35.2, -80.8499, 35.2001) },
+  }))
+  const steps = exclusionSteps([], areas)
+  expect(steps.next().done).toBe(false)
+  expect(reads).toBeGreaterThan(0)
+  expect(reads).toBeLessThan(200)
+  let result = steps.next()
+  while (!result.done) result = steps.next()
+  expect(reads).toBe(200)
+  expect(result.value.areas.size).toBeGreaterThan(0)
 })

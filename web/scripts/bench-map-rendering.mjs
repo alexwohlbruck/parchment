@@ -86,22 +86,35 @@ try {
     return { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], dpr: devicePixelRatio, renderer: gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL) }
   })
   const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(m => [m.name, m.value]))
-  const reset = async () => { await page.evaluate(camera => window.__map.jumpTo(camera), camera); await page.waitForTimeout(1500) }
+  const reset = async () => {
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
+    await page.evaluate(camera => { window.__map.jumpTo(camera) }, camera)
+    await page.waitForTimeout(1500)
+  }
   const motion = async kind => {
     if (kind === 'drag') {
-      for (let pass = 0; pass < 2; pass++) {
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 195, y: 320 }] })
-        for (let i = 1; i <= 24; i++) {
-          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 195 + Math.sin(i / 24 * Math.PI) * 90, y: 320 + i * 5.625 * (pass ? -1 : 1) }] })
-          await page.waitForTimeout(16)
-        }
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-        await page.waitForTimeout(400)
+      const acknowledgements = []
+      const pending = []
+      const dispatch = event => {
+        const sent = performance.now()
+        pending.push(cdp.send('Input.dispatchTouchEvent', event).then(() => acknowledgements.push(performance.now() - sent)))
       }
+      for (let pass = 0; pass < 2; pass++) {
+        dispatch({ type: 'touchStart', touchPoints: [{ x: 195, y: 320 }] })
+        for (let i = 1; i <= 24; i++) {
+          dispatch({ type: 'touchMove', touchPoints: [{ x: 195 + Math.sin(i / 24 * Math.PI) * 90, y: 320 + i * 5.625 * (pass ? -1 : 1) }] })
+          await new Promise(resolve => setTimeout(resolve, 16))
+        }
+        dispatch({ type: 'touchEnd', touchPoints: [] })
+        await new Promise(resolve => setTimeout(resolve, 400))
+      }
+      await Promise.all(pending)
+      acknowledgements.sort((a, b) => a - b)
+      results.inputAcknowledgements = acknowledgements
     } else {
       await page.evaluate(async ({ kind, camera }) => {
         const map = window.__map
-        const steps = kind === 'pan' ? [{ center: [-73.974, 40.76] }, { center: camera.center }] : [{ pitch: 75, bearing: 100 }, { pitch: 10, bearing: 20 }]
+        const steps = kind === 'pan' ? [{ center: [camera.center[0] + .01, camera.center[1] + .0051] }, { center: camera.center }] : [{ pitch: 75, bearing: 100 }, { pitch: 10, bearing: 20 }]
         for (const step of steps) await new Promise(resolve => { map.once('moveend', resolve); map.easeTo({ ...step, duration: 1600, easing: t => t }) })
       }, { kind, camera })
     }
@@ -112,21 +125,26 @@ try {
     await reset(); await page.waitForTimeout(7000)
     const census = await page.evaluate(() => ({ layers: __map.getStyle().layers.length, sources: Object.keys(__map.getStyle().sources).length, transit: __map.getStyle().layers.filter(l => l.id.startsWith('portolan')).length, cycling: __map.getStyle().layers.filter(l => l.id.includes('cycling') && l.layout?.visibility !== 'none').length }))
     for (const rate of (process.env.BENCH_RATES || '1,4,6').split(',').map(Number)) {
-      await cdp.send('Emulation.setCPUThrottlingRate', { rate })
       for (let repeat = 0; repeat < +(process.env.BENCH_REPEATS || 2); repeat++) for (const kind of ['pan', 'tilt', 'drag']) {
+        const preparation = performance.now()
         await reset()
+        const preparationMs = performance.now() - preparation
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate })
         if (process.env.BENCH_PROFILE) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.start') }
         const before = await metrics()
         await page.evaluate(() => window.__benchStart())
         const start = await page.evaluate(() => ({ center: __map.getCenter(), pitch: __map.getPitch(), bearing: __map.getBearing() }))
+        results.inputAcknowledgements = []
         await motion(kind)
+        const inputAcknowledgements = results.inputAcknowledgements
+        delete results.inputAcknowledgements
         const measured = await page.evaluate(() => ({ ...window.__benchStop(), end: { center: __map.getCenter(), pitch: __map.getPitch(), bearing: __map.getBearing() } }))
         const after = await metrics()
-        const run = { config: config.name, rate, repeat, kind, census, start, ...measured, cpuMs: (after.TaskDuration - before.TaskDuration) * 1000, scriptMs: (after.ScriptDuration - before.ScriptDuration) * 1000 }
+        const run = { preparationMs, inputAcknowledgements, config: config.name, rate, repeat, kind, census, start, ...measured, cpuMs: (after.TaskDuration - before.TaskDuration) * 1000, scriptMs: (after.ScriptDuration - before.ScriptDuration) * 1000 }
         results.runs.push(run)
         if (process.env.BENCH_PROFILE) { const { profile } = await cdp.send('Profiler.stop'); await fs.writeFile(`${output}.${config.name}-${rate}-${repeat}-${kind}.cpuprofile`, JSON.stringify(profile)) }
         await fs.writeFile(output, JSON.stringify(results, null, 2))
-        console.log(JSON.stringify({ config: run.config, rate, repeat, kind, p95: Math.round(run.frame.p95), max: Math.round(run.frame.max), longTasks: run.longTasks.length, render95: Math.round(run.render.p95) }))
+        console.log(JSON.stringify({ config: run.config, rate, repeat, kind, preparationMs: Math.round(preparationMs), measuredMs: Math.round(run.ms), p95: Math.round(run.frame.p95), max: Math.round(run.frame.max), longTasks: run.longTasks.length, render95: Math.round(run.render.p95) }))
       }
     }
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })

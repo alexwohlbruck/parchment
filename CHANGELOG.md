@@ -10,7 +10,9 @@
 
 * Keep place searches working when the server build moves between machines.
 
-* Map gestures stay more responsive while points of interest and 3D landmarks load.
+* Map gestures stay more responsive while points of interest and 3D map objects load.
+
+* Changing map styles while 3D objects load no longer interrupts their setup.
 
 ## [0.18.1] - 2026-10-27
 

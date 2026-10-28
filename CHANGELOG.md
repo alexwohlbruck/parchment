@@ -2,6 +2,8 @@
 
 ### Added
 
+* The satellite globe includes the Moon with live lunar phases.
+
 ### Changed
 
 ### Fixed

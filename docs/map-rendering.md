@@ -12,9 +12,9 @@ BENCH_OUTPUT=/private/path/results.json \
 bun scripts/bench-map-rendering.mjs
 ```
 
-The runner uses one Chromium instance, a 390 × 844 CSS-pixel viewport, and device pixel ratio 2. It compares the base map, transit, cycling, both overlays, and both overlays with terrain. Buildings, 3D objects, and detailed roads stay enabled in every configuration.
+The runner targets the MapLibre development renderer (`window.__map`). It uses one Chromium instance, a 390 × 844 CSS-pixel viewport, and device pixel ratio 2. It compares the base map, transit, cycling, both overlays, and both overlays with terrain. Buildings, 3D objects, and detailed roads stay enabled in every configuration.
 
-Each configuration runs at 1×, 4×, and 6× CPU slowdown. Each tier repeats a programmed pan, a pitch/rotation sweep, and two trusted touch drags. Touch movement is sent on a fixed cadence; slow input acknowledgements do not slow the generated gesture. Reset and initial tile settling are excluded from the measured interval; each interaction includes a 700 ms tail.
+Each configuration runs at 1×, 4×, and 6× CPU slowdown. Each tier repeats a programmed pan, a pitch/rotation sweep, and two trusted touch drags. Touch movement is sent on a fixed cadence; slow input acknowledgements do not slow the generated gesture. Reset and initial tile settling are excluded from the measured interval; each interaction includes a 700 ms tail by default. Increase the tail to check whether work is merely delayed until after the gesture.
 
 Results include animation-frame gap percentiles, map render submission durations, tasks over 50 ms, source-query timings, input acknowledgement delays, camera positions, and layer/source counts. Input acknowledgement latency is a CDP responsiveness proxy, not INP or touch-to-photon latency. Render submission duration includes synchronous driver waits and does not isolate GPU execution time.
 
@@ -26,6 +26,7 @@ Optional settings:
 - `BENCH_CONFIG`: comma-separated subset of `base,transit,cycling,combined,terrain`.
 - `BENCH_RATES`: comma-separated CPU slowdown rates, default `1,4,6`.
 - `BENCH_CAMERA`: JSON camera options, with `center` as `[longitude, latitude]`.
+- `BENCH_TAIL_MS`: post-gesture observation window, default `700`.
 - `BENCH_PROFILE=1`: save a CPU profile beside the result for every measured interaction. Run profiling separately from timing comparisons.
 
 The runner writes results after each interaction and captures a screenshot after each layer configuration. Results, screenshots, profiles, and authentication state can contain account data or private URLs; inspect them before sharing. Keep raw artifacts outside the repository.

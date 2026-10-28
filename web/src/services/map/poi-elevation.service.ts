@@ -181,6 +181,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   let elevations = new Map<string, number>()
 
   function* hydrate(): Generator<void> {
+    const mounted = mount()
     const lift = raised()
     const refreshBuildings = buildingDirty || lift !== currentLift
     const refreshPois = poiDirty || refreshBuildings
@@ -197,7 +198,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     }
     yield
     elevateOverlays(lift, currentNear)
-    if (!mount() || !tiles || !refreshPois) return
+    if (!mounted || !tiles || !refreshPois) return
     yield
     const seen = new Set<string>()
     const features: any[] = []

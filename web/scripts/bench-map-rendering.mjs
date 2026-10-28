@@ -5,6 +5,7 @@ const url = process.env.BENCH_URL
 const state = process.env.BENCH_STORAGE_STATE
 if (!url || !state) throw new Error('Set BENCH_URL and BENCH_STORAGE_STATE to an authenticated preview and Playwright storage state')
 const output = process.env.BENCH_OUTPUT || 'map-rendering.json'
+const tailMs = Number(process.env.BENCH_TAIL_MS || 700)
 const browser = await chromium.launch({ args: JSON.parse(process.env.BENCH_BROWSER_ARGS || '[]') })
 const results = { runs: [], environment: {}, errors: [] }
 const configurations = [
@@ -79,6 +80,12 @@ try {
       return { ms: performance.now() - data.start, frame: stats(data.frames), render: stats(data.renders), longTasks: data.longTasks, calls: data.calls }
     }
   })
+  await page.evaluate(camera => {
+    window.__benchConfig({ transit: false, cycling: false, terrain: false })
+    window.__map.jumpTo(camera)
+  }, camera)
+  await page.waitForFunction(() => ['search-results-source-internal', 'bookmarks-source-internal', 'collection-markers-source-internal'].every(id => !!window.__map.getSource(id)), null, { timeout: 90000 })
+  await page.waitForTimeout(3000)
   const cdp = await context.newCDPSession(page)
   await cdp.send('Performance.enable')
   results.environment = await page.evaluate(() => {
@@ -118,12 +125,12 @@ try {
         for (const step of steps) await new Promise(resolve => { map.once('moveend', resolve); map.easeTo({ ...step, duration: 1600, easing: t => t }) })
       }, { kind, camera })
     }
-    await page.waitForTimeout(700)
+    await page.waitForTimeout(tailMs)
   }
   for (const config of configurations.filter(c => !process.env.BENCH_CONFIG || process.env.BENCH_CONFIG.split(',').includes(c.name))) {
     await page.evaluate(config => window.__benchConfig(config), config)
     await reset(); await page.waitForTimeout(7000)
-    const census = await page.evaluate(() => ({ layers: __map.getStyle().layers.length, sources: Object.keys(__map.getStyle().sources).length, transit: __map.getStyle().layers.filter(l => l.id.startsWith('portolan')).length, cycling: __map.getStyle().layers.filter(l => l.id.includes('cycling') && l.layout?.visibility !== 'none').length }))
+    const census = await page.evaluate(() => ({ layers: __map.getStyle().layers.length, sources: Object.keys(__map.getStyle().sources).length, sourceIds: Object.keys(__map.getStyle().sources).sort(), transit: __map.getStyle().layers.filter(l => l.id.startsWith('portolan')).length, cycling: __map.getStyle().layers.filter(l => l.id.includes('cycling') && l.layout?.visibility !== 'none').length }))
     for (const rate of (process.env.BENCH_RATES || '1,4,6').split(',').map(Number)) {
       for (let repeat = 0; repeat < +(process.env.BENCH_REPEATS || 2); repeat++) for (const kind of ['pan', 'tilt', 'drag']) {
         const preparation = performance.now()
@@ -138,7 +145,7 @@ try {
         await motion(kind)
         const inputAcknowledgements = results.inputAcknowledgements
         delete results.inputAcknowledgements
-        const measured = await page.evaluate(() => ({ ...window.__benchStop(), end: { center: __map.getCenter(), pitch: __map.getPitch(), bearing: __map.getBearing() } }))
+        const measured = await page.evaluate(() => ({ ...window.__benchStop(), poiCount: __map.getSource('poi-dots-raised')?.serialize().data?.features?.length ?? 0, poisLoaded: __map.getSource('poi-dots-raised') ? __map.isSourceLoaded('poi-dots-raised') : false, end: { center: __map.getCenter(), pitch: __map.getPitch(), bearing: __map.getBearing() } }))
         const after = await metrics()
         const run = { preparationMs, inputAcknowledgements, config: config.name, rate, repeat, kind, census, start, ...measured, cpuMs: (after.TaskDuration - before.TaskDuration) * 1000, scriptMs: (after.ScriptDuration - before.ScriptDuration) * 1000 }
         results.runs.push(run)

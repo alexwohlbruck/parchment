@@ -115,7 +115,8 @@ describe('POI elevation hydration', () => {
     let now = 0
     vi.spyOn(performance, 'now').mockImplementation(() => now += 5)
     const attached = attachPoiElevation(map, () => true)
-    vi.advanceTimersByTime(32)
+    vi.advanceTimersByTime(16)
+    expect(sources.has('poi-dots-raised')).toBe(true)
     expect(sources.get('poi-dots-raised')?.setData).not.toHaveBeenCalled()
     attached.detach()
     settle()

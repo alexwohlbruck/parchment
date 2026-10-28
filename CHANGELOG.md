@@ -10,6 +10,8 @@
 
 * Keep place searches working when the server build moves between machines.
 
+* Map gestures stay more responsive while points of interest and 3D landmarks load.
+
 ## [0.18.1] - 2026-10-27
 
 ### Changed

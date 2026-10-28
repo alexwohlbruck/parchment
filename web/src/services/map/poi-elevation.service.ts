@@ -8,6 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
+import { frameTask } from '@/lib/map/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import { COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID } from '@/constants/layers'
 import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'
@@ -38,13 +39,16 @@ type Ring = Array<[number, number]>
  */
 function footprintReader() {
   let byTile = new Map<string, BuildingFootprint[]>()
-  return (map: any): BuildingFootprint[] => {
+  let buildings: BuildingFootprint[] = []
+  return function* (map: any): Generator<void, BuildingFootprint[]> {
     const layer = map.getLayer(layerGroups.building3d)
     if (!layer) return []
     const previous = byTile
     byTile = new Map()
+    let read = 0
     for (const f of map.querySourceFeatures(layer.source, { sourceLayer: layer.sourceLayer })) {
-      const tile = `${layer.source}/${f._z}/${f._x}/${f._y}`
+      if (++read % 64 === 0) yield
+      const tile = `${layer.source}/${layer.sourceLayer}/${f._z}/${f._x}/${f._y}`
       const known = previous.get(tile)
       if (known) {
         byTile.set(tile, known)
@@ -58,14 +62,17 @@ function footprintReader() {
       const polygons: Ring[][] = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
       for (const rings of polygons) out.push({ rings, height })
     }
-    return [...byTile.values()].flat()
+    if (byTile.size !== previous.size || [...byTile].some(([tile, value]) => previous.get(tile) !== value))
+      buildings = [...byTile.values()].flat()
+    return buildings
   }
 }
 
 export function attachPoiElevation(map: any, raised: () => boolean) {
   let signature = ''
-  let queued = 0
-  const footprints = footprintReader()
+  let footprints = footprintReader()
+  let poiDirty = true
+  let buildingDirty = true
 
   /** The basemap source the POIs come from, once the layers are moved off it. */
   let tiles: string | null = null
@@ -169,35 +176,60 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   /** The building index the last hydration built, for overlay writes between hydrations. */
   let currentNear: (p: [number, number]) => BuildingFootprint[] = () => []
 
-  function hydrate() {
-    queued = 0
+  let currentBuildings: BuildingFootprint[] | null = null
+  let currentLift: boolean | null = null
+  let elevations = new Map<string, number>()
+
+  function* hydrate(): Generator<void> {
     const lift = raised()
-    const near = lift ? footprintIndex(footprints(map)) : () => []
-    currentNear = near
-    elevateOverlays(lift, near)
-    if (!mount() || !tiles) return
+    const refreshBuildings = buildingDirty || lift !== currentLift
+    const refreshPois = poiDirty || refreshBuildings
+    buildingDirty = false
+    poiDirty = false
+    currentLift = lift
+    if (refreshBuildings) {
+      const buildings = lift ? yield* footprints(map) : null
+      if (buildings !== currentBuildings) {
+        currentBuildings = buildings
+        currentNear = buildings ? footprintIndex(buildings) : () => []
+        elevations.clear()
+      }
+    }
+    yield
+    elevateOverlays(lift, currentNear)
+    if (!mount() || !tiles || !refreshPois) return
+    yield
     const seen = new Set<string>()
     const features: any[] = []
+    const positions: string[] = []
+    const nextElevations = new Map<string, number>()
+    let read = 0
     for (const f of map.querySourceFeatures(tiles, { sourceLayer: 'poi' })) {
+      if (++read % 32 === 0) yield
       const point = f.geometry?.coordinates as [number, number]
       if (!point) continue
       const key = `${point}|${f.properties?.name ?? ''}|${f.properties?.class ?? ''}`
       if (seen.has(key)) continue
       seen.add(key)
-      const _elev = lift ? Math.round(poiElevation(point, f.properties?.level, near) * 2) / 2 : 0
+      const heightKey = `${point}|${f.properties?.level ?? ''}`
+      const _elev = lift
+        ? nextElevations.get(heightKey) ?? elevations.get(heightKey) ?? Math.round(poiElevation(point, f.properties?.level, currentNear) * 2) / 2
+        : 0
+      nextElevations.set(heightKey, _elev)
+      positions.push(`${point}:${_elev}`)
       features.push({ type: 'Feature', id: f.id, properties: { ...f.properties, _elev }, geometry: f.geometry })
     }
+    elevations = nextElevations
     // setData re-tiles and repaints, which ends in another idle: an unchanged
     // set has to stop here or the map never rests.
-    const next = `${lift}|${features.map(f => `${f.geometry.coordinates}:${f.properties._elev}`).sort().join(';')}`
+    const next = `${lift}|${positions.sort().join(';')}`
     if (next === signature) return
     signature = next
     map.getSource(SOURCE)?.setData({ type: 'FeatureCollection', features })
   }
 
-  const request = () => {
-    if (!queued) queued = requestAnimationFrame(hydrate)
-  }
+  const hydration = frameTask(hydrate)
+  const request = hydration.request
 
   // POIs arriving mid-gesture are hydrated as their tiles land, at most this
   // often, so a pan or zoom never shows a block with its POIs missing.
@@ -205,7 +237,11 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   let lastTileRefresh = 0
   let trailing = 0
   const onSourceData = (e: any) => {
-    if (!tiles || e.sourceId !== tiles || !e.tile) return
+    if (!e.tile) return
+    const buildingSource = map.getLayer(layerGroups.building3d)?.source
+    if (e.sourceId === buildingSource) buildingDirty = true
+    if (e.sourceId === tiles) poiDirty = true
+    if (e.sourceId !== tiles && e.sourceId !== buildingSource) return
     const wait = lastTileRefresh + TILE_REFRESH_MS - performance.now()
     if (wait <= 0) {
       lastTileRefresh = performance.now()
@@ -220,10 +256,23 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   }
   const onStyle = () => {
     signature = ''
+    hydration.cancel()
+    poiDirty = true
+    buildingDirty = true
+    footprints = footprintReader()
+    currentBuildings = null
+    currentNear = () => []
+    elevations.clear()
     if (!map.getSource(SOURCE)) tiles = null
     request()
   }
+  const onMoveEnd = () => {
+    poiDirty = true
+    buildingDirty = true
+    request()
+  }
   map.on('idle', request)
+  map.on('moveend', onMoveEnd)
   map.on('sourcedata', onSourceData)
   map.on('style.load', onStyle)
   request()
@@ -232,9 +281,10 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     refresh: onStyle,
     detach() {
       map.off('idle', request)
+      map.off('moveend', onMoveEnd)
       map.off('sourcedata', onSourceData)
       map.off('style.load', onStyle)
-      if (queued) cancelAnimationFrame(queued)
+      hydration.cancel()
       if (trailing) clearTimeout(trailing)
     },
   }

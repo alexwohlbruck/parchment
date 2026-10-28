@@ -44,6 +44,7 @@ import {
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
+import { frameTask } from '@/lib/map/frame-task'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
@@ -621,6 +622,7 @@ export class LandmarkLayer {
   private replaced = ''
   private credited = ''
   private scheduled = 0
+  private gathering = frameTask(() => this.gatherSteps())
   private listeners: Array<[string, (...args: any[]) => void]> = []
   /** `prefers-reduced-motion`; when it matches, moving parts hold still at t = 0. */
   private stillness: MediaQueryList | null = null
@@ -710,6 +712,7 @@ export class LandmarkLayer {
     this.listeners = []
     if (this.scheduled) clearTimeout(this.scheduled)
     this.scheduled = 0
+    this.gathering.cancel()
     this.lingering++
     this.leaving = []
     this.hiddenFor.clear()
@@ -752,7 +755,6 @@ export class LandmarkLayer {
       this.scheduled = 0
       if (!this.map) return
       this.gather()
-      this.map.triggerRepaint?.()
     }, SETTLE) as unknown as number
   }
 
@@ -764,6 +766,11 @@ export class LandmarkLayer {
    * arrives several times; the id de-duplicates it.
    */
   private gather() {
+    this.gathering.request()
+  }
+
+  private *gatherSteps(): Generator<void> {
+    if (!this.map) return
     const zoom = this.map.getZoom()
     let features: any[] = []
     try {
@@ -805,8 +812,10 @@ export class LandmarkLayer {
       if (p.detailed) this.load(p.detail!.model, now)
     }
     this.leave([...previous.values()].filter(p => !seen.has(p.id) && this.ready(p.model)), seen)
-    this.contained = this.findContained()
+    yield
+    this.contained = yield* this.findContained()
     this.report()
+    this.map.triggerRepaint?.()
   }
 
   /** Whether a point is on screen or near it, with half a screen to spare. */
@@ -952,7 +961,7 @@ export class LandmarkLayer {
    * id, and the filter would hide all of it. So an id qualifies only if no
    * loaded piece of it lies outside a landmark.
    */
-  private findContained(): Replaced {
+  private *findContained(): Generator<void, Replaced> {
     const drawn = this.placements
       .map(p => ({ p, coverage: this.models.get(p.model)?.coverage }))
       .filter((d): d is { p: Placement; coverage: Coverage } => !!d.coverage)
@@ -978,27 +987,33 @@ export class LandmarkLayer {
       } catch {
         continue
       }
-      for (const [tile, pieces] of groupByTile(`${source}/${sourceLayer}`, features)) {
+      yield
+      const tiles = yield* groupByTile(`${source}/${sourceLayer}`, features)
+      for (const [tile, pieces] of tiles) {
         const judgement = previous.get(tile) ?? { judged: new Set<string>(), inside: new Map<number, string[]>() }
         this.tileJudgements.set(tile, judgement)
         const fresh = reaches.filter(r => !judgement.judged.has(r.id))
         const bounds = tileBounds(pieces[0])
         const near = bounds ? fresh.filter(r => reachesTile(r, bounds)) : fresh
         if (near.length) {
-          pieces.forEach((feature, i) => {
+          for (let i = 0; i < pieces.length; i++) {
+            if (i % 32 === 0) yield
+            const feature = pieces[i]
             const hits = landmarksUnder(feature, near)
             if (hits.length) judgement.inside.set(i, [...(judgement.inside.get(i) ?? []), ...hits])
-          })
+          }
         }
         for (const r of fresh) judgement.judged.add(r.id)
-        pieces.forEach((feature, i) => {
+        for (let i = 0; i < pieces.length; i++) {
+          if (i % 64 === 0) yield
+          const feature = pieces[i]
           const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
-          if (key === undefined || key === null || verdict.get(key) === false) return
+          if (key === undefined || key === null || verdict.get(key) === false) continue
           // The first placement holding it, in the order they were placed.
           let first = Infinity
           for (const id of judgement.inside.get(i) ?? []) first = Math.min(first, rank.get(id) ?? Infinity)
           verdict.set(key, first < Infinity ? reaches[first].p.id : false)
-        })
+        }
       }
     }
     // A key goes back on show only on evidence: a loaded piece of it outside
@@ -1477,9 +1492,11 @@ type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: s
 /** What a building piece's verdict depends on: the placement's model and where and how it stands. */
 const placementKey = (p: Placement) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
 
-function groupByTile(layer: string, features: any[]): Map<string, any[]> {
+function* groupByTile(layer: string, features: any[]): Generator<void, Map<string, any[]>> {
   const tiles = new Map<string, any[]>()
+  let read = 0
   for (const f of features) {
+    if (++read % 64 === 0) yield
     const tile = `${layer}/${f._z}/${f._x}/${f._y}`
     const pieces = tiles.get(tile)
     if (pieces) pieces.push(f)
@@ -1569,4 +1586,3 @@ function program(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: s
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error('[landmarks] link:', gl.getProgramInfoLog(p))
   return { program: p, u: Object.fromEntries(uniforms.map(n => [n, gl.getUniformLocation(p, n)])) }
 }
-

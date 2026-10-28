@@ -49,13 +49,16 @@ const latOf = (y: number) => (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * 
 
 /** A geometry's polygons as mercator rings; anything else gives none. */
 export function polygonsOf(geometry: any): Ring[][] {
+  return [...projectPolygons(geometry)]
+}
+
+function* projectPolygons(geometry: any): Generator<Ring[]> {
   const polys =
     geometry?.type === 'Polygon' ? [geometry.coordinates]
     : geometry?.type === 'MultiPolygon' ? geometry.coordinates
     : []
-  return polys.map((rings: number[][][]) =>
-    rings.map(ring => ring.map(([lng, lat]) => [mercX(lng), mercY(lat)] as Point)),
-  )
+  for (const rings of polys as number[][][][])
+    yield rings.map(ring => ring.map(([lng, lat]) => [mercX(lng), mercY(lat)] as Point))
 }
 
 /** Where a horizontal line crosses a polygon's rings, as even-odd inside spans. */
@@ -219,16 +222,19 @@ export function* exclusionSteps(ways: any[], areas: any[]): Generator<void, Fore
       }
   }
   const indexed = new Map<number, Ring[][]>()
-  for (const rings of areas.flatMap(a => polygonsOf(a.geometry))) {
+  for (const area of areas) {
     if (++read % EXCLUSION_STEP === 0) yield
-    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
-    for (const [x, y] of rings[0] ?? []) {
-      minX = Math.min(minX, x); maxX = Math.max(maxX, x)
-      minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+    for (const rings of projectPolygons(area.geometry)) {
+      if (++read % EXCLUSION_STEP === 0) yield
+      let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
+      for (const [x, y] of rings[0] ?? []) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+      }
+      const [i0, i1, j0, j1] = [minX, maxX, minY, maxY].map(v => Math.floor(v / cell))
+      if ((i1 - i0) * (j1 - j0) > 2500) continue
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) bucket(indexed, i, j, rings)
     }
-    const [i0, i1, j0, j1] = [minX, maxX, minY, maxY].map(v => Math.floor(v / cell))
-    if ((i1 - i0) * (j1 - j0) > 2500) continue
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) bucket(indexed, i, j, rings)
   }
   return { areas: indexed, segments, cell }
 }

@@ -8,7 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
-import { frameTask } from '@/lib/map/frame-task'
+import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import { COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID } from '@/constants/layers'
 import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'

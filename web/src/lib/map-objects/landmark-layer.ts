@@ -44,7 +44,7 @@ import {
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
-import { frameTask } from '@/lib/map/frame-task'
+import { frameTask } from '@/lib/map/rendering/frame-task'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'

@@ -23,7 +23,7 @@ try {
     localStorage.setItem('parchment-default-server', origin)
   }, process.env.BENCH_API_URL)
   const page = await context.newPage()
-  page.on('pageerror', error => results.errors.push(error.message))
+  page.on('pageerror', error => results.errors.push(error.stack || error.message))
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await page.waitForFunction(() => !!window.__map, null, { timeout: 90000 })
   await page.waitForTimeout(5000)
@@ -52,7 +52,7 @@ try {
       const start = performance.now()
       try { return original.apply(this, args) } finally { if (data.active) data.renders.push(performance.now() - start) }
     }
-    for (const name of ['querySourceFeatures', 'queryRenderedFeatures', 'setData', 'setFilter', 'setLayoutProperty']) {
+    for (const name of ['querySourceFeatures', 'queryRenderedFeatures', 'setFilter', 'setLayoutProperty']) {
       if (typeof map[name] !== 'function') continue
       const original = map[name]
       map[name] = function (...args) {

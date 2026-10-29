@@ -12,7 +12,7 @@
 
 ### Changed
 
-* Onboarding has clearer recovery key and passkey setup, with simpler copy and consistent layouts throughout.
+* Onboarding opens with a welcome screen, has clearer recovery key and passkey setup, and no longer asks you to pick a plan.
 
 ### Fixed
 

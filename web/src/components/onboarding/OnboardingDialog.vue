@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, provide, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -19,11 +18,10 @@ import PasskeyStep from './PasskeyStep.vue'
 import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
 import OpenStreetMapStep from './OpenStreetMapStep.vue'
 import ThemeStep from './ThemeStep.vue'
-import SubscriptionStep from './SubscriptionStep.vue'
+import WelcomeStep from './WelcomeStep.vue'
 import { validateKey, type StepValidateFn } from './types'
-import { toast } from '@/lib/toast'
 
-type StepId = 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'subscription' | 'integrations' | 'openstreetmap'
+type StepId = 'welcome' | 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'integrations' | 'openstreetmap'
 
 interface StepDef {
   id: StepId
@@ -36,8 +34,6 @@ const emit = defineEmits<{ finishing: [value: boolean]; complete: [] }>()
 const STORAGE_KEY = 'onboarding-step'
 
 const { t } = useI18n()
-const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 const sub = useSubscriptionService()
 const integrations = useIntegrationsStore()
@@ -47,6 +43,7 @@ const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 const currentIndex = ref(0)
 const completing = ref(false)
 const completedAt = ref<string | null>(null)
+const brandOrigin = ref<DOMRect | null>(null)
 let revealed = false
 let finished = false
 const stepValidateFn = ref<StepValidateFn | null>(null)
@@ -63,17 +60,15 @@ provide(validateKey, {
 
 const steps = computed<StepDef[]>(() => {
   const s: StepDef[] = [
+    { id: 'welcome', component: WelcomeStep },
     { id: 'profile', component: ProfileSetupStep },
     { id: 'theme', component: ThemeStep },
     { id: 'recovery-key', component: RecoveryKeyStep },
     { id: 'passkey', component: PasskeyStep },
     { id: 'openstreetmap', component: OpenStreetMapStep },
   ]
-  if (sub.billingEnabled.value) {
-    s.push({ id: 'subscription', component: SubscriptionStep, wide: true })
-    if (sub.hasSubscription.value) {
-      s.push({ id: 'integrations', component: IntegrationsSetupStep, wide: true })
-    }
+  if (sub.billingEnabled.value && sub.hasSubscription.value) {
+    s.push({ id: 'integrations', component: IntegrationsSetupStep, wide: true })
   }
   return s
 })
@@ -106,25 +101,6 @@ watch(steps, (newSteps, oldSteps) => {
     stepRestored.value = true
   } else if (oldSteps && oldSteps.length === newSteps.length) {
     stepRestored.value = true
-  }
-}, { immediate: true })
-
-const checkoutHandled = ref(false)
-
-watch(steps, async () => {
-  if (checkoutHandled.value) return
-  if (route.query.checkout !== 'success') {
-    checkoutHandled.value = true
-    return
-  }
-  if (!sub.billingEnabled.value) return
-
-  checkoutHandled.value = true
-  router.replace({ query: {} })
-  const status = await sub.verifySubscription()
-  if (status.isPremium || status.isBasic) {
-    const tierName = status.isPremium ? 'Premium' : 'Basic'
-    toast.success(t('settings.billing.checkout.welcomeTier', { tier: tierName }))
   }
 }, { immediate: true })
 
@@ -163,6 +139,7 @@ function back() {
 async function complete() {
   if (completing.value || completedAt.value) return
   completing.value = true
+  brandOrigin.value = document.querySelector('[data-onboarding-brand]')?.getBoundingClientRect() ?? null
   emit('finishing', true)
   try {
     const { api } = await import('@/lib/api')
@@ -204,13 +181,13 @@ function handleInteractOutside(e: Event) {
 </script>
 
 <template>
-  <OnboardingCompletion v-if="completedAt" @reveal="revealMap" @complete="finish" />
+  <OnboardingCompletion v-if="completedAt" :origin="brandOrigin" @reveal="revealMap" @complete="finish" />
   <Dialog v-else :open="true">
     <DialogContent
-      overlay-class="bg-background backdrop-blur-none !animate-none"
+      overlay-class="onboarding-backdrop bg-background backdrop-blur-none !animate-none"
       :class="[
         // Mobile: fullscreen
-        'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0',
+        'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
         'sm:h-auto sm:max-h-[90dvh] sm:rounded-lg sm:border',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
@@ -281,7 +258,7 @@ function handleInteractOutside(e: Event) {
               {{ t('onboarding.finish') }}
             </template>
             <template v-else>
-              {{ currentStep.id === 'subscription' ? t('onboarding.subscription.skipLabel', { plan: t(`settings.billing.plan.${sub.tier.value}`) }) : t('general.continue') }}
+              {{ currentStep.id === 'welcome' ? t('onboarding.welcome.start') : t('general.continue') }}
               <ArrowRight class="h-4 w-4 ml-2" />
             </template>
           </template>
@@ -290,3 +267,15 @@ function handleInteractOutside(e: Event) {
     </DialogContent>
   </Dialog>
 </template>
+
+<style>
+.onboarding-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('@/assets/img/parchment-map.png') center / cover no-repeat;
+  opacity: 0.35;
+}
+
+.dark .onboarding-backdrop::before { filter: invert(1); }
+</style>

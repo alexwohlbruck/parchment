@@ -16,7 +16,7 @@ interface Beat {
 
 const THICKNESS = 0.6
 const BEND = 0.55
-const INTRO = 650
+const INTRO = 420
 const SETTLE = 380
 const INK = '#6b4f2a'
 
@@ -193,6 +193,8 @@ async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale
   return canvas
 }
 
+export const packetSize = (width: number, height: number) => Math.max(150, Math.min(260, Math.min(width, height) * 0.5))
+
 export class PaperMapRenderer {
   readonly duration: number
   private gl: WebGL2RenderingContext
@@ -300,8 +302,7 @@ export class PaperMapRenderer {
   }
 
   static async create(canvas: HTMLCanvasElement, map: HTMLImageElement, rect: PaperRect, dark: boolean) {
-    const packet = Math.max(150, Math.min(260, Math.min(rect.width, rect.height) * 0.5))
-    const plan = planFolds(rect.width, rect.height, packet, THICKNESS)
+    const plan = planFolds(rect.width, rect.height, packetSize(rect.width, rect.height), THICKNESS)
     const cell = coverCell(plan)
     const cover = await drawCover(cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2))
     return new PaperMapRenderer(canvas, map, cover, rect, plan, dark)
@@ -348,9 +349,9 @@ export class PaperMapRenderer {
     const foldsEnd = this.beats[this.beats.length - 1].end
     const pose = 1 - easeInOut(clamp01((t - INTRO * 0.4) / (foldsEnd - INTRO * 0.4)))
     const arrive = easeOut(clamp01(t / INTRO))
-    const tilt = 0.32 * pose + 0.25 * (1 - arrive)
-    const spin = -0.16 * pose - 0.1 * (1 - arrive)
-    const lift = 70 * pose + 260 * (1 - arrive)
+    const tilt = 0.32 * pose + 0.1 * (1 - arrive)
+    const spin = -0.26 * pose
+    const lift = 70 * pose + 40 * (1 - arrive)
     const center = this.packetCenter(angles)
     const target = { x: this.rect.left + plan.width / 2, y: this.rect.top + plan.height / 2 }
     const [ct, st, cs, ss] = [Math.cos(tilt), Math.sin(tilt), Math.cos(spin), Math.sin(spin)]

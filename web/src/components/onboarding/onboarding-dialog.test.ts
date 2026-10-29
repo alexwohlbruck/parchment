@@ -13,14 +13,13 @@ vi.mock('@/services/subscription.service', () => ({ useSubscriptionService: () =
 vi.mock('@/lib/api', () => ({ api: { post: mocks.post } }))
 vi.mock('@/lib/toast', () => ({ toast: {} }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('vue-router', () => ({ useRouter: () => ({}), useRoute: () => ({ query: {} }) }))
 vi.mock('./OnboardingCompletion.vue', () => ({ default: { name: 'OnboardingCompletion' } }))
 vi.mock('./ProfileSetupStep.vue', () => ({ default: { name: 'ProfileSetupStep' } }))
 vi.mock('./ThemeStep.vue', () => ({ default: { name: 'ThemeStep' } }))
 vi.mock('./RecoveryKeyStep.vue', () => ({ default: { name: 'RecoveryKeyStep' } }))
 vi.mock('./PasskeyStep.vue', () => ({ default: { name: 'PasskeyStep' } }))
 vi.mock('./OpenStreetMapStep.vue', () => ({ default: { name: 'OpenStreetMapStep' } }))
-vi.mock('./SubscriptionStep.vue', () => ({ default: { name: 'SubscriptionStep' } }))
+vi.mock('./WelcomeStep.vue', () => ({ default: { name: 'WelcomeStep' } }))
 vi.mock('./IntegrationsSetupStep.vue', () => ({ default: { name: 'IntegrationsSetupStep' } }))
 
 function mountDialog() {
@@ -48,14 +47,11 @@ test('offers OpenStreetMap on a free server and lets users finish without connec
   expect(localStorage.getItem('onboarding-step')).toBeNull()
   wrapper.unmount()
 })
-test('continues to subscription choices when billing is enabled', async () => {
-  billingEnabled.value = true
+test('opens on the welcome step', () => {
+  localStorage.removeItem('onboarding-step')
   const wrapper = mountDialog()
-  const skip = wrapper.findAll('button').find(button => button.text() === 'onboarding.openstreetmap.skip')!
-  await skip.trigger('click')
-  expect(wrapper.findComponent({ name: 'SubscriptionStep' }).exists()).toBe(true)
-  expect(mocks.post).not.toHaveBeenCalled()
-  expect(localStorage.getItem('onboarding-step')).toBe('subscription')
+  expect(wrapper.findComponent({ name: 'WelcomeStep' }).exists()).toBe(true)
+  expect(wrapper.text()).toContain('onboarding.welcome.start')
   wrapper.unmount()
 })
 test('replaces skip with finish when the account connects', async () => {
@@ -67,13 +63,14 @@ test('replaces skip with finish when the account connects', async () => {
   wrapper.unmount()
 })
 
-test('advances to subscription choices after OpenStreetMap connects', async () => {
+test('advances to integrations after OpenStreetMap connects on a paid plan', async () => {
   billingEnabled.value = true
+  hasSubscription.value = true
   const wrapper = mountDialog()
   wrapper.findComponent({ name: 'OpenStreetMapStep' }).vm.$emit('complete')
   await flushPromises()
-  expect(wrapper.findComponent({ name: 'SubscriptionStep' }).exists()).toBe(true)
-  expect(localStorage.getItem('onboarding-step')).toBe('subscription')
+  expect(wrapper.findComponent({ name: 'IntegrationsSetupStep' }).exists()).toBe(true)
+  expect(localStorage.getItem('onboarding-step')).toBe('integrations')
   expect(mocks.post).not.toHaveBeenCalled()
   wrapper.unmount()
 })

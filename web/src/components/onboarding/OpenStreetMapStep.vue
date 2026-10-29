@@ -36,22 +36,16 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="relative flex h-32 items-center justify-center overflow-hidden rounded-2xl border bg-primary/5" aria-hidden="true">
-      <div class="absolute inset-0 osm-map-grid opacity-40" />
-      <div class="absolute h-48 w-12 rotate-[35deg] border-x-4 border-background bg-primary/10" />
-      <div class="relative flex size-20 -rotate-6 items-center justify-center rounded-2xl border bg-background shadow-sm">
-        <Map class="size-10 text-primary" :stroke-width="1.5" />
-        <span class="absolute -bottom-2 -right-2 flex size-8 rotate-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-          <Check v-if="connected" class="size-4" />
-          <Pencil v-else class="size-4" />
-        </span>
-      </div>
-    </div>
-
     <OnboardingHeader
       :title="t('onboarding.openstreetmap.title')"
       :description="t('onboarding.openstreetmap.description')"
-    />
+      :icon="Map"
+    >
+      <template #badge>
+        <Check v-if="connected" class="size-4" />
+        <Pencil v-else class="size-4" />
+      </template>
+    </OnboardingHeader>
 
     <div class="space-y-4">
       <div v-for="(icon, benefit) in { notes: MapPin, edits: Pencil }" :key="benefit" class="flex gap-3">
@@ -77,12 +71,3 @@ onMounted(load)
 
   </div>
 </template>
-
-<style scoped>
-.osm-map-grid {
-  background-image: linear-gradient(to right, hsl(var(--primary) / 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, hsl(var(--primary) / 0.12) 1px, transparent 1px);
-  background-size: 28px 28px;
-  transform: rotate(-12deg) scale(1.3);
-}
-</style>

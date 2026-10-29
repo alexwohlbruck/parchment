@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMediaQuery } from '@vueuse/core'
 import { useMapService } from '@/services/map/map.service'
-import parchmentMapBg from '@/assets/img/parchment-map.png'
-import { PaperMapRenderer } from './paper-map-renderer'
+import { PaperMapRenderer, packetSize } from './paper-map-renderer'
+import ParchmentTile from './ParchmentTile.vue'
 
+const props = defineProps<{ origin?: DOMRect | null }>()
 const emit = defineEmits<{ reveal: []; complete: [] }>()
 const { t } = useI18n()
 const mapService = useMapService()
@@ -16,7 +17,24 @@ const controller = new AbortController()
 const timers: ReturnType<typeof setTimeout>[] = []
 const fade = 450
 let renderer: PaperMapRenderer | null = null
+const flying = ref(false)
+
+const flight = computed(() => {
+  const origin = props.origin
+  if (!origin?.width) return null
+  const size = packetSize(window.innerWidth, window.innerHeight)
+  return {
+    left: `${origin.left}px`,
+    top: `${origin.top}px`,
+    width: `${origin.width}px`,
+    height: `${origin.height}px`,
+    '--dx': `${window.innerWidth / 2 - origin.left - origin.width / 2}px`,
+    '--dy': `${window.innerHeight / 2 - origin.top - origin.height / 2}px`,
+    '--scale': size / origin.width,
+  }
+})
 let mounted = false
+let mountedAt = 0
 let capturing = false
 let completed = false
 
@@ -48,6 +66,7 @@ async function capture() {
   } catch {
     return complete()
   }
+  if (flight.value) await new Promise(done => setTimeout(done, mountedAt + 760 - performance.now()))
   if (controller.signal.aborted) return
   timers.forEach(clearTimeout)
   phase.value = 'unfolding'
@@ -58,9 +77,11 @@ async function capture() {
 
 onMounted(() => {
   mounted = true
+  mountedAt = performance.now()
   window.addEventListener('resize', complete)
   emit('reveal')
   if (reducedMotion.value) return complete()
+  requestAnimationFrame(() => requestAnimationFrame(() => { flying.value = true }))
   timers.push(setTimeout(complete, 3500))
   capture()
 })
@@ -83,10 +104,9 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div class="onboarding-arrival fixed inset-0 z-[80] text-foreground" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms` }" role="status" aria-live="polite" aria-atomic="true">
-      <div class="arrival-backdrop absolute inset-0 overflow-hidden bg-background" aria-hidden="true">
-        <img :src="parchmentMapBg" alt="" draggable="false" class="absolute inset-0 size-full object-cover opacity-35 dark:invert">
-      </div>
+      <div class="onboarding-backdrop absolute inset-0 bg-background" aria-hidden="true" />
       <canvas ref="canvas" class="arrival-paper absolute inset-0 size-full" aria-hidden="true" />
+      <ParchmentTile v-if="flight" class="brand-flight fixed" :class="{ 'is-flying': flying }" :style="flight" aria-hidden="true" />
       <p class="arrival-caption absolute inset-x-6 text-balance text-center font-display text-2xl">{{ t('onboarding.ready') }}</p>
     </div>
   </Teleport>
@@ -95,6 +115,16 @@ onUnmounted(() => {
 <style scoped>
 .onboarding-arrival { transition: opacity var(--fade) ease; }
 .onboarding-arrival.is-leaving { opacity: 0; }
+
+.arrival-paper { opacity: 0; transition: opacity 280ms ease; }
+.is-unfolding .arrival-paper, .is-leaving .arrival-paper { opacity: 1; }
+
+.brand-flight {
+  transform: rotate(9deg);
+  transition: transform 720ms cubic-bezier(0.5, 0, 0.15, 1), opacity 280ms ease;
+}
+.brand-flight.is-flying { transform: translate(var(--dx), var(--dy)) rotate(-15deg) scale(var(--scale)); }
+.is-unfolding .brand-flight, .is-leaving .brand-flight { opacity: 0; }
 
 .arrival-caption {
   bottom: max(10vh, 40px);
@@ -108,6 +138,16 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arrival-caption { animation: none; }
+  .arrival-paper { opacity: 0; transition: opacity 280ms ease; }
+.is-unfolding .arrival-paper, .is-leaving .arrival-paper { opacity: 1; }
+
+.brand-flight {
+  transform: rotate(9deg);
+  transition: transform 720ms cubic-bezier(0.5, 0, 0.15, 1), opacity 280ms ease;
+}
+.brand-flight.is-flying { transform: translate(var(--dx), var(--dy)) rotate(-15deg) scale(var(--scale)); }
+.is-unfolding .brand-flight, .is-leaving .brand-flight { opacity: 0; }
+
+.arrival-caption { animation: none; }
 }
 </style>

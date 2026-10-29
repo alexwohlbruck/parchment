@@ -215,53 +215,52 @@ function removeAvatar() {
     <OnboardingHeader
       :title="t('onboarding.profile.title')"
       :description="t('onboarding.profile.description')"
-    />
-
-    <!-- Avatar picker -->
-    <div class="flex justify-center">
-      <button
-        type="button"
-        class="avatar-picker group relative size-24 rounded-full cursor-pointer ring-1 ring-border ring-offset-4 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-label="t('onboarding.profile.chooseAvatar')"
-        @click="triggerFileInput"
-      >
-        <div
-          class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+    >
+      <template #tile>
+        <button
+          type="button"
+          class="avatar-picker group relative block size-20 rounded-full cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
+          :aria-label="t('onboarding.profile.chooseAvatar')"
+          @click="triggerFileInput"
         >
-          <img
-            :src="avatarPreview || placeholderAvatar"
-            class="size-full object-cover"
-            alt=""
+          <div
+            class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+          >
+            <img
+              :src="avatarPreview || placeholderAvatar"
+              class="size-full object-cover"
+              alt=""
+            />
+          </div>
+
+          <div
+            class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
+          >
+            <Camera class="size-4 text-muted-foreground" />
+          </div>
+
+          <div
+            v-if="avatarPreview"
+            role="button"
+            tabindex="0"
+            :aria-label="t('onboarding.profile.removeAvatar')"
+            class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
+            @click.stop="removeAvatar"
+            @keydown.enter.stop="removeAvatar"
+          >
+            <X class="size-3" />
+          </div>
+
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            @change="onFileChange"
           />
-        </div>
-
-        <div
-          class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
-        >
-          <Camera class="size-4 text-muted-foreground" />
-        </div>
-
-        <div
-          v-if="avatarPreview"
-          role="button"
-          tabindex="0"
-          :aria-label="t('onboarding.profile.removeAvatar')"
-          class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
-          @click.stop="removeAvatar"
-          @keydown.enter.stop="removeAvatar"
-        >
-          <X class="size-3" />
-        </div>
-
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          class="hidden"
-          @change="onFileChange"
-        />
-      </button>
-    </div>
+        </button>
+      </template>
+    </OnboardingHeader>
 
     <form class="flex flex-col gap-4" @submit.prevent>
       <!-- Name fields -->

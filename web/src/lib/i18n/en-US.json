@@ -2722,6 +2722,14 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "title": "Welcome to Parchment",
+      "description": "A map that keeps your places private. A few quick steps and you're on your way.",
+      "private": "Your saved places stay encrypted",
+      "open": "Built on OpenStreetMap",
+      "transit": "Walk, bike, drive or ride transit",
+      "start": "Get started"
+    },
     "finish": "Finish",
     "profile": {
       "title": "Your profile",
@@ -2766,11 +2774,6 @@
     "passkey": {
       "title": "Sign in with a passkey",
       "description": "Use your fingerprint, face, or device PIN to sign in and unlock your data."
-    },
-    "subscription": {
-      "title": "Choose your plan",
-      "description": "Start free, or choose a plan for more.",
-      "skipLabel": "Continue with {plan}"
     },
     "integrations": {
       "title": "Connect your apps",

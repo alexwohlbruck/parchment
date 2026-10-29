@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import OnboardingHeader from './OnboardingHeader.vue'
-import { ref, computed, inject, onMounted } from 'vue'
+import { computed, inject, onMounted } from 'vue'
+import { Blocks } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
@@ -92,6 +93,7 @@ async function autoConfigureFree() {
     <OnboardingHeader
       :title="t('onboarding.integrations.title')"
       :description="t('onboarding.integrations.description')"
+      :icon="Blocks"
     />
 
     <!-- All integrations grid -->

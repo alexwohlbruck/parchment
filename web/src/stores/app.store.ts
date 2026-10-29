@@ -312,7 +312,11 @@ export const useAppStore = defineStore('app', () => {
     leftSheetHidden.value ? leftSheetButtonColumnWidth.value : 0,
   )
 
+  // Onboarding holds the app's chrome back so it can slide in over the unfolding map.
+  const chromeHeld = ref(false)
+
   return {
+    chromeHeld,
     dialogs,
     createDialog,
     removeDialog,

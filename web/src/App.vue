@@ -129,11 +129,12 @@ const viewRef = ref()
 
 const routeHidesUI = ref(true)
 const onboardingFinishing = ref(false)
-const onboardingUnfolding = ref(false)
-const hideUI = computed(
-  () => routeHidesUI.value || ((authStore.needsOnboarding || onboardingFinishing.value) && !onboardingUnfolding.value),
-)
+const onboardingChromeIn = ref(false)
+const hideUI = computed(() => routeHidesUI.value || appStore.chromeHeld)
 const authStore = useAuthStore()
+watchEffect(() => {
+  appStore.chromeHeld = (authStore.needsOnboarding || onboardingFinishing.value) && !onboardingChromeIn.value
+})
 const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
@@ -316,7 +317,7 @@ function beforeNavTransition(value: boolean) {
   <OnboardingDialog
     v-if="authStore.needsOnboarding || onboardingFinishing"
     @finishing="onboardingFinishing = $event"
-    @unfolding="onboardingUnfolding = true"
+    @chrome="onboardingChromeIn = true"
     @complete="onboardingFinishing = false"
   />
   <KeyRestoreDialog v-else-if="authStore.me" />

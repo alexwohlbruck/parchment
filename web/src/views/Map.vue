@@ -158,7 +158,7 @@ const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
-const hideUI = computed(() => !!route.meta?.hideUI)
+const hideUI = computed(() => !!route.meta?.hideUI || appStore.chromeHeld)
 // A view that takes over the whole map (turn-by-turn) replaces the sheets and the map's chrome.
 const immersive = computed(() => !!route.meta?.immersive)
 

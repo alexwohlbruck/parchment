@@ -2,13 +2,27 @@
 
 ### Added
 
+* Finishing onboarding unfolds a lit, 3D paper map panel by panel into your live map.
+
+* Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
+
+* The map flies to your location as soon as you allow location access.
+
+* Invitation emails open the sign-in page with your email already filled in.
+
 * Open the feedback board from Parchment without signing in again when your server enables feedback login.
 
 * The satellite globe includes the Moon with live lunar phases.
 
 ### Changed
 
+* Onboarding opens with a welcome screen, has clearer recovery key and passkey setup, and no longer asks you to pick a plan.
+
 ### Fixed
+
+* Keep the map hidden during onboarding until the paper map unfolds.
+
+* Dismiss toasts with a swipe or the close button while a dialog or bottom sheet is open.
 
 * In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.
 

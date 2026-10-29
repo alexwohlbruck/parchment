@@ -194,65 +194,6 @@ describe('avatar logic', () => {
   })
 })
 
-describe('onboarding step progression', () => {
-  test('base steps are profile, theme, recovery-key, passkey', () => {
-    const billingEnabled = false
-    const hasSubscription = false
-
-    const steps: string[] = ['profile', 'theme', 'recovery-key', 'passkey']
-    if (billingEnabled) {
-      steps.push('subscription')
-      if (hasSubscription) steps.push('integrations')
-    }
-
-    expect(steps).toEqual(['profile', 'theme', 'recovery-key', 'passkey'])
-  })
-
-  test('adds subscription step when billing is enabled', () => {
-    const billingEnabled = true
-    const hasSubscription = false
-
-    const steps: string[] = ['profile', 'theme', 'recovery-key', 'passkey']
-    if (billingEnabled) {
-      steps.push('subscription')
-      if (hasSubscription) steps.push('integrations')
-    }
-
-    expect(steps).toEqual(['profile', 'theme', 'recovery-key', 'passkey', 'subscription'])
-  })
-
-  test('adds integrations step when user has subscription', () => {
-    const billingEnabled = true
-    const hasSubscription = true
-
-    const steps: string[] = ['profile', 'theme', 'recovery-key', 'passkey']
-    if (billingEnabled) {
-      steps.push('subscription')
-      if (hasSubscription) steps.push('integrations')
-    }
-
-    expect(steps).toEqual(['profile', 'theme', 'recovery-key', 'passkey', 'subscription', 'integrations'])
-  })
-
-  test('progress tracks visited steps', () => {
-    const steps = ['profile', 'theme', 'recovery-key', 'passkey']
-    const currentIndex = 2
-    const progress = steps.map((_, i) => i <= currentIndex)
-    expect(progress).toEqual([true, true, true, false])
-  })
-
-  test('isFirst and isLast flags', () => {
-    const steps = ['profile', 'theme', 'recovery-key', 'passkey']
-    const first = 0
-    const last = steps.length - 1
-
-    expect(first === 0).toBe(true)
-    expect(first === last).toBe(false)
-    expect(last === 0).toBe(false)
-    expect(last === steps.length - 1).toBe(true)
-  })
-})
-
 describe('step persistence', () => {
   const STORAGE_KEY = 'onboarding-step'
 

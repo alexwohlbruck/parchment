@@ -4,9 +4,9 @@
  * Centralized geolocation service that provides reactive user location data
  * to all parts of the application. Uses VueUse's useGeolocation under the hood.
  *
- * Starts tracking immediately on initialization — the browser will silently
- * succeed if permission is already granted, or prompt the user if not yet decided.
- * Call resume() explicitly to trigger a permission prompt when the user clicks locate.
+ * Tracking starts when resume() is first called — the browser silently succeeds if
+ * permission is already granted, or prompts if not yet decided. While held, resume()
+ * waits until the hold is lifted, so nothing prompts mid-onboarding.
  */
 
 import { computed, ref, watch } from 'vue'
@@ -24,7 +24,7 @@ function geolocationService() {
     resume,
     pause,
   } = useGeolocation({
-    immediate: true, // Start watchPosition immediately — no async permission gate
+    immediate: false,
     enableHighAccuracy: true,
   })
 
@@ -79,8 +79,17 @@ function geolocationService() {
    * Request geolocation permission and start tracking.
    * If already tracking, this is a no-op.
    */
+  let held = false
+  let wanted = false
+
   function startTracking() {
-    resume()
+    wanted = true
+    if (!held) resume()
+  }
+
+  function hold(value: boolean) {
+    held = value
+    if (!held && wanted) resume()
   }
 
   return {
@@ -95,6 +104,7 @@ function geolocationService() {
     heading,
     resume: startTracking,
     pause,
+    hold,
   }
 }
 

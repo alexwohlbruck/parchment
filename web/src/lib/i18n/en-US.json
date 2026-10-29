@@ -1965,22 +1965,22 @@
           "title": "Set Up Federation Identity",
           "description": "Your recovery key is your last-resort way back in if you lose every device. Save it somewhere safe — a password manager is ideal. We'll offer to set up a passkey for everyday recovery in the next step.",
           "importantTitle": "Important",
-          "importantDescription": "If you lose this key AND every passkey, you will need to create a new identity and re-add all your friends.",
-          "keyLabel": "Your Recovery Key",
+          "importantDescription": "If you lose every device and passkey, this key is your only way to restore encrypted data.",
+          "keyLabel": "Recovery key",
           "generating": "Generating...",
           "keyCopiedToast": "Recovery key copied. Paste it into your password manager.",
-          "masterPasswordHint": "Like a master password. Keep it secret and safe.",
-          "confirmSavedLabel": "I have saved my recovery key in a secure location",
+          "masterPasswordHint": "Save it in your password manager.",
+          "confirmSavedLabel": "I’ve saved my recovery key somewhere safe.",
           "failedFallback": "Setup failed"
         },
         "passkeyOffer": {
           "title": "Add a passkey for recovery?",
           "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery key required. You can always add more later from Settings.",
           "alertDescription": "Your recovery key is already safe. Adding a passkey is optional but strongly recommended.",
-          "existingLabel": "You already have a passkey:",
-          "existingHint": "Tap it below to enable recovery on it. Some browsers or older passkeys can't do this — if it doesn't work, use \"Add new\" instead.",
-          "useExisting": "Use \"{name}\" for recovery",
-          "addNewInstead": "Add a new passkey instead",
+          "existingLabel": "Your existing passkey",
+          "existingHint": "Use it for recovery, too.",
+          "useExisting": "Use this passkey",
+          "addNewInstead": "Create a new passkey",
           "addPasskey": "Add passkey",
           "skipForNow": "Skip for now",
           "cannotUseError": "This passkey can't be used for recovery. Try adding a new one.",
@@ -2722,15 +2722,27 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "title": "Welcome to Parchment",
+      "description": "The world's best digital map.",
+      "privacy": "Privacy",
+      "privacyDetail": "All your data, secure and encrypted",
+      "sustainability": "Sustainability",
+      "sustainabilityDetail": "Nav by transit, bikes, walking, or all together",
+      "community": "Community",
+      "communityDetail": "Mapped by millions of volunteers",
+      "start": "Get started"
+    },
     "finish": "Finish",
     "profile": {
-      "title": "Set up your profile",
-      "description": "Tell us a bit about yourself to get started.",
+      "title": "Your profile",
+      "description": "A name and a photo so friends can find you.",
       "firstName": "First name",
       "lastName": "Last name",
       "firstNamePlaceholder": "Christopher",
       "lastNamePlaceholder": "Columbus",
-      "removeAvatar": "Remove avatar"
+      "removeAvatar": "Remove avatar",
+      "chooseAvatar": "Choose a profile photo"
     },
     "alias": {
       "title": "Choose a username",
@@ -2745,11 +2757,11 @@
     },
     "recoveryKey": {
       "title": "Save your recovery key",
-      "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
+      "description": "Save this key to restore your encrypted data if you lose access."
     },
     "theme": {
-      "title": "Preferences",
-      "description": "Set your language, units, and visual style.",
+      "title": "Make it yours",
+      "description": "Choose how Parchment looks and feels.",
       "languageLabel": "Language",
       "unitsLabel": "Units",
       "colorLabel": "Accent color",
@@ -2758,20 +2770,17 @@
         "light": "Light",
         "dark": "Dark",
         "auto": "System"
-      }
+      },
+      "metric": "Metric",
+      "imperial": "Imperial"
     },
     "passkey": {
-      "title": "Add a passkey",
-      "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
-    },
-    "subscription": {
-      "title": "Choose your plan",
-      "description": "Unlock bookmarks, collections, friends, and integrations with a paid plan.",
-      "skipLabel": "Continue with {plan}"
+      "title": "Sign in with a passkey",
+      "description": "Use your fingerprint, face, or device PIN to sign in and unlock your data."
     },
     "integrations": {
-      "title": "Set up integrations",
-      "description": "Connect services for maps, search, geocoding, and more. Free integrations have been enabled automatically."
+      "title": "Connect your apps",
+      "description": "Connect services for maps, search, and more."
     },
     "invite": {
       "title": "Invite others",
@@ -2782,6 +2791,16 @@
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",
       "sentSummary": "{count} invitation(s) sent"
+    },
+    "openstreetmap": {
+      "title": "Make the map better, together",
+      "description": "Connect your account to contribute to OpenStreetMap.",
+      "notesTitle": "Report missing places",
+      "editsTitle": "Update place details",
+      "connect": "Sign in with OpenStreetMap",
+      "connected": "Your OpenStreetMap account is connected",
+      "skip": "Skip for now",
+      "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."
     }
   },
   "canvases": {

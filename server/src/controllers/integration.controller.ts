@@ -63,7 +63,7 @@ const app = new Elysia({ prefix: '/integrations' }).use(i18nPlugin)
  *
  * - Unauthenticated: system integrations with public config fields only
  * - Authenticated: system integrations (always) + user integrations,
- *   all with public config fields only. Filtered by read permissions.
+ *   all with public config fields only. Everyone sees their own user integrations.
  */
 publicApi.use(getSession).get(
   '/configured',
@@ -113,16 +113,8 @@ publicApi.use(getSession).get(
     )
 
     if (user) {
-      const userPermissions = await getPermissions(user.id)
-      const canReadUser = hasPermission(
-        userPermissions,
-        PermissionId.INTEGRATIONS_READ_USER,
-      )
-      if (canReadUser) {
-        const userIntegrations = await getConfiguredIntegrations(user.id)
-        for (const integration of userIntegrations) {
-          result.push(toDto(integration, true))
-        }
+      for (const integration of await getConfiguredIntegrations(user.id)) {
+        result.push(toDto(integration, true))
       }
     }
 

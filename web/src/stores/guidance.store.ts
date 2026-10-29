@@ -19,7 +19,14 @@ import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
-import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
+import type { LanePlan } from '@/lib/guidance/lanes'
+import { speechFor, type RichSource } from '@/lib/guidance/instructions/rich-announcement'
+import { richInstruction } from '@/lib/guidance/instructions/rich-instruction'
+import type { RichInstruction } from '@/lib/guidance/instructions/instruction.types'
+import { countryName } from '@/lib/geo/country-codes'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
@@ -78,6 +85,8 @@ const HORIZON_RETRY_MS = 10_000
 const ODOMETER_MIN_SPEED = 0.5
 /** No fix for this long: the traveller can't be seen, as underground. */
 const OUT_OF_SIGHT_MS = 30_000
+/** A destination this close to the saved home is home. */
+const HOME_RADIUS_METERS = 75
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
 
@@ -196,12 +205,26 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return preferences.value.sound[modeAt(s)] ?? 'all'
   }
 
+  const richGuidance = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+  /** The next maneuver as rich guidance describes it, for premium travellers. */
+  const nextInstruction = computed<RichInstruction | null>(() => {
+    const navRoute = route.value
+    const current = progress.value
+    if (!richGuidance.value || !navRoute || !current?.next) return null
+    const { puck, next } = current
+    return richInstruction(navRoute, next, { from: puck.s, speed: puck.speed, lanes: lanePlans.value.get(next.index) })
+  })
+  /** Whether the leg ends at the traveller's saved home. */
+  let headingHome = false
+
   function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
-    const hint = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? lanePlans.value.get(announcement.step.index) : undefined
-    const lanes = hint ? laneHint(hint) : null
-    return lanes
-      ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
+    const puck = progress.value?.puck
+    const source: RichSource | null = route.value
+      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome }
+      : null
+    return source
+      ? speechFor(announcement, source, richGuidance.value, metric, translate)
       : announcementText(announcement, metric, translate)
   }
 
@@ -688,11 +711,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
     turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
     const end = parts.at(-1)?.end?.location
+    const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
+    headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
       const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
       return speechDuration(text, rate)
-    })
+    }, richGuidance.value ? { regionName: code => countryName(code, storedLocale.value) } : {})
     const initial = announcer.start()
     if (initial) announce(initial, 0)
     return navRoute
@@ -806,6 +831,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     switchDock,
     lanePlans,
     setLanePlan,
+    richGuidance,
+    nextInstruction,
     takeAlternative,
     takeItinerary,
   }

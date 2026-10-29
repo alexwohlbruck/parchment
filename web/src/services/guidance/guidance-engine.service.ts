@@ -61,6 +61,7 @@ export const guidanceEngine = {
    * ask, so on calm stretches they drop the same frames and never drift apart.
    */
   frameDue(nowMs: number): boolean {
+    if (document.visibilityState === 'hidden') return false
     if (frameDecision.at === nowMs) return frameDecision.due
     const due = nowMs - lastFrameMs >= frameIntervalMs - 2
     if (due) lastFrameMs = nowMs

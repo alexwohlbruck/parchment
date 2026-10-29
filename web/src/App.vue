@@ -318,7 +318,7 @@ function beforeNavTransition(value: boolean) {
     v-if="authStore.needsOnboarding || onboardingFinishing"
     @finishing="onboardingFinishing = $event"
     @chrome="onboardingChromeIn = true"
-    @complete="onboardingFinishing = false"
+    @complete="onboardingFinishing = false; onboardingChromeIn = false"
   />
   <KeyRestoreDialog v-else-if="authStore.me" />
 

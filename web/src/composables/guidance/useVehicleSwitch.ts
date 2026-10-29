@@ -100,7 +100,9 @@ export function useVehicleSwitch() {
     if (!watched || watched.done) return
     const nowMs = guidanceClock.now()
     const riding = stage.kind === 'riding'
-    if (puck.snapped || riding) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
+    // An estimated puck follows the plan's timetable, so it says nothing about which run this is.
+    const estimated = guidance.rideEstimate != null && !guidance.rideEstimate.fresh
+    if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
 
     const near = stage.kind !== 'to-stop' || walkToStopSec(route, stage, puck.s) < LOOKUP_WALK_SEC
     const due = Date.now() - watched.fetchedAt > (riding ? RIDING_REFRESH_MS : WAITING_REFRESH_MS)

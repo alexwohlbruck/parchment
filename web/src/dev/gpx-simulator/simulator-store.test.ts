@@ -209,3 +209,17 @@ describe('simulatorStore — subscribe', () => {
     consoleErr.mockRestore()
   })
 })
+
+describe('simulatorStore — outages', () => {
+  test('knows when playback is inside one, and a new track clears them', () => {
+    simulatorStore.load('test.gpx', makePoints())
+    simulatorStore.setOutages([{ fromMs: 500, toMs: 1500 }])
+    expect(simulatorStore.inOutage()).toBe(false)
+    simulatorStore.seek(1000)
+    expect(simulatorStore.inOutage()).toBe(true)
+    simulatorStore.seek(1500)
+    expect(simulatorStore.inOutage()).toBe(false)
+    simulatorStore.load('again.gpx', makePoints())
+    expect(simulatorStore.getState().outages).toEqual([])
+  })
+})

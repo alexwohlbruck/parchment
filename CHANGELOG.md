@@ -6,6 +6,8 @@
 
 * The satellite globe includes the Moon with live lunar phases.
 
+* Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.
+
 ### Changed
 
 ### Fixed

@@ -1435,6 +1435,7 @@
       "departingNow": "Saliendo ahora",
       "from": "desde {stop}",
       "stopsLeft": "{n} parada | {n} paradas",
+      "estimated": "Sin señal, posición estimada según el horario",
       "getOffAt": "Bájate en {stop}",
       "getOffNext": "Bájate en la próxima parada",
       "getOffNow": "Bájate ahora",

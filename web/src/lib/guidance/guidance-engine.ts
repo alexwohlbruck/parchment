@@ -37,9 +37,13 @@ export interface PuckState {
 
 export interface EngineDiagnostics {
   lastFix: Fix | null
+  /** The latest fix as delivered, however inaccurate. */
+  rawFix: Fix | null
   lastMatch: RouteMatch | null
   accepted: boolean
   still: boolean
+  /** Motion sensors alone; null without them. */
+  sensorStill: boolean | null
   sigma: number
 }
 
@@ -55,6 +59,9 @@ const BACKWARD_TOLERANCE = 25
 /** Fraction of speed the puck keeps while the estimate catches up from behind. */
 const CATCH_UP_CREEP = 0.35
 const MAX_PLAUSIBLE_SPEED = 70
+/** After a gap this long (a tunnel), the next fix may be far along the route. */
+const RELOCATE_AFTER_SEC = 20
+const RELOCATE_SPEED = 40
 
 export class GuidanceEngine {
   private route: NavRoute
@@ -73,6 +80,8 @@ export class GuidanceEngine {
   private stillSpeed: number
   private jumpRejections = 0
   private lastFix: Fix | null = null
+  private rawFix: Fix | null = null
+  private heldS: number | null = null
   private lastMatch: RouteMatch | null = null
   private lastAccepted = true
   private offRoutePosition: { from: LngLat; at: number; correction: LngLat } | null = null
@@ -98,9 +107,11 @@ export class GuidanceEngine {
   get diagnostics(): EngineDiagnostics {
     return {
       lastFix: this.lastFix,
+      rawFix: this.rawFix,
       lastMatch: this.lastMatch,
       accepted: this.lastAccepted,
       still: this.stillFixes >= 2,
+      sensorStill: this.stillness.isStill(),
       sigma: this.filter?.positionSigma ?? 0,
     }
   }
@@ -112,6 +123,7 @@ export class GuidanceEngine {
 
   /** `now` is the wall-clock time the fix is handled; fixes arrive late. */
   pushFix(fix: Fix, now = fix.t): void {
+    this.rawFix = fix
     if (fix.accuracy > this.options.maxAccuracy) return
     if (this.lastFix && this.isImplausibleJump(this.lastFix, fix)) {
       // A real relocation (tunnel exit, cold GPS) repeats; a glitch doesn't.
@@ -120,10 +132,10 @@ export class GuidanceEngine {
     this.jumpRejections = 0
 
     const predicted = this.filter?.predict(fix.t)
+    const gap = this.filter ? fix.t - this.filter.time : 0
+    const reach = Math.max(200, predicted ? 10 * predicted.v : 0, gap > RELOCATE_AFTER_SEC ? gap * RELOCATE_SPEED : 0)
     const searchFrom = predicted ? predicted.s - 50 - 2 * fix.accuracy : 0
-    const searchTo = predicted
-      ? predicted.s + Math.max(200, 10 * predicted.v) + 2 * fix.accuracy
-      : this.route.length
+    const searchTo = predicted ? predicted.s + reach + 2 * fix.accuracy : this.route.length
     const match = matchToRoute(this.route, fix.position, {
       window: predicted ? { from: searchFrom, to: searchTo } : undefined,
       course: fix.speed != null && fix.speed > 3 ? fix.heading : null,
@@ -242,8 +254,18 @@ export class GuidanceEngine {
     return predicted + this.correction * decay
   }
 
+  /** Pins the puck at `s` while fixes can't place it; null lets fixes drive it again. */
+  hold(s: number | null): void {
+    this.heldS = s
+  }
+
+  get holding(): boolean {
+    return this.heldS != null
+  }
+
   /** The puck for the frame rendered at `t`. */
   sample(t: number): PuckState | null {
+    if (this.heldS != null) return this.puckAt(this.heldS, 0)
     if (this.offRoute.isOffRoute && this.offRoutePosition) {
       return {
         position: this.offRoutePoint(t),
@@ -265,7 +287,10 @@ export class GuidanceEngine {
     }
     this.renderedS = s
     this.renderedAt = t
+    return this.puckAt(s, speed)
+  }
 
+  private puckAt(s: number, speed: number): PuckState {
     const window = Math.max(5, speed * 0.75)
     return {
       position: drawnPoint(this.route, s),
@@ -283,6 +308,7 @@ export class GuidanceEngine {
     const t = this.filter?.time ?? 0
     this.route = route
     this.filter = null
+    this.heldS = null
     this.offRoute.reset()
     this.offRoutePosition = null
     this.correction = 0

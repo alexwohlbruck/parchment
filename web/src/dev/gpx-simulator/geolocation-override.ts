@@ -95,7 +95,7 @@ export function installGeolocationOverride() {
   function emitNoisyFix() {
     const state = simulatorStore.getState()
     const model = state.fixModel
-    if (!model || state.status === 'stopped') return
+    if (!model || state.status === 'stopped' || simulatorStore.inOutage()) return
     noise ??= new FixNoise(model, Math.floor(Math.random() * 1e9))
     const truth = simulatorStore.pointAtOffset(-model.latencyMs * state.playbackRate)
     if (!truth) return

@@ -27,8 +27,7 @@ const motion = {
 <template>
   <div class="space-y-6">
     <div class="relative flex items-center justify-center overflow-hidden rounded-2xl border bg-primary/5" :class="tall ? 'h-44' : 'h-32'">
-      <div class="hero-grid absolute inset-0 opacity-40" aria-hidden="true" />
-      <div class="absolute h-48 w-12 rotate-[35deg] border-x-4 border-background bg-primary/10" aria-hidden="true" />
+      <div class="hero-topo absolute inset-0" aria-hidden="true" />
       <slot name="art" />
       <div class="relative flex items-center" :style="motion">
         <div v-if="!solo" class="hero-tile relative z-10" style="--tilt: -7deg; --dir: -1">
@@ -57,11 +56,9 @@ const motion = {
 </template>
 
 <style scoped>
-.hero-grid {
-  background-image: linear-gradient(to right, hsl(var(--primary) / 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, hsl(var(--primary) / 0.12) 1px, transparent 1px);
-  background-size: 28px 28px;
-  transform: rotate(-12deg) scale(1.3);
+.hero-topo {
+  background-color: hsl(var(--primary) / 0.28);
+  mask: url('@/assets/img/topo.svg') center / cover no-repeat;
 }
 
 .hero-tile {

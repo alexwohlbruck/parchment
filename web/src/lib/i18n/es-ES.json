@@ -1386,6 +1386,147 @@
         "rightMany": "los {n} carriles de la derecha",
         "middle": "el carril central",
         "middleMany": "los {n} carriles centrales"
+      },
+      "welcome": "Bienvenido a {region}"
+    },
+    "rich": {
+      "ordinals": {
+        "m": {
+          "1": "primer",
+          "2": "segundo",
+          "3": "tercer",
+          "4": "cuarto",
+          "5": "quinto",
+          "6": "sexto",
+          "7": "séptimo",
+          "8": "octavo"
+        },
+        "f": {
+          "1": "primera",
+          "2": "segunda",
+          "3": "tercera",
+          "4": "cuarta",
+          "5": "quinta",
+          "6": "sexta",
+          "7": "séptima",
+          "8": "octava"
+        }
+      },
+      "roads": {
+        "path": "el sendero",
+        "pedestrian": "la calle peatonal",
+        "cycleway": "la ciclovía",
+        "steps": "las escaleras",
+        "track": "el camino"
+      },
+      "fork": {
+        "left": "En la bifurcación, mantente a la izquierda",
+        "right": "En la bifurcación, mantente a la derecha"
+      },
+      "endOfRoad": {
+        "left": "Al final de la calle, gira a la izquierda",
+        "right": "Al final de la calle, gira a la derecha"
+      },
+      "stay": "{action} para seguir por {road}",
+      "exit": {
+        "left": "Toma la salida de la izquierda",
+        "right": "Toma la salida de la derecha"
+      },
+      "exitNumber": "Toma la salida {number}",
+      "roundabout": "Entra en la rotonda y toma la {ordinal} salida",
+      "roundaboutExit": "Entra en la rotonda y toma la salida {exit}",
+      "roundaboutThrough": "Sigue recto en la rotonda",
+      "stairs": {
+        "left": "Toma las escaleras a tu izquierda",
+        "right": "Toma las escaleras a tu derecha",
+        "ahead": "Toma las escaleras"
+      },
+      "footbridge": "Usa la pasarela peatonal",
+      "crosswalk": "Cruza por el paso de peatones",
+      "crosswalkSignals": "Cruza en el semáforo",
+      "followPath": "Sigue el sendero",
+      "home": "Bienvenido a casa",
+      "homeSide": {
+        "left": "Bienvenido a casa. Tu destino está a la izquierda",
+        "right": "Bienvenido a casa. Tu destino está a la derecha"
+      },
+      "headAlong": "Ve hacia el {heading} por {road}",
+      "turnAround": "Da la vuelta para empezar la ruta y ve hacia el {heading}",
+      "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
+      "toward": "{action} en dirección a {destination}",
+      "followSigns": "{action} y sigue las indicaciones hacia {destination}",
+      "infinitive": {
+        "straight": "seguir recto",
+        "slight-left": "girar ligeramente a la izquierda",
+        "slight-right": "girar ligeramente a la derecha",
+        "left": "girar a la izquierda",
+        "right": "girar a la derecha",
+        "sharp-left": "girar bruscamente a la izquierda",
+        "sharp-right": "girar bruscamente a la derecha",
+        "keep-left": "mantenerte a la izquierda",
+        "keep-right": "mantenerte a la derecha",
+        "uturn": "dar la vuelta",
+        "roundabout": "entrar en la rotonda",
+        "board": "subir",
+        "exit": "tomar la salida"
+      },
+      "useLanes": "Usa {lanes} para {action}",
+      "lanes": {
+        "edge": {
+          "left": "el carril izquierdo",
+          "right": "el carril derecho"
+        },
+        "nth": {
+          "left": "el {ordinal} carril por la izquierda",
+          "right": "el {ordinal} carril por la derecha"
+        },
+        "either": {
+          "left": "cualquiera de los dos carriles izquierdos",
+          "right": "cualquiera de los dos carriles derechos"
+        },
+        "any": {
+          "left": "cualquiera de los {n} carriles izquierdos",
+          "right": "cualquiera de los {n} carriles derechos"
+        },
+        "middle": "el carril central",
+        "middleMany": "los {n} carriles centrales"
+      },
+      "anchored": "{anchor}, {action}",
+      "past": "Pasa este cruce y luego {action}",
+      "anchors": {
+        "at": {
+          "traffic_signals": "En el semáforo",
+          "stop": "En el stop",
+          "give_way": "En el ceda el paso"
+        },
+        "atOrdinal": "En el {ordinal} semáforo",
+        "after": {
+          "traffic_signals": "Después del semáforo",
+          "stop": "Después del stop",
+          "give_way": "Después del ceda el paso",
+          "rail_crossing": "Después del paso a nivel",
+          "bridge": "Después del puente",
+          "tunnel": "Después del túnel"
+        },
+        "past": {
+          "intersection": "Pasado este cruce"
+        }
+      },
+      "thenImmediately": "{action} e inmediatamente {next}",
+      "afterTurning": {
+        "left": "Después de girar a la izquierda, {action}",
+        "right": "Después de girar a la derecha, {action}",
+        "slight-left": "Después de girar ligeramente a la izquierda, {action}",
+        "slight-right": "Después de girar ligeramente a la derecha, {action}",
+        "sharp-left": "Después del giro brusco a la izquierda, {action}",
+        "sharp-right": "Después del giro brusco a la derecha, {action}",
+        "uturn": "Después de dar la vuelta, {action}"
+      },
+      "cues": {
+        "exit": "Salida {number}",
+        "exitToward": "Salida {number} · {destination}",
+        "toward": "Hacia {destination}",
+        "roundaboutExit": "Salida {exit}"
       }
     },
     "sound": {

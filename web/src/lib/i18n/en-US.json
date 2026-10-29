@@ -1420,6 +1420,147 @@
         "rightMany": "the right {n} lanes",
         "middle": "the middle lane",
         "middleMany": "the middle {n} lanes"
+      },
+      "welcome": "Welcome to {region}"
+    },
+    "rich": {
+      "ordinals": {
+        "m": {
+          "1": "first",
+          "2": "second",
+          "3": "third",
+          "4": "fourth",
+          "5": "fifth",
+          "6": "sixth",
+          "7": "seventh",
+          "8": "eighth"
+        },
+        "f": {
+          "1": "first",
+          "2": "second",
+          "3": "third",
+          "4": "fourth",
+          "5": "fifth",
+          "6": "sixth",
+          "7": "seventh",
+          "8": "eighth"
+        }
+      },
+      "roads": {
+        "path": "the path",
+        "pedestrian": "the pedestrian street",
+        "cycleway": "the bike path",
+        "steps": "the stairs",
+        "track": "the track"
+      },
+      "fork": {
+        "left": "At the fork, bear left",
+        "right": "At the fork, bear right"
+      },
+      "endOfRoad": {
+        "left": "At the end of the road, turn left",
+        "right": "At the end of the road, turn right"
+      },
+      "stay": "{action} to stay on {road}",
+      "exit": {
+        "left": "Take the exit on the left",
+        "right": "Take the exit on the right"
+      },
+      "exitNumber": "Take exit {number}",
+      "roundabout": "Enter the roundabout and take the {ordinal} exit",
+      "roundaboutExit": "Enter the roundabout and take exit {exit}",
+      "roundaboutThrough": "Continue straight through the roundabout",
+      "stairs": {
+        "left": "Take the stairs on your left",
+        "right": "Take the stairs on your right",
+        "ahead": "Take the stairs"
+      },
+      "footbridge": "Use the pedestrian bridge",
+      "crosswalk": "Cross at the crosswalk",
+      "crosswalkSignals": "Cross at the light",
+      "followPath": "Follow the path",
+      "home": "Welcome home",
+      "homeSide": {
+        "left": "Welcome home. Your destination is on the left",
+        "right": "Welcome home. Your destination is on the right"
+      },
+      "headAlong": "Head {heading} along {road}",
+      "turnAround": "Turn around to begin your route, then head {heading}",
+      "turnAroundAlong": "Turn around to begin your route, then head {heading} along {road}",
+      "toward": "{action} toward {destination}",
+      "followSigns": "{action}, following signs for {destination}",
+      "infinitive": {
+        "straight": "continue straight",
+        "slight-left": "bear left",
+        "slight-right": "bear right",
+        "left": "turn left",
+        "right": "turn right",
+        "sharp-left": "make a sharp left",
+        "sharp-right": "make a sharp right",
+        "keep-left": "keep left",
+        "keep-right": "keep right",
+        "uturn": "make a U-turn",
+        "roundabout": "enter the roundabout",
+        "board": "board",
+        "exit": "take the exit"
+      },
+      "useLanes": "Use {lanes} to {action}",
+      "lanes": {
+        "edge": {
+          "left": "the left lane",
+          "right": "the right lane"
+        },
+        "nth": {
+          "left": "the {ordinal} lane from the left",
+          "right": "the {ordinal} lane from the right"
+        },
+        "either": {
+          "left": "either of the two left lanes",
+          "right": "either of the two right lanes"
+        },
+        "any": {
+          "left": "any of the {n} left lanes",
+          "right": "any of the {n} right lanes"
+        },
+        "middle": "the middle lane",
+        "middleMany": "the middle {n} lanes"
+      },
+      "anchored": "{anchor}, {action}",
+      "past": "Go past this intersection, then {action}",
+      "anchors": {
+        "at": {
+          "traffic_signals": "At the light",
+          "stop": "At the stop sign",
+          "give_way": "At the yield sign"
+        },
+        "atOrdinal": "At the {ordinal} light",
+        "after": {
+          "traffic_signals": "After the light",
+          "stop": "After the stop sign",
+          "give_way": "After the yield sign",
+          "rail_crossing": "After the railroad crossing",
+          "bridge": "After the bridge",
+          "tunnel": "After the tunnel"
+        },
+        "past": {
+          "intersection": "Past this intersection"
+        }
+      },
+      "thenImmediately": "{action}, then immediately {next}",
+      "afterTurning": {
+        "left": "After turning left, {action}",
+        "right": "After turning right, {action}",
+        "slight-left": "After bearing left, {action}",
+        "slight-right": "After bearing right, {action}",
+        "sharp-left": "After the sharp left, {action}",
+        "sharp-right": "After the sharp right, {action}",
+        "uturn": "After the U-turn, {action}"
+      },
+      "cues": {
+        "exit": "Exit {number}",
+        "exitToward": "Exit {number} · {destination}",
+        "toward": "Toward {destination}",
+        "roundaboutExit": "Exit {exit}"
       }
     },
     "sound": {

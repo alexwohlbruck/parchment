@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useMediaQuery } from '@vueuse/core'
 import { useMapService } from '@/services/map/map.service'
 import { playUnfoldSound } from '@/lib/onboarding/unfold-sound'
@@ -8,7 +7,6 @@ import { PaperMapRenderer, type PaperRect } from './paper-map-renderer'
 
 const props = defineProps<{ origin?: PaperRect | null; face?: HTMLCanvasElement | null }>()
 const emit = defineEmits<{ reveal: []; start: []; complete: [] }>()
-const { t } = useI18n()
 const mapService = useMapService()
 const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
@@ -91,12 +89,6 @@ onUnmounted(() => {
       </div>
       <canvas ref="canvas" class="absolute inset-0 size-full" />
     </div>
-    <div class="onboarding-arrival pointer-events-none fixed inset-0 z-[80] flex items-end justify-center text-foreground" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" role="status" aria-live="polite" aria-atomic="true">
-      <div v-if="phase !== 'waiting'" class="arrival-caption relative mb-[max(12vh,56px)] px-6 text-center">
-        <span class="caption-glow absolute inset-0 -z-10" aria-hidden="true" />
-        <p class="text-balance font-display text-4xl font-semibold tracking-tight sm:text-6xl">{{ t('onboarding.ready') }}</p>
-      </div>
-    </div>
   </Teleport>
 </template>
 
@@ -135,22 +127,7 @@ onUnmounted(() => {
   }
 }
 
-.arrival-caption {
-  animation: caption-in 900ms 100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-
-.caption-glow {
-  inset: -40% -15%;
-  background: radial-gradient(closest-side, hsl(var(--background) / 0.85), hsl(var(--background) / 0));
-  filter: blur(12px);
-}
-
-@keyframes caption-in {
-  from { opacity: 0; filter: blur(14px); transform: translateY(14px) scale(0.97); letter-spacing: 0.04em; }
-  to { opacity: 1; filter: blur(0); transform: none; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .arrival-caption, .blob { animation: none; }
+  .blob { animation: none; }
 }
 </style>

@@ -2671,8 +2671,7 @@
       "connected": "Tu cuenta de OpenStreetMap está conectada",
       "skip": "Omitir por ahora",
       "popupBlocked": "Permite las ventanas emergentes para iniciar sesión con OpenStreetMap y vuelve a intentarlo."
-    },
-    "ready": "Todo listo para explorar"
+    }
   },
   "canvases": {
     "title": "Lienzos",

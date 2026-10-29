@@ -2798,8 +2798,7 @@
       "connected": "Your OpenStreetMap account is connected",
       "skip": "Skip for now",
       "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."
-    },
-    "ready": "You’re ready to explore"
+    }
   },
   "canvases": {
     "title": "Canvases",

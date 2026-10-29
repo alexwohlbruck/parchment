@@ -110,8 +110,6 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
   box-shadow: inset 0 0 0 1px #6b4f2a26, inset 0 0 0 4px #fbf5ea, inset 0 0 0 5px #6b4f2a1f;
 }
 
-}
-
 .welcome-highlight { animation: highlight-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 @keyframes route-in {

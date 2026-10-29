@@ -6,6 +6,8 @@
 
 * The satellite globe includes the Moon with live lunar phases.
 
+* Navigation warns of stop and yield signs, tram tracks, unlit paths after dark, flood-prone roads in rain, icy bridges, school zones, low clearances and more, and shows real traffic lights.
+
 ### Changed
 
 ### Fixed

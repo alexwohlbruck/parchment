@@ -2,7 +2,7 @@
 
 ### Added
 
-* A little paper map unfolds to welcome you when onboarding is complete.
+* Your actual map unfolds from a 3D paper map to fill the screen when onboarding is complete.
 
 * Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
 

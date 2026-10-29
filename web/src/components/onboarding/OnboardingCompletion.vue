@@ -1,178 +1,195 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMediaQuery } from '@vueuse/core'
+import { useMapService } from '@/services/map/map.service'
+import type { MapSnapshot } from '@/services/map/map-snapshot'
+import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{ reveal: []; complete: [] }>()
 const { t } = useI18n()
+const mapService = useMapService()
 const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+const snapshot = shallowRef<MapSnapshot | null>(null)
+const controller = new AbortController()
 const timers: ReturnType<typeof setTimeout>[] = []
-let revealed = false
+const duration = 1900
+let mounted = false
+let capturing = false
 let completed = false
 
-function reveal() {
-  if (revealed) return
-  revealed = true
-  emit('reveal')
-}
+const paperStyle = computed(() => snapshot.value ? {
+  left: `${snapshot.value.left}px`,
+  top: `${snapshot.value.top}px`,
+  width: `${snapshot.value.width}px`,
+  height: `${snapshot.value.height}px`,
+  '--map-image': `url("${snapshot.value.image}")`,
+} : {})
 
 function complete() {
   if (completed) return
   completed = true
   timers.forEach(clearTimeout)
-  reveal()
+  controller.abort()
   emit('complete')
 }
 
+async function capture() {
+  if (!mounted || capturing || completed || !mapService.isMapReady.value) return
+  capturing = true
+  const frame = await mapService.captureSnapshot(controller.signal)
+  if (controller.signal.aborted) return
+  if (!frame) return complete()
+
+  const image = new Image()
+  image.src = frame.image
+  try {
+    await image.decode()
+  } catch {
+    return complete()
+  }
+  if (controller.signal.aborted) return
+  timers.forEach(clearTimeout)
+  snapshot.value = frame
+  timers.push(setTimeout(complete, duration))
+}
+
 onMounted(() => {
+  mounted = true
+  window.addEventListener('resize', complete)
+  emit('reveal')
   if (reducedMotion.value) return complete()
-  timers.push(setTimeout(reveal, 800), setTimeout(complete, 1600))
+  timers.push(setTimeout(complete, 3500))
+  capture()
 })
 
+watch(mapService.isMapReady, ready => {
+  if (ready) capture()
+})
 watch(reducedMotion, reduced => {
   if (reduced) complete()
 })
 
-onUnmounted(() => timers.forEach(clearTimeout))
+onUnmounted(() => {
+  window.removeEventListener('resize', complete)
+  timers.forEach(clearTimeout)
+  controller.abort()
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="onboarding-arrival fixed inset-0 z-[80] flex flex-col items-center justify-center gap-8 bg-background px-6 text-foreground" role="status" aria-live="polite" aria-atomic="true">
-      <div class="paper-map" aria-hidden="true">
-        <div v-for="panel in 3" :key="panel" class="map-panel" :class="`map-panel-${panel}`">
-          <svg :viewBox="`${(panel - 1) * 80} 0 80 150`" class="size-full" preserveAspectRatio="none">
-            <path class="map-park" d="M0 0H66L46 48 0 66ZM150 100L240 76V150H176Z" />
-            <path class="map-water" d="M174-10C136 28 191 47 152 80S132 123 146 160" />
-            <path class="map-road" d="M-10 110 52 76 91 96 132 58 250 20M20-10 52 76 28 160M100-10 108 46 132 58 176 160" />
-            <path class="map-route" d="M29 111 52 76 91 96 132 58 196 39" />
-            <circle cx="29" cy="111" r="5" class="map-origin" />
-            <g class="map-pin">
-              <path d="M196 44s-11-11-11-19a11 11 0 0 1 22 0c0 8-11 19-11 19Z" />
-              <circle cx="196" cy="25" r="3.5" />
-            </g>
-          </svg>
+    <div class="onboarding-arrival fixed inset-0 z-[80] text-foreground" :class="{ 'is-unfolding': snapshot }" :style="{ '--unfold-duration': `${duration}ms` }" role="status" aria-live="polite" aria-atomic="true">
+      <div class="arrival-backdrop absolute inset-0 bg-background" aria-hidden="true" />
+      <div v-if="snapshot" class="paper-stage absolute inset-0" aria-hidden="true">
+        <div class="paper-map" :style="paperStyle">
+          <div v-for="panel in 3" :key="panel" class="map-panel" :class="`map-panel-${panel}`" />
         </div>
       </div>
-      <p class="arrival-caption text-balance text-center text-2xl font-semibold">{{ t('onboarding.ready') }}</p>
+      <div class="arrival-caption absolute inset-x-6 flex flex-col items-center gap-4 text-center">
+        <Spinner v-if="!snapshot" class="size-5 text-muted-foreground" />
+        <p class="text-balance font-display text-2xl">{{ snapshot ? t('onboarding.ready') : t('onboarding.openingMap') }}</p>
+      </div>
     </div>
   </Teleport>
 </template>
 
 <style scoped>
-.onboarding-arrival {
-  animation: reveal-map 1.6s ease both;
+.paper-stage {
+  perspective: 1400px;
+  perspective-origin: 50% 40%;
 }
 
 .paper-map {
+  position: absolute;
   display: flex;
-  width: min(72vw, 264px);
-  aspect-ratio: 8 / 5;
-  perspective: 800px;
+  transform-origin: center;
   transform-style: preserve-3d;
-  animation: open-map 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: unfold-viewport var(--unfold-duration) cubic-bezier(0.22, 0.65, 0.25, 1) both;
 }
 
 .map-panel {
-  width: calc(100% / 3);
+  position: relative;
+  flex: 0 0 calc(100% / 3);
   height: 100%;
-  background: hsl(var(--background));
-  border-block: 1px solid hsl(var(--foreground) / 0.12);
-  box-shadow: 0 16px 28px -16px hsl(var(--foreground) / 0.3);
+  background-image: var(--map-image);
+  background-size: 300% 100%;
   backface-visibility: hidden;
 }
 
+.map-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.15), 0 20px 50px -12px rgb(0 0 0 / 0.3);
+  background: linear-gradient(90deg, rgb(0 0 0 / 0.18), transparent 35%, rgb(255 255 255 / 0.1));
+  animation: paper-shading var(--unfold-duration) ease both;
+}
+
 .map-panel-1 {
+  background-position: left center;
   transform-origin: right center;
-  border-left: 1px solid hsl(var(--foreground) / 0.12);
-  border-radius: 6px 0 0 6px;
-  animation: unfold-left 850ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: unfold-left var(--unfold-duration) cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .map-panel-2 {
-  background: hsl(var(--primary) / 0.07);
+  background-position: center;
 }
 
 .map-panel-3 {
+  background-position: right center;
   transform-origin: left center;
-  border-right: 1px solid hsl(var(--foreground) / 0.12);
-  border-radius: 0 6px 6px 0;
-  animation: unfold-right 850ms 100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-
-.map-park {
-  fill: hsl(var(--primary) / 0.13);
-}
-
-.map-water {
-  fill: none;
-  stroke: hsl(var(--primary) / 0.12);
-  stroke-width: 16;
-}
-
-.map-road {
-  fill: none;
-  stroke: hsl(var(--muted-foreground) / 0.2);
-  stroke-width: 3;
-  stroke-linejoin: round;
-}
-
-.map-route {
-  fill: none;
-  stroke: hsl(var(--primary));
-  stroke-width: 2.5;
-  stroke-dasharray: 3 5;
-  stroke-linecap: round;
-}
-
-.map-origin {
-  fill: hsl(var(--background));
-  stroke: hsl(var(--primary));
-  stroke-width: 2.5;
-}
-
-.map-pin path {
-  fill: hsl(var(--primary));
-}
-
-.map-pin circle {
-  fill: hsl(var(--primary-foreground));
+  animation: unfold-right var(--unfold-duration) cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .arrival-caption {
-  animation: arrival-caption 1.6s ease both;
+  bottom: max(9vh, 32px);
+}
+
+.is-unfolding .arrival-caption {
+  animation: arrival-caption var(--unfold-duration) ease both;
+}
+
+.is-unfolding .arrival-backdrop {
+  animation: reveal-live-map var(--unfold-duration) ease both;
 }
 
 @keyframes unfold-left {
-  from { transform: rotateY(78deg); filter: brightness(0.75); }
-  to { transform: rotateY(-8deg); filter: brightness(1); }
+  0%, 12% { transform: rotateY(82deg); }
+  62%, 100% { transform: rotateY(0); }
 }
 
 @keyframes unfold-right {
-  from { transform: rotateY(-78deg); filter: brightness(0.75); }
-  to { transform: rotateY(8deg); filter: brightness(1); }
+  0%, 22% { transform: rotateY(-82deg); }
+  70%, 100% { transform: rotateY(0); }
 }
 
-@keyframes open-map {
-  0% { transform: translateY(16px) scale(0.8) rotate(-10deg); opacity: 0; }
-  20% { opacity: 1; }
-  70% { transform: translateY(0) scale(1) rotate(-3deg); opacity: 1; }
-  100% { transform: translateY(-8px) scale(1.12) rotate(0); opacity: 0; }
-}
-
-@keyframes arrival-caption {
-  0%, 12% { opacity: 0; transform: translateY(6px); }
-  30%, 70% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-4px); }
-}
-
-@keyframes reveal-map {
-  0%, 70% { opacity: 1; }
+@keyframes unfold-viewport {
+  0% { transform: translateY(24px) scale(0.42) rotateX(46deg) rotateY(-16deg) rotateZ(-18deg); opacity: 0; }
+  10% { opacity: 1; }
+  44% { transform: scale(0.58) rotateX(16deg) rotateY(-6deg) rotateZ(-6deg); }
+  80%, 100% { transform: none; }
+  88% { opacity: 1; }
   100% { opacity: 0; }
 }
 
+@keyframes paper-shading {
+  0%, 30% { opacity: 1; }
+  80%, 100% { opacity: 0; }
+}
+
+@keyframes reveal-live-map {
+  0%, 42% { opacity: 1; }
+  78%, 100% { opacity: 0; }
+}
+
+@keyframes arrival-caption {
+  0%, 30% { opacity: 1; transform: translateY(0); }
+  60%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-arrival, .paper-map, .map-panel, .arrival-caption {
+  .onboarding-arrival *, .onboarding-arrival *::after {
     animation: none;
   }
 }

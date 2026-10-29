@@ -2796,7 +2796,8 @@
       "skip": "Skip for now",
       "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."
     },
-    "ready": "You’re ready to explore"
+    "ready": "You’re ready to explore",
+    "openingMap": "Opening your map…"
   },
   "canvases": {
     "title": "Canvases",

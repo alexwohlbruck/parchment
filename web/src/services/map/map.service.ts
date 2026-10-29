@@ -19,6 +19,7 @@ import {
   GridSnapMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
+import { captureMapSnapshot } from './map-snapshot'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
@@ -1554,6 +1555,10 @@ function mapService() {
   }
 
   return {
+    captureSnapshot(signal: AbortSignal) {
+      const map = mapStrategy?.mapInstance
+      return map ? captureMapSnapshot(map, signal) : Promise.resolve(null)
+    },
     initializeMap,
     resize,
     updateMapPadding,

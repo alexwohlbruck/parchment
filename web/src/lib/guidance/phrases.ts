@@ -87,6 +87,8 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
       }
       return t(`guidance.transit.voice.${event}`, { line, stop })
     }
+    case 'vehicle-question':
+      return t(`guidance.transit.whichVehicle.${announcement.vehicle}`)
     case 'arrived':
       return announcement.side
         ? t(`guidance.voice.arrivedSide.${announcement.side}`)

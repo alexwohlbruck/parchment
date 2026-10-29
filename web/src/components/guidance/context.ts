@@ -4,6 +4,7 @@ import type { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRou
 import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import type { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import type { useDockWatch } from '@/composables/guidance/useDockWatch'
+import type { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import type { FreeMode } from '@/lib/guidance/free-roam'
 
 export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination'
@@ -13,6 +14,7 @@ export interface GuidanceContext {
   routeLine: ReturnType<typeof useGuidanceRouteLine>
   alternatives: ReturnType<typeof useAlternativeRoutes>
   itinerary: ReturnType<typeof useBetterItinerary>
+  vehicleSwitch: ReturnType<typeof useVehicleSwitch>
   docks: ReturnType<typeof useDockWatch>
   metric: ComputedRef<boolean>
   panel: Ref<GuidancePanelKind | null>

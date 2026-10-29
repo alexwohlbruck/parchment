@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { BikeIcon, BugIcon, CarFrontIcon, FlaskConicalIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SignalZeroIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon } from 'lucide-vue-next'
+import { BikeIcon, BugIcon, CarFrontIcon, FlaskConicalIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SignalZeroIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon, TramFrontIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
@@ -18,6 +18,8 @@ import { attachGuidanceDebug } from './guidance-debug-layer'
 import { simulateNavigation } from './simulate-navigation'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
+import { setDevCandidateOverride } from '@/services/guidance/vehicle-candidates.service'
+import { PLANNED_FROM_ARRIVAL_MS, scenarioCandidates, type VehicleScenario } from './vehicle-scenarios'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import { pointAt, type NavRoute } from '@/lib/guidance/nav-route'
@@ -82,6 +84,7 @@ onBeforeUnmount(() => {
   detachDebug?.()
   guidanceClock.reset()
   setDevStationOverride(null)
+  setDevCandidateOverride(null)
   simulatorStore.unload()
 })
 
@@ -112,12 +115,36 @@ function takeWrongTurn() {
   simulatorStore.play()
 }
 
-// The simulated walk reaches the stop early; bring the timetable to it.
+const VEHICLE_SCENARIOS: { kind: VehicleScenario; label: string }[] = [
+  { kind: 'earlier', label: 'Board earlier' },
+  { kind: 'later', label: 'Board later' },
+  { kind: 'interchangeable', label: 'Board other line' },
+  { kind: 'ambiguous', label: 'Which vehicle?' },
+]
+const vehicleScenario = ref<VehicleScenario | null>(null)
+const awaitingBoarding = computed(() => ['to-stop', 'wait', 'missed-vehicle'].includes(guidance.transit?.kind ?? ''))
+
+/** Moves the timetable so the planned run sits where the scenario needs it, and stands in its candidates. */
+function applyVehicleScenario(scenario: VehicleScenario) {
+  const stage = guidance.transit
+  if (!stage || stage.kind === 'riding' || stage.kind === 'missed-stop') return
+  guidanceClock.advance(stage.departureMs - PLANNED_FROM_ARRIVAL_MS[scenario] - guidanceClock.now())
+  const now = guidanceClock.now()
+  setDevCandidateOverride(ride => scenarioCandidates(scenario, ride, now))
+}
+
+function chooseVehicleScenario(scenario: VehicleScenario) {
+  vehicleScenario.value = scenario
+  if (guidance.transit?.kind !== 'to-stop') applyVehicleScenario(scenario)
+}
+
+// The simulated walk reaches the stop early; bring the timetable to it, or to the chosen scenario.
 watch(
   () => guidance.transit?.kind,
   kind => {
     const stage = guidance.transit
     if (kind !== 'wait' || stage?.kind !== 'wait' || sim.value.status === 'stopped') return
+    if (vehicleScenario.value) return applyVehicleScenario(vehicleScenario.value)
     const ahead = stage.departureMs - 20_000 - guidanceClock.now()
     if (ahead > 0) guidanceClock.advance(ahead)
   },
@@ -309,6 +336,19 @@ function toggleDebug() {
             <HourglassIcon />
             Miss it
           </Button>
+          <template v-if="awaitingBoarding">
+            <Button
+              v-for="scenario in VEHICLE_SCENARIOS"
+              :key="scenario.kind"
+              size="sm"
+              :variant="vehicleScenario === scenario.kind ? 'default' : 'secondary'"
+              class="rounded-full"
+              @click="chooseVehicleScenario(scenario.kind)"
+            >
+              <TramFrontIcon />
+              {{ scenario.label }}
+            </Button>
+          </template>
           <Button
             v-if="guidance.segments.some(s => s.mode === 'transit')"
             size="sm"

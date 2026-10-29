@@ -37,6 +37,8 @@ export type Announcement =
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
   | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
+  /** `vehicle` names the mode, as in "Which train are you on?". */
+  | { kind: 'vehicle-question'; vehicle: string }
 
 /** Turn prompts are guidance; everything else is an alert, spoken in "alerts only" too. */
 export function isAlert(announcement: Announcement): boolean {

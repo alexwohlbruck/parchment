@@ -7,6 +7,7 @@ import { modeProfile } from './mode-profiles'
 import type { LngLat } from '@/types/map.types'
 
 export interface TransitStopInput {
+  id?: string
   name: string
   location?: LngLat
   arrivalTime?: string | Date
@@ -27,6 +28,8 @@ export interface TransitSegmentInput {
 }
 
 export interface RideStop {
+  /** The stop's timetable id, else its name. */
+  key: string
   name: string
   s: number
   /** Arrival, or departure at the boarding stop. */
@@ -67,6 +70,8 @@ const MISSED_STOP_SEARCH = 1500
 
 const ms = (v?: string | Date) => (v ? new Date(v).getTime() : null)
 
+export const stopKey = (stop: TransitStopInput) => stop.id || stop.name
+
 /** Board, intermediate and alight stops of a transit segment, placed on the route. */
 export function rideStops(route: NavRoute, segmentIndex: number, segment: TransitSegmentInput): RideStop[] {
   const span = route.segments[segmentIndex]
@@ -80,7 +85,7 @@ export function rideStops(route: NavRoute, segmentIndex: number, segment: Transi
     const s = edge ?? (stop.location ? distanceAlong(route, stop.location, from) : from)
     from = Math.min(span.endDistance, Math.max(from, s))
     const departureMs = ms(i === 0 ? stop.departureTime ?? segment.startTime : stop.departureTime)
-    return { name: stop.name, s: from, timeMs: i === 0 ? departureMs : ms(stop.arrivalTime), departureMs }
+    return { key: stopKey(stop), name: stop.name, s: from, timeMs: i === 0 ? departureMs : ms(stop.arrivalTime), departureMs }
   })
 }
 

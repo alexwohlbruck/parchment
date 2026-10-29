@@ -115,7 +115,11 @@ function persistStep() {
 const stepRestored = ref(false)
 
 watch(steps, (newSteps, oldSteps) => {
-  if (stepRestored.value) return
+  if (stepRestored.value) {
+    const idx = newSteps.findIndex(s => s.id === oldSteps?.[currentIndex.value]?.id)
+    if (idx >= 0) currentIndex.value = idx
+    return
+  }
   const savedId = localStorage.getItem(STORAGE_KEY)
   if (!savedId) {
     stepRestored.value = true

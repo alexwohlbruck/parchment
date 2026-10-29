@@ -3,13 +3,14 @@ import { shallowMount, flushPromises } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
 import OnboardingDialog from './OnboardingDialog.vue'
 
-const mocks = vi.hoisted(() => ({ post: vi.fn(), updateUser: vi.fn(), goToStashedPath: vi.fn() }))
+const mocks = vi.hoisted(() => ({ post: vi.fn(), updateUser: vi.fn(), goToStashedPath: vi.fn(), identity: vi.fn() }))
 const billingEnabled = ref(false)
 const hasSubscription = ref(false)
 const integrations = reactive<{ osmProfile: object | null }>({ osmProfile: null })
 vi.mock('@/stores/integrations.store', () => ({ useIntegrationsStore: () => integrations }))
 vi.mock('@/stores/auth.store', () => ({ useAuthStore: () => ({ me: { id: '1' }, updateUser: mocks.updateUser, goToStashedPath: mocks.goToStashedPath }) }))
 vi.mock('@/services/subscription.service', () => ({ useSubscriptionService: () => ({ billingEnabled, hasSubscription }) }))
+vi.mock('@/services/identity.service', () => ({ fetchIdentityFromServer: mocks.identity }))
 vi.mock('@/lib/api', () => ({ api: { post: mocks.post } }))
 vi.mock('@/lib/toast', () => ({ toast: {} }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -32,6 +33,7 @@ beforeEach(() => {
   hasSubscription.value = false
   integrations.osmProfile = null
   mocks.post.mockResolvedValue({ data: { onboardingCompletedAt: '2026-10-29' } })
+  mocks.identity.mockResolvedValue({ handle: null, signingKey: null, encryptionKey: null, domain: 'test' })
 })
 test('offers OpenStreetMap on a free server and lets users finish without connecting', async () => {
   const wrapper = mountDialog()
@@ -88,6 +90,7 @@ test('finishes onboarding after OpenStreetMap connects on a free server', async 
 test('clearly offers skipping passkey setup while continuing onboarding', async () => {
   localStorage.setItem('onboarding-step', 'passkey')
   const wrapper = mountDialog()
+  await flushPromises()
   const skip = wrapper.findAll('button').find(button => button.text() === 'settings.identity.recoveryKey.passkeyOffer.skipForNow')!
   await skip.trigger('click')
   expect(wrapper.findComponent({ name: 'OpenStreetMapStep' }).exists()).toBe(true)
@@ -123,5 +126,15 @@ test('prevents repeated completion requests while saving', async () => {
   await skip.trigger('click')
   expect(wrapper.emitted('finishing')).toEqual([[true]])
   await vi.waitFor(() => expect(mocks.post).toHaveBeenCalledOnce())
+  wrapper.unmount()
+})
+
+test('skips key setup for users who already have keys', async () => {
+  mocks.identity.mockResolvedValue({ handle: 'a@test', signingKey: 'key', encryptionKey: 'key', domain: 'test' })
+  localStorage.setItem('onboarding-step', 'recovery-key')
+  const wrapper = mountDialog()
+  await flushPromises()
+  expect(wrapper.findComponent({ name: 'RecoveryKeyStep' }).exists()).toBe(false)
+  expect(wrapper.findComponent({ name: 'WelcomeStep' }).exists()).toBe(true)
   wrapper.unmount()
 })

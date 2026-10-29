@@ -21,7 +21,7 @@ export function foldsToFit(width: number, height: number, packetWidth: number, p
   let x = Math.max(0, Math.round(Math.log2(width / packetWidth)))
   let y = Math.max(0, Math.round(Math.log2(height / packetHeight)))
   while (x + y < 2) {
-    if (width / 2 ** x >= height / 2 ** y) x++
+    if (x < y || (x === y && width / 2 ** x >= height / 2 ** y)) x++
     else y++
   }
   while (x + y > MAX_FOLDS) {

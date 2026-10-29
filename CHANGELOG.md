@@ -2,7 +2,7 @@
 
 ### Added
 
-* Your actual map unfolds from a 3D paper map to fill the screen when onboarding is complete.
+* Finishing onboarding unfolds a lit, 3D paper map panel by panel into your live map.
 
 * Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
 

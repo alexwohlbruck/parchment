@@ -2669,8 +2669,7 @@
       "skip": "Omitir por ahora",
       "popupBlocked": "Permite las ventanas emergentes para iniciar sesión con OpenStreetMap y vuelve a intentarlo."
     },
-    "ready": "Todo listo para explorar",
-    "openingMap": "Abriendo tu mapa…"
+    "ready": "Todo listo para explorar"
   },
   "canvases": {
     "title": "Lienzos",

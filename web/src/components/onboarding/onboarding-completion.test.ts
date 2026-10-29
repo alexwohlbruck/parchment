@@ -3,12 +3,13 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import OnboardingCompletion from './OnboardingCompletion.vue'
 
-const mocks = vi.hoisted(() => ({ capture: vi.fn() }))
+const mocks = vi.hoisted(() => ({ capture: vi.fn(), play: vi.fn(), create: vi.fn() }))
 const reducedMotion = ref(false)
 const isMapReady = ref(false)
 const frame = { image: 'data:image/webp;base64,bWFw', left: 24, top: 10, width: 390, height: 844 }
 vi.mock('@vueuse/core', () => ({ useMediaQuery: () => reducedMotion }))
 vi.mock('@/services/map/map.service', () => ({ useMapService: () => ({ isMapReady, captureSnapshot: mocks.capture }) }))
+vi.mock('./paper-map-renderer', () => ({ PaperMapRenderer: { create: mocks.create } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
 beforeEach(() => {
@@ -17,6 +18,7 @@ beforeEach(() => {
   reducedMotion.value = false
   isMapReady.value = false
   mocks.capture.mockResolvedValue(frame)
+  mocks.create.mockResolvedValue({ duration: 2000, play: mocks.play, destroy: vi.fn() })
   vi.spyOn(HTMLImageElement.prototype, 'decode').mockResolvedValue(undefined)
 })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
@@ -28,13 +30,10 @@ test('opens the destination immediately, then unfolds its actual map frame', asy
   isMapReady.value = true
   await flushPromises()
   expect(mocks.capture).toHaveBeenCalledOnce()
-  const paper = wrapper.get('.paper-map')
-  expect(paper.attributes('style')).toContain(frame.image)
-  expect(paper.attributes('style')).toContain('left: 24px')
-  expect(paper.attributes('style')).toContain('height: 844px')
-  expect(wrapper.findAll('.map-panel')).toHaveLength(3)
+  expect(mocks.create.mock.calls[0][2]).toEqual(frame)
+  expect(mocks.play).toHaveBeenCalledOnce()
   expect(wrapper.emitted('complete')).toBeUndefined()
-  await vi.advanceTimersByTimeAsync(2400)
+  await vi.advanceTimersByTimeAsync(2450)
   expect(wrapper.emitted('complete')).toHaveLength(1)
 })
 

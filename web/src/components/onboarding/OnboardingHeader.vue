@@ -8,6 +8,8 @@ const props = defineProps<{
   description: string
   icon?: Component
   tall?: boolean
+  /** Let the card's own contour backdrop show through instead of drawing a banner. */
+  bleed?: boolean
 }>()
 const slots = useSlots()
 const solo = computed(() => !props.icon && !slots.tile)
@@ -26,8 +28,11 @@ const motion = {
 
 <template>
   <div class="space-y-6">
-    <div class="relative flex items-center justify-center overflow-hidden rounded-2xl border bg-primary/5" :class="tall ? 'h-44' : 'h-32'">
-      <div class="hero-topo absolute inset-0" aria-hidden="true" />
+    <div
+      class="relative flex items-center justify-center rounded-2xl"
+      :class="[tall ? 'h-44' : 'h-32', !bleed && 'overflow-hidden border bg-primary/5']"
+    >
+      <div v-if="!bleed" class="onboarding-topo absolute inset-0" aria-hidden="true" />
       <slot name="art" />
       <div class="relative flex items-center" :style="motion">
         <div v-if="!solo" class="hero-tile relative z-10" style="--tilt: -7deg; --dir: -1">
@@ -56,11 +61,6 @@ const motion = {
 </template>
 
 <style scoped>
-.hero-topo {
-  background-color: hsl(var(--primary) / 0.28);
-  mask: url('@/assets/img/topo.svg') center / cover no-repeat;
-}
-
 .hero-tile {
   --delay: 0ms;
   transform: rotate(var(--tilt));

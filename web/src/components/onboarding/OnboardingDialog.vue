@@ -239,6 +239,10 @@ function handleInteractOutside(e: Event) {
       @interact-outside="handleInteractOutside"
       @escape-key-down.prevent
     >
+      <Transition name="onboarding-step">
+        <div v-if="currentStep.id === 'welcome'" class="onboarding-topo onboarding-topo-bleed pointer-events-none absolute inset-0 -z-10 rounded-[inherit]" aria-hidden="true" />
+      </Transition>
+
       <!-- Progress dots -->
       <div
         v-if="steps.length > 1"
@@ -323,6 +327,17 @@ function handleInteractOutside(e: Event) {
 }
 
 .dark .onboarding-backdrop::before { filter: invert(1); }
+
+.onboarding-topo {
+  background-color: hsl(var(--primary) / 0.28);
+  mask: url('@/assets/img/topo.svg') center / cover no-repeat;
+}
+
+.onboarding-topo-bleed {
+  background-color: hsl(var(--primary) / 0.22);
+  mask: url('@/assets/img/topo.svg') center top / cover no-repeat, linear-gradient(to bottom, #000 35%, transparent 90%);
+  mask-composite: intersect;
+}
 
 .onboarding-step-enter-active { transition: opacity 200ms ease; }
 .onboarding-step-leave-active { position: absolute; inset: 0 0 auto; transition: opacity 160ms ease; pointer-events: none; }

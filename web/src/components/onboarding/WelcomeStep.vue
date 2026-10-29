@@ -21,6 +21,7 @@ const INK_STROKES = ['M2 6 C 30 2, 60 9, 98 4', 'M2 5 C 28 9, 66 1, 98 6', 'M2 4
       :title="t('onboarding.welcome.title')"
       :description="t('onboarding.welcome.description')"
       tall
+      bleed
     >
       <template #art>
         <svg class="absolute inset-0 size-full text-primary" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">

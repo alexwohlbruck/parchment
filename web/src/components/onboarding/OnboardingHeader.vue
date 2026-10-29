@@ -6,14 +6,16 @@ defineProps<{
   title: string
   description: string
   icon?: Component
+  tall?: boolean
 }>()
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="relative flex h-32 items-center justify-center overflow-hidden rounded-2xl border bg-primary/5">
+    <div class="relative flex items-center justify-center overflow-hidden rounded-2xl border bg-primary/5" :class="tall ? 'h-44' : 'h-32'">
       <div class="hero-grid absolute inset-0 opacity-40" aria-hidden="true" />
       <div class="absolute h-48 w-12 rotate-[35deg] border-x-4 border-background bg-primary/10" aria-hidden="true" />
+      <slot name="art" />
       <div class="relative flex items-center">
         <div class="hero-tile relative z-10" style="--tilt: -7deg; --from: -18px">
           <slot name="tile">

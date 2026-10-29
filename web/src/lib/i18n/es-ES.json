@@ -2597,10 +2597,10 @@
   "onboarding": {
     "welcome": {
       "title": "Te damos la bienvenida a Parchment",
-      "description": "Un mapa que mantiene tus lugares en privado. Unos pasos rápidos y listo.",
-      "private": "Tus lugares guardados están cifrados",
-      "open": "Basado en OpenStreetMap",
-      "transit": "Camina, pedalea, conduce o usa transporte público",
+      "description": "Un mapa privado para moverte. Configurarlo toma un minuto.",
+      "private": "Privado por defecto",
+      "open": "Datos de mapa abiertos",
+      "transit": "Todas las formas de llegar",
       "start": "Comenzar"
     },
     "finish": "Finalizar",

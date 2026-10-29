@@ -2724,10 +2724,10 @@
   "onboarding": {
     "welcome": {
       "title": "Welcome to Parchment",
-      "description": "A map that keeps your places private. A few quick steps and you're on your way.",
-      "private": "Your saved places stay encrypted",
-      "open": "Built on OpenStreetMap",
-      "transit": "Walk, bike, drive or ride transit",
+      "description": "A private map for getting around. Setup takes about a minute.",
+      "private": "Private by default",
+      "open": "Open map data",
+      "transit": "Every way to get there",
       "start": "Get started"
     },
     "finish": "Finish",

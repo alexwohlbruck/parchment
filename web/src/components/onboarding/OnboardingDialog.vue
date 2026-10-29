@@ -189,7 +189,7 @@ function handleInteractOutside(e: Event) {
         // Mobile: fullscreen
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
-        'sm:h-auto sm:max-h-[90dvh] sm:rounded-lg sm:border',
+        'sm:h-fit sm:max-h-[min(85dvh,720px)] sm:rounded-lg sm:border',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'

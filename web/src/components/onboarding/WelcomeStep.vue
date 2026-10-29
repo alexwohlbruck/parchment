@@ -45,24 +45,21 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
       </template>
     </OnboardingHeader>
 
-    <div class="welcome-pillars flex items-center gap-3 text-sm text-muted-foreground" aria-hidden="true">
-      <span class="h-px flex-1 bg-border" />
-      {{ t('onboarding.welcome.pillars') }}
-      <span class="h-px flex-1 bg-border" />
-    </div>
-    <ul :aria-label="t('onboarding.welcome.pillars')" class="-mt-2 grid grid-cols-3 gap-3 px-1 sm:gap-5 sm:px-4">
+    <ul class="grid gap-4 sm:grid-cols-3 sm:gap-6">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight"
+        class="welcome-highlight flex items-center gap-4 sm:flex-col sm:gap-3 sm:text-center"
         :style="{ animationDelay: `${450 + i * 110}ms` }"
       >
-        <div class="welcome-stamp" :style="{ '--tilt': `${[-3, 2, -1.5][i]}deg` }">
-          <div class="stamp-face flex h-full flex-col items-center gap-2 px-2 pb-3 pt-4 text-center">
-            <component :is="icon" class="size-6 text-primary" :stroke-width="1.5" aria-hidden="true" />
-            <p class="font-display text-sm font-semibold leading-tight sm:text-base">{{ t(`onboarding.welcome.${key}`) }}</p>
-            <p class="text-pretty text-[11px] leading-snug opacity-70 sm:text-xs">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
-          </div>
+        <span class="welcome-glyph relative flex size-11 shrink-0 items-center justify-center text-primary" aria-hidden="true">
+          <span class="absolute inset-0 rounded-full bg-primary/10" />
+          <span class="absolute -inset-1.5 rounded-full border border-dashed border-primary/25" />
+          <component :is="icon" class="relative size-5" :stroke-width="1.6" />
+        </span>
+        <div class="min-w-0 space-y-0.5">
+          <p class="font-display text-base font-semibold leading-tight">{{ t(`onboarding.welcome.${key}`) }}</p>
+          <p class="text-pretty text-sm leading-snug text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
         </div>
       </li>
     </ul>
@@ -87,27 +84,10 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 
 :global(.onboarding-step-leave-active) .welcome-route { animation: route-out 300ms ease-in both; }
 
-.welcome-pillars { animation: highlight-in 480ms 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.welcome-glyph > .border-dashed { animation: glyph-turn 24s linear infinite; }
 
-.welcome-stamp {
-  --paper: #f7efe0;
-  height: 100%;
-  padding: 6px;
-  color: #4a3720;
-  background: radial-gradient(circle, transparent 2.6px, var(--paper) 3px) -5px -5px / 10px 10px;
-  filter: drop-shadow(0 4px 8px rgb(42 29 14 / 0.18));
-  rotate: var(--tilt);
-  transition: rotate 320ms cubic-bezier(0.34, 1.5, 0.5, 1), translate 320ms cubic-bezier(0.34, 1.5, 0.5, 1);
-}
-
-.welcome-stamp:hover {
-  rotate: 0deg;
-  translate: 0 -3px;
-}
-
-.stamp-face {
-  background: linear-gradient(160deg, #fbf5ea, #efe2c8);
-  box-shadow: inset 0 0 0 1px #6b4f2a26, inset 0 0 0 4px #fbf5ea, inset 0 0 0 5px #6b4f2a1f;
+@keyframes glyph-turn {
+  to { rotate: 360deg; }
 }
 
 .welcome-highlight { animation: highlight-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -134,7 +114,7 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-route, .welcome-stop, .welcome-highlight, .welcome-pillars,
+  .welcome-route, .welcome-stop, .welcome-highlight, .welcome-glyph > .border-dashed,
   :global(.onboarding-step-leave-active) .welcome-stop,
   :global(.onboarding-step-leave-active) .welcome-route { animation: none; }
 }

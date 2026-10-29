@@ -2646,7 +2646,7 @@
       "skipLabel": "Continuar con {plan}"
     },
     "integrations": {
-      "title": "Configurar integraciones",
+      "title": "Conecta tus aplicaciones",
       "description": "Conecta servicios de mapas, búsqueda y más."
     },
     "invite": {

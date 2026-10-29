@@ -2773,7 +2773,7 @@
       "skipLabel": "Continue with {plan}"
     },
     "integrations": {
-      "title": "Set up integrations",
+      "title": "Connect your apps",
       "description": "Connect services for maps, search, and more."
     },
     "invite": {

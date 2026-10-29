@@ -6,8 +6,14 @@ function setup() {
   const canvas = {
     width: 780, height: 1688,
     getBoundingClientRect: () => ({ left: 0, top: 12, width: 390, height: 844 }),
-    toDataURL: vi.fn(() => 'data:image/webp;base64,bWFw'),
   }
+  const drawImage = vi.fn()
+  const createElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+    const element = createElement(tag)
+    if (tag === 'canvas') (element as HTMLCanvasElement).getContext = (() => ({ drawImage })) as never
+    return element
+  }) as typeof document.createElement)
   const map = {
     getCanvas: () => canvas as unknown as HTMLCanvasElement,
     loaded: vi.fn(() => true),
@@ -17,33 +23,36 @@ function setup() {
   }
   const render = () => [...listeners].forEach(listener => listener())
   const controller = new AbortController()
-  return { map, canvas, render, controller, listeners }
+  return { map, canvas, render, controller, listeners, drawImage }
 }
 beforeEach(() => vi.useFakeTimers())
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 test('reads the real canvas only inside a loaded render callback', async () => {
-  const { map, canvas, render, controller, listeners } = setup()
+  const { map, canvas, render, controller, listeners, drawImage } = setup()
   const result = captureMapSnapshot(map, controller.signal)
-  expect(canvas.toDataURL).not.toHaveBeenCalled()
+  expect(drawImage).not.toHaveBeenCalled()
   expect(map.triggerRepaint).toHaveBeenCalledOnce()
   map.loaded.mockReturnValue(false)
   render()
-  expect(canvas.toDataURL).not.toHaveBeenCalled()
+  expect(drawImage).not.toHaveBeenCalled()
   map.loaded.mockReturnValue(true)
   render()
-  expect(await result).toEqual({ image: 'data:image/webp;base64,bWFw', left: 0, top: 12, width: 390, height: 844 })
+  const snapshot = await result
+  expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0)
+  expect(snapshot).toMatchObject({ left: 0, top: 12, width: 390, height: 844 })
+  expect(snapshot!.image).toMatchObject({ width: 780, height: 1688 })
   expect(listeners.size).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
 })
 
 test('cleans up render and abort listeners when capture is cancelled', async () => {
-  const { map, controller, listeners, canvas, render } = setup()
+  const { map, controller, listeners, render, drawImage } = setup()
   const result = captureMapSnapshot(map, controller.signal)
   controller.abort()
   expect(await result).toBeNull()
   render()
-  expect(canvas.toDataURL).not.toHaveBeenCalled()
+  expect(drawImage).not.toHaveBeenCalled()
   expect(listeners.size).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
 })
@@ -57,8 +66,8 @@ test('times out without a rendered frame', async () => {
 })
 
 test('falls back safely when canvas export is unavailable', async () => {
-  const { map, canvas, render, controller, listeners } = setup()
-  canvas.toDataURL.mockImplementation(() => { throw new Error('Context lost') })
+  const { map, render, controller, listeners, drawImage } = setup()
+  drawImage.mockImplementation(() => { throw new Error('Context lost') })
   const result = captureMapSnapshot(map, controller.signal)
   render()
   expect(await result).toBeNull()

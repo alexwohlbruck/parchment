@@ -14,22 +14,37 @@ export interface FoldPlan {
   creases: Crease[]
 }
 
-const MAX_FOLDS = 8
+const MAX_FOLDS = 6
 
-/** Halve the longer side until the folded packet fits `packet`, like folding a road map. */
-export function planFolds(width: number, height: number, packet: number, thickness: number): FoldPlan {
+/** How many halvings along each axis bring a `width` × `height` sheet closest to the packet size. */
+export function foldsToFit(width: number, height: number, packetWidth: number, packetHeight: number) {
+  let x = Math.max(0, Math.round(Math.log2(width / packetWidth)))
+  let y = Math.max(0, Math.round(Math.log2(height / packetHeight)))
+  while (x + y < 2) {
+    if (width / 2 ** x >= height / 2 ** y) x++
+    else y++
+  }
+  while (x + y > MAX_FOLDS) {
+    if (x >= y) x--
+    else y--
+  }
+  return { x, y }
+}
+
+/** Fold order like a road map: always halve whichever remaining side is longer. */
+export function planFolds(width: number, height: number, folds: { x: number; y: number }, thickness: number): FoldPlan {
   const creases: Crease[] = []
   let w = width
   let h = height
-  while (creases.length < 2 || (Math.max(w, h) > packet && creases.length < MAX_FOLDS)) {
-    const axis: FoldAxis = w >= h ? 'x' : 'y'
+  let { x, y } = folds
+  while (x + y > 0) {
+    const axis: FoldAxis = y === 0 || (x > 0 && w >= h) ? 'x' : 'y'
     const at = (axis === 'x' ? w : h) / 2
-    if (axis === 'x') w = at
-    else h = at
+    if (axis === 'x') { w = at; x-- } else { h = at; y-- }
     creases.push({ axis, at, hinge: (2 ** creases.length - 0.5) * thickness })
   }
-  const cols = 2 ** creases.filter(c => c.axis === 'x').length
-  return { width, height, cols, rows: 2 ** creases.length / cols, creases }
+  const cols = 2 ** folds.x
+  return { width, height, cols, rows: 2 ** folds.y, creases }
 }
 
 /** The panel left on top of the folded packet, showing its back. */

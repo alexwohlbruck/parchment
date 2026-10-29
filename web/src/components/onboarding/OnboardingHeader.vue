@@ -45,7 +45,6 @@ const motion = {
           class="hero-tile"
           :class="solo ? 'size-20' : '-ml-3 mt-7 size-14'"
           :style="solo ? '--tilt: -6deg; --dir: 1' : '--tilt: 9deg; --dir: 1; --delay: 90ms'"
-          data-onboarding-brand
           aria-hidden="true"
         />
       </div>

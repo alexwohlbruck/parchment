@@ -1,5 +1,5 @@
 export interface MapSnapshot {
-  image: string
+  image: HTMLCanvasElement
   left: number
   top: number
   width: number
@@ -40,9 +40,14 @@ export function captureMapSnapshot(map: SnapshotMap, signal: AbortSignal): Promi
         const canvas = map.getCanvas()
         const { left, top, width, height } = canvas.getBoundingClientRect()
         if (!canvas.width || !canvas.height || !width || !height) return finish(null)
-        // Read during render, before WebGL discards its drawing buffer.
-        const image = canvas.toDataURL('image/webp', 0.95)
-        finish(image === 'data:,' ? null : { image, left, top, width, height })
+        // Copy during render, before WebGL discards its drawing buffer.
+        const image = document.createElement('canvas')
+        image.width = canvas.width
+        image.height = canvas.height
+        const context = image.getContext('2d')
+        if (!context) return finish(null)
+        context.drawImage(canvas, 0, 0)
+        finish({ image, left, top, width, height })
       } catch {
         finish(null)
       }

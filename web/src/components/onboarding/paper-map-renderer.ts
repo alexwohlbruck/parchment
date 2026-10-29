@@ -1,5 +1,5 @@
 import logoSvg from '@/assets/parchment.svg?raw'
-import { coverCell, foldPanel, planFolds, type FoldPlan } from '@/lib/onboarding/paper-fold'
+import { coverCell, foldPanel, foldsToFit, planFolds, type FoldPlan } from '@/lib/onboarding/paper-fold'
 
 export interface PaperRect {
   left: number
@@ -17,10 +17,10 @@ interface Beat {
 const THICKNESS = 0.15
 const BEND = 0.55
 const INTRO = 380
-const SETTLE = 320
+const LOGO = 88
+const SETTLE = 600
 const OVERLAP = 0.18
 const INK = '#6b4f2a'
-export const LOGO_RATIO = 0.46
 
 const VERTEX = `#version 300 es
 in vec3 a_position;
@@ -132,11 +132,6 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
 const snapOpen = (t: number) => easeInOut(Math.min(1, t / 0.75)) + (t > 0.6 ? 0.06 * Math.sin((Math.PI * (t - 0.6)) / 0.4) : 0)
 
-export function foldedPacket(width: number, height: number) {
-  const plan = planFolds(width, height, packetSize(width, height), THICKNESS)
-  return { width: width / plan.cols, height: height / plan.rows }
-}
-
 function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
   const program = gl.createProgram()!
   for (const [type, source] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]] as const) {
@@ -163,7 +158,7 @@ function texture(gl: WebGL2RenderingContext, source: TexImageSource) {
   return tex
 }
 
-async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale: number) {
+async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale: number, stretch: { x: number; y: number }) {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(width * scale)
   canvas.height = Math.round(height * scale)
@@ -174,15 +169,12 @@ async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale
   URL.revokeObjectURL(logo.src)
   if (!logo.naturalWidth) return canvas
 
-  const size = Math.min(width, height) * LOGO_RATIO
   ctx.scale(scale, scale)
   ctx.translate(width / 2, height / 2)
-  ctx.scale(mirror === 'x' ? -1 : 1, mirror === 'y' ? -1 : 1)
-  ctx.drawImage(logo, -size / 2, -size / 2, size, size)
+  ctx.scale((mirror === 'x' ? -1 : 1) / stretch.x, (mirror === 'y' ? -1 : 1) / stretch.y)
+  ctx.drawImage(logo, -LOGO / 2, -LOGO / 2, LOGO, LOGO)
   return canvas
 }
-
-export const packetSize = (width: number, height: number) => Math.max(150, Math.min(260, Math.min(width, height) * 0.5))
 
 export class PaperMapRenderer {
   readonly duration: number
@@ -203,7 +195,7 @@ export class PaperMapRenderer {
   private shadowBuffer: WebGLBuffer | null = null
   private viewport: { width: number; height: number }
 
-  private constructor(private canvas: HTMLCanvasElement, map: HTMLImageElement, cover: HTMLCanvasElement, private rect: PaperRect, plan: FoldPlan, private dark: boolean) {
+  private constructor(private canvas: HTMLCanvasElement, map: TexImageSource, cover: HTMLCanvasElement, private rect: PaperRect, private origin: PaperRect, plan: FoldPlan, private dark: boolean) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: true, antialias: true, alpha: true })
     if (!gl) throw new Error('webgl2 unavailable')
     this.gl = gl
@@ -218,7 +210,7 @@ export class PaperMapRenderer {
 
     let t = INTRO
     this.beats = plan.creases.map((_, i) => plan.creases.length - 1 - i).map((crease, order) => {
-      const length = 290 + order * 35
+      const length = 680 + order * 70
       const beat = { crease, start: t, end: t + length }
       t = beat.end - length * OVERLAP
       return beat
@@ -291,11 +283,13 @@ export class PaperMapRenderer {
     this.vao = vao
   }
 
-  static async create(canvas: HTMLCanvasElement, map: HTMLImageElement, rect: PaperRect, dark: boolean) {
-    const plan = planFolds(rect.width, rect.height, packetSize(rect.width, rect.height), THICKNESS)
+  /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`. */
+  static async create(canvas: HTMLCanvasElement, map: TexImageSource, rect: PaperRect, origin: PaperRect, dark: boolean) {
+    const plan = planFolds(rect.width, rect.height, foldsToFit(rect.width, rect.height, origin.width, origin.height), THICKNESS)
     const cell = coverCell(plan)
-    const cover = await drawCover(cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2))
-    return new PaperMapRenderer(canvas, map, cover, rect, plan, dark)
+    const stretch = { x: origin.width / cell.width, y: origin.height / cell.height }
+    const cover = await drawCover(cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2) * Math.max(stretch.x, stretch.y), stretch)
+    return new PaperMapRenderer(canvas, map, cover, rect, origin, plan, dark)
   }
 
   play() {
@@ -338,26 +332,32 @@ export class PaperMapRenderer {
     const { gl, plan, viewport } = this
     const angles = this.angles(t)
     const foldsEnd = this.beats[this.beats.length - 1].end
-    const pick = easeInOut(clamp01(t / INTRO))
-    const settle = 1 - easeInOut(clamp01((t - INTRO * 0.6) / (foldsEnd - INTRO * 0.6)))
-    let tilt = 0.34 * pick * settle
-    let spin = -0.26 * settle
-    let lift = 80 * pick * settle
+    const grow = easeInOut(clamp01(t / foldsEnd))
+    const lifted = Math.sin(Math.PI * clamp01(t / foldsEnd)) ** 0.7
+    let tilt = 0.3 * lifted
+    let spin = -0.1 * lifted
+    let lift = 70 * lifted
     this.beats.forEach((beat, order) => {
-      const bump = Math.sin(Math.PI * clamp01((t - beat.start) / (beat.end - beat.start)))
-      lift += 14 * bump * settle
-      spin += (order % 2 ? 0.035 : -0.035) * bump * settle
-      tilt += 0.04 * bump * settle
+      const bump = Math.sin(Math.PI * clamp01((t - beat.start) / (beat.end - beat.start))) * lifted
+      lift += 14 * bump
+      spin += (order % 2 ? 0.035 : -0.035) * bump
+      tilt += 0.04 * bump
     })
+    const cell = { width: plan.width / plan.cols, height: plan.height / plan.rows }
+    const sx = 1 + (this.origin.width / cell.width - 1) * (1 - grow)
+    const sy = 1 + (this.origin.height / cell.height - 1) * (1 - grow)
     const center = this.packetCenter(angles)
-    const target = { x: this.rect.left + plan.width / 2, y: this.rect.top + plan.height / 2 }
+    const target = {
+      x: this.rect.left + plan.width / 2 + (this.origin.left + this.origin.width / 2 - this.rect.left - plan.width / 2) * (1 - grow),
+      y: this.rect.top + plan.height / 2 + (this.origin.top + this.origin.height / 2 - this.rect.top - plan.height / 2) * (1 - grow),
+    }
     const [ct, st, cs, ss] = [Math.cos(tilt), Math.sin(tilt), Math.cos(spin), Math.sin(spin)]
 
     const side = this.segments + 1
     let out = 0
     const pose3 = (p: Float32Array, i: number) => {
-      const x = p[i] - center.x
-      const y = p[i + 1] - center.y
+      const x = (p[i] - center.x) * sx
+      const y = (p[i + 1] - center.y) * sy
       const z = p[i + 2]
       const y1 = y * ct - z * st
       const z1 = y * st + z * ct

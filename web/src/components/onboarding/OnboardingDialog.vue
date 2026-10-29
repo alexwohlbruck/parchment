@@ -44,7 +44,8 @@ const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 const currentIndex = ref(0)
 const completing = ref(false)
 const completedAt = ref<string | null>(null)
-const brandOrigin = ref<DOMRect | null>(null)
+const dialogRect = ref<DOMRect | null>(null)
+const unfolding = ref(false)
 let revealed = false
 let finished = false
 const stepValidateFn = ref<StepValidateFn | null>(null)
@@ -152,7 +153,7 @@ function back() {
 async function complete() {
   if (completing.value || completedAt.value) return
   completing.value = true
-  brandOrigin.value = document.querySelector('[data-onboarding-brand]')?.getBoundingClientRect() ?? null
+  dialogRect.value = document.querySelector('.onboarding-card')?.getBoundingClientRect() ?? null
   emit('finishing', true)
   try {
     const { api } = await import('@/lib/api')
@@ -194,8 +195,8 @@ function handleInteractOutside(e: Event) {
 </script>
 
 <template>
-  <OnboardingCompletion v-if="completedAt" :origin="brandOrigin" @reveal="revealMap" @complete="finish" />
-  <Dialog :open="!completedAt">
+  <OnboardingCompletion v-if="completedAt" :origin="dialogRect" @reveal="revealMap" @start="unfolding = true" @complete="finish" />
+  <Dialog :open="!unfolding">
     <DialogContent
       overlay-class="onboarding-backdrop bg-background backdrop-blur-none !animate-none"
       :class="[
@@ -203,7 +204,7 @@ function handleInteractOutside(e: Event) {
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
         'sm:h-fit sm:max-h-[min(90dvh,880px)] sm:rounded-lg sm:border',
-        completedAt && 'onboarding-finished',
+        'onboarding-card data-[state=closed]:zoom-out-100 data-[state=closed]:duration-500',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'
@@ -261,9 +262,9 @@ function handleInteractOutside(e: Event) {
         <Button
           :variant="skippingOsm || skippingPasskey ? 'ghost' : 'default'"
           @click="next"
-          :disabled="completing || !canContinue"
+          :disabled="completing || !!completedAt || !canContinue"
         >
-          <Spinner v-if="completing" class="h-4 w-4 mr-2" />
+          <Spinner v-if="completing || completedAt" class="h-4 w-4 mr-2" />
           <template v-else>
             <template v-if="skippingPasskey">
               {{ t('settings.identity.recoveryKey.passkeyOffer.skipForNow') }}
@@ -296,8 +297,6 @@ function handleInteractOutside(e: Event) {
 }
 
 .dark .onboarding-backdrop::before { filter: invert(1); }
-
-.onboarding-finished [data-onboarding-brand] { visibility: hidden; }
 
 .onboarding-step-enter-active { transition: opacity 200ms ease; }
 .onboarding-step-leave-active { position: absolute; inset: 0 0 auto; transition: opacity 160ms ease; pointer-events: none; }

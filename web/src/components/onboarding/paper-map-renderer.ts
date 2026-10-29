@@ -1,5 +1,5 @@
 import logoSvg from '@/assets/parchment.svg?raw'
-import { coverPanel, foldPanel, planFolds, type FoldPlan } from '@/lib/onboarding/paper-fold'
+import { coverCell, foldPanel, foldsToFit, planFolds, type FoldPlan } from '@/lib/onboarding/paper-fold'
 
 export interface PaperRect {
   left: number
@@ -44,19 +44,15 @@ void main() {
 
 const FRAGMENT = `#version 300 es
 precision highp float;
-#define MAX_LINES 32
 #define PATTERN_STEP 120.0
 in vec2 v_flat;
 in vec3 v_normal;
 in vec3 v_world;
 uniform sampler2D u_map;
 uniform sampler2D u_cover;
-uniform vec2 u_size;
 uniform sampler2D u_pattern;
-uniform float u_xLines[MAX_LINES];
-uniform float u_yLines[MAX_LINES];
-uniform int u_xCount;
-uniform int u_yCount;
+uniform vec2 u_size;
+uniform vec2 u_cell;
 uniform vec4 u_coverRect;
 uniform vec2 u_viewport;
 uniform float u_distance;
@@ -82,12 +78,8 @@ void main() {
   float fibre = noise(vec2(v_flat.x * 0.08, v_flat.y * 2.2));
   vec3 paper = vec3(0.957, 0.925, 0.86) * (0.95 + 0.05 * grain) * (0.985 + 0.015 * fibre);
 
-  float crease = 1e6;
-  for (int i = 1; i < MAX_LINES; i++) {
-    if (i < u_xCount - 1) crease = min(crease, abs(v_flat.x - u_xLines[i]));
-    if (i < u_yCount - 1) crease = min(crease, abs(v_flat.y - u_yLines[i]));
-  }
-  float creaseShade = 1.0 - 0.1 * (1.0 - smoothstep(0.0, 2.5, crease));
+  vec2 crease = abs(fract(v_flat / u_cell + 0.5) - 0.5) * u_cell;
+  float creaseShade = 1.0 - 0.1 * (1.0 - smoothstep(0.0, 2.5, min(crease.x, crease.y)));
 
   vec3 light = normalize(vec3(-0.45, -0.6, 0.66));
   float lambert = max(dot(n, light), 0.0) / light.z;
@@ -107,8 +99,7 @@ void main() {
 
   vec2 diagonal = mat2(0.7071, -0.7071, 0.7071, 0.7071) * v_flat / PATTERN_STEP;
   diagonal.x += mod(floor(diagonal.y), 2.0) * 0.5;
-  float mark = texture(u_pattern, fract(diagonal)).a;
-  surface = mix(paper, vec3(0.42, 0.31, 0.17), mark * 0.13);
+  surface = mix(paper, vec3(0.42, 0.31, 0.17), texture(u_pattern, fract(diagonal)).a * 0.13);
   vec2 local = (v_flat - u_coverRect.xy) / u_coverRect.zw;
   if (all(greaterThanEqual(local, vec2(0.0))) && all(lessThanEqual(local, vec2(1.0)))) {
     vec4 art = texture(u_cover, local);
@@ -173,9 +164,7 @@ function texture(gl: WebGL2RenderingContext, source: TexImageSource) {
   return tex
 }
 
-type Mirror = { x: boolean; y: boolean }
-
-function drawFace(face: HTMLCanvasElement, mirror: Mirror) {
+function drawFace(face: HTMLCanvasElement, mirror: 'x' | 'y') {
   const canvas = document.createElement('canvas')
   canvas.width = face.width
   canvas.height = face.height
@@ -183,7 +172,7 @@ function drawFace(face: HTMLCanvasElement, mirror: Mirror) {
   ctx.fillStyle = `hsl(${getComputedStyle(document.documentElement).getPropertyValue('--background').trim()})`
   ctx.fillRect(0, 0, face.width, face.height)
   ctx.translate(face.width / 2, face.height / 2)
-  ctx.scale(mirror.x ? -1 : 1, mirror.y ? -1 : 1)
+  ctx.scale(mirror === 'x' ? -1 : 1, mirror === 'y' ? -1 : 1)
   ctx.drawImage(face, -face.width / 2, -face.height / 2)
   return canvas
 }
@@ -196,8 +185,7 @@ async function loadLogo() {
   return logo.naturalWidth ? logo : null
 }
 
-function drawCover(logo: HTMLImageElement | null, width: number, height: number, mirror: Mirror) {
-  const scale = Math.min(window.devicePixelRatio || 1, 2)
+function drawCover(logo: HTMLImageElement | null, width: number, height: number, mirror: 'x' | 'y', scale: number, stretch: { x: number; y: number }) {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(width * scale)
   canvas.height = Math.round(height * scale)
@@ -205,7 +193,7 @@ function drawCover(logo: HTMLImageElement | null, width: number, height: number,
   if (!logo) return canvas
   ctx.scale(scale, scale)
   ctx.translate(width / 2, height / 2)
-  ctx.scale(mirror.x ? -1 : 1, mirror.y ? -1 : 1)
+  ctx.scale((mirror === 'x' ? -1 : 1) / stretch.x, (mirror === 'y' ? -1 : 1) / stretch.y)
   ctx.drawImage(logo, -LOGO / 2, -LOGO / 2, LOGO, LOGO)
   return canvas
 }
@@ -237,7 +225,6 @@ export class PaperMapRenderer {
   private normalBuffer: WebGLBuffer
   private indexCount: number
   private segments: number
-  private panelRects: { x: number; y: number; width: number; height: number }[]
   private frame = 0
   private vao: WebGLVertexArrayObject | null
   private shadowBuffer: WebGLBuffer | null = null
@@ -266,31 +253,32 @@ export class PaperMapRenderer {
     t = this.beats[this.beats.length - 1].end
     this.duration = t + SETTLE
 
-    const { x: xs, y: ys } = plan.lines
-    const cells = (xs.length - 1) * (ys.length - 1)
+    const cells = plan.cols * plan.rows
     this.segments = Math.max(2, Math.min(14, Math.round(Math.sqrt(18000 / cells))))
     const side = this.segments + 1
     const perPanel = side * side
+    const cellW = plan.width / plan.cols
+    const cellH = plan.height / plan.rows
     const flat = new Float32Array(cells * perPanel * 2)
     const indices: number[] = []
     this.panels = []
-    this.panelRects = []
-    for (let row = 0; row < ys.length - 1; row++) {
-      for (let col = 0; col < xs.length - 1; col++) {
-        const rect = { x: xs[col], y: ys[row], width: xs[col + 1] - xs[col], height: ys[row + 1] - ys[row] }
+    for (let row = 0; row < plan.rows; row++) {
+      for (let col = 0; col < plan.cols; col++) {
+        const panel = new Float32Array((perPanel + 1) * 3)
         const base = this.panels.length * perPanel
         for (let j = 0; j < side; j++) {
           for (let i = 0; i < side; i++) {
             const v = j * side + i
-            flat.set([rect.x + (i / this.segments) * rect.width, rect.y + (j / this.segments) * rect.height], (base + v) * 2)
+            const x = (col + i / this.segments) * cellW
+            const y = (row + j / this.segments) * cellH
+            flat.set([x, y], (base + v) * 2)
             if (i < this.segments && j < this.segments) {
               const a = base + v
               indices.push(a, a + 1, a + side, a + 1, a + side + 1, a + side)
             }
           }
         }
-        this.panels.push(new Float32Array((perPanel + 1) * 3))
-        this.panelRects.push(rect)
+        this.panels.push(panel)
       }
     }
     this.indexCount = indices.length
@@ -315,30 +303,25 @@ export class PaperMapRenderer {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer())
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.STATIC_DRAW)
 
-    const coverRect = coverPanel(plan)
+    const coverRect = coverCell(plan)
     gl.activeTexture(gl.TEXTURE0)
     texture(gl, map)
     gl.activeTexture(gl.TEXTURE1)
     texture(gl, cover)
     gl.activeTexture(gl.TEXTURE2)
-    const patternTexture = texture(gl, pattern)
-    gl.bindTexture(gl.TEXTURE_2D, patternTexture)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+    texture(gl, pattern)
     const uniform = (name: string) => gl.getUniformLocation(this.program, name)
     gl.uniform1i(uniform('u_map'), 0)
     gl.uniform1i(uniform('u_cover'), 1)
-    gl.uniform2f(uniform('u_size'), plan.width, plan.height)
     gl.uniform1i(uniform('u_pattern'), 2)
-    gl.uniform1fv(uniform('u_xLines'), new Float32Array(32).fill(-1e6).map((v, i) => xs[i] ?? v))
-    gl.uniform1fv(uniform('u_yLines'), new Float32Array(32).fill(-1e6).map((v, i) => ys[i] ?? v))
-    gl.uniform1i(uniform('u_xCount'), Math.min(xs.length, 32))
-    gl.uniform1i(uniform('u_yCount'), Math.min(ys.length, 32))
+    gl.uniform2f(uniform('u_size'), plan.width, plan.height)
+    gl.uniform2f(uniform('u_cell'), cellW, cellH)
     gl.uniform4f(uniform('u_coverRect'), coverRect.x, coverRect.y, coverRect.width, coverRect.height)
     gl.bindVertexArray(null)
     this.vao = vao
   }
 
+  /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`, showing `face` on top. */
   /** When the final fold lands flat. */
   get landAt() {
     return this.beats[this.beats.length - 1].end
@@ -349,13 +332,15 @@ export class PaperMapRenderer {
     return this.beats[this.beats.length - 1].start
   }
 
-  /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`, showing `face` on top. */
   static async create(canvas: HTMLCanvasElement, map: TexImageSource, rect: PaperRect, origin: PaperRect, face: HTMLCanvasElement | null, dark: boolean) {
-    const plan = planFolds(rect.width, rect.height, origin.width, origin.height, THICKNESS)
-    const cover = coverPanel(plan)
+    const plan = planFolds(rect.width, rect.height, foldsToFit(rect.width, rect.height, origin.width, origin.height), THICKNESS)
+    const cell = coverCell(plan)
+    const stretch = { x: origin.width / cell.width, y: origin.height / cell.height }
     const logo = await loadLogo()
-    const front = face ? drawFace(face, cover.mirror) : drawCover(logo, cover.width, cover.height, cover.mirror)
-    return new PaperMapRenderer(canvas, map, front, drawPattern(logo), rect, origin, plan, dark)
+    const cover = face
+      ? drawFace(face, cell.mirror)
+      : drawCover(logo, cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2) * Math.max(stretch.x, stretch.y), stretch)
+    return new PaperMapRenderer(canvas, map, cover, drawPattern(logo), rect, origin, plan, dark)
   }
 
   play() {
@@ -387,7 +372,7 @@ export class PaperMapRenderer {
     let h = this.plan.height
     this.plan.creases.forEach((crease, i) => {
       if (angles[i] <= 0) return
-      const extent = crease.at + (crease.extent - crease.at) * (1 - angles[i] / Math.PI)
+      const extent = crease.at * (2 - angles[i] / Math.PI)
       if (crease.axis === 'x') w = Math.min(w, extent)
       else h = Math.min(h, extent)
     })
@@ -409,7 +394,7 @@ export class PaperMapRenderer {
       spin += (order % 2 ? 0.035 : -0.035) * bump
       tilt += 0.04 * bump
     })
-    const cell = plan.packet
+    const cell = { width: plan.width / plan.cols, height: plan.height / plan.rows }
     const covers = (this.origin.width * this.origin.height) / (plan.width * plan.height) > 0.6
     const dip = covers ? 1 - 0.38 * Math.sin(Math.PI * clamp01(t / foldsEnd)) ** 0.8 : 1
     const sx = (1 + (this.origin.width / cell.width - 1) * (1 - grow)) * dip
@@ -436,15 +421,18 @@ export class PaperMapRenderer {
 
     for (let c = 0; c < this.panels.length; c++) {
       const panel = this.panels[c]
-      const rect = this.panelRects[c]
-      panel[0] = rect.x + rect.width / 2
-      panel[1] = rect.y + rect.height / 2
+      const col = c % plan.cols
+      const row = Math.floor(c / plan.cols)
+      const cellW = plan.width / plan.cols
+      const cellH = plan.height / plan.rows
+      panel[0] = (col + 0.5) * cellW
+      panel[1] = (row + 0.5) * cellH
       panel[2] = 0
       for (let j = 0; j < side; j++) {
         for (let i = 0; i < side; i++) {
           const p = (1 + j * side + i) * 3
-          panel[p] = rect.x + (i / this.segments) * rect.width
-          panel[p + 1] = rect.y + (j / this.segments) * rect.height
+          panel[p] = (col + i / this.segments) * cellW
+          panel[p + 1] = (row + j / this.segments) * cellH
           panel[p + 2] = 0
         }
       }

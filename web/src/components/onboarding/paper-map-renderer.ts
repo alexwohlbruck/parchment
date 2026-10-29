@@ -18,7 +18,7 @@ const THICKNESS = 0.15
 const BEND = 0.55
 const INTRO = 380
 const LOGO = 88
-const SETTLE = 600
+const SETTLE = 900
 const OVERLAP = 0.18
 const INK = '#6b4f2a'
 
@@ -221,7 +221,7 @@ export class PaperMapRenderer {
 
     let t = INTRO
     this.beats = plan.creases.map((_, i) => plan.creases.length - 1 - i).map((crease, order) => {
-      const length = 680 + order * 70
+      const length = 1360 + order * 140
       const beat = { crease, start: t, end: t + length }
       t = beat.end - length * OVERLAP
       return beat

@@ -12,13 +12,12 @@ const { t } = useI18n()
 const mapService = useMapService()
 const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
-const phase = ref<'waiting' | 'unfolding' | 'leaving'>('waiting')
+const phase = ref<'waiting' | 'unfolding' | 'landed' | 'leaving'>('waiting')
 const controller = new AbortController()
 const timers: ReturnType<typeof setTimeout>[] = []
 const fade = 600
 const HOLD = 1100
 const unfoldDuration = ref(0)
-let stopSound = () => {}
 let renderer: PaperMapRenderer | null = null
 let mounted = false
 let capturing = false
@@ -49,10 +48,11 @@ async function capture() {
   if (controller.signal.aborted) return
   timers.forEach(clearTimeout)
   renderer.play()
-  stopSound = playUnfoldSound(renderer.beats, renderer.duration)
+  playUnfoldSound(renderer.beats, renderer.duration)
   unfoldDuration.value = renderer.duration
   phase.value = 'unfolding'
   emit('start')
+  timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.duration))
   timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration + HOLD))
   timers.push(setTimeout(complete, renderer.duration + HOLD + fade))
 }
@@ -78,17 +78,16 @@ onUnmounted(() => {
   timers.forEach(clearTimeout)
   controller.abort()
   renderer?.destroy()
-  stopSound()
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="onboarding-arrival onboarding-backdrop fixed inset-0 z-40 overflow-hidden bg-background" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
-      <div class="arrival-blobs absolute inset-0">
+    <div class="onboarding-arrival fixed inset-0 z-40 overflow-hidden" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
+      <div class="arrival-backdrop onboarding-backdrop absolute inset-0 bg-background">
         <span class="blob blob-primary" />
-        <span class="blob blob-warm" />
-        <span class="blob blob-cool" />
+        <span class="blob blob-cream" />
+        <span class="blob blob-tan" />
       </div>
       <canvas ref="canvas" class="absolute inset-0 size-full" />
     </div>
@@ -104,6 +103,8 @@ onUnmounted(() => {
 <style scoped>
 .onboarding-arrival { transition: opacity var(--fade) ease; }
 .onboarding-arrival.is-leaving { opacity: 0; }
+.arrival-backdrop { transition: opacity 500ms ease; }
+.is-landed .arrival-backdrop, .is-leaving .arrival-backdrop { opacity: 0; }
 
 .blob {
   position: absolute;
@@ -117,25 +118,25 @@ onUnmounted(() => {
   transform: translate(-50%, -50%) scale(0.1);
 }
 
-.blob-primary { background: hsl(var(--primary) / 0.7); }
-.blob-warm { background: #f5b75a99; --x: -18vmax; --y: 10vmax; --r: -40deg; }
-.blob-cool { background: #6aa8ff88; --x: 20vmax; --y: -12vmax; --r: 50deg; }
+.blob-primary { background: hsl(var(--primary) / 0.35); }
+.blob-cream { background: #f3e6c866; --x: -18vmax; --y: 10vmax; --r: -40deg; }
+.blob-tan { background: #c9a97a55; --x: 20vmax; --y: -12vmax; --r: 50deg; }
 
-.is-unfolding .blob, .is-leaving .blob { animation: blob-bloom calc(var(--unfold) * 0.9) cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.is-unfolding .blob-warm, .is-leaving .blob-warm { animation-delay: 120ms; }
-.is-unfolding .blob-cool, .is-leaving .blob-cool { animation-delay: 240ms; }
+.is-unfolding .blob, .is-landed .blob, .is-leaving .blob { animation: blob-bloom calc(var(--unfold) * 0.9) cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.blob-cream { animation-delay: 120ms !important; }
+.blob-tan { animation-delay: 240ms !important; }
 
 @keyframes blob-bloom {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.1) rotate(0deg); }
-  35% { opacity: 1; }
+  35% { opacity: 0.7; }
   100% {
-    opacity: 0.8;
+    opacity: 0.55;
     transform: translate(calc(-50% + var(--x, 0px)), calc(-50% + var(--y, 0px))) scale(2.2) rotate(var(--r, 0deg));
   }
 }
 
 .arrival-caption {
-  animation: caption-in 900ms calc(var(--unfold) * 0.55) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: caption-in 900ms 100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 .caption-glow {

@@ -153,20 +153,24 @@ function back() {
   }
 }
 
-async function snapshotCard(card: HTMLElement) {
-  try {
-    return await domToCanvas(card, { scale: Math.min(window.devicePixelRatio || 1, 2) })
-  } catch {
-    return null
-  }
+let pendingFace: Promise<HTMLCanvasElement | null> | null = null
+
+function prepareFace() {
+  if (!isLast.value || pendingFace || completedAt.value) return
+  const card = document.querySelector<HTMLElement>('.onboarding-card')
+  pendingFace = card
+    ? domToCanvas(card, { scale: Math.min(window.devicePixelRatio || 1, 2) }).catch(() => null)
+    : Promise.resolve(null)
 }
+
+watch(currentIndex, () => { pendingFace = null })
 
 async function complete() {
   if (snapshotting || completing.value || completedAt.value) return
   snapshotting = true
-  const card = document.querySelector<HTMLElement>('.onboarding-card')
-  dialogRect.value = card?.getBoundingClientRect() ?? null
-  dialogFace.value = card ? await snapshotCard(card) : null
+  dialogRect.value = document.querySelector('.onboarding-card')?.getBoundingClientRect() ?? null
+  prepareFace()
+  dialogFace.value = await pendingFace
   snapshotting = false
   completing.value = true
   emit('finishing', true)
@@ -277,6 +281,9 @@ function handleInteractOutside(e: Event) {
         <Button
           :variant="skippingOsm || skippingPasskey ? 'ghost' : 'default'"
           @click="next"
+          @pointerenter="prepareFace"
+          @pointerdown="prepareFace"
+          @focus="prepareFace"
           :disabled="completing || !!completedAt || !canContinue"
         >
           <Spinner v-if="completing || completedAt" class="h-4 w-4 mr-2" />

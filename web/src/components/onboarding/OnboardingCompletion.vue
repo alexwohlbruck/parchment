@@ -20,9 +20,14 @@ let mounted = false
 let capturing = false
 let completed = false
 
+function showLiveMap() {
+  document.documentElement.classList.remove('paper-unfolding')
+}
+
 function complete() {
   if (completed) return
   completed = true
+  showLiveMap()
   timers.forEach(clearTimeout)
   controller.abort()
   emit('start')
@@ -48,7 +53,9 @@ async function capture() {
   unfoldDuration.value = renderer.duration
   phase.value = 'unfolding'
   emit('start')
+  document.documentElement.classList.add('paper-unfolding')
   timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.revealAt))
+  timers.push(setTimeout(showLiveMap, renderer.duration))
   timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration + HOLD))
   timers.push(setTimeout(complete, renderer.duration + HOLD + fade))
 }
@@ -74,6 +81,7 @@ onUnmounted(() => {
   timers.forEach(clearTimeout)
   controller.abort()
   renderer?.destroy()
+  showLiveMap()
 })
 </script>
 
@@ -128,4 +136,8 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .blob { animation: none; }
 }
+</style>
+
+<style>
+.paper-unfolding :is(.maplibregl-canvas-container, .mapboxgl-canvas-container) { visibility: hidden; }
 </style>

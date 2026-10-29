@@ -35,6 +35,12 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
   },
   quackbackSchema: {
     fieldConfig: {
+      widgetSecret: {
+        label: 'Widget signing secret',
+        description:
+          'Optional. Enables feedback portal login. Copy from Quackback Settings → Widget → Install, and enable Widget sign-in under Portal access.',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
       url: {
         label: 'Instance URL',
         description: 'Base URL of your Quackback instance',
@@ -135,6 +141,7 @@ export const configSchemas: Record<
   }),
 
   quackbackSchema: z.object({
+    widgetSecret: z.string().optional(),
     url: z.string().url('Please enter a valid URL'),
     apiKey: z.string().min(1, 'API key is required'),
   }),
@@ -235,8 +242,13 @@ export const configSchemas: Record<
       .string()
       .url('Please enter a valid URL')
       .optional()
-      .describe('Another Barrelman to route through. The host above answers when it cannot.'),
-    routingApiKey: z.string().optional().describe('API key for the routing host, if it differs'),
+      .describe(
+        'Another Barrelman to route through. The host above answers when it cannot.',
+      ),
+    routingApiKey: z
+      .string()
+      .optional()
+      .describe('API key for the routing host, if it differs'),
   }),
 
   axiomSchema: z.object({

@@ -1623,6 +1623,9 @@
     "madeWith": "Made with ❤️ by"
   },
   "feedback": {
+    "openBoard": "Open feedback board",
+    "portalFailed": "Could not open the feedback board. Please try again.",
+    "popupBlocked": "Allow pop-ups to open the feedback board.",
     "title": "Feedback",
     "description": "Report a bug or suggest an idea. You'll be notified when it ships.",
     "titleLabel": "Summary",

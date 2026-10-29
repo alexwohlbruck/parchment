@@ -511,6 +511,19 @@ export interface FeedbackAuthor {
   name?: string
 }
 
+export interface FeedbackIdentity extends FeedbackAuthor {
+  id: string
+}
+
+export interface FeedbackBoardsResponse {
+  boards: FeedbackBoard[]
+  portalLoginEnabled: boolean
+}
+
+export interface FeedbackPortalLogin {
+  url: string
+}
+
 export interface FeedbackSubmission {
   boardId: string
   title: string
@@ -528,6 +541,11 @@ export interface SubmittedFeedback {
 export interface FeedbackCapability {
   listBoards(): Promise<FeedbackBoard[]>
   submitFeedback(input: FeedbackSubmission): Promise<SubmittedFeedback>
+  isPortalLoginEnabled?(): boolean
+  createPortalLogin?(
+    identity: FeedbackIdentity,
+    postUrl?: string,
+  ): Promise<FeedbackPortalLogin>
 }
 
 /** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */

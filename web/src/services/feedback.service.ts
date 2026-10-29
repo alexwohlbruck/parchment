@@ -1,20 +1,28 @@
 import { api } from '@/lib/api'
+import type {
+  FeedbackBoardsResponse,
+  FeedbackPortalLogin,
+  SubmittedFeedback,
+} from '@server/types/integration.types'
 
-export interface FeedbackBoard {
-  id: string
-  name: string
-  slug: string
-  description: string | null
+export type {
+  FeedbackBoard,
+  SubmittedFeedback,
+} from '@server/types/integration.types'
+
+export async function fetchFeedbackBoards(): Promise<FeedbackBoardsResponse> {
+  const { data } = await api.get<FeedbackBoardsResponse>('/feedback/boards')
+  return data
 }
 
-export interface SubmittedFeedback {
-  id: string
-  url: string | null
-}
-
-export async function fetchFeedbackBoards(): Promise<FeedbackBoard[]> {
-  const { data } = await api.get<{ boards: FeedbackBoard[] }>('/feedback/boards')
-  return data.boards
+export async function createFeedbackPortalLogin(
+  postUrl?: string,
+): Promise<FeedbackPortalLogin> {
+  const { data } = await api.post<FeedbackPortalLogin>(
+    '/feedback/portal-login',
+    { postUrl },
+  )
+  return data
 }
 
 export async function submitFeedback(input: {

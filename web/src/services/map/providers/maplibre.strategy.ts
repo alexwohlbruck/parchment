@@ -116,7 +116,7 @@ import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
-import { ELEVATION_PROFILE, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, elevatesLine, holdsWidth, seesThrough } from '@/lib/map-elevation/elevated-lines'
+import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -1109,12 +1109,16 @@ export class MaplibreStrategy extends MapStrategy {
     this.elevateLines()
   }
 
-  /** Raise barrelman's overlay lines onto the decks and into the tunnels while those are drawn, including any added since. */
+  /** Raise barrelman's overlay lines, and the stations on them, onto the decks and into the tunnels while those are drawn, including any added since. */
   private elevateLines() {
     const map = this.mapInstance
     const active = !!this.deckLayer
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
+      if (layer && raisesSymbol(layer) && !!map.getLayoutProperty(id, HEIGHT_PROPERTY) !== active) {
+        map.setLayoutProperty(id, HEIGHT_PROPERTY, active ? STATION_HEIGHT : undefined)
+        map.setLayoutProperty(id, ANCHOR_PROPERTY, active ? (STATION_ANCHOR as any) : undefined)
+      }
       if (!layer || !elevatesLine(layer)) continue
       if (!!map.getLayoutProperty(id, PROFILE_PROPERTY as any) === active) continue
       map.setLayoutProperty(id, PROFILE_PROPERTY as any, active ? ELEVATION_PROFILE : undefined)

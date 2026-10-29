@@ -11,7 +11,7 @@ export const OCCLUSION_PROPERTY = 'line-depth-occlusion-factor'
 export const PITCH_PROPERTY = 'line-pitch-alignment'
 
 /** The version of barrelman's heights the tiles are asked for, so a tile cached before they changed is not drawn with them. */
-export const ELEVATION_FORMAT = 5
+export const ELEVATION_FORMAT = 6
 
 /** A tile url asking for the current heights. */
 export function withElevationFormat(url: string): string {
@@ -26,6 +26,23 @@ const CYCLING_SOURCE_LAYER = 'bicycle_ways'
 /** The transit ribbons it does, tiled or copied out into GeoJSON, which keeps their heights. */
 const RIBBON_SOURCE_LAYER = 'ribbons'
 const RIBBON_SOURCE_PREFIX = 'portolan-build-'
+
+/** The transit stations, stop marks and route bullets, which barrelman gives the height of their routes' ribbons. */
+const STATION_SOURCE = 'portolan-stations'
+
+const pointElevation = ['coalesce', ['get', 'elevation'], '']
+const overTerrain = ['==', ['slice', pointElevation, 0, 1], '~']
+
+/** A station's height: metres in the terrain's datum, or over the terrain after `~`; none stands on the ground. */
+export const STATION_HEIGHT = ['to-number', ['case', overTerrain, ['slice', pointElevation, 1], pointElevation], 0]
+export const STATION_ANCHOR = ['case', ['==', pointElevation, ''], 'ground', overTerrain, 'ground', 'absolute']
+
+export const HEIGHT_PROPERTY = 'symbol-height-offset'
+export const ANCHOR_PROPERTY = 'symbol-height-anchor'
+
+export function raisesSymbol(layer: LineLayer): boolean {
+  return layer.type === 'symbol' && layer.source === STATION_SOURCE
+}
 
 /** The dimmed copy a ribbon draws over whatever hides it: it must not be hidden itself. */
 const SEE_THROUGH_SUFFIX = '-ghost'

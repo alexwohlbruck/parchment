@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { expression } from '@maplibre/maplibre-gl-style-spec'
-import { ELEVATION_FORMAT, ELEVATION_PROFILE, elevatesLine, holdsWidth, seesThrough, withElevationFormat } from './elevated-lines'
+import { ELEVATION_FORMAT, ELEVATION_PROFILE, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough, withElevationFormat } from './elevated-lines'
 
 describe('elevated lines', () => {
   test('are the cycling ways and the transit ribbons, tiled or copied out', () => {
@@ -36,5 +36,16 @@ describe('elevated lines', () => {
   test('tile urls name the heights they want, so an older cached tile is not used', () => {
     expect(withElevationFormat('/t/detail/{z}/{x}/{y}?v=1')).toBe(`/t/detail/{z}/{x}/{y}?v=1&elevation=${ELEVATION_FORMAT}`)
     expect(withElevationFormat('/p/nyc/{z}/{x}/{y}.mvt')).toBe(`/p/nyc/{z}/{x}/{y}.mvt?elevation=${ELEVATION_FORMAT}`)
+  })
+
+  test('stations stand at their ribbon\'s height, over the datum or the terrain, and on the ground without one', () => {
+    expect(raisesSymbol({ id: 'portolan-station-markers', type: 'symbol', source: 'portolan-stations' })).toBe(true)
+    expect(raisesSymbol({ id: 'Place labels', type: 'symbol', source: 'openmaptiles' })).toBe(false)
+    const height = expression.createExpression(STATION_HEIGHT, { type: 'number' } as any) as any
+    const anchor = expression.createExpression(STATION_ANCHOR, { type: 'string' } as any) as any
+    const at = (properties: Record<string, unknown>) => [height, anchor].map(e => e.value.evaluate({ zoom: 15 }, { type: 1, properties }))
+    expect(at({ elevation: '24.5' })).toEqual([24.5, 'absolute'])
+    expect(at({ elevation: '~-9' })).toEqual([-9, 'ground'])
+    expect(at({})).toEqual([0, 'ground'])
   })
 })

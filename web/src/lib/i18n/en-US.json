@@ -2784,13 +2784,11 @@
       "sentSummary": "{count} invitation(s) sent"
     },
     "openstreetmap": {
-      "optional": "Optional · OpenStreetMap",
       "title": "Make the map better, together",
       "description": "Connect your account to contribute to OpenStreetMap.",
       "notesTitle": "Report missing places",
       "editsTitle": "Update place details",
       "connect": "Sign in with OpenStreetMap",
-      "later": "You can always connect later in Settings → Integrations.",
       "connected": "Your OpenStreetMap account is connected",
       "skip": "Skip for now",
       "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."

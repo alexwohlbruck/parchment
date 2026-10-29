@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, ExternalLink, Map, MapPin, Pencil, ShieldCheck } from 'lucide-vue-next'
+import { Check, ExternalLink, Map, MapPin, Pencil } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useOsmConnection } from '@/composables/integrations/useOsmConnection'
@@ -42,7 +42,6 @@ onMounted(load)
     </div>
 
     <div class="space-y-2 text-center">
-      <p class="text-xs font-medium text-muted-foreground">{{ t('onboarding.openstreetmap.optional') }}</p>
       <h2 class="text-2xl font-semibold text-balance">{{ t('onboarding.openstreetmap.title') }}</h2>
       <p class="text-sm leading-relaxed text-muted-foreground">{{ t('onboarding.openstreetmap.description') }}</p>
     </div>
@@ -69,10 +68,6 @@ onMounted(load)
       </Button>
     </div>
 
-    <div class="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-      <ShieldCheck class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <p>{{ t('onboarding.openstreetmap.later') }}</p>
-    </div>
   </div>
 </template>
 

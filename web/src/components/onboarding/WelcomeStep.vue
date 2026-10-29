@@ -47,22 +47,22 @@ const INK_STROKES = ['M2 6 C 30 2, 60 9, 98 4', 'M2 5 C 28 9, 66 1, 98 6', 'M2 4
       </template>
     </OnboardingHeader>
 
-    <ul class="grid gap-5 sm:grid-cols-3 sm:gap-4">
+    <ul class="mx-auto grid w-full max-w-lg gap-5 pt-2 sm:grid-cols-3 sm:gap-8">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight flex items-start gap-4 sm:flex-col sm:items-center sm:gap-2 sm:text-center"
+        class="welcome-highlight flex items-start gap-4 sm:flex-col sm:items-center sm:gap-3 sm:text-center"
         :style="{ '--delay': `${450 + i * 120}ms` }"
       >
-        <component :is="icon" class="mt-1.5 size-5 shrink-0 text-primary sm:mt-0" :stroke-width="1.75" aria-hidden="true" />
+        <component :is="icon" class="mt-1 size-5 shrink-0 text-primary sm:mt-0" :stroke-width="1.75" aria-hidden="true" />
         <div class="min-w-0">
-          <p class="relative inline-block font-display-heavy text-2xl leading-none">
+          <p class="relative inline-block font-display-heavy text-xl leading-none">
             {{ t(`onboarding.welcome.${key}`) }}
-            <svg class="welcome-ink absolute -bottom-2 left-0 h-2.5 w-full text-primary" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
-              <path :d="INK_STROKES[i]" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" pathLength="1" vector-effect="non-scaling-stroke" />
+            <svg class="welcome-ink absolute -bottom-2 left-1/2 h-2 w-[70%] -translate-x-1/2 text-primary max-sm:left-0 max-sm:translate-x-0" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+              <path :d="INK_STROKES[i]" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" pathLength="1" vector-effect="non-scaling-stroke" />
             </svg>
           </p>
-          <p class="mt-3 text-balance text-sm leading-snug text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+          <p class="mt-3.5 text-balance text-[13px] leading-snug text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
         </div>
       </li>
     </ul>

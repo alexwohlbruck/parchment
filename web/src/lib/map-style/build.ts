@@ -1,4 +1,5 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
+import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -798,7 +799,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => withDeckPieces(buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withElevationFormat(buildTileUrl(tileServerUrl, source)) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {

@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.
+
 * Keep place searches working when the server build moves between machines.
 
 * Map gestures stay more responsive while points of interest and 3D map objects load.

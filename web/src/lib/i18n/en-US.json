@@ -2724,7 +2724,7 @@
   "onboarding": {
     "welcome": {
       "title": "Welcome to Parchment",
-      "description": "A private map for getting around. Setup takes about a minute.",
+      "description": "The world's best digital map. Setup takes about a minute.",
       "private": "Private by default",
       "open": "Open map data",
       "transit": "Every way to get there",

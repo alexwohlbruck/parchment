@@ -16,6 +16,7 @@ import type { NavHazard } from './nav-route'
 import type { Handoff } from './handoff'
 import { cardinal, type Cardinal } from './turn-around'
 import { borderCrossings, type BorderCrossing } from './instructions/borders'
+import { targetRoad } from './instructions/rich-instruction'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -118,7 +119,7 @@ export class Announcer {
     const initial: Announcement = {
       kind: 'start',
       heading: cardinal(bearingAt(this.route, 0)),
-      road: step?.instruction.streetName || step?.instruction.streetRef || null,
+      road: startRoad(this.route, step),
       step,
     }
     this.combine(initial, 0, modeProfile(travelModeAt(this.route, 0)).baseSpeed)
@@ -207,4 +208,9 @@ export class Announcer {
     }
     return due
   }
+}
+
+function startRoad(route: NavRoute, step: NavStep | null): string | null {
+  const road = step && targetRoad(route, step)
+  return road?.kind === 'named' ? road.name : null
 }

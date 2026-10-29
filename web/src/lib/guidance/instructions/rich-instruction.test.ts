@@ -237,6 +237,27 @@ describe('on foot', () => {
     expect(voiceText(step(route), t)).toBe('Follow the path')
   })
 
+  test('a sidewalk takes the name of the street it runs beside', () => {
+    const sidewalk = { roadClass: 'footway', streetName: 'Trade Street', streetNameSource: 'geometry' as const }
+    const turn = walk({ right: { streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, ...sidewalk }] })
+    expect(voiceText(step(turn), t)).toBe('Turn right onto Trade Street')
+    const ahead = walk({ right: { type: 'continue', modifier: 'straight', streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, ...sidewalk }] })
+    expect(voiceText(step(ahead), t)).toBe('Continue straight onto Trade Street')
+  })
+
+  test('sets off along the street beside an unnamed sidewalk', () => {
+    const route = buildNavRoute([{
+      mode: 'walking',
+      geometry,
+      instructions: [
+        { type: 'depart', text: '', coordinate: geometry[0], distance: 600, duration: 430 },
+        { type: 'destination', text: '', coordinate: geometry[60], distance: 0, duration: 0 },
+      ],
+      edgeSegments: [{ startDistance: 0, endDistance: 600, roadClass: 'footway', streetName: 'Tryon Street', streetNameSource: 'geometry' }],
+    }])
+    expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north along Tryon Street')
+  })
+
   test('sets off along the road', () => {
     const route = walk({})
     expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north along Tryon Street')

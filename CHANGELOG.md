@@ -8,6 +8,8 @@
 
 * Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.
 
+* Walking directions name the street a sidewalk runs beside, so steps, voice and the road label say "Turn left onto W 3rd St" instead of "Path".
+
 ### Changed
 
 ### Fixed

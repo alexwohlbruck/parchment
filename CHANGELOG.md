@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.18.2] - 2026-10-29
+
+### Added
+
 * Finishing onboarding unfolds a lit, 3D paper map panel by panel into your live map.
 
 * Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.

@@ -14,6 +14,8 @@ const props = defineProps<{
   destination: string | null
   metric: boolean
   lanes?: LanePlan | null
+  /** A landmark or sign naming where the maneuver is: "At the second light". */
+  cue?: string | null
   /** The larger, arm's-length sizing of the wide layout. */
   dash?: boolean
 }>()
@@ -73,6 +75,7 @@ const subline = computed(() => {
           <span class="text-muted-foreground" :class="dash ? 'text-2xl' : 'text-xl'">{{ t(`guidance.units.${distance.unit}`) }}</span>
         </div>
         <div class="mt-1.5 line-clamp-2 font-semibold leading-tight" :class="dash ? 'text-[26px]' : 'text-[22px]'">{{ road }}</div>
+        <div v-if="cue" class="mt-0.5 truncate text-muted-foreground" :class="dash ? 'text-lg' : 'text-base'">{{ cue }}</div>
       </div>
     </div>
     <LaneStrip v-if="lanes && next && !headline && !turnAround" :plan="lanes" :kind="kind" :dash="dash" />

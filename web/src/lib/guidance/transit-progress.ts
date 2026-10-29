@@ -19,6 +19,8 @@ export interface TransitSegmentInput {
   endTime?: string | Date
   lineName?: string
   headsign?: string
+  /** Stop times carry live delays. */
+  realTimeData?: boolean
   departureStop?: TransitStopInput
   arrivalStop?: TransitStopInput
   intermediateStops?: TransitStopInput[]
@@ -27,7 +29,9 @@ export interface TransitSegmentInput {
 export interface RideStop {
   name: string
   s: number
+  /** Arrival, or departure at the boarding stop. */
   timeMs: number | null
+  departureMs: number | null
 }
 
 interface StageBase {
@@ -58,7 +62,7 @@ export const MISSED_GRACE_MS = 90_000
 export const ALIGHT_NOW_METERS = 150
 const BOARDED_METERS = 60
 const VEHICLE_SPEED = 4
-const STOP_PASSED_METERS = 25
+export const STOP_PASSED_METERS = 25
 const MISSED_STOP_SEARCH = 1500
 
 const ms = (v?: string | Date) => (v ? new Date(v).getTime() : null)
@@ -75,7 +79,8 @@ export function rideStops(route: NavRoute, segmentIndex: number, segment: Transi
     const edge = i === 0 ? span.startDistance : i === stops.length - 1 ? span.endDistance : null
     const s = edge ?? (stop.location ? distanceAlong(route, stop.location, from) : from)
     from = Math.min(span.endDistance, Math.max(from, s))
-    return { name: stop.name, s: from, timeMs: ms(i === 0 ? stop.departureTime ?? segment.startTime : stop.arrivalTime) }
+    const departureMs = ms(i === 0 ? stop.departureTime ?? segment.startTime : stop.departureTime)
+    return { name: stop.name, s: from, timeMs: i === 0 ? departureMs : ms(stop.arrivalTime), departureMs }
   })
 }
 

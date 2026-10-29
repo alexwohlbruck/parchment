@@ -45,6 +45,14 @@ export const guidanceEngine = {
     engine?.setRoute(route)
   },
 
+  hold(s: number | null): void {
+    engine?.hold(s)
+  },
+
+  get holding(): boolean {
+    return engine?.holding ?? false
+  },
+
   /**
    * Whether the frame at `nowMs` should render. The puck and the camera both
    * ask, so on calm stretches they drop the same frames and never drift apart.

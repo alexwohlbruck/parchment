@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { AppRoute } from '@/router'
 import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { walkToStopSec } from '@/lib/guidance/transit-progress'
+import { rideCertainty } from '@/lib/guidance/ride-estimator'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
@@ -78,6 +79,7 @@ function previewRoute() {
       :stage="stage"
       :segment="guidance.segments[stage.segmentIndex]"
       :now-ms="guidance.clockMs"
+      :certainty="rideCertainty(guidance.rideEstimate)"
       :busy="guidance.rebooking"
       :no-later-run="noLaterRun"
       @next-run="catchNextRun"

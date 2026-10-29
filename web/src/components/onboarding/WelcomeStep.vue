@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Bike, Compass, Globe, Lock, MapPin, Route, TramFront } from 'lucide-vue-next'
+import { Bike, Globe, Lock, MapPin, Route, TramFront } from 'lucide-vue-next'
 import OnboardingHeader from './OnboardingHeader.vue'
 
 const { t } = useI18n()
@@ -19,7 +19,6 @@ const highlights = { private: Lock, open: Globe, transit: Route }
     <OnboardingHeader
       :title="t('onboarding.welcome.title')"
       :description="t('onboarding.welcome.description')"
-      :icon="Compass"
       tall
     >
       <template #art>

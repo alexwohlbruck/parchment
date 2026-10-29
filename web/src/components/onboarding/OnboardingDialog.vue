@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, provide, watch } from 'vue'
+import { ref, computed, provide, watch, useTemplateRef } from 'vue'
+import { useMediaQuery, useResizeObserver } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -50,6 +51,17 @@ const stepValidateFn = ref<StepValidateFn | null>(null)
 const canContinue = ref(true)
 
 provide(stepIndexKey, currentIndex)
+
+const desktop = useMediaQuery('(min-width: 640px)')
+const stepContent = useTemplateRef<HTMLElement>('stepContent')
+const contentHeight = ref<number | null>(null)
+useResizeObserver(stepContent, ([entry]) => {
+  const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
+  if (height > 0) contentHeight.value = height
+})
+const contentStyle = computed(() =>
+  desktop.value && contentHeight.value ? { height: `${contentHeight.value + 48}px` } : undefined,
+)
 provide(validateKey, {
   register: (fn: StepValidateFn) => {
     stepValidateFn.value = fn
@@ -190,7 +202,7 @@ function handleInteractOutside(e: Event) {
         // Mobile: fullscreen
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
-        'sm:h-fit sm:max-h-[min(85dvh,720px)] sm:rounded-lg sm:border',
+        'sm:h-fit sm:max-h-[min(90dvh,880px)] sm:rounded-lg sm:border',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'
@@ -221,14 +233,16 @@ function handleInteractOutside(e: Event) {
       </div>
 
       <!-- Step content -->
-      <div class="px-6 py-6 overflow-y-auto flex-1">
-        <Transition name="onboarding-step" mode="out-in">
-          <component
-            :is="currentStep.component"
-            :key="currentStep.id"
-            @complete="advance"
-          />
-        </Transition>
+      <div class="min-h-0 overflow-y-auto px-6 py-6 max-sm:flex-1 sm:shrink sm:transition-[height] sm:duration-300 sm:ease-out" :style="contentStyle">
+        <div ref="stepContent">
+          <Transition name="onboarding-step" mode="out-in">
+            <component
+              :is="currentStep.component"
+              :key="currentStep.id"
+              @complete="advance"
+            />
+          </Transition>
+        </div>
       </div>
 
       <!-- Footer navigation -->

@@ -30,11 +30,11 @@ const motion = {
   <div :class="bleed ? 'space-y-1' : 'space-y-6'">
     <div
       class="relative flex items-center justify-center rounded-2xl"
-      :class="[tall ? (bleed ? 'h-36' : 'h-44') : 'h-32', !bleed && 'overflow-hidden border bg-primary/5']"
+      :class="[tall ? (bleed ? 'h-32' : 'h-44') : 'h-32', !bleed && 'overflow-hidden border bg-primary/5']"
     >
       <div v-if="!bleed" class="onboarding-topo absolute inset-0" aria-hidden="true" />
       <slot name="art" />
-      <div class="relative flex items-center" :style="motion">
+      <div class="relative flex items-center" :class="bleed && 'translate-y-6'" :style="motion">
         <div v-if="!solo" class="hero-tile relative z-10" style="--tilt: -7deg; --dir: -1">
           <slot name="tile">
             <div class="flex size-20 items-center justify-center rounded-2xl border bg-background shadow-sm" aria-hidden="true">

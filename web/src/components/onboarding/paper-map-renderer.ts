@@ -458,9 +458,10 @@ export class PaperMapRenderer {
       minX = Math.min(minX, this.positions[i]); maxX = Math.max(maxX, this.positions[i])
       minY = Math.min(minY, this.positions[i + 1]); maxY = Math.max(maxY, this.positions[i + 1])
     }
-    const offset = 6 + lift * 0.25
-    const blur = 10 + lift * 0.3
-    const strength = (this.dark ? 0.55 : 0.28) * (distance / (distance - lift * 0.2))
+    const height = Math.min(1, lift / 70)
+    const offset = 2 + lift * 0.25
+    const blur = 16 + lift * 0.3
+    const strength = (this.dark ? 0.08 : 0.05) + (this.dark ? 0.35 : 0.18) * height * (distance / (distance - lift * 0.2))
     gl.useProgram(this.shadow)
     const uniform = (name: string) => gl.getUniformLocation(this.shadow, name)
     gl.uniform4f(uniform('u_box'), minX + offset * 0.4, minY + offset, maxX + offset * 0.4, maxY + offset)

@@ -2725,6 +2725,7 @@
     "welcome": {
       "title": "Welcome to Parchment",
       "description": "The world's best digital map. Setup takes about a minute.",
+      "pillars": "Built on three pillars",
       "privacy": "Privacy",
       "privacyDetail": "Saved places are end-to-end encrypted",
       "sustainability": "Sustainability",

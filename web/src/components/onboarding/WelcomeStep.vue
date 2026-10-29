@@ -45,7 +45,12 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
       </template>
     </OnboardingHeader>
 
-    <ul class="grid grid-cols-3 gap-3 px-1 sm:gap-5 sm:px-4">
+    <div class="welcome-pillars flex items-center gap-3 text-sm text-muted-foreground" aria-hidden="true">
+      <span class="h-px flex-1 bg-border" />
+      {{ t('onboarding.welcome.pillars') }}
+      <span class="h-px flex-1 bg-border" />
+    </div>
+    <ul :aria-label="t('onboarding.welcome.pillars')" class="-mt-2 grid grid-cols-3 gap-3 px-1 sm:gap-5 sm:px-4">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
@@ -81,6 +86,8 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 :global(.onboarding-step-leave-active) .welcome-route { animation: route-out 300ms ease-in both; }
+
+.welcome-pillars { animation: highlight-in 480ms 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 .welcome-stamp {
   --paper: #f7efe0;
@@ -129,7 +136,7 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-route, .welcome-stop, .welcome-highlight,
+  .welcome-route, .welcome-stop, .welcome-highlight, .welcome-pillars,
   :global(.onboarding-step-leave-active) .welcome-stop,
   :global(.onboarding-step-leave-active) .welcome-route { animation: none; }
 }

@@ -193,7 +193,7 @@ export class PaperMapRenderer {
   private program: WebGLProgram
   private shadow: WebGLProgram
   private plan: FoldPlan
-  private beats: Beat[]
+  readonly beats: Beat[]
   private panels: Float32Array[]
   private positions: Float32Array
   private normals: Float32Array

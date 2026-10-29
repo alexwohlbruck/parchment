@@ -39,7 +39,7 @@ export type Announcement =
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
   | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
-  /** Entering another country; `region` is its name. */
+  /** Entering another country, state or province; `region` is its name. */
   | { kind: 'border'; region: string }
   /** `vehicle` names the mode, as in "Which train are you on?". */
   | { kind: 'vehicle-question'; vehicle: string }
@@ -59,7 +59,7 @@ const MIN_GAP_SEC = 8
 const BORDER_WINDOW_METERS = 300
 
 export interface AnnouncerOptions {
-  /** Names a country from its alpha-3 code; without it, borders pass unannounced. */
+  /** Names a country from its alpha-3 code; without it, borders, state ones too, pass unannounced. */
   regionName?: (country: string) => string | null
 }
 
@@ -199,7 +199,7 @@ export class Announcer {
     }
 
     const border = this.borders.find(b => puck.s >= b.s && puck.s - b.s <= BORDER_WINDOW_METERS)
-    const region = border && this.options.regionName?.(border.country)
+    const region = border && (border.state ?? this.options.regionName?.(border.country))
     if (border && region && this.once(`border:${Math.round(border.s)}`)) due.push({ kind: 'border', region })
 
     const ahead = upcomingHazard(route, puck.s, puck.speed)

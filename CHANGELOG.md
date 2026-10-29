@@ -16,11 +16,15 @@
 
 * Walking directions name the street a sidewalk runs beside, so steps, voice and the road label say "Turn left onto W 3rd St" instead of "Path".
 
+* Premium voice guidance names the road you cross at a crosswalk, mentions the overpass you just went under, welcomes you to each new state or province, and says when a walk enters a park.
+
 ### Changed
 
 * Navigation is lighter on the battery: the app checks GPS less often on long highway stretches and between transit stops, and stops drawing the map while it is in the background.
 
 ### Fixed
+
+* Walking navigation only offers a "quieter" route when it really crosses fewer streets.
 
 * In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.
 

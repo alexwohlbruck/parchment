@@ -440,3 +440,13 @@ describe('sidewalk street names', () => {
     expect(edges.map(e => e.streetName)).toEqual(['West 20th Street', undefined, undefined])
   })
 })
+
+describe('route context', () => {
+  test('carries crosswalk names and folds states onto the edges', () => {
+    const edges = adapt([path({
+      edge_segments: [{ startDistance: 0, endDistance: 20, crossing: 'traffic_signals', crossingName: '7th Avenue' }],
+      states: [{ startDistance: 0, endDistance: 20, name: 'New York', code: 'US-NY' }],
+    })]).routes[0].legs[0].edgeSegments!
+    expect(edges[0]).toMatchObject({ crossingName: '7th Avenue', state: 'New York' })
+  })
+})

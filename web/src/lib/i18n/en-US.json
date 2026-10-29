@@ -1478,7 +1478,13 @@
       "footbridge": "Use the pedestrian bridge",
       "crosswalk": "Cross at the crosswalk",
       "crosswalkSignals": "Cross at the light",
+      "crosswalkRoad": "Cross {road} at the crosswalk",
+      "crosswalkSignalsRoad": "Cross {road} at the light",
       "followPath": "Follow the path",
+      "enterPark": "Enter {park} and follow the path",
+      "enterParkUnnamed": "Enter the park and follow the path",
+      "intoPark": "{action} into {park}",
+      "intoParkUnnamed": "{action} into the park",
       "home": "Welcome home",
       "homeSide": {
         "left": "Welcome home. Your destination is on the left",
@@ -1527,6 +1533,7 @@
       },
       "anchored": "{anchor}, {action}",
       "past": "Go past this intersection, then {action}",
+      "underOverpass": "Go under the overpass, then {action}",
       "anchors": {
         "at": {
           "traffic_signals": "At the light",
@@ -1540,7 +1547,8 @@
           "give_way": "After the yield sign",
           "rail_crossing": "After the railroad crossing",
           "bridge": "After the bridge",
-          "tunnel": "After the tunnel"
+          "tunnel": "After the tunnel",
+          "overpass": "After the overpass"
         },
         "past": {
           "intersection": "Past this intersection"

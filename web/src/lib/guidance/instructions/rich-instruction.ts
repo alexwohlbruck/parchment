@@ -29,7 +29,7 @@ const IMMEDIATE_SEC = 5
 
 const MOTORWAYS = new Set(['motorway', 'trunk'])
 const PATHS = new Set(['footway', 'path', 'pedestrian', 'cycleway'])
-const CROSSINGS = new Set(['MARKED', 'UNMARKED', 'TRAFFIC_SIGNALS', 'UNCONTROLLED'])
+const CROSSINGS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolled'])
 /** Unnamed road classes a walker or rider can be told to follow. */
 const FOLLOWABLE = new Set(['path', 'pedestrian', 'cycleway', 'steps', 'track'])
 const ON_FOOT = new Set(['walking', 'cycling', 'biking'])
@@ -72,9 +72,17 @@ function pathAction(route: NavRoute, step: NavStep, side: Side | null): Action |
   if (past?.roadClass === 'steps') return { kind: 'stairs', side }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   const crossing = route.edges.find(
-    e => e.startDistance >= step.startDistance - 1 && e.startDistance <= step.startDistance + CROSSING_REACH_METERS && CROSSINGS.has(e.crossing ?? ''),
+    e => e.startDistance >= step.startDistance - 1 && e.startDistance <= step.startDistance + CROSSING_REACH_METERS && CROSSINGS.has(e.crossing?.toLowerCase() ?? ''),
   )
-  return crossing ? { kind: 'crosswalk', signals: crossing.crossing === 'TRAFFIC_SIGNALS' } : null
+  if (!crossing) return null
+  return { kind: 'crosswalk', signals: crossing.crossing!.toLowerCase() === 'traffic_signals', ...(crossing.crossingName && { road: crossing.crossingName }) }
+}
+
+/** The park a walker steps into at the maneuver. */
+function enteredPark(route: NavRoute, step: NavStep): RichInstruction['park'] | undefined {
+  const after = edgeAt(route, step.startDistance + PAST_TURN_METERS)
+  if (!after?.inPark || edgeAt(route, step.startDistance - PAST_TURN_METERS)?.inPark) return undefined
+  return after.parkName ? { name: after.parkName } : {}
 }
 
 /** Lanes turn both ways and none goes on: the road ends at the junction. */
@@ -126,6 +134,8 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
   if (maneuver === 'arrive') return instruction
   const target = targetRoad(route, step)
   if (target) instruction.target = target
+  const park = target?.kind !== 'named' && ON_FOOT.has(travelModeAt(route, step.startDistance)) ? enteredPark(route, step) : undefined
+  if (park) instruction.park = park
   if (step.instruction.destination) instruction.toward = step.instruction.destination
   const anchor = landmarkAnchor(route, step, context.from, context.speed, travelModeAt(route, step.startDistance))
   if (anchor) instruction.anchor = anchor

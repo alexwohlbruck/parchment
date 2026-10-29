@@ -48,8 +48,10 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
       return t(`${K}.stairs.${action.side ?? 'ahead'}`)
     case 'footbridge':
       return t(`${K}.footbridge`)
-    case 'crosswalk':
-      return t(`${K}.${action.signals ? 'crosswalkSignals' : 'crosswalk'}`)
+    case 'crosswalk': {
+      const key = action.signals ? 'crosswalkSignals' : 'crosswalk'
+      return action.road ? t(`${K}.${key}Road`, { road: action.road }) : t(`${K}.${key}`)
+    }
     case 'arrive':
       if (action.home) return t(action.side ? `${K}.homeSide.${action.side}` : `${K}.home`)
       return action.side ? t(`guidance.voice.arrivedSide.${action.side}`) : t('guidance.voice.arrived')
@@ -65,6 +67,12 @@ export function actionText(instruction: RichInstruction, t: TFn): string {
   if (action.kind === 'depart' && road) {
     const heading = t(`guidance.voice.headings.${action.heading}`)
     return t(action.along ? `${K}.headAlong` : 'guidance.voice.headOn', { heading, road })
+  }
+  if (instruction.park && action.kind === 'turn') {
+    const park = instruction.park.name
+    if (maneuver === 'straight') return park ? t(`${K}.enterPark`, { park }) : t(`${K}.enterParkUnnamed`)
+    const base = baseAction(action, maneuver, t)
+    return park ? t(`${K}.intoPark`, { action: base, park }) : t(`${K}.intoParkUnnamed`, { action: base })
   }
   if (action.kind === 'turn' && maneuver === 'straight' && target?.kind === 'generic') return t(`${K}.followPath`)
   if (action.kind === 'stay' && road) return t(`${K}.stay`, { action: baseAction(action, maneuver, t), road })
@@ -113,9 +121,9 @@ export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true }
   let text = verb ? t(`${K}.useLanes`, { lanes: lanesText(instruction.lanes!, t), action: verb }) : actionText(instruction, t)
   const { anchor, then } = instruction
   if (anchor) {
-    text = anchor.relation === 'past'
-      ? t(`${K}.past`, { action: inline(text) })
-      : t(`${K}.anchored`, { anchor: anchorText(anchor, t), action: inline(text) })
+    if (anchor.relation === 'past') text = t(`${K}.past`, { action: inline(text) })
+    else if (anchor.kind === 'overpass') text = t(`${K}.underOverpass`, { action: inline(text) })
+    else text = t(`${K}.anchored`, { anchor: anchorText(anchor, t), action: inline(text) })
   }
   if (!then) return text
   const next = inline(actionText(then.instruction, t))

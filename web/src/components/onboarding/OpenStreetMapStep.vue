@@ -50,10 +50,7 @@ onMounted(load)
     <div class="space-y-4">
       <div v-for="(icon, benefit) in { notes: MapPin, edits: Pencil }" :key="benefit" class="flex gap-3">
         <component :is="icon" class="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-        <div class="space-y-1">
-          <p class="text-sm font-medium">{{ t(`onboarding.openstreetmap.${benefit}Title`) }}</p>
-          <p class="text-sm text-muted-foreground">{{ t(`onboarding.openstreetmap.${benefit}Description`) }}</p>
-        </div>
+        <p class="text-sm font-medium">{{ t(`onboarding.openstreetmap.${benefit}Title`) }}</p>
       </div>
     </div>
 
@@ -70,7 +67,6 @@ onMounted(load)
         {{ t('onboarding.openstreetmap.connect') }}
         <ExternalLink v-if="!loading && !connecting" class="ml-2 size-4" aria-hidden="true" />
       </Button>
-      <p class="text-center text-xs leading-relaxed text-muted-foreground">{{ t('onboarding.openstreetmap.authorization') }}</p>
     </div>
 
     <div class="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">

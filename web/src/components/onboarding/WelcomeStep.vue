@@ -45,17 +45,22 @@ const highlights = { private: Lock, open: Globe, transit: Route }
       </template>
     </OnboardingHeader>
 
-    <div class="grid grid-cols-3 gap-2">
-      <div
+    <ul class="grid grid-cols-3 divide-x rounded-2xl border bg-muted/30">
+      <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight flex flex-col items-center gap-2 rounded-xl border bg-muted/40 px-2 py-3 text-center"
+        class="welcome-highlight flex flex-col items-center gap-2.5 px-2 py-4 text-center sm:px-4"
         :style="{ animationDelay: `${500 + i * 90}ms` }"
       >
-        <component :is="icon" class="size-4 text-primary" aria-hidden="true" />
-        <p class="text-pretty text-xs font-medium leading-snug sm:text-sm">{{ t(`onboarding.welcome.${key}`) }}</p>
-      </div>
-    </div>
+        <span class="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/15" aria-hidden="true">
+          <component :is="icon" class="size-4" :stroke-width="1.75" />
+        </span>
+        <div class="space-y-0.5">
+          <p class="text-pretty text-xs font-semibold leading-snug sm:text-sm">{{ t(`onboarding.welcome.${key}`) }}</p>
+          <p class="text-pretty text-[11px] leading-snug text-muted-foreground sm:text-xs">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+        </div>
+      </li>
+    </ul>
   </div>
 </template>
 

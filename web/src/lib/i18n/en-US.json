@@ -2726,8 +2726,11 @@
       "title": "Welcome to Parchment",
       "description": "The world's best digital map. Setup takes about a minute.",
       "private": "Private by default",
+      "privateDetail": "Encrypted saved places",
       "open": "Open map data",
+      "openDetail": "Built on OpenStreetMap",
       "transit": "Every way to get there",
+      "transitDetail": "Walk, bike, drive, ride",
       "start": "Get started"
     },
     "finish": "Finish",

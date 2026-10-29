@@ -2599,8 +2599,11 @@
       "title": "Te damos la bienvenida a Parchment",
       "description": "El mejor mapa digital del mundo. Configurarlo toma un minuto.",
       "private": "Privado por defecto",
+      "privateDetail": "Lugares guardados cifrados",
       "open": "Datos de mapa abiertos",
+      "openDetail": "Basado en OpenStreetMap",
       "transit": "Todas las formas de llegar",
+      "transitDetail": "A pie, bici, auto, transporte",
       "start": "Comenzar"
     },
     "finish": "Finalizar",

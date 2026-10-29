@@ -263,6 +263,8 @@ app.post(
         + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
         + 'segment with `streetTransfer` leaves the paid area '
         + 'between stations the agency does not connect, so the next ride is a new fare. '
+        + 'Street instructions carry `exitNumber` for roundabouts and, where the map signposts '
+        + 'the maneuver, `exitRef` (a motorway exit\'s number) and `destination` (where the signs point). '
         + 'Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, '
         + 'rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low '
         + 'clearances, school zones and the like, placed by distance along the segment. Some '

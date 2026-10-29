@@ -333,6 +333,27 @@ describe('instructions', () => {
     expect(instruction.coordinate).toEqual({ lat: 0, lng: 0 })
   })
 
+  test('carries the motorway junction and signed destinations', () => {
+    const [instruction] = withInstructions({
+      sign: 7,
+      text: 'Keep right',
+      interval: [0, 1],
+      motorway_junction: '12A',
+      street_destination: 'Downtown',
+      street_destination_ref: 'I 277',
+    })
+
+    expect(instruction.exitRef).toBe('12A')
+    expect(instruction.destination).toBe('I 277 Downtown')
+  })
+
+  test('omits signs the instruction lacks', () => {
+    const [instruction] = withInstructions({ sign: 2, text: 'x', interval: [0, 1] })
+
+    expect(instruction).not.toHaveProperty('exitRef')
+    expect(instruction).not.toHaveProperty('destination')
+  })
+
   const signTypes: Array<[number, string]> = [
     [0, 'continue'],
     [1, 'turn'],

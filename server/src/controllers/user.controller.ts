@@ -202,7 +202,7 @@ app.group('', (admin) =>
         sendMail({
           to: newUser.email,
           template: 'invitation',
-          data: { appUrl: clientOrigin },
+          data: { appUrl: `${clientOrigin}/signin?email=${encodeURIComponent(newUser.email)}` },
           language,
         }).catch(err => logger.error(err, 'Failed to send invitation email'))
 

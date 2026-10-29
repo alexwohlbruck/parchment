@@ -136,6 +136,12 @@ watchEffect(() => {
   appStore.chromeHeld = (authStore.needsOnboarding || onboardingFinishing.value) && !onboardingChromeIn.value
 })
 const integrationsStore = useIntegrationsStore()
+// The rail stays mounted through onboarding so the map keeps its final size; it slides in from offscreen.
+const navOnboardingStyle = computed(() =>
+  authStore.needsOnboarding || onboardingFinishing.value
+    ? { transform: appStore.chromeHeld ? 'translateX(-130%)' : 'none', transition: 'transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1)' }
+    : undefined,
+)
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
@@ -345,7 +351,8 @@ function beforeNavTransition(value: boolean) {
         @before-leave="() => beforeNavTransition(false)"
       >
         <DesktopNav
-          v-if="!hideUI"
+          v-if="!routeHidesUI"
+          :style="navOnboardingStyle"
           v-model:collapsed="navCollapsed"
           v-model:width="navWidth"
           class="z-40 h-full"

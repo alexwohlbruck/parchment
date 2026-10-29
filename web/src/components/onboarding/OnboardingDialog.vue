@@ -158,9 +158,14 @@ let pendingFace: Promise<HTMLCanvasElement | null> | null = null
 function prepareFace() {
   if (!isLast.value || pendingFace || completedAt.value) return
   const card = document.querySelector<HTMLElement>('.onboarding-card')
-  pendingFace = card
-    ? domToCanvas(card, { scale: Math.min(window.devicePixelRatio || 1, 2) }).catch(() => null)
-    : Promise.resolve(null)
+  if (!card) {
+    pendingFace = Promise.resolve(null)
+    return
+  }
+  const idle = window.requestIdleCallback ?? ((run: () => void) => setTimeout(run, 50))
+  pendingFace = new Promise(resolve => {
+    idle(() => domToCanvas(card, { scale: Math.min(window.devicePixelRatio || 1, 2) }).then(resolve, () => resolve(null)))
+  })
 }
 
 watch(currentIndex, () => { pendingFace = null })
@@ -282,7 +287,6 @@ function handleInteractOutside(e: Event) {
           :variant="skippingOsm || skippingPasskey ? 'ghost' : 'default'"
           @click="next"
           @pointerenter="prepareFace"
-          @pointerdown="prepareFace"
           @focus="prepareFace"
           :disabled="completing || !!completedAt || !canContinue"
         >

@@ -42,6 +42,13 @@ function signature(segments: ItinerarySegment[]): string {
   return segments.map(s => (s.mode === 'transit' ? s.tripId ?? s.lineName ?? '' : s.mode)).join('|')
 }
 
+const usable = (segments: ItinerarySegment[]) => isTransitOnly(segments) && segments.every(s => (s.geometry?.length ?? 0) >= 2)
+
+/** The candidate that arrives first, for when the plan being followed no longer connects. */
+export function earliestItinerary<T extends Itinerary>(candidates: T[]): T | null {
+  return candidates.filter(c => usable(c.segments)).sort((a, b) => ms(a.endTime) - ms(b.endTime))[0] ?? null
+}
+
 /** The candidate worth interrupting for, if any; `remaining` is the rest of the plan being followed. */
 export function chooseItinerary<T extends Itinerary>(remaining: ItinerarySegment[], candidates: T[], nowMs: number): ItineraryOffer<T> | null {
   const plannedEnd = ms(remaining.at(-1)?.endTime)
@@ -51,7 +58,7 @@ export function chooseItinerary<T extends Itinerary>(remaining: ItinerarySegment
   let best: ItineraryOffer<T> | null = null
   for (const candidate of candidates) {
     const segments = candidate.segments
-    if (!isTransitOnly(segments) || segments.some(s => (s.geometry?.length ?? 0) < 2)) continue
+    if (!usable(segments)) continue
     if (signature(segments) === current) continue
     const gainMs = plannedEnd - ms(candidate.endTime)
     if (gainMs >= needed && (!best || gainMs > best.gainMs)) {

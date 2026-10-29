@@ -21,6 +21,8 @@ const LOGO = 88
 const SETTLE = 450
 const OVERLAP = 0.18
 const INK = '#6b4f2a'
+const INK_DARK = '#c9b08a'
+const PAPER = { light: [0.957, 0.925, 0.86], dark: [0.15, 0.135, 0.115] } as const
 
 const VERTEX = `#version 300 es
 in vec3 a_position;
@@ -59,6 +61,9 @@ uniform float u_distance;
 uniform float u_ink;
 uniform float u_finish;
 uniform float u_light;
+uniform vec3 u_paper;
+uniform vec3 u_print;
+uniform float u_printStrength;
 out vec4 color;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -76,7 +81,7 @@ void main() {
 
   float grain = noise(v_flat * 0.35) * 0.6 + noise(v_flat * 1.7) * 0.4;
   float fibre = noise(vec2(v_flat.x * 0.08, v_flat.y * 2.2));
-  vec3 paper = vec3(0.957, 0.925, 0.86) * (0.95 + 0.05 * grain) * (0.985 + 0.015 * fibre);
+  vec3 paper = u_paper * (0.95 + 0.05 * grain) * (0.985 + 0.015 * fibre);
 
   vec2 crease = abs(fract(v_flat / u_cell + 0.5) - 0.5) * u_cell;
   float creaseShade = 1.0 - 0.1 * (1.0 - smoothstep(0.0, 2.5, min(crease.x, crease.y)));
@@ -91,7 +96,7 @@ void main() {
   if (front) {
     vec3 map = texture(u_map, v_flat / u_size).rgb;
     float tone = dot(map, vec3(0.299, 0.587, 0.114));
-    vec3 printed = mix(map, paper * mix(vec3(0.42, 0.33, 0.22), vec3(1.0), tone), 0.55) * (0.96 + 0.04 * grain);
+    vec3 printed = mix(map, mix(u_print, paper, tone), 0.45) * (0.96 + 0.04 * grain);
     surface = mix(map, printed, u_ink);
     color = vec4(mix(surface * shade + sheen, map, u_finish), 1.0);
     return;
@@ -99,7 +104,7 @@ void main() {
 
   vec2 tile = v_flat / PATTERN_STEP;
   tile.x += mod(floor(tile.y), 2.0) * 0.5;
-  surface = mix(paper, vec3(0.42, 0.31, 0.17), texture(u_pattern, fract(tile)).a * 0.13);
+  surface = mix(paper, u_print, texture(u_pattern, fract(tile)).a * u_printStrength);
   vec2 local = (v_flat - u_coverRect.xy) / u_coverRect.zw;
   if (all(greaterThanEqual(local, vec2(0.0))) && all(lessThanEqual(local, vec2(1.0)))) {
     vec4 art = texture(u_cover, local);
@@ -177,9 +182,9 @@ function drawFace(face: HTMLCanvasElement, mirror: 'x' | 'y') {
   return canvas
 }
 
-async function loadLogo() {
+async function loadLogo(ink: string) {
   const logo = new Image()
-  logo.src = URL.createObjectURL(new Blob([logoSvg.replace(/currentColor/g, INK)], { type: 'image/svg+xml' }))
+  logo.src = URL.createObjectURL(new Blob([logoSvg.replace(/currentColor/g, ink)], { type: 'image/svg+xml' }))
   await logo.decode().catch(() => {})
   URL.revokeObjectURL(logo.src)
   return logo.naturalWidth ? logo : null
@@ -313,6 +318,9 @@ export class PaperMapRenderer {
     gl.uniform1i(uniform('u_map'), 0)
     gl.uniform1i(uniform('u_cover'), 1)
     gl.uniform1i(uniform('u_pattern'), 2)
+    gl.uniform3fv(uniform('u_paper'), dark ? PAPER.dark : PAPER.light)
+    gl.uniform3fv(uniform('u_print'), dark ? [0.79, 0.69, 0.54] : [0.42, 0.31, 0.17])
+    gl.uniform1f(uniform('u_printStrength'), dark ? 0.1 : 0.13)
     gl.uniform2f(uniform('u_size'), plan.width, plan.height)
     gl.uniform2f(uniform('u_cell'), cellW, cellH)
     gl.uniform4f(uniform('u_coverRect'), coverRect.x, coverRect.y, coverRect.width, coverRect.height)
@@ -335,7 +343,7 @@ export class PaperMapRenderer {
     const plan = planFolds(rect.width, rect.height, foldsToFit(rect.width, rect.height, origin.width, origin.height), THICKNESS)
     const cell = coverCell(plan)
     const stretch = { x: origin.width / cell.width, y: origin.height / cell.height }
-    const logo = await loadLogo()
+    const logo = await loadLogo(dark ? INK_DARK : INK)
     const cover = face
       ? drawFace(face, cell.mirror)
       : drawCover(logo, cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2) * Math.max(stretch.x, stretch.y), stretch)

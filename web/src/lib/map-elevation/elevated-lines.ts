@@ -10,6 +10,14 @@ export const PROFILE_PROPERTY = 'line-elevation-profile'
 export const OCCLUSION_PROPERTY = 'line-depth-occlusion-factor'
 export const PITCH_PROPERTY = 'line-pitch-alignment'
 
+/** The version of barrelman's heights the tiles are asked for, so a tile cached before they changed is not drawn with them. */
+export const ELEVATION_FORMAT = 3
+
+/** A tile url asking for the current heights. */
+export function withElevationFormat(url: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}elevation=${ELEVATION_FORMAT}`
+}
+
 /** The heights barrelman gives a line, or none: a line without them lies on the terrain. */
 export const ELEVATION_PROFILE = ['coalesce', ['get', 'elevation'], '']
 

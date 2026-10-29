@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { expression } from '@maplibre/maplibre-gl-style-spec'
-import { ELEVATION_PROFILE, elevatesLine, holdsWidth, seesThrough } from './elevated-lines'
+import { ELEVATION_FORMAT, ELEVATION_PROFILE, elevatesLine, holdsWidth, seesThrough, withElevationFormat } from './elevated-lines'
 
 describe('elevated lines', () => {
   test('are the cycling ways and the transit ribbons, tiled or copied out', () => {
@@ -31,5 +31,10 @@ describe('elevated lines', () => {
     const profile = (properties: Record<string, unknown>) => compiled.value.evaluate({ zoom: 15 }, { type: 2, properties })
     expect(profile({ elevation: '0,0,10,5,5,20' })).toBe('0,0,10,5,5,20')
     expect(profile({})).toBe('')
+  })
+
+  test('tile urls name the heights they want, so an older cached tile is not used', () => {
+    expect(withElevationFormat('/t/detail/{z}/{x}/{y}?v=1')).toBe(`/t/detail/{z}/{x}/{y}?v=1&elevation=${ELEVATION_FORMAT}`)
+    expect(withElevationFormat('/p/nyc/{z}/{x}/{y}.mvt')).toBe(`/p/nyc/{z}/{x}/{y}.mvt?elevation=${ELEVATION_FORMAT}`)
   })
 })

@@ -104,4 +104,25 @@ describe('GuidanceEngine', () => {
     expect(puck.s).toBeGreaterThan(5)
     expect(puck.speed).toBeGreaterThan(5)
   })
+
+  test('picks the vehicle up far along the route when it comes out of a tunnel', () => {
+    const route = buildNavRoute([{ mode: 'transit', geometry: polyline([[0, 4000]]) }])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 20; t++) engine.pushFix({ t, position: pointAt(route, 10 * t), accuracy: 5, speed: 10, heading: 0 })
+    for (let t = 200; t <= 203; t++) {
+      engine.pushFix({ t, position: pointAt(route, 2000 + 10 * (t - 200)), accuracy: 8, speed: 10, heading: 0 })
+      expect(engine.isOffRoute).toBe(false)
+    }
+    expect(engine.sample(203.5)?.s).toBeGreaterThan(2000)
+  })
+
+  test('holds the puck where it is pinned until released', () => {
+    const route = buildNavRoute([cityDrive()])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 10; t++) engine.pushFix({ t, position: pointAt(route, 10 * t), accuracy: 5, speed: 10, heading: 0 })
+    engine.hold(40)
+    expect(engine.sample(12)).toMatchObject({ s: 40, speed: 0, snapped: true })
+    engine.hold(null)
+    expect(engine.sample(12)!.s).toBeGreaterThan(100)
+  })
 })

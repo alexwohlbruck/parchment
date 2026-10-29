@@ -1496,6 +1496,7 @@
       "departingNow": "Departing now",
       "from": "from {stop}",
       "stopsLeft": "{n} stop | {n} stops",
+      "estimated": "No signal, position estimated from the timetable",
       "getOffAt": "Get off at {stop}",
       "getOffNext": "Get off at the next stop",
       "getOffNow": "Get off now",

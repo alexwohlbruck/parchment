@@ -25,6 +25,13 @@ export interface SimulatorState {
   currentPoint: GpxPoint | null
   /** When set, the override emits noisy fixes on this cadence instead of every frame. */
   fixModel: FixModel | null
+  /** Track-time spans with no fixes at all, as in a tunnel. */
+  outages: Outage[]
+}
+
+export interface Outage {
+  fromMs: number
+  toMs: number
 }
 
 type Listener = (state: SimulatorState) => void
@@ -39,6 +46,7 @@ const initialState: SimulatorState = {
   loop: true,
   currentPoint: null,
   fixModel: null,
+  outages: [],
 }
 
 let state: SimulatorState = { ...initialState }
@@ -135,6 +143,7 @@ export const simulatorStore = {
       trackTimeMs: 0,
       totalDurationMs,
       fixModel,
+      outages: [],
     }
     recomputeCurrentPoint()
     emit()
@@ -190,6 +199,16 @@ export const simulatorStore = {
   setLoop(loop: boolean) {
     state = { ...state, loop }
     emit()
+  },
+
+  setOutages(outages: Outage[]) {
+    state = { ...state, outages }
+    emit()
+  },
+
+  /** Whether the playback position is somewhere fixes can't reach. */
+  inOutage(): boolean {
+    return state.outages.some(o => state.trackTimeMs >= o.fromMs && state.trackTimeMs < o.toMs)
   },
 }
 

@@ -2,6 +2,8 @@
 
 ### Added
 
+* Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
+
 * Open the feedback board from Parchment without signing in again when your server enables feedback login.
 
 * The satellite globe includes the Moon with live lunar phases.

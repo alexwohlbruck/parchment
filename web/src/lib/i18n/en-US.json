@@ -2782,6 +2782,21 @@
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",
       "sentSummary": "{count} invitation(s) sent"
+    },
+    "openstreetmap": {
+      "optional": "Optional · OpenStreetMap",
+      "title": "Make the map better, together",
+      "description": "OpenStreetMap is built by people like you. Connect your account to contribute from Parchment.",
+      "notesTitle": "Share what you notice",
+      "notesDescription": "Leave notes about missing places or details that need a second look.",
+      "editsTitle": "Put local knowledge on the map",
+      "editsDescription": "Update place details, with contributions credited to your OpenStreetMap account.",
+      "connect": "Sign in with OpenStreetMap",
+      "authorization": "A separate tab opens so you can review permissions on OpenStreetMap.",
+      "later": "You can explore without connecting. Connect or disconnect anytime in Settings → Integrations.",
+      "connected": "Your OpenStreetMap account is connected",
+      "skip": "Skip for now",
+      "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."
     }
   },
   "canvases": {

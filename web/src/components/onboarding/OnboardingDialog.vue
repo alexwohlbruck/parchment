@@ -2,6 +2,7 @@
 import { ref, computed, provide, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSubscriptionService } from '@/services/subscription.service'
 import {
@@ -15,12 +16,13 @@ import ProfileSetupStep from './ProfileSetupStep.vue'
 import RecoveryKeyStep from './RecoveryKeyStep.vue'
 import PasskeyStep from './PasskeyStep.vue'
 import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
+import OpenStreetMapStep from './OpenStreetMapStep.vue'
 import ThemeStep from './ThemeStep.vue'
 import SubscriptionStep from './SubscriptionStep.vue'
 import { validateKey, type StepValidateFn } from './types'
 import { toast } from '@/lib/toast'
 
-type StepId = 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'subscription' | 'integrations'
+type StepId = 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'subscription' | 'integrations' | 'openstreetmap'
 
 interface StepDef {
   id: StepId
@@ -35,6 +37,8 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const sub = useSubscriptionService()
+const integrations = useIntegrationsStore()
+const skippingOsm = computed(() => currentStep.value.id === 'openstreetmap' && !integrations.osmProfile)
 
 const currentIndex = ref(0)
 const completing = ref(false)
@@ -56,6 +60,7 @@ const steps = computed<StepDef[]>(() => {
     { id: 'theme', component: ThemeStep },
     { id: 'recovery-key', component: RecoveryKeyStep },
     { id: 'passkey', component: PasskeyStep },
+    { id: 'openstreetmap', component: OpenStreetMapStep },
   ]
   if (sub.billingEnabled.value) {
     s.push({ id: 'subscription', component: SubscriptionStep, wide: true })
@@ -189,6 +194,7 @@ function handleInteractOutside(e: Event) {
           ? 'sm:max-w-2xl md:max-w-3xl'
           : 'sm:max-w-lg md:max-w-xl',
       ]"
+      :show-close-button="false"
       :trap-focus="true"
       @interact-outside="handleInteractOutside"
       @escape-key-down.prevent
@@ -234,12 +240,16 @@ function handleInteractOutside(e: Event) {
         <div v-else />
 
         <Button
+          :variant="skippingOsm ? 'ghost' : 'default'"
           @click="next"
           :disabled="completing || !canContinue"
         >
           <Spinner v-if="completing" class="h-4 w-4 mr-2" />
           <template v-else>
-            <template v-if="isLast">
+            <template v-if="skippingOsm">
+              {{ t('onboarding.openstreetmap.skip') }}
+            </template>
+            <template v-else-if="isLast">
               <Check class="h-4 w-4 mr-2" />
               {{ t('onboarding.finish') }}
             </template>

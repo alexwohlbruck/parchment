@@ -2,7 +2,6 @@
 import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useMapService } from '@/services/map/map.service'
-import { playUnfoldSound } from '@/lib/onboarding/unfold-sound'
 import { PaperMapRenderer, type PaperRect } from './paper-map-renderer'
 
 const props = defineProps<{ origin?: PaperRect | null; face?: HTMLCanvasElement | null }>()
@@ -46,11 +45,10 @@ async function capture() {
   if (controller.signal.aborted) return
   timers.forEach(clearTimeout)
   renderer.play()
-  playUnfoldSound(renderer.beats, renderer.duration)
   unfoldDuration.value = renderer.duration
   phase.value = 'unfolding'
   emit('start')
-  timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.duration))
+  timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.revealAt))
   timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration + HOLD))
   timers.push(setTimeout(complete, renderer.duration + HOLD + fade))
 }
@@ -95,7 +93,7 @@ onUnmounted(() => {
 <style scoped>
 .onboarding-arrival { transition: opacity var(--fade) ease; }
 .onboarding-arrival.is-leaving { opacity: 0; }
-.arrival-backdrop { transition: opacity 500ms ease; }
+.arrival-backdrop { transition: opacity 900ms ease; }
 .is-landed .arrival-backdrop, .is-leaving .arrival-backdrop { opacity: 0; }
 
 .blob {

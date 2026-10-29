@@ -56,6 +56,7 @@ uniform vec2 u_viewport;
 uniform float u_distance;
 uniform float u_ink;
 uniform float u_finish;
+uniform float u_light;
 out vec4 color;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -81,7 +82,8 @@ void main() {
   vec3 light = normalize(vec3(-0.45, -0.6, 0.66));
   float lambert = max(dot(n, light), 0.0) / light.z;
   float sheen = pow(max(dot(reflect(-light, n), eye), 0.0), 24.0) * 0.06;
-  float shade = mix(0.62, 1.0, lambert) * creaseShade;
+  float shade = mix(1.0, mix(0.62, 1.0, lambert) * creaseShade, u_light);
+  sheen *= u_light;
 
   vec3 surface;
   if (front) {
@@ -163,6 +165,8 @@ function drawFace(face: HTMLCanvasElement, mirror: 'x' | 'y') {
   canvas.width = face.width
   canvas.height = face.height
   const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = `hsl(${getComputedStyle(document.documentElement).getPropertyValue('--background').trim()})`
+  ctx.fillRect(0, 0, face.width, face.height)
   ctx.translate(face.width / 2, face.height / 2)
   ctx.scale(mirror === 'x' ? -1 : 1, mirror === 'y' ? -1 : 1)
   ctx.drawImage(face, -face.width / 2, -face.height / 2)
@@ -193,7 +197,7 @@ export class PaperMapRenderer {
   private program: WebGLProgram
   private shadow: WebGLProgram
   private plan: FoldPlan
-  readonly beats: Beat[]
+  private beats: Beat[]
   private panels: Float32Array[]
   private positions: Float32Array
   private normals: Float32Array
@@ -295,6 +299,11 @@ export class PaperMapRenderer {
   }
 
   /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`, showing `face` on top. */
+  /** When the final fold begins: the app around the paper can show from here. */
+  get revealAt() {
+    return this.beats[this.beats.length - 1].start
+  }
+
   static async create(canvas: HTMLCanvasElement, map: TexImageSource, rect: PaperRect, origin: PaperRect, face: HTMLCanvasElement | null, dark: boolean) {
     const plan = planFolds(rect.width, rect.height, foldsToFit(rect.width, rect.height, origin.width, origin.height), THICKNESS)
     const cell = coverCell(plan)
@@ -357,8 +366,10 @@ export class PaperMapRenderer {
       tilt += 0.04 * bump
     })
     const cell = { width: plan.width / plan.cols, height: plan.height / plan.rows }
-    const sx = 1 + (this.origin.width / cell.width - 1) * (1 - grow)
-    const sy = 1 + (this.origin.height / cell.height - 1) * (1 - grow)
+    const covers = (this.origin.width * this.origin.height) / (plan.width * plan.height) > 0.6
+    const dip = covers ? 1 - 0.38 * Math.sin(Math.PI * clamp01(t / foldsEnd)) ** 0.8 : 1
+    const sx = (1 + (this.origin.width / cell.width - 1) * (1 - grow)) * dip
+    const sy = (1 + (this.origin.height / cell.height - 1) * (1 - grow)) * dip
     const center = this.packetCenter(angles)
     const target = {
       x: this.rect.left + plan.width / 2 + (this.origin.left + this.origin.width / 2 - this.rect.left - plan.width / 2) * (1 - grow),
@@ -420,6 +431,7 @@ export class PaperMapRenderer {
     gl.uniform1f(uniform('u_distance'), distance)
     const lastStart = this.beats[this.beats.length - 1].start
     gl.uniform1f(uniform('u_ink'), 1 - easeInOut(clamp01((t - lastStart) / (this.duration - lastStart))))
+    gl.uniform1f(uniform('u_light'), lifted)
     gl.uniform1f(uniform('u_finish'), easeInOut(clamp01((t - foldsEnd) / SETTLE)))
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)

@@ -28,7 +28,7 @@ export function bannerDistance(meters: number, metric: boolean): SpokenDistance 
   return { value: String(Math.max(10, Math.round(feet / step) * step)), unit: 'ft' }
 }
 
-/** Road-class names for ways without one, until sidewalks resolve to their street. */
+/** Road-class names for ways without one, and no street beside them. */
 const GENERIC_ROADS: Record<string, string> = {
   footway: 'path',
   path: 'path',
@@ -55,18 +55,21 @@ export function currentRoadStep(route: NavRoute, s: number): NavStep | null {
   return found
 }
 
+/** The road under `s`: the street beside a sidewalk as it changes along the step, else the step's own. */
 export function roadLabel(route: NavRoute, s: number): RoadLabel {
-  return stepRoad(route, currentRoadStep(route, s), s)
+  const beside = edgeAt(route, s)?.streetName
+  return beside ? { kind: 'named', name: beside } : stepRoad(route, currentRoadStep(route, s), s)
 }
 
-/** The road a step follows, by its name or number, else by the class of road under `s`. */
+/** The road a step follows, by its name or number, else the street beside the sidewalk under `s`, else its class. */
 export function stepRoad(route: NavRoute, step: NavStep | null, s: number): RoadLabel {
   const name = step?.instruction.streetName?.trim()
   const ref = step?.instruction.streetRef?.trim()
   if (name) return { kind: 'named', name, ref: ref && ref !== name ? ref : undefined }
   if (ref) return { kind: 'named', name: ref }
-  const roadClass = edgeAt(route, s)?.roadClass ?? ''
-  return { kind: 'generic', key: GENERIC_ROADS[roadClass] ?? 'road' }
+  const edge = edgeAt(route, s)
+  if (edge?.streetName) return { kind: 'named', name: edge.streetName }
+  return { kind: 'generic', key: GENERIC_ROADS[edge?.roadClass ?? ''] ?? 'road' }
 }
 
 export interface ProgressSummary {

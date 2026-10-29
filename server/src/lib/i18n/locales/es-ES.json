@@ -418,5 +418,8 @@
     "neighborhood": "Barrio",
     "hamlet": "Caserío",
     "postalCode": "Código postal"
+  },
+  "routing": {
+    "onto": "{{action}} por {{road}}"
   }
 }

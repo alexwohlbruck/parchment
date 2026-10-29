@@ -14,6 +14,8 @@
 
 * Premium navigation describes turns by what you see: the light or sign you turn at, the bridge you just crossed, which lane to use, the exit number and where the signs point.
 
+* Walking directions name the street a sidewalk runs beside, so steps, voice and the road label say "Turn left onto W 3rd St" instead of "Path".
+
 ### Changed
 
 ### Fixed

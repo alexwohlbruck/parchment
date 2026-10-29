@@ -8,6 +8,9 @@ import type {
   UnifiedRoute,
   RouteRequest,
 } from '../../../types/unified-routing.types'
+import { nameSidewalkSteps } from '../../../lib/route-street-names'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
+import { translate } from '../../../lib/i18n/translate'
 import { graphHopperSigns } from '../../../lib/graphhopper-signs'
 
 /**
@@ -89,6 +92,8 @@ export class BarrelmanGraphHopperAdapter {
         crossing: seg.crossing,
         osmWayId: seg.osmWayId,
         country: seg.country,
+        streetName: seg.streetName,
+        streetNameSource: seg.streetNameSource,
       }))
 
     const bbox = path.bbox || [0, 0, 0, 0]
@@ -100,8 +105,10 @@ export class BarrelmanGraphHopperAdapter {
       distance: path.distance || 0,
       duration: (path.time || 0) / 1000, // ms → s
       geometry,
-      instructions: (path.instructions || []).map((instr: any) =>
-        this.buildRouteInstruction(instr, geometry),
+      instructions: nameSidewalkSteps(
+        (path.instructions || []).map((instr: any) => this.buildRouteInstruction(instr, geometry)),
+        edgeSegments,
+        this.onto(request.language),
       ),
       // Elevation data
       totalElevationGain: path.elevation_stats?.totalGain ?? path.ascend,
@@ -131,6 +138,11 @@ export class BarrelmanGraphHopperAdapter {
   }
 
   // ── Instructions ────────────────────────────────────────────────
+
+  private onto(language: Language = DEFAULT_LANGUAGE) {
+    const t = translate(language)
+    return (action: string, road: string) => t('routing.onto', { action, road })
+  }
 
   private buildRouteInstruction(
     instr: any,

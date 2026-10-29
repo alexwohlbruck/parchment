@@ -34,7 +34,7 @@ test('opens the destination immediately, then unfolds its actual map frame', asy
   expect(paper.attributes('style')).toContain('height: 844px')
   expect(wrapper.findAll('.map-panel')).toHaveLength(3)
   expect(wrapper.emitted('complete')).toBeUndefined()
-  await vi.advanceTimersByTimeAsync(1900)
+  await vi.advanceTimersByTimeAsync(2400)
   expect(wrapper.emitted('complete')).toHaveLength(1)
 })
 

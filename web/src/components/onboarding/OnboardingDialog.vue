@@ -207,6 +207,7 @@ function handleInteractOutside(e: Event) {
   <OnboardingCompletion v-if="completedAt" @reveal="revealMap" @complete="finish" />
   <Dialog v-else :open="true">
     <DialogContent
+      overlay-class="bg-background backdrop-blur-none !animate-none"
       :class="[
         // Mobile: fullscreen
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0',

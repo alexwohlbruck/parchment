@@ -16,6 +16,8 @@
 
 ### Fixed
 
+* Keep the map hidden during onboarding until the paper map unfolds.
+
 * Dismiss toasts with a swipe or the close button while a dialog or bottom sheet is open.
 
 * In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.

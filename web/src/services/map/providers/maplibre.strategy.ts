@@ -1,3 +1,4 @@
+import { MOON_ATTRIBUTION } from '@/lib/map-globe/moon'
 import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
@@ -115,6 +116,7 @@ import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
+import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -428,7 +430,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
-        customAttribution: [MILKY_WAY_ATTRIBUTION, CLOUDS_ATTRIBUTION],
+        customAttribution: [MILKY_WAY_ATTRIBUTION, CLOUDS_ATTRIBUTION, MOON_ATTRIBUTION],
       }),
       'bottom-left',
     )
@@ -466,7 +468,10 @@ export class MaplibreStrategy extends MapStrategy {
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.golfPins = attachGolfPins(this.mapInstance)
     // Overlays such as the cycling network add tunnel layers of their own later.
-    this.mapInstance.on('styledata', () => this.muteFlatTunnels())
+    this.mapInstance.on('styledata', () => {
+      this.muteFlatTunnels()
+      this.elevateLines()
+    })
     this.mapInstance.on('style.load', () => {
       this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       // The old decks' labels are not this style's to leave out.
@@ -871,6 +876,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   private async applyMapObjects() {
     await this.applyObjectLayer()
+    if (!this.mapInstance.style?._loaded) return
     this.applyDecks()
   }
 
@@ -938,6 +944,7 @@ export class MaplibreStrategy extends MapStrategy {
     // The setting may have been turned back off, or the style swapped, while
     // the models were in flight.
     if (!this.map3dObjects) return flat()
+    if (!map.style?._loaded) return
 
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Already drawing: a flavor change is a uniform, not a rebuild.
@@ -1099,6 +1106,25 @@ export class MaplibreStrategy extends MapStrategy {
     }
     this.bridgeLabelKey = labelKey
     this.muteFlatTunnels()
+    this.elevateLines()
+  }
+
+  /** Raise barrelman's overlay lines, and the stations on them, onto the decks and into the tunnels while those are drawn, including any added since. */
+  private elevateLines() {
+    const map = this.mapInstance
+    const active = !!this.deckLayer
+    for (const id of map.getLayersOrder()) {
+      const layer = map.getLayer(id)
+      if (layer && raisesSymbol(layer) && !!map.getLayoutProperty(id, HEIGHT_PROPERTY) !== active) {
+        map.setLayoutProperty(id, HEIGHT_PROPERTY, active ? (STATION_HEIGHT as any) : undefined)
+        map.setLayoutProperty(id, ANCHOR_PROPERTY, active ? (STATION_ANCHOR as any) : undefined)
+      }
+      if (!layer || !elevatesLine(layer)) continue
+      if (!!map.getLayoutProperty(id, PROFILE_PROPERTY as any) === active) continue
+      map.setLayoutProperty(id, PROFILE_PROPERTY as any, active ? ELEVATION_PROFILE : undefined)
+      if (seesThrough(layer)) map.setPaintProperty(id, OCCLUSION_PROPERTY as any, active ? 0 : undefined)
+      if (holdsWidth(layer)) map.setPaintProperty(id, PITCH_PROPERTY as any, active ? 'viewport' : undefined)
+    }
   }
 
   /** Mute the flat tunnels under the tunnel layer, including any layer added since it was drawn. */
@@ -1122,7 +1148,8 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.tunnelChecked.has(id)) continue
       this.tunnelChecked.add(id)
       const style = map.getLayer(id)
-      if (style?.type !== 'line') continue
+      // Drawn at their depth instead.
+      if (style?.type !== 'line' || elevatesLine(style)) continue
       const layer = style.serialize()
       if (!isFlatTunnel(layer as any)) continue
       const value = map.getPaintProperty(id, 'line-opacity')

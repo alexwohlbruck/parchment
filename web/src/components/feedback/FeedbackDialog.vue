@@ -10,7 +10,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useExternalLink } from '@/composables/useExternalLink'
-import { submitFeedback } from '@/services/feedback.service'
+import { isTauri } from '@/lib/api'
+import {
+  createFeedbackPortalLogin,
+  submitFeedback,
+} from '@/services/feedback.service'
 import { useFeedback } from '@/composables/integrations/useFeedback'
 
 const props = defineProps<{
@@ -29,7 +33,14 @@ const isOpen = computed({
   set: value => emit('update:open', value),
 })
 
-const { boards, loading: loadingBoards, failed, ensureLoaded } = useFeedback()
+const {
+  boards,
+  portalLoginEnabled,
+  loading: loadingBoards,
+  failed,
+  ensureLoaded,
+} = useFeedback()
+const openingPortal = ref(false)
 const boardId = ref<string>('')
 const title = ref('')
 const content = ref('')
@@ -61,6 +72,30 @@ watch(isOpen, async open => {
   }
 })
 
+async function openPortal(postUrl?: string) {
+  if (openingPortal.value) return
+  const tab = isTauri ? null : window.open('about:blank', '_blank')
+  if (!isTauri && !tab) {
+    toast.error(t('feedback.popupBlocked'))
+    return
+  }
+  if (tab) tab.opener = null
+  openingPortal.value = true
+  try {
+    const { url } = await createFeedbackPortalLogin(postUrl)
+    if (tab) {
+      if (!tab.closed) tab.location.replace(url)
+    } else {
+      await openExternalLink(url)
+    }
+  } catch (err: any) {
+    tab?.close()
+    toast.error(t('feedback.portalFailed'), { cause: err })
+  } finally {
+    openingPortal.value = false
+  }
+}
+
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) return
 
@@ -81,7 +116,10 @@ async function handleSubmit() {
         ? {
             action: {
               label: t('feedback.viewPost'),
-              onClick: () => openExternalLink(url, '_blank'),
+              onClick: () =>
+                portalLoginEnabled.value
+                  ? openPortal(url)
+                  : openExternalLink(url, '_blank'),
             },
           }
         : {}),
@@ -145,7 +183,9 @@ async function handleSubmit() {
           </div>
 
           <div class="flex flex-col gap-2">
-            <Label for="feedback-content">{{ t('feedback.contentLabel') }}</Label>
+            <Label for="feedback-content">{{
+              t('feedback.contentLabel')
+            }}</Label>
             <Textarea
               id="feedback-content"
               v-model="content"
@@ -154,19 +194,31 @@ async function handleSubmit() {
               rows="5"
             />
           </div>
-      </template>
+        </template>
 
-      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+        <Button
+          v-if="portalLoginEnabled"
+          type="button"
+          variant="link"
+          class="self-start px-0"
+          :disabled="openingPortal"
+          @click="openPortal()"
+        >
+          <Spinner v-if="openingPortal" class="size-4" />
+          {{ t('feedback.openBoard') }}
+        </Button>
 
-      <div class="flex justify-end gap-2">
-        <Button type="button" variant="ghost" @click="isOpen = false">
-          {{ t('general.cancel') }}
-        </Button>
-        <Button type="submit" :disabled="!canSubmit || submitting">
-          <Spinner v-if="submitting" class="size-4" />
-          {{ t('feedback.submit') }}
-        </Button>
-      </div>
+        <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+
+        <div class="flex justify-end gap-2">
+          <Button type="button" variant="ghost" @click="isOpen = false">
+            {{ t('general.cancel') }}
+          </Button>
+          <Button type="submit" :disabled="!canSubmit || submitting">
+            <Spinner v-if="submitting" class="size-4" />
+            {{ t('feedback.submit') }}
+          </Button>
+        </div>
       </form>
     </template>
   </ResponsiveDialog>

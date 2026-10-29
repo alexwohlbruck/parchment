@@ -42,6 +42,7 @@
  *    symbols — symbols must never see the layer filters or they gate twice.
  */
 
+import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import { getVersion } from 'maplibre-gl'
 import { networkDim } from './portolan-isolation-tuning'
 import { proxyBase, ensureRegions } from './portolan-client'
@@ -1649,7 +1650,7 @@ function mountFeed(r: PortolanIndexEntry) {
   const src = srcTiles(r.feed)
   addSource(src, {
     type: 'vector',
-    tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
+    tiles: [withElevationFormat(`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`)],
     minzoom: 0,
     maxzoom: r.maxzoom ?? 15, // the renderer overzooms above the pyramid top
     ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),

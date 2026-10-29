@@ -19,6 +19,7 @@ import {
   GridSnapMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
+import { captureMapSnapshot } from './map-snapshot'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
@@ -484,6 +485,18 @@ function mapService() {
       })
     }
   }
+
+  // Allowing location from the browser prompt flies there, as if the locate button were pressed.
+  watch(
+    () => useGeolocationService().permissionState.value,
+    async (state, previous) => {
+      if (state !== 'granted' || previous !== 'prompt') return
+      if (!isMapReady.value) await new Promise<void>(resolve => {
+        const stop = watch(isMapReady, ready => { if (ready) { stop(); resolve() } })
+      })
+      locateUser()
+    },
+  )
 
   function onMapLoad() {
     // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
@@ -1554,6 +1567,10 @@ function mapService() {
   }
 
   return {
+    captureSnapshot(signal: AbortSignal) {
+      const map = mapStrategy?.mapInstance
+      return map ? captureMapSnapshot(map, signal) : Promise.resolve(null)
+    },
     initializeMap,
     resize,
     updateMapPadding,

@@ -17,7 +17,7 @@ import {
   IntegrationScheme,
   IntegrationScope,
 } from '@/types/integrations.types'
-import { computed, h, onUnmounted } from 'vue'
+import { computed, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { configSchemas } from '@/types/integrations.types'
 import IntegrationForm from '@/components/integration/IntegrationForm.vue'
 import OsmConnectedAccount from '@/components/integration/OsmConnectedAccount.vue'
 import { api } from '@/lib/api'
+import { useOsmConnection } from '@/composables/integrations/useOsmConnection'
 import {
   Tooltip,
   TooltipContent,
@@ -79,100 +80,7 @@ const requiresSetup = computed(
 
 const tileDisabled = computed(() => props.disabled || requiresSetup.value)
 
-/** Open while an OAuth popup is in flight; closed as soon as it reports back. */
-let oauthChannel: BroadcastChannel | null = null
-let oauthPoll: ReturnType<typeof setInterval> | undefined
-
-function stopListeningForOauthResult() {
-  oauthChannel?.close()
-  oauthChannel = null
-  clearInterval(oauthPoll)
-}
-
-onUnmounted(stopListeningForOauthResult)
-
-function listenForOauthResult(popup: Window | null) {
-  stopListeningForOauthResult()
-
-  oauthChannel = new BroadcastChannel('osm-oauth')
-  oauthChannel.onmessage = async ({ data }) => {
-    if (data?.type !== 'osm-oauth-callback') return
-    stopListeningForOauthResult()
-    popup?.close()
-
-    if (data.status === 'connected') {
-      toast.success(t('settings.integrations.osm.connected'))
-      await integrationService.fetchConfiguredIntegrations()
-      await integrationService.fetchAvailableIntegrations()
-    } else {
-      toast.error(data.message || t('settings.integrations.osm.authError'))
-    }
-  }
-
-  // Severing the opener also detaches our handle, so `closed` can read true
-  // while the popup is very much open. Treat it as "the flow may be over" —
-  // refresh once, quietly, and leave the channel listening for the real word.
-  oauthPoll = setInterval(() => {
-    if (!popup?.closed) return
-    clearInterval(oauthPoll)
-    integrationService.fetchConfiguredIntegrations()
-  }, 1000)
-}
-
-/**
- * Finish an OAuth flow whose redirect never made it back, by pasting the URL
- * OpenStreetMap landed on into the console.
- */
-function offerManualCallback() {
-  const finish = async (redirectUrl: string) => {
-    const params = new URL(redirectUrl).searchParams
-    const code = params.get('code')
-    const state = params.get('state')
-
-    if (!code || !state) {
-      toast.error(t('settings.integrations.osm.manualCallbackNoCode'))
-      return
-    }
-
-    try {
-      const { data } = await api.get('/integrations/osm/callback', {
-        params: { code, state },
-        headers: { Accept: 'application/json' },
-      })
-
-      if (data.status !== 'connected') {
-        toast.error(data.message || t('settings.integrations.osm.authError'))
-        return
-      }
-
-      delete (window as any).__osmDevCallback
-      toast.success(t('settings.integrations.osm.connected'))
-      await integrationService.fetchConfiguredIntegrations()
-      await integrationService.fetchAvailableIntegrations()
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          t('settings.integrations.osm.authError'), { cause: error },
-      )
-    }
-  }
-
-  ;(window as any).__osmDevCallback = finish
-
-  console.log(
-    '%cConnecting an OpenStreetMap account',
-    'font-weight: bold; font-size: 14px;',
-  )
-  console.log(
-    "After you authorize, OpenStreetMap sends you to this app's registered\n" +
-      'redirect URI, which this deployment does not answer on — the page will\n' +
-      'fail to load. Copy its full URL (it carries ?code=...&state=...) and run:\n\n' +
-      "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
-  )
-
-  toast.info(t('settings.integrations.osm.devCallbackInstructions'))
-}
+const { connect } = useOsmConnection()
 
 async function handleOAuthClick() {
   const integration = props.integration
@@ -180,33 +88,7 @@ async function handleOAuthClick() {
   const isConfigured = !!config
 
   if (!isConfigured) {
-    // Open OAuth authorization in a popup/new tab
-    try {
-      const response = await api.get('/integrations/osm/authorize')
-      const { url, manualCallback } = response.data
-
-      // Some setups can't be redirected back to — the OAuth app's registered
-      // redirect URI points somewhere this deployment isn't. The server says
-      // so; the user finishes the exchange by hand.
-      if (manualCallback) {
-        window.open(url, '_blank')
-        offerManualCallback()
-      } else {
-        const popup = window.open(
-          url,
-          'osm-oauth',
-          'width=600,height=700,popup=yes',
-        )
-
-        // The popup can't postMessage back: OSM's COOP header severs its
-        // opener. It ends on `/oauth/osm.html`, same-origin with us, which
-        // broadcasts the result here.
-        listenForOauthResult(popup)
-      }
-    } catch (error) {
-      console.error('Failed to initiate OAuth flow:', error)
-      toast.error(t('settings.integrations.osm.authError'), { cause: error })
-    }
+    await connect()
     return
   }
 

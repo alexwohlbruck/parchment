@@ -6,6 +6,8 @@ import type {
   FeedbackBoard,
   FeedbackSubmission,
   SubmittedFeedback,
+  FeedbackIdentity,
+  FeedbackPortalLogin,
 } from '../types/integration.types'
 import { logError } from '../lib/logger'
 
@@ -57,10 +59,32 @@ export async function submitFeedback(
   return provider().submitFeedback(input)
 }
 
+export function isFeedbackPortalLoginEnabled(): boolean {
+  try {
+    return provider().isPortalLoginEnabled?.() ?? false
+  } catch {
+    return false
+  }
+}
+
+export async function createFeedbackPortalLogin(
+  identity: FeedbackIdentity,
+  postUrl?: string,
+): Promise<FeedbackPortalLogin> {
+  const feedback = provider()
+  if (!feedback.isPortalLoginEnabled?.() || !feedback.createPortalLogin) {
+    throw new FeedbackNotConfiguredError()
+  }
+  return feedback.createPortalLogin(identity, postUrl)
+}
+
 /** Normalise an upstream failure into a message safe to show the user. */
 export function feedbackErrorMessage(error: unknown): string | null {
   const upstream = (error as AxiosError<any>)?.response?.data?.error
   if (upstream?.message) return upstream.message
-  logError('Feedback provider request failed', error)
+  logError('Feedback provider request failed', undefined, {
+    message: error instanceof Error ? error.message : 'Upstream request failed',
+    status: (error as AxiosError)?.response?.status,
+  })
   return null
 }

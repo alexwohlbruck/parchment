@@ -211,13 +211,14 @@ async function bootstrapAuthenticatedUser() {
   // Hydrate the full bookmark list. Covers frequents (standalone, in no
   // collection) and everything the saved-places map layer draws, neither of
   // which the per-collection hydrate would surface.
-  void bookmarksService.fetchBookmarks()
+  const hasLibrary = authService.hasPermission(PermissionId.LIBRARY_READ)
+  if (hasLibrary) void bookmarksService.fetchBookmarks()
   // Collections are needed alongside them, not just on the library screen:
   // the map styles each saved place after its collection, and the layer
   // selector builds a toggle per collection. Without this a fresh device has
   // bookmarks whose collections it has never heard of, so they'd draw nowhere
   // and have no switch that could turn them on.
-  void collectionsService.fetchCollections()
+  if (hasLibrary) void collectionsService.fetchCollections()
   // Fetch user vehicles for trip planning
   vehiclesStore.fetchVehicles()
   // Initialize categories and palette (returns from cache instantly if available)
@@ -226,8 +227,10 @@ async function bootstrapAuthenticatedUser() {
   // Recents fill the search palette's idle state. Fetching + decrypting them
   // here means opening the palette renders from memory rather than waiting on
   // the encrypted blob.
-  void recentsStore.ensureSearchesHydrated()
-  void recentsStore.ensurePlacesHydrated()
+  if (hasLibrary) {
+    void recentsStore.ensureSearchesHydrated()
+    void recentsStore.ensurePlacesHydrated()
+  }
   // Initialize friend locations layer (watches visibility and polls accordingly)
   // Requires social permissions — skip for free users to avoid 403s
   if (authService.hasPermission(PermissionId.SOCIAL_READ)) {

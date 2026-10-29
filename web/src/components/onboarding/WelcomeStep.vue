@@ -45,25 +45,19 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
       </template>
     </OnboardingHeader>
 
-    <ul class="relative mx-auto w-full max-w-sm space-y-5 py-1">
-      <span class="welcome-trail absolute bottom-6 left-5 top-6 -ml-px w-0.5" aria-hidden="true" />
+    <ul class="grid grid-cols-3 gap-3 px-1 sm:gap-5 sm:px-4">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight group relative flex items-center gap-4"
+        class="welcome-highlight"
         :style="{ animationDelay: `${450 + i * 110}ms` }"
       >
-        <span
-          class="welcome-stamp relative flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary shadow-sm"
-          :style="{ '--tilt': `${[-4, 3, -2][i]}deg` }"
-          aria-hidden="true"
-        >
-          <span class="absolute inset-0 rounded-[inherit] bg-primary/[0.07]" />
-          <component :is="icon" class="relative size-5" :stroke-width="1.6" />
-        </span>
-        <div class="min-w-0">
-          <p class="font-display text-base font-semibold leading-tight">{{ t(`onboarding.welcome.${key}`) }}</p>
-          <p class="text-pretty text-sm text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+        <div class="welcome-stamp" :style="{ '--tilt': `${[-3, 2, -1.5][i]}deg` }">
+          <div class="stamp-face flex h-full flex-col items-center gap-2 px-2 pb-3 pt-4 text-center">
+            <component :is="icon" class="size-6 text-primary" :stroke-width="1.5" aria-hidden="true" />
+            <p class="font-display text-sm font-semibold leading-tight sm:text-base">{{ t(`onboarding.welcome.${key}`) }}</p>
+            <p class="text-pretty text-[11px] leading-snug opacity-70 sm:text-xs">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+          </div>
         </div>
       </li>
     </ul>
@@ -88,27 +82,27 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 
 :global(.onboarding-step-leave-active) .welcome-route { animation: route-out 300ms ease-in both; }
 
-.welcome-trail {
-  background-image: radial-gradient(circle, hsl(var(--primary) / 0.45) 1px, transparent 1.5px);
-  background-size: 2px 7px;
-  background-repeat: repeat-y;
-  transform-origin: top;
-  animation: trail-in 900ms 420ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
 .welcome-stamp {
+  --paper: #f7efe0;
+  height: 100%;
+  padding: 6px;
+  color: #4a3720;
+  background: radial-gradient(circle, transparent 2.6px, var(--paper) 3px) -5px -5px / 10px 10px;
+  filter: drop-shadow(0 4px 8px rgb(42 29 14 / 0.18));
   rotate: var(--tilt);
-  transition: rotate 300ms cubic-bezier(0.34, 1.5, 0.5, 1), translate 300ms cubic-bezier(0.34, 1.5, 0.5, 1), box-shadow 300ms ease;
+  transition: rotate 320ms cubic-bezier(0.34, 1.5, 0.5, 1), translate 320ms cubic-bezier(0.34, 1.5, 0.5, 1);
 }
 
-.group:hover .welcome-stamp {
+.welcome-stamp:hover {
   rotate: 0deg;
-  translate: 0 -2px;
-  box-shadow: 0 6px 14px -6px hsl(var(--primary) / 0.35);
+  translate: 0 -3px;
 }
 
-@keyframes trail-in {
-  from { transform: scaleY(0); }
+.stamp-face {
+  background: linear-gradient(160deg, #fbf5ea, #efe2c8);
+  box-shadow: inset 0 0 0 1px #6b4f2a26, inset 0 0 0 4px #fbf5ea, inset 0 0 0 5px #6b4f2a1f;
+}
+
 }
 
 .welcome-highlight { animation: highlight-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -131,11 +125,11 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 @keyframes highlight-in {
-  from { opacity: 0; transform: translateX(-8px); }
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-route, .welcome-stop, .welcome-highlight, .welcome-trail,
+  .welcome-route, .welcome-stop, .welcome-highlight,
   :global(.onboarding-step-leave-active) .welcome-stop,
   :global(.onboarding-step-leave-active) .welcome-route { animation: none; }
 }

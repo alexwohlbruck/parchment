@@ -6,11 +6,13 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import AlternativeOffer from './AlternativeOffer.vue'
 import SegmentHandoff from './SegmentHandoff.vue'
 import DockWatchCard from './DockWatchCard.vue'
+import VehicleQuestion from './transit/VehicleQuestion.vue'
 import { useGuidanceContext } from './context'
 
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const { alternatives, itinerary, docks } = useGuidanceContext()
+const { alternatives, itinerary, docks, vehicleSwitch } = useGuidanceContext()
+const vehicleQuestion = vehicleSwitch.question
 
 const offer = computed(() => {
   const better = itinerary.offer.value
@@ -52,6 +54,9 @@ const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'a
   >
     <div v-if="guidance.handoff" :key="`handoff:${guidance.handoff.from}`" class="nav-card p-4">
       <SegmentHandoff :handoff="guidance.handoff" @settle="guidance.settleHandoff()" />
+    </div>
+    <div v-if="vehicleQuestion" :key="`vehicle:${vehicleQuestion.segmentIndex}`" class="nav-card p-4">
+      <VehicleQuestion :question="vehicleQuestion" @answer="vehicleSwitch.answer" />
     </div>
     <div v-if="offer" :key="offer.key" class="nav-card p-4">
       <AlternativeOffer

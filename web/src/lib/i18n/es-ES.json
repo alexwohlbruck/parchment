@@ -1446,6 +1446,15 @@
       "noLaterRun": "No hay más salidas hoy",
       "missedStop": "Pasaste {stop}",
       "missedStopHint": "Bájate en la próxima parada",
+      "whichVehicle": {
+        "subway": "¿En qué tren vas?",
+        "rail": "¿En qué tren vas?",
+        "tram": "¿En qué tranvía vas?",
+        "bus": "¿En qué autobús vas?",
+        "ferry": "¿En qué ferri vas?",
+        "vehicle": "¿En qué vehículo vas?"
+      },
+      "noneOfThese": "Ninguno de estos",
       "reach": {
         "ok": "A tiempo",
         "hurry": "Date prisa",

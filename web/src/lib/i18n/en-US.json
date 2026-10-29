@@ -1480,6 +1480,15 @@
       "noLaterRun": "No later departure today",
       "missedStop": "You passed {stop}",
       "missedStopHint": "Get off at the next stop",
+      "whichVehicle": {
+        "subway": "Which train are you on?",
+        "rail": "Which train are you on?",
+        "tram": "Which tram are you on?",
+        "bus": "Which bus are you on?",
+        "ferry": "Which ferry are you on?",
+        "vehicle": "Which vehicle are you on?"
+      },
+      "noneOfThese": "None of these",
       "reach": {
         "ok": "On track",
         "hurry": "Hurry",

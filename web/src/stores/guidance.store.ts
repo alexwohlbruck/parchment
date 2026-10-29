@@ -20,7 +20,7 @@ import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedSt
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
 import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
-import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
+import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import {
@@ -33,7 +33,10 @@ import {
   type TransitSegmentInput,
   type TransitStage,
 } from '@/lib/guidance/transit-progress'
-import { applyDepartureChange, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { applyDepartureChange, cascadeAfter, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { earliestItinerary } from '@/lib/guidance/better-itinerary'
+import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
@@ -104,6 +107,8 @@ export interface GuidanceProgress extends ProgressSummary {
 
 type LegSegment = NavSegmentInput & TransitSegmentInput & {
   legIndex?: number
+  tripId?: string
+  routeType?: number
   duration?: number
   ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
@@ -346,6 +351,43 @@ export const useGuidanceStore = defineStore('guidance', () => {
     } finally {
       rebooking.value = false
     }
+  }
+
+  /** Rides `candidate` on segment `index` in place of the planned run, re-timing what follows. */
+  async function retargetRide(index: number, candidate: VehicleCandidate, known: string[]) {
+    const segment = segments.value[index]
+    if (!segment || segment.tripId === candidate.tripId) return
+    Object.assign(segment, retargetedRide(segment, candidate, known))
+    const all = (trip.value?.segments ?? []) as unknown as (RebookableSegment & LineRun)[]
+    const at = all.indexOf(segment as unknown as RebookableSegment & LineRun)
+    const timed = at >= 0 ? all : (segments.value as unknown as (RebookableSegment & LineRun)[])
+    const held = await cascadeAfter(timed, at >= 0 ? at : index, (i, minMs) => nextRunAfter(timed[i], minMs))
+    segments.value = [...segments.value]
+    if (route.value) placeRides(route.value)
+    if (!held) await replanAfter(index)
+  }
+
+  /** Replans the rest of the leg from where ride `index` gets off, keeping the ride itself. */
+  async function replanAfter(index: number) {
+    const navRoute = route.value
+    const ride = segments.value[index]
+    const from = ride?.arrivalStop?.location ?? ride?.geometry?.at(-1)
+    const end = segments.value.at(-1)?.geometry?.at(-1)
+    if (!navRoute || !ride || !from || !end || index >= segments.value.length - 1) return
+    try {
+      const fresh = earliestItinerary(await requestTransitItineraries({ position: from, destination: end, departAt: new Date(ride.endTime ?? guidanceClock.now()) }))
+      if (!fresh || route.value !== navRoute) return
+      reshape([...segments.value.slice(0, index + 1), ...adoptItinerary(segments.value, index + 1, fresh.segments as LegSegment[])])
+    } catch {
+      // The re-timed plan still stands; the itinerary check offers a better one later.
+    }
+  }
+
+  /** Asks aloud which vehicle the rider boarded on segment `index`. */
+  function askWhichVehicle(index: number) {
+    const s = progress.value?.puck.s
+    if (s == null) return
+    announce({ kind: 'vehicle-question', vehicle: getRouteTypeKey(segments.value[index]?.routeType) }, s)
   }
 
   function settleHandoff() {
@@ -697,6 +739,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     transit,
     rebooking,
     catchNextRun,
+    retargetRide,
+    askWhichVehicle,
     clockMs,
     addStop,
     switchDock,

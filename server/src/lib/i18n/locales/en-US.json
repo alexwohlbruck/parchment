@@ -418,5 +418,8 @@
     "neighborhood": "Neighborhood",
     "hamlet": "Hamlet",
     "postalCode": "Postal code"
+  },
+  "routing": {
+    "onto": "{{action}} onto {{road}}"
   }
 }

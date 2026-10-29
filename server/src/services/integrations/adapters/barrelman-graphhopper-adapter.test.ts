@@ -388,3 +388,34 @@ describe('instructions', () => {
     expect(instruction.distance).toBe(0)
   })
 })
+
+describe('sidewalk street names', () => {
+  const walk = path({
+    instructions: [
+      { sign: 0, text: 'Continue', street_name: '', distance: 120, time: 90_000, interval: [0, 1] },
+      { sign: -2, text: 'Turn left onto Madison Avenue', street_name: 'Madison Avenue', distance: 40, time: 30_000, interval: [1, 1] },
+    ],
+    edge_segments: [
+      { startDistance: 0, endDistance: 100, roadClass: 'footway', streetName: 'West 20th Street', streetNameSource: 'geometry' },
+      { startDistance: 100, endDistance: 120, roadClass: 'footway' },
+      { startDistance: 120, endDistance: 160, roadClass: 'secondary' },
+    ],
+  })
+
+  test('names a step along an unnamed sidewalk after the street beside it', () => {
+    const [first, second] = adapt([walk]).routes[0].legs[0].instructions
+    expect(first).toMatchObject({ streetName: 'West 20th Street', streetNameSource: 'geometry', text: 'Continue onto West 20th Street' })
+    expect(second).toMatchObject({ streetName: 'Madison Avenue', text: 'Turn left onto Madison Avenue' })
+    expect(second.streetNameSource).toBeUndefined()
+  })
+
+  test('words the step in the requested language', () => {
+    const [first] = adapt([walk], { ...request, language: 'es-ES' }).routes[0].legs[0].instructions
+    expect(first.text).toBe('Continue por West 20th Street')
+  })
+
+  test('keeps the edges’ street names for the stretch-by-stretch label', () => {
+    const edges = adapt([walk]).routes[0].legs[0].edgeSegments!
+    expect(edges.map(e => e.streetName)).toEqual(['West 20th Street', undefined, undefined])
+  })
+})

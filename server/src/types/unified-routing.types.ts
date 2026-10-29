@@ -174,6 +174,8 @@ export interface RouteInstruction {
   duration: number // seconds to next instruction
   heading?: number
   streetName?: string
+  /** Set when `streetName` is the street beside an unnamed sidewalk rather than the way's own name. */
+  streetNameSource?: StreetNameSource
   /** Route number of the road, e.g. "I 85" */
   streetRef?: string
 
@@ -200,6 +202,9 @@ export interface RouteInstruction {
 }
 
 /** Per-edge attributes mapped to distance along the route */
+/** `tag`: the sidewalk's own is_sidepath:of:name or street:name; `geometry`: the street found running beside it. */
+export type StreetNameSource = 'tag' | 'geometry'
+
 export interface RouteEdgeSegment {
   startDistance: number     // meters from leg start
   endDistance: number       // meters from leg start
@@ -219,6 +224,8 @@ export interface RouteEdgeSegment {
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
   osmWayId?: number         // the OSM way the edge belongs to
   country?: string          // ISO 3166-1 alpha-3
+  streetName?: string       // the street an unnamed sidewalk runs beside
+  streetNameSource?: StreetNameSource
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string

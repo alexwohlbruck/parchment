@@ -5,6 +5,7 @@ import { domToCanvas } from 'modern-screenshot'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { fetchIdentityFromServer } from '@/services/identity.service'
 import { useSubscriptionService } from '@/services/subscription.service'
 import {
   Dialog,
@@ -41,6 +42,12 @@ const sub = useSubscriptionService()
 const integrations = useIntegrationsStore()
 const skippingOsm = computed(() => currentStep.value.id === 'openstreetmap' && !integrations.osmProfile)
 const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
+
+// Setting up a recovery key replaces existing keys, so only offer it once the server confirms there are none.
+const needsKeys = ref(false)
+fetchIdentityFromServer().then(identity => {
+  needsKeys.value = !!identity && !identity.signingKey
+})
 
 const currentIndex = ref(0)
 const completing = ref(false)
@@ -80,8 +87,12 @@ const steps = computed<StepDef[]>(() => {
     { id: 'welcome', component: WelcomeStep },
     { id: 'profile', component: ProfileSetupStep },
     { id: 'theme', component: ThemeStep },
-    { id: 'recovery-key', component: RecoveryKeyStep },
-    { id: 'passkey', component: PasskeyStep },
+    ...(needsKeys.value
+      ? [
+          { id: 'recovery-key', component: RecoveryKeyStep },
+          { id: 'passkey', component: PasskeyStep },
+        ] satisfies StepDef[]
+      : []),
     { id: 'openstreetmap', component: OpenStreetMapStep },
   ]
   if (sub.billingEnabled.value && sub.hasSubscription.value) {

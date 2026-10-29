@@ -45,19 +45,23 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
       </template>
     </OnboardingHeader>
 
-    <ul class="grid grid-cols-3 divide-x rounded-2xl border bg-muted/30">
+    <ul class="mx-auto w-full max-w-sm divide-y">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight flex flex-col items-center gap-2.5 px-2 py-4 text-center sm:px-4"
-        :style="{ animationDelay: `${500 + i * 90}ms` }"
+        class="welcome-highlight flex items-center gap-4 py-3.5"
+        :style="{ animationDelay: `${450 + i * 90}ms` }"
       >
-        <span class="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/15" aria-hidden="true">
-          <component :is="icon" class="size-4" :stroke-width="1.75" />
+        <span
+          class="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary shadow-sm"
+          :style="{ rotate: `${[-4, 3, -2][i]}deg` }"
+          aria-hidden="true"
+        >
+          <component :is="icon" class="size-5" :stroke-width="1.6" />
         </span>
-        <div class="space-y-0.5">
-          <p class="text-pretty text-xs font-semibold leading-snug sm:text-sm">{{ t(`onboarding.welcome.${key}`) }}</p>
-          <p class="text-pretty text-[11px] leading-snug text-muted-foreground sm:text-xs">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+        <div class="min-w-0">
+          <p class="text-sm font-medium">{{ t(`onboarding.welcome.${key}`) }}</p>
+          <p class="text-pretty text-sm text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
         </div>
       </li>
     </ul>
@@ -102,7 +106,7 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 @keyframes highlight-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateX(-8px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

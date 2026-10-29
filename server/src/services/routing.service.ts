@@ -4,6 +4,8 @@ import type { Location } from '../types/valhalla.types'
 import {
   RouteLanes,
   RouteLanesRequest,
+  RoutePointHazard,
+  RoutePointHazardsRequest,
   RouteRequest,
   UnifiedRoute,
   TravelMode,
@@ -152,6 +154,15 @@ export class RoutingService {
     for (const record of integrationManager.getConfiguredIntegrationsByCapability(IntegrationCapabilityId.ROUTING)) {
       const routing = integrationManager.getCachedIntegrationInstance(record)?.capabilities.routing
       if (routing?.getLanes) return routing.getLanes(request)
+    }
+    return null
+  }
+
+  /** Hazards from OSM tags along a route, from the first routing engine that reads them; null where none does. */
+  async getHazards(request: RoutePointHazardsRequest): Promise<RoutePointHazard[] | null> {
+    for (const record of integrationManager.getConfiguredIntegrationsByCapability(IntegrationCapabilityId.ROUTING)) {
+      const routing = integrationManager.getCachedIntegrationInstance(record)?.capabilities.routing
+      if (routing?.getHazards) return routing.getHazards(request)
     }
     return null
   }

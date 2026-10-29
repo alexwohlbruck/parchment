@@ -31,6 +31,8 @@ import {
 import type {
   RouteLanes,
   RouteLanesRequest,
+  RoutePointHazard,
+  RoutePointHazardsRequest,
   RouteRequest,
   UnifiedRoute,
 } from '../../types/unified-routing.types'
@@ -83,8 +85,10 @@ import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
  * serialized, low enough that concurrent plans can't stampede the process.
  */
 const BARRELMAN_MAX_CONCURRENCY = 48
-/** How long to wait before asking a barrelman without lane geometry again. */
+/** How long to wait before asking a barrelman without lane geometry, or route hazards, again. */
 const LANES_RETRY_MS = 10 * 60_000
+/** Hazards are a garnish on a route; a slow answer is dropped rather than holding the route up. */
+const HAZARDS_TIMEOUT_MS = 3_000
 
 class Semaphore {
   private active = 0
@@ -339,6 +343,7 @@ export class BarrelmanIntegration
     routing: {
       getRoute: this.getRoute.bind(this),
       getLanes: this.getLanes.bind(this),
+      getHazards: this.getHazards.bind(this),
       metadata: {
         supportedPreferences: {
           // Range preferences (GraphHopper supports via custom_model)
@@ -1415,6 +1420,23 @@ export class BarrelmanIntegration
     } catch (error: any) {
       if (error.response?.status === 404) this.lanesUnsupportedUntil = Date.now() + LANES_RETRY_MS
       else logWarn(`Barrelman lanes unavailable: ${error.response?.status ?? error.message}`)
+      return null
+    }
+  }
+
+  private hazardsUnsupportedUntil = 0
+
+  private async getHazards(request: RoutePointHazardsRequest): Promise<RoutePointHazard[] | null> {
+    if (!this.config.apiKey || Date.now() < this.hazardsUnsupportedUntil) return null
+    try {
+      const response = await barrelmanHttp.post(`${this.config.host.replace(/\/$/, '')}/route/hazards`, request, {
+        headers: this.headers,
+        timeout: HAZARDS_TIMEOUT_MS,
+      })
+      return (response.data?.hazards as RoutePointHazard[]) ?? null
+    } catch (error: any) {
+      if (error.response?.status === 404) this.hazardsUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman route hazards unavailable: ${error.response?.status ?? error.message}`)
       return null
     }
   }

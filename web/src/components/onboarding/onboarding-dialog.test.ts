@@ -63,3 +63,22 @@ test('replaces skip with finish when the account connects', async () => {
   expect(wrapper.text()).toContain('onboarding.finish')
   wrapper.unmount()
 })
+
+test('advances to subscription choices after OpenStreetMap connects', async () => {
+  billingEnabled.value = true
+  const wrapper = mountDialog()
+  wrapper.findComponent({ name: 'OpenStreetMapStep' }).vm.$emit('complete')
+  await flushPromises()
+  expect(wrapper.findComponent({ name: 'SubscriptionStep' }).exists()).toBe(true)
+  expect(localStorage.getItem('onboarding-step')).toBe('subscription')
+  expect(mocks.post).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+test('finishes onboarding after OpenStreetMap connects on a free server', async () => {
+  const wrapper = mountDialog()
+  wrapper.findComponent({ name: 'OpenStreetMapStep' }).vm.$emit('complete')
+  await vi.waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/users/me/onboarding/complete'))
+  expect(mocks.goToStashedPath).toHaveBeenCalledOnce()
+  wrapper.unmount()
+})

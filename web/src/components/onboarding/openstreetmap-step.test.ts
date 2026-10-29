@@ -26,13 +26,24 @@ test('checks the account before offering the shared connection flow', async () =
   wrapper.unmount()
 })
 
-test('confirms a connected account without advancing automatically', async () => {
+test('advances once when the account becomes connected', async () => {
   const wrapper = mount(OpenStreetMapStep)
   await flushPromises()
   profile.osmProfile = { osmDisplayName: 'Local Mapper' }
   await flushPromises()
   expect(wrapper.get('[role="status"]').text()).toContain('Local Mapper')
   expect(wrapper.find('button').exists()).toBe(false)
+  expect(wrapper.emitted('complete')).toHaveLength(1)
+  profile.osmProfile = { osmDisplayName: 'Updated Mapper' }
+  await flushPromises()
+  expect(wrapper.emitted('complete')).toHaveLength(1)
+  wrapper.unmount()
+})
+
+test('keeps an already connected account visible when navigating back', async () => {
+  profile.osmProfile = { osmDisplayName: 'Local Mapper' }
+  const wrapper = mount(OpenStreetMapStep)
+  await flushPromises()
   expect(wrapper.emitted('complete')).toBeUndefined()
   wrapper.unmount()
 })

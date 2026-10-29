@@ -150,10 +150,6 @@ function back() {
   }
 }
 
-function handlePasskeyComplete() {
-  advance()
-}
-
 async function complete() {
   completing.value = true
   try {
@@ -223,7 +219,7 @@ function handleInteractOutside(e: Event) {
         <component
           :is="currentStep.component"
           :key="currentStep.id"
-          @complete="handlePasskeyComplete"
+          @complete="advance"
         />
       </div>
 

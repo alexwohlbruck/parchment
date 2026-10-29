@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, ExternalLink, Map, MapPin, Pencil } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,18 @@ import { useOsmConnection } from '@/composables/integrations/useOsmConnection'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
 
+const emit = defineEmits<{ complete: [] }>()
+
 const { t } = useI18n()
 const integrations = useIntegrationsStore()
 const service = useIntegrationService()
 const { connect, connecting } = useOsmConnection()
 const loading = ref(true)
 const connected = computed(() => !!integrations.osmProfile)
+
+watch(connected, isConnected => {
+  if (isConnected) emit('complete')
+})
 
 async function load() {
   loading.value = true

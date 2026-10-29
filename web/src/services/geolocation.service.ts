@@ -24,7 +24,7 @@ function geolocationService() {
     resume,
     pause,
   } = useGeolocation({
-    immediate: false
+    immediate: false,
     enableHighAccuracy: true,
   })
 

@@ -2598,12 +2598,12 @@
     "welcome": {
       "title": "Te damos la bienvenida a Parchment",
       "description": "El mejor mapa digital del mundo. Configurarlo toma un minuto.",
-      "private": "Privado por defecto",
-      "privateDetail": "Lugares guardados cifrados",
-      "open": "Datos de mapa abiertos",
-      "openDetail": "Basado en OpenStreetMap",
-      "transit": "Todas las formas de llegar",
-      "transitDetail": "A pie, bici, auto, transporte",
+      "privacy": "Privacidad",
+      "privacyDetail": "Tus lugares guardados tienen cifrado de extremo a extremo",
+      "sustainability": "Sostenibilidad",
+      "sustainabilityDetail": "Pensado para el transporte público, la bici y caminar",
+      "community": "Comunidad",
+      "communityDetail": "Basado en OpenStreetMap, que cualquiera puede editar",
       "start": "Comenzar"
     },
     "finish": "Finalizar",

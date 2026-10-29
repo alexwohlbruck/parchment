@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Bike, Globe, Lock, MapPin, Route, TramFront } from 'lucide-vue-next'
+import { Bike, Leaf, Lock, MapPin, TramFront, Users } from 'lucide-vue-next'
 import OnboardingHeader from './OnboardingHeader.vue'
 
 const { t } = useI18n()
@@ -11,7 +11,7 @@ const stops = [
   { icon: Bike, x: 72, y: 74, tilt: -5 },
   { icon: Lock, x: 87, y: 28, tilt: 9 },
 ]
-const highlights = { private: Lock, open: Globe, transit: Route }
+const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 </script>
 
 <template>

@@ -18,7 +18,7 @@ const THICKNESS = 0.15
 const BEND = 0.55
 const INTRO = 380
 const LOGO = 88
-const SETTLE = 900
+const SETTLE = 450
 const OVERLAP = 0.18
 const INK = '#6b4f2a'
 

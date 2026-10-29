@@ -12,8 +12,7 @@ const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 const phase = ref<'waiting' | 'unfolding' | 'landed' | 'leaving'>('waiting')
 const controller = new AbortController()
 const timers: ReturnType<typeof setTimeout>[] = []
-const fade = 600
-const HOLD = 1100
+const fade = 350
 const unfoldDuration = ref(0)
 let renderer: PaperMapRenderer | null = null
 let mounted = false
@@ -56,8 +55,8 @@ async function capture() {
   document.documentElement.classList.add('paper-unfolding')
   timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.revealAt))
   timers.push(setTimeout(showLiveMap, renderer.duration))
-  timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration + HOLD))
-  timers.push(setTimeout(complete, renderer.duration + HOLD + fade))
+  timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration))
+  timers.push(setTimeout(complete, renderer.duration + fade))
 }
 
 onMounted(() => {
@@ -87,7 +86,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div class="onboarding-arrival fixed inset-0 z-40 overflow-hidden" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
+    <div class="onboarding-arrival pointer-events-none fixed inset-0 z-40 overflow-hidden" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
       <div class="arrival-backdrop onboarding-backdrop absolute inset-0 bg-background">
         <span class="blob blob-primary" />
         <span class="blob blob-cream" />

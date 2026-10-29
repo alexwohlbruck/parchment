@@ -6,6 +6,10 @@
 
 * Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
 
+* The map flies to your location as soon as you allow location access.
+
+* Invitation emails open the sign-in page with your email already filled in.
+
 * Open the feedback board from Parchment without signing in again when your server enables feedback login.
 
 * The satellite globe includes the Moon with live lunar phases.

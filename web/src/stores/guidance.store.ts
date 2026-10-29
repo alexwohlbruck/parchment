@@ -58,6 +58,8 @@ import { useAppStore } from '@/stores/app.store'
 import { UnitSystem, type LngLat } from '@/types/map.types'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { GpsCadence, PRECISE_INTERVAL_MS } from '@/lib/guidance/gps-cadence'
+import { navCameraMode, navPowerBudget } from '@/lib/guidance/power-budget'
+import { usePowerStore } from '@/stores/power.store'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -181,6 +183,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const orientation = useOrientationService()
   let turnAroundWatch: TurnAroundWatch | null = null
   const gpsCadence = new GpsCadence()
+  const powerStore = usePowerStore()
+  /** What navigation may spend on drawing, under the battery saver in force. */
+  const powerBudget = computed(() => navPowerBudget(powerStore.saver))
 
   const kind = ref<GuidanceKind>('route')
   const freeMode = ref<FreeMode>('driving')
@@ -260,9 +265,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
 
+  /** The camera mode in force: the preference, flattened when the battery saver forbids 3D. */
+  const cameraMode = computed(() => navCameraMode(preferences.value.cameraMode, powerBudget.value))
+
   /** What the puck is drawn as for the travel mode underway. */
   const vehicle = computed<VehicleChoice>(previous => {
-    const next = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const choice = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const next = powerBudget.value.allow3d ? choice : { ...choice, indicator: 'arrow' as const }
     return previous?.indicator === next.indicator && previous.color === next.color ? previous : next
   })
 
@@ -827,6 +836,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress,
     status,
     preferences,
+    cameraMode,
+    powerBudget,
     cameraTuning,
     isActive,
     destinationLabel,

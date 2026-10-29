@@ -1116,7 +1116,7 @@ export class MaplibreStrategy extends MapStrategy {
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
       if (layer && raisesSymbol(layer) && !!map.getLayoutProperty(id, HEIGHT_PROPERTY) !== active) {
-        map.setLayoutProperty(id, HEIGHT_PROPERTY, active ? STATION_HEIGHT : undefined)
+        map.setLayoutProperty(id, HEIGHT_PROPERTY, active ? (STATION_HEIGHT as any) : undefined)
         map.setLayoutProperty(id, ANCHOR_PROPERTY, active ? (STATION_ANCHOR as any) : undefined)
       }
       if (!layer || !elevatesLine(layer)) continue

@@ -14,11 +14,13 @@ interface Beat {
   end: number
 }
 
-const THICKNESS = 0.6
+const THICKNESS = 0.15
 const BEND = 0.55
-const INTRO = 420
-const SETTLE = 380
+const INTRO = 380
+const SETTLE = 320
+const OVERLAP = 0.18
 const INK = '#6b4f2a'
+export const LOGO_RATIO = 0.46
 
 const VERTEX = `#version 300 es
 in vec3 a_position;
@@ -54,7 +56,6 @@ uniform vec2 u_viewport;
 uniform float u_distance;
 uniform float u_ink;
 uniform float u_finish;
-uniform float u_dim;
 out vec4 color;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -92,7 +93,7 @@ void main() {
     return;
   }
 
-  surface = paper * u_dim;
+  surface = paper;
   vec2 local = (v_flat - u_coverRect.xy) / u_coverRect.zw;
   if (all(greaterThanEqual(local, vec2(0.0))) && all(lessThanEqual(local, vec2(1.0)))) {
     vec4 art = texture(u_cover, local);
@@ -128,8 +129,13 @@ void main() {
 }`
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
-const easeOut = (t: number) => 1 - (1 - t) ** 3
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
+const snapOpen = (t: number) => easeInOut(Math.min(1, t / 0.75)) + (t > 0.6 ? 0.06 * Math.sin((Math.PI * (t - 0.6)) / 0.4) : 0)
+
+export function foldedPacket(width: number, height: number) {
+  const plan = planFolds(width, height, packetSize(width, height), THICKNESS)
+  return { width: width / plan.cols, height: height / plan.rows }
+}
 
 function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
   const program = gl.createProgram()!
@@ -162,34 +168,17 @@ async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale
   canvas.width = Math.round(width * scale)
   canvas.height = Math.round(height * scale)
   const ctx = canvas.getContext('2d')!
+  const logo = new Image()
+  logo.src = URL.createObjectURL(new Blob([logoSvg.replace(/currentColor/g, INK)], { type: 'image/svg+xml' }))
+  await logo.decode().catch(() => {})
+  URL.revokeObjectURL(logo.src)
+  if (!logo.naturalWidth) return canvas
+
+  const size = Math.min(width, height) * LOGO_RATIO
   ctx.scale(scale, scale)
   ctx.translate(width / 2, height / 2)
   ctx.scale(mirror === 'x' ? -1 : 1, mirror === 'y' ? -1 : 1)
-
-  const unit = Math.min(width, height)
-  const logo = new Image()
-  logo.src = URL.createObjectURL(new Blob([logoSvg.replace(/currentColor/g, INK)], { type: 'image/svg+xml' }))
-  await Promise.all([logo.decode().catch(() => {}), document.fonts.ready])
-  URL.revokeObjectURL(logo.src)
-
-  const logoSize = unit * 0.42
-  const fontSize = Math.round(unit * 0.13)
-  const gap = unit * 0.05
-  const top = -(logoSize + gap + fontSize) / 2
-  if (logo.complete && logo.naturalWidth) ctx.drawImage(logo, -logoSize / 2, top, logoSize, logoSize)
-
-  const font = getComputedStyle(document.documentElement).getPropertyValue('--font-display').trim() || 'serif'
-  ctx.font = `${fontSize}px ${font}`
-  ctx.fillStyle = INK
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'top'
-  ctx.fillText('Parchment', 0, top + logoSize + gap)
-
-  ctx.setTransform(scale, 0, 0, scale, 0, 0)
-  ctx.strokeStyle = `${INK}40`
-  ctx.lineWidth = 1
-  const inset = unit * 0.07
-  ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2)
+  ctx.drawImage(logo, -size / 2, -size / 2, size, size)
   return canvas
 }
 
@@ -229,10 +218,12 @@ export class PaperMapRenderer {
 
     let t = INTRO
     this.beats = plan.creases.map((_, i) => plan.creases.length - 1 - i).map((crease, order) => {
-      const beat = { crease, start: t, end: t + 380 + order * 45 }
-      t = beat.end
+      const length = 290 + order * 35
+      const beat = { crease, start: t, end: t + length }
+      t = beat.end - length * OVERLAP
       return beat
     })
+    t = this.beats[this.beats.length - 1].end
     this.duration = t + SETTLE
 
     const cells = plan.cols * plan.rows
@@ -296,7 +287,6 @@ export class PaperMapRenderer {
     gl.uniform2f(uniform('u_size'), plan.width, plan.height)
     gl.uniform2f(uniform('u_cell'), cellW, cellH)
     gl.uniform4f(uniform('u_coverRect'), coverRect.x, coverRect.y, coverRect.width, coverRect.height)
-    gl.uniform1f(uniform('u_dim'), dark ? 0.9 : 1)
     gl.bindVertexArray(null)
     this.vao = vao
   }
@@ -309,6 +299,7 @@ export class PaperMapRenderer {
   }
 
   play() {
+    this.render(0)
     const start = performance.now()
     const tick = (now: number) => {
       const t = now - start
@@ -326,7 +317,7 @@ export class PaperMapRenderer {
   private angles(t: number) {
     const angles = this.plan.creases.map(() => Math.PI)
     for (const beat of this.beats) {
-      angles[beat.crease] = Math.PI * (1 - easeInOut(clamp01((t - beat.start) / (beat.end - beat.start))))
+      angles[beat.crease] = Math.PI * (1 - snapOpen(clamp01((t - beat.start) / (beat.end - beat.start))))
     }
     return angles
   }
@@ -347,11 +338,17 @@ export class PaperMapRenderer {
     const { gl, plan, viewport } = this
     const angles = this.angles(t)
     const foldsEnd = this.beats[this.beats.length - 1].end
-    const pose = 1 - easeInOut(clamp01((t - INTRO * 0.4) / (foldsEnd - INTRO * 0.4)))
-    const arrive = easeOut(clamp01(t / INTRO))
-    const tilt = 0.32 * pose + 0.1 * (1 - arrive)
-    const spin = -0.26 * pose
-    const lift = 70 * pose + 40 * (1 - arrive)
+    const pick = easeInOut(clamp01(t / INTRO))
+    const settle = 1 - easeInOut(clamp01((t - INTRO * 0.6) / (foldsEnd - INTRO * 0.6)))
+    let tilt = 0.34 * pick * settle
+    let spin = -0.26 * settle
+    let lift = 80 * pick * settle
+    this.beats.forEach((beat, order) => {
+      const bump = Math.sin(Math.PI * clamp01((t - beat.start) / (beat.end - beat.start)))
+      lift += 14 * bump * settle
+      spin += (order % 2 ? 0.035 : -0.035) * bump * settle
+      tilt += 0.04 * bump * settle
+    })
     const center = this.packetCenter(angles)
     const target = { x: this.rect.left + plan.width / 2, y: this.rect.top + plan.height / 2 }
     const [ct, st, cs, ss] = [Math.cos(tilt), Math.sin(tilt), Math.cos(spin), Math.sin(spin)]
@@ -397,7 +394,7 @@ export class PaperMapRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     const distance = Math.max(1600, 1.5 * Math.max(viewport.width, viewport.height))
 
-    this.drawShadow(lift, distance, arrive)
+    this.drawShadow(lift, distance)
 
     gl.useProgram(this.program)
     gl.bindVertexArray(this.vao)
@@ -441,7 +438,7 @@ export class PaperMapRenderer {
     }
   }
 
-  private drawShadow(lift: number, distance: number, arrive: number) {
+  private drawShadow(lift: number, distance: number) {
     const { gl } = this
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (let i = 0; i < this.positions.length; i += 3) {
@@ -450,7 +447,7 @@ export class PaperMapRenderer {
     }
     const offset = 6 + lift * 0.25
     const blur = 10 + lift * 0.3
-    const strength = (this.dark ? 0.55 : 0.28) * arrive * (distance / (distance - lift * 0.2))
+    const strength = (this.dark ? 0.55 : 0.28) * (distance / (distance - lift * 0.2))
     gl.useProgram(this.shadow)
     const uniform = (name: string) => gl.getUniformLocation(this.shadow, name)
     gl.uniform4f(uniform('u_box'), minX + offset * 0.4, minY + offset, maxX + offset * 0.4, maxY + offset)

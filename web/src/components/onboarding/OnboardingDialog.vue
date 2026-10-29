@@ -195,7 +195,7 @@ function handleInteractOutside(e: Event) {
 
 <template>
   <OnboardingCompletion v-if="completedAt" :origin="brandOrigin" @reveal="revealMap" @complete="finish" />
-  <Dialog v-else :open="true">
+  <Dialog :open="!completedAt">
     <DialogContent
       overlay-class="onboarding-backdrop bg-background backdrop-blur-none !animate-none"
       :class="[
@@ -203,6 +203,7 @@ function handleInteractOutside(e: Event) {
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
         'sm:h-fit sm:max-h-[min(90dvh,880px)] sm:rounded-lg sm:border',
+        completedAt && 'onboarding-finished',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'
@@ -234,8 +235,8 @@ function handleInteractOutside(e: Event) {
 
       <!-- Step content -->
       <div class="min-h-0 overflow-y-auto px-6 py-6 max-sm:flex-1 sm:shrink sm:transition-[height] sm:duration-300 sm:ease-out" :style="contentStyle">
-        <div ref="stepContent">
-          <Transition name="onboarding-step" mode="out-in">
+        <div ref="stepContent" class="relative">
+          <Transition name="onboarding-step">
             <component
               :is="currentStep.component"
               :key="currentStep.id"
@@ -296,8 +297,10 @@ function handleInteractOutside(e: Event) {
 
 .dark .onboarding-backdrop::before { filter: invert(1); }
 
-.onboarding-step-enter-active { transition: opacity 180ms ease; }
-.onboarding-step-leave-active { transition: opacity 200ms ease 180ms; }
+.onboarding-finished [data-onboarding-brand] { visibility: hidden; }
+
+.onboarding-step-enter-active { transition: opacity 200ms ease; }
+.onboarding-step-leave-active { position: absolute; inset: 0 0 auto; transition: opacity 160ms ease; pointer-events: none; }
 .onboarding-step-enter-from, .onboarding-step-leave-to { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {

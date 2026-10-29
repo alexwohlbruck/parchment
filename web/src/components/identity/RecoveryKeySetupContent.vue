@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useClipboard } from '@/composables/useClipboard'
-import { Check, Copy, LockKeyhole, ShieldAlert } from 'lucide-vue-next'
+import { Check, Copy, ShieldAlert } from 'lucide-vue-next'
 
 const props = defineProps<{
   hideFooter?: boolean
@@ -27,11 +27,7 @@ const { copied, copy } = useClipboard()
 const hasSavedKey = ref(false)
 const error = ref<string | null>(null)
 
-const formattedKey = computed(() => {
-  const k = pendingRecoveryKey.value
-  if (!k) return ''
-  return k.match(/.{1,5}/g)?.join(' ') ?? k
-})
+const keyGroups = computed(() => pendingRecoveryKey.value?.match(/.{1,5}/g) ?? [])
 
 async function handleConfirm(): Promise<boolean> {
   if (!hasSavedKey.value) return false
@@ -58,38 +54,36 @@ defineExpose({ reset, hasSavedKey, handleConfirm })
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="overflow-hidden rounded-2xl border bg-muted/20">
-      <div class="flex items-center gap-2 px-5 pt-5 text-sm font-medium">
-        <LockKeyhole class="size-4 text-muted-foreground" aria-hidden="true" />
-        {{ t('settings.identity.recoveryKey.setup.keyLabel') }}
+    <button
+      type="button"
+      class="group rounded-2xl border border-dashed bg-muted/30 px-4 pb-3 pt-5 transition-colors hover:bg-muted/50 disabled:pointer-events-none"
+      :disabled="!pendingRecoveryKey"
+      :aria-label="t('settings.identity.recoveryKey.view.copyToClipboard')"
+      @click="copy(pendingRecoveryKey!, t('settings.identity.recoveryKey.setup.keyCopiedToast'))"
+    >
+      <div class="@container">
+        <code v-if="keyGroups.length" class="recovery-key flex select-all justify-center whitespace-nowrap font-mono font-medium">
+          <span v-for="(group, i) in keyGroups" :key="i" class="px-[0.22ch]">{{ group }}</span>
+        </code>
+        <span v-else class="block text-center text-sm text-muted-foreground">{{ t('settings.identity.recoveryKey.setup.generating') }}</span>
       </div>
-      <div class="px-5 py-5">
-        <code class="block select-all break-words text-center font-mono text-base leading-8 sm:text-lg">{{ formattedKey || t('settings.identity.recoveryKey.setup.generating') }}</code>
-      </div>
-      <div class="border-t bg-background/60 p-3">
-        <Button
-          variant="outline"
-          class="w-full"
-          :disabled="!pendingRecoveryKey"
-          @click="copy(pendingRecoveryKey!, t('settings.identity.recoveryKey.setup.keyCopiedToast'))"
-        >
-          <component :is="copied ? Check : Copy" class="mr-2 size-4" />
-          {{ copied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
-        </Button>
-        <p class="mt-2 text-center text-xs text-muted-foreground">{{ t('settings.identity.recoveryKey.setup.masterPasswordHint') }}</p>
-      </div>
-    </div>
+      <span class="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+        <component :is="copied ? Check : Copy" class="size-3.5" aria-hidden="true" />
+        {{ copied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
+        <span aria-hidden="true">·</span>
+        {{ t('settings.identity.recoveryKey.setup.masterPasswordHint') }}
+      </span>
+    </button>
 
-    <div class="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
-      <ShieldAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <p>{{ t('settings.identity.recoveryKey.setup.importantDescription') }}</p>
-    </div>
+    <p class="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+      <ShieldAlert class="mt-px size-3.5 shrink-0" aria-hidden="true" />
+      {{ t('settings.identity.recoveryKey.setup.importantDescription') }}
+    </p>
 
-    <label class="flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/30" :class="hasSavedKey && 'border-primary/30 bg-primary/5'">
+    <label class="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors hover:bg-muted/30" :class="hasSavedKey && 'border-primary/30 bg-primary/5'">
       <Checkbox
         id="saved-key"
         v-model="hasSavedKey"
-        class="mt-0.5"
         :disabled="!pendingRecoveryKey"
       />
       <span class="text-sm leading-relaxed">{{ t('settings.identity.recoveryKey.setup.confirmSavedLabel') }}</span>
@@ -113,3 +107,7 @@ defineExpose({ reset, hasSavedKey, handleConfirm })
     </div>
   </div>
 </template>
+
+<style scoped>
+.recovery-key { font-size: clamp(10px, calc(100cqw / 30), 17px); }
+</style>

@@ -48,7 +48,7 @@ export function coverCell(plan: FoldPlan) {
 export function foldPanel(points: Float32Array, creases: Crease[], angles: number[], bend: number) {
   for (let i = 0; i < creases.length; i++) {
     const theta = angles[i]
-    if (theta <= 0) continue
+    if (theta === 0) continue
     const { axis, at, hinge } = creases[i]
     const k = axis === 'x' ? 0 : 1
     if (points[k] <= at) continue

@@ -44,7 +44,7 @@ void main() {
 
 const FRAGMENT = `#version 300 es
 precision highp float;
-#define PATTERN_STEP 120.0
+#define PATTERN_STEP 150.0
 in vec2 v_flat;
 in vec3 v_normal;
 in vec3 v_world;
@@ -97,9 +97,9 @@ void main() {
     return;
   }
 
-  vec2 diagonal = mat2(0.7071, -0.7071, 0.7071, 0.7071) * v_flat / PATTERN_STEP;
-  diagonal.x += mod(floor(diagonal.y), 2.0) * 0.5;
-  surface = mix(paper, vec3(0.42, 0.31, 0.17), texture(u_pattern, fract(diagonal)).a * 0.13);
+  vec2 tile = v_flat / PATTERN_STEP;
+  tile.x += mod(floor(tile.y), 2.0) * 0.5;
+  surface = mix(paper, vec3(0.42, 0.31, 0.17), texture(u_pattern, fract(tile)).a * 0.13);
   vec2 local = (v_flat - u_coverRect.xy) / u_coverRect.zw;
   if (all(greaterThanEqual(local, vec2(0.0))) && all(lessThanEqual(local, vec2(1.0)))) {
     vec4 art = texture(u_cover, local);
@@ -198,16 +198,15 @@ function drawCover(logo: HTMLImageElement | null, width: number, height: number,
   return canvas
 }
 
-/** One tile of the logo print on the paper's back, pre-mirrored to read right once a flap turns over. */
+/** One tile of the logo print on the paper's back, upright and pre-mirrored to read right once a flap turns over. */
 function drawPattern(logo: HTMLImageElement | null) {
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = 128
   const ctx = canvas.getContext('2d')!
   if (!logo) return canvas
   ctx.translate(64, 64)
-  ctx.rotate(Math.PI / 4)
   ctx.scale(-1, 1)
-  ctx.drawImage(logo, -18, -18, 36, 36)
+  ctx.drawImage(logo, -30, -30, 60, 60)
   return canvas
 }
 

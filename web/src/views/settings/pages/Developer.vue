@@ -28,6 +28,7 @@ import {
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import BuildingShadeSection from '@/components/settings/developer/BuildingShadeSection.vue'
+import BatteryRunSection from '@/components/settings/developer/BatteryRunSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -434,6 +435,8 @@ onMounted(() => {
     </SettingsSection>
 
     <BuildingShadeSection />
+
+    <BatteryRunSection />
 
     <SettingsSection
       id="dev-info"

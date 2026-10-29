@@ -2392,6 +2392,10 @@
       "buildingShading": {
         "title": "Building lighting",
         "description": "Tune the shadows, occlusion and edges on the 3D buildings. Changes apply to the map live and are not saved."
+      },
+      "batteryRun": {
+        "title": "Battery run",
+        "description": "Record battery drain through a navigation run, such as a 20 minute simulated drive, and copy the result."
       }
     },
     "behavior": {

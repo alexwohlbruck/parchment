@@ -1,5 +1,6 @@
 import { onScopeDispose, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDocumentVisibility } from '@vueuse/core'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -59,6 +60,7 @@ export function useGuidanceRouteLine(source: RouteLineSource) {
   const map = strategy?.mapInstance as MaplibreMap | undefined
   let layer: GuidanceRouteLayer | null = null
   let stopLift: (() => void) | null = null
+  const visibility = useDocumentVisibility()
 
   function clear() {
     stopLift?.()
@@ -93,7 +95,7 @@ export function useGuidanceRouteLine(source: RouteLineSource) {
   )
 
   const stopProgress = watch(
-    source.focus,
+    () => (visibility.value === 'hidden' ? null : source.focus()),
     focus => {
       const route = source.route()
       if (!layer || !focus || !route) return

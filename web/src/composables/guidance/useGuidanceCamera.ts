@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import type { Map as MaplibreMap, MapLibreEvent } from 'maplibre-gl'
 import { LngLat } from 'mapbox-gl'
 import { useMapStore } from '@/stores/map.store'
@@ -17,6 +17,7 @@ import { createFramingSpeed, holdZoom, stepFramingSpeed } from '@/lib/guidance/f
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { trackHeldPointers } from '@/lib/map/held-pointers'
 import { isUserGesture, stateAfterGesture, type CameraState } from '@/lib/guidance/camera-gesture'
+import { navCameraMode } from '@/lib/guidance/power-budget'
 
 const ZOOM_SMOOTH_SEC = 1.2
 const PITCH_SMOOTH_SEC = 1
@@ -81,7 +82,7 @@ export function useGuidanceCamera() {
     const target = frameCamera({
       route,
       puck,
-      mode: guidance.preferences.cameraMode,
+      mode: guidance.cameraMode,
       bearingMode: guidance.preferences.bearingMode,
       travelMode,
       visibleHeight: visible.height,
@@ -171,8 +172,8 @@ export function useGuidanceCamera() {
   /** The camera button: resumes following when free, otherwise cycles the mode. */
   function pressCameraButton() {
     if (state.value !== 'following') return follow()
-    const modes = CAMERA_MODES
-    const next = modes[(modes.indexOf(guidance.preferences.cameraMode) + 1) % modes.length]
+    const modes = CAMERA_MODES.filter(mode => navCameraMode(mode, guidance.powerBudget) === mode)
+    const next = modes[(modes.indexOf(guidance.cameraMode) + 1) % modes.length]
     guidance.preferences.cameraMode = next
   }
 
@@ -187,6 +188,8 @@ export function useGuidanceCamera() {
     resumeTimer = setTimeout(follow, AUTO_RESUME_MS)
   }
 
+  const stopFloor = watch(() => guidance.powerBudget.minFrameMs, ms => guidanceEngine.setFrameFloor(ms), { immediate: true })
+
   let unregister: (() => void) | null = null
   if (map) {
     for (const type of USER_MOVE_START) map.on(type, onUserMoveStart)
@@ -196,8 +199,10 @@ export function useGuidanceCamera() {
 
   onScopeDispose(() => {
     unregister?.()
+    stopFloor()
     clearResumeTimer()
     guidanceEngine.setFrameInterval(0)
+    guidanceEngine.setFrameFloor(0)
     if (map) {
       for (const type of USER_MOVE_START) map.off(type, onUserMoveStart)
       for (const type of USER_MOVE_END) map.off(type, onUserMoveEnd)

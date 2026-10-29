@@ -18,6 +18,8 @@
 
 ### Changed
 
+* Navigation is lighter on the battery: the app checks GPS less often on long highway stretches and between transit stops, and stops drawing the map while it is in the background.
+
 ### Fixed
 
 * In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.

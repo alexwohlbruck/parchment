@@ -57,6 +57,9 @@ import { i18n, storedLocale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem, type LngLat } from '@/types/map.types'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import { GpsCadence, PRECISE_INTERVAL_MS } from '@/lib/guidance/gps-cadence'
+import { navCameraMode, navPowerBudget } from '@/lib/guidance/power-budget'
+import { usePowerStore } from '@/stores/power.store'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -179,6 +182,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const appStore = useAppStore()
   const orientation = useOrientationService()
   let turnAroundWatch: TurnAroundWatch | null = null
+  const gpsCadence = new GpsCadence()
+  const powerStore = usePowerStore()
+  /** What navigation may spend on drawing, under the battery saver in force. */
+  const powerBudget = computed(() => navPowerBudget(powerStore.saver))
 
   const kind = ref<GuidanceKind>('route')
   const freeMode = ref<FreeMode>('driving')
@@ -258,9 +265,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
 
+  /** The camera mode in force: the preference, flattened when the battery saver forbids 3D. */
+  const cameraMode = computed(() => navCameraMode(preferences.value.cameraMode, powerBudget.value))
+
   /** What the puck is drawn as for the travel mode underway. */
   const vehicle = computed<VehicleChoice>(previous => {
-    const next = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const choice = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const next = powerBudget.value.allow3d ? choice : { ...choice, indicator: 'arrow' as const }
     return previous?.indicator === next.indicator && previous.color === next.color ? previous : next
   })
 
@@ -280,6 +291,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (!joined) checkJoin()
     const turnAround = puck.snapped && status.value !== 'away' ? updateTurnAround(navRoute, puck) : null
     progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds, turnAround }
+    updateCadence(navRoute, puck, summary.distanceToNext)
     if (status.value === 'away') return
     updateTransit(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
@@ -306,6 +318,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const cue = { heading: cardinal(routeBearing), road: road.kind === 'named' ? road.name : null }
     if (raised) announce({ kind: 'turn-around', ...cue }, puck.s)
     return cue
+  }
+
+  function updateCadence(navRoute: NavRoute, puck: PuckState, distanceToManeuver: number | null) {
+    const stage = transit.value
+    guidanceEngine.setFixInterval(gpsCadence.update({
+      t: Date.now() / 1000,
+      tracking: puck.snapped && status.value === 'navigating',
+      mode: travelModeAt(navRoute, puck.s),
+      speed: puck.speed,
+      distanceToManeuver,
+      ride: stage?.kind === 'riding' ? { stopsLeft: stage.stopsLeft, remaining: stage.remaining } : null,
+    }))
+  }
+
+  function resetCadence() {
+    gpsCadence.reset()
+    guidanceEngine.setFixInterval(PRECISE_INTERVAL_MS)
   }
 
   /** Guidance waits while the traveller is too far from the route to follow it or plan onto it. */
@@ -521,6 +550,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     route.value = navRoute
     guidanceEngine.setRoute(navRoute)
     announcer?.setRoute(navRoute)
+    resetCadence()
     settledHandoffs = new Set()
     handoff.value = null
     furthestS = 0
@@ -710,6 +740,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     leaveRide()
     turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
+    resetCadence()
     const end = parts.at(-1)?.end?.location
     const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
     headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
@@ -805,6 +836,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress,
     status,
     preferences,
+    cameraMode,
+    powerBudget,
     cameraTuning,
     isActive,
     destinationLabel,

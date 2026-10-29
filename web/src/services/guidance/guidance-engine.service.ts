@@ -4,13 +4,16 @@
 import { readonly, shallowRef } from 'vue'
 import { GuidanceEngine, type PuckState } from '@/lib/guidance/guidance-engine'
 import type { NavRoute } from '@/lib/guidance/nav-route'
-import { startPositionSource } from './position-source'
+import { startPositionSource, type PositionSource } from './position-source'
+import { PRECISE_INTERVAL_MS } from '@/lib/guidance/gps-cadence'
 
 let engine: GuidanceEngine | null = null
-let stopSource: (() => void) | null = null
+let source: PositionSource | null = null
+const fixInterval = shallowRef(PRECISE_INTERVAL_MS)
 let lastSample: { t: number; puck: PuckState | null } | null = null
 const FRAME_SEC = 0.008
 let frameIntervalMs = 0
+let frameFloorMs = 0
 let lastFrameMs = -Infinity
 let frameDecision: { at: number; due: boolean } = { at: NaN, due: true }
 const active = shallowRef(false)
@@ -26,16 +29,17 @@ export const guidanceEngine = {
     this.stop()
     const instance = new GuidanceEngine(route)
     engine = instance
-    stopSource = startPositionSource({
+    fixInterval.value = PRECISE_INTERVAL_MS
+    source = startPositionSource({
       onFix: fix => instance.pushFix(fix, nowSec()),
       onMotion: sample => instance.pushMotion(sample),
-    })
+    }, fixInterval.value)
     active.value = true
   },
 
   stop(): void {
-    stopSource?.()
-    stopSource = null
+    source?.stop()
+    source = null
     engine = null
     lastSample = null
     active.value = false
@@ -58,8 +62,9 @@ export const guidanceEngine = {
    * ask, so on calm stretches they drop the same frames and never drift apart.
    */
   frameDue(nowMs: number): boolean {
+    if (document.visibilityState === 'hidden') return false
     if (frameDecision.at === nowMs) return frameDecision.due
-    const due = nowMs - lastFrameMs >= frameIntervalMs - 2
+    const due = nowMs - lastFrameMs >= Math.max(frameIntervalMs, frameFloorMs) - 2
     if (due) lastFrameMs = nowMs
     frameDecision = { at: nowMs, due }
     return due
@@ -68,6 +73,19 @@ export const guidanceEngine = {
   /** 0 renders every frame; ~33 halves the rate to 30 fps. */
   setFrameInterval(ms: number): void {
     frameIntervalMs = ms
+  },
+
+  /** The shortest frame interval allowed whatever the camera asks for, as under battery saver. */
+  setFrameFloor(ms: number): void {
+    frameFloorMs = ms
+  },
+
+  fixInterval: readonly(fixInterval),
+
+  setFixInterval(ms: number): void {
+    if (ms === fixInterval.value) return
+    fixInterval.value = ms
+    source?.setFixInterval(ms)
   },
 
   /** Consumers in the same frame share one sample, so they never disagree. */

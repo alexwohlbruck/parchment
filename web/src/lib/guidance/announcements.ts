@@ -15,6 +15,7 @@ import { modeProfile } from './mode-profiles'
 import type { NavHazard } from './nav-route'
 import type { Handoff } from './handoff'
 import { cardinal, type Cardinal } from './turn-around'
+import { borderCrossings, type BorderCrossing } from './instructions/borders'
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -37,12 +38,14 @@ export type Announcement =
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
   | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
+  /** Entering another country; `region` is its name. */
+  | { kind: 'border'; region: string }
   /** `vehicle` names the mode, as in "Which train are you on?". */
   | { kind: 'vehicle-question'; vehicle: string }
 
-/** Turn prompts are guidance; everything else is an alert, spoken in "alerts only" too. */
+/** Turn prompts and welcomes are guidance; everything else is an alert, spoken in "alerts only" too. */
 export function isAlert(announcement: Announcement): boolean {
-  return announcement.kind !== 'maneuver'
+  return announcement.kind !== 'maneuver' && announcement.kind !== 'border'
 }
 
 const PREPARE_SEC = 115
@@ -51,6 +54,13 @@ const MIN_NOW_METERS = 12
 const CONTINUE_OVER_METERS = 2000
 /** Early prompts wait this long after the previous maneuver, so they don't talk over it. */
 const MIN_GAP_SEC = 8
+/** A border passed further back than this goes unwelcomed, as after a reroute. */
+const BORDER_WINDOW_METERS = 300
+
+export interface AnnouncerOptions {
+  /** Names a country from its alpha-3 code; without it, borders pass unannounced. */
+  regionName?: (country: string) => string | null
+}
 
 export function leadDistances(mode: string, speed: number) {
   const v = Math.max(modeProfile(mode).baseSpeed, speed)
@@ -75,15 +85,20 @@ export class Announcer {
   private fired = new Set<string>()
   private lastStepIndex = -1
   private speechUntil = 0
+  private borders: BorderCrossing[]
 
   constructor(
     private route: NavRoute,
     private destination: LngLat | null,
     private speechSeconds: (announcement: Announcement, available?: number) => number = () => 4,
-  ) {}
+    private options: AnnouncerOptions = {},
+  ) {
+    this.borders = options.regionName ? borderCrossings(route) : []
+  }
 
   setRoute(route: NavRoute): void {
     this.route = route
+    this.borders = this.options.regionName ? borderCrossings(route) : []
     this.fired.clear()
     this.lastStepIndex = -1
     this.speechUntil = 0
@@ -181,6 +196,10 @@ export class Announcer {
       }
       break
     }
+
+    const border = this.borders.find(b => puck.s >= b.s && puck.s - b.s <= BORDER_WINDOW_METERS)
+    const region = border && this.options.regionName?.(border.country)
+    if (border && region && this.once(`border:${Math.round(border.s)}`)) due.push({ kind: 'border', region })
 
     const ahead = upcomingHazard(route, puck.s, puck.speed)
     if (ahead && this.once(`hazard:${ahead.hazard.kind}:${Math.round(ahead.hazard.startDistance)}`)) {

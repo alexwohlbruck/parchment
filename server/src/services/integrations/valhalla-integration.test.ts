@@ -696,10 +696,14 @@ describe('instructions', () => {
     })
   })
 
-  test('parses a numeric exit number off the sign', async () => {
-    expect(
-      (await instructionFor({ sign: { exit_number: '23A' } })).exitNumber,
-    ).toBe(23)
+  test('reads the motorway exit number off the sign', async () => {
+    const instruction = await instructionFor({ sign: { exit_number_elements: [{ text: '23A' }] } })
+    expect(instruction.exitRef).toBe('23A')
+    expect(instruction.exitNumber).toBeUndefined()
+  })
+
+  test('takes the roundabout exit from its count', async () => {
+    expect((await instructionFor({ roundabout_exit_count: 2 })).exitNumber).toBe(2)
   })
 
   test('leaves the exit number unset without a sign', async () => {

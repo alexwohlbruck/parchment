@@ -203,6 +203,10 @@ export interface RouteInstruction {
     | 'sharp-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
+  /** A motorway exit's posted number, e.g. "12A". */
+  exitRef?: string
+  /** Where the signs at the maneuver point, e.g. "Downtown, Brooklyn". */
+  destination?: string
 
   // Elevation and surface data (for bike/pedestrian modes)
   elevation?: number // meters above sea level

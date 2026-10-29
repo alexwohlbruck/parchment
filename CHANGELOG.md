@@ -12,6 +12,8 @@
 
 * Transit guidance notices when you board an earlier, later or interchangeable vehicle and follows it, asking which one you're on when it can't tell.
 
+* Premium navigation describes turns by what you see: the light or sign you turn at, the bridge you just crossed, which lane to use, the exit number and where the signs point.
+
 ### Changed
 
 ### Fixed

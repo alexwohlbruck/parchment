@@ -151,6 +151,21 @@ export type RouteHazardKind =
   | 'rough_surface'
   | 'shared_space'
   | 'sharp_curve'
+  | 'stop'
+  | 'give_way'
+  | 'tram_tracks'
+  | 'tram_crossing'
+  | 'unlit'
+  | 'flood_prone'
+  | 'icy_bridge'
+  | 'school_zone'
+  | 'traffic_calming'
+  | 'no_sidewalk'
+  | 'low_clearance'
+  | 'toll'
+  | 'speed_camera'
+  | 'movable_bridge'
+  | 'hazard'
 
 /** Something a route passes through that's worth knowing about, placed by distance along its segment. */
 export interface RouteHazard {
@@ -267,6 +282,24 @@ export interface RouteLanesRequest {
 }
 
 export type LanesProfile = 'car' | 'bike'
+
+export type PointHazardsProfile = 'car' | 'bike' | 'foot'
+
+/** What barrelman's /route/hazards takes: a street segment's line and who travels it. */
+export interface RoutePointHazardsRequest {
+  coordinates: [lng: number, lat: number][]
+  profile: PointHazardsProfile
+}
+
+/** A hazard barrelman read from OSM tags along a route, by metres along the line sent. */
+export interface RoutePointHazard {
+  kind: string
+  distance: number
+  endDistance?: number
+  coordinate: [lng: number, lat: number]
+  osm: string
+  detail?: string
+}
 
 export interface RouteLanes {
   drivingSide: DrivingSide

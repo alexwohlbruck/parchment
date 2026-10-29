@@ -1,4 +1,4 @@
-// Lights and rail crossings drawn as small signs on the route, in logical pixels.
+// Lights, stop and yield signs and rail crossings drawn as small signs on the route, in logical pixels.
 
 import { palette } from '@/lib/palette'
 import type { HazardSignKind } from './hazard-callouts'
@@ -17,6 +17,8 @@ export interface HazardSign {
   strokes: SignStroke[]
 }
 
+const OCTAGON = 'M6.6 1h6.8L19 6.6v6.8L13.4 19H6.6L1 13.4V6.6Z'
+
 const lamp = (cy: number, fill: string): SignStroke => ({ d: `M4.6 ${cy}a2.4 2.4 0 1 0 4.8 0 2.4 2.4 0 1 0-4.8 0Z`, fill })
 
 export const HAZARD_SIGNS: Record<HazardSignKind, HazardSign> = {
@@ -28,6 +30,22 @@ export const HAZARD_SIGNS: Record<HazardSignKind, HazardSign> = {
       lamp(6.5, '#f0533f'),
       lamp(13, '#f5b52e'),
       lamp(19.5, '#3cba6a'),
+    ],
+  },
+  stop: {
+    width: 20,
+    height: 20,
+    strokes: [
+      { d: OCTAGON, fill: palette.compass[500], stroke: '#ffffff', width: 1.5 },
+      { d: 'M7.4 3h5.2L17 7.4v5.2L12.6 17H7.4L3 12.6V7.4Z', stroke: '#ffffff', width: 0.9 },
+    ],
+  },
+  give_way: {
+    width: 22,
+    height: 20,
+    strokes: [
+      { d: 'M2.5 2.5h17L11 17.5Z', stroke: '#ffffff', width: 5 },
+      { d: 'M2.5 2.5h17L11 17.5Z', fill: '#ffffff', stroke: palette.compass[500], width: 2.5 },
     ],
   },
   rail_crossing: {

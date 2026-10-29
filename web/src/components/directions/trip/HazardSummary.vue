@@ -9,7 +9,7 @@ const props = defineProps<{ hazards: RouteHazard[]; detailed: boolean }>()
 const { t } = useI18n()
 
 /** Counted kinds read as "12 lights"; the rest by name. Counts are the premium view. */
-const COUNTED = new Set(['crosswalk', 'traffic_signals'])
+const COUNTED = new Set(['crosswalk', 'traffic_signals', 'stop'])
 
 const items = computed(() => {
   const counts = hazardCounts(props.hazards)

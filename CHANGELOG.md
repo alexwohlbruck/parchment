@@ -6,6 +6,8 @@
 
 * The satellite globe includes the Moon with live lunar phases.
 
+* Navigation warns of stop and yield signs, tram tracks, unlit paths after dark, flood-prone roads in rain, icy bridges, school zones, low clearances and more, and shows real traffic lights.
+
 * Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.
 
 * Transit guidance notices when you board an earlier, later or interchangeable vehicle and follows it, asking which one you're on when it can't tell.

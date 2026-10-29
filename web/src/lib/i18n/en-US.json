@@ -2724,7 +2724,7 @@
   "onboarding": {
     "welcome": {
       "title": "Welcome to Parchment",
-      "description": "The world's best digital map. Setup takes about a minute.",
+      "description": "The world's best digital map.",
       "privacy": "Privacy",
       "privacyDetail": "All your data, secure and encrypted",
       "sustainability": "Sustainability",

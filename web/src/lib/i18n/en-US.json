@@ -1399,7 +1399,18 @@
         "sharp_curve": "Sharp curve ahead",
         "steep_grade": "Steep grade ahead",
         "steps": "Stairs ahead",
-        "shared_space": "Shared street ahead, watch for people walking"
+        "shared_space": "Shared street ahead, watch for people walking",
+        "tram_tracks": "Tram tracks in the road ahead, keep clear of the rails",
+        "tram_crossing": "Tram tracks ahead, cross them square on",
+        "unlit": "Unlit stretch ahead",
+        "flood_prone": "Road ahead floods in heavy rain",
+        "icy_bridge": "Bridge ahead may be icy",
+        "school_zone": "School zone ahead",
+        "no_sidewalk": "No sidewalk ahead, watch for traffic",
+        "low_clearance": "Low clearance ahead",
+        "speed_camera": "Speed camera ahead",
+        "movable_bridge": "Drawbridge ahead",
+        "hazard": "Hazard ahead"
       },
       "useLanes": "{action}. Use {lanes}",
       "lanes": {
@@ -1430,11 +1441,27 @@
       "dismount": "Walk your bike",
       "rough_surface": "Rough surface",
       "shared_space": "Shared street",
-      "sharp_curve": "Sharp curve"
+      "sharp_curve": "Sharp curve",
+      "stop": "Stop sign",
+      "give_way": "Yield sign",
+      "tram_tracks": "Tram tracks",
+      "tram_crossing": "Tram crossing",
+      "unlit": "Unlit",
+      "flood_prone": "Flood-prone road",
+      "icy_bridge": "Icy bridge",
+      "school_zone": "School zone",
+      "traffic_calming": "Speed bump",
+      "no_sidewalk": "No sidewalk",
+      "low_clearance": "Low clearance",
+      "toll": "Toll",
+      "speed_camera": "Speed camera",
+      "movable_bridge": "Drawbridge",
+      "hazard": "Hazard"
     },
     "hazardCounts": {
       "crosswalk": "{n} crosswalk | {n} crosswalks",
-      "traffic_signals": "{n} light | {n} lights"
+      "traffic_signals": "{n} light | {n} lights",
+      "stop": "{n} stop sign | {n} stop signs"
     },
     "handoff": {
       "park": "Park",

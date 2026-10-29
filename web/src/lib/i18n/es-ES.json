@@ -1365,7 +1365,18 @@
         "sharp_curve": "Curva cerrada más adelante",
         "steep_grade": "Pendiente pronunciada más adelante",
         "steps": "Escaleras más adelante",
-        "shared_space": "Calle compartida más adelante, atención a los peatones"
+        "shared_space": "Calle compartida más adelante, atención a los peatones",
+        "tram_tracks": "Vías de tranvía en la calzada más adelante, evita los raíles",
+        "tram_crossing": "Vías de tranvía más adelante, crúzalas en perpendicular",
+        "unlit": "Tramo sin iluminación más adelante",
+        "flood_prone": "La calzada más adelante se inunda con lluvia fuerte",
+        "icy_bridge": "Puente con posible hielo más adelante",
+        "school_zone": "Zona escolar más adelante",
+        "no_sidewalk": "Sin acera más adelante, atención al tráfico",
+        "low_clearance": "Gálibo reducido más adelante",
+        "speed_camera": "Radar de velocidad más adelante",
+        "movable_bridge": "Puente móvil más adelante",
+        "hazard": "Peligro más adelante"
       },
       "useLanes": "{action}. Usa {lanes}",
       "lanes": {
@@ -1396,11 +1407,27 @@
       "dismount": "Bájate de la bici",
       "rough_surface": "Firme irregular",
       "shared_space": "Calle compartida",
-      "sharp_curve": "Curva cerrada"
+      "sharp_curve": "Curva cerrada",
+      "stop": "Señal de stop",
+      "give_way": "Ceda el paso",
+      "tram_tracks": "Vías de tranvía",
+      "tram_crossing": "Cruce de tranvía",
+      "unlit": "Sin iluminación",
+      "flood_prone": "Calzada inundable",
+      "icy_bridge": "Puente con hielo",
+      "school_zone": "Zona escolar",
+      "traffic_calming": "Badén",
+      "no_sidewalk": "Sin acera",
+      "low_clearance": "Gálibo reducido",
+      "toll": "Peaje",
+      "speed_camera": "Radar",
+      "movable_bridge": "Puente móvil",
+      "hazard": "Peligro"
     },
     "hazardCounts": {
       "crosswalk": "{n} paso de peatones | {n} pasos de peatones",
-      "traffic_signals": "{n} semáforo | {n} semáforos"
+      "traffic_signals": "{n} semáforo | {n} semáforos",
+      "stop": "{n} señal de stop | {n} señales de stop"
     },
     "handoff": {
       "park": "Aparca",

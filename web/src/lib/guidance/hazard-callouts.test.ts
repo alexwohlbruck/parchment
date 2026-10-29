@@ -27,6 +27,11 @@ describe('hazardCallouts', () => {
     expect(kindsAt(route, 100)).toEqual(['sharp_curve@200'])
   })
 
+  test('stop and yield signs are signs too; tagged hazards like a flood-prone road are danger bubbles', () => {
+    const route = routeWith([hazard('stop', 120), hazard('give_way', 160), hazard('flood_prone', 200)])
+    expect(hazardCallouts(route, 100, 5, null).map(c => [c.hazard.kind, c.tone])).toEqual([['flood_prone', 'danger']])
+  })
+
   test('a bubble beside a sign gives way to it', () => {
     const route = routeWith([hazard('crosswalk', 105), hazard('rail_crossing', 120), hazard('crosswalk', 135), hazard('steps', 200)])
     expect(kindsAt(route, 100)).toEqual(['steps@200'])

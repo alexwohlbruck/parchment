@@ -53,7 +53,7 @@ const motion = {
         />
       </div>
     </div>
-    <div class="space-y-2 text-center">
+    <div class="text-center" :class="bleed ? 'space-y-1' : 'space-y-2'">
       <h2 class="text-balance text-2xl font-semibold">{{ title }}</h2>
       <p class="mx-auto max-w-md text-pretty text-sm leading-relaxed text-muted-foreground">{{ description }}</p>
     </div>

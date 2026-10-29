@@ -47,7 +47,7 @@ const INK_STROKES = ['M2 6 C 30 2, 60 9, 98 4', 'M2 5 C 28 9, 66 1, 98 6', 'M2 4
       </template>
     </OnboardingHeader>
 
-    <ul class="mx-auto grid w-full max-w-lg gap-5 pt-2 sm:grid-cols-3 sm:gap-8">
+    <ul class="mx-auto grid w-full max-w-lg gap-5 sm:grid-cols-3 sm:gap-8">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"

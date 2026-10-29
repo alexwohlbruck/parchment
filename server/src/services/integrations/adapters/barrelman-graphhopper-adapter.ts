@@ -9,6 +9,7 @@ import type {
   RouteRequest,
 } from '../../../types/unified-routing.types'
 import { nameSidewalkSteps } from '../../../lib/route-street-names'
+import { foldRouteContext } from '../../../lib/route-context'
 import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 import { translate } from '../../../lib/i18n/translate'
 import { graphHopperSigns } from '../../../lib/graphhopper-signs'
@@ -70,7 +71,7 @@ export class BarrelmanGraphHopperAdapter {
       elevation: elevation ?? undefined,
     }))
 
-    const edgeSegments: RouteEdgeSegment[] | undefined =
+    const edgeSegments: RouteEdgeSegment[] | undefined = foldRouteContext(
       path.edge_segments?.map((seg: any) => ({
         startDistance: seg.startDistance,
         endDistance: seg.endDistance,
@@ -94,7 +95,10 @@ export class BarrelmanGraphHopperAdapter {
         country: seg.country,
         streetName: seg.streetName,
         streetNameSource: seg.streetNameSource,
-      }))
+        crossingName: seg.crossingName,
+      })),
+      path,
+    )
 
     const bbox = path.bbox || [0, 0, 0, 0]
 

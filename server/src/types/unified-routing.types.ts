@@ -224,6 +224,8 @@ export interface RouteInstruction {
 /** `tag`: the sidewalk's own is_sidepath:of:name or street:name; `geometry`: the street found running beside it. */
 export type StreetNameSource = 'tag' | 'geometry'
 
+export type OverpassKind = 'road' | 'rail'
+
 export interface RouteEdgeSegment {
   startDistance: number     // meters from leg start
   endDistance: number       // meters from leg start
@@ -245,6 +247,11 @@ export interface RouteEdgeSegment {
   country?: string          // ISO 3166-1 alpha-3
   streetName?: string       // the street an unnamed sidewalk runs beside
   streetNameSource?: StreetNameSource
+  crossingName?: string     // the road a crosswalk crosses
+  overpass?: OverpassKind   // set beneath a road or railway passing over the route
+  state?: string            // the state or province the edge is in
+  inPark?: boolean          // on foot, inside a park
+  parkName?: string
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string

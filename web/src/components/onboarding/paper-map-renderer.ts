@@ -339,6 +339,11 @@ export class PaperMapRenderer {
     this.vao = vao
   }
 
+  /** When the final fold lands flat. */
+  get landAt() {
+    return this.beats[this.beats.length - 1].end
+  }
+
   /** When the final fold begins: the app around the paper can show from here. */
   get revealAt() {
     return this.beats[this.beats.length - 1].start

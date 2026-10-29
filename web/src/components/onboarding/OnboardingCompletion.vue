@@ -13,7 +13,7 @@ const phase = ref<'waiting' | 'unfolding' | 'landed' | 'leaving'>('waiting')
 const controller = new AbortController()
 const timers: ReturnType<typeof setTimeout>[] = []
 const fade = 350
-const CHROME_LEAD = 350
+const CHROME_LEAD = 450
 const unfoldDuration = ref(0)
 let renderer: PaperMapRenderer | null = null
 let mounted = false
@@ -55,7 +55,7 @@ async function capture() {
   phase.value = 'unfolding'
   emit('start')
   document.documentElement.classList.add('paper-unfolding')
-  timers.push(setTimeout(() => emit('chrome'), Math.max(0, renderer.revealAt - CHROME_LEAD)))
+  timers.push(setTimeout(() => emit('chrome'), Math.max(0, renderer.landAt - CHROME_LEAD)))
   timers.push(setTimeout(() => { phase.value = 'landed' }, renderer.revealAt))
   timers.push(setTimeout(showLiveMap, renderer.duration))
   timers.push(setTimeout(() => { phase.value = 'leaving' }, renderer.duration))

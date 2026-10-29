@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingHeader from './OnboardingHeader.vue'
 import { inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { validateKey } from './types'
@@ -17,14 +18,10 @@ const checkoutSuccessUrl = `${window.location.origin}${window.location.pathname}
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.subscription.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.subscription.description') }}
-      </p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.subscription.title')"
+      :description="t('onboarding.subscription.description')"
+    />
 
     <PlanSelector :checkout-success-url="checkoutSuccessUrl" />
   </div>

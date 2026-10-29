@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingHeader from './OnboardingHeader.vue'
 import { computed, inject, onMounted, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -12,7 +13,7 @@ import type { PaletteColor } from '@/lib/palette'
 import { UnitSystem } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
-import { Sun, Moon, Monitor, Check } from 'lucide-vue-next'
+import { Sun, Moon, Monitor, Check, Palette } from 'lucide-vue-next'
 import {
   Select,
   SelectContent,
@@ -88,23 +89,20 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.theme.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.theme.description') }}
-      </p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.theme.title')"
+      :description="t('onboarding.theme.description')"
+      :icon="Palette"
+    />
 
     <!-- Language & Units -->
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 gap-4 rounded-2xl border bg-muted/20 p-4 min-[360px]:grid-cols-2">
       <div class="flex flex-col gap-2">
-        <p class="text-sm font-medium">
+        <label for="onboarding-language" class="text-sm font-medium">
           {{ t('onboarding.theme.languageLabel') }}
-        </p>
+        </label>
         <Select v-model="locale">
-          <SelectTrigger class="w-full">
+          <SelectTrigger id="onboarding-language" class="w-full bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -120,20 +118,20 @@ onMounted(() => {
       </div>
 
       <div class="flex flex-col gap-2">
-        <p class="text-sm font-medium">
+        <label for="onboarding-units" class="text-sm font-medium">
           {{ t('onboarding.theme.unitsLabel') }}
-        </p>
+        </label>
         <Select v-model="unitSystem">
-          <SelectTrigger class="w-full">
+          <SelectTrigger id="onboarding-units" class="w-full bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
               <SelectItem :value="UnitSystem.METRIC">
-                {{ t('settings.behavior.units.metric') }}
+                {{ t('onboarding.theme.metric') }}
               </SelectItem>
               <SelectItem :value="UnitSystem.IMPERIAL">
-                {{ t('settings.behavior.units.imperial') }}
+                {{ t('onboarding.theme.imperial') }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -146,7 +144,7 @@ onMounted(() => {
       <p class="text-sm font-medium mb-3">
         {{ t('onboarding.theme.colorLabel') }}
       </p>
-      <div class="flex flex-wrap gap-2 justify-center">
+      <div class="flex flex-wrap gap-3 rounded-2xl border bg-muted/20 p-4">
         <button
           v-for="color in allColors"
           :key="color"
@@ -157,7 +155,8 @@ onMounted(() => {
               : 'hover:scale-110',
           ]"
           :style="{ backgroundColor: palette[color as PaletteColor]?.[500] }"
-          :title="t(`settings.appearance.appTheme.color.values.${color}`)"
+          :aria-label="t(`settings.appearance.appTheme.color.values.${color}`)"
+          :aria-pressed="accentColor === color"
           @click="setAccentColor(color)"
         >
           <Check
@@ -173,11 +172,12 @@ onMounted(() => {
       <p class="text-sm font-medium mb-3">
         {{ t('onboarding.theme.modeLabel') }}
       </p>
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-3 gap-2">
         <button
           v-for="option in modeOptions"
           :key="option.value"
-          class="flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors cursor-pointer"
+          class="flex flex-col items-center gap-3 rounded-xl border px-2 py-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :aria-pressed="currentMode === option.value"
           :class="[
             currentMode === option.value
               ? 'border-primary bg-primary/5'

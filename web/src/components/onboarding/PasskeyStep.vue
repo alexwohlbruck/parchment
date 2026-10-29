@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Fingerprint } from 'lucide-vue-next'
+import OnboardingHeader from './OnboardingHeader.vue'
 import { inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PasskeyOfferContent from '@/components/identity/PasskeyOfferContent.vue'
@@ -19,15 +21,12 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.passkey.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.passkey.description') }}
-      </p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.passkey.title')"
+      :description="t('onboarding.passkey.description')"
+      :icon="Fingerprint"
+    />
 
-    <PasskeyOfferContent hide-skip @complete="emit('complete')" />
+    <PasskeyOfferContent hide-skip hide-intro @complete="emit('complete')" />
   </div>
 </template>

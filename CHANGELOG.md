@@ -10,6 +10,8 @@
 
 ### Changed
 
+* Onboarding has clearer recovery key and passkey setup, with simpler copy and consistent layouts throughout.
+
 ### Fixed
 
 * Dismiss toasts with a swipe or the close button while a dialog or bottom sheet is open.

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingHeader from './OnboardingHeader.vue'
 import { ref, inject, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -211,20 +212,17 @@ function removeAvatar() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.profile.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.profile.description') }}
-      </p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.profile.title')"
+      :description="t('onboarding.profile.description')"
+    />
 
     <!-- Avatar picker -->
     <div class="flex justify-center">
       <button
         type="button"
-        class="avatar-picker group relative size-28 rounded-full overflow-hidden cursor-pointer ring-2 ring-border ring-offset-2 ring-offset-background focus-visible:ring-ring"
+        class="avatar-picker group relative size-24 rounded-full cursor-pointer ring-1 ring-border ring-offset-4 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        :aria-label="t('onboarding.profile.chooseAvatar')"
         @click="triggerFileInput"
       >
         <div
@@ -238,9 +236,9 @@ function removeAvatar() {
         </div>
 
         <div
-          class="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
         >
-          <Camera class="size-5 text-white drop-shadow-sm" />
+          <Camera class="size-4 text-muted-foreground" />
         </div>
 
         <div
@@ -267,7 +265,7 @@ function removeAvatar() {
 
     <form class="flex flex-col gap-4" @submit.prevent>
       <!-- Name fields -->
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2">
         <FormField v-slot="{ componentField }" name="firstName">
           <FormItem>
             <FormLabel>{{ t('onboarding.profile.firstName') }}</FormLabel>
@@ -309,7 +307,7 @@ function removeAvatar() {
           <input
             id="alias"
             :value="aliasInput"
-            class="flex-1 bg-transparent px-1 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            class="min-w-0 flex-1 bg-transparent px-1 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             :placeholder="t('onboarding.alias.placeholder')"
             :disabled="uploading"
             @input="onAliasInput"

@@ -82,3 +82,13 @@ test('finishes onboarding after OpenStreetMap connects on a free server', async 
   expect(mocks.goToStashedPath).toHaveBeenCalledOnce()
   wrapper.unmount()
 })
+
+test('clearly offers skipping passkey setup while continuing onboarding', async () => {
+  localStorage.setItem('onboarding-step', 'passkey')
+  const wrapper = mountDialog()
+  const skip = wrapper.findAll('button').find(button => button.text() === 'settings.identity.recoveryKey.passkeyOffer.skipForNow')!
+  await skip.trigger('click')
+  expect(wrapper.findComponent({ name: 'OpenStreetMapStep' }).exists()).toBe(true)
+  expect(localStorage.getItem('onboarding-step')).toBe('openstreetmap')
+  wrapper.unmount()
+})

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingHeader from './OnboardingHeader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, ExternalLink, Map, MapPin, Pencil } from 'lucide-vue-next'
@@ -47,10 +48,10 @@ onMounted(load)
       </div>
     </div>
 
-    <div class="space-y-2 text-center">
-      <h2 class="text-2xl font-semibold text-balance">{{ t('onboarding.openstreetmap.title') }}</h2>
-      <p class="text-sm leading-relaxed text-muted-foreground">{{ t('onboarding.openstreetmap.description') }}</p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.openstreetmap.title')"
+      :description="t('onboarding.openstreetmap.description')"
+    />
 
     <div class="space-y-4">
       <div v-for="(icon, benefit) in { notes: MapPin, edits: Pencil }" :key="benefit" class="flex gap-3">

@@ -39,6 +39,7 @@ const authStore = useAuthStore()
 const sub = useSubscriptionService()
 const integrations = useIntegrationsStore()
 const skippingOsm = computed(() => currentStep.value.id === 'openstreetmap' && !integrations.osmProfile)
+const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 
 const currentIndex = ref(0)
 const completing = ref(false)
@@ -236,13 +237,16 @@ function handleInteractOutside(e: Event) {
         <div v-else />
 
         <Button
-          :variant="skippingOsm ? 'ghost' : 'default'"
+          :variant="skippingOsm || skippingPasskey ? 'ghost' : 'default'"
           @click="next"
           :disabled="completing || !canContinue"
         >
           <Spinner v-if="completing" class="h-4 w-4 mr-2" />
           <template v-else>
-            <template v-if="skippingOsm">
+            <template v-if="skippingPasskey">
+              {{ t('settings.identity.recoveryKey.passkeyOffer.skipForNow') }}
+            </template>
+            <template v-else-if="skippingOsm">
               {{ t('onboarding.openstreetmap.skip') }}
             </template>
             <template v-else-if="isLast">

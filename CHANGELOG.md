@@ -6,7 +6,13 @@
 
 * The satellite globe includes the Moon with live lunar phases.
 
+* Navigation warns of stop and yield signs, tram tracks, unlit paths after dark, flood-prone roads in rain, icy bridges, school zones, low clearances and more, and shows real traffic lights.
+
 * Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.
+
+* Transit guidance notices when you board an earlier, later or interchangeable vehicle and follows it, asking which one you're on when it can't tell.
+
+* Premium navigation describes turns by what you see: the light or sign you turn at, the bridge you just crossed, which lane to use, the exit number and where the signs point.
 
 * Walking directions name the street a sidewalk runs beside, so steps, voice and the road label say "Turn left onto W 3rd St" instead of "Path".
 

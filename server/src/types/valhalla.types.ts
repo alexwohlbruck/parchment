@@ -94,10 +94,15 @@ export type ValhallaManeuver = {
   street_names?: string[]
   begin_shape_index?: number
   end_shape_index?: number
+  roundabout_exit_count?: number
   sign?: {
-    exit_number?: string
+    exit_number_elements?: ValhallaSignElement[]
+    exit_branch_elements?: ValhallaSignElement[]
+    exit_toward_elements?: ValhallaSignElement[]
   }
 }
+
+export type ValhallaSignElement = { text: string }
 
 export type ValhallaRouteRequest = {
   locations: Location[]

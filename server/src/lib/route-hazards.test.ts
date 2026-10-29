@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { attachHazards, isPremiumHazard, routeHazards } from './route-hazards'
+import { isPremiumHazard, routeHazards } from './route-hazards'
 import type { Coordinate, RouteEdgeSegment } from '../types/unified-routing.types'
 
 /** A straight 1 km line north, with optional edge attributes along it. */
@@ -115,19 +115,37 @@ describe('routeHazards', () => {
   }, 20_000)
 })
 
-describe('tiers', () => {
-  test('safety kinds are never premium', () => {
-    for (const kind of ['crosswalk', 'uncontrolled_crossing', 'rail_crossing', 'ford', 'steep_grade', 'steps', 'sharp_curve', 'shared_space', 'tunnel', 'traffic_signals'] as const) {
-      expect(isPremiumHazard(kind)).toBe(false)
-    }
+describe('with tagged hazards', () => {
+  const light = (startDistance: number) => ({ kind: 'traffic_signals' as const, severity: 'low' as const, startDistance, coordinate: { lat: 40, lng: -74 } })
+
+  test("real lights replace the signalled crossings a driver would otherwise get", () => {
+    const route = straight([{ crossing: 'TRAFFIC_SIGNALS' }, {}, { crossing: 'TRAFFIC_SIGNALS' }])
+    const lights = routeHazards(route, { points: [light(260)] }).filter((h) => h.kind === 'traffic_signals')
+    expect(lights.map((h) => h.startDistance)).toEqual([260])
   })
 
-  test('premium kinds are stripped for everyone else, including nested segments', () => {
-    const rough = straight([{ surface: 'gravel' }, { crossing: 'marked' }])
-    const trip = [{ ...straight(), details: { multimodalSegments: [rough] } }] as any[]
-    attachHazards(trip, { premium: false })
-    expect(trip[0].details.multimodalSegments[0].hazards.map((h: any) => h.kind)).toEqual(['crosswalk'])
-    attachHazards(trip, { premium: true })
-    expect(trip[0].details.multimodalSegments[0].hazards.map((h: any) => h.kind)).toEqual(['rough_surface', 'crosswalk'])
+  test('on foot the signalled crossing is the light that matters, and stays', () => {
+    const route = straight([{ crossing: 'TRAFFIC_SIGNALS' }], 'walking')
+    expect(routeHazards(route, { points: [light(500)] }).filter((h) => h.kind === 'traffic_signals')).toHaveLength(2)
+  })
+
+  test('without an answer from barrelman the crossings stand in for lights', () => {
+    expect(routeHazards(straight([{ crossing: 'TRAFFIC_SIGNALS' }]), { points: null })[0].kind).toBe('traffic_signals')
+  })
+
+  test('bridges warn of ice only in a frost, and not on foot', () => {
+    const bridge = (mode: string) => straight([{}, { roadEnvironment: 'bridge' }], mode)
+    expect(routeHazards(bridge('driving')).some((h) => h.kind === 'icy_bridge')).toBe(false)
+    expect(routeHazards(bridge('driving'), { freezing: true }).find((h) => h.kind === 'icy_bridge')).toMatchObject({ startDistance: 100, endDistance: 200 })
+    expect(routeHazards(bridge('walking'), { freezing: true }).some((h) => h.kind === 'icy_bridge')).toBe(false)
+  })
+})
+
+describe('tiers', () => {
+  test('safety kinds are never premium', () => {
+    for (const kind of ['crosswalk', 'uncontrolled_crossing', 'rail_crossing', 'ford', 'steep_grade', 'steps', 'sharp_curve', 'shared_space', 'tunnel', 'traffic_signals',
+      'stop', 'give_way', 'tram_tracks', 'tram_crossing', 'unlit', 'flood_prone', 'icy_bridge', 'school_zone', 'no_sidewalk', 'low_clearance', 'hazard'] as const) {
+      expect(isPremiumHazard(kind)).toBe(false)
+    }
   })
 })

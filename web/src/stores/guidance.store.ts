@@ -19,8 +19,15 @@ import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
-import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
-import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
+import type { LanePlan } from '@/lib/guidance/lanes'
+import { speechFor, type RichSource } from '@/lib/guidance/instructions/rich-announcement'
+import { richInstruction } from '@/lib/guidance/instructions/rich-instruction'
+import type { RichInstruction } from '@/lib/guidance/instructions/instruction.types'
+import { countryName } from '@/lib/geo/country-codes'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import {
@@ -34,7 +41,10 @@ import {
   type TransitStage,
 } from '@/lib/guidance/transit-progress'
 import { estimatedPuck, RideEstimator, rideFix, type RideEstimate } from '@/lib/guidance/ride-estimator'
-import { applyDepartureChange, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { applyDepartureChange, cascadeAfter, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { earliestItinerary } from '@/lib/guidance/better-itinerary'
+import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
@@ -75,6 +85,8 @@ const HORIZON_RETRY_MS = 10_000
 const ODOMETER_MIN_SPEED = 0.5
 /** No fix for this long: the traveller can't be seen, as underground. */
 const OUT_OF_SIGHT_MS = 30_000
+/** A destination this close to the saved home is home. */
+const HOME_RADIUS_METERS = 75
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
 
@@ -107,6 +119,8 @@ export interface GuidanceProgress extends ProgressSummary {
 
 type LegSegment = NavSegmentInput & TransitSegmentInput & {
   legIndex?: number
+  tripId?: string
+  routeType?: number
   duration?: number
   ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
@@ -191,12 +205,26 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return preferences.value.sound[modeAt(s)] ?? 'all'
   }
 
+  const richGuidance = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+  /** The next maneuver as rich guidance describes it, for premium travellers. */
+  const nextInstruction = computed<RichInstruction | null>(() => {
+    const navRoute = route.value
+    const current = progress.value
+    if (!richGuidance.value || !navRoute || !current?.next) return null
+    const { puck, next } = current
+    return richInstruction(navRoute, next, { from: puck.s, speed: puck.speed, lanes: lanePlans.value.get(next.index) })
+  })
+  /** Whether the leg ends at the traveller's saved home. */
+  let headingHome = false
+
   function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
-    const hint = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? lanePlans.value.get(announcement.step.index) : undefined
-    const lanes = hint ? laneHint(hint) : null
-    return lanes
-      ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
+    const puck = progress.value?.puck
+    const source: RichSource | null = route.value
+      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome }
+      : null
+    return source
+      ? speechFor(announcement, source, richGuidance.value, metric, translate)
       : announcementText(announcement, metric, translate)
   }
 
@@ -401,6 +429,44 @@ export const useGuidanceStore = defineStore('guidance', () => {
     } finally {
       rebooking.value = false
     }
+  }
+
+  /** Rides `candidate` on segment `index` in place of the planned run, re-timing what follows. */
+  async function retargetRide(index: number, candidate: VehicleCandidate, known: string[]) {
+    const segment = segments.value[index]
+    if (!segment || segment.tripId === candidate.tripId) return
+    Object.assign(segment, retargetedRide(segment, candidate, known))
+    const all = (trip.value?.segments ?? []) as unknown as (RebookableSegment & LineRun)[]
+    const at = all.indexOf(segment as unknown as RebookableSegment & LineRun)
+    const timed = at >= 0 ? all : (segments.value as unknown as (RebookableSegment & LineRun)[])
+    const held = await cascadeAfter(timed, at >= 0 ? at : index, (i, minMs) => nextRunAfter(timed[i], minMs))
+    segments.value = [...segments.value]
+    if (route.value) placeRides(route.value)
+    leaveRide()
+    if (!held) await replanAfter(index)
+  }
+
+  /** Replans the rest of the leg from where ride `index` gets off, keeping the ride itself. */
+  async function replanAfter(index: number) {
+    const navRoute = route.value
+    const ridden = segments.value[index]
+    const from = ridden?.arrivalStop?.location ?? ridden?.geometry?.at(-1)
+    const end = segments.value.at(-1)?.geometry?.at(-1)
+    if (!navRoute || !ridden || !from || !end || index >= segments.value.length - 1) return
+    try {
+      const fresh = earliestItinerary(await requestTransitItineraries({ position: from, destination: end, departAt: new Date(ridden.endTime ?? guidanceClock.now()) }))
+      if (!fresh || route.value !== navRoute) return
+      reshape([...segments.value.slice(0, index + 1), ...adoptItinerary(segments.value, index + 1, fresh.segments as LegSegment[])])
+    } catch {
+      // The re-timed plan still stands; the itinerary check offers a better one later.
+    }
+  }
+
+  /** Asks aloud which vehicle the rider boarded on segment `index`. */
+  function askWhichVehicle(index: number) {
+    const s = progress.value?.puck.s
+    if (s == null) return
+    announce({ kind: 'vehicle-question', vehicle: getRouteTypeKey(segments.value[index]?.routeType) }, s)
   }
 
   function settleHandoff() {
@@ -645,11 +711,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
     turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
     const end = parts.at(-1)?.end?.location
+    const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
+    headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
       const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
       return speechDuration(text, rate)
-    })
+    }, richGuidance.value ? { regionName: code => countryName(code, storedLocale.value) } : {})
     const initial = announcer.start()
     if (initial) announce(initial, 0)
     return navRoute
@@ -756,11 +824,15 @@ export const useGuidanceStore = defineStore('guidance', () => {
     rideEstimate,
     rebooking,
     catchNextRun,
+    retargetRide,
+    askWhichVehicle,
     clockMs,
     addStop,
     switchDock,
     lanePlans,
     setLanePlan,
+    richGuidance,
+    nextInstruction,
     takeAlternative,
     takeItinerary,
   }

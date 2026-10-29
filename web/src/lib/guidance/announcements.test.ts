@@ -3,7 +3,7 @@ import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute }
 import { Announcer, destinationSide, leadDistances, type Announcement } from './announcements'
 import { announcementText } from './phrases'
 import type { PuckState } from './guidance-engine'
-import { cityDrive, polyline } from './test-routes'
+import { cityDrive, polyline, translator } from './test-routes'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { speechDuration } from './speech-rate'
 import en from '@/lib/i18n/en-US.json'
@@ -22,10 +22,7 @@ function drive(route: NavRoute, speed: number, step = 2) {
   return heard
 }
 
-const t = (key: string, named: Record<string, unknown> = {}) => {
-  const value = key.split('.').reduce<any>((node, part) => node?.[part], en)
-  return String(value).replace(/\{(\w+)\}/g, (_, k) => String(named[k] ?? ''))
-}
+const t = translator(en)
 
 describe('leadDistances', () => {
   test('grow with speed and never drop below the mode floor', () => {

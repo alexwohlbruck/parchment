@@ -37,3 +37,12 @@ export function cityDrive(): NavSegmentInput {
     edgeSegments: [{ startDistance: 0, endDistance: 1500, speedLimit: 50 }],
   }
 }
+
+/** A `t` over one locale's messages, filling `{name}` placeholders. */
+export function translator(messages: object) {
+  return (key: string, named: Record<string, unknown> = {}) => {
+    const value = key.split('.').reduce<any>((node, part) => node?.[part], messages)
+    if (typeof value !== 'string') throw new Error(`Missing message ${key}`)
+    return value.replace(/\{(\w+)\}/g, (_, k) => String(named[k] ?? ''))
+  }
+}

@@ -1,7 +1,7 @@
 import type { RouteHazard, RouteHazardKind } from '@/types/directions.types'
 import type { NavHazard, NavRoute, NavStep } from './nav-route'
 
-/** Worth a spoken alert and a banner chip; lights and stops show only on the map. */
+/** Worth a spoken alert and a banner chip; lights and signs show only on the map. */
 const ALERT_KINDS = new Set<RouteHazardKind>([
   'crosswalk',
   'uncontrolled_crossing',
@@ -11,6 +11,17 @@ const ALERT_KINDS = new Set<RouteHazardKind>([
   'steep_grade',
   'steps',
   'shared_space',
+  'tram_tracks',
+  'tram_crossing',
+  'unlit',
+  'flood_prone',
+  'icy_bridge',
+  'school_zone',
+  'no_sidewalk',
+  'low_clearance',
+  'speed_camera',
+  'movable_bridge',
+  'hazard',
 ])
 
 const ALERT_LEAD_SEC = 12

@@ -11,6 +11,7 @@ import type {
 import { nameSidewalkSteps } from '../../../lib/route-street-names'
 import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 import { translate } from '../../../lib/i18n/translate'
+import { graphHopperSigns } from '../../../lib/graphhopper-signs'
 
 /**
  * Adapter for transforming GraphHopper responses received through the
@@ -160,6 +161,7 @@ export class BarrelmanGraphHopperAdapter {
       streetRef: instr.street_ref || undefined,
       modifier: this.mapInstructionModifier(instr.sign),
       exitNumber: instr.exit_number ?? undefined,
+      ...graphHopperSigns(instr),
     }
   }
 

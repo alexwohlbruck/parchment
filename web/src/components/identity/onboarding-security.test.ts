@@ -31,7 +31,7 @@ beforeEach(() => {
 
 test('copies the full raw recovery key and requires confirmation before saving', async () => {
   const wrapper = mount(RecoveryKeySetupContent)
-  expect(wrapper.get('code').text()).toBe('DEMO0 DEMO0 DEMO0')
+  expect(wrapper.findAll('code span').map(group => group.text())).toEqual(['DEMO0', 'DEMO0', 'DEMO0'])
   const buttons = wrapper.findAll('button')
   const copy = buttons.find(button => button.text().includes('copyToClipboard'))!
   const confirm = buttons.find(button => button.text() === 'general.continue')!

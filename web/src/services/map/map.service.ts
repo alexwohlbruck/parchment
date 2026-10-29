@@ -486,6 +486,18 @@ function mapService() {
     }
   }
 
+  // Allowing location from the browser prompt flies there, as if the locate button were pressed.
+  watch(
+    () => useGeolocationService().permissionState.value,
+    async (state, previous) => {
+      if (state !== 'granted' || previous !== 'prompt') return
+      if (!isMapReady.value) await new Promise<void>(resolve => {
+        const stop = watch(isMapReady, ready => { if (ready) { stop(); resolve() } })
+      })
+      locateUser()
+    },
+  )
+
   function onMapLoad() {
     // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
     // This function only handles map-level setup that doesn't require the style to be loaded

@@ -127,13 +127,18 @@ const navCollapsed = useStorage('sidebar-collapsed', true)
 const navWidth = useStorage('sidebar-width', SIDEBAR_WIDTH)
 const viewRef = ref()
 
-const hideUI = ref(true)
+const routeHidesUI = ref(true)
+const onboardingFinishing = ref(false)
+const onboardingUnfolding = ref(false)
+const hideUI = computed(
+  () => routeHidesUI.value || ((authStore.needsOnboarding || onboardingFinishing.value) && !onboardingUnfolding.value),
+)
 const authStore = useAuthStore()
 const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
-  hideUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
+  routeHidesUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
 })
 
 // Global click handler for external links
@@ -282,7 +287,6 @@ watch(
   },
 )
 
-const onboardingFinishing = ref(false)
 
 function afterNavTransition(value: boolean) {
   if (viewRef.value?.navTransitioning) {
@@ -312,6 +316,7 @@ function beforeNavTransition(value: boolean) {
   <OnboardingDialog
     v-if="authStore.needsOnboarding || onboardingFinishing"
     @finishing="onboardingFinishing = $event"
+    @unfolding="onboardingUnfolding = true"
     @complete="onboardingFinishing = false"
   />
   <KeyRestoreDialog v-else-if="authStore.me" />

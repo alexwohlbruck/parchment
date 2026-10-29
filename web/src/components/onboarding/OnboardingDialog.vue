@@ -31,7 +31,7 @@ interface StepDef {
   wide?: boolean
 }
 
-const emit = defineEmits<{ finishing: [value: boolean]; complete: [] }>()
+const emit = defineEmits<{ finishing: [value: boolean]; unfolding: []; complete: [] }>()
 
 const STORAGE_KEY = 'onboarding-step'
 
@@ -214,7 +214,7 @@ function handleInteractOutside(e: Event) {
 </script>
 
 <template>
-  <OnboardingCompletion v-if="completedAt" :origin="dialogRect" :face="dialogFace" @reveal="revealMap" @start="unfolding = true" @complete="finish" />
+  <OnboardingCompletion v-if="completedAt" :origin="dialogRect" :face="dialogFace" @reveal="revealMap" @start="unfolding = true; emit('unfolding')" @complete="finish" />
   <Dialog :open="!unfolding">
     <DialogContent
       overlay-class="onboarding-backdrop bg-background backdrop-blur-none !animate-none"

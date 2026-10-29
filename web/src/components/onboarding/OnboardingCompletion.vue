@@ -86,7 +86,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div class="onboarding-arrival pointer-events-none fixed inset-0 z-40 overflow-hidden" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
+    <div class="onboarding-arrival pointer-events-none fixed inset-0 z-[5] overflow-hidden" :class="`is-${phase}`" :style="{ '--fade': `${fade}ms`, '--unfold': `${unfoldDuration}ms` }" aria-hidden="true">
       <div class="arrival-backdrop onboarding-backdrop absolute inset-0 bg-background">
         <span class="blob blob-primary" />
         <span class="blob blob-cream" />

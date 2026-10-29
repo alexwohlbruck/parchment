@@ -52,6 +52,12 @@ export interface BoardingCandidate {
   position?: LivePosition
 }
 
+export interface BoardingCandidates {
+  candidates: BoardingCandidate[]
+  /** The later stops whose boards were read in full; a run absent from one of them does not call there. */
+  stops: string[]
+}
+
 export interface LiveVehicle {
   tripId?: string
   position: { lat: number; lng: number }

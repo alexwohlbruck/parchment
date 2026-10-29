@@ -7,6 +7,7 @@ import {
   withPositions,
   type Board,
   type BoardingCandidate,
+  type BoardingCandidates,
   type LiveVehicle,
 } from '../lib/transit/boarding-candidates'
 
@@ -87,12 +88,6 @@ async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promis
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker))
   return out
-}
-
-export interface BoardingCandidates {
-  candidates: BoardingCandidate[]
-  /** The later stops whose boards were read; a run absent from one of them does not call there. */
-  stops: string[]
 }
 
 export async function findBoardingCandidates(query: BoardingCandidatesQuery): Promise<BoardingCandidates> {

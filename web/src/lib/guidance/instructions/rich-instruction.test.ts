@@ -91,6 +91,18 @@ describe('landmark anchors', () => {
     expect(voiceText(turnRight(route, { from: 420 }), t)).toBe('Go past this intersection, then turn right onto Trade Street')
   })
 
+  test('an overpass just before the turn', () => {
+    const route = city({ edges: [{ startDistance: 520, endDistance: 530, overpass: 'road' }] })
+    expect(voiceText(turnRight(route), t)).toBe('Go under the overpass, then turn right onto Trade Street')
+    expect(voiceText(turnRight(route), tEs)).toBe('Pasa por debajo del paso elevado y luego gira a la derecha hacia Trade Street')
+    expect(bannerCue(turnRight(route), t)).toBe('After the overpass')
+  })
+
+  test('never names one of two overpasses before the turn', () => {
+    const route = city({ edges: [{ startDistance: 420, endDistance: 430, overpass: 'rail' }, { startDistance: 520, endDistance: 530, overpass: 'road' }] })
+    expect(turnRight(route).anchor).toBeUndefined()
+  })
+
   test('prefers the light the turn is at over a bridge before it', () => {
     const route = city({ hazards: [['traffic_signals', 596]], edges: [{ startDistance: 400, endDistance: 540, roadEnvironment: 'bridge' }] })
     expect(turnRight(route).anchor).toMatchObject({ kind: 'traffic_signals', relation: 'at' })
@@ -227,9 +239,30 @@ describe('on foot', () => {
   })
 
   test('a crossing, at the light where it has one', () => {
-    const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 605, endDistance: 620, roadClass: 'footway', crossing: 'TRAFFIC_SIGNALS' }] })
+    const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 605, endDistance: 620, roadClass: 'footway', crossing: 'traffic_signals' }] })
     expect(voiceText(step(route), t)).toBe('Cross at the light')
     expect(voiceText(step(route), tEs)).toBe('Cruza en el semáforo')
+  })
+
+  test('a crossing names the road it crosses', () => {
+    const crossing = (value: string) => walk({ right: { streetName: undefined }, edges: [{ startDistance: 605, endDistance: 620, roadClass: 'footway', crossing: value, crossingName: '7th Avenue' }] })
+    expect(voiceText(step(crossing('traffic_signals')), t)).toBe('Cross 7th Avenue at the light')
+    expect(voiceText(step(crossing('marked')), t)).toBe('Cross 7th Avenue at the crosswalk')
+    expect(voiceText(step(crossing('marked')), tEs)).toBe('Cruza 7th Avenue por el paso de peatones')
+  })
+
+  test('entering a park', () => {
+    const park = { startDistance: 600, endDistance: 1000, roadClass: 'path', inPark: true }
+    const ahead = walk({ right: { type: 'continue', modifier: 'straight', streetName: undefined }, edges: [{ ...park, parkName: 'Freedom Park' }] })
+    expect(voiceText(step(ahead), t)).toBe('Enter Freedom Park and follow the path')
+    const turn = walk({ right: { streetName: undefined }, edges: [park] })
+    expect(voiceText(step(turn), t)).toBe('Turn right into the park')
+    expect(voiceText(step(turn), tEs)).toBe('Gira a la derecha para entrar en el parque')
+  })
+
+  test('a turn already inside the park does not enter it again', () => {
+    const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 1000, roadClass: 'path', inPark: true }] })
+    expect(step(route).park).toBeUndefined()
   })
 
   test('an unnamed path straight ahead', () => {

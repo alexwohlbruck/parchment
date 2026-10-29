@@ -7,7 +7,7 @@ import type { Cardinal } from '../turn-around'
 
 export type Side = 'left' | 'right'
 
-export type AnchorKind = 'traffic_signals' | 'stop' | 'give_way' | 'rail_crossing' | 'bridge' | 'tunnel' | 'intersection'
+export type AnchorKind = 'traffic_signals' | 'stop' | 'give_way' | 'rail_crossing' | 'bridge' | 'tunnel' | 'overpass' | 'intersection'
 
 /**
  * A landmark the traveller sees just before the maneuver. `at`: the maneuver is
@@ -33,7 +33,8 @@ export type Action =
   | { kind: 'roundabout'; exit: number | null; through: boolean }
   | { kind: 'stairs'; side: Side | null }
   | { kind: 'footbridge' }
-  | { kind: 'crosswalk'; signals: boolean }
+  /** `road`: the road crossed. */
+  | { kind: 'crosswalk'; signals: boolean; road?: string }
   | { kind: 'arrive'; side: Side | null; home: boolean }
   | { kind: 'depart'; heading: Cardinal; along: boolean }
 
@@ -51,5 +52,7 @@ export interface RichInstruction {
   toward?: string
   anchor?: Anchor
   lanes?: LaneAdvice
+  /** The park the maneuver enters, on foot. */
+  park?: { name?: string }
   then?: { instruction: RichInstruction; immediately: boolean }
 }

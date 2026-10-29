@@ -29,6 +29,7 @@ const SALIENCE: Record<AnchorKind, number> = {
   give_way: 2,
   rail_crossing: 2,
   bridge: 2,
+  overpass: 2,
   intersection: 1,
 }
 const RELATION: Record<Anchor['relation'], number> = { at: 2, after: 1, past: 0.5 }
@@ -87,6 +88,29 @@ function stretchAnchors(route: NavRoute, from: number, turn: number, reach: numb
   return anchors
 }
 
+/** Where the route comes out from under each overpass. */
+function overpassEnds(route: NavRoute, until: number): number[] {
+  const ends: number[] = []
+  let open = false
+  for (const edge of route.edges) {
+    if (edge.startDistance > until) break
+    if (edge.overpass) {
+      if (open && edge.startDistance - ends[ends.length - 1] <= 1) ends[ends.length - 1] = edge.endDistance
+      else ends.push(edge.endDistance)
+      open = true
+    } else open = false
+  }
+  return ends
+}
+
+/** The overpass just passed before the turn, when it's the only one between the traveller and the turn. */
+function overpassAnchor(route: NavRoute, from: number, turn: number, reach: number): Anchor | null {
+  const ahead = overpassEnds(route, turn + AT_PAST_METERS).filter(s => s > from + NEAR_METERS)
+  if (ahead.length !== 1) return null
+  const [end] = ahead
+  return end <= turn - 5 && turn - end <= reach ? { kind: 'overpass', relation: 'after', s: end } : null
+}
+
 /** The controlled intersection just ahead of the traveller, when the turn is beyond it. */
 function pastAnchor(controls: number[], from: number, turn: number): Anchor | null {
   const next = controls.find(s => s > from + NEAR_METERS)
@@ -110,6 +134,7 @@ export function landmarkAnchor(route: NavRoute, step: NavStep, from: number, spe
     walking ? null : pointAnchor('give_way', positions(['give_way']), from, turn, reach),
     pointAnchor('rail_crossing', positions(['rail_crossing']), from, turn, reach),
     ...stretchAnchors(route, from, turn, reach),
+    overpassAnchor(route, from, turn, reach),
     walking ? null : pastAnchor(route.hazards.filter(h => CONTROLS.has(h.kind)).map(h => h.startDistance), from, turn),
   ].filter((a): a is Anchor => a != null)
 

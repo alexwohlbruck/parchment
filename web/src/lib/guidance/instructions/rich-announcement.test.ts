@@ -82,6 +82,30 @@ describe('border welcomes', () => {
     expect(speechFor(welcomes[0], source(route), true, false, t)).toBe('Welcome to Canada')
   })
 
+  test('welcome the traveller to another state', () => {
+    const drive = cityDrive()
+    drive.edgeSegments = [
+      { startDistance: 0, endDistance: 800, country: 'USA', state: 'New York' },
+      { startDistance: 800, endDistance: 1500, country: 'USA', state: 'New Jersey' },
+    ]
+    const route = buildNavRoute([drive])
+    const welcomes = heard(new Announcer(route, null, () => 2, { regionName: () => 'United States' }), route)
+    expect(welcomes).toEqual([{ kind: 'border', region: 'New Jersey' }])
+    expect(speechFor(welcomes[0], source(route), true, false, tEs)).toBe('Bienvenido a New Jersey')
+  })
+
+  test('a country entered is welcomed once, not again for its province', () => {
+    const drive = cityDrive()
+    drive.edgeSegments = [
+      { startDistance: 0, endDistance: 800, country: 'USA', state: 'New York' },
+      { startDistance: 800, endDistance: 820, country: 'CAN', state: 'New York' },
+      { startDistance: 820, endDistance: 1500, country: 'CAN', state: 'Ontario' },
+    ]
+    const route = buildNavRoute([drive])
+    const announcer = new Announcer(route, null, () => 2, { regionName: code => (code === 'CAN' ? 'Canada' : null) })
+    expect(heard(announcer, route)).toEqual([{ kind: 'border', region: 'Canada' }])
+  })
+
   test('stay quiet without a way to name the country', () => {
     const route = crossing()
     expect(heard(new Announcer(route, null), route)).toEqual([])

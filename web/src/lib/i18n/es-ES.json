@@ -1444,7 +1444,13 @@
       "footbridge": "Usa la pasarela peatonal",
       "crosswalk": "Cruza por el paso de peatones",
       "crosswalkSignals": "Cruza en el semáforo",
+      "crosswalkRoad": "Cruza {road} por el paso de peatones",
+      "crosswalkSignalsRoad": "Cruza {road} en el semáforo",
       "followPath": "Sigue el sendero",
+      "enterPark": "Entra en {park} y sigue el sendero",
+      "enterParkUnnamed": "Entra en el parque y sigue el sendero",
+      "intoPark": "{action} para entrar en {park}",
+      "intoParkUnnamed": "{action} para entrar en el parque",
       "home": "Bienvenido a casa",
       "homeSide": {
         "left": "Bienvenido a casa. Tu destino está a la izquierda",
@@ -1493,6 +1499,7 @@
       },
       "anchored": "{anchor}, {action}",
       "past": "Pasa este cruce y luego {action}",
+      "underOverpass": "Pasa por debajo del paso elevado y luego {action}",
       "anchors": {
         "at": {
           "traffic_signals": "En el semáforo",
@@ -1506,7 +1513,8 @@
           "give_way": "Después del ceda el paso",
           "rail_crossing": "Después del paso a nivel",
           "bridge": "Después del puente",
-          "tunnel": "Después del túnel"
+          "tunnel": "Después del túnel",
+          "overpass": "Después del paso elevado"
         },
         "past": {
           "intersection": "Pasado este cruce"

@@ -97,7 +97,7 @@ void main() {
   vec2 local = (v_flat - u_coverRect.xy) / u_coverRect.zw;
   if (all(greaterThanEqual(local, vec2(0.0))) && all(lessThanEqual(local, vec2(1.0)))) {
     vec4 art = texture(u_cover, local);
-    surface = surface * (1.0 - art.a) + art.rgb * (0.9 + 0.1 * grain);
+    surface = surface * (1.0 - art.a) + art.rgb;
   }
   color = vec4(surface * shade + sheen, 1.0);
 }`
@@ -156,6 +156,17 @@ function texture(gl: WebGL2RenderingContext, source: TexImageSource) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   return tex
+}
+
+function drawFace(face: HTMLCanvasElement, mirror: 'x' | 'y') {
+  const canvas = document.createElement('canvas')
+  canvas.width = face.width
+  canvas.height = face.height
+  const ctx = canvas.getContext('2d')!
+  ctx.translate(face.width / 2, face.height / 2)
+  ctx.scale(mirror === 'x' ? -1 : 1, mirror === 'y' ? -1 : 1)
+  ctx.drawImage(face, -face.width / 2, -face.height / 2)
+  return canvas
 }
 
 async function drawCover(width: number, height: number, mirror: 'x' | 'y', scale: number, stretch: { x: number; y: number }) {
@@ -283,12 +294,14 @@ export class PaperMapRenderer {
     this.vao = vao
   }
 
-  /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`. */
-  static async create(canvas: HTMLCanvasElement, map: TexImageSource, rect: PaperRect, origin: PaperRect, dark: boolean) {
+  /** Unfolds `map` to `rect`, starting as a folded packet that exactly covers `origin`, showing `face` on top. */
+  static async create(canvas: HTMLCanvasElement, map: TexImageSource, rect: PaperRect, origin: PaperRect, face: HTMLCanvasElement | null, dark: boolean) {
     const plan = planFolds(rect.width, rect.height, foldsToFit(rect.width, rect.height, origin.width, origin.height), THICKNESS)
     const cell = coverCell(plan)
     const stretch = { x: origin.width / cell.width, y: origin.height / cell.height }
-    const cover = await drawCover(cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2) * Math.max(stretch.x, stretch.y), stretch)
+    const cover = face
+      ? drawFace(face, cell.mirror)
+      : await drawCover(cell.width, cell.height, cell.mirror, Math.min(window.devicePixelRatio || 1, 2) * Math.max(stretch.x, stretch.y), stretch)
     return new PaperMapRenderer(canvas, map, cover, rect, origin, plan, dark)
   }
 

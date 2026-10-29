@@ -83,6 +83,7 @@
     "mapillary-js": "^4.1.2",
     "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.11.2-transit.15",
     "mitt": "^3.0.1",
+    "modern-screenshot": "^4.7.0",
     "mousetrap": "^1.6.5",
     "photoswipe": "^5.4.4",
     "pinia": "^2.1.7",

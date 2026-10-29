@@ -5,7 +5,7 @@ import { useMediaQuery } from '@vueuse/core'
 import { useMapService } from '@/services/map/map.service'
 import { PaperMapRenderer, type PaperRect } from './paper-map-renderer'
 
-const props = defineProps<{ origin?: PaperRect | null }>()
+const props = defineProps<{ origin?: PaperRect | null; face?: HTMLCanvasElement | null }>()
 const emit = defineEmits<{ reveal: []; start: []; complete: [] }>()
 const { t } = useI18n()
 const mapService = useMapService()
@@ -38,7 +38,7 @@ async function capture() {
 
   const origin = props.origin?.width ? props.origin : { left: frame.left + frame.width / 2 - 120, top: frame.top + frame.height / 2 - 160, width: 240, height: 320 }
   try {
-    renderer = await PaperMapRenderer.create(canvas.value, frame.image, frame, origin, document.documentElement.classList.contains('dark'))
+    renderer = await PaperMapRenderer.create(canvas.value, frame.image, frame, origin, props.origin?.width ? props.face ?? null : null, document.documentElement.classList.contains('dark'))
   } catch {
     return complete()
   }

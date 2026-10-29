@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, provide, watch, useTemplateRef } from 'vue'
+import { ref, shallowRef, computed, provide, watch, useTemplateRef } from 'vue'
 import { useMediaQuery, useResizeObserver } from '@vueuse/core'
+import { domToCanvas } from 'modern-screenshot'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -45,8 +46,10 @@ const currentIndex = ref(0)
 const completing = ref(false)
 const completedAt = ref<string | null>(null)
 const dialogRect = ref<DOMRect | null>(null)
+const dialogFace = shallowRef<HTMLCanvasElement | null>(null)
 const unfolding = ref(false)
 let revealed = false
+let snapshotting = false
 let finished = false
 const stepValidateFn = ref<StepValidateFn | null>(null)
 const canContinue = ref(true)
@@ -150,10 +153,22 @@ function back() {
   }
 }
 
+async function snapshotCard(card: HTMLElement) {
+  try {
+    return await domToCanvas(card, { scale: Math.min(window.devicePixelRatio || 1, 2) })
+  } catch {
+    return null
+  }
+}
+
 async function complete() {
-  if (completing.value || completedAt.value) return
+  if (snapshotting || completing.value || completedAt.value) return
+  snapshotting = true
+  const card = document.querySelector<HTMLElement>('.onboarding-card')
+  dialogRect.value = card?.getBoundingClientRect() ?? null
+  dialogFace.value = card ? await snapshotCard(card) : null
+  snapshotting = false
   completing.value = true
-  dialogRect.value = document.querySelector('.onboarding-card')?.getBoundingClientRect() ?? null
   emit('finishing', true)
   try {
     const { api } = await import('@/lib/api')
@@ -195,7 +210,7 @@ function handleInteractOutside(e: Event) {
 </script>
 
 <template>
-  <OnboardingCompletion v-if="completedAt" :origin="dialogRect" @reveal="revealMap" @start="unfolding = true" @complete="finish" />
+  <OnboardingCompletion v-if="completedAt" :origin="dialogRect" :face="dialogFace" @reveal="revealMap" @start="unfolding = true" @complete="finish" />
   <Dialog :open="!unfolding">
     <DialogContent
       overlay-class="onboarding-backdrop bg-background backdrop-blur-none !animate-none"
@@ -204,7 +219,7 @@ function handleInteractOutside(e: Event) {
         'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 max-sm:bg-background/75 max-sm:backdrop-blur-sm',
         // Desktop: centered card
         'sm:h-fit sm:max-h-[min(90dvh,880px)] sm:rounded-lg sm:border',
-        'onboarding-card data-[state=closed]:zoom-out-100 data-[state=closed]:duration-500',
+        'onboarding-card data-[state=closed]:animate-none',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'

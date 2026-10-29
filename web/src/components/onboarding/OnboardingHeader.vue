@@ -27,10 +27,10 @@ const motion = {
 </script>
 
 <template>
-  <div :class="bleed ? 'space-y-3' : 'space-y-6'">
+  <div :class="bleed ? 'space-y-1' : 'space-y-6'">
     <div
       class="relative flex items-center justify-center rounded-2xl"
-      :class="[tall ? (bleed ? 'h-40' : 'h-44') : 'h-32', !bleed && 'overflow-hidden border bg-primary/5']"
+      :class="[tall ? (bleed ? 'h-36' : 'h-44') : 'h-32', !bleed && 'overflow-hidden border bg-primary/5']"
     >
       <div v-if="!bleed" class="onboarding-topo absolute inset-0" aria-hidden="true" />
       <slot name="art" />

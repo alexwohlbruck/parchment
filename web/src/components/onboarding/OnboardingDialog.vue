@@ -19,7 +19,7 @@ import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
 import OpenStreetMapStep from './OpenStreetMapStep.vue'
 import ThemeStep from './ThemeStep.vue'
 import WelcomeStep from './WelcomeStep.vue'
-import { validateKey, type StepValidateFn } from './types'
+import { stepIndexKey, validateKey, type StepValidateFn } from './types'
 
 type StepId = 'welcome' | 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'integrations' | 'openstreetmap'
 
@@ -49,6 +49,7 @@ let finished = false
 const stepValidateFn = ref<StepValidateFn | null>(null)
 const canContinue = ref(true)
 
+provide(stepIndexKey, currentIndex)
 provide(validateKey, {
   register: (fn: StepValidateFn) => {
     stepValidateFn.value = fn
@@ -221,11 +222,13 @@ function handleInteractOutside(e: Event) {
 
       <!-- Step content -->
       <div class="px-6 py-6 overflow-y-auto flex-1">
-        <component
-          :is="currentStep.component"
-          :key="currentStep.id"
-          @complete="advance"
-        />
+        <Transition name="onboarding-step" mode="out-in">
+          <component
+            :is="currentStep.component"
+            :key="currentStep.id"
+            @complete="advance"
+          />
+        </Transition>
       </div>
 
       <!-- Footer navigation -->
@@ -278,4 +281,12 @@ function handleInteractOutside(e: Event) {
 }
 
 .dark .onboarding-backdrop::before { filter: invert(1); }
+
+.onboarding-step-enter-active { transition: opacity 180ms ease; }
+.onboarding-step-leave-active { transition: opacity 200ms ease 180ms; }
+.onboarding-step-enter-from, .onboarding-step-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-step-enter-active, .onboarding-step-leave-active { transition: none; }
+}
 </style>

@@ -72,6 +72,12 @@ const highlights = { private: Lock, open: Globe, transit: Route }
   animation: stop-in 520ms cubic-bezier(0.34, 1.5, 0.5, 1) both;
 }
 
+:global(.onboarding-step-leave-active) .welcome-stop {
+  animation: stop-out 260ms cubic-bezier(0.5, 0, 0.9, 0.5) both;
+}
+
+:global(.onboarding-step-leave-active) .welcome-route { animation: route-out 300ms ease-in both; }
+
 .welcome-highlight { animation: highlight-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 @keyframes route-in {
@@ -83,11 +89,21 @@ const highlights = { private: Lock, open: Globe, transit: Route }
   from { opacity: 0; transform: translate(-50%, -50%) rotate(0deg) scale(0.5); }
 }
 
+@keyframes stop-out {
+  to { opacity: 0; transform: translate(-50%, -30%) rotate(calc(var(--tilt) * -2)) scale(0.6); }
+}
+
+@keyframes route-out {
+  to { opacity: 0; clip-path: inset(0 0 0 100%); }
+}
+
 @keyframes highlight-in {
   from { opacity: 0; transform: translateY(6px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-route, .welcome-stop, .welcome-highlight { animation: none; }
+  .welcome-route, .welcome-stop, .welcome-highlight,
+  :global(.onboarding-step-leave-active) .welcome-stop,
+  :global(.onboarding-step-leave-active) .welcome-route { animation: none; }
 }
 </style>

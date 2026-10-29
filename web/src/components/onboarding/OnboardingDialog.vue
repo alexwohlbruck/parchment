@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ArrowRight, ArrowLeft, Check } from 'lucide-vue-next'
+import OnboardingCompletion from './OnboardingCompletion.vue'
 import ProfileSetupStep from './ProfileSetupStep.vue'
 import RecoveryKeyStep from './RecoveryKeyStep.vue'
 import PasskeyStep from './PasskeyStep.vue'
@@ -30,6 +31,8 @@ interface StepDef {
   wide?: boolean
 }
 
+const emit = defineEmits<{ finishing: [value: boolean]; complete: [] }>()
+
 const STORAGE_KEY = 'onboarding-step'
 
 const { t } = useI18n()
@@ -43,6 +46,9 @@ const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 
 const currentIndex = ref(0)
 const completing = ref(false)
+const completedAt = ref<string | null>(null)
+let revealed = false
+let finished = false
 const stepValidateFn = ref<StepValidateFn | null>(null)
 const canContinue = ref(true)
 
@@ -123,6 +129,7 @@ watch(steps, async () => {
 }, { immediate: true })
 
 async function next() {
+  if (completing.value || completedAt.value) return
   if (stepValidateFn.value) {
     const valid = await stepValidateFn.value()
     if (!valid) return
@@ -132,6 +139,7 @@ async function next() {
 }
 
 function advance() {
+  if (completing.value || completedAt.value) return
   if (isLast.value) {
     complete()
   } else {
@@ -143,6 +151,7 @@ function advance() {
 }
 
 function back() {
+  if (completing.value) return
   if (!isFirst.value) {
     currentIndex.value--
     stepValidateFn.value = null
@@ -152,25 +161,41 @@ function back() {
 }
 
 async function complete() {
+  if (completing.value || completedAt.value) return
   completing.value = true
+  emit('finishing', true)
   try {
     const { api } = await import('@/lib/api')
-    let completedAt: string
+    let timestamp: string
     try {
       const { data } = await api.post('/users/me/onboarding/complete')
-      completedAt = data.onboardingCompletedAt
+      timestamp = data.onboardingCompletedAt
     } catch {
-      completedAt = new Date().toISOString()
+      timestamp = new Date().toISOString()
     }
-    authStore.updateUser({
-      ...authStore.me!,
-      onboardingCompletedAt: completedAt,
-    })
-    localStorage.removeItem(STORAGE_KEY)
-    authStore.goToStashedPath()
+    completedAt.value = timestamp
   } finally {
     completing.value = false
+    if (!completedAt.value) emit('finishing', false)
   }
+}
+
+function revealMap() {
+  if (revealed || !completedAt.value) return
+  revealed = true
+  authStore.updateUser({
+    ...authStore.me!,
+    onboardingCompletedAt: completedAt.value,
+  })
+  localStorage.removeItem(STORAGE_KEY)
+  authStore.goToStashedPath()
+}
+
+function finish() {
+  if (finished) return
+  finished = true
+  revealMap()
+  emit('complete')
 }
 
 function handleInteractOutside(e: Event) {
@@ -179,7 +204,8 @@ function handleInteractOutside(e: Event) {
 </script>
 
 <template>
-  <Dialog :open="true">
+  <OnboardingCompletion v-if="completedAt" @reveal="revealMap" @complete="finish" />
+  <Dialog v-else :open="true">
     <DialogContent
       :class="[
         // Mobile: fullscreen

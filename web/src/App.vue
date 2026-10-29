@@ -282,6 +282,8 @@ watch(
   },
 )
 
+const onboardingFinishing = ref(false)
+
 function afterNavTransition(value: boolean) {
   if (viewRef.value?.navTransitioning) {
     viewRef.value.navTransitioning(value)
@@ -307,7 +309,11 @@ function beforeNavTransition(value: boolean) {
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />
   <component :is="BuildingShadePopover" v-if="shadePopoverOpen" />
-  <OnboardingDialog v-if="authStore.needsOnboarding" />
+  <OnboardingDialog
+    v-if="authStore.needsOnboarding || onboardingFinishing"
+    @finishing="onboardingFinishing = $event"
+    @complete="onboardingFinishing = false"
+  />
   <KeyRestoreDialog v-else-if="authStore.me" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">

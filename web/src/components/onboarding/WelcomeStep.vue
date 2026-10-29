@@ -12,6 +12,7 @@ const stops = [
   { icon: Lock, x: 87, y: 28, tilt: 9 },
 ]
 const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
+const INK_STROKES = ['M2 6 C 30 2, 60 9, 98 4', 'M2 5 C 28 9, 66 1, 98 6', 'M2 4 C 34 8, 62 2, 98 5']
 </script>
 
 <template>
@@ -45,21 +46,22 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
       </template>
     </OnboardingHeader>
 
-    <ul class="grid gap-4 sm:grid-cols-3 sm:gap-6">
+    <ul class="grid gap-5 sm:grid-cols-3 sm:gap-4">
       <li
         v-for="(icon, key, i) in highlights"
         :key="key"
-        class="welcome-highlight flex items-center gap-4 sm:flex-col sm:gap-3 sm:text-center"
-        :style="{ animationDelay: `${450 + i * 110}ms` }"
+        class="welcome-highlight flex items-start gap-4 sm:flex-col sm:items-center sm:gap-2 sm:text-center"
+        :style="{ '--delay': `${450 + i * 120}ms` }"
       >
-        <span class="welcome-glyph relative flex size-11 shrink-0 items-center justify-center text-primary" aria-hidden="true">
-          <span class="absolute inset-0 rounded-full bg-primary/10" />
-          <span class="absolute -inset-1.5 rounded-full border border-dashed border-primary/25" />
-          <component :is="icon" class="relative size-5" :stroke-width="1.6" />
-        </span>
-        <div class="min-w-0 space-y-0.5">
-          <p class="font-display text-base font-semibold leading-tight">{{ t(`onboarding.welcome.${key}`) }}</p>
-          <p class="text-pretty text-sm leading-snug text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
+        <component :is="icon" class="mt-1.5 size-5 shrink-0 text-primary sm:mt-0" :stroke-width="1.75" aria-hidden="true" />
+        <div class="min-w-0">
+          <p class="relative inline-block font-display-heavy text-2xl leading-none">
+            {{ t(`onboarding.welcome.${key}`) }}
+            <svg class="welcome-ink absolute -bottom-2 left-0 h-2.5 w-full text-primary" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+              <path :d="INK_STROKES[i]" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" pathLength="1" vector-effect="non-scaling-stroke" />
+            </svg>
+          </p>
+          <p class="mt-3 text-balance text-sm leading-snug text-muted-foreground">{{ t(`onboarding.welcome.${key}Detail`) }}</p>
         </div>
       </li>
     </ul>
@@ -84,13 +86,18 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 
 :global(.onboarding-step-leave-active) .welcome-route { animation: route-out 300ms ease-in both; }
 
-.welcome-glyph > .border-dashed { animation: glyph-turn 24s linear infinite; }
-
-@keyframes glyph-turn {
-  to { rotate: 360deg; }
+.welcome-ink path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.55;
+  animation: ink-in 700ms calc(var(--delay) + 250ms) cubic-bezier(0.6, 0, 0.2, 1) forwards;
 }
 
-.welcome-highlight { animation: highlight-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes ink-in {
+  to { stroke-dashoffset: 0; }
+}
+
+.welcome-highlight { animation: highlight-in 480ms var(--delay) cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 @keyframes route-in {
   from { opacity: 0; clip-path: inset(0 100% 0 0); }
@@ -114,8 +121,9 @@ const highlights = { privacy: Lock, sustainability: Leaf, community: Users }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-route, .welcome-stop, .welcome-highlight, .welcome-glyph > .border-dashed,
+  .welcome-route, .welcome-stop, .welcome-highlight,
   :global(.onboarding-step-leave-active) .welcome-stop,
   :global(.onboarding-step-leave-active) .welcome-route { animation: none; }
+  .welcome-ink path { animation: none; stroke-dashoffset: 0; }
 }
 </style>

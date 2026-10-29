@@ -48,8 +48,9 @@ const avatarFile = ref<File | null>(null)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
-const aliasInput = ref('')
-const aliasEdited = ref(false)
+const currentAlias = authStore.me?.alias ?? ''
+const aliasInput = ref(currentAlias)
+const aliasEdited = ref(!!currentAlias)
 const aliasError = ref<string | null>(null)
 const aliasChecking = ref(false)
 const aliasAvailable = ref<boolean | null>(null)
@@ -95,7 +96,10 @@ const checkAliasAvailability = useDebounceFn(async (alias: string) => {
 watch(aliasInput, val => {
   aliasError.value = null
   aliasAvailable.value = null
-  if (isAliasValid.value) {
+  if (val === currentAlias) {
+    aliasAvailable.value = true
+    aliasChecking.value = false
+  } else if (isAliasValid.value) {
     aliasChecking.value = true
     checkAliasAvailability(val)
   }
@@ -154,17 +158,19 @@ async function validateStep(): Promise<boolean> {
     await userService.updateMyProfile({
       firstName: (values.firstName || '').trim(),
       lastName: (values.lastName || '').trim() || null,
-      picture: avatarFile.value ? undefined : placeholderAvatar.value,
+      picture: avatarFile.value ? undefined : authStore.me?.picture || placeholderAvatar.value,
     })
 
     if (avatarFile.value) {
       await userService.uploadAvatar(avatarFile.value)
     }
 
-    const aliasResult = await identityStore.updateAlias(aliasInput.value)
-    if (!aliasResult.success) {
-      aliasError.value = aliasResult.error || t('onboarding.alias.saveFailed')
-      return false
+    if (aliasInput.value !== currentAlias) {
+      const aliasResult = await identityStore.updateAlias(aliasInput.value)
+      if (!aliasResult.success) {
+        aliasError.value = aliasResult.error || t('onboarding.alias.saveFailed')
+        return false
+      }
     }
 
     authStore.updateUser({

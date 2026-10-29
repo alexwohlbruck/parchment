@@ -11,7 +11,7 @@ export const OCCLUSION_PROPERTY = 'line-depth-occlusion-factor'
 export const PITCH_PROPERTY = 'line-pitch-alignment'
 
 /** The version of barrelman's heights the tiles are asked for, so a tile cached before they changed is not drawn with them. */
-export const ELEVATION_FORMAT = 6
+export const ELEVATION_FORMAT = 7
 
 /** A tile url asking for the current heights. */
 export function withElevationFormat(url: string): string {

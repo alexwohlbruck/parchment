@@ -34,7 +34,7 @@ const motion = {
     >
       <div v-if="!bleed" class="onboarding-topo absolute inset-0" aria-hidden="true" />
       <slot name="art" />
-      <div class="relative flex items-center" :class="bleed && 'translate-y-3'" :style="motion">
+      <div class="relative flex items-center" :class="bleed && 'translate-y-1.5'" :style="motion">
         <div v-if="!solo" class="hero-tile relative z-10" style="--tilt: -7deg; --dir: -1">
           <slot name="tile">
             <div class="flex size-20 items-center justify-center rounded-2xl border bg-background shadow-sm" aria-hidden="true">
@@ -48,7 +48,7 @@ const motion = {
         <ParchmentTile
           class="hero-tile"
           :class="solo ? 'size-20' : '-ml-3 mt-7 size-14'"
-          :style="solo ? '--tilt: -6deg; --dir: 1' : '--tilt: 9deg; --dir: 1; --delay: 90ms'"
+          :style="solo ? '--tilt: -3deg; --dir: 1' : '--tilt: 9deg; --dir: 1; --delay: 90ms'"
           aria-hidden="true"
         />
       </div>

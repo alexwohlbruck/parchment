@@ -11,6 +11,8 @@ import {
   barrelmanBuildingsReady,
   barrelmanBuildingsTiles,
   setBarrelmanBuildingsReady,
+  recallBarrelmanBuildings,
+  rememberBarrelmanBuildings,
 } from './barrelman-buildings'
 
 const CENTRE = { lng: -80.8431, lat: 35.2271 } // Charlotte
@@ -88,5 +90,45 @@ describe('probeBarrelmanBuildings', () => {
     const changed = await probeBarrelmanBuildings(tile('buildings_3d'), CENTRE, 'buildings_3d')
     expect(changed).toBe(true)
     expect(barrelmanBuildingsTiles()).toBe('buildings_3d')
+  })
+})
+
+describe('remembering the answer between sessions', () => {
+  const SERVER = 'https://api.test/proxy/barrelman'
+  beforeEach(() => localStorage.clear())
+
+  test('a later session starts from the last answer, so the style is built on it at once', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null) // a new page load
+    recallBarrelmanBuildings(SERVER)
+    expect(barrelmanBuildingsReady()).toBe(true)
+    expect(barrelmanBuildingsTiles()).toBe('detail')
+  })
+
+  test('the answer belongs to one tile server', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings('https://other.test/proxy/barrelman')
+    expect(barrelmanBuildingsReady()).toBe(false)
+    expect(barrelmanBuildingsTiles()).toBe(null)
+  })
+
+  test('a remembered yes is still checked, and a source that went away is noticed', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings(SERVER)
+    vi.stubGlobal('fetch', answer({ ok: false }))
+    const changed = await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    expect(changed).toBe(true)
+    expect(barrelmanBuildingsReady()).toBe(false)
   })
 })

@@ -518,6 +518,55 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
 
     expect(res.status).toBe(404)
   })
+
+  // Behind a shared cache, an echoed origin would be stored with the tile and
+  // replayed to the next site that asks for it.
+  test('answers every origin with *, so a shared cache can serve the tile to any site', async () => {
+    fetchResponses = [tileResponse()]
+    const miss = await req(app).get('/proxy/barrelman/basemap/12/1/1', { headers: { origin: 'https://a.example' } })
+    const hit = await req(app).get('/proxy/barrelman/basemap/12/1/1', { headers: { origin: 'https://b.example' } })
+    expect(miss.headers.get('access-control-allow-origin')).toBe('*')
+    expect(hit.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  test('revalidates an unchanged tile with a 304 and no body', async () => {
+    fetchResponses = [tileResponse()]
+    const first = await req(app).get('/proxy/barrelman/basemap/12/2/2')
+    const etag = first.headers.get('etag')
+    expect(etag).toBeTruthy()
+
+    const again = await req(app).get('/proxy/barrelman/basemap/12/2/2', { headers: { 'if-none-match': etag! } })
+    expect(again.status).toBe(304)
+    expect(again.body).toBe('')
+    expect(again.headers.get('etag')).toBe(etag)
+
+    const stale = await req(app).get('/proxy/barrelman/basemap/12/2/2', { headers: { 'if-none-match': 'W/"other"' } })
+    expect(stale.status).toBe(200)
+  })
+
+  test('sends concurrent requests for one uncached tile upstream once', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const slow = globalThis.fetch
+    globalThis.fetch = mock(async (url: any, init?: any) => {
+      await gate
+      return (slow as any)(url, init)
+    }) as any
+    fetchResponses = [tileResponse(), tileResponse()]
+    try {
+      const both = Promise.all([
+        req(app).get('/proxy/barrelman/detail/14/3/3'),
+        req(app).get('/proxy/barrelman/detail/14/3/3'),
+      ])
+      release()
+      const [a, b] = await both
+      expect(a.status).toBe(200)
+      expect(b.status).toBe(200)
+      expect(fetchCalls.length).toBe(1)
+    } finally {
+      globalThis.fetch = slow
+    }
+  })
 })
 
 /**

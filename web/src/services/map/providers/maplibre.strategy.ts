@@ -91,6 +91,9 @@ import { ISOLATED_COLLISION_LAYERS } from '@/lib/map-style/poi-dots'
 import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
+  barrelmanBuildingsTiles,
+  recallBarrelmanBuildings,
+  rememberBarrelmanBuildings,
 } from '@/lib/map-style/barrelman-buildings'
 import {
   OBJECT_FLAT_LAYERS,
@@ -321,6 +324,7 @@ export class MaplibreStrategy extends MapStrategy {
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
+    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl)
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -413,14 +417,16 @@ export class MaplibreStrategy extends MapStrategy {
     // hide exactly the buildings it replaces. The basemap merges every building
     // of one height in a tile into a single feature.
     const centre = this.mapInstance.getCenter()
+    const builtOn = barrelmanBuildingsTiles()
     await probeBarrelmanBuildings((z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`, centre, DETAIL_TILES)
     if (!barrelmanBuildingsReady())
       await probeBarrelmanBuildings((z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}`, centre, BUILDING_3D_TILES)
-    // Only when the answer is yes. The style is already built on the basemap,
-    // so a no leaves it exactly as it is — reloading on every startup for an
-    // instance that has not been migrated would throw the map away and rebuild
-    // it identically, in front of the user.
-    if (barrelmanBuildingsReady()) this.reloadStyle()
+    rememberBarrelmanBuildings(base)
+    // Only when the answer differs from what the style was built on: usually
+    // the last session's answer (see `recallBarrelmanBuildings`), or the
+    // basemap on a first visit. Rebuilding for the same answer would throw the
+    // map's tiles away and fetch them all again, in front of the user.
+    if (barrelmanBuildingsTiles() !== builtOn) this.reloadStyle()
   }
 
   addControls() {

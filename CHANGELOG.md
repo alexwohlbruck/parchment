@@ -4,11 +4,15 @@
 
 ### Changed
 
+### Fixed
+
+## [0.18.3] - 2026-10-30
+
+### Changed
+
 * The map opens faster on return visits: it no longer reloads every tile a second after starting to switch to 3D buildings.
 
 * Map tiles can be cached by a CDN close to you, and expired tiles revalidate instead of downloading again.
-
-### Fixed
 
 ## [0.18.2] - 2026-10-29
 

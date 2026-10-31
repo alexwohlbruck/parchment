@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.18.4] - 2026-10-31
+
+### Added
+
 * Navigation warns of stop and yield signs, tram tracks, unlit paths after dark, flood-prone roads in rain, icy bridges, school zones, low clearances and more, and shows real traffic lights.
 
 * Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.

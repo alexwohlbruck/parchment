@@ -15,6 +15,8 @@ import {
   UnifiedRoute,
   RouteLanes,
   RouteLanesRequest,
+  RoutePointHazard,
+  RoutePointHazardsRequest,
 } from './unified-routing.types'
 import type {
   LocationHistory,
@@ -121,6 +123,8 @@ export interface RoutingCapability {
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
   /** Lane-level geometry and lane plans for a driven route; null where the engine has none. */
   getLanes?(request: RouteLanesRequest): Promise<RouteLanes | null>
+  /** Hazards read from OSM tags along a route; null where the engine has none. */
+  getHazards?(request: RoutePointHazardsRequest): Promise<RoutePointHazard[] | null>
   
   // Metadata about what this routing engine supports
   metadata?: RoutingCapabilityMetadata
@@ -493,8 +497,16 @@ export interface AirQuality {
   stationName?: string // Name of the OpenAQ station, when source === 'openaq'
 }
 
+/** The next few hours at a place, as far as road conditions go. */
+export interface WeatherOutlook {
+  rain: boolean
+  /** Celsius. */
+  minTemperature: number
+}
+
 export interface WeatherCapability {
   getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
+  getOutlook?(lat: number, lng: number): Promise<WeatherOutlook>
 }
 
 /** A board feedback can be filed against (bugs, feature requests, …). */

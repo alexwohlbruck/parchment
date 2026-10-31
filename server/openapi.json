@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep grades, stairs, sharp curves and the like, placed by distance along the segment. Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it.",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street instructions carry `exitNumber` for roundabouts and, where the map signposts the maneuver, `exitRef` (a motorway exit's number) and `destination` (where the signs point). Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low clearances, school zones and the like, placed by distance along the segment. Some depend on conditions: unlit paths after sunset, flood-prone roads when rain is forecast, bridges at 2 °C or below, and speed cameras only where warning of them is lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic calming, movable bridges, speed cameras) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it.",
         "tags": [
           "Trip Planning"
         ],
@@ -14909,6 +14909,78 @@
           "Transit"
         ],
         "summary": "Upcoming departures at a stop",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/transit/boarding-candidates": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Timetable stop id (`{feed}_{stop}`) where the leg boards",
+            "schema": {
+              "type": "string",
+              "minLength": 3
+            },
+            "in": "query",
+            "name": "stopId",
+            "required": true
+          },
+          {
+            "description": "Comma-separated stop ids after boarding, in ride order, the alighting stop last",
+            "schema": {
+              "type": "string",
+              "minLength": 3
+            },
+            "in": "query",
+            "name": "stops",
+            "required": true
+          },
+          {
+            "description": "Planned departure from the boarding stop",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "departure",
+            "required": true
+          },
+          {
+            "description": "Planned arrival at the alighting stop",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "arrival",
+            "required": true
+          },
+          {
+            "description": "Comma-separated short names of the leg's interchangeable routes, its own included",
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "routes",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "directionId",
+            "required": false
+          }
+        ],
+        "operationId": "getTransitBoarding-candidates",
+        "tags": [
+          "Transit"
+        ],
+        "summary": "Runs a rider may have boarded in place of the planned one",
+        "description": "Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure`: any run of `routes` in the leg's direction, and runs of other routes that also call at the alighting stop. Each lists the given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express can be told from a local, and carries its live `position` when the feed publishes vehicle positions. `stops` names the later stops whose boards could be read: a run missing from one of those does not call there.",
         "responses": {
           "200": {}
         }

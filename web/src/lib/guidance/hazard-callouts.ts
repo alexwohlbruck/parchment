@@ -1,4 +1,4 @@
-// How hazards ahead show on the map: lights and rail crossings as plain signs on
+// How hazards ahead show on the map: lights, stops and rail crossings as plain signs on
 // the route, the other alertable kinds as bubbles, both clear of the next turn's.
 
 import type { RouteHazardKind } from '@/types/directions.types'
@@ -20,11 +20,11 @@ export const HAZARD_TONE_COLORS: Record<HazardTone, { background: string; foregr
   danger: { background: palette.compass[500], foreground: '#ffffff' },
 }
 
-export const HAZARD_SIGN_KINDS = ['traffic_signals', 'rail_crossing'] as const
+export const HAZARD_SIGN_KINDS = ['traffic_signals', 'rail_crossing', 'stop', 'give_way'] as const
 export type HazardSignKind = (typeof HAZARD_SIGN_KINDS)[number]
 
 const SIGNS = new Set<RouteHazardKind>(HAZARD_SIGN_KINDS)
-const DANGER_KINDS = new Set<RouteHazardKind>(['ford'])
+const DANGER_KINDS = new Set<RouteHazardKind>(['ford', 'flood_prone', 'icy_bridge', 'low_clearance', 'tram_crossing'])
 const MAX_CALLOUTS = 3
 /** Bounds the DOM markers a long route's overview mounts. */
 const MAX_ROUTE_CALLOUTS = 60

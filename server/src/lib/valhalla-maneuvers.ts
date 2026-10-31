@@ -11,6 +11,9 @@
  * One table, one meaning per code.
  */
 
+import type { RouteInstruction } from '../types/unified-routing.types'
+import type { ValhallaManeuver, ValhallaSignElement } from '../types/valhalla.types'
+
 export type ManeuverModifier =
   | 'left'
   | 'right'
@@ -101,5 +104,17 @@ export function mapManeuverModifier(type: number): ManeuverModifier | undefined 
       return 'straight'
     default:
       return undefined
+  }
+}
+
+/** The exit and signposting a maneuver carries: roundabout exit count, motorway exit number, destinations. */
+export function maneuverSigns(maneuver: ValhallaManeuver): Pick<RouteInstruction, 'exitNumber' | 'exitRef' | 'destination'> {
+  const texts = (elements?: ValhallaSignElement[]) => elements?.map(e => e.text).filter(Boolean) ?? []
+  const exitRef = texts(maneuver.sign?.exit_number_elements)[0]
+  const destination = [...texts(maneuver.sign?.exit_branch_elements), ...texts(maneuver.sign?.exit_toward_elements)].join(', ')
+  return {
+    ...(maneuver.roundabout_exit_count && { exitNumber: maneuver.roundabout_exit_count }),
+    ...(exitRef && { exitRef }),
+    ...(destination && { destination }),
   }
 }

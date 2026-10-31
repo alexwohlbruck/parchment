@@ -365,6 +365,12 @@ export const settingsIndex: SettingsPageDef[] = [
               keywords: ['building', 'shadow', 'shading', 'occlusion', 'edge', '3d', 'lighting'],
             },
             {
+              id: 'battery-run',
+              titleKey: 'settings.developer.batteryRun.title',
+              descriptionKey: 'settings.developer.batteryRun.description',
+              keywords: ['battery', 'power', 'saver', 'drain', 'gps'],
+            },
+            {
               id: 'dev-info',
               titleKey: 'settings.developer.info.title',
             },

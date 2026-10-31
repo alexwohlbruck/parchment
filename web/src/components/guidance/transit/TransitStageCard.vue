@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight } from 'lucide-vue-next'
+import { ArrowRight, SignalLow, SignalZero } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatClock } from '@/lib/directions/trip-display'
 import { formatDurationCompact } from '@/lib/time-format'
 import { ALIGHT_NOW_METERS, type TransitStage } from '@/lib/guidance/transit-progress'
+import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 
 const props = defineProps<{
   stage: TransitStage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   segment: any
   nowMs: number
+  certainty?: RideCertainty
   busy?: boolean
   noLaterRun?: boolean
 }>()
@@ -81,7 +83,16 @@ const ride = computed(() => {
       </div>
       <div class="flex justify-between gap-3 text-sm text-muted-foreground tabular-nums">
         <span class="truncate">{{ ride.next }}</span>
-        <span class="shrink-0">{{ ride.detail }}</span>
+        <span class="flex shrink-0 items-center gap-1.5">
+          <component
+            :is="certainty === 'uncertain' ? SignalZero : SignalLow"
+            v-if="certainty && certainty !== 'live'"
+            class="size-3.5"
+            role="img"
+            :aria-label="t('guidance.transit.estimated')"
+          />
+          {{ ride.detail }}
+        </span>
       </div>
     </template>
 

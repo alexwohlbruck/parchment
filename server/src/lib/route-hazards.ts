@@ -17,7 +17,7 @@ export interface HazardSegment {
   instructions?: RouteInstruction[]
 }
 
-const PREMIUM_KINDS = new Set<RouteHazardKind>(['rough_surface', 'dismount', 'ferry'])
+const PREMIUM_KINDS = new Set<RouteHazardKind>(['rough_surface', 'dismount', 'ferry', 'toll', 'speed_camera', 'traffic_calming', 'movable_bridge'])
 
 /** Whether a kind is gated; everything that warns of risk to someone stays free. */
 export function isPremiumHazard(kind: RouteHazardKind): boolean {
@@ -104,7 +104,7 @@ function crossingHazard(mode: string, crossing: string): { kind: RouteHazardKind
   }
 }
 
-function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate): RouteHazard[] {
+function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate, freezing: boolean): RouteHazard[] {
   const hazards: RouteHazard[] = []
   const push = (edge: RouteEdgeSegment, kind: RouteHazardKind, severity: RouteHazard['severity'], options: { stretch?: boolean; variant?: string } = {}) => {
     hazards.push({
@@ -133,6 +133,9 @@ function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate): Rou
       case 'ferry':
         push(edge, 'ferry', 'low', { stretch: true })
         break
+      case 'bridge':
+        if (freezing && segment.mode !== 'walking') push(edge, 'icy_bridge', 'high', { stretch: true })
+        break
     }
     if (edge.roadClass === 'steps' && segment.mode !== 'driving') push(edge, 'steps', 'medium', { stretch: true })
     if ((edge.roadClass === 'living_street' || edge.roadClass === 'pedestrian') && segment.mode !== 'walking') {
@@ -143,7 +146,7 @@ function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate): Rou
       push(edge, 'rough_surface', 'low', { stretch: true, variant: edge.surface })
     }
   }
-  return mergeAdjacent(hazards, at)
+  return hazards
 }
 
 /** A crossing node sits between two edges, so one crossing can arrive twice. */
@@ -158,7 +161,7 @@ function mergeAdjacent(hazards: RouteHazard[], at: (d: number) => Coordinate): R
   for (const hazard of hazards) {
     const last = merged.findLast((h) => h.kind === hazard.kind)
     if (last && last.endDistance != null && hazard.endDistance != null && hazard.startDistance - last.endDistance < 1) {
-      last.endDistance = hazard.endDistance
+      last.endDistance = Math.max(last.endDistance, hazard.endDistance)
       continue
     }
     if (last && last.endDistance == null && hazard.endDistance == null) {
@@ -290,26 +293,24 @@ function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): 
   return curves
 }
 
-export function routeHazards(input: HazardSegment): RouteHazard[] {
+export interface RouteHazardsOptions {
+  /** Hazards read from OSM tags along the route; when present, its real signals replace the crossing-based ones a driver or rider would otherwise get. */
+  points?: RouteHazard[] | null
+  /** Cold enough for bridge decks to ice over. */
+  freezing?: boolean
+}
+
+const byStart = (a: RouteHazard, b: RouteHazard) => a.startDistance - b.startDistance
+
+export function routeHazards(input: HazardSegment, options: RouteHazardsOptions = {}): RouteHazard[] {
   const geometry = input.geometry ?? []
   if (geometry.length < 2 || input.mode === 'transit') return []
   // Trip planning names the bike mode `biking`; everything here says `cycling`.
   const segment = { ...input, mode: input.mode === 'biking' ? 'cycling' : input.mode }
   const path = measure(geometry)
-  return [...edgeHazards(segment, path.at), ...steepGrades(segment, path), ...sharpCurves(segment, path)].sort(
-    (a, b) => a.startDistance - b.startDistance,
-  )
-}
-
-/** Every street segment of a planning response gets its hazards; premium kinds only for members. */
-export function attachHazards<T extends HazardSegment & { hazards?: RouteHazard[]; details?: any }>(
-  segments: T[],
-  { premium }: { premium: boolean },
-): void {
-  for (const segment of segments) {
-    const nested = segment.details?.multimodalSegments as T[] | undefined
-    if (nested?.length) attachHazards(nested, { premium })
-    const hazards = routeHazards(segment)
-    segment.hazards = premium ? hazards : hazards.filter((h) => !h.premium)
-  }
+  const edges = edgeHazards(segment, path.at, options.freezing ?? false)
+  const points = options.points
+  const own = points && segment.mode !== 'walking' ? edges.filter((h) => h.kind !== 'traffic_signals') : edges
+  const merged = mergeAdjacent([...own, ...(points ?? [])].sort(byStart), path.at)
+  return [...merged, ...steepGrades(segment, path), ...sharpCurves(segment, path)].sort(byStart)
 }

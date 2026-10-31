@@ -7,6 +7,7 @@ import type { Announcement } from './announcements'
 import { bannerDistance } from './guidance-display'
 import type { Handoff } from './handoff'
 import { formatDurationLong } from '@/lib/time-format'
+import { inline } from './instructions/instruction-text'
 
 type TFn = (key: string, named?: Record<string, unknown>) => string
 
@@ -21,11 +22,6 @@ export function spokenDistance(meters: number, metric: boolean, t: TFn): string 
   const { value, unit } = bannerDistance(meters, metric)
   const [one, many] = SPOKEN_UNITS[unit]
   return t(`guidance.voice.units.${Number(value) === 1 ? one : many}`, { value })
-}
-
-/** An action read mid-sentence: "In 500 feet, turn right". */
-function inline(action: string): string {
-  return action.charAt(0).toLowerCase() + action.slice(1)
 }
 
 function maneuverPhrase(instruction: RouteInstruction, t: TFn): string {
@@ -87,6 +83,10 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
       }
       return t(`guidance.transit.voice.${event}`, { line, stop })
     }
+    case 'border':
+      return t('guidance.voice.welcome', { region: announcement.region })
+    case 'vehicle-question':
+      return t(`guidance.transit.whichVehicle.${announcement.vehicle}`)
     case 'arrived':
       return announcement.side
         ? t(`guidance.voice.arrivedSide.${announcement.side}`)

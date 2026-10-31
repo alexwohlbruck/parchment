@@ -34,7 +34,7 @@ mock.module('../../lib/logger', () => ({
   logWarn: () => {},
 }))
 
-const { OpenWeatherMapIntegration } = await import('./openweathermap-integration')
+const { OpenWeatherMapIntegration, outlookFromForecast } = await import('./openweathermap-integration')
 
 function owmResponse(over: Partial<any> = {}) {
   return new Response(
@@ -274,5 +274,19 @@ describe('getWeather', () => {
     fetchError = new Error('ETIMEDOUT')
 
     await expect(configured().getWeather(35.2, -80.8)).rejects.toThrow('ETIMEDOUT')
+  })
+})
+
+describe('getOutlook', () => {
+  const step = (temp_min: number, main: string) => ({ main: { temp_min }, weather: [{ main }] })
+
+  test('rain in any of the next steps, and the lowest low', async () => {
+    fetchResponse = new Response(JSON.stringify({ list: [step(4, 'Clouds'), step(1.5, 'Drizzle')] }), { status: 200 })
+    expect(await configured().getOutlook(35.2, -80.8)).toEqual({ rain: true, minTemperature: 1.5 })
+    expect(fetchCalls.at(-1)).toContain('/data/2.5/forecast?lat=35.2&lon=-80.8&cnt=2')
+  })
+
+  test('snow is not rain', () => {
+    expect(outlookFromForecast({ list: [step(-2, 'Snow')] }).rain).toBe(false)
   })
 })

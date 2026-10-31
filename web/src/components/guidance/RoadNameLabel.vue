@@ -38,7 +38,7 @@ const position = computed(() => {
   const map = mapStore.getMapStrategy()?.mapInstance as MaplibreMap | undefined
   const container = map?.getContainer().getBoundingClientRect()
   const visible = container ? toContainerRect(appStore.visibleMapArea, container) : appStore.visibleMapArea
-  const focal = puckFocal(guidance.preferences.cameraMode, guidance.cameraTuning, visible.height)
+  const focal = puckFocal(guidance.cameraMode, guidance.cameraTuning, visible.height)
   return {
     left: `${visible.x + visible.width / 2}px`,
     top: `${visible.y + visible.height * focal + PUCK_CLEARANCE}px`,

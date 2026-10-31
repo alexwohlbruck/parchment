@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { chooseItinerary, isTransitOnly, type ItinerarySegment } from './better-itinerary'
+import { chooseItinerary, earliestItinerary, isTransitOnly, type ItinerarySegment } from './better-itinerary'
 
 const NOW = Date.parse('2026-10-25T12:00:00Z')
 const at = (min: number) => new Date(NOW + min * 60_000)
@@ -51,4 +51,14 @@ test('isTransitOnly wants a ride, and nothing personal to bring along', () => {
   expect(isTransitOnly([walk(1)])).toBe(false)
   expect(isTransitOnly([{ mode: 'cycling', ownership: 'shared' }, ride('A', 2)])).toBe(true)
   expect(isTransitOnly([{ mode: 'cycling', ownership: 'personal' }, ride('A', 2)])).toBe(false)
+})
+
+describe('earliestItinerary', () => {
+  test('takes the first to arrive among plans without a personal vehicle', () => {
+    const drive = plan({ mode: 'driving', endTime: at(10), geometry: line })
+    const early = plan(walk(2), ride('B', 20), walk(24))
+    const late = plan(walk(2), ride('C', 30), walk(34))
+    expect(earliestItinerary([late, drive, early])).toBe(early)
+    expect(earliestItinerary([drive])).toBeNull()
+  })
 })

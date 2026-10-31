@@ -32,6 +32,7 @@ import type {
 } from '../../types/graphhopper.types'
 import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
 import { logError, logWarn, logger } from '../../lib/logger'
+import { graphHopperSigns } from '../../lib/graphhopper-signs'
 
 /**
  * GraphHopper integration for routing
@@ -645,6 +646,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       streetName: instruction.street_name,
       streetRef: instruction.street_ref || undefined,
       modifier: this.mapInstructionModifier(instruction.sign),
+      exitNumber: instruction.exit_number ?? undefined,
+      ...graphHopperSigns(instruction),
     }
   }
 

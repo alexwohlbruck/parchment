@@ -49,7 +49,7 @@ const size = computed(() => (props.large ? 'size-16 [&_svg]:size-6' : 'size-12 [
     <CameraModeButton
       class="rounded-full shadow-lg"
       :class="size"
-      :mode="guidance.preferences.cameraMode"
+      :mode="guidance.cameraMode"
       :state="camera.state.value"
       @press="camera.pressCameraButton"
     />

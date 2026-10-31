@@ -19,8 +19,15 @@ import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
-import { laneHint, type LanePlan } from '@/lib/guidance/lanes'
-import { canReroute, requestReroute } from '@/services/guidance/reroute.service'
+import type { LanePlan } from '@/lib/guidance/lanes'
+import { speechFor, type RichSource } from '@/lib/guidance/instructions/rich-announcement'
+import { richInstruction } from '@/lib/guidance/instructions/rich-instruction'
+import type { RichInstruction } from '@/lib/guidance/instructions/instruction.types'
+import { countryName } from '@/lib/geo/country-codes'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
 import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import {
@@ -33,7 +40,11 @@ import {
   type TransitSegmentInput,
   type TransitStage,
 } from '@/lib/guidance/transit-progress'
-import { applyDepartureChange, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { estimatedPuck, RideEstimator, rideFix, type RideEstimate } from '@/lib/guidance/ride-estimator'
+import { applyDepartureChange, cascadeAfter, type RebookableSegment } from '@/lib/directions/trip-rebooking'
+import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { earliestItinerary } from '@/lib/guidance/better-itinerary'
+import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
@@ -46,6 +57,9 @@ import { i18n, storedLocale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem, type LngLat } from '@/types/map.types'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import { GpsCadence, PRECISE_INTERVAL_MS } from '@/lib/guidance/gps-cadence'
+import { navCameraMode, navPowerBudget } from '@/lib/guidance/power-budget'
+import { usePowerStore } from '@/stores/power.store'
 import { requestMotionPermission } from '@/services/guidance/position-source'
 import { holdScreenAwake, releaseScreenAwake } from '@/services/guidance/wake-lock'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -72,6 +86,10 @@ const HORIZON_MIN_INTERVAL_MS = 3_000
 const HORIZON_RETRY_MS = 10_000
 /** Below this the puck is idling and its jitter isn't distance travelled. */
 const ODOMETER_MIN_SPEED = 0.5
+/** No fix for this long: the traveller can't be seen, as underground. */
+const OUT_OF_SIGHT_MS = 30_000
+/** A destination this close to the saved home is home. */
+const HOME_RADIUS_METERS = 75
 
 export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
 
@@ -104,6 +122,8 @@ export interface GuidanceProgress extends ProgressSummary {
 
 type LegSegment = NavSegmentInput & TransitSegmentInput & {
   legIndex?: number
+  tripId?: string
+  routeType?: number
   duration?: number
   ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
@@ -146,6 +166,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let spokenTransit = new Set<string>()
   /** Furthest snapped distance reached; boarding and alighting don't undo. */
   let furthestS = 0
+  /** Where on the ride the rider is reckoned to be, for when fixes can't say. */
+  const rideEstimate = shallowRef<RideEstimate | null>(null)
+  let ride: { segment: number; estimator: RideEstimator } | null = null
   const rebooking = ref(false)
   /** Lanes for each step whose approach has tagged or painted arrows; per route. */
   const lanePlans = shallowRef(new Map<number, LanePlan>())
@@ -159,6 +182,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const appStore = useAppStore()
   const orientation = useOrientationService()
   let turnAroundWatch: TurnAroundWatch | null = null
+  const gpsCadence = new GpsCadence()
+  const powerStore = usePowerStore()
+  /** What navigation may spend on drawing, under the battery saver in force. */
+  const powerBudget = computed(() => navPowerBudget(powerStore.saver))
 
   const kind = ref<GuidanceKind>('route')
   const freeMode = ref<FreeMode>('driving')
@@ -185,12 +212,26 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return preferences.value.sound[modeAt(s)] ?? 'all'
   }
 
+  const richGuidance = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+  /** The next maneuver as rich guidance describes it, for premium travellers. */
+  const nextInstruction = computed<RichInstruction | null>(() => {
+    const navRoute = route.value
+    const current = progress.value
+    if (!richGuidance.value || !navRoute || !current?.next) return null
+    const { puck, next } = current
+    return richInstruction(navRoute, next, { from: puck.s, speed: puck.speed, lanes: lanePlans.value.get(next.index) })
+  })
+  /** Whether the leg ends at the traveller's saved home. */
+  let headingHome = false
+
   function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
-    const hint = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? lanePlans.value.get(announcement.step.index) : undefined
-    const lanes = hint ? laneHint(hint) : null
-    return lanes
-      ? translate('guidance.voice.useLanes', { lanes: translate(`guidance.voice.lanes.${lanes.side}${lanes.count > 1 ? 'Many' : ''}`, { n: lanes.count }), action: announcementText(announcement, metric, translate) })
+    const puck = progress.value?.puck
+    const source: RichSource | null = route.value
+      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome }
+      : null
+    return source
+      ? speechFor(announcement, source, richGuidance.value, metric, translate)
       : announcementText(announcement, metric, translate)
   }
 
@@ -224,9 +265,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
 
+  /** The camera mode in force: the preference, flattened when the battery saver forbids 3D. */
+  const cameraMode = computed(() => navCameraMode(preferences.value.cameraMode, powerBudget.value))
+
   /** What the puck is drawn as for the travel mode underway. */
   const vehicle = computed<VehicleChoice>(previous => {
-    const next = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const choice = vehicleChoice(preferences.value.vehicle, travelMode.value)
+    const next = powerBudget.value.allow3d ? choice : { ...choice, indicator: 'arrow' as const }
     return previous?.indicator === next.indicator && previous.color === next.color ? previous : next
   })
 
@@ -246,6 +291,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (!joined) checkJoin()
     const turnAround = puck.snapped && status.value !== 'away' ? updateTurnAround(navRoute, puck) : null
     progress.value = { puck, ...summary, remainingSeconds: timetabled ?? summary.remainingSeconds, turnAround }
+    updateCadence(navRoute, puck, summary.distanceToNext)
     if (status.value === 'away') return
     updateTransit(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
@@ -272,6 +318,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const cue = { heading: cardinal(routeBearing), road: road.kind === 'named' ? road.name : null }
     if (raised) announce({ kind: 'turn-around', ...cue }, puck.s)
     return cue
+  }
+
+  function updateCadence(navRoute: NavRoute, puck: PuckState, distanceToManeuver: number | null) {
+    const stage = transit.value
+    guidanceEngine.setFixInterval(gpsCadence.update({
+      t: Date.now() / 1000,
+      tracking: puck.snapped && status.value === 'navigating',
+      mode: travelModeAt(navRoute, puck.s),
+      speed: puck.speed,
+      distanceToManeuver,
+      ride: stage?.kind === 'riding' ? { stopsLeft: stage.stopsLeft, remaining: stage.remaining } : null,
+    }))
+  }
+
+  function resetCadence() {
+    gpsCadence.reset()
+    guidanceEngine.setFixInterval(PRECISE_INTERVAL_MS)
   }
 
   /** Guidance waits while the traveller is too far from the route to follow it or plan onto it. */
@@ -308,8 +371,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   function updateTransit(navRoute: NavRoute, puck: PuckState) {
-    if (puck.snapped) furthestS = Math.max(furthestS, puck.s)
-    const stage = transitStage(navRoute, segments.value, rides, { ...puck, s: Math.max(puck.s, furthestS) }, guidanceClock.now())
+    if (puck.snapped && !guidanceEngine.holding) furthestS = Math.max(furthestS, puck.s)
+    const nowMs = guidanceClock.now()
+    const progressed = { ...puck, s: Math.max(puck.s, furthestS) }
+    const stage = trackRide(navRoute, transitStage(navRoute, segments.value, rides, progressed, nowMs), progressed, nowMs)
     transit.value = stage
     const event = stage && stageEvent(stage)
     if (!stage || !event) return
@@ -320,6 +385,53 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
     announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, stop }, puck.s)
     if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
+  }
+
+  /** Aboard and out of sight, the ride estimate stands in for the puck. */
+  function trackRide(navRoute: NavRoute, stage: TransitStage | null, puck: PuckState, nowMs: number): TransitStage | null {
+    const index = aboardSegment(navRoute, stage, puck)
+    const stops = index == null ? null : rides[index]
+    if (index == null || !stops?.length || !stage) {
+      leaveRide()
+      return stage
+    }
+    if (ride?.segment !== index) {
+      const start = stage.kind === 'missed-vehicle' ? { s: stops[0].s, t: stage.departureMs } : { s: puck.s, t: nowMs }
+      ride = { segment: index, estimator: new RideEstimator(stops, start, { realtime: !!segments.value[index].realTimeData }) }
+    }
+    const diagnostics = guidanceEngine.diagnostics
+    const raw = diagnostics?.rawFix
+    const estimate = ride.estimator.update({
+      now: nowMs,
+      fix: raw ? rideFix(navRoute, navRoute.segments[index], raw, nowMs - Date.now()) : null,
+      still: diagnostics?.sensorStill ?? null,
+    })
+    rideEstimate.value = estimate
+    guidanceEngine.hold(estimate.fresh ? null : estimate.shownS)
+    return estimate.fresh ? stage : transitStage(navRoute, segments.value, rides, estimatedPuck(puck, estimate), nowMs)
+  }
+
+  /** The ride the traveller is on: riding, or gone with a vehicle that left while they were out of sight. */
+  function aboardSegment(navRoute: NavRoute, stage: TransitStage | null, puck: PuckState): number | null {
+    switch (stage?.kind) {
+      case 'riding':
+        return stage.segmentIndex
+      case 'missed-stop':
+        return segmentAt(navRoute, puck.s)?.index === stage.segmentIndex ? stage.segmentIndex : null
+      case 'missed-vehicle': {
+        const fix = guidanceEngine.diagnostics?.lastFix
+        return !fix || Date.now() - fix.t * 1000 > OUT_OF_SIGHT_MS ? stage.segmentIndex : null
+      }
+      default:
+        return null
+    }
+  }
+
+  function leaveRide() {
+    if (!ride) return
+    ride = null
+    rideEstimate.value = null
+    guidanceEngine.hold(null)
   }
 
   function placeRides(navRoute: NavRoute) {
@@ -346,6 +458,44 @@ export const useGuidanceStore = defineStore('guidance', () => {
     } finally {
       rebooking.value = false
     }
+  }
+
+  /** Rides `candidate` on segment `index` in place of the planned run, re-timing what follows. */
+  async function retargetRide(index: number, candidate: VehicleCandidate, known: string[]) {
+    const segment = segments.value[index]
+    if (!segment || segment.tripId === candidate.tripId) return
+    Object.assign(segment, retargetedRide(segment, candidate, known))
+    const all = (trip.value?.segments ?? []) as unknown as (RebookableSegment & LineRun)[]
+    const at = all.indexOf(segment as unknown as RebookableSegment & LineRun)
+    const timed = at >= 0 ? all : (segments.value as unknown as (RebookableSegment & LineRun)[])
+    const held = await cascadeAfter(timed, at >= 0 ? at : index, (i, minMs) => nextRunAfter(timed[i], minMs))
+    segments.value = [...segments.value]
+    if (route.value) placeRides(route.value)
+    leaveRide()
+    if (!held) await replanAfter(index)
+  }
+
+  /** Replans the rest of the leg from where ride `index` gets off, keeping the ride itself. */
+  async function replanAfter(index: number) {
+    const navRoute = route.value
+    const ridden = segments.value[index]
+    const from = ridden?.arrivalStop?.location ?? ridden?.geometry?.at(-1)
+    const end = segments.value.at(-1)?.geometry?.at(-1)
+    if (!navRoute || !ridden || !from || !end || index >= segments.value.length - 1) return
+    try {
+      const fresh = earliestItinerary(await requestTransitItineraries({ position: from, destination: end, departAt: new Date(ridden.endTime ?? guidanceClock.now()) }))
+      if (!fresh || route.value !== navRoute) return
+      reshape([...segments.value.slice(0, index + 1), ...adoptItinerary(segments.value, index + 1, fresh.segments as LegSegment[])])
+    } catch {
+      // The re-timed plan still stands; the itinerary check offers a better one later.
+    }
+  }
+
+  /** Asks aloud which vehicle the rider boarded on segment `index`. */
+  function askWhichVehicle(index: number) {
+    const s = progress.value?.puck.s
+    if (s == null) return
+    announce({ kind: 'vehicle-question', vehicle: getRouteTypeKey(segments.value[index]?.routeType) }, s)
   }
 
   function settleHandoff() {
@@ -400,9 +550,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     route.value = navRoute
     guidanceEngine.setRoute(navRoute)
     announcer?.setRoute(navRoute)
+    resetCadence()
     settledHandoffs = new Set()
     handoff.value = null
     furthestS = 0
+    leaveRide()
     placeRides(navRoute)
   }
 
@@ -550,6 +702,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     segments.value = []
     continuation.value = null
     transit.value = null
+    leaveRide()
     handoff.value = null
     status.value = 'navigating'
   }
@@ -584,14 +737,18 @@ export const useGuidanceStore = defineStore('guidance', () => {
     transit.value = null
     spokenTransit = new Set()
     furthestS = 0
+    leaveRide()
     turnAroundWatch = new TurnAroundWatch()
     placeRides(navRoute)
+    resetCadence()
     const end = parts.at(-1)?.end?.location
+    const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
+    headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
       const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
       return speechDuration(text, rate)
-    })
+    }, richGuidance.value ? { regionName: code => countryName(code, storedLocale.value) } : {})
     const initial = announcer.start()
     if (initial) announce(initial, 0)
     return navRoute
@@ -679,6 +836,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     progress,
     status,
     preferences,
+    cameraMode,
+    powerBudget,
     cameraTuning,
     isActive,
     destinationLabel,
@@ -695,13 +854,18 @@ export const useGuidanceStore = defineStore('guidance', () => {
     settleHandoff,
     segments,
     transit,
+    rideEstimate,
     rebooking,
     catchNextRun,
+    retargetRide,
+    askWhichVehicle,
     clockMs,
     addStop,
     switchDock,
     lanePlans,
     setLanePlan,
+    richGuidance,
+    nextInstruction,
     takeAlternative,
     takeItinerary,
   }

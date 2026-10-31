@@ -50,7 +50,7 @@ export function routeMetrics(leg: {
     turns: instructions.filter(i => (i.modifier && TURNS.has(i.modifier)) || /turn-(sharp-)?(left|right)|u-turn/.test(i.type)).length,
     protectedShare: share(edges, leg.distance, e => e.roadClass === 'cycleway' || SEPARATED_CYCLEWAY.has(e.cycleway ?? '')),
     majorRoadShare: share(edges, leg.distance, e => MAJOR.has(e.roadClass ?? '')),
-    crossings: edges.filter(e => e.crossing && e.crossing !== 'MISSING').length,
+    crossings: edges.filter(e => e.crossing && e.crossing.toUpperCase() !== 'MISSING').length,
     via: mainStreet(instructions),
   }
 }

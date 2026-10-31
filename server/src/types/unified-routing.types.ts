@@ -151,6 +151,21 @@ export type RouteHazardKind =
   | 'rough_surface'
   | 'shared_space'
   | 'sharp_curve'
+  | 'stop'
+  | 'give_way'
+  | 'tram_tracks'
+  | 'tram_crossing'
+  | 'unlit'
+  | 'flood_prone'
+  | 'icy_bridge'
+  | 'school_zone'
+  | 'traffic_calming'
+  | 'no_sidewalk'
+  | 'low_clearance'
+  | 'toll'
+  | 'speed_camera'
+  | 'movable_bridge'
+  | 'hazard'
 
 /** Something a route passes through that's worth knowing about, placed by distance along its segment. */
 export interface RouteHazard {
@@ -174,6 +189,8 @@ export interface RouteInstruction {
   duration: number // seconds to next instruction
   heading?: number
   streetName?: string
+  /** Set when `streetName` is the street beside an unnamed sidewalk rather than the way's own name. */
+  streetNameSource?: StreetNameSource
   /** Route number of the road, e.g. "I 85" */
   streetRef?: string
 
@@ -188,6 +205,10 @@ export interface RouteInstruction {
     | 'sharp-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
+  /** A motorway exit's posted number, e.g. "12A". */
+  exitRef?: string
+  /** Where the signs at the maneuver point, e.g. "Downtown, Brooklyn". */
+  destination?: string
 
   // Elevation and surface data (for bike/pedestrian modes)
   elevation?: number // meters above sea level
@@ -200,6 +221,11 @@ export interface RouteInstruction {
 }
 
 /** Per-edge attributes mapped to distance along the route */
+/** `tag`: the sidewalk's own is_sidepath:of:name or street:name; `geometry`: the street found running beside it. */
+export type StreetNameSource = 'tag' | 'geometry'
+
+export type OverpassKind = 'road' | 'rail'
+
 export interface RouteEdgeSegment {
   startDistance: number     // meters from leg start
   endDistance: number       // meters from leg start
@@ -219,6 +245,13 @@ export interface RouteEdgeSegment {
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
   osmWayId?: number         // the OSM way the edge belongs to
   country?: string          // ISO 3166-1 alpha-3
+  streetName?: string       // the street an unnamed sidewalk runs beside
+  streetNameSource?: StreetNameSource
+  crossingName?: string     // the road a crosswalk crosses
+  overpass?: OverpassKind   // set beneath a road or railway passing over the route
+  state?: string            // the state or province the edge is in
+  inPark?: boolean          // on foot, inside a park
+  parkName?: string
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string
@@ -267,6 +300,24 @@ export interface RouteLanesRequest {
 }
 
 export type LanesProfile = 'car' | 'bike'
+
+export type PointHazardsProfile = 'car' | 'bike' | 'foot'
+
+/** What barrelman's /route/hazards takes: a street segment's line and who travels it. */
+export interface RoutePointHazardsRequest {
+  coordinates: [lng: number, lat: number][]
+  profile: PointHazardsProfile
+}
+
+/** A hazard barrelman read from OSM tags along a route, by metres along the line sent. */
+export interface RoutePointHazard {
+  kind: string
+  distance: number
+  endDistance?: number
+  coordinate: [lng: number, lat: number]
+  osm: string
+  detail?: string
+}
 
 export interface RouteLanes {
   drivingSide: DrivingSide

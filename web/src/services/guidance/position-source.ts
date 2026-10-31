@@ -56,38 +56,63 @@ function toMotion(event: DeviceMotionEvent): MotionSample | null {
 
 const WATCH_OPTIONS = { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
 
-/** The apps read the OS location service, which keeps delivering with the screen off. */
-function watchNative(onFix: (fix: Fix) => void): () => void {
+export interface PositionSource {
+  stop: () => void
+  /** How often to ask for a fix. The browser decides for itself, so only the apps honour it. */
+  setFixInterval: (ms: number) => void
+}
+
+/**
+ * The apps read the OS location service, which keeps delivering with the screen off.
+ * The Android plugin uses `timeout` as the update interval; iOS ignores it.
+ */
+function watchNative(onFix: (fix: Fix) => void, intervalMs: number): PositionSource {
   let stopped = false
   let id: number | null = null
-  void (async () => {
-    const geolocation = await import('@tauri-apps/plugin-geolocation')
-    const { location } = await geolocation.checkPermissions()
-    if (location !== 'granted') await geolocation.requestPermissions(['location'])
-    if (stopped) return
-    id = await geolocation.watchPosition(WATCH_OPTIONS, position => {
-      if (position) onFix(toFix(position))
-    })
-    if (stopped) void geolocation.clearWatch(id)
-  })()
-  return () => {
-    stopped = true
-    if (id != null) void import('@tauri-apps/plugin-geolocation').then(g => g.clearWatch(id!))
+  let pending = Promise.resolve()
+  const geolocation = import('@tauri-apps/plugin-geolocation')
+
+  const rewatch = (ms: number) => {
+    pending = pending.then(async () => {
+      const plugin = await geolocation
+      if (id != null) await plugin.clearWatch(id)
+      id = null
+      if (stopped) return
+      id = await plugin.watchPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: ms }, position => {
+        if (position && !stopped) onFix(toFix(position))
+      })
+    }).catch(() => {})
+  }
+
+  pending = geolocation.then(async plugin => {
+    const { location } = await plugin.checkPermissions()
+    if (location !== 'granted') await plugin.requestPermissions(['location'])
+  }).catch(() => {})
+  rewatch(intervalMs)
+
+  return {
+    stop: () => {
+      stopped = true
+      rewatch(intervalMs)
+    },
+    setFixInterval: ms => {
+      if (ms !== intervalMs) rewatch((intervalMs = ms))
+    },
   }
 }
 
-function watchBrowser(handlers: PositionSourceHandlers): () => void {
+function watchBrowser(handlers: PositionSourceHandlers): PositionSource {
   const watchId = navigator.geolocation.watchPosition(
     position => handlers.onFix(toFix(position)),
     error => handlers.onError?.(error),
     WATCH_OPTIONS,
   )
-  return () => navigator.geolocation.clearWatch(watchId)
+  return { stop: () => navigator.geolocation.clearWatch(watchId), setFixInterval: () => {} }
 }
 
-export function startPositionSource(handlers: PositionSourceHandlers): () => void {
+export function startPositionSource(handlers: PositionSourceHandlers, intervalMs: number): PositionSource {
   // The dev simulator stands in for navigator.geolocation, so it always takes that path.
-  const stopWatch = isTauri && !simulatorActive() ? watchNative(handlers.onFix) : watchBrowser(handlers)
+  const watch = isTauri && !simulatorActive() ? watchNative(handlers.onFix, intervalMs) : watchBrowser(handlers)
 
   const onDeviceMotion = (event: DeviceMotionEvent) => {
     const sample = toMotion(event)
@@ -95,8 +120,11 @@ export function startPositionSource(handlers: PositionSourceHandlers): () => voi
   }
   if (handlers.onMotion) window.addEventListener('devicemotion', onDeviceMotion)
 
-  return () => {
-    stopWatch()
-    window.removeEventListener('devicemotion', onDeviceMotion)
+  return {
+    stop: () => {
+      watch.stop()
+      window.removeEventListener('devicemotion', onDeviceMotion)
+    },
+    setFixInterval: watch.setFixInterval,
   }
 }

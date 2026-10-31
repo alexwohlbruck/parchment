@@ -92,9 +92,22 @@ export async function applyDepartureChange(
   }
 
   shiftSegmentTimes(chosen, delta)
+  await cascadeAfter(segments, segmentIndex, nextDeparture)
+  return true
+}
 
-  // Cascade forward
-  let cursorMs = asMs(chosen.endTime)
+/**
+ * Re-times every segment after `segmentIndex` from where it ends. Mutates in
+ * place; false when a later connection broke and no run of its line could be
+ * found to replace it.
+ */
+export async function cascadeAfter(
+  segments: RebookableSegment[],
+  segmentIndex: number,
+  nextDeparture: NextDepartureLookup,
+): Promise<boolean> {
+  let held = true
+  let cursorMs = asMs(segments[segmentIndex].endTime)
   for (let i = segmentIndex + 1; i < segments.length; i++) {
     const s = segments[i]
     if (s.mode !== 'transit') {
@@ -106,12 +119,12 @@ export async function applyDepartureChange(
       cursorMs += movingMs
     } else {
       const plannedDep = asMs(s.startTime)
-      const rideMs = asMs(s.endTime) - plannedDep
       // Re-select the earliest run reachable from the cascade cursor —
       // later when the connection broke, earlier when slack opened up.
       // Null lookup (no schedule data): hold the planned run if still
       // catchable, else slide to the arrival time.
       const earliest = await nextDeparture(i, cursorMs)
+      if (earliest == null && cursorMs > plannedDep) held = false
       const dep =
         earliest ?? (cursorMs > plannedDep ? cursorMs : plannedDep)
       // The preceding walk stretches to the departure; slack is wait.
@@ -123,10 +136,8 @@ export async function applyDepartureChange(
         prev.waitSeconds = waitMs / 1000
       }
       shiftSegmentTimes(s, dep - plannedDep)
-      void rideMs
       cursorMs = asMs(s.endTime)
     }
   }
-
-  return true
+  return held
 }

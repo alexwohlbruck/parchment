@@ -6,7 +6,7 @@ import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
 import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
-import { attachHazards } from '../lib/route-hazards'
+import { attachHazards } from '../services/route-hazards.service'
 import { attachLanes } from '../services/route-lanes.service'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { getPermissions, hasPermission } from '../services/auth.service'
@@ -233,8 +233,11 @@ app.post(
       // Plan the trip using multimodal strategy
       const result = await multimodalTripService.planTrip(request)
       const premium = await seesPremiumHazards(user?.id)
-      for (const candidate of result.trips) attachHazards((candidate.trip?.segments ?? []) as any[], { premium })
-      await attachLanes(result.trips.flatMap(candidate => (candidate.trip?.segments ?? []).flatMap(s => [s, ...(s.details?.multimodalSegments ?? [])])))
+      const departure = request.preferredDepartureTime ? new Date(request.preferredDepartureTime) : undefined
+      await Promise.all([
+        ...result.trips.map(candidate => attachHazards((candidate.trip?.segments ?? []) as any[], { premium, departure })),
+        attachLanes(result.trips.flatMap(candidate => (candidate.trip?.segments ?? []).flatMap(s => [s, ...(s.details?.multimodalSegments ?? [])]))),
+      ])
 
       return result
     } catch (error) {
@@ -260,10 +263,15 @@ app.post(
         + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
         + 'segment with `streetTransfer` leaves the paid area '
         + 'between stations the agency does not connect, so the next ride is a new fare. '
-        + 'Street segments carry `hazards`: crosswalks, rail crossings, tunnels, fords, steep '
-        + 'grades, stairs, sharp curves and the like, placed by distance along the segment. '
-        + 'Comfort hazards (rough surfaces, dismount sections, ferries) appear only for users '
-        + 'with premium navigation. Driving and cycling segments carry `drivingSide`, and where the '
+        + 'Street instructions carry `exitNumber` for roundabouts and, where the map signposts '
+        + 'the maneuver, `exitRef` (a motorway exit\'s number) and `destination` (where the signs point). '
+        + 'Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, '
+        + 'rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low '
+        + 'clearances, school zones and the like, placed by distance along the segment. Some '
+        + 'depend on conditions: unlit paths after sunset, flood-prone roads when rain is '
+        + 'forecast, bridges at 2 °C or below, and speed cameras only where warning of them is '
+        + 'lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic '
+        + 'calming, movable bridges, speed cameras) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the '
         + 'routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for '
         + 'cycling, the bike lane, or beside the traffic), with `measures` giving the distance along '
         + '`geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per '
@@ -284,8 +292,7 @@ app.post(
         set.status = 404
         return { error: 'No route found' }
       }
-      attachHazards([segment], { premium: await seesPremiumHazards(user?.id) })
-      await attachLanes([segment])
+      await Promise.all([attachHazards([segment], { premium: await seesPremiumHazards(user?.id) }), attachLanes([segment])])
       return { segment }
     } catch (error) {
       logError('Reroute failed', error)
@@ -312,8 +319,7 @@ app.post(
   async ({ body, language, set, user }) => {
     try {
       const alternatives = await alternativeSegments({ ...body, language })
-      attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) })
-      await attachLanes(alternatives)
+      await Promise.all([attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) }), attachLanes(alternatives)])
       return { alternatives }
     } catch (error) {
       logError('Route alternatives failed', error)

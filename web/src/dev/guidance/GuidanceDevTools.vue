@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Map as MaplibreMap } from 'maplibre-gl'
-import { BikeIcon, BugIcon, CarFrontIcon, FlaskConicalIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon } from 'lucide-vue-next'
+import { BikeIcon, BugIcon, CarFrontIcon, FlaskConicalIcon, HourglassIcon, PauseIcon, PlayIcon, RouteIcon, SignalZeroIcon, SlidersHorizontalIcon, SplitIcon, TrainFrontIcon, TramFrontIcon } from 'lucide-vue-next'
 import { DEFAULT_CAMERA_TUNING, type CameraTuning } from '@/lib/guidance/camera-framing'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { simulatorStore, type SimulatorState } from '@/dev/gpx-simulator'
 import { synthesizeDetour, synthesizeDrive } from '@/dev/gpx-simulator/route-drive'
 import { REALISTIC_FIX_MODEL } from '@/dev/gpx-simulator/fix-model'
+import { synthesizeMotion } from '@/dev/gpx-simulator/motion-synth'
+import type { GpxPoint } from '@/dev/gpx-simulator/gpx-parser'
 import { matchToRoute } from '@/lib/guidance/route-matcher'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
@@ -16,8 +18,13 @@ import { attachGuidanceDebug } from './guidance-debug-layer'
 import { simulateNavigation } from './simulate-navigation'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
+import { setDevCandidateOverride } from '@/services/guidance/vehicle-candidates.service'
+import { PLANNED_FROM_ARRIVAL_MS, scenarioCandidates, type VehicleScenario } from './vehicle-scenarios'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
-import type { NavRoute } from '@/lib/guidance/nav-route'
+import { isAboard } from '@/lib/guidance/guidance-layout'
+import { pointAt, type NavRoute } from '@/lib/guidance/nav-route'
+import { distanceMeters } from '@/lib/map/movement-interpolation'
+import type { LngLat } from '@/types/map.types'
 
 const props = defineProps<{
   /** Which way the panel opens from its pill. */
@@ -56,23 +63,32 @@ const debugOn = ref(false)
 let detachDebug: (() => void) | null = null
 let unsubscribe: (() => void) | null = null
 
+let lastWallMs = performance.now()
+
 onMounted(() => {
   unsubscribe = simulatorStore.subscribe(state => {
     if (state.status !== sim.value.status || state.playbackRate !== sim.value.playbackRate) {
       sim.value = state
     }
+    // Aboard, the timetable runs at playback speed so the vehicle keeps to it.
+    const wallMs = performance.now()
+    if (state.status === 'playing' && isAboard(guidance.transit)) guidanceClock.advance((wallMs - lastWallMs) * (state.playbackRate - 1))
+    lastWallMs = wallMs
+    if (underground.value && !state.outages.length) leaveUnderground()
   })
 })
 
 onBeforeUnmount(() => {
   unsubscribe?.()
+  leaveUnderground()
   detachDebug?.()
   guidanceClock.reset()
   setDevStationOverride(null)
+  setDevCandidateOverride(null)
   simulatorStore.unload()
 })
 
-const STOP_DWELL_SEC = 15
+const STOP_DWELL_SEC = 25
 
 /** Dwell at every intermediate stop of each ride. */
 function transitDwells(route: NavRoute) {
@@ -99,12 +115,36 @@ function takeWrongTurn() {
   simulatorStore.play()
 }
 
-// The simulated walk reaches the stop early; bring the timetable to it.
+const VEHICLE_SCENARIOS: { kind: VehicleScenario; label: string }[] = [
+  { kind: 'earlier', label: 'Board earlier' },
+  { kind: 'later', label: 'Board later' },
+  { kind: 'interchangeable', label: 'Board other line' },
+  { kind: 'ambiguous', label: 'Which vehicle?' },
+]
+const vehicleScenario = ref<VehicleScenario | null>(null)
+const awaitingBoarding = computed(() => ['to-stop', 'wait', 'missed-vehicle'].includes(guidance.transit?.kind ?? ''))
+
+/** Moves the timetable so the planned run sits where the scenario needs it, and stands in its candidates. */
+function applyVehicleScenario(scenario: VehicleScenario) {
+  const stage = guidance.transit
+  if (!stage || stage.kind === 'riding' || stage.kind === 'missed-stop') return
+  guidanceClock.advance(stage.departureMs - PLANNED_FROM_ARRIVAL_MS[scenario] - guidanceClock.now())
+  const now = guidanceClock.now()
+  setDevCandidateOverride(ride => scenarioCandidates(scenario, ride, now))
+}
+
+function chooseVehicleScenario(scenario: VehicleScenario) {
+  vehicleScenario.value = scenario
+  if (guidance.transit?.kind !== 'to-stop') applyVehicleScenario(scenario)
+}
+
+// The simulated walk reaches the stop early; bring the timetable to it, or to the chosen scenario.
 watch(
   () => guidance.transit?.kind,
   kind => {
     const stage = guidance.transit
     if (kind !== 'wait' || stage?.kind !== 'wait' || sim.value.status === 'stopped') return
+    if (vehicleScenario.value) return applyVehicleScenario(vehicleScenario.value)
     const ahead = stage.departureMs - 20_000 - guidanceClock.now()
     if (ahead > 0) guidanceClock.advance(ahead)
   },
@@ -129,6 +169,43 @@ function forceDock(kind: 'filling' | 'full') {
     return { ...status, bikes: left, docks: left }
   })
 }
+
+const UNDERGROUND_APPROACH_METERS = 100
+const SURFACE_METERS = 60
+const underground = ref(false)
+let stopMotion: (() => void) | null = null
+
+/** Track time when the trip first comes within a few metres of `target`, after the playback position. */
+function trackTimeNear(points: GpxPoint[], target: LngLat, afterMs: number): number | null {
+  const start = points[0]?.time ?? 0
+  const point = points.find(p => p.time - start >= afterMs && distanceMeters(p, target) < 5)
+  return point ? point.time - start : null
+}
+
+/** No fixes from the platform, or from here if already aboard, until out at the far end; motion carries on. */
+function goUnderground() {
+  if (underground.value) return leaveUnderground()
+  const route = guidanceEngine.route
+  const state = simulatorStore.getState()
+  const index = guidance.transit?.segmentIndex ?? guidance.segments.findIndex(s => s.mode === 'transit')
+  const ride = route?.segments[index]
+  if (!route || !ride) return
+  const now = state.trackTimeMs
+  const fromMs = guidance.transit?.kind === 'riding' ? now : trackTimeNear(state.points, pointAt(route, ride.startDistance - UNDERGROUND_APPROACH_METERS), now) ?? now
+  const toMs = trackTimeNear(state.points, pointAt(route, Math.min(route.length, ride.endDistance + SURFACE_METERS)), fromMs) ?? state.totalDurationMs
+  simulatorStore.setOutages([{ fromMs, toMs }])
+  stopMotion ??= synthesizeMotion()
+  underground.value = true
+}
+
+function leaveUnderground() {
+  stopMotion?.()
+  stopMotion = null
+  underground.value = false
+  simulatorStore.setOutages([])
+}
+
+watch(() => sim.value.status, status => status === 'stopped' && leaveUnderground())
 
 function stayOnBoard() {
   const here = simulatorStore.getState().currentPoint
@@ -258,6 +335,29 @@ function toggleDebug() {
           >
             <HourglassIcon />
             Miss it
+          </Button>
+          <template v-if="awaitingBoarding">
+            <Button
+              v-for="scenario in VEHICLE_SCENARIOS"
+              :key="scenario.kind"
+              size="sm"
+              :variant="vehicleScenario === scenario.kind ? 'default' : 'secondary'"
+              class="rounded-full"
+              @click="chooseVehicleScenario(scenario.kind)"
+            >
+              <TramFrontIcon />
+              {{ scenario.label }}
+            </Button>
+          </template>
+          <Button
+            v-if="guidance.segments.some(s => s.mode === 'transit')"
+            size="sm"
+            :variant="underground ? 'default' : 'secondary'"
+            class="rounded-full"
+            @click="goUnderground"
+          >
+            <SignalZeroIcon />
+            Underground
           </Button>
           <Button v-if="guidance.transit?.kind === 'riding'" size="sm" variant="secondary" class="rounded-full" @click="stayOnBoard">
             <TrainFrontIcon />

@@ -5,7 +5,9 @@ import { useI18n } from 'vue-i18n'
 import { AppRoute } from '@/router'
 import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { walkToStopSec } from '@/lib/guidance/transit-progress'
+import { rideCertainty } from '@/lib/guidance/ride-estimator'
 import { isAboard } from '@/lib/guidance/guidance-layout'
+import { bannerCue } from '@/lib/guidance/instructions/instruction-text'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,8 @@ const lanes = computed(() => {
   const within = Math.max(LANES_SHOW_METERS, progress.puck.speed * LANES_SHOW_SECONDS)
   return progress.distanceToNext <= within ? guidance.lanePlans.get(next.index) ?? null : null
 })
+
+const cue = computed(() => (guidance.nextInstruction ? bannerCue(guidance.nextInstruction, t) : null))
 
 const noLaterRun = ref(false)
 watch(() => guidance.transit?.kind, () => (noLaterRun.value = false))
@@ -78,6 +82,7 @@ function previewRoute() {
       :stage="stage"
       :segment="guidance.segments[stage.segmentIndex]"
       :now-ms="guidance.clockMs"
+      :certainty="rideCertainty(guidance.rideEstimate)"
       :busy="guidance.rebooking"
       :no-later-run="noLaterRun"
       @next-run="catchNextRun"
@@ -90,6 +95,7 @@ function previewRoute() {
         :destination="guidance.destinationLabel"
         :metric="metric"
         :lanes="lanes"
+        :cue="cue"
         :dash="dash"
       />
       <TransitApproach

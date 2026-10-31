@@ -24,4 +24,8 @@ describe('routeMetrics', () => {
     expect(metrics.crossings).toBe(1)
   })
   test('names the street carrying most of it', () => expect(metrics.via).toBe('Elm St'))
+  test('reads GraphHopper\'s lowercase crossing values', () => {
+    const edges = [{ startDistance: 0, endDistance: 10, crossing: 'missing' }, { startDistance: 10, endDistance: 20, crossing: 'marked' }]
+    expect(routeMetrics({ duration: 10, distance: 20, edgeSegments: edges }).crossings).toBe(1)
+  })
 })

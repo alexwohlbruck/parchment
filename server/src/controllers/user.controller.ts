@@ -12,6 +12,12 @@ import { generateId } from '../util'
 import { getRoles, getPermissions, hasPermission } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
 import { clientOrigin } from '../config/origins.config'
+
+function signinUrl(email: string) {
+  const url = new URL('/signin', clientOrigin)
+  url.searchParams.set('email', email)
+  return url.toString()
+}
 import { permissions, requireAuth } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import {
@@ -202,7 +208,7 @@ app.group('', (admin) =>
         sendMail({
           to: newUser.email,
           template: 'invitation',
-          data: { appUrl: clientOrigin },
+          data: { appUrl: signinUrl(newUser.email) },
           language,
         }).catch(err => logger.error(err, 'Failed to send invitation email'))
 

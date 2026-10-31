@@ -1,0 +1,82 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { captureMapSnapshot } from './map-snapshot'
+
+function setup() {
+  const listeners = new Set<() => void>()
+  const canvas = {
+    width: 780, height: 1688,
+    getBoundingClientRect: () => ({ left: 0, top: 12, width: 390, height: 844 }),
+  }
+  const drawImage = vi.fn()
+  const createElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+    const element = createElement(tag)
+    if (tag === 'canvas') (element as HTMLCanvasElement).getContext = (() => ({ drawImage })) as never
+    return element
+  }) as typeof document.createElement)
+  const map = {
+    getCanvas: () => canvas as unknown as HTMLCanvasElement,
+    loaded: vi.fn(() => true),
+    on: vi.fn((_event: 'render', listener: () => void) => listeners.add(listener)),
+    off: vi.fn((_event: 'render', listener: () => void) => listeners.delete(listener)),
+    triggerRepaint: vi.fn(),
+  }
+  const render = () => [...listeners].forEach(listener => listener())
+  const controller = new AbortController()
+  return { map, canvas, render, controller, listeners, drawImage }
+}
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+test('reads the real canvas only inside a loaded render callback', async () => {
+  const { map, canvas, render, controller, listeners, drawImage } = setup()
+  const result = captureMapSnapshot(map, controller.signal)
+  expect(drawImage).not.toHaveBeenCalled()
+  expect(map.triggerRepaint).toHaveBeenCalledOnce()
+  map.loaded.mockReturnValue(false)
+  render()
+  expect(drawImage).not.toHaveBeenCalled()
+  map.loaded.mockReturnValue(true)
+  render()
+  const snapshot = await result
+  expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0)
+  expect(snapshot).toMatchObject({ left: 0, top: 12, width: 390, height: 844 })
+  expect(snapshot!.image).toMatchObject({ width: 780, height: 1688 })
+  expect(listeners.size).toBe(0)
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+test('cleans up render and abort listeners when capture is cancelled', async () => {
+  const { map, controller, listeners, render, drawImage } = setup()
+  const result = captureMapSnapshot(map, controller.signal)
+  controller.abort()
+  expect(await result).toBeNull()
+  render()
+  expect(drawImage).not.toHaveBeenCalled()
+  expect(listeners.size).toBe(0)
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+test('times out without a rendered frame', async () => {
+  const { map, controller, listeners } = setup()
+  const result = captureMapSnapshot(map, controller.signal)
+  await vi.advanceTimersByTimeAsync(2500)
+  expect(await result).toBeNull()
+  expect(listeners.size).toBe(0)
+})
+
+test('falls back safely when canvas export is unavailable', async () => {
+  const { map, render, controller, listeners, drawImage } = setup()
+  drawImage.mockImplementation(() => { throw new Error('Context lost') })
+  const result = captureMapSnapshot(map, controller.signal)
+  render()
+  expect(await result).toBeNull()
+  expect(listeners.size).toBe(0)
+})
+
+test('ignores an already aborted capture', async () => {
+  const { map, controller } = setup()
+  controller.abort()
+  expect(await captureMapSnapshot(map, controller.signal)).toBeNull()
+  expect(map.on).not.toHaveBeenCalled()
+})

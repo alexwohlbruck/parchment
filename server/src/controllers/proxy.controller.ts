@@ -175,6 +175,37 @@ const MARTIN_MISSING_BODY = new TextEncoder().encode('Upstream error')
   .buffer as ArrayBuffer
 
 /**
+ * CORS for tile answers: a fixed `*`, not the global plugin's echo of the
+ * caller's origin. Tiles are public and fetched without credentials, so `*`
+ * loses nothing — and an echo is unsafe behind a shared cache. A tile's own
+ * `Vary: Accept-Encoding` displaces the plugin's `Vary: Origin`, so the edge
+ * would store whichever site asked first and replay that origin to the next
+ * one (a preview, the Tauri app), whose browser then refuses the tile.
+ */
+const PUBLIC_TILE_CORS = { 'Access-Control-Allow-Origin': '*' } as const
+
+/**
+ * A validator for a tile body. With it, a browser or the edge holding an
+ * expired tile revalidates with a 304 of a few hundred bytes instead of
+ * fetching the whole tile again; tiles rarely change between imports, so
+ * that is nearly every revalidation. Weak because the bytes are the gzipped
+ * form, and the same tile served plain is still the same tile.
+ */
+function tileEtag(body: ArrayBuffer): string {
+  return `W/"${Bun.hash(body).toString(36)}"`
+}
+
+/** Whether an If-None-Match header names this ETag (or `*`). */
+function etagMatches(ifNoneMatch: string | undefined, etag: string): boolean {
+  if (!ifNoneMatch) return false
+  const bare = etag.replace(/^W\//, '')
+  return ifNoneMatch
+    .split(',')
+    .map((tag) => tag.trim())
+    .some((tag) => tag === '*' || tag.replace(/^W\//, '') === bare)
+}
+
+/**
  * Whether the caller can read a gzipped tile. Deliberately lenient — this is a
  * token list, and `gzip;q=0` means "not gzip", which is the one case a plain
  * substring match gets wrong. Mirrors barrelman's own `acceptsGzip`.
@@ -203,16 +234,18 @@ function martinResponse(
   hit: CachedResponse,
   state: 'HIT' | 'MISS' | 'BYPASS',
   gzipOk: boolean,
+  ifNoneMatch?: string,
 ): Response {
   if (hit.status !== 200) {
     return new Response(hit.body ?? null, {
       status: hit.status,
-      headers: { 'X-Cache': state },
+      headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state },
     })
   }
 
   const body = hit.body ?? null
   const headers: Record<string, string> = {
+    ...PUBLIC_TILE_CORS,
     'Content-Type': hit.contentType || 'application/x-protobuf',
     // A day of freshness, then a week in which the edge may serve the stale
     // tile while it refreshes behind the request — tiles only change on an
@@ -224,6 +257,11 @@ function martinResponse(
   }
 
   if (!body) return new Response(null, { headers })
+
+  headers['ETag'] = tileEtag(body)
+  if (etagMatches(ifNoneMatch, headers['ETag'])) {
+    return new Response(null, { status: 304, headers })
+  }
 
   if (gzipOk) {
     headers['Content-Encoding'] = 'gzip'
@@ -242,16 +280,21 @@ function martinResponse(
   )
 }
 
-/** Remember an answer, then serve it. Every cacheable exit from the Martin
- *  route goes through here, so what is stored and what is sent cannot drift. */
-function storeMartin(
-  key: string,
-  value: CachedResponse,
-  gzipOk: boolean,
-): Response {
-  martinTileCache.set(key, value)
-  return martinResponse(value, 'MISS', gzipOk)
+/** One upstream fetch's outcome, shared by every caller that asked for the
+ *  same tile while it was in flight. */
+interface MartinFetch {
+  tile: CachedResponse
+  /** Barrelman marked it `no-store`: a tile it could only partly build. */
+  noStore: boolean
 }
+
+/**
+ * Upstream fetches in flight, by cache key. A map view asks for the same tile
+ * from several places at once — the style's source, the 3D-buildings probe, a
+ * second tab, every edge location filling its cache — and without this each
+ * of them went to Barrelman for it.
+ */
+const martinInflight = new Map<string, Promise<MartinFetch>>()
 
 /**
  * 3D landmarks: a vector tile of placements, and the GLB models they name.
@@ -362,6 +405,89 @@ app.get(
   { detail: { tags: ['Proxy'], summary: 'Proxy bridge deck mesh indexes', description: 'The precomputed deck meshes a zoom-14 tile meets, with their bounds, from Barrelman; revalidated by ETag.' } },
 )
 
+/**
+ * Fetch one tile from Barrelman and remember it if it is cacheable. Runs once
+ * per tile however many callers are waiting on it; see `martinInflight`.
+ */
+async function fetchMartinTile(
+  tileUrl: URL,
+  apiKey: string | undefined,
+  cacheKey: string,
+): Promise<MartinFetch> {
+  const headers: Record<string, string> = {}
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+
+  // Only gzip or nothing: an upstream that could also answer br or zstd
+  // would hand us an encoding the cache and the response do not handle.
+  headers['Accept-Encoding'] = 'gzip'
+
+  // `decompress: false` keeps Barrelman's gzip exactly as it arrived. By
+  // default Bun's fetch unzips the body — while still reporting
+  // `content-encoding: gzip` — so the tile would have to be zipped all
+  // over again to be sent on. See the comment where it is stored.
+  // Bun honours `decompress` at runtime; bun-types does not declare it.
+  const init: BunFetchRequestInit & { decompress: false } = {
+    headers,
+    decompress: false,
+  }
+  const response = await fetch(tileUrl.toString(), init)
+
+  if (!response.ok) {
+    logError(`Barrelman tile proxy: ${response.status} ${response.statusText}`)
+    const miss: CachedResponse = {
+      status: response.status,
+      body: MARTIN_MISSING_BODY,
+      contentType: null,
+    }
+    // A 404 is a stable answer and worth remembering; a 5xx is the
+    // upstream having a bad moment, and caching it for an hour would turn
+    // a blip into an outage.
+    if (response.status === 404) martinTileCache.set(cacheKey, miss)
+    return { tile: miss, noStore: response.status !== 404 }
+  }
+
+    /**
+     * Forward the tile compressed, as Barrelman sent it.
+     *
+     * This used to read the body through `fetch()`'s transparent unzip and
+     * re-emit it with no Content-Encoding, so a tile that left Barrelman at
+     * 275 KB left here at 463 KB, and the CDN re-compressed it for the
+     * browser. That hid the cost on the one hop that crosses a network —
+     * the edge filling its cache from an origin ~100 ms away, where the
+     * extra 190 KB is roughly another round trip of TCP slow start.
+     *
+     * Passed through rather than re-zipped: gzipping a dense tile takes
+     * ~10 ms of synchronous CPU, per tile, on the one thread serving every
+     * request. Only an upstream that sent it plain pays that.
+     *
+     * Stored gzipped too, so the cache's byte budget holds ~1.7x the tiles
+     * and a hit is a straight handoff.
+     */
+    // Judged by the gzip magic number, never the header: a fetch that
+    // unzipped anyway still reports `content-encoding: gzip`, and trusting
+    // it would label plain bytes as gzip and hand every client a corrupt
+    // tile. An MVT itself opens with 0x1a, so the two cannot be confused.
+  const body = new Uint8Array(await response.arrayBuffer())
+  const gzipped =
+    body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
+
+  const tile: CachedResponse = {
+    status: 200,
+    body: gzipped.buffer.slice(
+      gzipped.byteOffset,
+      gzipped.byteOffset + gzipped.byteLength,
+    ) as ArrayBuffer,
+    contentType:
+      response.headers.get('content-type') || 'application/x-protobuf',
+  }
+  // A tile Barrelman could only partly build (some of its decks unreadable) is passed on uncached.
+  if (/no-store/.test(response.headers.get('cache-control') ?? '')) {
+    return { tile, noStore: true }
+  }
+  martinTileCache.set(cacheKey, tile)
+  return { tile, noStore: false }
+}
+
 // Proxy vector tile requests through the Barrelman integration.
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
@@ -380,11 +506,13 @@ app.get(
     // of the ~2 s a client used to wait was the trip to the Barrelman host and
     // back, which a hit removes entirely.
     const gzipOk = acceptsGzip(reqHeaders['accept-encoding'])
+    const ifNoneMatch = reqHeaders['if-none-match']
     const { source, z, x, y } = params
     // A detail tile can carry the 3D bridge decks drawn over it, when asked.
     const decks = query.decks === '1' ? '?decks=1' : ''
-    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}${decks}`)
-    if (hit) return martinResponse(hit, 'HIT', gzipOk)
+    const cacheKey = `${source}/${z}/${x}/${y}${decks}`
+    const hit = martinTileCache.get(cacheKey)
+    if (hit) return martinResponse(hit, 'HIT', gzipOk, ifNoneMatch)
 
     try {
       const config = resolveBarrelmanConfig()
@@ -395,86 +523,22 @@ app.get(
         return new Response('Barrelman not configured', { status: 501 })
       }
 
-      const { source, z, x, y } = params
-      const cacheKey = `${source}/${z}/${x}/${y}${decks}`
-
-      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}${decks}`, host)
-
-      const headers: Record<string, string> = {}
-      if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
-
-      // Only gzip or nothing: an upstream that could also answer br or zstd
-      // would hand us an encoding the cache and the response do not handle.
-      headers['Accept-Encoding'] = 'gzip'
-
-      // `decompress: false` keeps Barrelman's gzip exactly as it arrived. By
-      // default Bun's fetch unzips the body — while still reporting
-      // `content-encoding: gzip` — so the tile would have to be zipped all
-      // over again to be sent on. See the comment where it is stored.
-      // Bun honours `decompress` at runtime; bun-types does not declare it.
-      const init: BunFetchRequestInit & { decompress: false } = {
-        headers,
-        decompress: false,
-      }
-      const response = await fetch(tileUrl.toString(), init)
-
-      if (!response.ok) {
-        logError(
-          `Barrelman tile proxy: ${response.status} ${response.statusText}`,
+      let pending = martinInflight.get(cacheKey)
+      if (!pending) {
+        const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}${decks}`, host)
+        pending = fetchMartinTile(tileUrl, config?.apiKey, cacheKey).finally(() =>
+          martinInflight.delete(cacheKey),
         )
-        // A 404 is a stable answer and worth remembering; a 5xx is the
-        // upstream having a bad moment, and caching it for an hour would turn
-        // a blip into an outage.
-        const miss: CachedResponse = {
-          status: response.status,
-          body: MARTIN_MISSING_BODY,
-          contentType: null,
-        }
-        if (response.status === 404) return storeMartin(cacheKey, miss, gzipOk)
-        return new Response('Upstream error', { status: response.status })
+        martinInflight.set(cacheKey, pending)
       }
+      const { tile, noStore } = await pending
 
-      /**
-       * Forward the tile compressed, as Barrelman sent it.
-       *
-       * This used to read the body through `fetch()`'s transparent unzip and
-       * re-emit it with no Content-Encoding, so a tile that left Barrelman at
-       * 275 KB left here at 463 KB, and the CDN re-compressed it for the
-       * browser. That hid the cost on the one hop that crosses a network —
-       * the edge filling its cache from an origin ~100 ms away, where the
-       * extra 190 KB is roughly another round trip of TCP slow start.
-       *
-       * Passed through rather than re-zipped: gzipping a dense tile takes
-       * ~10 ms of synchronous CPU, per tile, on the one thread serving every
-       * request. Only an upstream that sent it plain pays that.
-       *
-       * Stored gzipped too, so the cache's byte budget holds ~1.7x the tiles
-       * and a hit is a straight handoff.
-       */
-      // Judged by the gzip magic number, never the header: a fetch that
-      // unzipped anyway still reports `content-encoding: gzip`, and trusting
-      // it would label plain bytes as gzip and hand every client a corrupt
-      // tile. An MVT itself opens with 0x1a, so the two cannot be confused.
-      const body = new Uint8Array(await response.arrayBuffer())
-      const gzipped =
-        body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
-
-      const tile: CachedResponse = {
-        status: 200,
-        body: gzipped.buffer.slice(
-          gzipped.byteOffset,
-          gzipped.byteOffset + gzipped.byteLength,
-        ) as ArrayBuffer,
-        contentType:
-          response.headers.get('content-type') || 'application/x-protobuf',
-      }
-      // A tile Barrelman could only partly build (some of its decks unreadable) is passed on uncached.
-      if (/no-store/.test(response.headers.get('cache-control') ?? '')) {
+      if (noStore) {
         const sent = martinResponse(tile, 'BYPASS', gzipOk)
         sent.headers.set('Cache-Control', 'no-store')
         return sent
       }
-      return storeMartin(cacheKey, tile, gzipOk)
+      return martinResponse(tile, 'MISS', gzipOk, ifNoneMatch)
     } catch (error) {
       logError('Barrelman tile proxy error', error, { params })
       return new Response('Proxy error', { status: 500 })
@@ -502,18 +566,19 @@ const MISSING_BODY = new TextEncoder().encode('Upstream error').buffer as ArrayB
  */
 function cachedResponse(rest: string, hit: CachedResponse, state: 'HIT' | 'MISS'): Response {
   if (hit.status === 204) {
-    return new Response(null, { status: 204, headers: { 'X-Cache': state } })
+    return new Response(null, { status: 204, headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state } })
   }
   if (hit.status !== 200) {
     // BodyInit rejects a nullable Uint8Array; a non-200 always has a body
     return new Response(hit.body ?? null, {
       status: hit.status,
-      headers: { 'X-Cache': state },
+      headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state },
     })
   }
   const isJson = rest.endsWith('.json')
   return new Response(hit.body ?? null, {
     headers: {
+      ...PUBLIC_TILE_CORS,
       'Content-Type': isJson
         ? 'application/json'
         : hit.contentType || 'application/x-protobuf',

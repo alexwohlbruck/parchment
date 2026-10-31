@@ -6,7 +6,9 @@ const props = defineProps<ToasterProps>()
 
 <template>
   <Sonner
-    class="toaster group"
+    class="toaster group pointer-events-auto"
+    @pointerdown.stop
+    @touchmove.stop
     v-bind="props"
     :toast-options="{
       classes: {

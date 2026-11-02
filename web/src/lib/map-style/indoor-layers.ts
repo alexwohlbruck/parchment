@@ -26,6 +26,7 @@ export const INDOOR_STATE = {
 export const INDOOR_LAYER_PREFIX = 'Indoor '
 export const INDOOR_FLOOR_LAYER = 'Indoor floor'
 export const INDOOR_AREA_LAYER = 'Indoor rooms'
+export const INDOOR_SECURITY_LAYER = 'Indoor security'
 export const INDOOR_WALL_LAYER = 'Indoor walls'
 export const INDOOR_STEPS_LAYER = 'Indoor steps'
 export const INDOOR_TREAD_LAYER = 'Indoor stair treads'
@@ -95,34 +96,38 @@ const STORE = ['shop', 'kiosk', 'marketplace', 'duty_free', 'retail']
 const HEALTH = ['pharmacy', 'clinic', 'doctors', 'dentist', 'hospital', 'first_aid', 'chemist']
 const SERVICE = ['toilets', 'toilet', 'shower', 'information', 'ticket', 'atm', 'bank', 'bureau_de_change', 'post_office', 'luggage_locker', 'left_luggage', 'lounge', 'waiting', 'waiting_room']
 const BACK_OF_HOUSE = ['technical', 'storage', 'office', 'utility', 'private', 'staff']
+const BAGGAGE = ['baggage_claim', 'baggage_carousel', 'luggage_carousel', 'baggage_reclaim']
 
 type IndoorPalette = Record<
-  'underground' | 'footprint' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
-  | 'food' | 'store' | 'health' | 'service' | 'label',
+  'underground' | 'footprint' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'baggage'
+  | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps' | 'food' | 'store' | 'health' | 'service' | 'hatch' | 'hatchGap' | 'label',
   string
 >
 
-/** Warm paper by day, the basemap's blues by night; a room that is a place takes a wash of its category. */
+/** Mapbox Indoor's palette by day, the basemap's blues by night; a room that is a place takes its category's tint. */
 const COLORS: Record<FlavorId, IndoorPalette> = {
   light: {
     underground: 'hsl(222, 16%, 62%)',
     footprint: 'hsl(222, 12%, 52%)',
-    floor: 'hsl(26, 72%, 96.5%)',
-    area: 'hsl(26, 72%, 96.5%)',
-    room: 'hsl(26, 52%, 89%)',
-    private: 'hsl(26, 40%, 87%)',
-    platform: 'hsl(232, 52%, 92%)',
-    stairs: 'hsl(220, 10%, 86%)',
+    floor: 'hsl(27, 82%, 95.7%)',
+    area: 'hsl(27, 82%, 95.7%)',
+    room: 'hsl(27, 56%, 87.6%)',
+    private: 'hsl(27, 40%, 86%)',
+    platform: 'hsl(240, 50%, 87.5%)',
+    baggage: 'hsl(240, 80%, 92%)',
+    stairs: 'hsl(30, 8%, 88%)',
     escalator: 'hsl(222, 40%, 90%)',
     tread: 'hsl(0, 0%, 100%)',
-    shaft: 'hsl(220, 10%, 89%)',
-    column: 'hsl(26, 20%, 80%)',
+    shaft: 'hsl(30, 8%, 88%)',
+    column: 'hsl(27, 20%, 80%)',
     wall: 'hsl(0, 0%, 100%)',
     steps: 'hsl(220, 8%, 66%)',
-    food: 'hsl(30, 88%, 85%)',
-    store: 'hsl(214, 78%, 89%)',
-    health: 'hsl(352, 66%, 91%)',
-    service: 'hsl(220, 12%, 90%)',
+    food: 'hsl(30, 85%, 82.2%)',
+    store: 'hsl(210, 69%, 82.2%)',
+    health: 'hsl(352, 66%, 90%)',
+    service: 'hsl(30, 8%, 90.6%)',
+    hatch: 'hsl(45, 98%, 75%)',
+    hatchGap: 'hsl(45, 90%, 99%)',
     label: 'hsl(222, 12%, 42%)',
   },
   dark: {
@@ -132,7 +137,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     area: 'hsl(222, 24%, 27%)',
     room: 'hsl(222, 20%, 33%)',
     private: 'hsl(222, 16%, 31%)',
-    platform: 'hsl(232, 26%, 35%)',
+    platform: 'hsl(240, 26%, 36%)',
+    baggage: 'hsl(240, 30%, 42%)',
     stairs: 'hsl(222, 12%, 38%)',
     escalator: 'hsl(222, 26%, 40%)',
     tread: 'hsl(222, 14%, 52%)',
@@ -141,9 +147,11 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     wall: 'hsl(220, 14%, 52%)',
     steps: 'hsl(220, 10%, 60%)',
     food: 'hsl(28, 38%, 36%)',
-    store: 'hsl(214, 42%, 39%)',
+    store: 'hsl(210, 42%, 40%)',
     health: 'hsl(350, 26%, 38%)',
-    service: 'hsl(222, 14%, 37%)',
+    service: 'hsl(222, 12%, 36%)',
+    hatch: 'hsl(45, 55%, 42%)',
+    hatchGap: 'hsl(45, 25%, 30%)',
     label: 'hsl(220, 12%, 80%)',
   },
 }
@@ -160,6 +168,7 @@ function roomColor(c: IndoorPalette) {
       STORE, c.store,
       HEALTH, c.health,
       SERVICE, c.service,
+      BAGGAGE, c.baggage,
       BACK_OF_HOUSE, c.private,
       c.room,
     ],
@@ -342,6 +351,18 @@ export function indoorLayers(flavor: FlavorId): any[] {
     },
     {
       ...base,
+      id: INDOOR_SECURITY_LAYER,
+      type: 'fill-extrusion',
+      filter: ['all', kind('area'), ['==', sub, 'security'], onShownLevel],
+      paint: {
+        'fill-extrusion-pattern': securityHatchName(flavor),
+        'fill-extrusion-base': FLOOR_HEIGHT,
+        'fill-extrusion-height': ROOM_HEIGHT + 0.02,
+        'fill-extrusion-vertical-gradient': false,
+      },
+    },
+    {
+      ...base,
       id: INDOOR_STEPS_LAYER,
       type: 'line',
       filter: steps,
@@ -518,4 +539,28 @@ export function gatePlate(ratio: number) {
       content: [inset, inset, size - inset, size - inset] as [number, number, number, number],
     },
   }
+}
+
+/** The security hatch's image name; drawn by `securityHatch`, not the sprite. */
+export const INDOOR_HATCH_PREFIX = 'indoor-security-hatch-'
+export const securityHatchName = (flavor: FlavorId) => `${INDOOR_HATCH_PREFIX}${flavor}`
+
+/** Diagonal stripes rising to the right, a tile that repeats seamlessly, at `ratio` device pixels. */
+export function securityHatch(flavor: FlavorId, ratio: number) {
+  const size = Math.round(12 * ratio)
+  const period = size / 2
+  const stripe = period * 0.36
+  const ctx = new OffscreenCanvas(size, size).getContext('2d')!
+  ctx.fillStyle = COLORS[flavor].hatch
+  ctx.fillRect(0, 0, size, size)
+  ctx.fillStyle = COLORS[flavor].hatchGap
+  for (let c = 0; c <= 2 * size; c += period) {
+    ctx.beginPath()
+    ctx.moveTo(c, 0)
+    ctx.lineTo(c + stripe, 0)
+    ctx.lineTo(c + stripe - size, size)
+    ctx.lineTo(c - size, size)
+    ctx.fill()
+  }
+  return { image: ctx.getImageData(0, 0, size, size), options: { pixelRatio: ratio } }
 }

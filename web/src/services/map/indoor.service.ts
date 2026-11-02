@@ -1,7 +1,9 @@
 /** Keeps the style's indoor state in step with the venues in view and the floor picked. */
 import {
   gatePlate,
+  securityHatch,
   INDOOR_GATE_PLATE,
+  INDOOR_HATCH_PREFIX,
   EXTERIOR_LEVEL,
   INDOOR_MINZOOM,
   INDOOR_SOURCE,
@@ -9,6 +11,7 @@ import {
   INDOOR_VENUE_TILES,
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
+import type { FlavorId } from '@/lib/map-style/build'
 import { clearedBuildings, focusedVenue, openingLevel, type IndoorFocus } from '@/lib/indoor/indoor-venue'
 
 export function attachIndoor(
@@ -106,9 +109,12 @@ export function attachIndoor(
   }
 
   const onImageMissing = (e: { id: string }) => {
-    if (e.id !== INDOOR_GATE_PLATE || map.hasImage(INDOOR_GATE_PLATE)) return
-    const { image, options } = gatePlate(window.devicePixelRatio || 1)
-    map.addImage(INDOOR_GATE_PLATE, image, options)
+    if (map.hasImage(e.id)) return
+    const ratio = window.devicePixelRatio || 1
+    const drawn = e.id === INDOOR_GATE_PLATE ? gatePlate(ratio)
+      : e.id.startsWith(INDOOR_HATCH_PREFIX) ? securityHatch(e.id.slice(INDOOR_HATCH_PREFIX.length) as FlavorId, ratio)
+      : null
+    if (drawn) map.addImage(e.id, drawn.image, drawn.options)
   }
 
   map.on('sourcedata', onSourceData)

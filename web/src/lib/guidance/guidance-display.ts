@@ -45,10 +45,11 @@ const WALKWAYS = new Set(['footway', 'path', 'pedestrian'])
 
 /** What an unnamed way is to someone on it: a crosswalk, a footbridge, a park path, else its class. */
 function genericRoad(edge: NavEdge | null | undefined): string {
-  const crossing = edge?.crossing?.toLowerCase() ?? ''
-  if (CROSSWALKS.has(crossing)) return 'crosswalk'
-  if (RAIL_CROSSINGS.has(crossing)) return 'railCrossing'
   const roadClass = edge?.roadClass ?? ''
+  const crossing = edge?.crossing?.toLowerCase() ?? ''
+  // A road carries the crossings of junctions it passes through; only a path is the crossing itself.
+  if (CROSSWALKS.has(crossing) && (WALKWAYS.has(roadClass) || roadClass === 'cycleway')) return 'crosswalk'
+  if (RAIL_CROSSINGS.has(crossing)) return 'railCrossing'
   if (WALKWAYS.has(roadClass)) {
     if (edge?.roadEnvironment === 'bridge') return 'footbridge'
     if (edge?.roadEnvironment === 'tunnel') return 'underpass'

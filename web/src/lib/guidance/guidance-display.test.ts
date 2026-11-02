@@ -69,5 +69,6 @@ describe('unnamed ways', () => {
   test('fall back to the class where the way is nothing more specific', () => {
     expect(label({ roadClass: 'footway', crossing: 'MISSING' })).toEqual({ kind: 'generic', key: 'path' })
     expect(label({ roadClass: 'cycleway', roadEnvironment: 'bridge' })).toEqual({ kind: 'generic', key: 'cycleway' })
+    expect(label({ roadClass: 'service', crossing: 'TRAFFIC_SIGNALS' })).toEqual({ kind: 'generic', key: 'service' })
   })
 })

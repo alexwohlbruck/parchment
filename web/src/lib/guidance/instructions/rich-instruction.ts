@@ -71,10 +71,14 @@ function pathAction(route: NavRoute, step: NavStep, side: Side | null): Action |
   const past = edgeAt(route, step.startDistance + PAST_TURN_METERS)
   if (past?.roadClass === 'steps') return { kind: 'stairs', side }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
+  // Roads carry the crossing tag of junctions they pass through; only a crossing path is one to cross.
   const crossing = route.edges.find(
-    e => e.startDistance >= step.startDistance - 1 && e.startDistance <= step.startDistance + CROSSING_REACH_METERS && CROSSINGS.has(e.crossing?.toLowerCase() ?? ''),
+    e => e.startDistance >= step.startDistance - 1 && e.startDistance <= step.startDistance + CROSSING_REACH_METERS
+      && PATHS.has(e.roadClass ?? '') && CROSSINGS.has(e.crossing?.toLowerCase() ?? ''),
   )
   if (!crossing) return null
+  const onto = step.instruction.streetName || step.instruction.streetRef
+  if (onto && crossing.startDistance > step.startDistance + PAST_TURN_METERS) return null
   return { kind: 'crosswalk', signals: crossing.crossing!.toLowerCase() === 'traffic_signals', ...(crossing.crossingName && { road: crossing.crossingName }) }
 }
 

@@ -8,11 +8,19 @@ import {
   INDOOR_STATE,
   INDOOR_VENUE_TILES,
 } from '@/lib/map-style/indoor-layers'
+import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import { clearedBuildings, focusedVenue, type IndoorFocus } from '@/lib/indoor/indoor-venue'
 
 export function attachIndoor(
   map: any,
-  on: { focus: (focus: IndoorFocus) => void; buildings: (refs: string[]) => void },
+  on: {
+    focus: (focus: IndoorFocus) => void
+    buildings: (refs: string[]) => void
+    /** Whether a click on the map is free to open a venue, rather than wanted by a tool. */
+    clickable: () => boolean
+    /** Called when a click opened a venue, so nothing else answers it. */
+    claimClick: () => void
+  },
 ) {
   let enabled = true
   let queued = 0
@@ -53,6 +61,30 @@ export function attachIndoor(
     apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : venue.defaultLevel } : null)
   }
 
+  /** The venue whose building a click landed on, from every venue in loaded tiles. */
+  function venueAt(point: { x: number; y: number }) {
+    const hits = map.queryRenderedFeatures(point)
+    if (hits.some((f: any) => f.layer.type === 'symbol')) return null
+    const building = hits.find((f: any) => f.layer['source-layer'] === BUILDING_3D_TILES)?.properties?.id
+    if (!building) return null
+    const all = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
+    const feature = all.find((f: any) => String(f.properties?.buildings ?? '').split(';').includes(building))
+    return feature ? Number(feature.properties.venue) : null
+  }
+
+  // Clicking a building shown from outside takes you in: below plan zoom, by flying there.
+  const onClick = (e: any) => {
+    if (!enabled || !on.clickable()) return
+    const below = map.getZoom() < INDOOR_MINZOOM
+    if (!below && focus?.level !== null) return
+    const venue = venueAt(e.point)
+    if (venue === null || (!below && venue !== focus?.venue.id)) return
+    on.claimClick()
+    if (picked.get(venue) === null) picked.delete(venue)
+    if (below) map.easeTo({ center: e.lngLat, zoom: INDOOR_MINZOOM + 1.5 })
+    else update()
+  }
+
   const schedule = () => {
     if (!queued) queued = window.setTimeout(update, 120)
   }
@@ -75,6 +107,7 @@ export function attachIndoor(
   map.on('style.load', onStyleLoad)
   map.on('moveend', schedule)
   map.on('styleimagemissing', onImageMissing)
+  map.on('click', onClick)
 
   return {
     setEnabled(value: boolean) {
@@ -92,6 +125,7 @@ export function attachIndoor(
       map.off('style.load', onStyleLoad)
       map.off('moveend', schedule)
       map.off('styleimagemissing', onImageMissing)
+      map.off('click', onClick)
       if (queued) clearTimeout(queued)
     },
   }

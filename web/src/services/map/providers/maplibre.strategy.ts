@@ -321,6 +321,8 @@ export class MaplibreStrategy extends MapStrategy {
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private indoor: ReturnType<typeof attachIndoor> | null = null
   private indoorBuildings: string[] = []
+  /** Set when a click opened a venue's floor plan, so it opens nothing else. */
+  private indoorClaimedClick = false
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -493,6 +495,13 @@ export class MaplibreStrategy extends MapStrategy {
         this.indoorBuildings = refs
         this.landmarkLayer?.setIndoorBuildings(refs)
       },
+      clickable: () => {
+        const tools = useMapToolsStore()
+        return tools.activeTool !== 'measure' && !tools.rawClickCapture
+      },
+      claimClick: () => {
+        this.indoorClaimedClick = true
+      },
     })
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => {
@@ -567,6 +576,10 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
+      if (this.indoorClaimedClick) {
+        this.indoorClaimedClick = false
+        return
+      }
       // Debounce to allow POI click handler to fire first and cancel this
       if (this.clickDebounceTimer) {
         clearTimeout(this.clickDebounceTimer)

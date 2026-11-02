@@ -10,11 +10,11 @@ export type IndoorVenue = {
   defaultLevel: number
   /** buildings_3d ids the floor plan stands in. */
   buildings: string[]
-  /** buildings_3d ids standing over its underground levels. */
-  buildingsAbove: string[]
 }
 
 /** The venue the floor picker serves and the level it shows, null for its outside; null when none is in view. */
+export const showsBasement = (focus: IndoorFocus) => focus?.level != null && focus.level < 0
+
 export type IndoorFocus = { venue: IndoorVenue; level: number | null } | null
 
 type VenueFeature = {
@@ -33,7 +33,6 @@ export function parseVenue(feature: VenueFeature): IndoorVenue | null {
     levels,
     defaultLevel: Number(p.default_level ?? 0),
     buildings: refs(p.buildings),
-    buildingsAbove: refs(p.buildings_above),
   }
 }
 
@@ -77,14 +76,13 @@ export function focusedVenue(
 
 const refs = (value: unknown) => String(value ?? '').split(';').filter(Boolean)
 
-/** Buildings to clear as the style's `;id;` string: every venue's own, plus those over a shown basement. */
+/** The buildings floor plans stand in, as the style's `;id;` string; a venue shown from outside keeps its own. */
 export function clearedBuildings(features: VenueFeature[], focus: IndoorFocus): string {
   const ids = new Set<string>()
   for (const f of features) {
     if (focus?.level === null && Number(f.properties?.venue) === focus.venue.id) continue
     for (const id of refs(f.properties?.buildings)) ids.add(id)
   }
-  if (focus?.level != null && focus.level < 0) for (const id of focus.venue.buildingsAbove) ids.add(id)
   return ids.size ? `;${[...ids].sort().join(';')};` : ''
 }
 

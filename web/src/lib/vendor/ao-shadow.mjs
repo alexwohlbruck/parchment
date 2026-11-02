@@ -285,6 +285,7 @@ const BUILD_FS = `#version 300 es
   precision highp float;
   uniform float u_edge;
   uniform float u_facade; // PARCHMENT
+  uniform float u_alpha;  // PARCHMENT
   in vec3 v_color;
   in float v_dark;
   in float v_ratio;
@@ -309,7 +310,7 @@ const BUILD_FS = `#version 300 es
     vec3 color = mix(v_color, v_ambient * 0.9, shade) * (1.0 - v_dark);
     // PARCHMENT: windows, on walls only.
     if (u_facade > 0.5 && v_wall.z > 0.0) color = facadeShade(color, facade(v_wall.x, v_wall.y, v_wall.z, v_seed, v_style, 1.0));
-    fragColor = vec4(color * (1.0 - u_edge * edge), 1.0);
+    fragColor = vec4(color * (1.0 - u_edge * edge) * u_alpha, u_alpha);
   }`;
 
 // PARCHMENT: the buildings into the sun's shadow map; see map/sun-shadow.ts.
@@ -585,6 +586,8 @@ export class WallShadowLayer {
     // PARCHMENT: the user's shadow setting, a `ShadowMode`; see `shadowStrength`.
     this.shadows = opts.shadows ?? 'always';
     this._fade = 1;
+    /** PARCHMENT: below 1 the buildings draw see-through, for an indoor basement under them. */
+    this.opacity = 1;
     this.sunCeiling = opts.sunCeiling ?? 400;
     this._height = opts.height ?? 40;
     this._base = opts.base ?? 0;
@@ -626,7 +629,7 @@ export class WallShadowLayer {
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
         'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS,
-        'u_facade', 'u_unit_m', 'u_tile_origin', 'u_wall_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
+        'u_facade', 'u_alpha', 'u_unit_m', 'u_tile_origin', 'u_wall_origin', 'u_fct', 'u_facade_on', ...FACADE_UNIFORMS,
         'u_sunTile', 'u_sunTint', 'u_skyTint', 'u_wallRise', 'u_roofLift', ...SUN_SHADOW_UNIFORMS]); // PARCHMENT
     this._sunProg = linkProgram(gl, SUN_VS, SUN_FS); // PARCHMENT
     this._uSun = uniformLocs(gl, this._sunProg, ['u_matrix', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
@@ -917,7 +920,7 @@ export class WallShadowLayer {
    */
   groundShadow() {
     if (!this._groundDrawn || !this._tex) return null;
-    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() * this._fade };
+    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() * this._fade * this.opacity };
   }
 
   /** PARCHMENT: the AO radius as a fraction of the SDF, shared by the flood and the composite. */
@@ -1062,7 +1065,7 @@ export class WallShadowLayer {
 
     const vw = vp[2], vh = vp[3];
     gl.uniform1f(U.u_radius, this._aoRadiusUv(vp));
-    const opacity = this.groundOpacity() * this._fade; // PARCHMENT
+    const opacity = this.groundOpacity() * this._fade * this.opacity; // PARCHMENT
     gl.uniform1f(U.u_intensity, this.aoIntensity * opacity);
     gl.uniform1f(U.u_aoFade, this.aoPitchFade());
     gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);
@@ -1100,11 +1103,16 @@ export class WallShadowLayer {
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
-    gl.depthMask(true);
+    // PARCHMENT: see-through buildings neither hide what is behind them nor write over it.
+    const seeThrough = this.opacity < 1;
+    gl.depthMask(!seeThrough);
     // PARCHMENT: MapLibre 6 keeps this on the render context; older forks on the painter.
     const dr = this._map.painter?.renderContext?.depthRangeFor3D ?? this._map.painter?.depthRangeFor3D;
     if (dr) gl.depthRange(dr[0], dr[1]);
-    gl.disable(gl.BLEND);
+    if (seeThrough) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    } else gl.disable(gl.BLEND);
     gl.disable(gl.STENCIL_TEST);
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
@@ -1153,6 +1161,7 @@ export class WallShadowLayer {
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);
     gl.uniform1f(U.u_facade, this.facade ? 1 : 0); // PARCHMENT
+    gl.uniform1f(U.u_alpha, this.opacity); // PARCHMENT
     gl.uniform3fv(U.u_sunTint, this.sunTint); // PARCHMENT
     gl.uniform3fv(U.u_skyTint, this.skyTint);
     gl.uniform1f(U.u_wallRise, this.wallRise);

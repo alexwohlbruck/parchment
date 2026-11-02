@@ -53,7 +53,7 @@ describe('focusedVenue', () => {
 
 describe('clearedBuildings', () => {
   const features = [
-    venue(1, square(0, 0), { buildings: 'way/1;way/2', buildings_above: 'way/9' }),
+    venue(1, square(0, 0), { buildings: 'way/1;way/2' }),
     venue(2, square(5, 5), { buildings: 'way/3' }),
   ]
 
@@ -62,9 +62,9 @@ describe('clearedBuildings', () => {
     expect(clearedBuildings(features, focus)).toBe(';way/1;way/2;way/3;')
   })
 
-  it('also clears the towers over a basement while one is shown', () => {
-    const focus = { venue: focusedVenue(features, [0, 0])!, level: -1 }
-    expect(clearedBuildings(features, focus)).toBe(';way/1;way/2;way/3;way/9;')
+  it('gives a venue shown from outside its buildings back', () => {
+    const focus = { venue: focusedVenue(features, [0, 0])!, level: null }
+    expect(clearedBuildings(features, focus)).toBe(';way/3;')
   })
 
   it('clears nothing with no venue in view', () => {

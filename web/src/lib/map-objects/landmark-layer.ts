@@ -293,6 +293,7 @@ const DRAW_FS = `#version 300 es
   flat in vec3 v_color;
   /** 1 when the primitive's texture paints its surface rather than only cutting it. */
   uniform float u_painted;
+  uniform float u_ghost;
   uniform vec3 u_palette;
   uniform float u_harmony;
   uniform float u_harmonyFloor;
@@ -375,7 +376,7 @@ const DRAW_FS = `#version 300 es
     }
     // A lamp is its light, unshaded.
     if (v_role == ${ROLE.lamp}.0) shaded = pow(min(v_emission, 1.0), vec3(1.0 / 2.2));
-    fragColor = vec4(shaded, alpha);
+    fragColor = vec4(shaded, alpha * u_ghost);
   }`
 
 /** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
@@ -653,6 +654,14 @@ export class LandmarkLayer {
     this.id = options.id
   }
 
+  /** Below 1 the models draw see-through, as the buildings do over an indoor basement. */
+  private opacity = 1
+
+  setOpacity(opacity: number) {
+    this.opacity = opacity
+    this.map?.triggerRepaint?.()
+  }
+
   /** Buildings a floor plan is showing inside: a landmark standing in for one steps aside. */
   private indoors = new Set<string>()
 
@@ -678,7 +687,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_ghost', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
@@ -1289,7 +1298,8 @@ export class LandmarkLayer {
     gl.useProgram(program)
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
-    gl.depthMask(true)
+    gl.depthMask(this.opacity >= 1)
+    gl.uniform1f(u.u_ghost, this.opacity)
     if (range) gl.depthRange(range[0], range[1])
     // Opaque but for the wires, whose coverage is their alpha; they come last in their model.
     gl.enable(gl.BLEND)

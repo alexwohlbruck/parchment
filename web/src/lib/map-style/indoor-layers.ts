@@ -240,15 +240,12 @@ const poiBadge = [
   '|', '@poi_lift',
 ]
 
-/** The secondary tier: lifts, stairs, entrances and toilets as small squares, read as signage. */
+/** The secondary tier: lifts, stairs and entrances as small squares, read as signage. */
 const FIXTURE_ART = [
   'match', ['concat', cls, ':', sub],
   ['elevator:elevator', 'poi:elevator'], 'elevator',
   ['door:main', 'door:entrance', 'door:service', 'door:emergency', 'door:exit'], 'entrance-alt1',
   ['railway:subway_entrance', 'railway:train_station_entrance'], 'entrance',
-  ['amenity:toilets', 'room:toilets', 'room:toilet'], 'toilet',
-  ['amenity:drinking_water'], 'drinking-water',
-  ['amenity:information', 'tourism:information'], 'information',
   ['escalator:forward', 'escalator:backward', 'escalator:reversible', 'escalator:yes'], 'escalator',
   ['steps:'], 'stairs',
   '',
@@ -449,6 +446,8 @@ export function indoorLabelLayers(
         kind('poi'),
         ['match', cls, ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft'], true, false],
         ['any', ['has', 'name'], ['match', sub, ['atm', 'pharmacy'], true, false]],
+        // Facilities the basemap's own POI layer already draws.
+        ['!', ['match', sub, ['toilets', 'toilet', 'drinking_water', 'information', 'water_point'], true, false]],
         ['!', isFixture],
         onShownLevel,
       ],

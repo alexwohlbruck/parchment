@@ -489,8 +489,8 @@ export const BADGE_PREFIX = 'badge-'
  * a transit map draws between a point of interest and a stop. At the sizes
  * these draw, shape is a far stronger signal than colour.
  *
- * Only the transit classes and a building's fixtures (lifts, stairs,
- * entrances, toilets) get the second form, so the sheet gains a couple of
+ * Only the transit classes and a building's fixtures (lifts, stairs and
+ * entrances) get the second form, so the sheet gains a couple of
  * dozen images rather than doubling.
  */
 export const TILE_PREFIX = 'tile-'
@@ -500,7 +500,7 @@ const TILE_ICONS = [
   'aerialway', 'airport', 'airfield', 'entrance',
   // The secondary tier: small fixtures of a building or a station, which read
   // as signage rather than as places.
-  'entrance-alt1', 'elevator', 'stairs', 'escalator', 'toilet', 'information', 'drinking-water',
+  'entrance-alt1', 'elevator', 'stairs', 'escalator',
 ]
 
 /**

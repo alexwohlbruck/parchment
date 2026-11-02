@@ -16,6 +16,7 @@ interface Watch {
   segmentIndex: number
   segment: unknown
   plannedTripId: string | undefined
+  alightStop: string | null
   observer: RideObserver
   set: CandidateSet | null
   fetchedAt: number
@@ -41,11 +42,13 @@ export function useVehicleSwitch() {
     const route = guidance.route
     const segment = guidance.segments[segmentIndex]
     if (!route || segment?.mode !== 'transit') return null
+    const stops = rideStops(route, segmentIndex, segment)
     return {
       segmentIndex,
       segment,
       plannedTripId: segment.tripId,
-      observer: new RideObserver(rideStops(route, segmentIndex, segment)),
+      alightStop: stops.at(-1)?.key ?? null,
+      observer: new RideObserver(stops),
       set: null,
       fetchedAt: 0,
       fetching: false,
@@ -111,14 +114,19 @@ export function useVehicleSwitch() {
     const boardedAt = watched.observer.boardedAtMs
     if (!riding || !watched.set || boardedAt == null) return
     if (nowMs - boardedAt > GIVE_UP_AFTER_MS) return settle(watched, null)
-    const verdict = vehicleVerdict(rankCandidates(watched.set, watched.observer.evidence(), watched.plannedTripId, nowMs))
+    const alightStop = watched.set.known.includes(watched.alightStop ?? '') ? watched.alightStop : null
+    const verdict = vehicleVerdict(rankCandidates(watched.set, watched.observer.evidence(), watched.plannedTripId, nowMs), alightStop)
     if (verdict.kind === 'settled') return settle(watched, verdict.candidate)
-    if (verdict.kind !== 'ask') return
-    const [best] = verdict.options
-    if (guidance.segments[watched.segmentIndex]?.tripId !== best.candidate.tripId) void retarget(watched, best.candidate)
+    if (verdict.kind === 'unknown') return
+    const best = verdict.kind === 'guess' ? verdict.candidate : verdict.options[0].candidate
+    if (guidance.segments[watched.segmentIndex]?.tripId !== best.tripId) void retarget(watched, best)
+    if (verdict.kind === 'guess') {
+      question.value = null
+      return
+    }
     const asked = question.value
     const ids = (q: VehicleQuestion | null) => q?.options.map(o => o.candidate.tripId).join() ?? ''
-    const next = { segmentIndex: watched.segmentIndex, options: verdict.options, routeType: best.candidate.routeType ?? guidance.segments[watched.segmentIndex]?.routeType }
+    const next = { segmentIndex: watched.segmentIndex, options: verdict.options, routeType: best.routeType ?? guidance.segments[watched.segmentIndex]?.routeType }
     if (ids(asked) !== ids(next)) question.value = next
     if (!asked) guidance.askWhichVehicle(watched.segmentIndex)
   }

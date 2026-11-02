@@ -4,7 +4,7 @@ export interface Run {
 }
 
 /** Within this of the planned departure, a run is the planned one running early or late. */
-const SAME_RUN_MS = 45_000
+export const SAME_RUN_MS = 45_000
 const SHOWN = 2
 
 /** The first runs after the planned one, skipping the planned run itself. */

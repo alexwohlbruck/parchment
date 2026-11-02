@@ -2885,3 +2885,10 @@ describe('indoor layers', () => {
     for (const l of layers) expect(JSON.stringify(l.filter), l.id).toContain('indoorBuildings')
   })
 })
+
+describe('indoor colours', () => {
+  it('resolves every colour token in the indoor layers', () => {
+    const indoor = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l.id.startsWith('Indoor '))
+    expect(JSON.stringify(indoor)).not.toMatch(/@[a-z_]+/)
+  })
+})

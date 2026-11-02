@@ -28,6 +28,8 @@ export const INDOOR_FLOOR_LAYER = 'Indoor floor'
 export const INDOOR_AREA_LAYER = 'Indoor rooms'
 export const INDOOR_WALL_LAYER = 'Indoor walls'
 export const INDOOR_STEPS_LAYER = 'Indoor steps'
+export const INDOOR_TREAD_LAYER = 'Indoor stair treads'
+export const INDOOR_STAIR_EDGE_LAYER = 'Indoor stair edges'
 export const INDOOR_LABEL_LAYER = 'Indoor room labels'
 export const INDOOR_POI_LAYER = 'Indoor places'
 export const INDOOR_GATE_LAYER = 'Indoor gates'
@@ -94,7 +96,7 @@ const SERVICE = ['toilets', 'toilet', 'shower', 'information', 'ticket', 'atm', 
 const BACK_OF_HOUSE = ['technical', 'storage', 'office', 'utility', 'private', 'staff']
 
 type IndoorPalette = Record<
-  'veil' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
+  'veil' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
   | 'food' | 'store' | 'health' | 'service' | 'label',
   string
 >
@@ -108,11 +110,13 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     room: 'hsl(26, 52%, 89%)',
     private: 'hsl(26, 40%, 87%)',
     platform: 'hsl(232, 52%, 92%)',
-    stairs: 'hsl(220, 10%, 89%)',
+    stairs: 'hsl(220, 10%, 86%)',
+    escalator: 'hsl(222, 40%, 90%)',
+    tread: 'hsl(0, 0%, 100%)',
     shaft: 'hsl(220, 10%, 89%)',
     column: 'hsl(26, 20%, 80%)',
     wall: 'hsl(0, 0%, 100%)',
-    steps: 'hsl(220, 8%, 70%)',
+    steps: 'hsl(220, 8%, 66%)',
     food: 'hsl(30, 88%, 85%)',
     store: 'hsl(214, 78%, 89%)',
     health: 'hsl(352, 66%, 91%)',
@@ -127,6 +131,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     private: 'hsl(222, 16%, 31%)',
     platform: 'hsl(232, 26%, 35%)',
     stairs: 'hsl(222, 12%, 38%)',
+    escalator: 'hsl(222, 26%, 40%)',
+    tread: 'hsl(222, 14%, 52%)',
     shaft: 'hsl(222, 12%, 38%)',
     column: 'hsl(222, 12%, 44%)',
     wall: 'hsl(220, 14%, 52%)',
@@ -246,7 +252,8 @@ const FIXTURE_ART = [
 ]
 
 const fixtureBadge = [
-  'concat', 'poi|tile-', FIXTURE_ART, '|@poi_transit_plate|@poi_transit_ink|@poi_transit_ring|@poi_lift',
+  'concat', 'poi|tile-', FIXTURE_ART,
+  '|', '@poi_transit_plate', '|', '@poi_transit_ink', '|', '@poi_transit_ring', '|', '@poi_lift',
 ]
 
 const isFixture = ['!=', FIXTURE_ART, '']
@@ -267,6 +274,12 @@ export function indoorVeilLayer(flavor: FlavorId): any {
     },
   }
 }
+
+const steps = ['all', kind('line'), ['match', cls, ['steps', 'escalator'], true, false], onShownLevel]
+
+/** A flight's drawn width, `share` of a 2.4 m stair at mid latitudes. */
+const stairWidth = (share: number) =>
+  ['interpolate', ['exponential', 2], ['zoom'], 16, 1.3 * share, 22, 85 * share]
 
 /** The floor plan itself: the floor, its rooms, steps and walls. */
 export function indoorLayers(flavor: FlavorId): any[] {
@@ -315,12 +328,38 @@ export function indoorLayers(flavor: FlavorId): any[] {
       ...base,
       id: INDOOR_STEPS_LAYER,
       type: 'line',
-      filter: ['all', kind('line'), ['match', cls, ['steps', 'escalator'], true, false], onShownLevel],
-      layout: { 'line-cap': 'butt' },
+      filter: steps,
+      layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+      paint: {
+        'line-color': ['match', cls, 'escalator', c.escalator, c.stairs],
+        'line-width': stairWidth(1),
+        'line-opacity': fadeIn,
+      },
+    },
+    {
+      ...base,
+      id: INDOOR_STAIR_EDGE_LAYER,
+      type: 'line',
+      filter: steps,
+      layout: { 'line-cap': 'butt', 'line-join': 'miter' },
       paint: {
         'line-color': c.steps,
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 17, 4, 20, 26],
-        'line-dasharray': [0.12, 0.18],
+        'line-width': stairWidth(0.1),
+        'line-gap-width': stairWidth(1),
+        'line-opacity': fadeIn,
+      },
+    },
+    {
+      ...base,
+      // A dash across a wide line is a tread: dashes are measured in line widths.
+      id: INDOOR_TREAD_LAYER,
+      type: 'line',
+      filter: steps,
+      layout: { 'line-cap': 'butt' },
+      paint: {
+        'line-color': c.tread,
+        'line-width': stairWidth(0.86),
+        'line-dasharray': [0.1, 0.22],
         'line-opacity': fadeIn,
       },
     },
@@ -352,21 +391,19 @@ export function indoorLabelLayers(
   }
   const name = ['coalesce', ['get', 'name'], ['get', 'ref'], '']
   return [
-    ...(['point', 'line'] as const).map(placement => ({
+    {
       ...base,
-      id: placement === 'point' ? INDOOR_FIXTURE_LAYER : `${INDOOR_FIXTURE_LAYER} (steps)`,
+      id: INDOOR_FIXTURE_LAYER,
       type: 'symbol',
       minzoom: 17,
-      filter: ['all', kind(placement === 'point' ? 'poi' : 'line'), isFixture, onShownLevel],
+      filter: ['all', kind('poi'), isFixture, onShownLevel],
       layout: {
         'icon-image': fixtureBadge,
-        'icon-size': 0.62,
-        'symbol-placement': placement === 'point' ? 'point' : 'line-center',
-        'icon-rotation-alignment': 'viewport',
+        'icon-size': 0.74,
         'icon-padding': 2,
         'symbol-sort-key': 2,
       },
-    })),
+    },
     {
       ...base,
       id: INDOOR_GATE_LAYER,

@@ -53,7 +53,7 @@ const evidence = (partial: Partial<RideEvidence>): RideEvidence => ({
 
 function decide(candidates: VehicleCandidate[], seen: Partial<RideEvidence>) {
   const set: CandidateSet = { candidates, known: KNOWN }
-  return vehicleVerdict(rankCandidates(set, evidence(seen), 'planned', min(10)))
+  return vehicleVerdict(rankCandidates(set, evidence(seen), 'planned', min(10)), 'S4')
 }
 
 describe('vehicleVerdict', () => {
@@ -77,8 +77,14 @@ describe('vehicleVerdict', () => {
     expect(verdict).toMatchObject({ kind: 'settled', candidate: { tripId: 'two', line: '2' } })
   })
 
-  test('two lines leaving together are asked about, likeliest first', () => {
+  test('two lines leaving together that both stop for the rider take the likelier without asking', () => {
     const verdict = decide([run('planned', '3', 0), run('two', '2', 0.5), run('far', '3', 9)], { boardedAtMs: min(0.3) })
+    expect(verdict).toMatchObject({ kind: 'guess', candidate: { tripId: 'planned' } })
+  })
+
+  test('two lines leaving together are asked about when one skips the rider\'s stop, likeliest first', () => {
+    const short = { ...run('two', '2', 0.5), calls: run('two', '2', 0.5).calls.filter(c => c.stop !== 'S4') }
+    const verdict = decide([run('planned', '3', 0), short, run('far', '3', 9)], { boardedAtMs: min(0.3) })
     expect(verdict.kind).toBe('ask')
     if (verdict.kind !== 'ask') return
     expect(verdict.options.map(o => o.candidate.tripId)).toEqual(['planned', 'two'])
@@ -86,7 +92,7 @@ describe('vehicleVerdict', () => {
 
   test('a dwell at a stop the express skips settles on the local', () => {
     const candidates = [run('planned', '3', 0, 'express'), run('two', '2', 0.5)]
-    expect(decide(candidates, { boardedAtMs: min(0.3) }).kind).toBe('ask')
+    expect(decide(candidates, { boardedAtMs: min(0.3) }).kind).toBe('guess')
     const verdict = decide(candidates, { boardedAtMs: min(0.3), stops: [{ stop: 'S1', atMs: min(2.5), dwelled: true }] })
     expect(verdict).toMatchObject({ kind: 'settled', candidate: { tripId: 'two' } })
   })

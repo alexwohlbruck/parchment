@@ -3,6 +3,7 @@ import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 import { Image, PointOfView } from 'mapillary-js'
 import { Place } from '@/types/place.types'
+import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
 
 // TODO: Use types from official libs
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
@@ -227,6 +228,7 @@ export type MapEvents = {
   'click:tracker-marker': {
     trackerId: string
   }
+  indoor: IndoorFocus
 }
 
 export enum SourceType {

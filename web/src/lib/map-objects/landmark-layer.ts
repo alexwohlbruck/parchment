@@ -303,6 +303,7 @@ const DRAW_FS = `#version 300 es
   flat in vec3 v_color;
   /** 1 when the primitive's texture paints its surface rather than only cutting it. */
   uniform float u_painted;
+  uniform float u_ghost;
   uniform vec3 u_palette;
   uniform float u_harmony;
   uniform float u_harmonyFloor;
@@ -403,7 +404,7 @@ const DRAW_FS = `#version 300 es
       float facingEye = abs(dot(n, normalize(u_eye - v_anchor)));
       opacity = mix(u_opacity, 1.0, ${GLASS_EDGE.strength.toFixed(2)} * pow(1.0 - facingEye, ${GLASS_EDGE.power.toFixed(1)}));
     }
-    fragColor = vec4(shaded, alpha * opacity);
+    fragColor = vec4(shaded, alpha * opacity * u_ghost);
   }`
 
 /** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
@@ -683,6 +684,26 @@ export class LandmarkLayer {
     this.id = options.id
   }
 
+  /** Below 1 the models draw see-through, as the buildings do over an indoor basement. */
+  private opacity = 1
+
+  setOpacity(opacity: number) {
+    this.opacity = opacity
+    this.map?.triggerRepaint?.()
+  }
+
+  /** Buildings a floor plan is showing inside: a landmark standing in for one steps aside. */
+  private indoors = new Set<string>()
+
+  setIndoorBuildings(refs: Iterable<string>) {
+    this.indoors = new Set(refs)
+    this.gathering.request()
+  }
+
+  private showsIndoors(l: { replaces: string[] }) {
+    return this.indoors.size > 0 && l.replaces.some(r => this.indoors.has(r))
+  }
+
   setFlavor(flavor: LandmarkFlavor) {
     this.options.flavor = flavor
     this.map?.triggerRepaint?.()
@@ -696,7 +717,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
@@ -819,7 +840,7 @@ export class LandmarkLayer {
     this.placements = []
     for (const feature of features) {
       const landmark = parseLandmark(feature)
-      if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
+      if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark) || this.showsIndoors(landmark)) continue
       seen.add(landmark.id)
       this.placements.push(this.place(landmark, terrain, detailed(landmark)))
     }
@@ -827,7 +848,7 @@ export class LandmarkLayer {
     // old tiles go before the new ones arrive, and the query sees neither.
     const view = this.view()
     for (const p of previous.values()) {
-      if (seen.has(p.id) || zoom < minzoom(p) || !view(p)) continue
+      if (seen.has(p.id) || zoom < minzoom(p) || !view(p) || this.showsIndoors(p)) continue
       seen.add(p.id)
       // Placed again rather than kept: the terrain under it may have loaded,
       // or changed level of detail, since.
@@ -1297,7 +1318,7 @@ export class LandmarkLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     this.upload(gl)
     const placements = this.drawable()
-    if (!placements.length) return this.restore()
+    if (!placements.length || this.opacity <= 0) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const painter = this.map.painter
@@ -1308,7 +1329,8 @@ export class LandmarkLayer {
     gl.useProgram(program)
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
-    gl.depthMask(true)
+    gl.depthMask(this.opacity >= 1)
+    gl.uniform1f(u.u_ghost, this.opacity)
     if (range) gl.depthRange(range[0], range[1])
     // Opaque but for the wires, whose coverage is their alpha; they come last in their model.
     gl.enable(gl.BLEND)

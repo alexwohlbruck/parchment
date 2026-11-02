@@ -4,6 +4,7 @@ import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
+import { attachIndoor } from '@/services/map/indoor.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -121,6 +122,15 @@ import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
+import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
+import { showsBasement } from '@/lib/indoor/indoor-venue'
+import { fadedPaint } from '@/lib/map-style/surface-fade'
+
+/** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
+const BASEMENT_BUILDING_OPACITY = 0
+const BASEMENT_SURFACE_OPACITY = 0.22
+
+type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -311,6 +321,10 @@ export class MaplibreStrategy extends MapStrategy {
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
+  private indoor: ReturnType<typeof attachIndoor> | null = null
+  private indoorBuildings: string[] = []
+  /** Set when a click opened a venue's floor plan, so it opens nothing else. */
+  private indoorClaimedClick = false
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -473,6 +487,24 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.golfPins = attachGolfPins(this.mapInstance)
+    this.indoor = attachIndoor(this.mapInstance, {
+      focus: focus => {
+        this.fadeBuildings(showsBasement(focus) ? BASEMENT_BUILDING_OPACITY : 1)
+        this.fadeSurface(showsBasement(focus))
+        mapEventBus.emit('indoor', focus)
+      },
+      buildings: refs => {
+        this.indoorBuildings = refs
+        this.landmarkLayer?.setIndoorBuildings(refs)
+      },
+      clickable: () => {
+        const tools = useMapToolsStore()
+        return tools.activeTool !== 'measure' && !tools.rawClickCapture
+      },
+      claimClick: () => {
+        this.indoorClaimedClick = true
+      },
+    })
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => {
       this.muteFlatTunnels()
@@ -511,6 +543,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
       this.buildingFilters.clear()
+      this.fadedSurface.clear()
       this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
     })
@@ -545,6 +578,10 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
+      if (this.indoorClaimedClick) {
+        this.indoorClaimedClick = false
+        return
+      }
       // Debounce to allow POI click handler to fire first and cancel this
       if (this.clickDebounceTimer) {
         clearTimeout(this.clickDebounceTimer)
@@ -722,6 +759,71 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
 
+  setIndoorMaps(value: boolean) {
+    const visibility = value ? 'visible' : 'none'
+    for (const id of this.mapInstance.getLayersOrder())
+      if (id.startsWith(INDOOR_LAYER_PREFIX)) this.mapInstance.setLayoutProperty(id, 'visibility', visibility)
+    this.indoor?.setEnabled(!!value)
+  }
+
+  setIndoorLevel(level: number | null) {
+    this.indoor?.setLevel(level)
+  }
+
+  private buildingOpacity = 1
+
+  /** The surface's opacity alongside the buildings', on the same ease. */
+  private surfaceOpacity() {
+    const t = (1 - this.buildingOpacity) / (1 - BASEMENT_BUILDING_OPACITY)
+    return 1 - t * (1 - BASEMENT_SURFACE_OPACITY)
+  }
+  private buildingFade = 0
+  /** Each faded layer's opacity paint as it was, to put back. */
+  private fadedSurface = new Map<string, Partial<Record<PaintProperty, any>>>()
+
+  /** Fades every layer but the floor plan's and the buildings' while a basement is shown. */
+  private fadeSurface(fade: boolean) {
+    const map = this.mapInstance
+    if (!fade) {
+      for (const [id, paint] of this.fadedSurface)
+        if (map.getLayer(id)) for (const [property, value] of Object.entries(paint)) map.setPaintProperty(id, property as PaintProperty, value as any)
+      this.fadedSurface.clear()
+      return
+    }
+    for (const id of map.getLayersOrder()) {
+      const layer = map.getLayer(id)
+      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || layer.sourceLayer === BUILDING_3D_TILES) continue
+      const current = (property: string) => map.getPaintProperty(id, property as PaintProperty)
+      const faded: Record<string, any> = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
+      const properties = Object.keys(faded) as PaintProperty[]
+      if (!properties.length) continue
+      this.fadedSurface.set(id, Object.fromEntries(properties.map(p => [p, current(p)])))
+      for (const property of properties) map.setPaintProperty(id, property, faded[property])
+    }
+  }
+
+  /** Eases the 3D buildings to `target` opacity: see-through over a basement, solid otherwise. */
+  private fadeBuildings(target: number) {
+    cancelAnimationFrame(this.buildingFade)
+    const from = this.buildingOpacity
+    if (from === target) return
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 300)
+      this.buildingOpacity = from + (target - from) * t * (2 - t)
+      const shade = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? (liveBuildingShade() as any) : null
+      this.landmarkLayer?.setOpacity(this.buildingOpacity)
+      this.objectLayer?.setOpacity(this.surfaceOpacity())
+      this.deckLayer?.setOpacity(this.surfaceOpacity())
+      if (shade) shade.opacity = this.buildingOpacity
+      else if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
+        this.mapInstance.setPaintProperty(layerGroups.building3d, 'fill-extrusion-opacity', this.buildingOpacity)
+      this.mapInstance.triggerRepaint()
+      if (t < 1) this.buildingFade = requestAnimationFrame(step)
+    }
+    this.buildingFade = requestAnimationFrame(step)
+  }
+
   setMap3dBuildings(value: boolean) {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
@@ -816,6 +918,8 @@ export class MaplibreStrategy extends MapStrategy {
       },
     })
     this.landmarkLayer = layer
+    layer.setIndoorBuildings(this.indoorBuildings)
+    layer.setOpacity(this.buildingOpacity)
     shadowCasters.add(layer)
     // Beside the other models: above the buildings, below every label.
     map.addLayer(layer as any, firstLabelLayer(map))
@@ -970,6 +1074,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    this.objectLayer.setOpacity(this.surfaceOpacity())
     shadowCasters.add(this.objectLayer)
     flat()
   }
@@ -1073,6 +1178,7 @@ export class MaplibreStrategy extends MapStrategy {
         { profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, track: id => (id === GUIDANCE_ROUTE_SOURCE ? this.deckRouteTrack : null), hd: () => !!this.builtHdRoads },
         this.deckPalette(flavor),
       )
+      this.deckLayer.setOpacity(this.surfaceOpacity())
       this.deckLayer.onBuilt = () => {
         this.objectLayer?.refresh()
         this.applyDecks()
@@ -1221,6 +1327,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.mapInstance.getLayer(buildingLayerId)?.minzoom,
       )
       shade.shadows = this.shadowMode
+      shade.opacity = this.buildingOpacity
       this.mapInstance.addLayer(shade as any, this.layerAfter(buildingLayerId))
       this.shadowAlphaAtNoon = undefined
       this.updateSunShadow()
@@ -1230,7 +1337,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.setPaintProperty(
       buildingLayerId,
       'fill-extrusion-opacity',
-      active ? 0 : 1,
+      active ? 0 : this.buildingOpacity,
     )
   }
 
@@ -1738,6 +1845,7 @@ export class MaplibreStrategy extends MapStrategy {
   destroy() {
     this.poiElevation?.detach()
     this.golfPins?.detach()
+    this.indoor?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

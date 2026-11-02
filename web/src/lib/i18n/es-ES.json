@@ -2429,6 +2429,8 @@
       "controls": {
         "title": "Controles del mapa",
         "zoom": "Zoom",
+        "floors": "Plantas",
+        "exterior": "Exterior del edificio",
         "compass": "Brújula",
         "scale": "Barra de escala",
         "streetView": "Vista de calle",

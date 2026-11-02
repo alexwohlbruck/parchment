@@ -307,6 +307,10 @@ function mapService() {
       mapStore.setMapCamera(data)
     })
 
+    bindMapEvent('indoor', focus => {
+      mapStore.indoorFocus = focus
+    })
+
     // When the user finishes a manual rotation, snap to north and/or the local
     // city's street grid, per the snap settings.
     bindMapEvent('rotateend', () => {
@@ -1589,6 +1593,7 @@ function mapService() {
     togglePlaceLabels,
     toggleHdRoads,
     toggleIndoorMaps,
+    setIndoorLevel: (level: number | null) => mapStrategy?.setIndoorLevel(level),
     toggleNorthUpSnap,
     destroy,
     on,

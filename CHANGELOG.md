@@ -8,6 +8,8 @@
 
 * 3D landmarks can have see-through glass, so you can look into a glass cube or pavilion and see the stairs and lobby inside.
 
+* Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
+
 ### Changed
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".

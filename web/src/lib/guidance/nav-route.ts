@@ -9,6 +9,7 @@ import type {
 } from '@/types/directions.types'
 import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan } from '@server/types/unified-routing.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
+import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 
 export interface NavSegmentInput {
@@ -112,7 +113,10 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     const local = Float64Array.from(distances.slice(Math.max(0, firstNew - 1)))
     const localPoints = points.slice(Math.max(0, firstNew - 1))
     let searchFrom = 0
+    const last = segmentIndex === inputs.length - 1
     ;(input.instructions ?? []).forEach((instruction, k) => {
+      // Only the last segment ends at the destination; a mid-trip arrival is just the next segment's start.
+      if (!last && maneuverKind(instruction) === 'arrive') return
       const s = locateOnPolyline(localPoints, local, instruction.coordinate, searchFrom)
       searchFrom = s.index
       const plan = input.lanePlan?.find(p => p.instruction === k)

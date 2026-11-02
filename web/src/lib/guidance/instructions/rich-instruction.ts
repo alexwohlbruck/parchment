@@ -77,6 +77,8 @@ function pathAction(route: NavRoute, step: NavStep, side: Side | null): Action |
       && PATHS.has(e.roadClass ?? '') && CROSSINGS.has(e.crossing?.toLowerCase() ?? ''),
   )
   if (!crossing) return null
+  const onto = step.instruction.streetName || step.instruction.streetRef
+  if (onto && crossing.startDistance > step.startDistance + PAST_TURN_METERS) return null
   return { kind: 'crosswalk', signals: crossing.crossing!.toLowerCase() === 'traffic_signals', ...(crossing.crossingName && { road: crossing.crossingName }) }
 }
 

@@ -251,6 +251,11 @@ describe('on foot', () => {
     expect(voiceText(step(crossing('marked')), tEs)).toBe('Cruza 7th Avenue por el paso de peatones')
   })
 
+  test('a turn onto a named street keeps its name when the crossing comes after it', () => {
+    const route = walk({ edges: [{ startDistance: 612, endDistance: 625, roadClass: 'footway', crossing: 'traffic_signals' }] })
+    expect(voiceText(step(route), t)).toBe('Turn right onto Trade Street')
+  })
+
   test('a turn onto a road through a signalled junction stays a turn', () => {
     const ride = city({ mode: 'cycling', edges: [{ startDistance: 600, endDistance: 1000, roadClass: 'tertiary', crossing: 'traffic_signals' }] })
     expect(voiceText(step(ride), t)).toBe('Turn right onto Trade Street')

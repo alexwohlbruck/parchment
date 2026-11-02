@@ -2502,6 +2502,7 @@
       "controls": {
         "title": "Map controls",
         "zoom": "Zoom",
+        "floors": "Floors",
         "compass": "Compass",
         "scale": "Scale bar",
         "streetView": "Street view",

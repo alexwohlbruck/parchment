@@ -4,6 +4,7 @@ import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
+import { attachIndoor } from '@/services/map/indoor.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -121,6 +122,7 @@ import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
+import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -311,6 +313,8 @@ export class MaplibreStrategy extends MapStrategy {
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
+  private indoor: ReturnType<typeof attachIndoor> | null = null
+  private indoorBuildings: string[] = []
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -473,6 +477,13 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.golfPins = attachGolfPins(this.mapInstance)
+    this.indoor = attachIndoor(this.mapInstance, {
+      focus: focus => mapEventBus.emit('indoor', focus),
+      buildings: refs => {
+        this.indoorBuildings = refs
+        this.landmarkLayer?.setIndoorBuildings(refs)
+      },
+    })
     // Overlays such as the cycling network add tunnel layers of their own later.
     this.mapInstance.on('styledata', () => {
       this.muteFlatTunnels()
@@ -722,6 +733,17 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
 
+  setIndoorMaps(value: boolean) {
+    const visibility = value ? 'visible' : 'none'
+    for (const id of this.mapInstance.getLayersOrder())
+      if (id.startsWith(INDOOR_LAYER_PREFIX)) this.mapInstance.setLayoutProperty(id, 'visibility', visibility)
+    this.indoor?.setEnabled(!!value)
+  }
+
+  setIndoorLevel(level: number) {
+    this.indoor?.setLevel(level)
+  }
+
   setMap3dBuildings(value: boolean) {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
@@ -816,6 +838,7 @@ export class MaplibreStrategy extends MapStrategy {
       },
     })
     this.landmarkLayer = layer
+    layer.setIndoorBuildings(this.indoorBuildings)
     shadowCasters.add(layer)
     // Beside the other models: above the buildings, below every label.
     map.addLayer(layer as any, firstLabelLayer(map))
@@ -1738,6 +1761,7 @@ export class MaplibreStrategy extends MapStrategy {
   destroy() {
     this.poiElevation?.detach()
     this.golfPins?.detach()
+    this.indoor?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

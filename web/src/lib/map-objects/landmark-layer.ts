@@ -653,6 +653,18 @@ export class LandmarkLayer {
     this.id = options.id
   }
 
+  /** Buildings a floor plan is showing inside: a landmark standing in for one steps aside. */
+  private indoors = new Set<string>()
+
+  setIndoorBuildings(refs: Iterable<string>) {
+    this.indoors = new Set(refs)
+    this.gathering.request()
+  }
+
+  private showsIndoors(l: { replaces: string[] }) {
+    return this.indoors.size > 0 && l.replaces.some(r => this.indoors.has(r))
+  }
+
   setFlavor(flavor: LandmarkFlavor) {
     this.options.flavor = flavor
     this.map?.triggerRepaint?.()
@@ -789,7 +801,7 @@ export class LandmarkLayer {
     this.placements = []
     for (const feature of features) {
       const landmark = parseLandmark(feature)
-      if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
+      if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark) || this.showsIndoors(landmark)) continue
       seen.add(landmark.id)
       this.placements.push(this.place(landmark, terrain, detailed(landmark)))
     }
@@ -797,7 +809,7 @@ export class LandmarkLayer {
     // old tiles go before the new ones arrive, and the query sees neither.
     const view = this.view()
     for (const p of previous.values()) {
-      if (seen.has(p.id) || zoom < minzoom(p) || !view(p)) continue
+      if (seen.has(p.id) || zoom < minzoom(p) || !view(p) || this.showsIndoors(p)) continue
       seen.add(p.id)
       // Placed again rather than kept: the terrain under it may have loaded,
       // or changed level of detail, since.

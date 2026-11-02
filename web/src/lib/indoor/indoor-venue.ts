@@ -1,0 +1,108 @@
+/** Which indoor venue the floor picker serves, from the venue outlines in view. */
+
+export type IndoorLevel = { level: number; name: string }
+
+export type IndoorVenue = {
+  id: number
+  name?: string
+  /** Top floor first, as a lift panel lists them. */
+  levels: IndoorLevel[]
+  defaultLevel: number
+  /** buildings_3d ids the floor plan stands in. */
+  buildings: string[]
+  /** buildings_3d ids standing over its underground levels. */
+  buildingsAbove: string[]
+}
+
+/** The venue the floor picker serves and the level it shows; null when none is in view. */
+export type IndoorFocus = { venue: IndoorVenue; level: number } | null
+
+type VenueFeature = {
+  properties: Record<string, unknown> | null
+  geometry: { type: string; coordinates: any }
+}
+
+export function parseVenue(feature: VenueFeature): IndoorVenue | null {
+  const p = feature.properties ?? {}
+  const id = Number(p.venue)
+  if (!Number.isFinite(id)) return null
+  const levels = parseVenueLevels(p.levels, p.level_names)
+  return {
+    id,
+    name: typeof p.name === 'string' ? p.name : undefined,
+    levels,
+    defaultLevel: Number(p.default_level ?? 0),
+    buildings: refs(p.buildings),
+    buildingsAbove: refs(p.buildings_above),
+  }
+}
+
+/** Levels from `"-1;0;1"` and names from `"-1=B1;0=G"`, top floor first. */
+export function parseVenueLevels(levels: unknown, names: unknown): IndoorLevel[] {
+  const named = new Map<number, string>()
+  for (const pair of String(names ?? '').split(';')) {
+    const at = pair.indexOf('=', 1)
+    if (at > 0) named.set(Number(pair.slice(0, at)), pair.slice(at + 1))
+  }
+  return [...new Set(String(levels ?? '').split(';').filter(Boolean).map(Number))]
+    .filter(n => Number.isFinite(n))
+    .sort((a, b) => b - a)
+    .map(level => ({ level, name: named.get(level) ?? levelNumber(level) }))
+}
+
+/** 0 is G and basements are B1, B2…, as most building signage numbers them. */
+function levelNumber(level: number): string {
+  if (level === 0) return 'G'
+  if (Number.isInteger(level)) return level < 0 ? `B${-level}` : String(level)
+  return String(level)
+}
+
+/** The multi-level venue under the centre of the view, else the nearest one. */
+export function focusedVenue(
+  features: VenueFeature[],
+  center: [number, number],
+): IndoorVenue | null {
+  let best: { venue: IndoorVenue; distance: number } | null = null
+  const seen = new Map<number, number>()
+  for (const f of features) {
+    const venue = parseVenue(f)
+    if (!venue || venue.levels.length < 2) continue
+    const distance = distanceToShape(f.geometry, center)
+    if ((seen.get(venue.id) ?? Infinity) <= distance) continue
+    seen.set(venue.id, distance)
+    if (!best || distance < best.distance) best = { venue, distance }
+  }
+  return best?.venue ?? null
+}
+
+const refs = (value: unknown) => String(value ?? '').split(';').filter(Boolean)
+
+/** Buildings to clear as the style's `;id;` string: every venue's own, plus those over a shown basement. */
+export function clearedBuildings(features: VenueFeature[], focus: IndoorFocus): string {
+  const ids = new Set<string>()
+  for (const f of features) for (const id of refs(f.properties?.buildings)) ids.add(id)
+  if (focus && focus.level < 0) for (const id of focus.venue.buildingsAbove) ids.add(id)
+  return ids.size ? `;${[...ids].sort().join(';')};` : ''
+}
+
+/** 0 inside the polygon, else the distance to its nearest vertex in degrees. */
+function distanceToShape(geometry: VenueFeature['geometry'], [x, y]: [number, number]): number {
+  const polygons: number[][][][] =
+    geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : []
+  let nearest = Infinity
+  for (const rings of polygons) {
+    if (insideRing(rings[0], x, y) && !rings.slice(1).some(r => insideRing(r, x, y))) return 0
+    for (const [px, py] of rings[0]) nearest = Math.min(nearest, Math.hypot(px - x, py - y))
+  }
+  return nearest
+}
+
+function insideRing(ring: number[][], x: number, y: number): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}

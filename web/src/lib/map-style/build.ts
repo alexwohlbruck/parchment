@@ -541,14 +541,13 @@ export function buildLayers(options: {
   return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels) as LayerSpecification[]
 }
 
-/** Floor plans before the buildings, so faded towers show a basement through them; badges over the basemap's. */
+/** Floor plans before the buildings, so faded towers show a basement through them; labels on top, placed first. */
 function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[]): any[] {
   const out = layers.map(l => l['source-layer'] !== BUILDING_3D_TILES ? l : { ...l, filter: withoutIndoorBuildings(l.filter) })
   const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
   const firstBuilding = out.findIndex(isBuilding)
   out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), indoorFootprintLayer(flavor, SOURCE), ...indoorLayers(flavor))
-  const lastPoi = out.map(l => l['source-layer'] === 'poi').lastIndexOf(true)
-  out.splice(lastPoi < 0 ? out.length : lastPoi + 1, 0, ...labels)
+  out.push(...labels)
   return out
 }
 

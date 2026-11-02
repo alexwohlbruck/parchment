@@ -22,6 +22,13 @@ describe('routeHazards', () => {
     expect(routeHazards(straight([{ crossing: 'uncontrolled' }], 'walking'))[0].kind).toBe('uncontrolled_crossing')
   })
 
+  test('a crosswalk on the road a rider is on is not theirs to cross', () => {
+    const along = (roadClass: string) => routeHazards(straight([{ crossing: 'uncontrolled', roadClass }], 'cycling')).map((h) => h.kind)
+    expect(along('residential')).toEqual([])
+    expect(along('cycleway')).toEqual(['uncontrolled_crossing'])
+    expect(routeHazards(straight([{ crossing: 'uncontrolled', roadClass: 'residential' }], 'driving'))[0].kind).toBe('crosswalk')
+  })
+
   test('rail crossings warn every mode', () => {
     for (const mode of ['walking', 'biking', 'driving']) {
       expect(routeHazards(straight([{ crossing: 'railway' }], mode))[0]).toMatchObject({ kind: 'rail_crossing', severity: 'high' })

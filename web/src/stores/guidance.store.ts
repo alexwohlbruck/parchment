@@ -438,8 +438,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     rides = segments.value.map((segment, i) => (segment.mode === 'transit' ? rideStops(navRoute, i, segment) : null))
   }
 
-  /** Moves a missed boarding onto the line's next run, re-timing the rest of the trip. */
-  async function catchNextRun(): Promise<boolean> {
+  /** Moves a missed boarding onto the line's next run, or the run at `departureMs`, re-timing the rest of the trip. */
+  async function catchNextRun(departureMs?: number): Promise<boolean> {
     const stage = transit.value
     const option = trip.value
     if (!option || stage?.kind !== 'missed-vehicle' || rebooking.value) return false
@@ -448,7 +448,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (index < 0) return false
     rebooking.value = true
     try {
-      const next = await nextRunAfter(all[index], Math.max(stage.departureMs + 60_000, guidanceClock.now()))
+      const next = departureMs ?? (await nextRunAfter(all[index], Math.max(stage.departureMs + 60_000, guidanceClock.now())))
       if (next == null) return false
       await applyDepartureChange(all, index, next, (i, minMs) => nextRunAfter(all[i], minMs))
       segments.value = [...segments.value]

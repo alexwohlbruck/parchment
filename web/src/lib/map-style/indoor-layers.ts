@@ -40,7 +40,6 @@ const GATE_EDGE = '#e0a91f'
 const GATE_INK = '#3a2a00'
 export const INDOOR_FIXTURE_LAYER = 'Indoor fixtures'
 export const INDOOR_VENUE_LAYER = 'Indoor venues'
-export const INDOOR_VEIL_LAYER = 'Indoor underground veil'
 
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
 const FLOOR_HEIGHT = 0.3
@@ -96,7 +95,7 @@ const SERVICE = ['toilets', 'toilet', 'shower', 'information', 'ticket', 'atm', 
 const BACK_OF_HOUSE = ['technical', 'storage', 'office', 'utility', 'private', 'staff']
 
 type IndoorPalette = Record<
-  'veil' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
+  'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
   | 'food' | 'store' | 'health' | 'service' | 'label',
   string
 >
@@ -104,7 +103,6 @@ type IndoorPalette = Record<
 /** Warm paper by day, the basemap's blues by night; a room that is a place takes a wash of its category. */
 const COLORS: Record<FlavorId, IndoorPalette> = {
   light: {
-    veil: 'hsl(48, 16%, 94.5%)',
     floor: 'hsl(26, 72%, 96.5%)',
     area: 'hsl(26, 72%, 96.5%)',
     room: 'hsl(26, 52%, 89%)',
@@ -124,7 +122,6 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     label: 'hsl(222, 12%, 42%)',
   },
   dark: {
-    veil: 'hsl(216, 37%, 24%)',
     floor: 'hsl(222, 24%, 27%)',
     area: 'hsl(222, 24%, 27%)',
     room: 'hsl(222, 20%, 33%)',
@@ -257,23 +254,6 @@ const fixtureBadge = [
 ]
 
 const isFixture = ['!=', FIXTURE_ART, '']
-
-/** Fades the street over a venue while it shows a basement; sits under the buildings. */
-export function indoorVeilLayer(flavor: FlavorId): any {
-  return {
-    id: INDOOR_VEIL_LAYER,
-    type: 'fill',
-    source: INDOOR_SOURCE,
-    'source-layer': INDOOR_VENUE_TILES,
-    minzoom: INDOOR_MINZOOM,
-    filter: ['==', ['get', 'venue'], ['global-state', INDOOR_STATE.venue]],
-    paint: {
-      'fill-color': COLORS[flavor].veil,
-      'fill-opacity': ['case', ['<', ['global-state', INDOOR_STATE.level], 0], 0.72, 0],
-      'fill-opacity-transition': { duration: 300 },
-    },
-  }
-}
 
 const steps = ['all', kind('line'), ['match', cls, ['steps', 'escalator'], true, false], onShownLevel]
 

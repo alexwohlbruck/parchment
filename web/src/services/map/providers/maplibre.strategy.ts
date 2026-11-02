@@ -124,9 +124,11 @@ import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
 import { showsBasement } from '@/lib/indoor/indoor-venue'
+import { fadedPaint } from '@/lib/map-style/surface-fade'
 
-/** How solid the 3D buildings stay while a floor plan shows a basement under them. */
+/** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
 const BASEMENT_BUILDING_OPACITY = 0.12
+const BASEMENT_SURFACE_OPACITY = 0.22
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -484,6 +486,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.indoor = attachIndoor(this.mapInstance, {
       focus: focus => {
         this.fadeBuildings(showsBasement(focus) ? BASEMENT_BUILDING_OPACITY : 1)
+        this.fadeSurface(showsBasement(focus))
         mapEventBus.emit('indoor', focus)
       },
       buildings: refs => {
@@ -529,6 +532,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
       this.buildingFilters.clear()
+      this.fadedSurface.clear()
       this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
     })
@@ -752,7 +756,36 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   private buildingOpacity = 1
+
+  /** The surface's opacity alongside the buildings', on the same ease. */
+  private surfaceOpacity() {
+    const t = (1 - this.buildingOpacity) / (1 - BASEMENT_BUILDING_OPACITY)
+    return 1 - t * (1 - BASEMENT_SURFACE_OPACITY)
+  }
   private buildingFade = 0
+  /** Each faded layer's opacity paint as it was, to put back. */
+  private fadedSurface = new Map<string, Record<string, unknown>>()
+
+  /** Fades every layer but the floor plan's and the buildings' while a basement is shown. */
+  private fadeSurface(fade: boolean) {
+    const map = this.mapInstance
+    if (!fade) {
+      for (const [id, paint] of this.fadedSurface)
+        if (map.getLayer(id)) for (const [property, value] of Object.entries(paint)) map.setPaintProperty(id, property, value)
+      this.fadedSurface.clear()
+      return
+    }
+    for (const id of map.getLayersOrder()) {
+      const layer = map.getLayer(id)
+      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || layer.sourceLayer === BUILDING_3D_TILES) continue
+      const current = (property: string) => map.getPaintProperty(id, property)
+      const faded = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
+      const properties = Object.keys(faded)
+      if (!properties.length) continue
+      this.fadedSurface.set(id, Object.fromEntries(properties.map(p => [p, current(p)])))
+      for (const property of properties) map.setPaintProperty(id, property, faded[property])
+    }
+  }
 
   /** Eases the 3D buildings to `target` opacity: see-through over a basement, solid otherwise. */
   private fadeBuildings(target: number) {
@@ -765,6 +798,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.buildingOpacity = from + (target - from) * t * (2 - t)
       const shade = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? (liveBuildingShade() as any) : null
       this.landmarkLayer?.setOpacity(this.buildingOpacity)
+      this.objectLayer?.setOpacity(this.surfaceOpacity())
+      this.deckLayer?.setOpacity(this.surfaceOpacity())
       if (shade) shade.opacity = this.buildingOpacity
       else if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
         this.mapInstance.setPaintProperty(layerGroups.building3d, 'fill-extrusion-opacity', this.buildingOpacity)
@@ -1024,6 +1059,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    this.objectLayer.setOpacity(this.surfaceOpacity())
     shadowCasters.add(this.objectLayer)
     flat()
   }
@@ -1127,6 +1163,7 @@ export class MaplibreStrategy extends MapStrategy {
         { profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes, track: id => (id === GUIDANCE_ROUTE_SOURCE ? this.deckRouteTrack : null), hd: () => !!this.builtHdRoads },
         this.deckPalette(flavor),
       )
+      this.deckLayer.setOpacity(this.surfaceOpacity())
       this.deckLayer.onBuilt = () => {
         this.objectLayer?.refresh()
         this.applyDecks()

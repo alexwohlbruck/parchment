@@ -14,13 +14,14 @@ import { Button } from '@/components/ui/button'
 import ManeuverBanner from './ManeuverBanner.vue'
 import TransitStageCard from './transit/TransitStageCard.vue'
 import TransitApproach from './transit/TransitApproach.vue'
+import MissedRecovery from './transit/MissedRecovery.vue'
 import { useGuidanceContext } from './context'
 
 defineProps<{ dash?: boolean }>()
 const { t } = useI18n()
 const router = useRouter()
 const guidance = useGuidanceStore()
-const { metric } = useGuidanceContext()
+const { metric, recovery } = useGuidanceContext()
 
 const stage = computed(() => (isAboard(guidance.transit) ? guidance.transit : null))
 
@@ -85,6 +86,7 @@ function previewRoute() {
       :certainty="rideCertainty(guidance.rideEstimate)"
       :busy="guidance.rebooking"
       :no-later-run="noLaterRun"
+      :recovering="!!recovery.view.value"
       @next-run="catchNextRun"
       @another-way="findAnotherWay"
     />
@@ -112,5 +114,13 @@ function previewRoute() {
         </Button>
       </div>
     </template>
+    <MissedRecovery
+      v-if="recovery.view.value"
+      class="border-t px-5 py-3"
+      :view="recovery.view.value"
+      :now-ms="guidance.clockMs"
+      @take="recovery.take"
+      @other-routes="findAnotherWay"
+    />
   </div>
 </template>

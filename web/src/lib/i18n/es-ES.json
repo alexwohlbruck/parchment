@@ -1700,6 +1700,17 @@
       "sooner": "Llega {duration} antes",
       "take": "Toma el {lines}"
     },
+    "recovery": {
+      "finding": "Buscando otra forma…",
+      "next": "Próximo {line} en {duration}",
+      "arrive": "llegada {time}",
+      "later": "+{duration}",
+      "take": "Toma el {lines} desde {stop}",
+      "orWait": "O espera al próximo {line} · llegada {time}",
+      "switch": "Cambiar",
+      "otherRoutes": "Otras rutas",
+      "fromAt": "desde {stop} · {time}"
+    },
     "lanes": {
       "label": "Carriles"
     },

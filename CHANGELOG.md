@@ -12,6 +12,8 @@
 
 ### Fixed
 
+* Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
+
 * Guidance no longer calls a transit stop or parking spot "Your destination"; it names the stop to board at instead.
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.

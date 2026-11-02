@@ -42,9 +42,15 @@ function runOf(ride: Ride, tripId: string, departureMs: number, overrides: Parti
   }
 }
 
+export const OTHER_LINE_COLORS = { color: '7C3AED', textColor: 'FFFFFF' }
+
+/** A line other than the one `ride` plans, from its interchangeable ones where it has any. */
+export function otherLineName(ride: Pick<CandidateRide, 'lineName' | 'routeOptions'>): string {
+  return ride.routeOptions?.map(r => r.shortName).find(n => n && n !== ride.lineName) ?? `${ride.lineName ?? ''}X`
+}
+
 function otherLine(ride: Ride): Partial<VehicleCandidate> {
-  const name = ride.routeOptions?.map(r => r.shortName).find(n => n && n !== ride.lineName) ?? `${ride.lineName ?? ''}X`
-  return { line: name, color: '7C3AED', textColor: 'FFFFFF' }
+  return { line: otherLineName(ride), ...OTHER_LINE_COLORS }
 }
 
 /** The candidates `scenario` stands for, with `nowMs` the moment the rider reached the stop. */

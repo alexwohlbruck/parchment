@@ -105,6 +105,17 @@ export function departureReachability(
   return 'ok'
 }
 
+export type ApproachReach = 'ok' | 'hurry' | 'late'
+
+/** Spare time on the way to a stop under which the rider is told to hurry. */
+const APPROACH_MARGIN_SEC = 120
+
+/** How a rider walking to a stop is doing against the departure, for guidance. */
+export function approachReach(departureMs: number, nowMs: number, remainingWalkSec: number): ApproachReach {
+  const state = departureReachability(departureMs, nowMs, remainingWalkSec, APPROACH_MARGIN_SEC)
+  return state === 'ok' || state === 'hurry' ? state : 'late'
+}
+
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
 }

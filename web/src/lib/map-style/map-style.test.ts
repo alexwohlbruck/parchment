@@ -23,6 +23,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
+import { INDOOR_SOURCE, withoutIndoorBuildings } from './indoor-layers'
 import {
   DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
   GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER,
@@ -1031,7 +1032,7 @@ describe('assembled styles', () => {
     afterEach(() => setBarrelmanBuildingsReady(null))
 
     const extrusions = (flavor: 'light' | 'dark' = 'dark') =>
-      (buildLayers({ flavor }) as any[]).filter(l => l.type === 'fill-extrusion')
+      (buildLayers({ flavor }) as any[]).filter(l => l.type === 'fill-extrusion' && l.source !== INDOOR_SOURCE)
 
     /**
      * Barrelman has to have the source created before it serves it, and a style
@@ -1072,7 +1073,7 @@ describe('assembled styles', () => {
     })
 
     test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
-      for (const l of extrusions()) expect(l.filter, l.id).toEqual(['!has', 'hide_3d'])
+      for (const l of extrusions()) expect(l.filter, l.id).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
     })
 
     /**
@@ -1118,7 +1119,7 @@ describe('assembled styles', () => {
         .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
       expect(edge.source).toBe(DETAIL_SOURCE)
       expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
-      expect(edge.filter).toEqual(['!has', 'hide_3d'])
+      expect(edge.filter).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
     })
 
     test('trees still stand above the buildings, both layers of them', () => {
@@ -2866,5 +2867,21 @@ describe('disc golf', () => {
     expect(sprite['disc-golf-basket']?.sdf).toBe(true)
     expect(layerGroups.detailLabels).toContain(DISC_GOLF_BASKET_LAYER)
     expect(layerGroups.poi).not.toContain(DISC_GOLF_BASKET_LAYER)
+  })
+})
+
+describe('indoor layers', () => {
+  it('names only glyphs the sprite carries', async () => {
+    const { POI_ART } = await import('./indoor-layers')
+    const sprite = (await import('../../../public/sprites/parchment.json')).default as Record<string, unknown>
+    expect(POI_ART.filter(name => !(`badge-${name}` in sprite))).toEqual([])
+  })
+
+  it('takes the buildings a floor plan stands in out of every 3D building layer', () => {
+    setBarrelmanBuildingsReady(true)
+    const layers = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l['source-layer'] === BUILDING_3D_TILES)
+    setBarrelmanBuildingsReady(null)
+    expect(layers.length).toBeGreaterThan(0)
+    for (const l of layers) expect(JSON.stringify(l.filter), l.id).toContain('indoorBuildings')
   })
 })

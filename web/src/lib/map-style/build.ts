@@ -38,6 +38,15 @@ import {
   PISTE_LABEL_LAYER,
   LIFT_LABEL_LAYER,
 } from './ski-layers'
+import {
+  INDOOR_SOURCE,
+  indoorLabelLayers,
+  indoorLayers,
+  indoorSource,
+  indoorVeilLayer,
+  indoorState,
+  withoutIndoorBuildings,
+} from './indoor-layers'
 import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
@@ -527,7 +536,21 @@ export function buildLayers(options: {
     haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
   }
 
-  return spliceDetailLayers(converted, flavor, hdRoads, detailLabel) as LayerSpecification[]
+  const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
+  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels) as LayerSpecification[]
+}
+
+/** Floor plans over the buildings, and their badges over the basemap's so they win collisions. */
+function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[]): any[] {
+  const out = layers.map(l => l['source-layer'] !== BUILDING_3D_TILES ? l : { ...l, filter: withoutIndoorBuildings(l.filter) })
+  const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
+  const lastBuilding = out.map(isBuilding).lastIndexOf(true)
+  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...indoorLayers(flavor))
+  const firstBuilding = out.findIndex(isBuilding)
+  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorVeilLayer(flavor))
+  const lastPoi = out.map(l => l['source-layer'] === 'poi').lastIndexOf(true)
+  out.splice(lastPoi < 0 ? out.length : lastPoi + 1, 0, ...labels)
+  return out
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
@@ -810,7 +833,9 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
             },
           }
         : {}),
+      [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
     },
+    state: indoorState(),
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }),
   } as StyleSpecification

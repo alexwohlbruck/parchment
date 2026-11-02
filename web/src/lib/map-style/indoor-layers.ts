@@ -41,6 +41,7 @@ const GATE_INK = '#3a2a00'
 export const INDOOR_FIXTURE_LAYER = 'Indoor fixtures'
 export const INDOOR_VENUE_LAYER = 'Indoor venues'
 export const INDOOR_UNDERGROUND_LAYER = 'Indoor underground'
+export const INDOOR_FOOTPRINT_LAYER = 'Indoor footprints'
 
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
 const FLOOR_HEIGHT = 0.3
@@ -96,7 +97,7 @@ const SERVICE = ['toilets', 'toilet', 'shower', 'information', 'ticket', 'atm', 
 const BACK_OF_HOUSE = ['technical', 'storage', 'office', 'utility', 'private', 'staff']
 
 type IndoorPalette = Record<
-  'underground' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
+  'underground' | 'footprint' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
   | 'food' | 'store' | 'health' | 'service' | 'label',
   string
 >
@@ -105,6 +106,7 @@ type IndoorPalette = Record<
 const COLORS: Record<FlavorId, IndoorPalette> = {
   light: {
     underground: 'hsl(222, 16%, 62%)',
+    footprint: 'hsl(222, 12%, 52%)',
     floor: 'hsl(26, 72%, 96.5%)',
     area: 'hsl(26, 72%, 96.5%)',
     room: 'hsl(26, 52%, 89%)',
@@ -125,6 +127,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
   },
   dark: {
     underground: 'hsl(222, 40%, 8%)',
+    footprint: 'hsl(220, 16%, 56%)',
     floor: 'hsl(222, 24%, 27%)',
     area: 'hsl(222, 24%, 27%)',
     room: 'hsl(222, 20%, 33%)',
@@ -258,6 +261,8 @@ const fixtureBadge = [
 
 const isFixture = ['!=', FIXTURE_ART, '']
 
+const underground = ['all', ['!=', ['global-state', INDOOR_STATE.venue], 0], ['<', ['global-state', INDOOR_STATE.level], 0]]
+
 /** Dims everything under the floor plan while a basement shows, so the plan reads as lit. */
 export function indoorUndergroundLayer(flavor: FlavorId): any {
   return {
@@ -266,8 +271,25 @@ export function indoorUndergroundLayer(flavor: FlavorId): any {
     minzoom: INDOOR_MINZOOM,
     paint: {
       'background-color': COLORS[flavor].underground,
-      'background-opacity': ['case', ['all', ['!=', ['global-state', INDOOR_STATE.venue], 0], ['<', ['global-state', INDOOR_STATE.level], 0]], 0.5, 0],
+      'background-opacity': ['case', underground, 0.5, 0],
       'background-opacity-transition': { duration: 300 },
+    },
+  }
+}
+
+/** While a basement shows, the cleared buildings' footprints, so the blocks above stay readable. */
+export function indoorFootprintLayer(flavor: FlavorId, source: string): any {
+  return {
+    id: INDOOR_FOOTPRINT_LAYER,
+    type: 'line',
+    source,
+    'source-layer': 'building',
+    minzoom: INDOOR_MINZOOM,
+    paint: {
+      'line-color': COLORS[flavor].footprint,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 16, 0.5, 19, 1],
+      'line-opacity': ['case', underground, 1, 0],
+      'line-opacity-transition': { duration: 300 },
     },
   }
 }

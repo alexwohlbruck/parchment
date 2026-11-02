@@ -884,7 +884,7 @@ export class WallShadowLayer {
       this._compPass(gl, saved);
     }
     this._sun = this.sunShadows && fade > 0 && this.shadowAlpha > 0.001 ? this._sunPass(gl, tiles, saved) : null; // PARCHMENT
-    if (this.wallShade) this._buildingPass(gl, tiles);
+    if (this.wallShade && this.opacity > 0) this._buildingPass(gl, tiles); // PARCHMENT: none at all while cleared
 
     restoreGlState(ctx, saved); // PARCHMENT
   }

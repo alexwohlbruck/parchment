@@ -44,6 +44,7 @@ import {
   indoorLayers,
   indoorSource,
   indoorUndergroundLayer,
+  indoorFootprintLayer,
   indoorState,
   withoutIndoorBuildings,
 } from './indoor-layers'
@@ -545,7 +546,7 @@ function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[]): any
   const out = layers.map(l => l['source-layer'] !== BUILDING_3D_TILES ? l : { ...l, filter: withoutIndoorBuildings(l.filter) })
   const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
   const firstBuilding = out.findIndex(isBuilding)
-  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), ...indoorLayers(flavor))
+  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), indoorFootprintLayer(flavor, SOURCE), ...indoorLayers(flavor))
   const lastPoi = out.map(l => l['source-layer'] === 'poi').lastIndexOf(true)
   out.splice(lastPoi < 0 ? out.length : lastPoi + 1, 0, ...labels)
   return out

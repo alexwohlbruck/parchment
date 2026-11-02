@@ -1287,7 +1287,7 @@ export class LandmarkLayer {
   render(gl: WebGL2RenderingContext, args: any) {
     this.upload(gl)
     const placements = this.drawable()
-    if (!placements.length) return this.restore()
+    if (!placements.length || this.opacity <= 0) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const painter = this.map.painter

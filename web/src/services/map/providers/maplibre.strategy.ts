@@ -127,7 +127,7 @@ import { showsBasement } from '@/lib/indoor/indoor-venue'
 import { fadedPaint } from '@/lib/map-style/surface-fade'
 
 /** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
-const BASEMENT_BUILDING_OPACITY = 0.12
+const BASEMENT_BUILDING_OPACITY = 0
 const BASEMENT_SURFACE_OPACITY = 0.22
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {

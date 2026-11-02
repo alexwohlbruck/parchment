@@ -12,6 +12,10 @@
 
 ### Fixed
 
+* Guidance no longer calls a transit stop or parking spot "Your destination"; it names the stop to board at instead.
+
+* Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
+
 ## [0.18.4] - 2026-10-31
 
 ### Added

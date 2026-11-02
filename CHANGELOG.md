@@ -4,6 +4,8 @@
 
 * On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
 
+* If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
+
 ### Changed
 
 ### Fixed

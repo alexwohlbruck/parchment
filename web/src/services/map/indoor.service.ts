@@ -1,5 +1,7 @@
 /** Keeps the style's indoor state in step with the venues in view and the floor picked. */
 import {
+  gatePlate,
+  INDOOR_GATE_PLATE,
   INDOOR_MINZOOM,
   INDOOR_SOURCE,
   INDOOR_STATE,
@@ -63,9 +65,16 @@ export function attachIndoor(
     schedule()
   }
 
+  const onImageMissing = (e: { id: string }) => {
+    if (e.id !== INDOOR_GATE_PLATE || map.hasImage(INDOOR_GATE_PLATE)) return
+    const { image, options } = gatePlate(window.devicePixelRatio || 1)
+    map.addImage(INDOOR_GATE_PLATE, image, options)
+  }
+
   map.on('sourcedata', onSourceData)
   map.on('style.load', onStyleLoad)
   map.on('moveend', schedule)
+  map.on('styleimagemissing', onImageMissing)
 
   return {
     setEnabled(value: boolean) {
@@ -81,6 +90,7 @@ export function attachIndoor(
       map.off('sourcedata', onSourceData)
       map.off('style.load', onStyleLoad)
       map.off('moveend', schedule)
+      map.off('styleimagemissing', onImageMissing)
       if (queued) clearTimeout(queued)
     },
   }

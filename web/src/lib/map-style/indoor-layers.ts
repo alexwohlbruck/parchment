@@ -30,6 +30,12 @@ export const INDOOR_WALL_LAYER = 'Indoor walls'
 export const INDOOR_STEPS_LAYER = 'Indoor steps'
 export const INDOOR_LABEL_LAYER = 'Indoor room labels'
 export const INDOOR_POI_LAYER = 'Indoor places'
+export const INDOOR_GATE_LAYER = 'Indoor gates'
+/** The stretchable plate a gate's number sits on; drawn by `gatePlate`, not the sprite. */
+export const INDOOR_GATE_PLATE = 'indoor-gate-plate'
+const GATE_FILL = '#f6c343'
+const GATE_EDGE = '#e0a91f'
+const GATE_INK = '#3a2a00'
 export const INDOOR_FIXTURE_LAYER = 'Indoor fixtures'
 export const INDOOR_VENUE_LAYER = 'Indoor venues'
 export const INDOOR_VEIL_LAYER = 'Indoor underground veil'
@@ -37,7 +43,7 @@ export const INDOOR_VEIL_LAYER = 'Indoor underground veil'
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
 const FLOOR_HEIGHT = 0.3
 const ROOM_HEIGHT = 0.4
-const WALL_HEIGHT = 1.8
+const WALL_HEIGHT = 3.5
 
 export function indoorSource(tileUrl: (source: string) => string) {
   return {
@@ -94,39 +100,39 @@ type IndoorPalette = Record<
 const COLORS: Record<FlavorId, IndoorPalette> = {
   light: {
     veil: 'hsl(48, 16%, 94.5%)',
-    floor: 'hsl(36, 48%, 95.5%)',
-    area: 'hsl(36, 42%, 93.5%)',
-    room: 'hsl(32, 34%, 88%)',
-    private: 'hsl(32, 12%, 86%)',
-    platform: 'hsl(222, 22%, 90%)',
-    stairs: 'hsl(32, 16%, 83%)',
-    shaft: 'hsl(222, 16%, 85%)',
-    column: 'hsl(32, 10%, 74%)',
-    wall: 'hsl(30, 12%, 79%)',
-    steps: 'hsl(30, 10%, 60%)',
-    food: 'hsl(28, 80%, 87%)',
-    store: 'hsl(214, 72%, 90%)',
-    health: 'hsl(352, 62%, 91%)',
-    service: 'hsl(222, 26%, 90%)',
-    label: 'hsl(30, 10%, 40%)',
+    floor: 'hsl(26, 72%, 96.5%)',
+    area: 'hsl(26, 72%, 96.5%)',
+    room: 'hsl(26, 52%, 89%)',
+    private: 'hsl(26, 40%, 87%)',
+    platform: 'hsl(232, 52%, 92%)',
+    stairs: 'hsl(220, 10%, 89%)',
+    shaft: 'hsl(220, 10%, 89%)',
+    column: 'hsl(26, 20%, 80%)',
+    wall: 'hsl(0, 0%, 100%)',
+    steps: 'hsl(220, 8%, 70%)',
+    food: 'hsl(30, 88%, 85%)',
+    store: 'hsl(214, 78%, 89%)',
+    health: 'hsl(352, 66%, 91%)',
+    service: 'hsl(220, 12%, 90%)',
+    label: 'hsl(222, 12%, 42%)',
   },
   dark: {
     veil: 'hsl(216, 37%, 24%)',
-    floor: 'hsl(217, 30%, 30%)',
-    area: 'hsl(217, 28%, 32%)',
-    room: 'hsl(217, 26%, 38%)',
-    private: 'hsl(217, 18%, 34%)',
-    platform: 'hsl(222, 26%, 36%)',
-    stairs: 'hsl(217, 16%, 42%)',
-    shaft: 'hsl(222, 20%, 41%)',
-    column: 'hsl(217, 16%, 50%)',
-    wall: 'hsl(217, 22%, 56%)',
-    steps: 'hsl(217, 16%, 64%)',
-    food: 'hsl(26, 34%, 38%)',
-    store: 'hsl(214, 40%, 43%)',
-    health: 'hsl(350, 26%, 40%)',
-    service: 'hsl(222, 22%, 41%)',
-    label: 'hsl(220, 12%, 82%)',
+    floor: 'hsl(222, 24%, 27%)',
+    area: 'hsl(222, 24%, 27%)',
+    room: 'hsl(222, 20%, 33%)',
+    private: 'hsl(222, 16%, 31%)',
+    platform: 'hsl(232, 26%, 35%)',
+    stairs: 'hsl(222, 12%, 38%)',
+    shaft: 'hsl(222, 12%, 38%)',
+    column: 'hsl(222, 12%, 44%)',
+    wall: 'hsl(220, 14%, 52%)',
+    steps: 'hsl(220, 10%, 60%)',
+    food: 'hsl(28, 38%, 36%)',
+    store: 'hsl(214, 42%, 39%)',
+    health: 'hsl(350, 26%, 38%)',
+    service: 'hsl(222, 14%, 37%)',
+    label: 'hsl(220, 12%, 80%)',
   },
 }
 
@@ -360,30 +366,47 @@ export function indoorLabelLayers(
     })),
     {
       ...base,
+      id: INDOOR_GATE_LAYER,
+      type: 'symbol',
+      filter: ['all', kind('poi'), ['==', cls, 'aeroway'], ['has', 'ref'], onShownLevel],
+      layout: {
+        'icon-image': INDOOR_GATE_PLATE,
+        'icon-text-fit': 'both',
+        'icon-text-fit-padding': [2, 5, 1, 5],
+        'text-field': ['get', 'ref'],
+        'text-font': label.font,
+        'text-size': 12,
+        'text-padding': 2,
+        'symbol-sort-key': 0,
+      },
+      paint: { 'text-color': GATE_INK },
+    },
+    {
+      ...base,
       id: INDOOR_POI_LAYER,
       type: 'symbol',
       filter: [
         'all',
         kind('poi'),
-        ['match', cls, ['shop', 'amenity', 'aeroway', 'tourism', 'healthcare', 'leisure', 'office', 'craft'], true, false],
-        ['any', ['has', 'name'], ['has', 'ref'], ['match', sub, ['atm', 'pharmacy'], true, false]],
+        ['match', cls, ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft'], true, false],
+        ['any', ['has', 'name'], ['match', sub, ['atm', 'pharmacy'], true, false]],
         ['!', isFixture],
         onShownLevel,
       ],
       layout: {
-        'icon-image': ['case', ['==', cls, 'aeroway'], '', poiBadge],
+        'icon-image': poiBadge,
         'text-field': name,
         'text-font': label.font,
         'text-size': 12,
-        'text-anchor': ['case', ['==', cls, 'aeroway'], 'center', 'top'],
-        'text-offset': ['case', ['==', cls, 'aeroway'], ['literal', [0, 0]], ['literal', [0, 1.1]]],
+        'text-anchor': 'top',
+        'text-offset': [0, 1.1],
         'text-max-width': 7,
         'text-optional': true,
         'text-padding': 4,
         'symbol-sort-key': 1,
       },
       paint: {
-        'text-color': ['case', ['==', cls, 'aeroway'], '@label_ink_strong', categoryToken('poi_ink')],
+        'text-color': categoryToken('poi_ink'),
         'text-halo-color': label.halo,
         'text-halo-width': label.haloWidth,
         'text-halo-blur': label.haloBlur,
@@ -411,4 +434,30 @@ export function indoorLabelLayers(
       },
     },
   ]
+}
+
+/** The gate plate as an image MapLibre can stretch around the text, at `ratio` device pixels. */
+export function gatePlate(ratio: number) {
+  const size = Math.round(18 * ratio)
+  const radius = 5 * ratio
+  const canvas = new OffscreenCanvas(size, size)
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = GATE_EDGE
+  ctx.beginPath()
+  ctx.roundRect(0, 0, size, size, radius)
+  ctx.fill()
+  ctx.fillStyle = GATE_FILL
+  ctx.beginPath()
+  ctx.roundRect(ratio, ratio, size - 2 * ratio, size - 2 * ratio, radius - ratio)
+  ctx.fill()
+  const inset = Math.ceil(radius) + 1
+  return {
+    image: ctx.getImageData(0, 0, size, size),
+    options: {
+      pixelRatio: ratio,
+      stretchX: [[inset, size - inset]] as [number, number][],
+      stretchY: [[inset, size - inset]] as [number, number][],
+      content: [inset, inset, size - inset, size - inset] as [number, number, number, number],
+    },
+  }
 }

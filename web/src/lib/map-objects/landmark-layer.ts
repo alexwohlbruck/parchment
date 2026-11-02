@@ -202,6 +202,8 @@ const DRAW_VS = `#version 300 es
   /** Clip ← anchor metres, for the sun's shadow map; see sun-shadow.ts. */
   uniform mat4 u_sun;
   out vec4 v_sun;
+  /** Anchor metres, for the glass's view angle; see GLASS_EDGE. */
+  out vec3 v_anchor;
   flat out vec3 v_color;
   flat out vec3 v_emission;
   /** What a material is drawn as: ${ROLE.window} window glass, ${ROLE.lamp} a lamp, else 0; see \`materialRole\`. */
@@ -222,6 +224,7 @@ const DRAW_VS = `#version 300 es
     v_model = vec3(p.x, p.z, p.y) * u_scale;
     v_modelNormal = mat3(u_node) * a_normal;
     v_sun = u_sun * vec4(q, 1.0);
+    v_anchor = q;
     gl_Position = u_matrix * vec4(q, 1.0);
     // A lamp is drawn lit, at night, or not at all, and casts no shadow: the sun's pass leaves u_night 0.
     if (v_role == ${ROLE.lamp}.0 && u_night < 0.5) gl_Position = ${OFF_SCREEN};
@@ -288,6 +291,13 @@ const WIRE_WIDTH = 0.35
 /** Pixel coverage over which a fan's in-between wires fade in. */
 const FINE_WIRE = [0.9, 1.6]
 
+/**
+ * How much more opaque glass gets toward edge-on: by `strength` times
+ * (1 - cos θ)^`power`, θ between its normal and the view. Matches the
+ * landmarks repo's preview renderer.
+ */
+const GLASS_EDGE = { strength: 0.85, power: 3 }
+
 const DRAW_FS = `#version 300 es
   precision highp float;
   flat in vec3 v_color;
@@ -310,6 +320,11 @@ const DRAW_FS = `#version 300 es
   in float v_floodlight;
   /** 1 when a painted texture's alpha says where the panes are: 0 glass, 1 wall. */
   uniform float u_panes;
+  /** Below 1 for translucent glass; see \`drawGlass\`. */
+  uniform float u_opacity;
+  /** The camera, in anchor metres; see \`eyeOf\`. */
+  uniform vec3 u_eye;
+  in vec3 v_anchor;
   in vec3 v_normal;
   in vec3 v_model;
   in vec3 v_modelNormal;
@@ -340,7 +355,10 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
-    base = mix(base + (1.0 - base) * u_paint_lift, u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)), u_harmony);
+    // Glass keeps most of its own tint: seen through, a pale blue is what makes it read as glass.
+    bool glass = u_opacity < 1.0;
+    base = mix(base + (1.0 - base) * (glass ? 0.0 : u_paint_lift), u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)),
+      glass ? u_harmony * 0.3 : u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -349,6 +367,8 @@ const DRAW_FS = `#version 300 es
     float inShadow = facing > 0.0 ? sunShade(v_sun, sqrt(1.0 - facing * facing) / max(facing, 0.2)) : 0.0;
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0) * (1.0 - inShadow);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
+    // Glass reflects the sky whichever way it faces, so it is barely shaded.
+    if (glass) directional = mix(directional, 1.0, 0.7);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
     vec3 shaded = clamp((base + 0.03) * directional * sky * (1.0 - 0.1 * inShadow), 0.0, 1.0);
     if (v_role == ${ROLE.window}.0) {
@@ -375,7 +395,15 @@ const DRAW_FS = `#version 300 es
     }
     // A lamp is its light, unshaded.
     if (v_role == ${ROLE.lamp}.0) shaded = pow(min(v_emission, 1.0), vec3(1.0 / 2.2));
-    fragColor = vec4(shaded, alpha);
+    // Glass seen edge-on is nearly opaque, as real glass is: a pane's
+    // silhouette and its fins draw as tinted lines while a pane seen face on
+    // stays clear.
+    float opacity = u_opacity;
+    if (glass) {
+      float facingEye = abs(dot(n, normalize(u_eye - v_anchor)));
+      opacity = mix(u_opacity, 1.0, ${GLASS_EDGE.strength.toFixed(2)} * pow(1.0 - facingEye, ${GLASS_EDGE.power.toFixed(1)}));
+    }
+    fragColor = vec4(shaded, alpha * opacity);
   }`
 
 /** Depth only, into the sun's shadow map; the mask still cuts a lattice's holes. */
@@ -527,6 +555,8 @@ type Batch = {
   painted: boolean
   cutoff: number
   doubleSided: boolean
+  /** Below 1, translucent glass, drawn after everything opaque; see `drawGlass`. */
+  opacity: number
   /** The moving node it is drawn with, or -1; see `poseGlb`. */
   node: number
 }
@@ -666,7 +696,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
@@ -1180,6 +1210,7 @@ export class LandmarkLayer {
           // facade the alpha is the window mask, not coverage.
           cutoff: texture && p.alphaMode === 'MASK' ? p.alphaCutoff : -1,
           doubleSided: p.doubleSided,
+          opacity: batch.opacity,
           node: p.node,
         }
       })
@@ -1229,7 +1260,7 @@ export class LandmarkLayer {
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       this.groundUniforms(gl, u, p)
-      this.drawBatches(gl, model.batches, u, false, this.poseOf(model))
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
     }
     gl.bindVertexArray(null)
   }
@@ -1258,7 +1289,7 @@ export class LandmarkLayer {
       const b = (p.bearing * Math.PI) / 180
       gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
       this.groundUniforms(gl, u, p)
-      this.drawBatches(gl, model.batches, u, false, this.poseOf(model))
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
     }
     gl.bindVertexArray(null)
   }
@@ -1302,14 +1333,16 @@ export class LandmarkLayer {
     bindSun(gl, u, sun)
     setFacadeUniforms(gl, u, flavor.facade)
 
+    gl.uniform1f(u.u_opacity, 1)
+
     const now = performance.now()
     let moving = false
     let onScreen: ((p: Placement, reach: number) => boolean) | null = null
-    for (const p of placements) {
-      const model = this.drawnModel(p)
-      if (!model?.batches) continue
-      model.used = now
-      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))
+    const glazed: Array<[Placement, Model]> = []
+    const place = (p: Placement, model: Model) => {
+      const anchored = anchorMatrix(matrix, p.placed)
+      gl.uniformMatrix4fv(u.u_matrix, false, anchored)
+      gl.uniform3fv(u.u_eye, eyeOf(anchored))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       this.groundUniforms(gl, u, p)
@@ -1321,10 +1354,18 @@ export class LandmarkLayer {
       gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
       gl.uniform1f(u.u_scale, p.scale)
       if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
+    }
+    for (const p of placements) {
+      const model = this.drawnModel(p)
+      if (!model?.batches) continue
+      model.used = now
+      place(p, model)
       const pose = this.poseOf(model, now)
-      this.drawBatches(gl, model.batches, u, true, pose)
+      this.drawBatches(gl, model.batches, u, true, pose, 'opaque')
+      if (model.batches.some(b => b.opacity < 1)) glazed.push([p, model])
       if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
     }
+    if (glazed.length) this.drawGlass(gl, glazed, place, now)
     if (this.options.flavor.facade.night) this.drawEntrances(gl, matrix, placements)
     gl.bindVertexArray(null)
     this.restore()
@@ -1380,6 +1421,41 @@ export class LandmarkLayer {
   }
 
   /**
+   * Translucent glass, after every opaque model so what is behind and inside
+   * it is already drawn. It tests depth but does not write it, so glass never
+   * hides glass; within a model its back faces go first and its front faces
+   * over them, which is the right order for a glass box seen from anywhere.
+   * Models are taken farthest first. The draw program and the frame's
+   * uniforms are still bound from the opaque pass.
+   */
+  private drawGlass(
+    gl: WebGL2RenderingContext,
+    glazed: Array<[Placement, Model]>,
+    place: (p: Placement, model: Model) => void,
+    now: number,
+  ) {
+    const { u } = this.draw
+    const centre = this.map.getCenter?.()
+    if (centre) {
+      const away = (p: Placement) => (p.lng - centre.lng) ** 2 + (p.lat - centre.lat) ** 2
+      glazed.sort((a, b) => away(b[0]) - away(a[0]))
+    }
+    gl.depthMask(false)
+    gl.enable(gl.CULL_FACE)
+    for (const [p, model] of glazed) {
+      place(p, model)
+      const pose = this.poseOf(model, now)
+      for (const side of [gl.FRONT, gl.BACK]) {
+        gl.cullFace(side)
+        this.drawBatches(gl, model.batches!, u, true, pose, side === gl.FRONT ? 'glass-back' : 'glass-front')
+      }
+    }
+    gl.cullFace(gl.BACK)
+    gl.depthMask(true)
+    gl.uniform1f(u.u_opacity, 1)
+  }
+
+  /**
    * The glow pooled in front of every lit doorway, after the models so it
    * is hidden by whatever stands in front of it. Additive and without depth
    * writes, so glows overlap without sorting and never hide anything.
@@ -1414,19 +1490,30 @@ export class LandmarkLayer {
     u: Record<string, WebGLUniformLocation | null>,
     shaded: boolean,
     pose: Map<number, Float32Array> | null,
+    /**
+     * Which batches: the opaque ones (all a shadow is cast by), or the glass
+     * with the caller's culling, its far side first; see `drawGlass`.
+     */
+    pass: 'opaque' | 'glass-back' | 'glass-front',
   ) {
     let node: Float32Array | null = null
     // What a batch without floodlights reads, its attribute array being off.
     gl.vertexAttrib1f(LOC.a_floodlight, 0)
     for (const batch of batches) {
+      if ((batch.opacity < 1) !== (pass !== 'opaque')) continue
+      // A single-sided pane has no far side to show.
+      if (pass === 'glass-back' && !batch.doubleSided) continue
       // Set only when it changes: a static model sets the identity once.
       const at = (batch.node >= 0 && pose?.get(batch.node)) || IDENTITY
       if (at !== node) gl.uniformMatrix4fv(u.u_node, false, (node = at))
       const lit = this.lighting(batch)
       gl.uniform4fv(u.u_emissions, lit.emissions)
-      if (shaded) {
+      if (shaded && pass === 'opaque') {
         if (batch.doubleSided) gl.disable(gl.CULL_FACE)
         else gl.enable(gl.CULL_FACE)
+      }
+      if (shaded) {
+        if (pass !== 'opaque') gl.uniform1f(u.u_opacity, batch.opacity)
         gl.uniform3fv(u.u_colors, lit.colors)
         gl.uniform1f(u.u_painted, batch.painted ? 1 : 0)
         // Only a painted window knows where its panes are; any other window
@@ -1538,6 +1625,23 @@ export function anchorMatrix(camera: ArrayLike<number>, at: Anchor): Float32Arra
     out[12 + r] = camera[r] * at.x + camera[4 + r] * at.y + camera[8 + r] * at.z + camera[12 + r]
   }
   return out
+}
+
+/**
+ * Where the camera stands in the frame `m` (clip ← that frame, column-major)
+ * projects from: the point that lands at clip x = y = w = 0. Far off along the
+ * view for an orthographic matrix, which has no such point.
+ */
+export function eyeOf(m: ArrayLike<number>): [number, number, number] {
+  // Rows 0, 1 and 3 of m · (x, y, z, 1) = 0, by Cramer's rule.
+  const row = (r: number) => [m[r], m[4 + r], m[8 + r], m[12 + r]]
+  const [a, b, c] = [row(0), row(1), row(3)]
+  const det3 = (p: number[], q: number[], t: number[]) =>
+    p[0] * (q[1] * t[2] - q[2] * t[1]) - p[1] * (q[0] * t[2] - q[2] * t[0]) + p[2] * (q[0] * t[1] - q[1] * t[0])
+  const d = det3(a, b, c)
+  if (Math.abs(d) < 1e-12) return [0, 0, 1e6]
+  const col = (i: number) => (v: number[]) => [...v.slice(0, i), -v[3], ...v.slice(i + 1, 3)]
+  return [0, 1, 2].map(i => det3(col(i)(a), col(i)(b), col(i)(c)) / d) as [number, number, number]
 }
 
 /**

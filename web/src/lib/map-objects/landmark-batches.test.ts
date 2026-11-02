@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
+import { batchPrimitives, MAX_BATCH_MATERIALS, opacityOf } from './landmark-batches'
 import type { GlbPrimitive } from './glb.mjs'
 
 const triangle = (over: Partial<GlbPrimitive> = {}): GlbPrimitive => ({
@@ -42,6 +42,20 @@ describe('batchPrimitives', () => {
 
     expect(batches.map(b => b.primitives.length)).toEqual([1, 1, 1, 1])
     expect(batches.at(-1)!.uv).toBe(textured.uv)
+  })
+
+  it('keeps translucent glass apart, at its own opacity', () => {
+    const glass = triangle({ material: 'glass', alphaMode: 'BLEND', color: [0.4, 0.5, 0.7, 0.3] })
+    const batches = batchPrimitives([triangle(), glass, triangle({ material: 'roof' })])
+
+    expect(batches.map(b => b.primitives.map(p => p.material))).toEqual([['wall', 'roof'], ['glass']])
+    expect(batches.map(b => b.opacity)).toEqual([1, expect.closeTo(0.3, 5)])
+  })
+
+  it('draws a material opaque unless it blends, and never by a texture', () => {
+    expect(opacityOf(triangle({ color: [1, 1, 1, 0.3] }))).toBe(1)
+    expect(opacityOf(triangle({ alphaMode: 'BLEND', color: [1, 1, 1, 0.3] }))).toBeCloseTo(0.3)
+    expect(opacityOf(triangle({ alphaMode: 'BLEND', color: [1, 1, 1, 0.3], image: { bytes: new Uint8Array(), mimeType: 'image/png' } }))).toBe(1)
   })
 
   it('splits a run longer than the material table', () => {

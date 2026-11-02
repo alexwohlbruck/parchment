@@ -2,6 +2,8 @@
 
 ### Added
 
+* Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
+
 ### Changed
 
 ### Fixed

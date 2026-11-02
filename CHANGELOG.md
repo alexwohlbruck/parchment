@@ -2,11 +2,25 @@
 
 ### Added
 
+* On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
+
+* If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
+
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
 ### Changed
 
+* Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
+
 ### Fixed
+
+* Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
+
+* Riding or walking along a street no longer warns of every crosswalk that crosses it, or labels an unnamed driveway "Crosswalk".
+
+* Guidance no longer calls a transit stop or parking spot "Your destination"; it names the stop to board at instead.
+
+* Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
 
 ## [0.18.4] - 2026-10-31
 

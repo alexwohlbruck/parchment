@@ -1,7 +1,7 @@
 // What the guidance UI shows, derived from the route and the puck: banner
 // distances rounded the way people say them, the road being driven, timing.
 
-import { edgeAt, segmentAt, type NavRoute, type NavStep } from './nav-route'
+import { edgeAt, segmentAt, type NavEdge, type NavRoute, type NavStep } from './nav-route'
 import type { PuckState } from './guidance-engine'
 import { modeProfile } from './mode-profiles'
 
@@ -39,6 +39,25 @@ const GENERIC_ROADS: Record<string, string> = {
   service: 'service',
 }
 
+const CROSSWALKS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolled'])
+const RAIL_CROSSINGS = new Set(['railway', 'railway_barrier'])
+const WALKWAYS = new Set(['footway', 'path', 'pedestrian'])
+
+/** What an unnamed way is to someone on it: a crosswalk, a footbridge, a park path, else its class. */
+function genericRoad(edge: NavEdge | null | undefined): string {
+  const roadClass = edge?.roadClass ?? ''
+  const crossing = edge?.crossing?.toLowerCase() ?? ''
+  // A road carries the crossings of junctions it passes through; only a path is the crossing itself.
+  if (CROSSWALKS.has(crossing) && (WALKWAYS.has(roadClass) || roadClass === 'cycleway')) return 'crosswalk'
+  if (RAIL_CROSSINGS.has(crossing)) return 'railCrossing'
+  if (WALKWAYS.has(roadClass)) {
+    if (edge?.roadEnvironment === 'bridge') return 'footbridge'
+    if (edge?.roadEnvironment === 'tunnel') return 'underpass'
+    if (edge?.inPark && roadClass !== 'pedestrian') return 'parkPath'
+  }
+  return GENERIC_ROADS[roadClass] ?? 'road'
+}
+
 export type RoadLabel =
   | { kind: 'named'; name: string; ref?: string }
   | { kind: 'generic'; key: string }
@@ -69,7 +88,7 @@ export function stepRoad(route: NavRoute, step: NavStep | null, s: number): Road
   if (ref) return { kind: 'named', name: ref }
   const edge = edgeAt(route, s)
   if (edge?.streetName) return { kind: 'named', name: edge.streetName }
-  return { kind: 'generic', key: GENERIC_ROADS[edge?.roadClass ?? ''] ?? 'road' }
+  return { kind: 'generic', key: genericRoad(edge) }
 }
 
 export interface ProgressSummary {

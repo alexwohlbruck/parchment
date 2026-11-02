@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import type { Run } from '@/lib/transit/later-runs'
 
 export interface LineRun {
   departureStop: { location: { lat: number; lng: number } }
@@ -7,8 +8,8 @@ export interface LineRun {
   directionId?: string | number | null
 }
 
-/** Next run of this segment's line from its boarding stop at or after `minMs`. */
-export async function nextRunAfter(segment: LineRun, minMs: number): Promise<number | null> {
+/** Runs of this segment's line (or an interchangeable one) from its boarding stop at or after `minMs`, soonest first. */
+export async function runsAfter(segment: LineRun, minMs: number): Promise<Run[]> {
   try {
     const { data } = await api.get('/transit/departures', {
       params: {
@@ -27,19 +28,22 @@ export async function nextRunAfter(segment: LineRun, minMs: number): Promise<num
       segment.routeOptions?.length
         ? segment.routeOptions.some(o => o.shortName === name)
         : name === segment.lineName
-    return (
-      all
-        .filter(
-          d =>
-            sameLine(d.route?.shortName) &&
-            (segment.directionId == null || String(d.directionId) === String(segment.directionId)) &&
-            !d.cancelled,
-        )
-        .map(d => new Date(d.departureTime).getTime())
-        .filter(m => m >= minMs)
-        .sort((a, b) => a - b)[0] ?? null
-    )
+    return all
+      .filter(
+        d =>
+          sameLine(d.route?.shortName) &&
+          (segment.directionId == null || String(d.directionId) === String(segment.directionId)) &&
+          !d.cancelled,
+      )
+      .map(d => ({ departureMs: new Date(d.departureTime).getTime(), lineName: d.route?.shortName }))
+      .filter(r => r.departureMs >= minMs)
+      .sort((a, b) => a.departureMs - b.departureMs)
   } catch {
-    return null
+    return []
   }
+}
+
+/** Next run of this segment's line from its boarding stop at or after `minMs`. */
+export async function nextRunAfter(segment: LineRun, minMs: number): Promise<number | null> {
+  return (await runsAfter(segment, minMs))[0]?.departureMs ?? null
 }

@@ -1308,6 +1308,11 @@
       "pedestrian": "Pedestrian street",
       "cycleway": "Bike path",
       "steps": "Stairs",
+      "crosswalk": "Crosswalk",
+      "railCrossing": "Railroad crossing",
+      "footbridge": "Footbridge",
+      "underpass": "Underpass",
+      "parkPath": "Park path",
       "track": "Track",
       "service": "Service road",
       "road": "Unnamed road"
@@ -1451,6 +1456,11 @@
         "pedestrian": "the pedestrian street",
         "cycleway": "the bike path",
         "steps": "the stairs",
+        "crosswalk": "the crosswalk",
+        "railCrossing": "the railroad crossing",
+        "footbridge": "the footbridge",
+        "underpass": "the underpass",
+        "parkPath": "the park path",
         "track": "the track"
       },
       "fork": {
@@ -1733,6 +1743,17 @@
     "itinerary": {
       "sooner": "Arrive {duration} sooner",
       "take": "Take the {lines}"
+    },
+    "recovery": {
+      "finding": "Finding the next way…",
+      "next": "Next {line} in {duration}",
+      "arrive": "arrive {time}",
+      "later": "+{duration}",
+      "take": "Take the {lines} from {stop}",
+      "orWait": "Or wait for the next {line} · arrive {time}",
+      "switch": "Switch",
+      "otherRoutes": "Other routes",
+      "fromAt": "from {stop} · {time}"
     },
     "lanes": {
       "label": "Lanes"

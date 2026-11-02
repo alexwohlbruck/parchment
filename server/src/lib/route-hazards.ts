@@ -104,6 +104,14 @@ function crossingHazard(mode: string, crossing: string): { kind: RouteHazardKind
   }
 }
 
+const PATHS = new Set(['footway', 'path', 'pedestrian', 'cycleway', 'steps', 'track', 'bridleway'])
+
+/** A crosswalk tagged on a road is for people crossing it; someone walking or riding along the road isn't one of them. */
+function crossedByOthers(mode: string, edge: RouteEdgeSegment, kind: RouteHazardKind): boolean {
+  if (mode === 'driving' || !edge.roadClass || PATHS.has(edge.roadClass)) return false
+  return kind === 'crosswalk' || kind === 'uncontrolled_crossing'
+}
+
 function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate, freezing: boolean): RouteHazard[] {
   const hazards: RouteHazard[] = []
   const push = (edge: RouteEdgeSegment, kind: RouteHazardKind, severity: RouteHazard['severity'], options: { stretch?: boolean; variant?: string } = {}) => {
@@ -121,7 +129,7 @@ function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate, free
   for (const edge of segment.edgeSegments ?? []) {
     if (edge.crossing) {
       const crossing = crossingHazard(segment.mode, edge.crossing.toLowerCase())
-      if (crossing) push(edge, crossing.kind, crossing.severity, { variant: edge.crossing.toLowerCase() })
+      if (crossing && !crossedByOthers(segment.mode, edge, crossing.kind)) push(edge, crossing.kind, crossing.severity, { variant: edge.crossing.toLowerCase() })
     }
     switch (edge.roadEnvironment) {
       case 'tunnel':

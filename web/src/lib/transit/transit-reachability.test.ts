@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  approachReach,
   departureReachability,
   remainingAccessWalkSec,
 } from './transit-reachability'
@@ -156,5 +157,17 @@ describe('departureReachability', () => {
     expect(departureReachability(NOW + 5 * MIN, NOW, 420, GRACE)).toBe('unreachable')
     // ...but is plainly catchable once the walk has decayed to a minute.
     expect(departureReachability(NOW + 5 * MIN, NOW, 60, GRACE)).toBe('ok')
+  })
+})
+
+describe('approachReach', () => {
+  it('reads late once the walk no longer fits, or the vehicle has gone', () => {
+    expect(approachReach(NOW + MIN, NOW, 90)).toBe('late')
+    expect(approachReach(NOW - 1, NOW, 0)).toBe('late')
+  })
+
+  it('asks for a hurry inside two minutes of spare time', () => {
+    expect(approachReach(NOW + 3 * MIN, NOW, 90)).toBe('hurry')
+    expect(approachReach(NOW + 5 * MIN, NOW, 90)).toBe('ok')
   })
 })

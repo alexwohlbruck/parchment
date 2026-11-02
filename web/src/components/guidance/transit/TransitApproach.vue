@@ -3,7 +3,7 @@ import { computed, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatDurationCompact } from '@/lib/time-format'
-import { departureReachability } from '@/lib/transit/transit-reachability'
+import { approachReach } from '@/lib/transit/transit-reachability'
 import { useLaterRuns } from '@/composables/guidance/useLaterRuns'
 
 const props = defineProps<{
@@ -15,17 +15,13 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 
-const HURRY_MARGIN_SEC = 120
 const REACH_STYLES = {
   ok: 'text-forest-600 dark:text-forest-400',
   hurry: 'text-amber-600 dark:text-amber-400',
   late: 'text-red-600 dark:text-red-400',
 }
 
-const reach = computed(() => {
-  const state = departureReachability(props.departureMs, props.nowMs, props.walkSec, HURRY_MARGIN_SEC)
-  return state === 'ok' || state === 'hurry' ? state : 'late'
-})
+const reach = computed(() => approachReach(props.departureMs, props.nowMs, props.walkSec))
 const leadIn = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 const lead = computed(() => leadIn(props.departureMs))
 

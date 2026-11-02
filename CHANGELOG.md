@@ -6,6 +6,8 @@
 
 * If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
 
+* 3D landmarks can have see-through glass, so you can look into a glass cube or pavilion and see the stairs and lobby inside.
+
 ### Changed
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".

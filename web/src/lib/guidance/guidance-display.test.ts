@@ -42,3 +42,32 @@ test('stepRoad names an unnamed step from the sidewalk under it', () => {
   const route = sidewalk()
   expect(stepRoad(route, route.steps[0], 150)).toEqual({ kind: 'named', name: 'East 23rd Street' })
 })
+
+describe('unnamed ways', () => {
+  const route = (edge: Record<string, unknown>) =>
+    buildNavRoute([
+      {
+        mode: 'walking',
+        geometry,
+        instructions: [
+          { type: 'depart', text: '', distance: 200, duration: 150, coordinate: geometry[0] },
+          { type: 'destination', text: '', distance: 0, duration: 0, coordinate: geometry.at(-1)! },
+        ],
+        edgeSegments: [{ startDistance: 0, endDistance: 200, ...edge }],
+      } as never,
+    ])
+  const label = (edge: Record<string, unknown>) => roadLabel(route(edge), 100)
+
+  test('name a crosswalk, a railroad crossing, a footbridge, an underpass and a park path', () => {
+    expect(label({ roadClass: 'footway', crossing: 'MARKED' })).toEqual({ kind: 'generic', key: 'crosswalk' })
+    expect(label({ roadClass: 'footway', crossing: 'RAILWAY_BARRIER' })).toEqual({ kind: 'generic', key: 'railCrossing' })
+    expect(label({ roadClass: 'footway', roadEnvironment: 'bridge' })).toEqual({ kind: 'generic', key: 'footbridge' })
+    expect(label({ roadClass: 'path', roadEnvironment: 'tunnel' })).toEqual({ kind: 'generic', key: 'underpass' })
+    expect(label({ roadClass: 'path', inPark: true })).toEqual({ kind: 'generic', key: 'parkPath' })
+  })
+
+  test('fall back to the class where the way is nothing more specific', () => {
+    expect(label({ roadClass: 'footway', crossing: 'MISSING' })).toEqual({ kind: 'generic', key: 'path' })
+    expect(label({ roadClass: 'cycleway', roadEnvironment: 'bridge' })).toEqual({ kind: 'generic', key: 'cycleway' })
+  })
+})

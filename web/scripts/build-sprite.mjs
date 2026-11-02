@@ -489,14 +489,18 @@ export const BADGE_PREFIX = 'badge-'
  * a transit map draws between a point of interest and a stop. At the sizes
  * these draw, shape is a far stronger signal than colour.
  *
- * Only the transit classes get the second form, so the sheet gains a couple of
+ * Only the transit classes and a building's fixtures (lifts, stairs,
+ * entrances, toilets) get the second form, so the sheet gains a couple of
  * dozen images rather than doubling.
  */
 export const TILE_PREFIX = 'tile-'
 const TILE_CORNER = MARKER_SQUARE_CORNER
-const TRANSIT_ICONS = [
+const TILE_ICONS = [
   'bus', 'rail', 'rail-metro', 'rail-light', 'ferry', 'harbor',
   'aerialway', 'airport', 'airfield', 'entrance',
+  // The secondary tier: small fixtures of a building or a station, which read
+  // as signage rather than as places.
+  'entrance-alt1', 'elevator', 'stairs', 'escalator', 'toilet', 'information', 'drinking-water',
 ]
 
 /**
@@ -656,7 +660,7 @@ async function buildSheet(icons, ratio) {
         sdf: alphaToSdf(padded, bw, bw),
       })
 
-      if (TRANSIT_ICONS.includes(name)) {
+      if (TILE_ICONS.includes(name)) {
         const tile = await badgeAlpha(svg, ratio, 'tile')
         const tw = tile.size + buffer * 2
         const tp = Buffer.alloc(tw * tw)

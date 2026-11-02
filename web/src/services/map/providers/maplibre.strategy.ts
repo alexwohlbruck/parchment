@@ -129,6 +129,8 @@ import { fadedPaint } from '@/lib/map-style/surface-fade'
 /** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
 const BASEMENT_BUILDING_OPACITY = 0
 const BASEMENT_SURFACE_OPACITY = 0.22
+
+type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -777,23 +779,23 @@ export class MaplibreStrategy extends MapStrategy {
   }
   private buildingFade = 0
   /** Each faded layer's opacity paint as it was, to put back. */
-  private fadedSurface = new Map<string, Record<string, unknown>>()
+  private fadedSurface = new Map<string, Partial<Record<PaintProperty, any>>>()
 
   /** Fades every layer but the floor plan's and the buildings' while a basement is shown. */
   private fadeSurface(fade: boolean) {
     const map = this.mapInstance
     if (!fade) {
       for (const [id, paint] of this.fadedSurface)
-        if (map.getLayer(id)) for (const [property, value] of Object.entries(paint)) map.setPaintProperty(id, property, value)
+        if (map.getLayer(id)) for (const [property, value] of Object.entries(paint)) map.setPaintProperty(id, property as PaintProperty, value as any)
       this.fadedSurface.clear()
       return
     }
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
       if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || layer.sourceLayer === BUILDING_3D_TILES) continue
-      const current = (property: string) => map.getPaintProperty(id, property)
-      const faded = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
-      const properties = Object.keys(faded)
+      const current = (property: string) => map.getPaintProperty(id, property as PaintProperty)
+      const faded: Record<string, any> = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
+      const properties = Object.keys(faded) as PaintProperty[]
       if (!properties.length) continue
       this.fadedSurface.set(id, Object.fromEntries(properties.map(p => [p, current(p)])))
       for (const property of properties) map.setPaintProperty(id, property, faded[property])

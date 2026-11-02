@@ -56,16 +56,23 @@ function levelNumber(level: number): string {
   return String(level)
 }
 
-/** The multi-level venue under the centre of the view, else the nearest one. */
+/** A venue opens on its default floor, unless that is underground: then on its outside, until asked. */
+export const openingLevel = (venue: IndoorVenue) => (venue.defaultLevel >= 0 ? venue.defaultLevel : null)
+
+/**
+ * The multi-level venue under the centre of the view, else the nearest one
+ * reaching into `focusArea`, the middle of the screen as a ring of [lng, lat].
+ */
 export function focusedVenue(
   features: VenueFeature[],
   center: [number, number],
+  focusArea: number[][],
 ): IndoorVenue | null {
   let best: { venue: IndoorVenue; distance: number } | null = null
   const seen = new Map<number, number>()
   for (const f of features) {
     const venue = parseVenue(f)
-    if (!venue || venue.levels.length < 2) continue
+    if (!venue || venue.levels.length < 2 || !reaches(f.geometry, focusArea)) continue
     const distance = distanceToShape(f.geometry, center)
     if ((seen.get(venue.id) ?? Infinity) <= distance) continue
     seen.set(venue.id, distance)
@@ -96,6 +103,21 @@ function distanceToShape(geometry: VenueFeature['geometry'], [x, y]: [number, nu
     for (const [px, py] of rings[0]) nearest = Math.min(nearest, Math.hypot(px - x, py - y))
   }
   return nearest
+}
+
+/** Whether a polygon's outline overlaps `area` at all. */
+function reaches(geometry: VenueFeature['geometry'], area: number[][]): boolean {
+  const polygons: number[][][][] =
+    geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : []
+  return polygons.some(([ring]) =>
+    ring.some(([x, y]) => insideRing(area, x, y))
+    || area.some(([x, y]) => insideRing(ring, x, y))
+    || ring.some((a, i) => i > 0 && area.some((c, j) => j > 0 && crosses(ring[i - 1], a, area[j - 1], c))))
+}
+
+function crosses(a: number[], b: number[], c: number[], d: number[]): boolean {
+  const side = (p: number[], q: number[], r: number[]) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]))
+  return side(a, b, c) !== side(a, b, d) && side(c, d, a) !== side(c, d, b)
 }
 
 function insideRing(ring: number[][], x: number, y: number): boolean {

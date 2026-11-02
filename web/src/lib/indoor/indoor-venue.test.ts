@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { clearedBuildings, focusedVenue, parseVenueLevels } from './indoor-venue'
+import { clearedBuildings, focusedVenue, openingLevel, parseVenueLevels } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
   coordinates: [[[x - r, y - r], [x + r, y - r], [x + r, y + r], [x - r, y + r], [x - r, y - r]]],
 })
+
+const everywhere = square(0, 0, 100).coordinates[0]
 
 const venue = (id: number, geometry: any, props: Record<string, unknown> = {}) => ({
   properties: { venue: id, levels: '-1;0;1', default_level: 0, ...props },
@@ -34,20 +36,33 @@ describe('parseVenueLevels', () => {
 })
 
 describe('focusedVenue', () => {
+  const middle = square(0, 0, 2).coordinates[0]
+
   it('prefers the venue under the centre over a nearer edge', () => {
     const big = venue(1, square(0, 0, 5))
     const small = venue(2, square(6.5, 0, 1))
-    expect(focusedVenue([small, big], [4.9, 0])?.id).toBe(1)
+    expect(focusedVenue([small, big], [4.9, 0], everywhere)?.id).toBe(1)
   })
 
-  it('falls back to the nearest venue in view', () => {
+  it('falls back to the nearest venue reaching the middle of the screen', () => {
     const far = venue(1, square(10, 10))
     const near = venue(2, square(3, 0))
-    expect(focusedVenue([far, near], [0, 0])?.id).toBe(2)
+    expect(focusedVenue([far, near], [0, 0], middle)?.id).toBe(2)
+  })
+
+  it('ignores a venue loaded but outside the middle of the screen', () => {
+    expect(focusedVenue([venue(1, square(6, 0))], [0, 0], middle)).toBeNull()
   })
 
   it('offers no picker for a single-level venue', () => {
-    expect(focusedVenue([venue(1, square(0, 0), { levels: '0' })], [0, 0])).toBeNull()
+    expect(focusedVenue([venue(1, square(0, 0), { levels: '0' })], [0, 0], everywhere)).toBeNull()
+  })
+})
+
+describe('openingLevel', () => {
+  it('opens a station that is all underground on its outside', () => {
+    const station = focusedVenue([venue(1, square(0, 0), { levels: '-2;-1', default_level: -1 })], [0, 0], everywhere)!
+    expect(openingLevel(station)).toBeNull()
   })
 })
 
@@ -58,12 +73,12 @@ describe('clearedBuildings', () => {
   ]
 
   it('clears the buildings every venue stands in', () => {
-    const focus = { venue: focusedVenue(features, [0, 0])!, level: 0 }
+    const focus = { venue: focusedVenue(features, [0, 0], everywhere)!, level: 0 }
     expect(clearedBuildings(features, focus)).toBe(';way/1;way/2;way/3;')
   })
 
   it('gives a venue shown from outside its buildings back', () => {
-    const focus = { venue: focusedVenue(features, [0, 0])!, level: null }
+    const focus = { venue: focusedVenue(features, [0, 0], everywhere)!, level: null }
     expect(clearedBuildings(features, focus)).toBe(';way/3;')
   })
 

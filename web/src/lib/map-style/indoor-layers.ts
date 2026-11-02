@@ -69,12 +69,12 @@ export function indoorState() {
   }
 }
 
-/** The level a feature's venue is showing: the picked one if focused, else its default. */
+/** The level a feature's venue is showing: the picked one if focused, else its default unless that is underground. */
 const shownLevel = [
   'case',
   ['==', ['get', 'venue'], ['global-state', INDOOR_STATE.venue]],
   ['global-state', INDOOR_STATE.level],
-  ['get', 'default_level'],
+  ['case', ['<', ['get', 'default_level'], 0], EXTERIOR_LEVEL, ['get', 'default_level']],
 ]
 
 const onShownLevel = ['==', ['get', 'level'], shownLevel]

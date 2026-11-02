@@ -9,7 +9,7 @@ import {
   INDOOR_VENUE_TILES,
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
-import { clearedBuildings, focusedVenue, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { clearedBuildings, focusedVenue, openingLevel, type IndoorFocus } from '@/lib/indoor/indoor-venue'
 
 export function attachIndoor(
   map: any,
@@ -57,8 +57,16 @@ export function attachIndoor(
     }
     venues = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
     const { lng, lat } = map.getCenter()
-    const venue = focusedVenue(venues, [lng, lat])
-    apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : venue.defaultLevel } : null)
+    const venue = focusedVenue(venues, [lng, lat], focusArea())
+    apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : openingLevel(venue) } : null)
+  }
+
+  /** The middle half of the screen, as a ring on the ground. */
+  function focusArea() {
+    const { clientWidth: w, clientHeight: h } = map.getCanvas()
+    return [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [0.25, 0.25]]
+      .map(([x, y]) => map.unproject([x * w, y * h]))
+      .map(({ lng, lat }: { lng: number; lat: number }) => [lng, lat])
   }
 
   /** The venue whose building a click landed on, from every venue in loaded tiles. */

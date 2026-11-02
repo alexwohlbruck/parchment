@@ -6,6 +6,8 @@
 
 * If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
 
+* 3D landmarks can have see-through glass, so you can look into a glass cube or pavilion and see the stairs and lobby inside.
+
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
 ### Changed

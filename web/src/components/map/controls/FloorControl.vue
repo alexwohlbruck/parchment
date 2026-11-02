@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { Building2 } from 'lucide-vue-next'
 import { useMapService } from '@/services/map/map.service'
 import { useMapStore } from '@/stores/map.store'
 
@@ -38,6 +39,23 @@ const { indoorFocus } = storeToRefs(useMapStore())
         @click="mapService.setIndoorLevel(level)"
       >
         {{ name }}
+      </button>
+      <div class="mx-1 my-1 h-px shrink-0 bg-border" />
+      <button
+        type="button"
+        role="radio"
+        :aria-checked="indoorFocus.level === null"
+        :aria-label="t('settings.mapSettings.controls.exterior')"
+        :title="t('settings.mapSettings.controls.exterior')"
+        class="flex h-8 shrink-0 items-center justify-center rounded-sm transition-colors"
+        :class="
+          indoorFocus.level === null
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        "
+        @click="mapService.setIndoorLevel(null)"
+      >
+        <Building2 class="size-4" />
       </button>
     </div>
   </Transition>

@@ -1593,7 +1593,7 @@ function mapService() {
     togglePlaceLabels,
     toggleHdRoads,
     toggleIndoorMaps,
-    setIndoorLevel: (level: number) => mapStrategy?.setIndoorLevel(level),
+    setIndoorLevel: (level: number | null) => mapStrategy?.setIndoorLevel(level),
     toggleNorthUpSnap,
     destroy,
     on,

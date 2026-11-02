@@ -740,7 +740,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.indoor?.setEnabled(!!value)
   }
 
-  setIndoorLevel(level: number) {
+  setIndoorLevel(level: number | null) {
     this.indoor?.setLevel(level)
   }
 

@@ -2,6 +2,7 @@
 import {
   gatePlate,
   INDOOR_GATE_PLATE,
+  EXTERIOR_LEVEL,
   INDOOR_MINZOOM,
   INDOOR_SOURCE,
   INDOOR_STATE,
@@ -18,8 +19,8 @@ export function attachIndoor(
   let focus: IndoorFocus = null
   let buildings = ''
   let venues: any[] = []
-  /** The floor last picked in each venue, so panning away and back keeps it. */
-  const picked = new Map<number, number>()
+  /** The floor last picked in each venue, or null for its outside, so panning away and back keeps it. */
+  const picked = new Map<number, number | null>()
 
   function setState(key: string, value: unknown) {
     if (map.getGlobalState?.()[key] !== value) map.setGlobalStateProperty(key, value)
@@ -33,7 +34,7 @@ export function attachIndoor(
       on.buildings(buildings.split(';').filter(Boolean))
     }
     setState(INDOOR_STATE.venue, next?.venue.id ?? 0)
-    setState(INDOOR_STATE.level, next?.level ?? 0)
+    setState(INDOOR_STATE.level, next ? next.level ?? EXTERIOR_LEVEL : 0)
     const changed = next?.venue.id !== focus?.venue.id || next?.level !== focus?.level
     focus = next
     if (changed) on.focus(focus)
@@ -49,8 +50,7 @@ export function attachIndoor(
     venues = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
     const { lng, lat } = map.getCenter()
     const venue = focusedVenue(venues, [lng, lat])
-    const level = venue ? picked.get(venue.id) ?? venue.defaultLevel : 0
-    apply(venue ? { venue, level } : null)
+    apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : venue.defaultLevel } : null)
   }
 
   const schedule = () => {
@@ -81,7 +81,8 @@ export function attachIndoor(
       enabled = value
       update()
     },
-    setLevel(level: number) {
+    /** A level to show, or null for the venue's outside. */
+    setLevel(level: number | null) {
       if (!focus) return
       picked.set(focus.venue.id, level)
       apply({ venue: focus.venue, level })

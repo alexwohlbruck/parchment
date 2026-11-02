@@ -212,7 +212,7 @@ export class MapStrategy {
   setHdRoads(value: boolean) {}
   setIndoorMaps(value: boolean) {}
   /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
-  setIndoorLevel(level: number) {}
+  setIndoorLevel(level: number | null) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }

@@ -14,8 +14,8 @@ export type IndoorVenue = {
   buildingsAbove: string[]
 }
 
-/** The venue the floor picker serves and the level it shows; null when none is in view. */
-export type IndoorFocus = { venue: IndoorVenue; level: number } | null
+/** The venue the floor picker serves and the level it shows, null for its outside; null when none is in view. */
+export type IndoorFocus = { venue: IndoorVenue; level: number | null } | null
 
 type VenueFeature = {
   properties: Record<string, unknown> | null
@@ -80,8 +80,11 @@ const refs = (value: unknown) => String(value ?? '').split(';').filter(Boolean)
 /** Buildings to clear as the style's `;id;` string: every venue's own, plus those over a shown basement. */
 export function clearedBuildings(features: VenueFeature[], focus: IndoorFocus): string {
   const ids = new Set<string>()
-  for (const f of features) for (const id of refs(f.properties?.buildings)) ids.add(id)
-  if (focus && focus.level < 0) for (const id of focus.venue.buildingsAbove) ids.add(id)
+  for (const f of features) {
+    if (focus?.level === null && Number(f.properties?.venue) === focus.venue.id) continue
+    for (const id of refs(f.properties?.buildings)) ids.add(id)
+  }
+  if (focus?.level != null && focus.level < 0) for (const id of focus.venue.buildingsAbove) ids.add(id)
   return ids.size ? `;${[...ids].sort().join(';')};` : ''
 }
 

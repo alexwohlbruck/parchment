@@ -2503,6 +2503,7 @@
         "title": "Map controls",
         "zoom": "Zoom",
         "floors": "Floors",
+        "exterior": "Building exterior",
         "compass": "Compass",
         "scale": "Scale bar",
         "streetView": "Street view",

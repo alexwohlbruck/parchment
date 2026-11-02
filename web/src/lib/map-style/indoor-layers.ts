@@ -54,6 +54,9 @@ export function indoorSource(tileUrl: (source: string) => string) {
   }
 }
 
+/** The level state that shows a focused venue's outside: no feature stands on it. */
+export const EXTERIOR_LEVEL = 1000
+
 /** The style's initial state: no venue focused, ground level, nothing replaced. */
 export function indoorState() {
   return {

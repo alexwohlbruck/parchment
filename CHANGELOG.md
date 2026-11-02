@@ -8,6 +8,8 @@
 
 ### Changed
 
+* Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
+
 ### Fixed
 
 ## [0.18.4] - 2026-10-31

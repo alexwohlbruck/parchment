@@ -1274,6 +1274,11 @@
       "pedestrian": "Calle peatonal",
       "cycleway": "Ciclovía",
       "steps": "Escaleras",
+      "crosswalk": "Paso de peatones",
+      "railCrossing": "Paso a nivel",
+      "footbridge": "Pasarela",
+      "underpass": "Paso subterráneo",
+      "parkPath": "Sendero del parque",
       "track": "Camino",
       "service": "Vía de servicio",
       "road": "Calle sin nombre"
@@ -1417,6 +1422,11 @@
         "pedestrian": "la calle peatonal",
         "cycleway": "la ciclovía",
         "steps": "las escaleras",
+        "crosswalk": "el paso de peatones",
+        "railCrossing": "el paso a nivel",
+        "footbridge": "la pasarela",
+        "underpass": "el paso subterráneo",
+        "parkPath": "el sendero del parque",
         "track": "el camino"
       },
       "fork": {

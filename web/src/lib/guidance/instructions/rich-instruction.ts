@@ -31,7 +31,7 @@ const MOTORWAYS = new Set(['motorway', 'trunk'])
 const PATHS = new Set(['footway', 'path', 'pedestrian', 'cycleway'])
 const CROSSINGS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolled'])
 /** Unnamed road classes a walker or rider can be told to follow. */
-const FOLLOWABLE = new Set(['path', 'pedestrian', 'cycleway', 'steps', 'track'])
+const FOLLOWABLE = new Set(['path', 'pedestrian', 'cycleway', 'steps', 'track', 'crosswalk', 'railCrossing', 'footbridge', 'underpass', 'parkPath'])
 const ON_FOOT = new Set(['walking', 'cycling', 'biking'])
 
 function sideOf(kind: ManeuverKind): Side | null {

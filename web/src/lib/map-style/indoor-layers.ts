@@ -40,6 +40,7 @@ const GATE_EDGE = '#e0a91f'
 const GATE_INK = '#3a2a00'
 export const INDOOR_FIXTURE_LAYER = 'Indoor fixtures'
 export const INDOOR_VENUE_LAYER = 'Indoor venues'
+export const INDOOR_UNDERGROUND_LAYER = 'Indoor underground'
 
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
 const FLOOR_HEIGHT = 0.3
@@ -95,7 +96,7 @@ const SERVICE = ['toilets', 'toilet', 'shower', 'information', 'ticket', 'atm', 
 const BACK_OF_HOUSE = ['technical', 'storage', 'office', 'utility', 'private', 'staff']
 
 type IndoorPalette = Record<
-  'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
+  'underground' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps'
   | 'food' | 'store' | 'health' | 'service' | 'label',
   string
 >
@@ -103,6 +104,7 @@ type IndoorPalette = Record<
 /** Warm paper by day, the basemap's blues by night; a room that is a place takes a wash of its category. */
 const COLORS: Record<FlavorId, IndoorPalette> = {
   light: {
+    underground: 'hsl(222, 16%, 62%)',
     floor: 'hsl(26, 72%, 96.5%)',
     area: 'hsl(26, 72%, 96.5%)',
     room: 'hsl(26, 52%, 89%)',
@@ -122,6 +124,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     label: 'hsl(222, 12%, 42%)',
   },
   dark: {
+    underground: 'hsl(222, 40%, 8%)',
     floor: 'hsl(222, 24%, 27%)',
     area: 'hsl(222, 24%, 27%)',
     room: 'hsl(222, 20%, 33%)',
@@ -254,6 +257,20 @@ const fixtureBadge = [
 ]
 
 const isFixture = ['!=', FIXTURE_ART, '']
+
+/** Dims everything under the floor plan while a basement shows, so the plan reads as lit. */
+export function indoorUndergroundLayer(flavor: FlavorId): any {
+  return {
+    id: INDOOR_UNDERGROUND_LAYER,
+    type: 'background',
+    minzoom: INDOOR_MINZOOM,
+    paint: {
+      'background-color': COLORS[flavor].underground,
+      'background-opacity': ['case', ['all', ['!=', ['global-state', INDOOR_STATE.venue], 0], ['<', ['global-state', INDOOR_STATE.level], 0]], 0.5, 0],
+      'background-opacity-transition': { duration: 300 },
+    },
+  }
+}
 
 const steps = ['all', kind('line'), ['match', cls, ['steps', 'escalator'], true, false], onShownLevel]
 

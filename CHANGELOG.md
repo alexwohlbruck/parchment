@@ -2,6 +2,8 @@
 
 ### Added
 
+* On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
+
 ### Changed
 
 ### Fixed

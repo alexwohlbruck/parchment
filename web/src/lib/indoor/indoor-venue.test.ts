@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearedBuildings, focusedVenue, openingLevel, parseVenueLevels } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedPlaces } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -84,5 +84,32 @@ describe('clearedBuildings', () => {
 
   it('clears nothing with no venue in view', () => {
     expect(clearedBuildings([], null)).toBe('')
+  })
+})
+
+describe('replacedPlaces', () => {
+  const poi = (props: Record<string, unknown>) => ({ properties: { kind: 'poi', ...props } })
+
+  it('numbers OSM elements the way basemap tiles do', () => {
+    expect(basemapId('node/1096086074')).toBe('10960860741')
+    expect(basemapId('way/5')).toBe('52')
+    expect(basemapId('relation/7')).toBe('73')
+    expect(basemapId('changeset/7')).toBeNull()
+  })
+
+  it('takes over gates and named shops, but leaves the basemap its facilities', () => {
+    const places = replacedPlaces([
+      poi({ id: 'node/1', class: 'aeroway', subclass: 'gate', ref: 'E2' }),
+      poi({ id: 'node/2', class: 'shop', subclass: 'clothes', name: 'Gap' }),
+      poi({ id: 'node/3', class: 'amenity', subclass: 'toilets', name: 'Restrooms' }),
+      poi({ id: 'node/4', class: 'shop', subclass: 'kiosk' }),
+      poi({ id: 'way/5', class: 'amenity', subclass: 'atm' }),
+      { properties: { kind: 'area', class: 'room', id: 'way/6', name: 'Lounge' } },
+    ])
+    expect(places).toBe(';11;21;52;')
+  })
+
+  it('is empty with nothing to replace', () => {
+    expect(replacedPlaces([])).toBe('')
   })
 })

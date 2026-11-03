@@ -20,6 +20,8 @@ export const INDOOR_STATE = {
   level: 'indoorLevel',
   /** `;`-delimited ids of the buildings_3d outlines floor plans stand in. */
   buildings: 'indoorBuildings',
+  /** `;`-delimited basemap feature ids of the places floor plans draw on their own level. */
+  places: 'indoorPlaces',
 } as const
 
 /** Every indoor layer's id starts with this, so the setting can hide them all. */
@@ -31,6 +33,7 @@ export const INDOOR_WALL_LAYER = 'Indoor walls'
 export const INDOOR_STEPS_LAYER = 'Indoor steps'
 export const INDOOR_TREAD_LAYER = 'Indoor stair treads'
 export const INDOOR_STAIR_EDGE_LAYER = 'Indoor stair edges'
+export const INDOOR_FLIGHT_LAYER = 'Indoor flights'
 export const INDOOR_LABEL_LAYER = 'Indoor room labels'
 export const INDOOR_POI_LAYER = 'Indoor places'
 export const INDOOR_GATE_LAYER = 'Indoor gates'
@@ -47,6 +50,7 @@ export const INDOOR_FOOTPRINT_LAYER = 'Indoor footprints'
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
 const FLOOR_HEIGHT = 0.3
 const ROOM_HEIGHT = 0.4
+const LIFT_HEIGHT = 2.4
 const WALL_HEIGHT = 3.5
 
 export function indoorSource(tileUrl: (source: string) => string) {
@@ -67,6 +71,7 @@ export function indoorState() {
     [INDOOR_STATE.venue]: { default: 0 },
     [INDOOR_STATE.level]: { default: 0 },
     [INDOOR_STATE.buildings]: { default: '' },
+    [INDOOR_STATE.places]: { default: '' },
   }
 }
 
@@ -83,13 +88,21 @@ const kind = (...kinds: string[]) => ['match', ['get', 'kind'], kinds, true, fal
 const cls = ['get', 'class']
 const sub = ['coalesce', ['get', 'subclass'], '']
 
+const listed = (key: unknown, state: string) => ['in', ['concat', ';', ['to-string', key], ';'], ['global-state', state]]
+
 /** A buildings_3d filter without the buildings a floor plan is showing inside. */
 export function withoutIndoorBuildings(filter: unknown): unknown {
-  return combineFilters([
-    filter,
-    ['!', ['in', ['concat', ';', ['to-string', ['get', 'id']], ';'], ['global-state', INDOOR_STATE.buildings]]],
-  ])
+  return combineFilters([filter, ['!', listed(['get', 'id'], INDOOR_STATE.buildings)]])
 }
+
+/** A basemap label filter without the places a floor plan draws on their own level. */
+export function withoutIndoorPlaces(filter: unknown): unknown {
+  return combineFilters([filter, ['!', listed(['id'], INDOOR_STATE.places)]])
+}
+
+/** Place classes the floor plan badges, but not the facilities the basemap's POI layer already draws. */
+export const INDOOR_PLACE_CLASSES = ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft']
+export const BASEMAP_FACILITIES = ['toilets', 'toilet', 'drinking_water', 'information', 'water_point']
 
 const FOOD = ['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream', 'bakery', 'biergarten', 'coffee']
 const STORE = ['shop', 'kiosk', 'marketplace', 'duty_free', 'retail']
@@ -100,7 +113,8 @@ const BAGGAGE = ['baggage_claim', 'baggage_carousel', 'luggage_carousel', 'bagga
 
 type IndoorPalette = Record<
   'underground' | 'footprint' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'baggage'
-  | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps' | 'food' | 'store' | 'health' | 'service' | 'hatch' | 'hatchGap' | 'label',
+  | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps' | 'food' | 'store' | 'health' | 'service' | 'hatch' | 'hatchGap' | 'label'
+  | 'jetBridge' | 'lift',
   string
 >
 
@@ -129,6 +143,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatch: 'hsl(45, 98%, 75%)',
     hatchGap: 'hsl(45, 90%, 99%)',
     label: 'hsl(222, 12%, 42%)',
+    jetBridge: 'hsl(220, 10%, 88%)',
+    lift: 'hsl(212, 34%, 80%)',
   },
   dark: {
     underground: 'hsl(222, 40%, 8%)',
@@ -153,6 +169,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatch: 'hsl(45, 55%, 42%)',
     hatchGap: 'hsl(45, 25%, 30%)',
     label: 'hsl(220, 12%, 80%)',
+    jetBridge: 'hsl(222, 14%, 34%)',
+    lift: 'hsl(214, 26%, 46%)',
   },
 }
 
@@ -161,7 +179,8 @@ function roomColor(c: IndoorPalette) {
     'match', cls,
     'platform', c.platform,
     'stairs', c.stairs,
-    'elevator', c.shaft,
+    'elevator', c.lift,
+    'corridor', ['match', sub, 'jet_bridge', c.jetBridge, c.area],
     'column', c.column,
     'room', ['match', sub,
       FOOD, c.food,
@@ -345,7 +364,7 @@ export function indoorLayers(flavor: FlavorId): any[] {
       paint: {
         'fill-extrusion-color': roomColor(c),
         'fill-extrusion-base': FLOOR_HEIGHT,
-        'fill-extrusion-height': ['match', cls, 'column', WALL_HEIGHT, ['room', 'elevator', 'stairs'], ROOM_HEIGHT, FLOOR_HEIGHT + 0.02],
+        'fill-extrusion-height': ['match', cls, 'column', WALL_HEIGHT, 'elevator', LIFT_HEIGHT, ['room', 'stairs'], ROOM_HEIGHT, FLOOR_HEIGHT + 0.02],
         'fill-extrusion-vertical-gradient': false,
       },
     },
@@ -398,6 +417,19 @@ export function indoorLayers(flavor: FlavorId): any[] {
         'line-width': stairWidth(0.86),
         'line-dasharray': [0.1, 0.22],
         'line-opacity': fadeIn,
+      },
+    },
+    {
+      ...base,
+      // Each tread of a flight that climbs from this level, rising to the floor above.
+      id: INDOOR_FLIGHT_LAYER,
+      type: 'fill-extrusion',
+      filter: ['all', kind('flight'), onShownLevel],
+      paint: {
+        'fill-extrusion-color': ['match', cls, 'escalator', c.escalator, c.stairs],
+        'fill-extrusion-base': FLOOR_HEIGHT,
+        'fill-extrusion-height': ['+', FLOOR_HEIGHT, ['*', ['coalesce', ['get', 'height'], 0], WALL_HEIGHT - FLOOR_HEIGHT]],
+        'fill-extrusion-vertical-gradient': true,
       },
     },
     {
@@ -465,10 +497,9 @@ export function indoorLabelLayers(
       filter: [
         'all',
         kind('poi'),
-        ['match', cls, ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft'], true, false],
+        ['match', cls, INDOOR_PLACE_CLASSES, true, false],
         ['any', ['has', 'name'], ['match', sub, ['atm', 'pharmacy'], true, false]],
-        // Facilities the basemap's own POI layer already draws.
-        ['!', ['match', sub, ['toilets', 'toilet', 'drinking_water', 'information', 'water_point'], true, false]],
+        ['!', ['match', sub, BASEMAP_FACILITIES, true, false]],
         ['!', isFixture],
         onShownLevel,
       ],

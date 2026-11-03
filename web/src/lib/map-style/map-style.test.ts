@@ -2871,23 +2871,31 @@ describe('disc golf', () => {
 })
 
 describe('indoor layers', () => {
-  it('names only glyphs the sprite carries', async () => {
+  test('names only glyphs the sprite carries', async () => {
     const { POI_ART } = await import('./indoor-layers')
     const sprite = (await import('../../../public/sprites/parchment.json')).default as Record<string, unknown>
     expect(POI_ART.filter(name => !(`badge-${name}` in sprite))).toEqual([])
   })
 
-  it('takes the buildings a floor plan stands in out of every 3D building layer', () => {
+  test('takes the buildings a floor plan stands in out of every 3D building layer', () => {
     setBarrelmanBuildingsReady(true)
     const layers = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l['source-layer'] === BUILDING_3D_TILES)
     setBarrelmanBuildingsReady(null)
     expect(layers.length).toBeGreaterThan(0)
     for (const l of layers) expect(JSON.stringify(l.filter), l.id).toContain('indoorBuildings')
   })
+  test('leaves the gates and places a floor plan draws to it', () => {
+    const layers = (buildLayers({ flavor: 'light' }) as any[])
+    const gate = layers.find(l => l.id === 'Airport gate')
+    expect(JSON.stringify(gate?.filter)).toContain('indoorPlaces')
+    const pois = layers.filter(l => l.type === 'symbol' && l['source-layer'] === 'poi')
+    expect(pois.length).toBeGreaterThan(0)
+    for (const l of pois) expect(JSON.stringify(l.filter), l.id).toContain('indoorPlaces')
+  })
 })
 
 describe('indoor colours', () => {
-  it('resolves every colour token in the indoor layers', () => {
+  test('resolves every colour token in the indoor layers', () => {
     const indoor = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l.id.startsWith('Indoor '))
     expect(JSON.stringify(indoor)).not.toMatch(/@[a-z_]+/)
   })

@@ -1,4 +1,5 @@
 /** Which indoor venue the floor picker serves, from the venue outlines in view. */
+import { BASEMAP_FACILITIES, INDOOR_PLACE_CLASSES } from '@/lib/map-style/indoor-layers'
 
 export type IndoorLevel = { level: number; name: string }
 
@@ -128,4 +129,30 @@ function insideRing(ring: number[][], x: number, y: number): boolean {
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
   return inside
+}
+
+const OSM_TYPE_DIGIT: Record<string, number> = { node: 1, way: 2, relation: 3 }
+
+/** The basemap tiles' id for an OSM element: `node/5` is 51. */
+export function basemapId(ref: string): string | null {
+  const [type, id] = ref.split('/')
+  return OSM_TYPE_DIGIT[type] && /^\d+$/.test(id ?? '') ? `${id}${OSM_TYPE_DIGIT[type]}` : null
+}
+
+/** Whether a floor plan badges this place itself, so the basemap should not. */
+function drawsPlace(p: Record<string, unknown>): boolean {
+  if (p.class === 'aeroway') return p.ref != null
+  return INDOOR_PLACE_CLASSES.includes(String(p.class))
+    && !BASEMAP_FACILITIES.includes(String(p.subclass ?? ''))
+    && (p.name != null || p.subclass === 'atm' || p.subclass === 'pharmacy')
+}
+
+/** The basemap ids of the places floor plans draw, as the style's `;id;` string. */
+export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[]): string {
+  const ids = new Set<string>()
+  for (const { properties: p } of features) {
+    const id = p && p.kind === 'poi' && typeof p.id === 'string' && drawsPlace(p) ? basemapId(p.id) : null
+    if (id) ids.add(id)
+  }
+  return ids.size ? `;${[...ids].sort().join(';')};` : ''
 }

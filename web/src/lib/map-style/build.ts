@@ -47,6 +47,7 @@ import {
   indoorFootprintLayer,
   indoorState,
   withoutIndoorBuildings,
+  withoutIndoorPlaces,
 } from './indoor-layers'
 import { trackLayers, racewayLayer } from './track-layers'
 import { stepsLayers } from './steps-layers'
@@ -541,9 +542,15 @@ export function buildLayers(options: {
   return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels) as LayerSpecification[]
 }
 
+/** Basemap layers whose places a floor plan may draw itself, on their own level. */
+const INDOOR_PLACE_TILES = ['poi', 'aeroway']
+
 /** Floor plans before the buildings, so faded towers show a basement through them; labels on top, placed first. */
 function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[]): any[] {
-  const out = layers.map(l => l['source-layer'] !== BUILDING_3D_TILES ? l : { ...l, filter: withoutIndoorBuildings(l.filter) })
+  const out = layers.map(l =>
+    l['source-layer'] === BUILDING_3D_TILES ? { ...l, filter: withoutIndoorBuildings(l.filter) }
+    : l.type === 'symbol' && l.source === SOURCE && INDOOR_PLACE_TILES.includes(l['source-layer']) ? { ...l, filter: withoutIndoorPlaces(l.filter) }
+    : l)
   const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
   const firstBuilding = out.findIndex(isBuilding)
   out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), indoorFootprintLayer(flavor, SOURCE), ...indoorLayers(flavor))

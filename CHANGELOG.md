@@ -24,6 +24,8 @@
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
 
+* When GPS gets weak, navigation no longer jumps ahead or ends your trip early; it estimates your position from your steps and pace, and shows that the signal is lost.
+
 ## [0.18.4] - 2026-10-31
 
 ### Added

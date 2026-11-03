@@ -64,6 +64,12 @@ type Anchor = { x: number; y: number; z: number; perMetre: number }
 const SETTLE = 80
 
 /**
+ * Longest the buildings under a view's landmarks wait for the rest of its
+ * models before they are hidden; see `report`.
+ */
+const REPORT_HOLD_MS = 1500
+
+/**
  * Zoom levels below its minzoom that a landmark already on screen is kept
  * for, and below its detail zoom that the detail model is. Without it, a
  * pinch that wavers around the threshold swaps one for the other back and
@@ -613,6 +619,8 @@ type Model = {
   coverage?: Coverage
   /** When a placement last wanted it; see EVICT_AFTER_MS. */
   used: number
+  /** It will not load; its building stays. */
+  failed?: boolean
   /** Its clip, for a model with parts that move. */
   animation: GlbAnimation | null
   /** The moving nodes' matrices, and the clip time they are for. */
@@ -698,6 +706,8 @@ export class LandmarkLayer {
   private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
   private credited = ''
+  /** When the report started waiting for models; see `report`. */
+  private holding: number | null = null
   private scheduled = 0
   private gathering = frameTask(() => this.gatherSteps())
   private listeners: Array<[string, (...args: any[]) => void]> = []
@@ -1224,11 +1234,29 @@ export class LandmarkLayer {
   }
 
   /**
-   * Hand the caller the refs of every landmark that can actually be drawn,
-   * and the credits its models carry — a CC-BY model has to be credited on
-   * the map, but only while it is the one on screen.
+   * Tell the caller which buildings the landmarks now stand in for — but not
+   * while some of the view's models are still on their way. The caller hides
+   * them by filter, and each new filter has MapLibre lay out every building
+   * tile again; reporting as each model landed did that once per landmark,
+   * nine times over for midtown Manhattan. So the report waits for the last
+   * model, or for REPORT_HOLD_MS, whichever is first; meanwhile a model that
+   * has arrived stands over its building rather than in its place.
    */
-  private report() {
+  private reportReplaced() {
+    const loading = this.placements.some(p => {
+      const model = this.models.get(p.model)
+      return !!model && !model.failed && !this.ready(p.model)
+    })
+    if (loading) {
+      const now = performance.now()
+      if (this.holding === null) {
+        this.holding = now
+        // Each arriving model gathers again; this covers one that never does.
+        setTimeout(() => this.map && this.invalidate(), REPORT_HOLD_MS)
+      }
+      if (now - this.holding < REPORT_HOLD_MS) return
+    }
+    this.holding = null
     const drawn = this.placements.filter(p => this.ready(p.model))
     const refs = [...new Set([...drawn.flatMap(p => p.replaces), ...this.contained.refs])].sort()
     const featureIds = [...new Set(this.contained.featureIds)].sort((a, b) => a - b)
@@ -1237,6 +1265,16 @@ export class LandmarkLayer {
       this.replaced = key
       this.options.onReplace({ refs, featureIds })
     }
+  }
+
+  /**
+   * Hand the caller the refs of every landmark that can actually be drawn,
+   * and the credits its models carry — a CC-BY model has to be credited on
+   * the map, but only while it is the one on screen.
+   */
+  private report() {
+    this.reportReplaced()
+    const drawn = this.placements.filter(p => this.ready(p.model))
     const credits = [...new Set(drawn.flatMap(p => (p.attribution ? [p.attribution] : [])))].sort()
     const credited = credits.join('\n')
     if (credited !== this.credited) {
@@ -1294,6 +1332,8 @@ export class LandmarkLayer {
       // A model that will not load leaves its building standing, which is a
       // complete map. Not retried: the name is content-addressed, so the
       // same request would get the same answer.
+      model.failed = true
+      this.invalidate()
       console.error('[landmarks]', error)
     })
   }

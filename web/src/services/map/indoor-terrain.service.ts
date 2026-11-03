@@ -46,11 +46,11 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
       for (const [id, pieces] of venueOutlines(map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES }).filter(standsOnGround))) {
         const known = venues.get(id)
         const ring = grownOutline(known?.ring, pieces)
-        const height = known?.height ?? heightOf(ring, sampler.ground)
-        venues.set(id, { ring, height: height ?? undefined })
+        venues.set(id, { ring, height: known?.height ?? heightOf(ring, sampler.ground) ?? undefined })
         if (venues.size > REMEMBERED) venues.delete(venues.keys().next().value!)
-        if (height != null) pads.set(`${id}|${ring.join(';')}`, padCarving(pad(ring, height)))
       }
+      // Venues panned out of view keep their pads: dropping one reloads the ground it shares with those in view.
+      for (const [id, { ring, height }] of venues) if (height != null) pads.set(`${id}|${ring.join(';')}`, padCarving(pad(ring, height)))
     }
     carver.set(LAYER_ID, pads, { focus: true, widens: true })
   }

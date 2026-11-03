@@ -23,16 +23,22 @@ export const fillCarving = (f: GroundFill): Carving => ({ bounds: f.bounds, carv
  */
 type Owned = { carvings: Map<string, Carving>; rank: number; focus: boolean }
 
-/** A MapLibre DEM tile's pixels, read and written in metres. */
+/** A MapLibre DEM tile's pixels, read and written in metres; read straight from its bytes, as `dem.get` looks its view up per pixel. */
 function elevation(dem: any): Elevation {
   const bytes = new Uint8Array(dem.data.buffer, dem.data.byteOffset, dem.data.byteLength)
+  const stride = dem.dim + 4
+  const [red, green, blue, shift] = dem.getUnpackVector()
+  const at = (x: number, y: number) => ((y + 2) * stride + x + 2) * 4
   return {
     dim: dem.dim,
     border: 2,
-    get: (x, y) => dem.get(x, y),
+    get: (x, y) => {
+      const i = at(x, y)
+      return bytes[i] * red + bytes[i + 1] * green + bytes[i + 2] * blue - shift
+    },
     set: (x, y, metres) => {
       const { r, g, b } = dem.pack(metres)
-      const i = dem._idx(x, y) * 4
+      const i = at(x, y)
       bytes[i] = r
       bytes[i + 1] = g
       bytes[i + 2] = b
@@ -41,12 +47,28 @@ function elevation(dem: any): Elevation {
   }
 }
 
+/** Whether `a` spans `b`, give or take `slack` in mercator units. */
+const covers = (a: Bounds, b: Bounds, slack = 0) =>
+  a.minX <= b.minX + slack && a.minY <= b.minY + slack && a.maxX >= b.maxX - slack && a.maxY >= b.maxY - slack
+
+/** A few centimetres in mercator units: a pad's reach, turned from metres at its outline's first point, shifts by about this as the outline grows. */
+const BOUNDS_SLACK = 1e-9
+
+function prepared(tile: any) {
+  tile.needsTerrainPrepare = true
+  tile.needsHillshadePrepare = true
+}
+
 export class TerrainCarver {
   private owners = new Map<string, Owned>()
   private ordered: Carving[] = []
   /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
   private carved = new WeakMap<object, number>()
   private rounds = 0
+  /** Tiles that arrived since their last carving, whose neighbours hold their uncarved edge. */
+  private arrived = new WeakSet<object>()
+  /** Carvings the last round only added on top of the one before, so a tile carved then needs just these. */
+  private topping: { from: number; carvings: Carving[] } | null = null
 
   /** `focus` is told, per owner that asks, where it carves, so finer terrain is served there. */
   constructor(private map: () => any, private focus?: (areas: Bounds[], owner: string) => void) {}
@@ -67,11 +89,13 @@ export class TerrainCarver {
   set(owner: string, next: Map<string, Carving>, { rank = 0, focus = false, widens = false } = {}) {
     const had = this.owners.get(owner)?.carvings ?? new Map<string, Carving>()
     if (next.size === had.size && [...next.keys()].every(k => had.has(k))) return
-    const covers = (a: Bounds, b: Bounds) => a.minX <= b.minX && a.minY <= b.minY && a.maxX >= b.maxX && a.maxY >= b.maxY
     const removed = [...had]
       .filter(([key]) => !next.has(key))
       .map(([, c]) => c.bounds)
-      .filter(b => !widens || ![...next.values()].some(c => covers(c.bounds, b)))
+      .filter(b => !widens || ![...next.values()].some(c => covers(c.bounds, b, BOUNDS_SLACK)))
+    const others = [...this.owners].filter(([id]) => id !== owner).map(([, o]) => o.rank)
+    const added = [...next].filter(([key]) => !had.has(key)).map(([, c]) => c)
+    this.topping = others.every(r => r <= rank) ? { from: this.rounds, carvings: added } : null
     if (next.size) this.owners.set(owner, { carvings: next, rank, focus })
     else this.owners.delete(owner)
     this.ordered = [...this.owners.values()].sort((a, b) => a.rank - b.rank).flatMap(o => [...o.carvings.values()])
@@ -92,13 +116,11 @@ export class TerrainCarver {
     return this.carved.get(dem) === this.rounds
   }
 
-  /** Mark a tile and the loaded tiles beside it to be carved again: a tile arriving fills its neighbours' borders from its own uncarved ground. */
+  /** Mark a tile that arrived to be carved; its neighbours' borders, which MapLibre filled from its raw ground, are copied back from it once it is. */
   recarveAround(loaded: any) {
-    const { z, x, y } = loaded.tileID.canonical
-    for (const tile of this.tiles()) {
-      const c = tile.tileID.canonical
-      if (tile.dem && c.z === z && Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) this.carved.delete(tile.dem)
-    }
+    if (!loaded.dem) return
+    this.carved.delete(loaded.dem)
+    this.arrived.add(loaded)
   }
 
   /** Carve every owner's shapes into each loaded elevation tile not yet carved this round. */
@@ -108,7 +130,8 @@ export class TerrainCarver {
     const start = performance.now()
     let changed = false
     for (const tile of this.tiles()) {
-      if (!tile.dem || this.carved.get(tile.dem) === this.rounds) continue
+      const was = tile.dem && this.carved.get(tile.dem)
+      if (!tile.dem || was === this.rounds) continue
       if (performance.now() - start > CARVE_BUDGET) {
         map?.triggerRepaint()
         break
@@ -118,13 +141,29 @@ export class TerrainCarver {
       const at: [number, number, number] = [z, x, y]
       const dem = elevation(tile.dem)
       let carved = false
-      for (const c of this.ordered) if (tileUnder(at, [c.bounds]) && c.carve(dem, at)) carved = true
+      const carvings = this.topping && was === this.topping.from ? this.topping.carvings : this.ordered
+      for (const c of carvings) if (tileUnder(at, [c.bounds]) && c.carve(dem, at)) carved = true
+      if (this.arrived.delete(tile) && carved) this.backfillAround(tile)
       if (!carved) continue
-      tile.needsTerrainPrepare = true
-      tile.needsHillshadePrepare = true
+      prepared(tile)
       changed = true
     }
     if (changed) map?.triggerRepaint()
+  }
+
+  /** Copy a freshly carved tile's edge into the borders of the loaded tiles beside it. */
+  private backfillAround(tile: any) {
+    const { z, x, y } = tile.tileID.canonical
+    const n = 2 ** z
+    for (const other of this.tiles()) {
+      const c = other.tileID.canonical
+      if (other === tile || !other.dem || c.z !== z || other.dem.dim !== tile.dem.dim) continue
+      const dx = ((x - c.x + n + 1) % n) - 1
+      const dy = y - c.y
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) continue
+      other.dem.backfillBorder(tile.dem, dx, dy)
+      prepared(other)
+    }
   }
 
   /** Let go of an owner's carvings, reloading the terrain they changed. */

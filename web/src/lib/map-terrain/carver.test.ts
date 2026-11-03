@@ -4,12 +4,15 @@ import { TerrainCarver, type Carving } from './carver'
 /** A loaded elevation tile: just what the carver touches of MapLibre's. */
 function demTile(z: number, x: number, y: number) {
   const dim = 4
+  const data = new Uint8Array((dim + 4) ** 2 * 4)
+  for (let i = 0; i < data.length; i += 4) data[i] = 20
   const dem = {
     dim, min: 20,
-    data: new Uint8Array((dim + 4) ** 2 * 4),
+    data,
     _idx: (px: number, py: number) => (py + 2) * (dim + 4) + px + 2,
-    get: () => 20,
-    pack: () => ({ r: 0, g: 0, b: 0 }),
+    getUnpackVector: () => [1, 0, 0, 0],
+    pack: (v: number) => ({ r: v, g: 0, b: 0 }),
+    backfillBorder: vi.fn(),
   }
   return { tileID: { canonical: { z, x, y }, key: `${z}/${x}/${y}` }, dem }
 }
@@ -91,5 +94,31 @@ describe('TerrainCarver', () => {
     carver.carveTiles()
     carver.carveTiles()
     expect(log).toEqual([15])
+  })
+
+  test('copies an arriving tile\'s carved edge into its neighbours rather than carving them again', () => {
+    const arriving = demTile(14, 1, 1)
+    const beside = demTile(14, 2, 1)
+    const far = demTile(14, 5, 1)
+    const map = fakeMap([arriving, beside, far])
+    const carver = new TerrainCarver(() => map)
+    const log: number[] = []
+    carver.set('landmarks', new Map([['fill', writes(15, log)]]))
+    carver.carveTiles()
+    expect(log).toEqual([15, 15, 15])
+    carver.recarveAround(arriving)
+    carver.carveTiles()
+    expect(log).toEqual([15, 15, 15, 15])
+    expect(beside.dem.backfillBorder).toHaveBeenCalledWith(arriving.dem, -1, 0)
+    expect(far.dem.backfillBorder).not.toHaveBeenCalled()
+  })
+
+  test('reads and writes metres through the tile\'s own encoding', () => {
+    const tile = demTile(14, 1, 1)
+    const carver = new TerrainCarver(() => fakeMap([tile]))
+    const seen: number[] = []
+    carver.set('landmarks', new Map([['fill', { bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, carve: t => { seen.push(t.get(1, 1)); t.set(1, 1, 7); seen.push(t.get(1, 1)); return true } }]]))
+    carver.carveTiles()
+    expect(seen).toEqual([20, 7])
   })
 })

@@ -101,13 +101,15 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
 
 /** The instruction itself, with its road, signs and the street crossed on the way: "Take exit 12 toward Brooklyn". */
 export function actionText(instruction: RichInstruction, t: TFn): string {
-  const text = maneuverText(instruction, t)
-  const { crossing } = instruction
-  if (!crossing) return text
-  const cross = crossingText(crossing, t)
-  return crossing.first
-    ? t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
-    : t(`${K}.crossAfter`, { action: text, crossing: inline(cross) })
+  const { crossing, bikeLane } = instruction
+  let text = maneuverText(instruction, t)
+  if (crossing) {
+    const cross = crossingText(crossing, t)
+    text = crossing.first
+      ? t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
+      : t(`${K}.crossAfter`, { action: text, crossing: inline(cross) })
+  }
+  return bikeLane ? t(`${K}.bikeLane.${bikeLane}`, { action: text }) : text
 }
 
 /** A step in the router's words, or in ours where merging steps left it none. */
@@ -201,9 +203,11 @@ export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true }
 
 /** The banner's second line: the street crossed, the landmark, else the exit or where the signs point. */
 export function bannerCue(instruction: RichInstruction, t: TFn): string | null {
-  if (instruction.crossing) return crossingText(instruction.crossing, t)
-  if (instruction.anchor) return anchorText(instruction.anchor, t)
   const { action, toward } = instruction
+  if (instruction.crossing) return crossingText(instruction.crossing, t)
+  if (action.kind === 'two-stage') return t(`${K}.cues.twoStage`)
+  if (instruction.anchor) return anchorText(instruction.anchor, t)
+  if (instruction.bikeLane) return t(`${K}.cues.bikeLane.${instruction.bikeLane}`)
   if (action.kind === 'exit' && action.number) return toward ? t(`${K}.cues.exitToward`, { number: action.number, destination: toward }) : t(`${K}.cues.exit`, { number: action.number })
   if (action.kind === 'roundabout' && action.exit != null && !action.through) return t(`${K}.cues.roundaboutExit`, { exit: action.exit })
   return toward ? t(`${K}.cues.toward`, { destination: toward }) : null

@@ -35,6 +35,8 @@ const CROSSINGS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolle
 /** Unnamed road classes a walker or rider can be told to follow. */
 const FOLLOWABLE = new Set(['path', 'pedestrian', 'cycleway', 'steps', 'track', 'crosswalk', 'railCrossing', 'footbridge', 'underpass', 'parkPath'])
 const ON_FOOT = new Set(['walking', 'cycling', 'biking'])
+const CYCLING = new Set(['cycling', 'biking'])
+const MAJOR_ROADS = new Set(['trunk', 'primary', 'secondary', 'tertiary'])
 /** A turn onto a named street is told as the turn, whatever it crosses on the way. */
 const TURNING = new Set<ManeuverKind>(['left', 'right', 'sharp-left', 'sharp-right', 'uturn'])
 
@@ -106,6 +108,25 @@ function enteredPark(route: NavRoute, step: NavStep): RichInstruction['park'] | 
   return after.parkName ? { name: after.parkName } : {}
 }
 
+const nearSide = (route: NavRoute): Side => route.drivingSide
+const farSide = (route: NavRoute): Side => (route.drivingSide === 'left' ? 'right' : 'left')
+
+/** Leaving a protected lane on the near side of a major road, a turn across it is made in two crossings. */
+function twoStage(route: NavRoute, step: NavStep, kind: ManeuverKind): boolean {
+  const far = farSide(route)
+  if (kind !== far && kind !== `sharp-${far}`) return false
+  const before = edgeAt(route, step.startDistance - PAST_TURN_METERS)
+  return before?.cycleway === 'track' && before.cyclewaySide === nearSide(route) && MAJOR_ROADS.has(before.roadClass ?? '')
+}
+
+/** The far side, where the road taken has its bike lane there and the rider isn't already in it. */
+function farBikeLane(route: NavRoute, step: NavStep): Side | undefined {
+  const far = farSide(route)
+  const after = edgeAt(route, step.startDistance + PAST_TURN_METERS)
+  const before = edgeAt(route, step.startDistance - PAST_TURN_METERS)
+  return after?.cyclewaySide === far && before?.cyclewaySide !== far ? far : undefined
+}
+
 /** Lanes turn both ways and none goes on: the road ends at the junction. */
 function endsAhead(plan: LanePlan): boolean {
   const arrows = new Set(plan.lanes.flatMap(l => l.arrows))
@@ -125,6 +146,7 @@ function action(route: NavRoute, step: NavStep, kind: ManeuverKind, context: Ins
   if (kind === 'arrive') return { kind: 'arrive', side: context.destinationSide ?? null, home: !!context.home }
   if (kind === 'roundabout') return roundaboutAction(route, step)
   if (step.station) return { kind: 'station', ...step.station }
+  if (CYCLING.has(mode) && twoStage(route, step, kind)) return { kind: 'two-stage', side: farSide(route) }
   if (ON_FOOT.has(mode)) {
     const onPath = pathAction(route, step, kind, mode)
     if (onPath) return onPath
@@ -162,6 +184,8 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
     instruction.crossing = step.crossing
     if (target?.kind !== 'named') delete instruction.target
   }
+  const bikeLane = CYCLING.has(travelModeAt(route, step.startDistance)) ? farBikeLane(route, step) : undefined
+  if (bikeLane) instruction.bikeLane = bikeLane
   if (step.instruction.destination) instruction.toward = step.instruction.destination
   const anchor = landmarkAnchor(route, step, context.from, context.speed, travelModeAt(route, step.startDistance))
   const saysLight = instruction.action.kind === 'crosswalk' && instruction.action.signals
@@ -186,6 +210,6 @@ export function departure(route: NavRoute, step: NavStep | null): RichInstructio
 /** `first` followed by `next`, which comes `gap` metres later. */
 export function chained(first: RichInstruction, next: RichInstruction, gap: number, speed: number): RichInstruction {
   const immediately = gap <= IMMEDIATE_METERS || (speed > 0.5 && gap / speed <= IMMEDIATE_SEC)
-  const { anchor: _anchor, lanes: _lanes, then: _then, crossing: _crossing, ...bare } = next
+  const { anchor: _anchor, lanes: _lanes, then: _then, crossing: _crossing, bikeLane: _bikeLane, dismount: _dismount, ...bare } = next
   return { ...first, then: { instruction: bare, immediately } }
 }

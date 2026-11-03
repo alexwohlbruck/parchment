@@ -387,3 +387,34 @@ describe('passages', () => {
     expect(step(route).action.kind).toBe('turn')
   })
 })
+
+describe('bike lanes', () => {
+  const ride = (edges: Partial<RouteEdgeSegment>[]) => city({ mode: 'cycling', edges })
+  const turnLeft = (route: NavRoute) => richInstruction(route, route.steps[2], { from: 960, speed: 5 })
+
+  test('a bike lane on the far side of the road turned onto', () => {
+    const route = ride([{ startDistance: 600, endDistance: 1000, roadClass: 'residential', cyclewaySide: 'left', cycleway: 'lane' }])
+    expect(voiceText(turnRight(route), t)).toBe('Turn right onto Trade Street and use the bike lane on the left')
+    expect(bannerCue(turnRight(route), t)).toBe('Bike lane on the left')
+    expect(voiceText(turnRight(route), tEs)).toBe('Gira a la derecha hacia Trade Street y usa el carril bici de la izquierda')
+  })
+
+  test('says nothing of a lane on the near side, or one the rider is already in', () => {
+    expect(turnRight(ride([{ startDistance: 600, endDistance: 1000, cyclewaySide: 'right' }])).bikeLane).toBeUndefined()
+    expect(turnRight(ride([{ startDistance: 0, endDistance: 1000, cyclewaySide: 'left' }])).bikeLane).toBeUndefined()
+  })
+
+  test('a left turn off a protected lane on a major road is made in two stages', () => {
+    const track = { startDistance: 600, endDistance: 1000, roadClass: 'secondary', cycleway: 'track', cyclewaySide: 'right' as const }
+    expect(voiceText(turnLeft(ride([track])), t)).toBe('Go straight across, then turn left onto College Street')
+    expect(bannerCue(turnLeft(ride([track])), t)).toBe('Two-stage turn')
+    expect(voiceText(turnLeft(ride([track])), tEs)).toBe('Cruza recto y luego gira a la izquierda hacia College Street')
+  })
+
+  test('a painted lane, a side street or an unknown side is an ordinary turn', () => {
+    const track = { startDistance: 600, endDistance: 1000, roadClass: 'secondary', cycleway: 'track', cyclewaySide: 'right' as const }
+    expect(turnLeft(ride([{ ...track, cycleway: 'lane' }])).action.kind).toBe('turn')
+    expect(turnLeft(ride([{ ...track, roadClass: 'residential' }])).action.kind).toBe('turn')
+    expect(turnLeft(ride([{ ...track, cyclewaySide: undefined }])).action.kind).toBe('turn')
+  })
+})

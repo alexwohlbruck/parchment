@@ -79,6 +79,9 @@ const MINZOOM_HYSTERESIS = 0.3
 const EVICT_AFTER_MS = 600_000
 const MAX_IDLE_MODELS = 48
 
+/** Fills kept carved for landmarks no longer drawn, the longest gone dropped first. */
+const REMEMBERED_FILLS = 64
+
 /** How often to look for models to evict. */
 const EVICT_EVERY_MS = 5_000
 
@@ -1093,18 +1096,15 @@ export class LandmarkLayer {
     return true
   }
 
-  /** Hand the fills under the landmarks drawn to the carver, and forget the rest. */
+  /**
+   * Hand the fills to the carver, keeping those of landmarks that left the view:
+   * dropping one reloads the ground under it, raw for a frame, under the buildings round it.
+   */
   private carveFills() {
     const carver = this.options.carver
     if (!carver) return
-    const kept = new Map<string, GroundFill>()
-    for (const p of [...this.placements, ...this.leaving]) {
-      const key = placementKey(p)
-      const fill = this.fills.get(key)
-      if (fill) kept.set(key, fill)
-    }
-    this.fills = kept
-    carver.set(CARVER_OWNER, new Map([...kept].map(([key, fill]) => [key, fillCarving(fill)])))
+    this.fills = rememberedFills(this.fills, new Set([...this.placements, ...this.leaving].map(placementKey)))
+    carver.set(CARVER_OWNER, new Map([...this.fills].map(([key, fill]) => [key, fillCarving(fill)])))
   }
 
   /**
@@ -1764,6 +1764,12 @@ type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: s
 
 /** What a building piece's verdict depends on: the placement's model and where and how it stands. */
 const placementKey = (p: Pick<Landmark, 'id' | 'model' | 'lng' | 'lat' | 'bearing' | 'scale'>) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
+
+/** Every drawn fill, and the most recently drawn of the rest; the drawn go last, so they are the last to be dropped. */
+export function rememberedFills<T>(fills: Map<string, T>, drawn: Set<string>): Map<string, T> {
+  const gone = [...fills].filter(([key]) => !drawn.has(key)).slice(-REMEMBERED_FILLS)
+  return new Map([...gone, ...[...fills].filter(([key]) => drawn.has(key))])
+}
 
 function* groupByTile(layer: string, features: any[]): Generator<void, Map<string, any[]>> {
   const tiles = new Map<string, any[]>()

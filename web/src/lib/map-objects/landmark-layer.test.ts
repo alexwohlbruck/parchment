@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { eyeOf, LandmarkLayer } from './landmark-layer'
+import { eyeOf, LandmarkLayer, rememberedFills } from './landmark-layer'
 import { LANDMARK_FLAVOR } from './landmarks'
 import { planCoverage } from './landmark-coverage'
 
@@ -52,4 +52,15 @@ it('finds the camera a perspective matrix projects from', () => {
   expect(eye[0]).toBeCloseTo(3)
   expect(eye[1]).toBeCloseTo(-4)
   expect(eye[2]).toBeCloseTo(5)
+})
+
+it('keeps the fills of landmarks that left the view, dropping the longest gone past the cap', () => {
+  const fills = new Map(Array.from({ length: 70 }, (_, i) => [`gone${i}`, i]))
+  fills.set('drawn', -1)
+  const kept = rememberedFills(fills, new Set(['drawn']))
+  expect(kept.size).toBe(65)
+  expect(kept.has('drawn')).toBe(true)
+  expect(kept.has('gone69')).toBe(true)
+  expect(kept.has('gone5')).toBe(false)
+  expect([...kept.keys()].at(-1)).toBe('drawn')
 })

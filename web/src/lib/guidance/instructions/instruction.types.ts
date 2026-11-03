@@ -4,6 +4,8 @@
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import type { RoadLabel } from '../guidance-display'
 import type { Cardinal } from '../turn-around'
+import type { CrossingWay, StationVisit, StepCrossing } from '../nav-route'
+import type { FloorChange, Vertical } from '../vertical'
 
 export type Side = 'left' | 'right'
 
@@ -31,12 +33,31 @@ export type Action =
   | { kind: 'stay'; maneuver: ManeuverKind }
   | { kind: 'exit'; side: Side; number?: string }
   | { kind: 'roundabout'; exit: number | null; through: boolean }
-  | { kind: 'stairs'; side: Side | null }
+  | ({ kind: 'stairs'; side: Side | null } & FloorChange)
+  | ({ kind: 'escalator' } & FloorChange)
+  | ({ kind: 'elevator' } & FloorChange)
   | { kind: 'footbridge' }
+  /** Switchbacks up or down, as onto a bridge. */
+  | { kind: 'ramp'; direction?: Vertical; bridge: boolean }
+  | { kind: 'passage'; passage: Passage }
+  | ({ kind: 'station' } & StationVisit)
+  /** Across the road turned onto, then across the one left, from a protected lane on the near side. */
+  | { kind: 'two-stage'; side: Side }
   /** `road`: the road crossed. */
-  | { kind: 'crosswalk'; signals: boolean; road?: string }
+  | ({ kind: 'crosswalk'; signals: boolean; road?: string } & CrossingWay)
   | { kind: 'arrive'; side: Side | null; home: boolean }
   | { kind: 'depart'; heading: Cardinal; along: boolean }
+
+export type Passage = 'building' | 'arcade' | 'indoor' | 'underpass'
+
+export type DismountPlace = 'sidewalk' | 'path' | 'plaza' | 'crosswalk' | 'bridge' | 'park' | 'stairs'
+
+/** Where a rider gets off and pushes, and for how far. */
+export interface Dismount {
+  place: DismountPlace
+  meters: number
+  direction?: Vertical
+}
 
 /** Which lanes to be in: one lane by its place from an edge, or a run of lanes on one side. */
 export type LaneAdvice =
@@ -54,5 +75,14 @@ export interface RichInstruction {
   lanes?: LaneAdvice
   /** The park the maneuver enters, on foot. */
   park?: { name?: string }
+  /** A street crossed on foot as part of a turn. */
+  crossing?: StepCrossing
+  /** On foot, where a path or a departure leads: the next street or park along it. */
+  leadsTo?: string
+  /** The destination's side, when this crossing is the last thing before it. */
+  arrival?: Side
+  /** The bike lane of the road taken, where it's on the far side. */
+  bikeLane?: Side
+  dismount?: Dismount
   then?: { instruction: RichInstruction; immediately: boolean }
 }

@@ -1,4 +1,5 @@
 import type { DeckPalette, DeckSources, RouteSpan } from '../deck.types'
+import { ghostBlend } from '@/lib/map/ghost-blend'
 import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
 import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
@@ -52,6 +53,14 @@ export class BakedBridgeLayer {
   private routeSources: string[] = []
   private travelled = -1
   private notifyPending = false
+  /** Below 1 the decks draw see-through, as the buildings do over an indoor basement. */
+  private opacity = 1
+
+  setOpacity(opacity: number) {
+    this.opacity = opacity
+    this.map?.triggerRepaint?.()
+  }
+
   private map: any
   private gl!: WebGL2RenderingContext
   private shadows = new MeshShadow()
@@ -917,15 +926,18 @@ export class BakedBridgeLayer {
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
     gl.disable(gl.CULL_FACE)
-    gl.disable(gl.BLEND)
-    // Colour first, drawn toward the eye where a deck lies on the ground and so
-    // over terrain a little too high; then the true depth, which is what anything drawn later meets.
-    mesh.bias(true)
-    gl.depthMask(false)
-    draw(false)
-    mesh.bias(false)
-    gl.depthMask(true)
-    draw(true)
+    const ghost = ghostBlend(gl, this.opacity)
+    if (!ghost) {
+      gl.disable(gl.BLEND)
+      // Colour first, drawn toward the eye where a deck lies on the ground and so
+      // over terrain a little too high; then the true depth, which is what anything drawn later meets.
+      mesh.bias(true)
+      gl.depthMask(false)
+      draw(false)
+      mesh.bias(false)
+    }
+    gl.depthMask(!ghost)
+    draw(!ghost)
     mesh.unbind()
   }
 }

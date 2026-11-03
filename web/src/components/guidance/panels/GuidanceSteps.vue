@@ -6,7 +6,7 @@ import { maneuverKind } from '@/lib/directions/maneuver'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { richInstruction } from '@/lib/guidance/instructions/rich-instruction'
-import { actionText } from '@/lib/guidance/instructions/instruction-text'
+import { actionText, stepText } from '@/lib/guidance/instructions/instruction-text'
 import { useGuidanceContext } from '../context'
 
 const { t } = useI18n()
@@ -19,7 +19,7 @@ const texts = computed(() => {
   return route.steps.map(step =>
     guidance.richGuidance && maneuverKind(step.instruction) !== 'arrive'
       ? actionText(richInstruction(route, step, { from: step.startDistance, speed: 0 }), t)
-      : step.instruction.text,
+      : stepText(step.instruction, t),
   )
 })
 

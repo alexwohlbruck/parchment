@@ -14,12 +14,23 @@ export type PrimitiveBatch = {
   material: Float32Array
   /** Per vertex, how floodlit at night; null when nothing in the batch is. */
   floodlight: Float32Array | null
+  /** Below 1, translucent glass drawn this opaque; see `opacityOf`. */
+  opacity: number
 }
+
+/**
+ * How opaque a primitive is drawn: its base colour's alpha for a `BLEND`
+ * material, which is how a model asks for see-through glass, else 1. A
+ * texture's alpha never counts: on a facade it is the window mask.
+ */
+export const opacityOf = (p: GlbPrimitive): number =>
+  p.alphaMode === 'BLEND' && !p.image ? Math.min(1, Math.max(0, p.color[3] ?? 1)) : 1
 
 /**
  * Merge a model's untextured primitives into as few draws as their state
  * allows. A draw can only change its colour per vertex, so primitives that
- * move with different nodes, cull differently or sample a texture stay apart.
+ * move with different nodes, cull differently, differ in opacity or sample a
+ * texture stay apart.
  */
 export function batchPrimitives(primitives: GlbPrimitive[]): PrimitiveBatch[] {
   const groups = new Map<string, GlbPrimitive[][]>()
@@ -29,7 +40,8 @@ export function batchPrimitives(primitives: GlbPrimitive[]): PrimitiveBatch[] {
       alone.push([p])
       continue
     }
-    const key = `${p.node}:${p.doubleSided}`
+    // Translucent glass is drawn in a pass of its own at its own opacity.
+    const key = `${p.node}:${p.doubleSided}:${opacityOf(p)}`
     const runs = groups.get(key) ?? []
     const last = runs.at(-1)
     if (last && last.length < MAX_BATCH_MATERIALS) last.push(p)
@@ -60,5 +72,5 @@ function merge(primitives: GlbPrimitive[]): PrimitiveBatch {
     i += p.index.length
   })
   const uv = primitives.length === 1 ? primitives[0].uv : null
-  return { primitives, position, normal, uv, index, material, floodlight }
+  return { primitives, position, normal, uv, index, material, floodlight, opacity: opacityOf(primitives[0]) }
 }

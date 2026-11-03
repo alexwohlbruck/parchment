@@ -19,7 +19,9 @@ import { simulateNavigation } from './simulate-navigation'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { setDevStationOverride } from '@/services/guidance/dock-watch.service'
 import { setDevCandidateOverride } from '@/services/guidance/vehicle-candidates.service'
+import { setDevItineraryOverride } from '@/services/guidance/reroute.service'
 import { PLANNED_FROM_ARRIVAL_MS, scenarioCandidates, type VehicleScenario } from './vehicle-scenarios'
+import { missCandidates, type MissScenario } from './miss-scenarios'
 import { MISSED_GRACE_MS, rideStops } from '@/lib/guidance/transit-progress'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import { pointAt, type NavRoute } from '@/lib/guidance/nav-route'
@@ -85,6 +87,7 @@ onBeforeUnmount(() => {
   guidanceClock.reset()
   setDevStationOverride(null)
   setDevCandidateOverride(null)
+  setDevItineraryOverride(null)
   simulatorStore.unload()
 })
 
@@ -143,7 +146,7 @@ watch(
   () => guidance.transit?.kind,
   kind => {
     const stage = guidance.transit
-    if (kind !== 'wait' || stage?.kind !== 'wait' || sim.value.status === 'stopped') return
+    if (kind !== 'wait' || stage?.kind !== 'wait' || sim.value.status === 'stopped' || missScenario.value) return
     if (vehicleScenario.value) return applyVehicleScenario(vehicleScenario.value)
     const ahead = stage.departureMs - 20_000 - guidanceClock.now()
     if (ahead > 0) guidanceClock.advance(ahead)
@@ -155,6 +158,23 @@ function waitTooLong() {
   if (stage?.kind !== 'wait' && stage?.kind !== 'to-stop') return
   simulatorStore.pause()
   guidanceClock.advance(stage.departureMs + MISSED_GRACE_MS + 5000 - guidanceClock.now())
+}
+
+const MISS_SCENARIOS: { kind: MissScenario; label: string }[] = [
+  { kind: 'next-run', label: 'Miss: next run' },
+  { kind: 'better-line', label: 'Miss: better line' },
+  { kind: 'no-next-run', label: 'Miss: no next run' },
+]
+const missScenario = ref<MissScenario | null>(null)
+
+/** Misses the boarding, with the planner standing in plans that force `scenario`'s recovery. */
+function missTrain(scenario: MissScenario) {
+  const stage = guidance.transit
+  if (stage?.kind !== 'wait' && stage?.kind !== 'to-stop') return
+  const remaining = guidance.segments.slice(stage.segmentIndex) as unknown as Parameters<typeof missCandidates>[1]
+  missScenario.value = scenario
+  setDevItineraryOverride(() => missCandidates(scenario, remaining, guidanceClock.now()))
+  waitTooLong()
 }
 
 const dockForcing = ref<'filling' | 'full' | null>(null)
@@ -336,6 +356,19 @@ function toggleDebug() {
             <HourglassIcon />
             Miss it
           </Button>
+          <template v-if="guidance.transit?.kind === 'wait' || guidance.transit?.kind === 'to-stop'">
+            <Button
+              v-for="scenario in MISS_SCENARIOS"
+              :key="scenario.kind"
+              size="sm"
+              :variant="missScenario === scenario.kind ? 'default' : 'secondary'"
+              class="rounded-full"
+              @click="missTrain(scenario.kind)"
+            >
+              <HourglassIcon />
+              {{ scenario.label }}
+            </Button>
+          </template>
           <template v-if="awaitingBoarding">
             <Button
               v-for="scenario in VEHICLE_SCENARIOS"

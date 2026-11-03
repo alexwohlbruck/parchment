@@ -195,18 +195,24 @@ export function rankCandidates(set: CandidateSet, evidence: RideEvidence, planne
 export type VehicleVerdict =
   | { kind: 'unknown' }
   | { kind: 'settled'; candidate: VehicleCandidate }
+  /** Still ambiguous, but every likely run stops where the rider gets off, so the best guess will do. */
+  | { kind: 'guess'; candidate: VehicleCandidate }
   | { kind: 'ask'; options: RankedCandidate[] }
 
 const SETTLED_PROBABILITY = 0.8
 const PLAUSIBLE_PROBABILITY = 0.12
 const MAX_OPTIONS = 3
 
-export function vehicleVerdict(ranked: RankedCandidate[]): VehicleVerdict {
+/** `alightStop` is the key of the stop the rider gets off at, when its calls are known. */
+export function vehicleVerdict(ranked: RankedCandidate[], alightStop: string | null = null): VehicleVerdict {
   const [best] = ranked
   if (!best) return { kind: 'unknown' }
   if (best.probability >= SETTLED_PROBABILITY) return { kind: 'settled', candidate: best.candidate }
   const options = ranked.filter(r => r.probability >= PLAUSIBLE_PROBABILITY).slice(0, MAX_OPTIONS)
-  return options.length > 1 ? { kind: 'ask', options } : { kind: 'settled', candidate: best.candidate }
+  if (options.length <= 1) return { kind: 'settled', candidate: best.candidate }
+  const stopsThere = (r: RankedCandidate) => r.candidate.calls.some(c => c.stop === alightStop)
+  const matters = alightStop != null && new Set(options.map(stopsThere)).size > 1
+  return matters ? { kind: 'ask', options } : { kind: 'guess', candidate: best.candidate }
 }
 
 export interface RideSegment {

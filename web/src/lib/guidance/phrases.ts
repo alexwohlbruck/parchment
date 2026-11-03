@@ -8,25 +8,36 @@ import { bannerDistance } from './guidance-display'
 import type { Handoff } from './handoff'
 import { formatDurationLong } from '@/lib/time-format'
 import { inline } from './instructions/instruction-text'
+import { STATION_STEP_TYPES } from './station-steps'
 
 type TFn = (key: string, named?: Record<string, unknown>) => string
 
-const SPOKEN_UNITS = {
-  ft: ['feet', 'feet'],
-  mi: ['mile', 'miles'],
-  m: ['meters', 'meters'],
-  km: ['kilometer', 'kilometers'],
-} as const
+/** Miles or kilometres as said aloud: quarters under one, halves under ten, whole beyond. */
+function longDistance(value: number, unit: 'mile' | 'kilometer', t: TFn): string {
+  const u = (key: string, named?: Record<string, unknown>) => t(`guidance.voice.units.${key}`, named)
+  if (value < 0.9) {
+    const quarters = Math.min(3, Math.max(1, Math.round(value * 4)))
+    return u(`${unit}Fraction.${quarters}`)
+  }
+  const whole = value >= 9.75 ? Math.round(value) : Math.round(value * 2) / 2
+  if (whole === 1) return u(unit)
+  if (whole === 1.5) return u(`${unit}AndHalf`)
+  if (whole % 1) return u(`${unit}sAndHalf`, { value: Math.floor(whole) })
+  return u(`${unit}s`, { value: whole })
+}
 
+/** A distance as a person would say it: feet and metres as the banner shows them, "half a mile" beyond. */
 export function spokenDistance(meters: number, metric: boolean, t: TFn): string {
   const { value, unit } = bannerDistance(meters, metric)
-  const [one, many] = SPOKEN_UNITS[unit]
-  return t(`guidance.voice.units.${Number(value) === 1 ? one : many}`, { value })
+  if (unit === 'mi') return longDistance(Number(value), 'mile', t)
+  if (unit === 'km') return longDistance(Number(value), 'kilometer', t)
+  return t(`guidance.voice.units.${unit === 'ft' ? 'feet' : 'meters'}`, { value })
 }
 
 function maneuverPhrase(instruction: RouteInstruction, t: TFn): string {
   const kind = maneuverKind(instruction)
   if (kind === 'board') return t('guidance.voice.maneuvers.boardAt', { stop: instruction.streetName ?? '' })
+  if (STATION_STEP_TYPES.has(instruction.type)) return t(`guidance.voice.maneuvers.${instruction.type}`)
   const action = kind === 'roundabout' && instruction.exitNumber
     ? t('guidance.voice.maneuvers.roundaboutExit', { exit: instruction.exitNumber })
     : t(`guidance.voice.maneuvers.${kind}`)

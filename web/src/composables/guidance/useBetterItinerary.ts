@@ -13,8 +13,11 @@ const BUSY_STAGES = new Set(['riding', 'missed-stop', 'missed-vehicle'])
 
 type Segments = Parameters<ReturnType<typeof useGuidanceStore>['takeItinerary']>[1]
 
-/** Replans the transit trip from where the rider is every couple of minutes while off board, and offers a clearly earlier one. */
-export function useBetterItinerary() {
+/**
+ * Replans the transit trip from where the rider is every couple of minutes while off board, and offers a clearly earlier one.
+ * `paused` holds it back while something else is already offering plans.
+ */
+export function useBetterItinerary(paused: () => boolean = () => false) {
   const guidance = useGuidanceStore()
   const offer = shallowRef<(ItineraryOffer<TripOption> & { from: number }) | null>(null)
   let dismissedUntil = 0
@@ -26,7 +29,7 @@ export function useBetterItinerary() {
     const puck = guidance.progress?.puck
     const end = guidance.segments.at(-1)?.geometry?.at(-1)
     if (!route || !puck || !end || checking || offer.value || guidance.status !== 'navigating') return
-    if (Date.now() < dismissedUntil || BUSY_STAGES.has(guidance.transit?.kind ?? '')) return
+    if (Date.now() < dismissedUntil || BUSY_STAGES.has(guidance.transit?.kind ?? '') || paused()) return
     const from = segmentAt(route, puck.s)?.index ?? 0
     const remaining = guidance.segments.slice(from)
     if (!isTransitOnly(remaining)) return

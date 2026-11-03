@@ -1,5 +1,5 @@
 import mitt from 'mitt'
-import { computed, ref, toRaw } from 'vue'
+import { computed, ref, shallowRef, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import {
   Basemap,
@@ -21,6 +21,7 @@ import {
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
+import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
 import { resolveHdRoads } from '@/lib/map-style/hd-roads'
 
 const emitter = mitt<MapEvents>()
@@ -41,7 +42,7 @@ const defaultSettings: MapSettings = {
   transitLabels: true,
   placeLabels: true,
   hdRoads: null,
-  indoorMaps: false,
+  indoorMaps: true,
   northUpSnap: true,
   gridSnapMode: GridSnapMode.NORTH_UP,
   locateFlySpeed: LocateFlySpeed.NORMAL,
@@ -135,6 +136,13 @@ export const useMapStore = defineStore('map', () => {
     hdRoadsDefaultApplied.value = true
   }
 
+  // Indoor maps became default-on once MapLibre drew them; clear the old default once.
+  const indoorDefaultApplied = useStorage('map-indoor-default', false)
+  if (!indoorDefaultApplied.value) {
+    settings.value.indoorMaps = true
+    indoorDefaultApplied.value = true
+  }
+
   const hdRoads = computed(() =>
     resolveHdRoads(settings.value.hdRoads, settings.value.engine),
   )
@@ -197,6 +205,9 @@ export const useMapStore = defineStore('map', () => {
 
   const pegman = ref<Pegman | null>(null)
 
+  /** The venue whose floors the picker offers, and the one showing. */
+  const indoorFocus = shallowRef<IndoorFocus>(null)
+
   function setPegman(pegman_: Pegman) {
     pegman.value = pegman_
   }
@@ -224,5 +235,6 @@ export const useMapStore = defineStore('map', () => {
     pegman,
     setPegman,
     clearPegman,
+    indoorFocus,
   }
 })

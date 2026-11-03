@@ -449,4 +449,13 @@ describe('route context', () => {
     })]).routes[0].legs[0].edgeSegments!
     expect(edges[0]).toMatchObject({ crossingName: '7th Avenue', state: 'New York' })
   })
+
+  test('carries the edge tags guidance reads', () => {
+    const tags = {
+      crossingIsland: true, buttonOperated: true, crossingDiagonal: true, passage: 'building', cyclewaySide: 'left',
+      entrance: { name: '34 St', ref: 'A' }, level: '-1', conveying: true, elevator: true,
+    }
+    const edges = adapt([path({ edge_segments: [{ startDistance: 0, endDistance: 20, ...tags }] })]).routes[0].legs[0].edgeSegments!
+    expect(edges[0]).toMatchObject(tags)
+  })
 })

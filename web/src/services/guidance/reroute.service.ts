@@ -63,8 +63,21 @@ export async function requestAlternatives(params: {
   return data?.alternatives ?? []
 }
 
+interface TransitItineraryRequest {
+  position: LngLat
+  destination: LngLat
+  departAt: Date
+}
+
+/** Dev only: stands in for the planner so each kind of missed-boarding recovery can be forced. */
+let devItineraries: ((params: TransitItineraryRequest) => TripOption[]) | null = null
+export function setDevItineraryOverride(override: typeof devItineraries) {
+  if (import.meta.env.DEV) devItineraries = override
+}
+
 /** Transit plans from here to `destination`, leaving at `departAt`, with no personal vehicles. */
-export async function requestTransitItineraries(params: { position: LngLat; destination: LngLat; departAt: Date }): Promise<TripOption[]> {
+export async function requestTransitItineraries(params: TransitItineraryRequest): Promise<TripOption[]> {
+  if (devItineraries) return devItineraries(params)
   const { data } = await api.post('/directions/', {
     waypoints: [
       { location: params.position, type: 'origin' },

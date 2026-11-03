@@ -5,6 +5,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import InstructionCard from '../InstructionCard.vue'
 import HazardChip from '../HazardChip.vue'
+import SignalLostChip from '../SignalLostChip.vue'
 import RoadNameLabel from '../RoadNameLabel.vue'
 import SpeedPanel from '../SpeedPanel.vue'
 import GuidanceMapButtons from '../GuidanceMapButtons.vue'
@@ -42,6 +43,7 @@ const roomy = computed(() => height.value >= 600)
           <InstructionCard v-if="guidance.kind === 'route'" :dash="roomy" />
         </Transition>
         <HazardChip class="self-center" />
+        <SignalLostChip class="self-center" />
       </div>
     </div>
 

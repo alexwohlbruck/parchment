@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { Announcer, type Announcement } from '../announcements'
+import { Announcer, type Announcement, type AnnouncementPhase } from '../announcements'
 import type { LanePlan } from '../lanes'
 import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute } from '../nav-route'
-import { cityDrive, translator } from '../test-routes'
+import { cityDrive, gridWalk, polyline, translator } from '../test-routes'
 import { speechFor, type RichSource } from './rich-announcement'
 import en from '@/lib/i18n/en-US.json'
 import es from '@/lib/i18n/es-ES.json'
@@ -31,9 +31,13 @@ const approach = (route: NavRoute): Announcement => ({ kind: 'maneuver', phase: 
 describe('speechFor', () => {
   const route = withLight()
 
-  test('premium travellers hear the landmark', () => {
-    expect(speechFor(approach(route), source(route), true, false, t)).toBe('In 650 feet, at the light, turn right onto Trade Street')
-    expect(speechFor(approach(route), source(route), true, true, tEs)).toBe('En 200 metros, en el semáforo, gira a la derecha hacia Trade Street')
+  test('premium travellers hear the landmark in place of the distance', () => {
+    expect(speechFor(approach(route), source(route), true, false, t)).toBe('At the light, turn right onto Trade Street')
+    expect(speechFor(approach(route), source(route), true, true, tEs)).toBe('En el semáforo, gira a la derecha hacia Trade Street')
+  })
+
+  test('the distance stands in where no landmark places the turn', () => {
+    expect(speechFor(approach(route), source(route, { from: 590 }), true, false, t)).toBe('In 650 feet, turn right onto Trade Street')
   })
 
   test('everyone else hears the standard phrasing, lanes included', () => {
@@ -56,6 +60,55 @@ describe('speechFor', () => {
   })
 })
 
+describe('blocks on foot', () => {
+  const route = gridWalk([[200, 'Lincoln Place'], [400, 'Saint Johns Place'], [600, 'Sterling Place'], [800, 'Park Place']])
+  const prompt = (phase: AnnouncementPhase, from: number): Announcement =>
+    ({ kind: 'maneuver', phase, step: route.steps[1], distance: 1000 - from, then: null })
+
+  test('the turn ahead, in blocks', () => {
+    expect(speechFor(prompt('approach', 20), source(route, { from: 20, speed: 1.4 }), true, false, t)).toBe('In 5 blocks, turn right onto Bedford Avenue')
+    expect(speechFor(prompt('approach', 20), source(route, { from: 20, speed: 1.4 }), true, true, tEs)).toBe('En 5 manzanas, gira a la derecha hacia Bedford Avenue')
+  })
+
+  test('how long to keep on the street', () => {
+    expect(speechFor(prompt('continue', 20), source(route, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for 5 blocks')
+  })
+
+  test('the distance where the blocks are too irregular to count', () => {
+    const irregular = gridWalk([[200, 'Lincoln Place'], [700, 'Park Place']])
+    const continuing: Announcement = { kind: 'maneuver', phase: 'continue', step: irregular.steps[1], distance: 980, then: null }
+    expect(speechFor(continuing, source(irregular, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for half a mile')
+  })
+})
+
+describe('crossing to the destination', () => {
+  function across(length: number): NavRoute {
+    const line = polyline([[0, 100 + length]])
+    return buildNavRoute([{
+      mode: 'walking',
+      geometry: line,
+      instructions: [
+        { type: 'depart', text: '', coordinate: line[0], distance: 100, duration: 70 },
+        { type: 'continue', modifier: 'straight', text: '', coordinate: line[10], distance: length, duration: 70 },
+        { type: 'destination', text: '', coordinate: line.at(-1)!, distance: 0, duration: 0 },
+      ],
+      edgeSegments: [{ startDistance: 100, endDistance: 115, roadClass: 'footway', crossing: 'marked', crossingName: 'Franklin Avenue' }],
+    }])
+  }
+  const crossing = (route: NavRoute): Announcement => ({ kind: 'maneuver', phase: 'approach', step: route.steps[1], distance: 40, then: null })
+
+  test('the last crossing says which side the destination is on', () => {
+    const route = across(60)
+    expect(speechFor(crossing(route), source(route, { from: 60, speed: 1.4, destinationSide: 'right' }), true, false, t))
+      .toBe('Cross Franklin Avenue at the crosswalk; your destination is on the right')
+  })
+
+  test('not while the destination is still some way off', () => {
+    const route = across(600)
+    expect(speechFor(crossing(route), source(route, { from: 60, speed: 1.4, destinationSide: 'right' }), true, false, t)).toBe('Cross Franklin Avenue at the crosswalk')
+  })
+})
+
 describe('border welcomes', () => {
   function crossing(): NavRoute {
     const drive = cityDrive()
@@ -69,7 +122,7 @@ describe('border welcomes', () => {
   function heard(announcer: Announcer, route: NavRoute) {
     const all: Announcement[] = []
     for (let s = 0; s <= route.length; s += 5) {
-      all.push(...announcer.update({ position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed: 12, snapped: true, stepIndex: stepIndexAt(route, s) }))
+      all.push(...announcer.update({ position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed: 12, snapped: true, stepIndex: stepIndexAt(route, s), estimated: false }))
     }
     return all.filter(a => a.kind === 'border')
   }

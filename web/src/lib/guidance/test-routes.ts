@@ -1,6 +1,6 @@
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import type { LngLat } from '@/types/map.types'
-import type { NavSegmentInput } from './nav-route'
+import { buildNavRoute, type NavRoute, type NavSegmentInput } from './nav-route'
 
 const ORIGIN: LngLat = { lat: 35.2271, lng: -80.8431 }
 
@@ -36,6 +36,21 @@ export function cityDrive(): NavSegmentInput {
     ],
     edgeSegments: [{ startDistance: 0, endDistance: 1500, speedLimit: 50 }],
   }
+}
+
+/** North up Rogers Avenue, crossing a side street at each of `at`, then right onto Bedford Avenue at 1000 m. */
+export function gridWalk(at: [number, string][]): NavRoute {
+  const line = polyline([[0, 1000], [90, 200]])
+  return buildNavRoute([{
+    mode: 'walking',
+    geometry: line,
+    instructions: [
+      { type: 'depart', text: '', coordinate: line[0], distance: 1000, duration: 700, streetName: 'Rogers Avenue' },
+      { type: 'turn', modifier: 'right', text: '', coordinate: line[100], distance: 200, duration: 140, streetName: 'Bedford Avenue' },
+      { type: 'destination', text: '', coordinate: line.at(-1)!, distance: 0, duration: 0 },
+    ],
+    edgeSegments: at.map(([s, crossingName]) => ({ startDistance: s, endDistance: s + 12, roadClass: 'footway', crossing: 'traffic_signals', crossingName })),
+  }])
 }
 
 /** A `t` over one locale's messages, filling `{name}` placeholders. */

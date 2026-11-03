@@ -14,7 +14,7 @@ const segments = [
   { mode: 'driving', duration: 60 },
   { mode: 'walking', duration: 180, end: { label: 'Cafe' } },
 ]
-const puck = (s: number, speed = 10): PuckState => ({ position: pointAt(route, s), bearing: 0, s, speed, snapped: true, stepIndex: stepIndexAt(route, s) })
+const puck = (s: number, speed = 10): PuckState => ({ position: pointAt(route, s), bearing: 0, s, speed, snapped: true, stepIndex: stepIndexAt(route, s), estimated: false })
 
 describe('describeHandoff', () => {
   test.each([

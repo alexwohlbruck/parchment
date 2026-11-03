@@ -30,7 +30,7 @@ const segments: TransitSegmentInput[] = [
 ]
 const rides = segments.map((segment, i) => (segment.mode === 'transit' ? rideStops(route, i, segment) : null))
 const puck = (s: number, speed = 1.4, snapped = true): PuckState => ({
-  position: pointAt(route, s), bearing: 0, s, speed, snapped, stepIndex: stepIndexAt(route, s),
+  position: pointAt(route, s), bearing: 0, s, speed, snapped, stepIndex: stepIndexAt(route, s), estimated: false,
 })
 const stage = (s: number, speed?: number, now = departure - 300_000, snapped?: boolean) =>
   transitStage(route, segments, rides, puck(s, speed, snapped), now)

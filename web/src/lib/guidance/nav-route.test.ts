@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { distanceMeters, projectLatLng } from '@/lib/map/movement-interpolation'
+import { maneuverKind } from '@/lib/directions/maneuver'
 import {
   bearingAt,
   buildNavRoute,
@@ -32,6 +33,16 @@ describe('buildNavRoute', () => {
     expect(segmentAt(second, 1550)?.mode).toBe('walking')
     expect(edgeAt(second, 1550)?.speedLimit).toBe(5)
     expect(edgeAt(second, 200)?.speedLimit).toBe(50)
+  })
+
+  test('keeps only the last segment\'s arrival', () => {
+    const end = cityDrive().geometry!.at(-1)!
+    const walk = polyline([[180, 100]], end)
+    const twoPart = buildNavRoute([
+      cityDrive(),
+      { mode: 'walking', geometry: walk, instructions: [{ type: 'arrive', text: '', coordinate: walk.at(-1)!, distance: 0, duration: 0 }] },
+    ])
+    expect(twoPart.steps.filter(s => maneuverKind(s.instruction) === 'arrive').map(s => s.segmentIndex)).toEqual([1])
   })
 })
 

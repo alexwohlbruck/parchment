@@ -9,6 +9,7 @@ import GuidanceDashLayout from '@/components/guidance/layouts/GuidanceDashLayout
 import { GUIDANCE_CONTEXT, type GuidancePanelKind } from '@/components/guidance/context'
 import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
+import { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
 import { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
@@ -41,7 +42,8 @@ useGuidanceVehicle()
 useLaneGuidance()
 const docks = useDockWatch()
 const alternatives = useAlternativeRoutes()
-const itinerary = useBetterItinerary()
+const recovery = useMissedRecovery()
+const itinerary = useBetterItinerary(() => !!recovery.view.value)
 const vehicleSwitch = useVehicleSwitch()
 
 const panel = ref<GuidancePanelKind | null>(null)
@@ -90,6 +92,7 @@ provide(GUIDANCE_CONTEXT, {
   routeLine,
   alternatives,
   itinerary,
+  recovery,
   vehicleSwitch,
   docks,
   metric,

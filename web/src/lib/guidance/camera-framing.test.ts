@@ -13,6 +13,7 @@ function puckAt(route: NavRoute, s: number, speed: number): PuckState {
     speed,
     snapped: true,
     stepIndex: stepIndexAt(route, s),
+    estimated: false,
   }
 }
 

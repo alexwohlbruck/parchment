@@ -42,7 +42,7 @@ function asMs(v: string | Date): number {
   return new Date(v).getTime()
 }
 
-function shiftSegmentTimes(s: RebookableSegment, deltaMs: number) {
+export function shiftSegmentTimes(s: RebookableSegment, deltaMs: number) {
   s.startTime = new Date(asMs(s.startTime) + deltaMs)
   s.endTime = new Date(asMs(s.endTime) + deltaMs)
   for (const stop of s.intermediateStops ?? []) {

@@ -1200,6 +1200,7 @@
     "start": "Iniciar",
     "exit": "Finalizar navegación",
     "waitingForLocation": "Esperando tu ubicación…",
+    "signalLost": "Sin señal GPS · estimando",
     "camera": {
       "resume": "Seguir tu posición",
       "overview": "Ver toda la ruta",
@@ -1274,6 +1275,11 @@
       "pedestrian": "Calle peatonal",
       "cycleway": "Ciclovía",
       "steps": "Escaleras",
+      "crosswalk": "Paso de peatones",
+      "railCrossing": "Paso a nivel",
+      "footbridge": "Pasarela",
+      "underpass": "Paso subterráneo",
+      "parkPath": "Sendero del parque",
       "track": "Camino",
       "service": "Vía de servicio",
       "road": "Calle sin nombre"
@@ -1303,11 +1309,20 @@
     "voice": {
       "units": {
         "feet": "{value} pies",
-        "mile": "{value} milla",
-        "miles": "{value} millas",
         "meters": "{value} metros",
-        "kilometer": "{value} kilómetro",
-        "kilometers": "{value} kilómetros"
+        "mile": "1 milla",
+        "miles": "{value} millas",
+        "mileAndHalf": "milla y media",
+        "milesAndHalf": "{value} millas y media",
+        "mileFraction": {
+          "1": "un cuarto de milla",
+          "2": "media milla",
+          "3": "tres cuartos de milla"
+        },
+        "kilometer": "1 kilómetro",
+        "kilometers": "{value} kilómetros",
+        "kilometerAndHalf": "kilómetro y medio",
+        "kilometersAndHalf": "{value} kilómetros y medio"
       },
       "maneuvers": {
         "straight": "Sigue recto",
@@ -1324,7 +1339,12 @@
         "roundaboutExit": "En la rotonda, toma la salida {exit}",
         "arrive": "Llega",
         "board": "Sube",
-        "boardAt": "Sube en {stop}"
+        "boardAt": "Sube en {stop}",
+        "enterStation": "Entra en la estación",
+        "exitStation": "Sal de la estación",
+        "escalator": "Toma la escalera mecánica",
+        "elevator": "Toma el ascensor",
+        "stairs": "Toma las escaleras"
       },
       "onto": "{action} hacia {road}",
       "in": "En {distance}, {action}",
@@ -1376,6 +1396,10 @@
         "low_clearance": "Gálibo reducido más adelante",
         "speed_camera": "Radar de velocidad más adelante",
         "movable_bridge": "Puente móvil más adelante",
+        "dismount": "Más adelante, bájate de la bici",
+        "bike_lane_end": "El carril bici se acaba más adelante, incorpórate al tráfico",
+        "bike_lane_start": "Más adelante, entra en el carril bici",
+        "bike_track_start": "Más adelante, entra en el carril bici protegido",
         "hazard": "Peligro más adelante"
       },
       "useLanes": "{action}. Usa {lanes}",
@@ -1417,6 +1441,11 @@
         "pedestrian": "la calle peatonal",
         "cycleway": "la ciclovía",
         "steps": "las escaleras",
+        "crosswalk": "el paso de peatones",
+        "railCrossing": "el paso a nivel",
+        "footbridge": "la pasarela",
+        "underpass": "el paso subterráneo",
+        "parkPath": "el sendero del parque",
         "track": "el camino"
       },
       "fork": {
@@ -1439,14 +1468,104 @@
       "stairs": {
         "left": "Toma las escaleras a tu izquierda",
         "right": "Toma las escaleras a tu derecha",
-        "ahead": "Toma las escaleras"
+        "ahead": "Toma las escaleras",
+        "up": {
+          "left": "Sube por las escaleras a tu izquierda",
+          "right": "Sube por las escaleras a tu derecha",
+          "ahead": "Sube por las escaleras"
+        },
+        "down": {
+          "left": "Baja por las escaleras a tu izquierda",
+          "right": "Baja por las escaleras a tu derecha",
+          "ahead": "Baja por las escaleras"
+        }
+      },
+      "escalator": {
+        "ahead": "Toma la escalera mecánica",
+        "up": "Sube por la escalera mecánica",
+        "down": "Baja por la escalera mecánica"
+      },
+      "elevator": {
+        "ahead": "Toma el ascensor",
+        "up": "Sube en el ascensor",
+        "down": "Baja en el ascensor"
+      },
+      "floorTo": {
+        "level": "{action} hasta la planta {level}",
+        "platform": "{action} hasta el andén",
+        "street": "{action} hasta la calle"
+      },
+      "station": {
+        "enter": {
+          "refName": "Entra en la estación por el acceso {ref}, {name}",
+          "ref": "Entra en la estación por el acceso {ref}",
+          "name": "Entra en la estación por {name}",
+          "plain": "Entra en la estación"
+        },
+        "exit": {
+          "refName": "Toma la salida {ref}, {name}",
+          "ref": "Toma la salida {ref}",
+          "name": "Toma la salida hacia {name}",
+          "plain": "Sal de la estación"
+        }
       },
       "footbridge": "Usa la pasarela peatonal",
+      "ramp": {
+        "ahead": "Sigue la rampa",
+        "up": "Sube por la rampa",
+        "down": "Baja por la rampa",
+        "bridge": "Sube por la rampa hasta el puente"
+      },
+      "passage": {
+        "building": "Atraviesa el pasaje",
+        "arcade": "Camina por los soportales",
+        "indoor": "Entra en el edificio",
+        "underpass": "Atraviesa el paso subterráneo"
+      },
+      "intoPassage": {
+        "building": "{action} para entrar en el pasaje",
+        "arcade": "{action} para entrar en los soportales",
+        "indoor": "{action} y entra en el edificio",
+        "underpass": "{action} para entrar en el paso subterráneo"
+      },
       "crosswalk": "Cruza por el paso de peatones",
       "crosswalkSignals": "Cruza en el semáforo",
       "crosswalkRoad": "Cruza {road} por el paso de peatones",
       "crosswalkSignalsRoad": "Cruza {road} en el semáforo",
+      "crossFirst": "{crossing} y luego {action}",
+      "crossAfter": "{action} y luego {crossing}",
+      "crossings": {
+        "bare": "Cruza {road}",
+        "then": "Cruza {road} y luego {next}",
+        "at": "Cruza a la altura de {street}",
+        "atRoad": "Cruza {road} a la altura de {street}",
+        "atLight": "Cruza en el semáforo de {street}",
+        "atLightRoad": "Cruza {road} en el semáforo de {street}",
+        "unmarked": "Cruza con cuidado, no hay paso de peatones",
+        "unmarkedRoad": "Cruza {road} con cuidado, no hay paso de peatones",
+        "carefully": "Cruza {road} con cuidado",
+        "median": "Cruza hasta la mediana y espera al siguiente semáforo",
+        "medianRoad": "Cruza {road} hasta la mediana y espera al siguiente semáforo",
+        "island": "Cruza usando la isleta a mitad de camino",
+        "islandRoad": "Cruza {road} usando la isleta a mitad de camino",
+        "button": "Pulsa el botón para cruzar",
+        "buttonRoad": "Pulsa el botón para cruzar {road}",
+        "diagonal": "Cruza en diagonal cuando se detenga todo el tráfico"
+      },
+      "ontoIt": "{action} por esa calle",
+      "headBack": "Vuelve por {road}",
+      "headBackUnnamed": "Vuelve atrás",
+      "thenArrive": {
+        "left": "{action}; tu destino está a la izquierda",
+        "right": "{action}; tu destino está a la derecha"
+      },
       "followPath": "Sigue el sendero",
+      "followPathToward": "Sigue el sendero en dirección a {destination}",
+      "forkToward": {
+        "left": "En la bifurcación, mantente a la izquierda en dirección a {destination}",
+        "right": "En la bifurcación, mantente a la derecha en dirección a {destination}"
+      },
+      "ontoToward": "{action} hacia {road} en dirección a {destination}",
       "enterPark": "Entra en {park} y sigue el sendero",
       "enterParkUnnamed": "Entra en el parque y sigue el sendero",
       "intoPark": "{action} para entrar en {park}",
@@ -1457,10 +1576,37 @@
         "right": "Bienvenido a casa. Tu destino está a la derecha"
       },
       "headAlong": "Ve hacia el {heading} por {road}",
+      "headAlongToward": "Ve por {road} en dirección a {destination}",
+      "headToward": "Ve en dirección a {destination}",
       "turnAround": "Da la vuelta para empezar la ruta y ve hacia el {heading}",
       "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
       "toward": "{action} en dirección a {destination}",
       "followSigns": "{action} y sigue las indicaciones hacia {destination}",
+      "twoStage": {
+        "left": "Cruza recto y luego gira a la izquierda",
+        "right": "Cruza recto y luego gira a la derecha"
+      },
+      "bikeLane": {
+        "left": "{action} y usa el carril bici de la izquierda",
+        "right": "{action} y usa el carril bici de la derecha"
+      },
+      "dismount": {
+        "walk": "Bájate y lleva la bici {place}",
+        "walkFor": "Bájate y lleva la bici {place} durante {distance}",
+        "carry": {
+          "up": "Sube las escaleras con la bici a cuestas",
+          "down": "Baja las escaleras con la bici a cuestas",
+          "any": "Lleva la bici a cuestas por las escaleras"
+        },
+        "places": {
+          "sidewalk": "por la acera",
+          "path": "por el sendero",
+          "plaza": "por la plaza",
+          "crosswalk": "por el paso de peatones",
+          "bridge": "por el puente",
+          "park": "por el parque"
+        }
+      },
       "infinitive": {
         "straight": "seguir recto",
         "slight-left": "girar ligeramente a la izquierda",
@@ -1507,6 +1653,7 @@
           "give_way": "En el ceda el paso"
         },
         "atOrdinal": "En el {ordinal} semáforo",
+        "afterOrdinal": "Después del {ordinal} semáforo",
         "after": {
           "traffic_signals": "Después del semáforo",
           "stop": "Después del stop",
@@ -1521,6 +1668,9 @@
         }
       },
       "thenImmediately": "{action} e inmediatamente {next}",
+      "inBlocks": "En {n} manzanas, {action}",
+      "continueBlocks": "Sigue por {road} durante {n} manzanas",
+      "continueBlocksUnnamed": "Sigue durante {n} manzanas",
       "afterTurning": {
         "left": "Después de girar a la izquierda, {action}",
         "right": "Después de girar a la derecha, {action}",
@@ -1534,7 +1684,13 @@
         "exit": "Salida {number}",
         "exitToward": "Salida {number} · {destination}",
         "toward": "Hacia {destination}",
-        "roundaboutExit": "Salida {exit}"
+        "roundaboutExit": "Salida {exit}",
+        "bikeLane": {
+          "left": "Carril bici a la izquierda",
+          "right": "Carril bici a la derecha"
+        },
+        "twoStage": "Giro en dos tiempos",
+        "dismount": "Bájate de la bici"
       }
     },
     "sound": {
@@ -1571,6 +1727,9 @@
       "toll": "Peaje",
       "speed_camera": "Radar",
       "movable_bridge": "Puente móvil",
+      "bike_lane_end": "Fin del carril bici",
+      "bike_lane_start": "Empieza el carril bici",
+      "bike_track_start": "Carril bici protegido",
       "hazard": "Peligro"
     },
     "hazardCounts": {
@@ -1699,6 +1858,17 @@
     "itinerary": {
       "sooner": "Llega {duration} antes",
       "take": "Toma el {lines}"
+    },
+    "recovery": {
+      "finding": "Buscando otra forma…",
+      "next": "Próximo {line} en {duration}",
+      "arrive": "llegada {time}",
+      "later": "+{duration}",
+      "take": "Toma el {lines} desde {stop}",
+      "orWait": "O espera al próximo {line} · llegada {time}",
+      "switch": "Cambiar",
+      "otherRoutes": "Otras rutas",
+      "fromAt": "desde {stop} · {time}"
     },
     "lanes": {
       "label": "Carriles"
@@ -2408,6 +2578,8 @@
       "controls": {
         "title": "Controles del mapa",
         "zoom": "Zoom",
+        "floors": "Plantas",
+        "exterior": "Exterior del edificio",
         "compass": "Brújula",
         "scale": "Barra de escala",
         "streetView": "Vista de calle",

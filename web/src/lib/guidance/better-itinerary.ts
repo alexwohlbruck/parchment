@@ -42,23 +42,29 @@ function signature(segments: ItinerarySegment[]): string {
   return segments.map(s => (s.mode === 'transit' ? s.tripId ?? s.lineName ?? '' : s.mode)).join('|')
 }
 
-const usable = (segments: ItinerarySegment[]) => isTransitOnly(segments) && segments.every(s => (s.geometry?.length ?? 0) >= 2)
+/** Transit only, and every leg has a shape guidance can follow. */
+export const isFollowable = (segments: ItinerarySegment[]) => isTransitOnly(segments) && segments.every(s => (s.geometry?.length ?? 0) >= 2)
+
+/** How much sooner another plan must arrive than one ending at `plannedEndMs` to be worth switching to. */
+export function neededGain(plannedEndMs: number, nowMs: number): number {
+  return Math.max(MIN_GAIN_MS, MIN_GAIN_SHARE * (plannedEndMs - nowMs))
+}
 
 /** The candidate that arrives first, for when the plan being followed no longer connects. */
 export function earliestItinerary<T extends Itinerary>(candidates: T[]): T | null {
-  return candidates.filter(c => usable(c.segments)).sort((a, b) => ms(a.endTime) - ms(b.endTime))[0] ?? null
+  return candidates.filter(c => isFollowable(c.segments)).sort((a, b) => ms(a.endTime) - ms(b.endTime))[0] ?? null
 }
 
 /** The candidate worth interrupting for, if any; `remaining` is the rest of the plan being followed. */
 export function chooseItinerary<T extends Itinerary>(remaining: ItinerarySegment[], candidates: T[], nowMs: number): ItineraryOffer<T> | null {
   const plannedEnd = ms(remaining.at(-1)?.endTime)
   if (!Number.isFinite(plannedEnd) || !isTransitOnly(remaining)) return null
-  const needed = Math.max(MIN_GAIN_MS, MIN_GAIN_SHARE * (plannedEnd - nowMs))
+  const needed = neededGain(plannedEnd, nowMs)
   const current = signature(remaining)
   let best: ItineraryOffer<T> | null = null
   for (const candidate of candidates) {
     const segments = candidate.segments
-    if (!usable(segments)) continue
+    if (!isFollowable(segments)) continue
     if (signature(segments) === current) continue
     const gainMs = plannedEnd - ms(candidate.endTime)
     if (gainMs >= needed && (!best || gainMs > best.gainMs)) {

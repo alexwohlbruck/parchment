@@ -3,6 +3,7 @@ import type { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera
 import type { useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import type { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import type { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
+import type { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
 import type { useDockWatch } from '@/composables/guidance/useDockWatch'
 import type { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import type { FreeMode } from '@/lib/guidance/free-roam'
@@ -14,6 +15,7 @@ export interface GuidanceContext {
   routeLine: ReturnType<typeof useGuidanceRouteLine>
   alternatives: ReturnType<typeof useAlternativeRoutes>
   itinerary: ReturnType<typeof useBetterItinerary>
+  recovery: ReturnType<typeof useMissedRecovery>
   vehicleSwitch: ReturnType<typeof useVehicleSwitch>
   docks: ReturnType<typeof useDockWatch>
   metric: ComputedRef<boolean>

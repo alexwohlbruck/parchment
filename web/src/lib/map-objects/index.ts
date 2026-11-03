@@ -19,6 +19,7 @@ import { POWER_MODELS } from './power'
 import { AREA_MODELS, AREA_OBJECTS } from './areas'
 import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
 import { FIXTURE_MODELS, FIXTURE_OBJECTS } from './fixtures'
+import { INDOOR_FLIGHT_MODELS } from './indoor-flights'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -41,7 +42,7 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
  * that was skipped is a 404 that takes the whole layer down with it.
  */
 export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
-  Object.keys(models).map(name => [name, `/models/${name}.glb`]),
+  Object.keys(models).filter(name => !(name in INDOOR_FLIGHT_MODELS)).map(name => [name, `/models/${name}.glb`]),
 )
 
 /**

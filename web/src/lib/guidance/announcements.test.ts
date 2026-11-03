@@ -3,13 +3,13 @@ import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute }
 import { Announcer, destinationSide, leadDistances, type Announcement } from './announcements'
 import { announcementText } from './phrases'
 import type { PuckState } from './guidance-engine'
-import { cityDrive, polyline, translator } from './test-routes'
+import { cityDrive, gridWalk, polyline, translator } from './test-routes'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { speechDuration } from './speech-rate'
 import en from '@/lib/i18n/en-US.json'
 
 function puckAt(route: NavRoute, s: number, speed: number): PuckState {
-  return { position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed, snapped: true, stepIndex: stepIndexAt(route, s) }
+  return { position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed, snapped: true, stepIndex: stepIndexAt(route, s), estimated: false }
 }
 
 /** Drive the whole route at a steady speed, collecting every prompt. */
@@ -67,6 +67,22 @@ describe('Announcer', () => {
   })
 })
 
+test('a long block on foot gets a continue prompt', () => {
+  const continues = (route: NavRoute) => drive(route, 1.4).filter(h => h.a.kind === 'maneuver' && h.a.phase === 'continue')
+  expect(continues(gridWalk([]))).toHaveLength(1)
+  const geometry = polyline([[0, 300], [90, 300]])
+  const short = buildNavRoute([{
+    mode: 'walking',
+    geometry,
+    instructions: [
+      { type: 'depart', text: '', coordinate: geometry[0], distance: 300, duration: 210 },
+      { type: 'turn', modifier: 'right', text: '', coordinate: geometry[30], distance: 300, duration: 210 },
+      { type: 'destination', text: '', coordinate: geometry[60], distance: 0, duration: 0 },
+    ],
+  }])
+  expect(continues(short)).toHaveLength(0)
+})
+
 describe('destinationSide', () => {
   const route = buildNavRoute([{ mode: 'driving', geometry: polyline([[0, 300]]) }])
   test('tells left from right of the final heading', () => {
@@ -92,7 +108,7 @@ describe('announcementText', () => {
   })
 
   test('uses singular units and the destination side', () => {
-    expect(announcementText({ kind: 'arrive', distance: 1609, side: 'left' }, false, t)).toBe('In 1.0 mile, your destination is on the left')
+    expect(announcementText({ kind: 'arrive', distance: 1609, side: 'left' }, false, t)).toBe('In 1 mile, your destination is on the left')
   })
 })
 

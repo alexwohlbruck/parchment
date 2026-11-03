@@ -31,6 +31,7 @@
  * Objects are read from the same vector source their flat form is drawn from,
  * so the two cannot disagree about what exists.
  */
+import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
@@ -583,6 +584,14 @@ export class ObjectLayer {
    * dark one. Because colour lives in a uniform rather than in the model, this
    * is a single call and takes effect on the next frame.
    */
+  /** Below 1 the objects draw see-through, as the buildings do over an indoor basement. */
+  private opacity = 1
+
+  setOpacity(opacity: number) {
+    this.opacity = opacity
+    this.map?.triggerRepaint?.()
+  }
+
   setFlavor(palette: ObjectPalette) {
     this.palette = palette
     for (const model of this.models.values())
@@ -1054,8 +1063,9 @@ export class ObjectLayer {
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
 
-    gl.depthMask(true)
-    gl.disable(gl.BLEND)
+    const ghost = ghostBlend(gl, this.opacity)
+    gl.depthMask(!ghost)
+    if (!ghost) gl.disable(gl.BLEND)
 
     for (const batch of this.batches) {
       const model = this.models.get(batch.model)

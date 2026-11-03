@@ -12,6 +12,7 @@ import LayerControl from '@/components/map/controls/LayerControl.vue'
 import StreetViewControl from '@/components/map/street-view/StreetViewControl.vue'
 import ZoomControl from '@/components/map/controls/ZoomControl.vue'
 import CompassControl from '@/components/map/controls/CompassControl.vue'
+import FloorControl from '@/components/map/controls/FloorControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import AttributionControl from '@/components/map/controls/AttributionControl.vue'
@@ -573,6 +574,7 @@ defineExpose({
               <div class="pointer-events-auto flex flex-col gap-2">
                 <ZoomControl />
                 <CompassControl />
+                <FloorControl />
               </div>
 
               <!-- Right bottom -->

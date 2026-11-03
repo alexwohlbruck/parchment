@@ -17,6 +17,8 @@ const props = defineProps<{
   certainty?: RideCertainty
   busy?: boolean
   noLaterRun?: boolean
+  /** A recovery is being worked out or offered below, so the fallback actions stand back. */
+  recovering?: boolean
 }>()
 defineEmits<{ nextRun: []; anotherWay: [] }>()
 const { t } = useI18n()
@@ -99,11 +101,11 @@ const ride = computed(() => {
     <template v-else-if="stage.kind === 'missed-vehicle'">
       <div>
         <div class="text-lg font-medium leading-snug">{{ t('guidance.transit.missedVehicle', { line }) }}</div>
-        <div class="text-sm text-muted-foreground">
+        <div v-if="!recovering" class="text-sm text-muted-foreground">
           {{ noLaterRun ? t('guidance.transit.noLaterRun') : t('guidance.transit.missedVehicleHint') }}
         </div>
       </div>
-      <div class="flex gap-2">
+      <div v-if="!recovering" class="flex gap-2">
         <Button class="h-12 flex-1 rounded-full" :disabled="busy || noLaterRun" @click="$emit('nextRun')">
           {{ t('guidance.transit.nextDeparture') }}
         </Button>

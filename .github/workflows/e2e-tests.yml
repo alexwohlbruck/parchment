@@ -28,7 +28,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          # Node 26 hangs `playwright install` (Playwright 1.58).
+          node-version: 24
 
       - name: Install web dependencies
         working-directory: web

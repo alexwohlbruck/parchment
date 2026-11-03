@@ -7,6 +7,8 @@ import { buildNavRoute, pointAt } from './nav-route'
 import { GuidanceEngine } from './guidance-engine'
 import { drawnPoint } from './route-line'
 import { cityDrive, polyline } from './test-routes'
+import { createRandom } from '@/dev/gpx-simulator/fix-model'
+import { syntheticAcceleration } from '@/dev/gpx-simulator/motion-synth'
 
 function replay(seed: number) {
   const route = buildNavRoute([cityDrive()])
@@ -124,5 +126,135 @@ describe('GuidanceEngine', () => {
     expect(engine.sample(12)).toMatchObject({ s: 40, speed: 0, snapped: true })
     engine.hold(null)
     expect(engine.sample(12)!.s).toBeGreaterThan(100)
+  })
+})
+
+describe('GuidanceEngine when the GPS signal degrades', () => {
+  const WALK = 1.4
+  const walkingRoute = () => buildNavRoute([{ ...cityDrive(), mode: 'walking' }])
+  type Route = ReturnType<typeof walkingRoute>
+
+  function walkTo(engine: GuidanceEngine, route: Route, until: number, from = 1) {
+    for (let t = from; t <= until; t++) {
+      engine.pushFix({ t, position: pointAt(route, WALK * t), accuracy: 5, speed: WALK, heading: null })
+    }
+  }
+
+  function steps(engine: GuidanceEngine, from: number, to: number, speed: number, seed = 3) {
+    const random = createRandom(seed)
+    for (let t = from; t < to; t += 0.02) {
+      engine.pushMotion({ t, accelWithGravity: syntheticAcceleration(t, speed, random), rotationRate: { x: 0, y: 0, z: 0 } })
+    }
+  }
+
+  function scattered(route: Route, t: number, s: number, random: () => number) {
+    const accuracy = 30 + random() * 470
+    const along = Math.min(route.length, Math.max(0, s + (random() * 2 - 0.5) * 600))
+    const position = projectLatLng(pointAt(route, along), random() * accuracy, random() * 360, 1)
+    return { t, position, accuracy, speed: random() < 0.5 ? null : random() * 4, heading: null }
+  }
+
+  test('coarse fixes scattered hundreds of metres never fling the puck', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    steps(engine, 0, 120, WALK)
+    walkTo(engine, route, 60)
+    const random = createRandom(11)
+    let furthest = 0
+    for (let t = 61; t <= 120; t++) {
+      engine.pushFix(scattered(route, t, WALK * t, random))
+      for (let f = 0; f < 4; f++) furthest = Math.max(furthest, engine.sample(t + f / 4)!.s - WALK * (t + f / 4))
+    }
+    expect(furthest).toBeLessThan(40)
+    expect(Math.abs(engine.sample(120)!.s - WALK * 120)).toBeLessThan(30)
+  })
+
+  test('a run of agreeing ghost fixes far ahead is not a relocation', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    walkTo(engine, route, 60)
+    let furthest = 0
+    for (let t = 61; t <= 70; t++) {
+      if (t <= 64) engine.pushFix({ t, position: pointAt(route, WALK * t + 150), accuracy: 20, speed: WALK, heading: null })
+      else walkTo(engine, route, t, t)
+      furthest = Math.max(furthest, engine.sample(t + 0.5)!.s - WALK * (t + 0.5))
+    }
+    expect(furthest).toBeLessThan(15)
+  })
+
+  test('relocates once good fixes keep agreeing somewhere out of reach', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    walkTo(engine, route, 30)
+    for (let t = 31; t <= 40; t++) {
+      engine.pushFix({ t, position: pointAt(route, 900 + WALK * t), accuracy: 8, speed: WALK, heading: null })
+    }
+    expect(engine.sample(40)!.s).toBeGreaterThan(900)
+  })
+
+  test('marks the puck estimated while lost, with uncertainty that grows', () => {
+    const route = buildNavRoute([cityDrive()])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 10; t++) engine.pushFix({ t, position: pointAt(route, 10 * t), accuracy: 5, speed: 10, heading: 0 })
+    expect(engine.sample(11)!.estimated).toBe(false)
+    expect(engine.sample(20)!.estimated).toBe(true)
+    const early = engine.diagnostics.sigma
+    engine.sample(40)
+    expect(engine.diagnostics.sigma).toBeGreaterThan(early)
+    engine.pushFix({ t: 41, position: pointAt(route, 380), accuracy: 5, speed: 10, heading: 0 })
+    expect(engine.sample(41)!.estimated).toBe(false)
+  })
+
+  test('steps hold the puck to the walk while canyon fixes drift ahead', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    steps(engine, 0, 100, WALK)
+    walkTo(engine, route, 60)
+    for (let t = 61; t <= 100; t++) {
+      const drift = 3 * (t - 60)
+      engine.pushFix({ t, position: pointAt(route, WALK * t + drift), accuracy: 30 + (t % 4) * 5, speed: WALK + 3, heading: null })
+    }
+    expect(engine.sample(100)!.s - WALK * 100).toBeLessThan(40)
+  })
+
+  test('waits for a fix at the next stop of a dead-reckoned walk', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    steps(engine, 0, 600, WALK)
+    walkTo(engine, route, 400)
+    expect(engine.sample(600)!.s).toBeLessThanOrEqual(600 + 15)
+  })
+
+  test('after a gap, a fix beyond walking reach does not move the puck there', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    walkTo(engine, route, 60)
+    engine.pushFix({ t: 120, position: pointAt(route, 1450), accuracy: 40, speed: 1, heading: null })
+    engine.pushFix({ t: 121, position: pointAt(route, 1452), accuracy: 40, speed: 1, heading: null })
+    expect(engine.sample(121)!.s).toBeLessThan(WALK * 121 + 2.5 * 60)
+  })
+
+  test('steps carry the puck through a long gap', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    steps(engine, 0, 150, WALK)
+    walkTo(engine, route, 60)
+    expect(Math.abs(engine.sample(150)!.s - WALK * 150)).toBeLessThan(15)
+  })
+
+  test('standing still holds the puck while there is no fix', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    steps(engine, 0, 60, WALK)
+    walkTo(engine, route, 60)
+    steps(engine, 60, 120, 0)
+    expect(engine.sample(120)!.s - WALK * 60).toBeLessThan(8)
+  })
+
+  test('coasting without sensors stops short of the next maneuver', () => {
+    const route = buildNavRoute([cityDrive()])
+    const engine = new GuidanceEngine(route)
+    for (let t = 1; t <= 30; t++) engine.pushFix({ t, position: pointAt(route, 15 * t), accuracy: 5, speed: 15, heading: 0 })
+    for (let t = 30; t <= 150; t += 5) expect(engine.sample(t)!.s).toBeLessThanOrEqual(600 + 15)
   })
 })

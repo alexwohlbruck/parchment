@@ -55,7 +55,7 @@ const LIFT_HEIGHT = 2.4
 const WALL_HEIGHT = 3.5
 
 /** Barrelman's `indoor_features` version; a new one asks past the day-long tile caches. */
-const INDOOR_FORMAT = 10
+const INDOOR_FORMAT = 11
 
 export function indoorSource(tileUrl: (source: string) => string) {
   return {

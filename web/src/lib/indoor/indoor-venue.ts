@@ -158,6 +158,9 @@ const inside = (p: Record<string, unknown>, shown: ShownInside) => shown(Number(
 
 const joined = (ids: Set<string>) => (ids.size ? `;${[...ids].sort().join(';')};` : '')
 
+/** Two of the style's `;id;` lists as one. */
+export const unitedIds = (a: string, b: string) => (a === b ? a : joined(new Set([...refs(a), ...refs(b)])))
+
 /** Doors, lifts and station entrances a showing floor plan signs itself, as the style's `;node/1;` string of OSM ids. */
 export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {
   const ids = new Set<string>()

@@ -13,7 +13,7 @@ import {
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import type { FlavorId } from '@/lib/map-style/build'
-import { clearedBuildings, focusedVenue, openingLevel, replacedFixtures, replacedPlaces, shownInside, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { clearedBuildings, focusedVenue, openingLevel, replacedFixtures, replacedPlaces, shownInside, unitedIds, type IndoorFocus } from '@/lib/indoor/indoor-venue'
 import { INDOOR_FIXTURES_STATE } from '@/lib/map-style/fixture-layers'
 
 export function attachIndoor(
@@ -36,12 +36,18 @@ export function attachIndoor(
   /** The floor last picked in each venue, or null for its outside, so panning away and back keeps it. */
   const picked = new Map<number, number | null>()
 
+  /** The focus the replaced ids were gathered under; they only grow while it holds, as each change reloads the basemap. */
+  let gathered: string | null = null
+
   function setState(key: string, value: unknown) {
     if (map.getGlobalState?.()[key] !== value) map.setGlobalStateProperty(key, value)
   }
 
-  function apply(next: IndoorFocus) {
-    const nextBuildings = clearedBuildings(venues, next)
+  function apply(next: IndoorFocus, scope = `${next?.venue.id ?? 0}:${next?.level}`) {
+    const growing = scope === gathered
+    gathered = scope
+    const grown = (key: string, ids: string) => (growing ? unitedIds(String(map.getGlobalState?.()[key] ?? ''), ids) : ids)
+    const nextBuildings = growing ? unitedIds(buildings, clearedBuildings(venues, next)) : clearedBuildings(venues, next)
     if (nextBuildings !== buildings) {
       buildings = nextBuildings
       setState(INDOOR_STATE.buildings, buildings)
@@ -49,8 +55,8 @@ export function attachIndoor(
     }
     setState(INDOOR_STATE.venue, next?.venue.id ?? 0)
     setState(INDOOR_STATE.level, next ? next.level ?? EXTERIOR_LEVEL : 0)
-    setState(INDOOR_STATE.places, replacedPlaces(places, shownInside(next)))
-    setState(INDOOR_FIXTURES_STATE, replacedFixtures(places, shownInside(next)))
+    setState(INDOOR_STATE.places, grown(INDOOR_STATE.places, replacedPlaces(places, shownInside(next))))
+    setState(INDOOR_FIXTURES_STATE, grown(INDOOR_FIXTURES_STATE, replacedFixtures(places, shownInside(next))))
     const changed = next?.venue.id !== focus?.venue.id || next?.level !== focus?.level
     focus = next
     if (changed) on.focus(focus)
@@ -62,7 +68,7 @@ export function attachIndoor(
     if (!enabled || map.getZoom() < INDOOR_MINZOOM) {
       venues = []
       places = []
-      return apply(null)
+      return apply(null, 'off')
     }
     venues = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
     places = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_MAP_TILES, filter: ['==', ['get', 'kind'], 'poi'] })
@@ -112,6 +118,7 @@ export function attachIndoor(
   const onStyleLoad = () => {
     focus = null
     buildings = ''
+    gathered = null
     schedule()
   }
 

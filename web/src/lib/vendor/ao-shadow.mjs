@@ -89,12 +89,8 @@ const TERRAIN = `
     return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y) * u_terrain_exaggeration;
   }
 
-  // PARCHMENT: mirror of the patched fill-extrusion shader's
-  // sb_anchor_elevation (scripts/patch-maplibre-terrain.mjs). a_centroid is an
-  // anchor snapped to an 8-unit grid with the polygon's half-extents
-  // log2-packed into the low bits, and the building stands on the MINIMUM
-  // elevation over that region so it never floats off the downhill side. The
-  // shadow layer's building draw and masks must stand on the same value.
+  // PARCHMENT: mirrors the fill-extrusion shader patched by
+  // scripts/patch-maplibre-terrain.mjs, so every pass stands where MapLibre's buildings do.
   float anchor_elevation(vec2 a) {
     vec2 sc = floor(a / 8.0) * 8.0;
     vec2 code = a - sc;
@@ -342,7 +338,7 @@ const SUN_VS = `
     float t = mod(a_normal_ed.x, 2.0);
     float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
-    gl_Position = u_matrix * vec4(a_pos, mix(base, h, t) + get_elevation(a_centroid), 1.0);
+    gl_Position = u_matrix * vec4(a_pos, mix(base, h, t) + anchor_elevation(a_centroid), 1.0);
   }`;
 const SUN_FS = `
   precision mediump float;

@@ -40,7 +40,7 @@
 
 ### Fixed
 
-* Guidance says "after the light" only when it is the next light ahead, not with other lights still to pass first.
+* Guidance counts the lights before a turn, "After the third light, turn right", instead of "after the light" with other lights still to pass.
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
 

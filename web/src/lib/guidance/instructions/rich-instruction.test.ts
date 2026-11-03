@@ -67,10 +67,13 @@ describe('landmark anchors', () => {
     expect(voiceText(turnRight(city({ hazards: [['traffic_signals', 530]] })), t)).toBe('After the light, turn right onto Trade Street')
   })
 
-  test('not after the light while other lights come first', () => {
+  test('counts the lights to pass before the turn', () => {
     const route = city({ hazards: [['traffic_signals', 350], ['traffic_signals', 450], ['traffic_signals', 530]] })
-    expect(turnRight(route).anchor).toBeUndefined()
+    expect(voiceText(turnRight(route), t)).toBe('After the third light, turn right onto Trade Street')
+    expect(voiceText(turnRight(route), tEs)).toBe('Después del tercer semáforo, gira a la derecha hacia Trade Street')
     expect(voiceText(turnRight(route, { from: 470 }), t)).toBe('After the light, turn right onto Trade Street')
+    const many = city({ hazards: [['traffic_signals', 150], ['traffic_signals', 250], ['traffic_signals', 350], ['traffic_signals', 450], ['traffic_signals', 530]] })
+    expect(turnRight(many, { from: 100 }).anchor?.kind).not.toBe('traffic_signals')
   })
 
   test('never names one of two lights close together', () => {

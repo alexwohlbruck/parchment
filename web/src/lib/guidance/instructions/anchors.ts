@@ -58,7 +58,8 @@ function lightAnchor(lights: number[], from: number, turn: number, reach: number
     const countable = ahead.every(s => isolated(lights, s))
     return countable && ahead.length <= MAX_ORDINAL ? { kind: 'traffic_signals', relation: 'at', ordinal: ahead.length, s: last } : null
   }
-  return turn - last <= reach && ahead.length === 1 ? { kind: 'traffic_signals', relation: 'after', s: last } : null
+  if (turn - last > reach || !ahead.every(s => isolated(lights, s)) || ahead.length > MAX_ORDINAL) return null
+  return { kind: 'traffic_signals', relation: 'after', ordinal: ahead.length, s: last }
 }
 
 function pointAnchor(kind: AnchorKind, points: number[], from: number, turn: number, reach: number): Anchor | null {

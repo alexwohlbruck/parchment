@@ -1644,6 +1644,7 @@
           "give_way": "En el ceda el paso"
         },
         "atOrdinal": "En el {ordinal} semáforo",
+        "afterOrdinal": "Después del {ordinal} semáforo",
         "after": {
           "traffic_signals": "Después del semáforo",
           "stop": "Después del stop",

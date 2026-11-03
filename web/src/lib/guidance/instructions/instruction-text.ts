@@ -213,8 +213,8 @@ function infinitive(instruction: RichInstruction, t: TFn): string | null {
 
 /** The landmark on its own, as the banner shows it: "At the second light". */
 export function anchorText(anchor: Anchor, t: TFn): string {
-  if (anchor.relation === 'at' && anchor.kind === 'traffic_signals' && (anchor.ordinal ?? 1) > 1) {
-    return t(`${K}.anchors.atOrdinal`, { ordinal: ordinal(anchor.ordinal!, 'm', t) })
+  if (anchor.relation !== 'past' && anchor.kind === 'traffic_signals' && (anchor.ordinal ?? 1) > 1) {
+    return t(`${K}.anchors.${anchor.relation}Ordinal`, { ordinal: ordinal(anchor.ordinal!, 'm', t) })
   }
   return t(`${K}.anchors.${anchor.relation}.${anchor.kind}`)
 }

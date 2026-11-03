@@ -33,6 +33,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import POWER from '../src/lib/map-objects/power-structures.json' with { type: 'json' }
+import { FLIGHT_MIDDLE, FLIGHT_MODEL_HEIGHT } from '../src/lib/indoor/indoor-sizes.mjs'
 import { CROSSBUCK_POST, CROSSING_POLE, FIXTURE_HEIGHTS, GATE_PIVOT, LANE_WIDTH, SIGNAL_ARM, SIGNAL_POLE, gateArm } from '../src/lib/map-objects/fixture-sizes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -87,6 +88,12 @@ const ROLE_COLOR = {
   'lens-amber': [0.95, 0.66, 0.15, 1],
   'lens-green': [0.2, 0.75, 0.48, 1],
   sign: [0.96, 0.96, 0.94, 1],
+  escalator: [0.62, 0.74, 0.93, 1],
+  'escalator-edge': [0.82, 0.88, 0.97, 1],
+  stair: [0.9, 0.89, 0.87, 1],
+  'stair-edge': [0.66, 0.66, 0.68, 1],
+  balustrade: [0.94, 0.95, 0.97, 1],
+  handrail: [0.24, 0.27, 0.32, 1],
 }
 
 /** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
@@ -1617,6 +1624,31 @@ const LINES = {
   ]), 7.4),
 }
 
+/**
+ * An escalator or a stair, one unit long along x and one wide across z, for the
+ * layer to stretch to a flight: treads between solid balustrades, a handrail on
+ * each, and a line across every tread's nose.
+ */
+const flight = (tread, noses) =>
+  standing(furnLod(q => {
+    const y = FLIGHT_MIDDLE
+    const sides = mesh()
+    for (const z of [-0.5, 0.38]) box(sides, [-0.5, y - 0.45, z], [0.5, y + 0.9, z + 0.12])
+    box(sides, [-0.5, y - 0.45, -0.38], [0.5, y - 0.3, 0.38])
+    const parts = [{ role: 'balustrade', ...sides }, { role: tread, ...box(mesh(), [-0.5, y - 0.3, -0.38], [0.5, y, 0.38]) }]
+    if (!q.seg) return parts
+    const rails = mesh()
+    for (const z of [-0.5, 0.38]) box(rails, [-0.5, y + 0.9, z - 0.01], [0.5, FLIGHT_MODEL_HEIGHT, z + 0.13])
+    const lines = mesh()
+    for (let i = 1; i < noses; i++) box(lines, [-0.5 + i / noses - 0.004, y, -0.38], [-0.5 + i / noses + 0.004, y + 0.01, 0.38])
+    return [...parts, { role: 'handrail', ...rails }, { role: `${tread}-edge`, ...lines }]
+  }), FLIGHT_MODEL_HEIGHT)
+
+const INDOOR = {
+  escalator: flight('escalator', 24),
+  stairs: flight('stair', 14),
+}
+
 // ---------------------------------------------------------------------------
 // Trees
 // ---------------------------------------------------------------------------
@@ -2311,6 +2343,7 @@ async function main() {
   for (const [name, build] of Object.entries(FIXTURES)) await emit(name, build(), build.far?.(), build.fit, false, build.soft)
   for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
   for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.(), build.fit)
+  for (const [name, build] of Object.entries(INDOOR)) await emit(name, build(), build.far?.(), build.fit, build.open)
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

@@ -24,7 +24,7 @@
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
 
-* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue, then cross East 39th Street at the light", and crossing a side street goes unannounced.
+* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue, then cross East 39th Street at the light". Crossing a side street goes unannounced, but crossing to the other side of your street is called out.
 
 * The instruction card now always says the same thing as the voice.
 

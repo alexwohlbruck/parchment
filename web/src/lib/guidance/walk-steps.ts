@@ -50,17 +50,25 @@ function turnKind(delta: number): WalkTurn {
 
 const roadName = (instruction: RouteInstruction) => instruction.streetName || instruction.streetRef || ''
 
-/** The crossing, joined across islands, that starts within `[from, to]`. */
-function crossingFrom(edges: NavEdge[], from: number, to: number): { start: number; end: number; edge: NavEdge } | null {
+interface Crossed { start: number; end: number; edge: NavEdge; names: Set<string> }
+
+/** The crossings, each joined across islands, that start within `[from, to]`. */
+function crossingsWithin(edges: NavEdge[], from: number, to: number): Crossed[] {
+  const found: Crossed[] = []
   for (let k = 0; k < edges.length && edges[k].startDistance <= to; k++) {
     if (edges[k].startDistance < from || !isCrossing(edges[k])) continue
     let end = edges[k].endDistance
-    for (let i = k + 1; i < edges.length && edges[i].startDistance - end <= 1 && isCrossing(edges[i]); i++) end = edges[i].endDistance
+    let i = k + 1
+    for (; i < edges.length && edges[i].startDistance - end <= 1 && isCrossing(edges[i]); i++) end = edges[i].endDistance
+    const names = new Set(edges.slice(k, i).flatMap(e => e.crossingName ?? []))
     // A sidewalk carries the tag of a crossing node along it; a crosswalk is short.
-    if (end - edges[k].startDistance <= MAX_CROSSING_METERS) return { start: edges[k].startDistance, end, edge: edges[k] }
+    if (end - edges[k].startDistance <= MAX_CROSSING_METERS) found.push({ start: edges[k].startDistance, end, edge: edges[k], names })
+    k = i - 1
   }
-  return null
+  return found
 }
+
+const crossingFrom = (edges: NavEdge[], from: number, to: number): Crossed | null => crossingsWithin(edges, from, to)[0] ?? null
 
 function heading(line: WalkLine, from: number, to: number): number {
   const a = line.at(from)
@@ -116,10 +124,13 @@ export function walkingSteps(steps: NavStep[], line: WalkLine): NavStep[] {
 
     const along = roadName(previous.instruction)
     const onto = roadName(last.instruction)
-    const crossed = crossingFrom(line.edges, a - 1, end)
+    const crossings = crossingsWithin(line.edges, a - 1, end)
+    // Crossing the street walked along, to its other side, is worth saying even going straight.
+    const sideSwitch = kind === 'straight' && !!along ? crossings.find(c => c.names.has(along)) : undefined
+    const crossed = sideSwitch ?? crossings[0] ?? null
     const crossedFirst = kind === 'straight' || (!!crossed && Math.abs(angleDelta(before, heading(line, crossed.start, crossed.end))) < STRAIGHT_DEG)
     // Crossed before turning, it's the street turned onto; after, the one left behind.
-    const named = crossed && (crossed.edge.crossingName || (kind === 'straight' ? '' : crossedFirst ? onto : along))
+    const named = crossed && ((sideSwitch && along) || crossed.edge.crossingName || (kind === 'straight' ? '' : crossedFirst ? onto : along))
     const road = named && (crossedFirst || named !== onto) ? named : ''
     const crossing: StepCrossing | undefined = crossed
       ? { signals: crossed.edge.crossing!.toLowerCase() === 'traffic_signals', first: crossedFirst, ...(road && { road }) }
@@ -132,7 +143,7 @@ export function walkingSteps(steps: NavStep[], line: WalkLine): NavStep[] {
       out.push(last)
       continue
     }
-    if (kind === 'straight' && !special && (onto ? onto === along : !!along || !crossing)) continue
+    if (kind === 'straight' && !special && !sideSwitch && (onto ? onto === along : !!along || !crossing)) continue
 
     const unchanged = start === j && ghKind === kind && !crossing
     out.push({

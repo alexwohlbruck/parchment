@@ -37,6 +37,20 @@ describe('walkingSteps', () => {
     expect(summary(route)).toEqual([['straight', 'Hawthorne Lane'], ['arrive', null]])
   })
 
+  test('crossing to the other side of the street walked along says so', () => {
+    const route = walk(
+      [[0, 300], [270, 15], [0, 300]],
+      [
+        { at: 0, type: 'depart', streetName: 'Sterling Place' },
+        { at: 300, modifier: 'left' },
+        { at: 315, modifier: 'right', streetName: 'Sterling Place' },
+      ],
+      [{ startDistance: 300, endDistance: 315, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Sterling Place' }],
+    )
+    expect(summary(route)).toEqual([['straight', 'Sterling Place'], ['straight', 'Sterling Place'], ['arrive', null]])
+    expect(route.steps[1].crossing).toEqual({ road: 'Sterling Place', signals: true, first: true })
+  })
+
   test('the kinks of a corner and its crosswalk are one turn, crossing after it', () => {
     const route = walk(
       [[90, 300], [0, 15], [0, 300]],

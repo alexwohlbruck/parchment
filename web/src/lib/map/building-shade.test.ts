@@ -79,7 +79,8 @@ describe('terrain-aware building shade', () => {
     // The buildings, the cast shadow and the occlusion seed all project the
     // same footprints; one of them left at zero puts that pass out of register
     // with the other two.
-    expect(source.match(/get_elevation\(a_centroid\)/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(source).not.toContain('get_elevation(a_centroid)')
+    expect(source.match(/anchor_elevation\(a_centroid\)/g)?.length).toBeGreaterThanOrEqual(4)
   })
 
   test('the centroid attribute is bound from MapLibre\'s own buffer', () => {

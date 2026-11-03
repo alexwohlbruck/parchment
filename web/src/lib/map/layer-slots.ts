@@ -44,7 +44,7 @@ type StyleLayer = BrunnelLayer
 /** Anything the transit overlay draws, which is never basemap ground. */
 const OVERLAY_PREFIX = 'portolan-'
 
-const isOverlay = (l: StyleLayer) => l.id.startsWith(OVERLAY_PREFIX)
+export const isOverlay = (l: { id: string }) => l.id.startsWith(OVERLAY_PREFIX)
 
 /**
  * The first stroke the basemap draws — rivers, then the road network.

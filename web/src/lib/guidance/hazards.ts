@@ -21,6 +21,9 @@ const ALERT_KINDS = new Set<RouteHazardKind>([
   'low_clearance',
   'speed_camera',
   'movable_bridge',
+  'bike_lane_end',
+  'bike_lane_start',
+  'bike_track_start',
   'hazard',
 ])
 

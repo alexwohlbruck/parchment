@@ -1421,6 +1421,10 @@
         "low_clearance": "Low clearance ahead",
         "speed_camera": "Speed camera ahead",
         "movable_bridge": "Drawbridge ahead",
+        "dismount": "Walk your bike ahead",
+        "bike_lane_end": "Bike lane ends ahead, merge with traffic",
+        "bike_lane_start": "Join the bike lane ahead",
+        "bike_track_start": "Join the protected bike lane ahead",
         "hazard": "Hazard ahead"
       },
       "useLanes": "{action}. Use {lanes}",
@@ -1711,6 +1715,9 @@
       "toll": "Toll",
       "speed_camera": "Speed camera",
       "movable_bridge": "Drawbridge",
+      "bike_lane_end": "Bike lane ends",
+      "bike_lane_start": "Bike lane starts",
+      "bike_track_start": "Protected bike lane",
       "hazard": "Hazard"
     },
     "hazardCounts": {

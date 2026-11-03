@@ -1387,6 +1387,10 @@
         "low_clearance": "Gálibo reducido más adelante",
         "speed_camera": "Radar de velocidad más adelante",
         "movable_bridge": "Puente móvil más adelante",
+        "dismount": "Más adelante, bájate de la bici",
+        "bike_lane_end": "El carril bici se acaba más adelante, incorpórate al tráfico",
+        "bike_lane_start": "Más adelante, entra en el carril bici",
+        "bike_track_start": "Más adelante, entra en el carril bici protegido",
         "hazard": "Peligro más adelante"
       },
       "useLanes": "{action}. Usa {lanes}",
@@ -1677,6 +1681,9 @@
       "toll": "Peaje",
       "speed_camera": "Radar",
       "movable_bridge": "Puente móvil",
+      "bike_lane_end": "Fin del carril bici",
+      "bike_lane_start": "Empieza el carril bici",
+      "bike_track_start": "Carril bici protegido",
       "hazard": "Peligro"
     },
     "hazardCounts": {

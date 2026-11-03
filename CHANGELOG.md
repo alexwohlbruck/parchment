@@ -4,6 +4,8 @@
 
 ### Changed
 
+* The map lays out each tile once as it opens, rather than two or three times over, so 3D city views finish drawing a couple of seconds sooner.
+
 ### Fixed
 
 ## [0.19.0] - 2026-11-03

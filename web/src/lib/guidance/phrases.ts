@@ -8,6 +8,7 @@ import { bannerDistance } from './guidance-display'
 import type { Handoff } from './handoff'
 import { formatDurationLong } from '@/lib/time-format'
 import { inline } from './instructions/instruction-text'
+import { STATION_STEP_TYPES } from './station-steps'
 
 type TFn = (key: string, named?: Record<string, unknown>) => string
 
@@ -27,6 +28,7 @@ export function spokenDistance(meters: number, metric: boolean, t: TFn): string 
 function maneuverPhrase(instruction: RouteInstruction, t: TFn): string {
   const kind = maneuverKind(instruction)
   if (kind === 'board') return t('guidance.voice.maneuvers.boardAt', { stop: instruction.streetName ?? '' })
+  if (STATION_STEP_TYPES.has(instruction.type)) return t(`guidance.voice.maneuvers.${instruction.type}`)
   const action = kind === 'roundabout' && instruction.exitNumber
     ? t('guidance.voice.maneuvers.roundaboutExit', { exit: instruction.exitNumber })
     : t(`guidance.voice.maneuvers.${kind}`)

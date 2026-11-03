@@ -336,3 +336,32 @@ describe('Spanish', () => {
     expect(voiceText(turnRight(route, { lanes }), tEs)).toBe('En el segundo semáforo, usa el segundo carril por la derecha para girar a la derecha hacia Trade Street')
   })
 })
+
+describe('stairs', () => {
+  const stairs = (averageSlope: number, length = 40) =>
+    city({ mode: 'walking', right: { streetName: undefined }, edges: [{ startDistance: 600, endDistance: 600 + length, roadClass: 'steps', averageSlope }] })
+  const step = (route: NavRoute) => richInstruction(route, route.steps[1], { from: 560, speed: 1.4 })
+
+  test('say which way they go, keeping the side', () => {
+    expect(voiceText(step(stairs(10)), t)).toBe('Take the stairs up on your right')
+    expect(voiceText(step(stairs(-25, 10)), t)).toBe('Take the stairs down on your right')
+    expect(voiceText(step(stairs(10)), tEs)).toBe('Sube por las escaleras a tu derecha')
+  })
+
+  test('a rise too small for the elevation model to tell stays unsaid', () => {
+    expect(voiceText(step(stairs(10, 5)), t)).toBe('Take the stairs on your right')
+  })
+
+  test('indoor levels outrank the grade', () => {
+    const route = city({
+      mode: 'walking',
+      right: { streetName: undefined },
+      edges: [
+        { startDistance: 560, endDistance: 600, roadClass: 'footway', level: '1' },
+        { startDistance: 600, endDistance: 615, roadClass: 'steps', averageSlope: 10 },
+        { startDistance: 615, endDistance: 700, roadClass: 'footway', level: '0' },
+      ],
+    })
+    expect(voiceText(step(route), t)).toBe('Take the stairs down to level 0')
+  })
+})

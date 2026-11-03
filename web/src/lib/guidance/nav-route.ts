@@ -7,11 +7,13 @@ import type {
   RouteHazard,
   RouteInstruction,
 } from '@/types/directions.types'
-import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan } from '@server/types/unified-routing.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan, StationEntrance } from '@server/types/unified-routing.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { walkingSteps } from './walk-steps'
+import { stationSteps } from './station-steps'
+import type { Vertical } from './vertical'
 
 export interface NavSegmentInput {
   lineColor?: string | null
@@ -32,6 +34,11 @@ export interface StepCrossing {
   first: boolean
 }
 
+/** A station entered at, or left by, one of its entrances. */
+export interface StationVisit extends StationEntrance {
+  exit: boolean
+}
+
 export interface NavStep {
   index: number
   segmentIndex: number
@@ -39,6 +46,9 @@ export interface NavStep {
   instruction: RouteInstruction
   lanePlan?: LanePlan
   crossing?: StepCrossing
+  station?: StationVisit
+  /** Switchbacks merged into this one step. */
+  ramp?: { direction?: Vertical; bridge: boolean }
 }
 
 export interface NavSegment {
@@ -161,12 +171,13 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
   hazards.sort((a, b) => a.startDistance - b.startDistance)
   const cumulative = Float64Array.from(distances)
   const at = (s: number) => pointAt({ points, cumulative, length: offset }, s)
+  const line = { at, edges, segments }
   return {
     points,
     cumulative,
     length: offset,
     segments,
-    steps: walkingSteps(steps, { at, edges, segments }),
+    steps: stationSteps(walkingSteps(steps, line), line),
     edges,
     hazards,
     drivingSide: inputs.find(i => i.drivingSide)?.drivingSide ?? 'right',

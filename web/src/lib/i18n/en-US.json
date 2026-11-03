@@ -1364,7 +1364,12 @@
         "roundaboutExit": "At the roundabout, take exit {exit}",
         "arrive": "Arrive",
         "board": "Board",
-        "boardAt": "Board at {stop}"
+        "boardAt": "Board at {stop}",
+        "enterStation": "Enter the station",
+        "exitStation": "Leave the station",
+        "escalator": "Take the escalator",
+        "elevator": "Take the elevator",
+        "stairs": "Take the stairs"
       },
       "onto": "{action} onto {road}",
       "in": "In {distance}, {action}",
@@ -1484,9 +1489,66 @@
       "stairs": {
         "left": "Take the stairs on your left",
         "right": "Take the stairs on your right",
-        "ahead": "Take the stairs"
+        "ahead": "Take the stairs",
+        "up": {
+          "left": "Take the stairs up on your left",
+          "right": "Take the stairs up on your right",
+          "ahead": "Take the stairs up"
+        },
+        "down": {
+          "left": "Take the stairs down on your left",
+          "right": "Take the stairs down on your right",
+          "ahead": "Take the stairs down"
+        }
+      },
+      "escalator": {
+        "ahead": "Take the escalator",
+        "up": "Take the escalator up",
+        "down": "Take the escalator down"
+      },
+      "elevator": {
+        "ahead": "Take the elevator",
+        "up": "Take the elevator up",
+        "down": "Take the elevator down"
+      },
+      "floorTo": {
+        "level": "{action} to level {level}",
+        "platform": "{action} to the platform",
+        "street": "{action} to the street"
+      },
+      "station": {
+        "enter": {
+          "refName": "Enter the station at entrance {ref}, {name}",
+          "ref": "Enter the station at entrance {ref}",
+          "name": "Enter the station at {name}",
+          "plain": "Enter the station"
+        },
+        "exit": {
+          "refName": "Take exit {ref}, {name}",
+          "ref": "Take exit {ref}",
+          "name": "Take the exit to {name}",
+          "plain": "Leave the station"
+        }
       },
       "footbridge": "Use the pedestrian bridge",
+      "ramp": {
+        "ahead": "Follow the ramp",
+        "up": "Follow the ramp up",
+        "down": "Follow the ramp down",
+        "bridge": "Follow the ramp up to the bridge"
+      },
+      "passage": {
+        "building": "Go through the passage",
+        "arcade": "Walk through the arcade",
+        "indoor": "Go inside",
+        "underpass": "Go through the underpass"
+      },
+      "intoPassage": {
+        "building": "{action} into the passage",
+        "arcade": "{action} into the arcade",
+        "indoor": "{action} and go inside",
+        "underpass": "{action} into the underpass"
+      },
       "crosswalk": "Cross at the crosswalk",
       "crosswalkSignals": "Cross at the light",
       "crosswalkRoad": "Cross {road} at the crosswalk",
@@ -1508,6 +1570,31 @@
       "turnAroundAlong": "Turn around to begin your route, then head {heading} along {road}",
       "toward": "{action} toward {destination}",
       "followSigns": "{action}, following signs for {destination}",
+      "twoStage": {
+        "left": "Go straight across, then turn left",
+        "right": "Go straight across, then turn right"
+      },
+      "bikeLane": {
+        "left": "{action} and use the bike lane on the left",
+        "right": "{action} and use the bike lane on the right"
+      },
+      "dismount": {
+        "walk": "Walk your bike {place}",
+        "walkFor": "Walk your bike {place} for {distance}",
+        "carry": {
+          "up": "Carry your bike up the stairs",
+          "down": "Carry your bike down the stairs",
+          "any": "Carry your bike on the stairs"
+        },
+        "places": {
+          "sidewalk": "on the sidewalk",
+          "path": "along the path",
+          "plaza": "through the plaza",
+          "crosswalk": "across the crosswalk",
+          "bridge": "across the bridge",
+          "park": "through the park"
+        }
+      },
       "infinitive": {
         "straight": "continue straight",
         "slight-left": "bear left",
@@ -1581,7 +1668,13 @@
         "exit": "Exit {number}",
         "exitToward": "Exit {number} · {destination}",
         "toward": "Toward {destination}",
-        "roundaboutExit": "Exit {exit}"
+        "roundaboutExit": "Exit {exit}",
+        "bikeLane": {
+          "left": "Bike lane on the left",
+          "right": "Bike lane on the right"
+        },
+        "twoStage": "Two-stage turn",
+        "dismount": "Walk your bike"
       }
     },
     "sound": {

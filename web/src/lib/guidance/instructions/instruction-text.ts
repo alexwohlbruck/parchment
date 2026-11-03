@@ -4,13 +4,16 @@
 import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RoadLabel } from '../guidance-display'
+import { STATION_STEP_TYPES } from '../station-steps'
 import type { Action, Anchor, LaneAdvice, RichInstruction } from './instruction.types'
 
 export type TFn = (key: string, named?: Record<string, unknown>) => string
 
 const K = 'guidance.rich'
 const MAX_ORDINAL = 8
-const ONTO = new Set<Action['kind']>(['turn', 'end-of-road', 'fork', 'roundabout'])
+const ONTO = new Set<Action['kind']>(['turn', 'end-of-road', 'fork', 'roundabout', 'two-stage'])
+/** Actions the banner names over the road they lead onto. */
+const OWN_TITLE = new Set<Action['kind']>(['crosswalk', 'station'])
 const SIGNPOSTED = new Set<Action['kind']>(['fork', 'stay', 'exit'])
 const TURNS = new Set<ManeuverKind>(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn'])
 
@@ -33,6 +36,26 @@ function crossingText(crossing: { signals: boolean; road?: string }, t: TFn): st
   return crossing.road ? t(`${K}.${key}Road`, { road: crossing.road }) : t(`${K}.${key}`)
 }
 
+type Climb = Extract<Action, { kind: 'stairs' | 'escalator' | 'elevator' }>
+
+/** "Take the stairs up on your left", "Take the escalator down to the platform", "Take the elevator to level 2". */
+function climbText(action: Climb, t: TFn): string {
+  const { direction, level, to } = action
+  const destination = to ?? (level != null ? 'level' : null)
+  const way = action.kind === 'elevator' && destination === 'level' ? undefined : direction
+  const side = destination ? 'ahead' : action.kind === 'stairs' ? action.side ?? 'ahead' : 'ahead'
+  const text = action.kind === 'stairs'
+    ? t(way ? `${K}.stairs.${way}.${side}` : `${K}.stairs.${side}`)
+    : t(`${K}.${action.kind}.${way ?? 'ahead'}`)
+  return destination ? t(`${K}.floorTo.${destination}`, { action: text, level }) : text
+}
+
+function stationText(action: Extract<Action, { kind: 'station' }>, t: TFn): string {
+  const key = `${K}.station.${action.exit ? 'exit' : 'enter'}`
+  if (action.ref) return t(action.name ? `${key}.refName` : `${key}.ref`, { ref: action.ref, name: action.name })
+  return action.name ? t(`${key}.name`, { name: action.name }) : t(`${key}.plain`)
+}
+
 function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
   switch (action.kind) {
     case 'turn':
@@ -51,9 +74,21 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
       return nth ? t(`${K}.roundabout`, { ordinal: nth }) : t(`${K}.roundaboutExit`, { exit: action.exit })
     }
     case 'stairs':
-      return t(`${K}.stairs.${action.side ?? 'ahead'}`)
+    case 'escalator':
+    case 'elevator':
+      return climbText(action, t)
+    case 'station':
+      return stationText(action, t)
     case 'footbridge':
       return t(`${K}.footbridge`)
+    case 'ramp':
+      return t(`${K}.ramp.${action.bridge ? 'bridge' : action.direction ?? 'ahead'}`)
+    case 'passage':
+      return maneuver === 'straight'
+        ? t(`${K}.passage.${action.passage}`)
+        : t(`${K}.intoPassage.${action.passage}`, { action: t(`guidance.voice.maneuvers.${maneuver}`) })
+    case 'two-stage':
+      return t(`${K}.twoStage.${action.side}`)
     case 'crosswalk':
       return crossingText(action, t)
     case 'arrive':
@@ -78,6 +113,7 @@ export function actionText(instruction: RichInstruction, t: TFn): string {
 /** A step in the router's words, or in ours where merging steps left it none. */
 export function stepText(instruction: RouteInstruction, t: TFn): string {
   if (instruction.text) return instruction.text
+  if (STATION_STEP_TYPES.has(instruction.type)) return t(`guidance.voice.maneuvers.${instruction.type}`)
   const action = t(`guidance.voice.maneuvers.${maneuverKind(instruction)}`)
   const road = instruction.streetName || instruction.streetRef
   return road ? t('guidance.voice.onto', { action, road }) : action
@@ -86,7 +122,7 @@ export function stepText(instruction: RouteInstruction, t: TFn): string {
 /** What the banner leads with: the road taken, else the maneuver in words. */
 export function bannerTitle(instruction: RichInstruction, t: TFn): string {
   const { target, action } = instruction
-  return target?.kind === 'named' && action.kind !== 'crosswalk' ? target.name : maneuverText(instruction, t)
+  return target?.kind === 'named' && !OWN_TITLE.has(action.kind) ? target.name : maneuverText(instruction, t)
 }
 
 function maneuverText(instruction: RichInstruction, t: TFn): string {
@@ -108,6 +144,7 @@ function maneuverText(instruction: RichInstruction, t: TFn): string {
     if (action.kind === 'exit') return t(`${K}.toward`, { action: baseAction(action, maneuver, t), destination: toward })
     return t(`${K}.followSigns`, { action: t(`guidance.voice.maneuvers.${maneuver}`), destination: toward })
   }
+  if (maneuver === 'board' && target?.kind === 'named') return t('guidance.voice.maneuvers.boardAt', { stop: target.name })
   const base = baseAction(action, maneuver, t)
   const onto = road && ONTO.has(action.kind) && !(action.kind === 'roundabout' && action.through)
   if (onto) return t('guidance.voice.onto', { action: base, road })

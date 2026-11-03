@@ -28,8 +28,11 @@ function instructionFor(source: RichSource, step: NavStep, then: NavStep | null 
   return chained(first, next, then.startDistance - step.startDistance, source.speed)
 }
 
+/** Actions at something the traveller can see, which places them as a landmark would. */
+const SEEN = new Set<RichInstruction['action']['kind']>(['crosswalk', 'stairs', 'escalator', 'elevator', 'station', 'passage', 'ramp'])
+
 /** A landmark already says where the action is, so a distance on top of it only repeats that. */
-const placed = (instruction: RichInstruction) => !!instruction.anchor || instruction.action.kind === 'crosswalk' || !!instruction.crossing?.first
+const placed = (instruction: RichInstruction) => !!instruction.anchor || SEEN.has(instruction.action.kind) || !!instruction.crossing?.first
 
 function ahead(instruction: RichInstruction, distance: number, metric: boolean, t: TFn): string {
   const text = voiceText(instruction, t)

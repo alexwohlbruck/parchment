@@ -7,6 +7,7 @@ import { stepRoad, travelModeAt, type RoadLabel } from '../guidance-display'
 import { laneHint, type LanePlan } from '../lanes'
 import { angleDelta } from '../spring'
 import { cardinal } from '../turn-around'
+import { CLIMB_LOOKAHEAD_METERS, verticalAt } from '../vertical'
 import { landmarkAnchor } from './anchors'
 import type { Action, LaneAdvice, RichInstruction, Side } from './instruction.types'
 
@@ -71,8 +72,12 @@ function roundaboutAction(route: NavRoute, step: NavStep): Action {
 /** On foot or by bike: the path's own shape, when it's stairs, a footbridge or a crossing. */
 function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: string): Action | null {
   const side = kind === 'uturn' ? null : sideOf(kind)
+  const climb = verticalAt(route, step.startDistance, step.startDistance + CLIMB_LOOKAHEAD_METERS)
+  if (climb) {
+    const { via, start: _start, end: _end, indoor: _indoor, ...change } = climb
+    return via === 'stairs' ? { kind: 'stairs', side, ...change } : { kind: via, ...change }
+  }
   const past = edgeAt(route, step.startDistance + PAST_TURN_METERS)
-  if (past?.roadClass === 'steps') return { kind: 'stairs', side }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   // Walking steps already know their crossing; only a straight one is the crossing itself.
   if (mode === 'walking') {
@@ -115,6 +120,7 @@ function action(route: NavRoute, step: NavStep, kind: ManeuverKind, context: Ins
   const side = sideOf(kind)
   if (kind === 'arrive') return { kind: 'arrive', side: context.destinationSide ?? null, home: !!context.home }
   if (kind === 'roundabout') return roundaboutAction(route, step)
+  if (step.station) return { kind: 'station', ...step.station }
   if (ON_FOOT.has(mode)) {
     const onPath = pathAction(route, step, kind, mode)
     if (onPath) return onPath
@@ -143,7 +149,7 @@ export function laneAdvice(plan: LanePlan): LaneAdvice | undefined {
 export function richInstruction(route: NavRoute, step: NavStep, context: InstructionContext): RichInstruction {
   const maneuver = maneuverKind(step.instruction)
   const instruction: RichInstruction = { action: action(route, step, maneuver, context), maneuver }
-  if (maneuver === 'arrive') return instruction
+  if (maneuver === 'arrive' || instruction.action.kind === 'station') return instruction
   const target = targetRoad(route, step)
   if (target) instruction.target = target
   const park = target?.kind !== 'named' && ON_FOOT.has(travelModeAt(route, step.startDistance)) ? enteredPark(route, step) : undefined

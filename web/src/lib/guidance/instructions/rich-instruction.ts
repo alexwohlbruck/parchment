@@ -76,8 +76,9 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   // Walking steps already know their crossing; only a straight one is the crossing itself.
   if (mode === 'walking') {
-    const crossing = step.crossing
-    return crossing && kind === 'straight' ? { kind: 'crosswalk', signals: crossing.signals, ...(crossing.road && { road: crossing.road }) } : null
+    if (!step.crossing || kind !== 'straight') return null
+    const { first: _first, ...crossing } = step.crossing
+    return { kind: 'crosswalk', ...crossing }
   }
   // Roads carry the crossing tag of junctions they pass through; only a crossing path is one to cross.
   const crossing = route.edges.find(
@@ -87,7 +88,8 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
   if (!crossing) return null
   const onto = step.instruction.streetName || step.instruction.streetRef
   if (onto && (TURNING.has(kind) || crossing.startDistance > step.startDistance + PAST_TURN_METERS)) return null
-  return { kind: 'crosswalk', signals: crossing.crossing!.toLowerCase() === 'traffic_signals', ...(crossing.crossingName && { road: crossing.crossingName }) }
+  const signals = crossing.crossing!.toLowerCase() === 'traffic_signals'
+  return { kind: 'crosswalk', signals, light: signals, ...(crossing.crossingName && { road: crossing.crossingName }) }
 }
 
 /** The park a walker steps into at the maneuver. */

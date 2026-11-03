@@ -4,6 +4,7 @@
 import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RoadLabel } from '../guidance-display'
+import type { CrossingWay } from '../nav-route'
 import type { Action, Anchor, LaneAdvice, RichInstruction } from './instruction.types'
 
 export type TFn = (key: string, named?: Record<string, unknown>) => string
@@ -28,9 +29,19 @@ function roadText(road: RoadLabel, t: TFn): string {
   return road.kind === 'named' ? road.name : t(`${K}.roads.${road.key}`)
 }
 
-function crossingText(crossing: { signals: boolean; road?: string }, t: TFn): string {
-  const key = crossing.signals ? 'crosswalkSignals' : 'crosswalk'
-  return crossing.road ? t(`${K}.${key}Road`, { road: crossing.road }) : t(`${K}.${key}`)
+/** `bare` inside a turn, where the corner already says which crosswalk. */
+function crossingText(crossing: CrossingWay & { road?: string; signals: boolean }, t: TFn, bare = false): string {
+  const { road } = crossing
+  const way = (key: string, named: Record<string, unknown> = {}) => t(`${K}.crossings.${key}${road ? 'Road' : ''}`, { road, ...named })
+  if (crossing.diagonal) return t(`${K}.crossings.diagonal`)
+  if (crossing.button) return way('button')
+  if (crossing.island) return way(crossing.signals ? 'median' : 'island')
+  if (crossing.unmarked) return way('unmarked')
+  if (crossing.then && road) return t(`${K}.crossings.then`, { road, next: crossing.then })
+  if (crossing.at) return way(crossing.light ? 'atLight' : 'at', { street: crossing.at })
+  if (bare && road && !crossing.light) return t(`${K}.crossings.bare`, { road })
+  const key = crossing.light ? 'crosswalkSignals' : 'crosswalk'
+  return road ? t(`${K}.${key}Road`, { road }) : t(`${K}.${key}`)
 }
 
 function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
@@ -66,13 +77,23 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
 
 /** The instruction itself, with its road, signs and the street crossed on the way: "Take exit 12 toward Brooklyn". */
 export function actionText(instruction: RichInstruction, t: TFn): string {
-  const text = maneuverText(instruction, t)
-  const { crossing } = instruction
-  if (!crossing) return text
-  const cross = crossingText(crossing, t)
-  return crossing.first
-    ? t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
-    : t(`${K}.crossAfter`, { action: text, crossing: inline(cross) })
+  const text = crossedText(instruction, t)
+  return instruction.arrival ? t(`${K}.thenArrive.${instruction.arrival}`, { action: text }) : text
+}
+
+function crossedText(instruction: RichInstruction, t: TFn): string {
+  const { crossing, target } = instruction
+  if (!crossing) return maneuverText(instruction, t)
+  const cross = crossingText(crossing, t, true)
+  if (!crossing.first) return t(`${K}.crossAfter`, { action: maneuverText(instruction, t), crossing: inline(cross) })
+  const road = target?.kind === 'named' ? target.name : null
+  // Crossed the street it then heads back along: doubling back to cross at the corner.
+  const text = instruction.maneuver === 'uturn' && !crossing.road
+    ? road ? t(`${K}.headBack`, { road }) : t(`${K}.headBackUnnamed`)
+    : road && road === crossing.road
+      ? t(`${K}.ontoIt`, { action: maneuverText({ ...instruction, target: undefined }, t) })
+      : maneuverText(instruction, t)
+  return t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
 }
 
 /** A step in the router's words, or in ours where merging steps left it none. */
@@ -164,7 +185,7 @@ export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true }
 
 /** The banner's second line: the street crossed, the landmark, else the exit or where the signs point. */
 export function bannerCue(instruction: RichInstruction, t: TFn): string | null {
-  if (instruction.crossing) return crossingText(instruction.crossing, t)
+  if (instruction.crossing) return crossingText(instruction.crossing, t, true)
   if (instruction.anchor) return anchorText(instruction.anchor, t)
   const { action, toward } = instruction
   if (action.kind === 'exit' && action.number) return toward ? t(`${K}.cues.exitToward`, { number: action.number, destination: toward }) : t(`${K}.cues.exit`, { number: action.number })

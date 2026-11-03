@@ -24,6 +24,12 @@
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
 
+* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue, then cross East 39th Street at the light", and crossing a side street goes unannounced.
+
+* The instruction card now always says the same thing as the voice.
+
+* Traffic lights on walking and bike routes sit at their intersection instead of mid-block.
+
 ## [0.18.4] - 2026-10-31
 
 ### Added

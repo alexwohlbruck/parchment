@@ -1,12 +1,27 @@
 /**
- * Footprints carved into the terrain's elevation tiles as they load: one
- * owner's set at a time, each tile carved once a round, a few a frame.
+ * Shapes carved into the terrain's elevation tiles as they load: each
+ * owner's set kept apart and carved in rank order, each tile carved once a
+ * round, a few a frame. One carver is shared by every layer that carves.
  */
 import type { Bounds } from '@/lib/map-decks/decks'
 import { carveTile, tileUnder, type Elevation, type Footprint } from './carve'
+import { fillTile, type GroundFill } from './fill'
 
 /** Milliseconds a frame may spend carving tiles. */
 const CARVE_BUDGET = 16
+
+/** Something carved into the ground: where it reaches, and how it changes a tile there; whether it did. */
+export type Carving = { bounds: Bounds; carve: (tile: Elevation, at: [number, number, number]) => boolean }
+
+export const cutCarving = (f: Footprint): Carving => ({ bounds: f.bounds, carve: (tile, at) => carveTile(tile, at, [f]) })
+
+export const fillCarving = (f: GroundFill): Carving => ({ bounds: f.bounds, carve: (tile, at) => fillTile(tile, at, f) })
+
+/**
+ * One owner's carvings. `rank` orders owners, lowest first, so a cut lands
+ * in ground already filled; `focus` asks for finer terrain under them.
+ */
+type Owned = { carvings: Map<string, Carving>; rank: number; focus: boolean }
 
 /** A MapLibre DEM tile's pixels, read and written in metres. */
 function elevation(dem: any): Elevation {
@@ -27,37 +42,42 @@ function elevation(dem: any): Elevation {
 }
 
 export class TerrainCarver {
-  private carving = new Map<string, Footprint>()
+  private owners = new Map<string, Owned>()
+  private ordered: Carving[] = []
   /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
   private carved = new WeakMap<object, number>()
   private rounds = 0
-  /** Where finer terrain has been asked for. */
-  private focused: Bounds[] = []
 
-  /** `focus` is told where footprints are carved, so finer terrain is served there. */
-  constructor(private map: () => any, private focus?: (areas: Bounds[]) => void) {}
+  /** `focus` is told, per owner that asks, where it carves, so finer terrain is served there. */
+  constructor(private map: () => any, private focus?: (areas: Bounds[], owner: string) => void) {}
 
   get size() {
-    return this.carving.size
+    return this.ordered.length
   }
 
-  /** Bumped with every new set of footprints. */
+  /** Bumped with every new set of carvings. */
   get round() {
     return this.rounds
   }
 
-  /** Take on a new set of footprints: carved over what is there, or, where one has gone, into freshly loaded ground. */
-  set(next: Map<string, Footprint>) {
-    if (next.size === this.carving.size && [...next.keys()].every(k => this.carving.has(k))) return
-    const removed = [...this.carving].filter(([key]) => !next.has(key)).map(([, f]) => f.bounds)
-    const areas = [...next.values()].map(f => f.bounds)
-    const reached = areas.filter(a => !this.focused.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
-    this.carving = next
-    this.focused = areas
-    this.focus?.(areas)
+  /** Take on an owner's new set: carved over what is there, or, where one has gone, into freshly loaded ground. */
+  set(owner: string, next: Map<string, Carving>, { rank = 0, focus = false } = {}) {
+    const had = this.owners.get(owner)?.carvings ?? new Map<string, Carving>()
+    if (next.size === had.size && [...next.keys()].every(k => had.has(k))) return
+    const removed = [...had].filter(([key]) => !next.has(key)).map(([, c]) => c.bounds)
+    if (next.size) this.owners.set(owner, { carvings: next, rank, focus })
+    else this.owners.delete(owner)
+    this.ordered = [...this.owners.values()].sort((a, b) => a.rank - b.rank).flatMap(o => [...o.carvings.values()])
     this.rounds++
+    if (focus) {
+      const areas = [...next.values()].map(c => c.bounds)
+      const before = [...had.values()].map(c => c.bounds)
+      const reached = areas.filter(a => !before.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
+      this.focus?.(areas, owner)
+      this.reload(reached, tile => tile.state === 'errored')
+    }
+    // Every owner's carving is in the reloaded tiles again by the next frame: they are new tiles.
     this.reload(removed)
-    this.reload(reached, tile => tile.state === 'errored')
   }
 
   /** Whether an elevation tile has been carved this round. */
@@ -74,11 +94,10 @@ export class TerrainCarver {
     }
   }
 
-  /** Carve the footprints into each loaded elevation tile not yet carved this round. */
+  /** Carve every owner's shapes into each loaded elevation tile not yet carved this round. */
   carveTiles() {
-    if (!this.carving.size) return
+    if (!this.ordered.length) return
     const map = this.map()
-    const footprints = [...this.carving.values()]
     const start = performance.now()
     let changed = false
     for (const tile of this.tiles()) {
@@ -89,7 +108,11 @@ export class TerrainCarver {
       }
       this.carved.set(tile.dem, this.rounds)
       const { z, x, y } = tile.tileID.canonical
-      if (!carveTile(elevation(tile.dem), [z, x, y], footprints)) continue
+      const at: [number, number, number] = [z, x, y]
+      const dem = elevation(tile.dem)
+      let carved = false
+      for (const c of this.ordered) if (tileUnder(at, [c.bounds]) && c.carve(dem, at)) carved = true
+      if (!carved) continue
       tile.needsTerrainPrepare = true
       tile.needsHillshadePrepare = true
       changed = true
@@ -97,11 +120,10 @@ export class TerrainCarver {
     if (changed) map?.triggerRepaint()
   }
 
-  /** Let go of everything carved, reloading the terrain it changed. */
-  clear() {
-    this.focus?.([])
-    if (this.carving.size) this.map()?.terrain?.tileManager?.tileManager?.reload(true)
-    this.carving = new Map()
+  /** Let go of an owner's carvings, reloading the terrain they changed. */
+  clear(owner: string) {
+    if (this.owners.get(owner)?.focus) this.focus?.([], owner)
+    this.set(owner, new Map())
   }
 
   tiles(): any[] {
@@ -110,7 +132,7 @@ export class TerrainCarver {
 
   /**
    * Load the elevation tiles under these areas afresh: uncarved where a
-   * footprint has gone, and finer where one has arrived on a tile that came back
+   * carving has gone, and finer where one has arrived on a tile that came back
    * empty. Only those tiles, so the rest of the terrain, and the tiles cached off screen, are kept.
    */
   private reload(areas: Bounds[], which: (tile: any) => boolean = () => true) {

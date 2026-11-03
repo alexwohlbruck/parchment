@@ -37,7 +37,7 @@
  */
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
-  elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
+  baseSink, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
@@ -48,6 +48,11 @@ import { frameTask } from '@/lib/map/rendering/frame-task'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
+import { mercator } from '@/lib/map-decks/decks'
+import { terrainSampler, type HeightsLoader, type TerrainSampler } from '@/lib/map-decks/ground'
+import { fillCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
+import { fillAt, groundFill, type GroundFill } from '@/lib/map-terrain/fill'
+import { TERRAIN_TILES } from '@/lib/map-style/terrain'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 
@@ -84,13 +89,8 @@ const EVICT_EVERY_MS = 5_000
  */
 const LINGER_MS = 1500
 
-/**
- * Metres a landmark is set below the ground sampled under it. The terrain is
- * read on a coarse grid and drawn as a finer mesh, so it can dip a little
- * between samples; a base that floats over the dip shows daylight under the
- * building, which is worse than burying a plinth.
- */
-const GROUND_SINK = 0.5
+/** Its name among the terrain carver's owners; ranked first, so a tunnel is cut into filled ground. */
+const CARVER_OWNER = 'landmarks'
 
 /**
  * Model metres over which a landmark goes from following the ground to
@@ -124,6 +124,9 @@ const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 
  * 1 stands a raised model rigid on the mean, `u_ground_at` measures the blend
  * from the real ground rather than the model's own, for a sunk one, and
  * `u_floor` clips what goes under the flat map with the terrain off.
+ *
+ * `u_sink` pushes the base under the terrain (see `baseSink`): by `.x`, every
+ * vertex no more than `.y` above the ground it meets.
  */
 const GROUND = `
   uniform vec2 u_ground[${GROUND_GRID * GROUND_GRID}];
@@ -133,6 +136,7 @@ const GROUND = `
   uniform float u_rigid;
   uniform float u_ground_at;
   uniform float u_floor;
+  uniform vec2 u_sink;
   vec2 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
   /**
    * At a plan point, held at the grid's edge beyond it: x the map's rise, y
@@ -148,11 +152,14 @@ const GROUND = `
       mix(groundAt(c.x, c.y + 1), groundAt(c.x + 1, c.y + 1), f.x),
       f.y);
   }
-  vec3 onGround(vec3 p) {
+  vec3 drape(vec3 p, float sink) {
     vec2 g = groundUnder(p.xz);
-    float follow = (1.0 - u_rigid) * (1.0 - clamp((p.y - g.y - u_ground_at) / u_blend, 0.0, 1.0));
-    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow), 0.0);
-  }`
+    float above = p.y - g.y - u_ground_at;
+    float follow = (1.0 - u_rigid) * (1.0 - clamp(above / u_blend, 0.0, 1.0));
+    float base = (1.0 - u_rigid) * step(above, u_sink.y) * sink;
+    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow) - base, 0.0);
+  }
+  vec3 onGround(vec3 p) { return drape(p, u_sink.x); }`
 
 /** Outside the clip volume, where a vertex goes to not be drawn. */
 const OFF_SCREEN = 'vec4(0.0, 0.0, 2.0, 1.0)'
@@ -412,7 +419,8 @@ const GLOW_VS = `#version 300 es
   layout(location = 0) in vec2 a_corner;
   out vec2 v_corner;
   void main() {
-    vec3 centre = u_local * onGround(u_points[gl_InstanceID]);
+    // At the door's true height: only the model's base is pushed under the ground.
+    vec3 centre = u_local * drape(u_points[gl_InstanceID], 0.0);
     // A door below the flat map's ground is not drawn, so neither is its glow.
     if (centre.z < u_floor - ${GLOW_FLOOR_SLACK.toFixed(1)}) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -451,7 +459,7 @@ const SHADOW_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
   uniform vec2 u_shear;
-  /** Metres the origin sits above the lowest ground under the model. */
+  /** Metres the origin sits above the lowest ground under the model: its elevation. */
   uniform float u_lift;
   /** cos and sin of the bearing, and the scale: map metres back to model plan. */
   uniform vec3 u_plan;
@@ -561,8 +569,8 @@ type Placement = Landmark & {
   /** The map's rise and the model's own ground, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
-  /** Metres the base was sunk below the lowest ground; 0 with terrain off. */
-  sink: number
+  /** How far its base is pushed under the terrain, and what counts as base, in model units; see `baseSink`. */
+  sink: { depth: number; band: number }
   /** How its elevation changes the way it meets the ground; see GROUND. */
   drape: ElevationDrape
   /** Whether it is close enough for its detail model; see `drawnModel`. */
@@ -617,6 +625,10 @@ export class LandmarkLayer {
    * reading it is a few hundred samples.
    */
   private grounds = new Map<string, ModelGround>()
+  /** The terrain filled under each placed model, by placement; see `map-terrain/fill.ts`. */
+  private fills = new Map<string, GroundFill>()
+  /** The terrain's own heights at one zoom, before anything is filled into them. */
+  private bare: TerrainSampler | null = null
   /** Buildings found inside a drawn landmark's footprint, by the last gather. */
   private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
@@ -648,6 +660,10 @@ export class LandmarkLayer {
       onAttribution?: (credits: string[]) => void
       /** How a landmark joins the map's flavor: its palette, and whether it is night. */
       flavor: LandmarkFlavor
+      /** Fills the terrain under each landmark, beside whatever else carves it; none without. */
+      carver?: TerrainCarver
+      /** Reads the terrain source's tiles, where something nearer than the network has them. */
+      heights?: HeightsLoader
     },
   ) {
     this.id = options.id
@@ -665,18 +681,18 @@ export class LandmarkLayer {
     }
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
+        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
         'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor'])
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
-        'u_rigid', 'u_ground_at', 'u_floor'])
+        'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     const vao = gl.createVertexArray()!
     const buffer = gl.createBuffer()!
     gl.bindVertexArray(vao)
@@ -694,16 +710,24 @@ export class LandmarkLayer {
     // Building tiles count too: they can arrive after the landmark's, and
     // the footprint search has to see them.
     const watched = new Set([this.options.source, ...(this.options.buildings ?? []).map(b => b.source)])
-    listen('sourcedata', (e: { sourceId?: string }) => {
+    listen('sourcedata', (e: { sourceId?: string; tile?: unknown }) => {
       if (!e?.sourceId) return
       // Elevation tiles too: a landmark placed before the ground under it
       // loaded was placed at 0.
-      if (watched.has(e.sourceId) || e.sourceId === map.getTerrain?.()?.source) this.invalidate()
+      if (watched.has(e.sourceId)) this.invalidate()
+      else if (e.sourceId === map.getTerrain?.()?.source) {
+        // A tile arriving fills its neighbours' borders from its own unfilled ground.
+        if (e.tile) this.options.carver?.recarveAround(e.tile)
+        this.invalidate()
+      }
     })
     // A landmark's minzoom is crossed by zooming, which no tile event reports.
     listen('zoomend', () => this.invalidate())
     // Terrain changes the ground every landmark stands on.
-    listen('terrain', () => this.invalidate())
+    listen('terrain', () => {
+      this.fills.clear()
+      this.invalidate()
+    })
     this.invalidate()
   }
 
@@ -717,6 +741,9 @@ export class LandmarkLayer {
     this.leaving = []
     this.hiddenFor.clear()
     this.grounds.clear()
+    this.fills.clear()
+    this.options.carver?.clear(CARVER_OWNER)
+    this.bare = null
     for (const model of this.models.values()) release(gl, model)
     this.models.clear()
     gl.deleteProgram(this.draw.program)
@@ -786,23 +813,31 @@ export class LandmarkLayer {
     const detailed = (l: Landmark) =>
       !!l.detail && zoom >= l.detail.zoom - (previous.get(l.id)?.detailed ? MINZOOM_HYSTERESIS : 0)
     const seen = new Set<string>()
-    this.placements = []
+    const wanted: Landmark[] = []
     for (const feature of features) {
       const landmark = parseLandmark(feature)
       if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
       seen.add(landmark.id)
-      this.placements.push(this.place(landmark, terrain, detailed(landmark)))
+      wanted.push(landmark)
     }
     // A landmark whose tile is between loads is still there: mid-zoom the
     // old tiles go before the new ones arrive, and the query sees neither.
+    // Placed again rather than kept: the terrain under it may have loaded,
+    // or changed level of detail, since.
     const view = this.view()
     for (const p of previous.values()) {
       if (seen.has(p.id) || zoom < minzoom(p) || !view(p)) continue
       seen.add(p.id)
-      // Placed again rather than kept: the terrain under it may have loaded,
-      // or changed level of detail, since.
-      this.placements.push(this.place(p, terrain, detailed(p)))
+      wanted.push(p)
     }
+    // Filled before any is placed, a frame for each new one: a big model's fill takes some milliseconds.
+    for (const landmark of wanted) {
+      if (!terrain || !this.fill(landmark)) continue
+      yield
+      if (!this.map) return
+    }
+    this.placements = wanted.map(landmark => this.place(landmark, terrain, detailed(landmark)))
+    this.carveFills()
     // The low model is always wanted, detailed or not: it is what stands in
     // until the detail model arrives, and its footprint is what hides the
     // buildings and samples the ground.
@@ -893,14 +928,17 @@ export class LandmarkLayer {
     const model = this.models.get(landmark.model)
     const footprint = model?.footprint
     let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * 2)
-    let base = 0, groundMean = 0, sink = 0
+    let base = 0, groundMean = 0
+    let own: ModelGround = { follows: false }
     if (sample) {
       const points = footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]
-      const own = footprint && model ? this.modelGround(landmark, model, sample) : { follows: false as const }
+      const fill = this.fills.get(placementKey(landmark))
       const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-      const lifts = groundLifts(points.map(sample), exaggeration, own, landmark.scale)
-      base = lifts.lowest - GROUND_SINK
-      sink = GROUND_SINK
+      const drawn = this.drawnGround(sample, fill, exaggeration)
+      if (footprint && model) own = this.modelGround(landmark, model, drawn)
+      const raw = points.map(p => (fill && drawn.filled(p) ? this.bareAt(p) : NaN))
+      const lifts = groundLifts(points.map(drawn.at), exaggeration, own, landmark.scale, raw)
+      base = lifts.lowest
       if (footprint) {
         ground = lifts.lifts
         groundMean = lifts.mean
@@ -912,23 +950,83 @@ export class LandmarkLayer {
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
     const drape = elevationDrape(landmark.elevation, landmark.scale, !!sample)
+    const sink = baseSink(own, landmark.scale, !!sample)
     const doors = new Float32Array(landmark.entrances.flat())
     return { ...landmark, placed, ground, groundMean, sink, drape, detailed, doors }
   }
 
   /**
-   * The ground a placed model was built on: flat, or the terrain. Read off
-   * the DEM under its contacts, raw — the map's heights come exaggerated —
-   * and kept once all of them have loaded.
+   * The ground as the terrain draws it, exaggerated: the map's, brought down
+   * to the fill under the model where its tiles have not been filled yet;
+   * and the ground before the fill, raw, where the fill reaches.
    */
-  private modelGround(landmark: Landmark, model: Model, sample: (point: [number, number]) => number): ModelGround {
+  private drawnGround(sample: (point: [number, number]) => number, fill: GroundFill | undefined, exaggeration: number) {
+    const filled = (point: [number, number]) => (fill ? fillAt(fill, mercator(point)) : null)
+    return {
+      at: (point: [number, number]) => {
+        const h = sample(point)
+        const f = h ? filled(point) : null
+        return f === null ? h : Math.min(h, f * exaggeration)
+      },
+      filled: (point: [number, number]) => filled(point) !== null,
+      unfilled: (point: [number, number]) => (filled(point) !== null ? this.bareAt(point) : sample(point) / exaggeration || NaN),
+    }
+  }
+
+  /** The terrain's raw height at a point before any fill, NaN until its tile is in. */
+  private bareAt(point: [number, number]): number {
+    return this.bareGround()?.ground.at(mercator(point)) ?? NaN
+  }
+
+  private bareGround(): TerrainSampler | null {
+    const heights = this.options.heights
+    this.bare = terrainSampler(this.map, this.bare, () => this.invalidate(), template => (heights && template === TERRAIN_TILES ? heights : undefined))
+    return this.bare
+  }
+
+  /**
+   * Work out the terrain filled under a landmark, once its model and the
+   * bare ground round it have loaded; whether it was worked out now. Not
+   * under a raised one: nothing of it meets the ground, and the plinth the
+   * map does not draw may be the terrain's.
+   */
+  private fill(landmark: Landmark): boolean {
+    const key = placementKey(landmark)
+    const coverage = this.models.get(landmark.model)?.coverage
+    if (!this.options.carver || this.fills.has(key) || !coverage || landmark.elevation > 0) return false
+    const bare = this.bareGround()
+    if (!bare) return false
+    const fill = groundFill(coverage, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
+    if (!fill) return false
+    this.fills.set(key, fill)
+    return true
+  }
+
+  /** Hand the fills under the landmarks drawn to the carver, and forget the rest. */
+  private carveFills() {
+    const carver = this.options.carver
+    if (!carver) return
+    const kept = new Map<string, GroundFill>()
+    for (const p of [...this.placements, ...this.leaving]) {
+      const key = placementKey(p)
+      const fill = this.fills.get(key)
+      if (fill) kept.set(key, fill)
+    }
+    this.fills = kept
+    carver.set(CARVER_OWNER, new Map([...kept].map(([key, fill]) => [key, fillCarving(fill)])))
+  }
+
+  /**
+   * The ground a placed model was built on: flat, or the terrain. Read off
+   * the DEM under its contacts, raw and unfilled — the map's heights come
+   * exaggerated — and kept once all of them have loaded.
+   */
+  private modelGround(landmark: Landmark, model: Model, ground: { unfilled: (point: [number, number]) => number }): ModelGround {
     const key = `${landmark.id} ${landmark.model} ${landmark.lng} ${landmark.lat} ${landmark.bearing} ${landmark.scale}`
     const known = this.grounds.get(key)
     if (known) return known
     const contacts = model.contacts ?? []
-    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    // 0 is a tile that has not loaded; see `place`.
-    const raw = contacts.map(([x, , z]) => sample(modelToLngLat(landmark, x, z)) / exaggeration || NaN)
+    const raw = contacts.map(([x, , z]) => ground.unfilled(modelToLngLat(landmark, x, z)))
     const fitted = modelGround(contacts, raw, landmark.scale)
     if (contacts.length && raw.every(Number.isFinite)) this.grounds.set(key, fitted)
     return fitted
@@ -1253,8 +1351,7 @@ export class LandmarkLayer {
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniform2f(u.u_shear, frame.shear[0] / perMetre, frame.shear[1] / perMetre)
-      // The origin sits GROUND_SINK below the lowest ground when terrain is on.
-      gl.uniform1f(u.u_lift, p.elevation - p.sink)
+      gl.uniform1f(u.u_lift, p.elevation)
       const b = (p.bearing * Math.PI) / 180
       gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
       this.groundUniforms(gl, u, p)
@@ -1265,6 +1362,7 @@ export class LandmarkLayer {
 
   render(gl: WebGL2RenderingContext, args: any) {
     this.upload(gl)
+    this.options.carver?.carveTiles()
     const placements = this.drawable()
     if (!placements.length) return this.restore()
 
@@ -1377,6 +1475,7 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_rigid, p.drape.rigid ? 1 : 0)
     gl.uniform1f(u.u_ground_at, p.drape.groundAt)
     gl.uniform1f(u.u_floor, p.drape.floor)
+    gl.uniform2f(u.u_sink, p.sink.depth, p.sink.band)
   }
 
   /**
@@ -1490,7 +1589,7 @@ export class LandmarkLayer {
 type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: string }
 
 /** What a building piece's verdict depends on: the placement's model and where and how it stands. */
-const placementKey = (p: Placement) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
+const placementKey = (p: Pick<Landmark, 'id' | 'model' | 'lng' | 'lat' | 'bearing' | 'scale'>) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
 
 function* groupByTile(layer: string, features: any[]): Generator<void, Map<string, any[]>> {
   const tiles = new Map<string, any[]>()

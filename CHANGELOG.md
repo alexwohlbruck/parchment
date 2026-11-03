@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* With 3D terrain on, landmarks no longer sink into the ground: plazas, steps and terraces show at their real height, and the terrain under a landmark no longer pokes through it.
+
 ## [0.18.4] - 2026-10-31
 
 ### Added

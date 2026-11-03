@@ -50,6 +50,7 @@ import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import { liveBuildingShade, type OcclusionSeedFrame } from '@/lib/map/building-shade'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -91,6 +92,9 @@ const LINGER_MS = 1500
  * building, which is worse than burying a plinth.
  */
 const GROUND_SINK = 0.5
+
+/** Metres up from the ground a model counts as touching it, for the occlusion seed. */
+const SEED_REACH = 3
 
 /**
  * Model metres over which a landmark goes from following the ground to
@@ -209,6 +213,8 @@ const DRAW_VS = `#version 300 es
   /** What a material is drawn as: ${ROLE.window} window glass, ${ROLE.lamp} a lamp, else 0; see \`materialRole\`. */
   flat out float v_role;
   out float v_floodlight;
+  /** Metres above the ground the model stands on, for contact occlusion. */
+  out float v_above;
   uniform float u_night;
   void main() {
     int m = int(a_material);
@@ -221,6 +227,7 @@ const DRAW_VS = `#version 300 es
     vec3 p = (u_node * vec4(a_position, 1.0)).xyz;
     vec3 q = u_local * onGround(p);
     v_floor = q.z - u_floor;
+    v_above = (p.y - groundUnder(p.xz).y - u_ground_at) * u_scale;
     v_model = vec3(p.x, p.z, p.y) * u_scale;
     v_modelNormal = mat3(u_node) * a_normal;
     v_sun = u_sun * vec4(q, 1.0);
@@ -333,6 +340,10 @@ const DRAW_FS = `#version 300 es
   ${SUN_SHADOW_GLSL}
   /** Metres above the flat map's ground; see u_floor. */
   in float v_floor;
+  in float v_above;
+  /** The buildings' contact shading up the foot of a wall: its strength, and its reach as a share of the height. */
+  uniform float u_occlusion;
+  uniform float u_band;
   ${MASK}
   ${FACADE_GLSL}
   ${FACADE_SHADE_GLSL}
@@ -372,6 +383,10 @@ const DRAW_FS = `#version 300 es
     if (glass) directional = mix(directional, 1.0, 0.7);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
     vec3 shaded = clamp((base + 0.03) * directional * sky * (1.0 - 0.1 * inShadow), 0.0, 1.0);
+    // The building shader's band, so a landmark's foot darkens as its neighbours' do; faces turned up are ground, not wall.
+    float rise = max(v_above, 0.0) / max(u_height, 1.0);
+    float band = rise < u_band ? (exp(-3.0 * rise / u_band) - 0.0498) * 1.0524 : 0.0;
+    shaded *= 1.0 - u_occlusion * band * (1.0 - smoothstep(0.7, 0.95, n.z));
     if (v_role == ${ROLE.window}.0) {
       vec3 mn = abs(v_modelNormal);
       bool wall = mn.y < 0.6;
@@ -415,6 +430,22 @@ const SUN_DEPTH_FS = `#version 300 es
   void main() {
     cut();
     fragColor = vec4(0.0);
+  }`
+
+/**
+ * Where the model meets the ground, into the shade layer's contact-occlusion
+ * seed: the low slab of it, in screen space, as that layer's footprints are.
+ */
+const SEED_FS = `#version 300 es
+  precision highp float;
+  in float v_above;
+  uniform vec2 u_res;
+  ${MASK}
+  out vec4 fragColor;
+  void main() {
+    if (v_above < -${GROUND_SINK.toFixed(1)} || v_above > ${SEED_REACH.toFixed(1)}) discard;
+    cut();
+    fragColor = vec4(gl_FragCoord.xy / u_res, 0.0, 1.0);
   }`
 
 /** Metres a door may sit under the flat map's ground and still glow: doors are set on it. */
@@ -611,6 +642,7 @@ export class LandmarkLayer {
   private draw!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private sunDepth!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private seed!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   /** This frame's sun shadow map, handed over by the shade layer before this layer draws. */
   private sun: SunFrame | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
@@ -717,9 +749,13 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
+        'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
+    this.seed = program(gl, DRAW_VS, SEED_FS,
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_res', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions',
@@ -772,6 +808,8 @@ export class LandmarkLayer {
     this.models.clear()
     gl.deleteProgram(this.draw.program)
     gl.deleteProgram(this.shadow.program)
+    gl.deleteProgram(this.sunDepth.program)
+    gl.deleteProgram(this.seed.program)
     gl.deleteProgram(this.glow.program)
     if (this.quad) {
       gl.deleteVertexArray(this.quad.vao)
@@ -1286,6 +1324,28 @@ export class LandmarkLayer {
     gl.bindVertexArray(null)
   }
 
+  /** Draw every landmark's foot into the building shade layer's occlusion seed, mid-pass, as `drawShadow`. */
+  drawOcclusionSeed(gl: WebGL2RenderingContext, frame: OcclusionSeedFrame) {
+    this.upload(gl)
+    const placements = this.drawable()
+    if (!placements.length) return
+    const { program, u } = this.seed
+    gl.useProgram(program)
+    gl.disable(gl.CULL_FACE)
+    gl.uniform2f(u.u_res, frame.resolution, frame.resolution)
+    for (const p of placements) {
+      const model = this.drawnModel(p)
+      if (!model?.batches) continue
+      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
+      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
+      gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
+      gl.uniform1f(u.u_scale, p.scale)
+      this.groundUniforms(gl, u, p)
+      this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
+    }
+    gl.bindVertexArray(null)
+  }
+
   /**
    * Draw every landmark's shadow into the building shade layer's mask. Called
    * by that layer, mid-pass, with its framebuffer and stencil already set up.
@@ -1354,6 +1414,9 @@ export class LandmarkLayer {
     this.sun = null
     bindSun(gl, u, sun)
     setFacadeUniforms(gl, u, flavor.facade)
+    const shade = liveBuildingShade()
+    gl.uniform1f(u.u_occlusion, shade?.wallShade ? shade.strength : 0)
+    gl.uniform1f(u.u_band, Math.max(0.01, shade?.band ?? 1))
 
     gl.uniform1f(u.u_opacity, 1)
 

@@ -149,7 +149,12 @@ export type ShadowCaster = {
   drawSunDepth?(gl: WebGL2RenderingContext, frame: SunFrame): void
   /** This frame's sun shadow map, to receive shadow by. */
   receiveSun?(frame: SunFrame): void
+  /** Draw where it meets the ground into the contact-occlusion seed; see `_seedPass`. */
+  drawOcclusionSeed?(gl: WebGL2RenderingContext, frame: OcclusionSeedFrame): void
 }
+
+/** What the shade layer hands a caster for its contact-occlusion seed: the camera, and the seed's size in texels. */
+export type OcclusionSeedFrame = { matrix: ArrayLike<number>; resolution: number }
 
 /**
  * Layers casting shadows alongside the buildings — the 3D landmarks.

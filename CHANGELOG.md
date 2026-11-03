@@ -16,6 +16,8 @@
 
 ### Changed
 
+* 3D landmarks are shaded where they meet the ground, like the buildings around them.
+
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
 
 ### Fixed

@@ -1019,6 +1019,11 @@ export class WallShadowLayer {
       this._bindTerrain(gl, U, coord); // PARCHMENT
       this._drawSegs(gl, sg);
     }
+    // PARCHMENT: landmarks stand in for buildings, so they seed the occlusion those would have.
+    if (this._mainMatrix) {
+      const frame = { matrix: this._mainMatrix, resolution: this._sdfRes };
+      for (const caster of this.shadowCasters) caster.drawOcclusionSeed?.(gl, frame);
+    }
     this._vao.bind(null);
     this._readIdx = 0;
   }

@@ -2,8 +2,9 @@
 // distances rounded the way people say them, the road being driven, timing.
 
 import { edgeAt, segmentAt, type NavEdge, type NavRoute, type NavStep } from './nav-route'
-import type { PuckState } from './guidance-engine'
+import type { Fix, PuckState } from './guidance-engine'
 import { modeProfile } from './mode-profiles'
+import { distanceMeters } from '@/lib/map/movement-interpolation'
 
 const FEET_PER_METER = 3.28084
 const METERS_PER_MILE = 1609.344
@@ -137,9 +138,16 @@ export function postedLimit(kmh: number, metric: boolean): number {
 }
 
 
-export function hasArrived(route: NavRoute, puck: PuckState): boolean {
-  const mode = travelModeAt(route, puck.s)
-  return route.length - puck.s <= modeProfile(mode).arrivalRadius
+/** A fix this coarse can't tell arriving from being across the street. */
+const ARRIVAL_MAX_ACCURACY = 30
+const ARRIVAL_FIX_MAX_AGE_SEC = 15
+
+/** Arrived only on a fresh, accurate fix at the destination; an estimated puck never arrives. */
+export function hasArrived(route: NavRoute, puck: PuckState, fix: Fix | null, nowSec: number): boolean {
+  const radius = modeProfile(travelModeAt(route, puck.s)).arrivalRadius
+  if (!puck.snapped || puck.estimated || route.length - puck.s > radius) return false
+  if (!fix || fix.accuracy > ARRIVAL_MAX_ACCURACY || nowSec - fix.t > ARRIVAL_FIX_MAX_AGE_SEC) return false
+  return distanceMeters(fix.position, route.points[route.points.length - 1]) <= radius + fix.accuracy
 }
 
 export function travelModeAt(route: NavRoute, s: number): string {

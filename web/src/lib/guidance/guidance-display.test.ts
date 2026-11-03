@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
-import { roadLabel, stepRoad } from './guidance-display'
+import { hasArrived, roadLabel, stepRoad } from './guidance-display'
+import type { Fix, PuckState } from './guidance-engine'
+import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { polyline } from './test-routes'
 
 // 200 m along a sidewalk that is West 23rd Street's for 80 m and East 23rd Street's after.
@@ -70,5 +72,32 @@ describe('unnamed ways', () => {
     expect(label({ roadClass: 'footway', crossing: 'MISSING' })).toEqual({ kind: 'generic', key: 'path' })
     expect(label({ roadClass: 'cycleway', roadEnvironment: 'bridge' })).toEqual({ kind: 'generic', key: 'cycleway' })
     expect(label({ roadClass: 'service', crossing: 'TRAFFIC_SIGNALS' })).toEqual({ kind: 'generic', key: 'service' })
+  })
+})
+
+describe('hasArrived', () => {
+  const route = sidewalk()
+  const end = route.points.at(-1)!
+  const puck = (over: Partial<PuckState> = {}): PuckState => ({
+    position: end, bearing: 90, s: 195, speed: 1, snapped: true, stepIndex: 1, estimated: false, ...over,
+  })
+  const fix = (over: Partial<Fix> = {}): Fix => ({ t: 100, position: end, accuracy: 8, speed: 1, heading: null, ...over })
+
+  test('arrives on a fresh, accurate fix at the destination', () => {
+    expect(hasArrived(route, puck(), fix(), 101)).toBe(true)
+  })
+
+  test('never arrives on a dead-reckoned puck', () => {
+    expect(hasArrived(route, puck({ estimated: true }), fix(), 101)).toBe(false)
+  })
+
+  test('needs the fix itself at the destination, not just the puck', () => {
+    expect(hasArrived(route, puck(), fix({ position: projectLatLng(end, 120, 270, 1) }), 101)).toBe(false)
+  })
+
+  test('ignores a coarse or stale fix', () => {
+    expect(hasArrived(route, puck(), fix({ accuracy: 80 }), 101)).toBe(false)
+    expect(hasArrived(route, puck(), fix(), 160)).toBe(false)
+    expect(hasArrived(route, puck(), null, 101)).toBe(false)
   })
 })

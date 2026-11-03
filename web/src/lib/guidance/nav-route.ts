@@ -7,10 +7,14 @@ import type {
   RouteHazard,
   RouteInstruction,
 } from '@/types/directions.types'
-import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan } from '@server/types/unified-routing.types'
+import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan, StationEntrance } from '@server/types/unified-routing.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
+import { walkingSteps } from './walk-steps'
+import { rampSteps } from './ramp-steps'
+import { stationSteps } from './station-steps'
+import type { Vertical } from './vertical'
 
 export interface NavSegmentInput {
   lineColor?: string | null
@@ -24,12 +28,42 @@ export interface NavSegmentInput {
   lanePlan?: InstructionLanePlan[]
 }
 
+/** How a crosswalk is crossed, where that is worth saying. */
+export interface CrossingWay {
+  unmarked?: boolean
+  island?: boolean
+  button?: boolean
+  diagonal?: boolean
+  /** The light, not the corner, says which crossing to take. */
+  light?: boolean
+  /** The cross street where it's crossed. */
+  at?: string
+  /** A second street crossed straight after, from the far corner. */
+  then?: string
+}
+
+/** A street crossed as part of a walking maneuver; `first` when it's crossed before turning. */
+export interface StepCrossing extends CrossingWay {
+  road?: string
+  signals: boolean
+  first: boolean
+}
+
+/** A station entered at, or left by, one of its entrances. */
+export interface StationVisit extends StationEntrance {
+  exit: boolean
+}
+
 export interface NavStep {
   index: number
   segmentIndex: number
   startDistance: number
   instruction: RouteInstruction
   lanePlan?: LanePlan
+  crossing?: StepCrossing
+  station?: StationVisit
+  /** Switchbacks merged into this one step. */
+  ramp?: { direction?: Vertical; bridge: boolean }
 }
 
 export interface NavSegment {
@@ -150,12 +184,15 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
 
   edges.sort((a, b) => a.startDistance - b.startDistance)
   hazards.sort((a, b) => a.startDistance - b.startDistance)
+  const cumulative = Float64Array.from(distances)
+  const at = (s: number) => pointAt({ points, cumulative, length: offset }, s)
+  const line = { at, edges, segments }
   return {
     points,
-    cumulative: Float64Array.from(distances),
+    cumulative,
     length: offset,
     segments,
-    steps,
+    steps: stationSteps(rampSteps(walkingSteps(steps, line), line), line),
     edges,
     hazards,
     drivingSide: inputs.find(i => i.drivingSide)?.drivingSide ?? 'right',

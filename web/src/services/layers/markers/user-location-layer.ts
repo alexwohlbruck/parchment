@@ -119,7 +119,8 @@ export class UserLocationLayer extends BaseMarkerLayer {
     const lngLat = this.geolocation.lngLat.value
     if (!lngLat) return []
     const navigating = guidanceEngine.active.value
-    const vehicle = navigating ? useGuidanceStore().vehicle : null
+    const guidance = navigating ? useGuidanceStore() : null
+    const vehicle = guidance?.vehicle ?? null
     // A 3D vehicle is drawn by the guidance map layer instead.
     if (vehicle && vehicle.indicator !== 'arrow') return []
 
@@ -132,6 +133,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
           heading: this.geolocation.heading.value,
           mode: navigating ? 'navigation' : 'dot',
           color: vehicle?.color,
+          estimated: guidance?.signalLost ?? false,
           onSelect: () => router.push({ name: AppRoute.MY_LOCATION }),
         },
       },
@@ -350,8 +352,9 @@ export class UserLocationLayer extends BaseMarkerLayer {
       accuracy?: number | null
       mode?: 'dot' | 'navigation'
       color?: string
+      estimated?: boolean
     }
-    if (p.mode === 'navigation') return `navigation|${p.color}`
+    if (p.mode === 'navigation') return `navigation|${p.color}|${p.estimated}`
     return [
       p.mode ?? 'dot',
       // 5m accuracy buckets — the pulse ring is roughly that resolution

@@ -10,17 +10,45 @@
 
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
+* Walking directions count blocks where the grid is regular: "In 4 blocks, turn right onto Bedford Avenue", or "Continue on Sterling Place for 6 blocks".
+
+* Crossing to your destination's side of the street, guidance says so: "Cross Franklin Avenue; your destination is on the right".
+
+* Walking directions warn at crossings with no crosswalk, and say when to press the button, wait at the median, or cross diagonally.
+
+* Walking to a train, guidance says which entrance to use and, after you get off, which exit to take, along with escalators and elevators to the platform or street.
+
+* Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
+
 * Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
 
 * Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
 
 ### Changed
 
+* Spoken directions round long distances the way people say them: "In half a mile" rather than "In 0.6 miles".
+
+* Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
+
 * 3D landmarks are shaded where they meet the ground, like the buildings around them.
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
 
+* Walking directions say "at the crosswalk" at ordinary corners, and "at the light" only where the light picks which crossing to take.
+
+* Turning onto a street no longer adds "then cross" the street you're leaving, and a diagonal corner names both streets: "Cross Bedford Avenue, then Sterling Place".
+
+* Walks set off toward the first cross street, "Head along Rogers Avenue toward Bergen Street", and unnamed paths and park forks say where they lead.
+
+* A street changing its name, with no turn to make, is no longer a walking step.
+
+* Walking directions say whether stairs go up or down, sum up a ramp's switchbacks as "Follow the ramp up to the bridge", and say "Go through the passage" or "Walk through the arcade".
+
+* Bike directions say where and how far to walk your bike, such as "Walk your bike through the plaza for 260 feet".
+
 ### Fixed
+
+* Guidance counts the lights before a turn, "After the third light, turn right", instead of "after the light" with other lights still to pass.
 
 * Subway entrances show as square signs on every floor of a station, replacing the purple dots.
 * Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
@@ -32,6 +60,14 @@
 * Guidance no longer calls a transit stop or parking spot "Your destination"; it names the stop to board at instead.
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
+
+* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue". Crossing a side street goes unannounced, but crossing to the other side of your street is called out.
+
+* The instruction card now always says the same thing as the voice.
+
+* Traffic lights on walking and bike routes sit at their intersection instead of mid-block.
+
+* When GPS gets weak, navigation no longer jumps ahead or ends your trip early; it estimates your position from your steps and pace, and shows that the signal is lost.
 
 ## [0.18.4] - 2026-10-31
 

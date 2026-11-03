@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute } from './nav-route'
 import { crosswalkAfter, hazardCounts, upcomingHazard } from './hazards'
-import { cityDrive } from './test-routes'
+import { cityDrive, translator } from './test-routes'
+import { announcementText } from './phrases'
+import en from '@/lib/i18n/en-US.json'
 import type { RouteHazard } from '@/types/directions.types'
 
 const at = { lat: 0, lng: 0 }
@@ -27,6 +29,14 @@ describe('upcomingHazard', () => {
     const route = routeWith([hazard('crosswalk', 615)])
     expect(upcomingHazard(route, 580, 12)).toBeNull()
     expect(crosswalkAfter(route, route.steps[1])?.startDistance).toBe(615)
+  })
+})
+
+describe('bike lane changes', () => {
+  test('are announced ahead of a rider', () => {
+    const route = routeWith([hazard('bike_lane_end', 300, 'medium')])
+    const ahead = upcomingHazard(route, 250, 5)!
+    expect(announcementText({ kind: 'hazard', ...ahead }, false, translator(en))).toBe('Bike lane ends ahead, merge with traffic')
   })
 })
 

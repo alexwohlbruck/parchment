@@ -10,6 +10,7 @@ const ALERT_KINDS = new Set<RouteHazardKind>([
   'sharp_curve',
   'steep_grade',
   'steps',
+  'dismount',
   'shared_space',
   'tram_tracks',
   'tram_crossing',
@@ -21,16 +22,25 @@ const ALERT_KINDS = new Set<RouteHazardKind>([
   'low_clearance',
   'speed_camera',
   'movable_bridge',
+  'bike_lane_end',
+  'bike_lane_start',
+  'bike_track_start',
   'hazard',
 ])
 
 const ALERT_LEAD_SEC = 12
 const MIN_ALERT_METERS = 40
-/** A crosswalk this soon after a turn belongs to the turn's prompt instead. */
-export const TURN_CROSSWALK_METERS = 30
+/** A crosswalk, or a stretch to push the bike, this soon after a turn belongs to the turn's prompt instead. */
+export const TURN_HAZARD_METERS = 30
+const TURN_KINDS = new Set<RouteHazardKind>(['crosswalk', 'dismount'])
+/** Pushing for less than this, over a crosswalk or a curb cut, isn't worth a word. */
+export const MIN_DISMOUNT_METERS = 20
+/** The push off a turn can start at the curb just short of the turn's point. */
+export const DISMOUNT_LEAD_METERS = 5
 
 export function isAlertable(hazard: RouteHazard): boolean {
   if (!ALERT_KINDS.has(hazard.kind)) return false
+  if (hazard.kind === 'dismount') return (hazard.endDistance ?? hazard.startDistance) - hazard.startDistance >= MIN_DISMOUNT_METERS
   // A crosswalk at a light is covered by the light.
   return hazard.kind !== 'crosswalk' || hazard.severity === 'high'
 }
@@ -43,14 +53,15 @@ export function alertDistance(speed: number): number {
 export function crosswalkAfter(route: NavRoute, step: NavStep): NavHazard | null {
   return (
     route.hazards.find(
-      h => h.kind === 'crosswalk' && h.startDistance >= step.startDistance && h.startDistance - step.startDistance <= TURN_CROSSWALK_METERS,
+      h => h.kind === 'crosswalk' && h.startDistance >= step.startDistance && h.startDistance - step.startDistance <= TURN_HAZARD_METERS,
     ) ?? null
   )
 }
 
 export function isAtTurn(route: NavRoute, hazard: NavHazard): boolean {
-  return hazard.kind === 'crosswalk' && route.steps.some(
-    step => step.index > 0 && hazard.startDistance >= step.startDistance && hazard.startDistance - step.startDistance <= TURN_CROSSWALK_METERS,
+  const lead = hazard.kind === 'dismount' ? DISMOUNT_LEAD_METERS : 0
+  return TURN_KINDS.has(hazard.kind) && route.steps.some(
+    step => step.index > 0 && hazard.startDistance >= step.startDistance - lead && hazard.startDistance - step.startDistance <= TURN_HAZARD_METERS,
   )
 }
 

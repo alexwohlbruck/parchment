@@ -74,7 +74,7 @@ function replay(trip: Trip) {
     const fix = covered ? null : { t, s: actual.s, accuracy: 5, offset: 0 }
     const estimate = estimator.update({ now: t, fix, still: trip.motion ? actual.still : null })
     const puck = estimatedPuck(
-      { position: pointAt(route, actual.s), bearing: 90, s: actual.s, speed: 0, snapped: !covered, stepIndex: stepIndexAt(route, actual.s) },
+      { position: pointAt(route, actual.s), bearing: 90, s: actual.s, speed: 0, snapped: !covered, stepIndex: stepIndexAt(route, actual.s), estimated: false },
       estimate,
     )
     const stage = transitStage(route, segments, rides, puck, t)
@@ -154,7 +154,7 @@ describe('RideEstimator', () => {
   test('never flags a missed stop while out of sight, though the last fix strayed off the line', () => {
     const estimator = new RideEstimator(stops, { s: at(0), t: T0 })
     const estimate = estimator.update({ now: arrive(5) - 60_000, fix: null, still: null })
-    const strayed = { position: pointAt(route, at(4)), bearing: 90, s: at(4), speed: 0, snapped: false, stepIndex: 0 }
+    const strayed = { position: pointAt(route, at(4)), bearing: 90, s: at(4), speed: 0, snapped: false, stepIndex: 0, estimated: false }
     expect(transitStage(route, segments, rides, strayed, arrive(5) - 60_000)?.kind).toBe('missed-stop')
     expect(transitStage(route, segments, rides, estimatedPuck(strayed, estimate), arrive(5) - 60_000)?.kind).toBe('riding')
   })

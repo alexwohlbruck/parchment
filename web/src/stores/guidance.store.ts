@@ -28,7 +28,7 @@ import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
-import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
+import { Announcer, destinationSide, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import {
   rideStops,
@@ -223,12 +223,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
   })
   /** Whether the leg ends at the traveller's saved home. */
   let headingHome = false
+  let arrivalSide: 'left' | 'right' | null = null
 
   function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
     const puck = progress.value?.puck
     const source: RichSource | null = route.value
-      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome }
+      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome, destinationSide: arrivalSide }
       : null
     return source
       ? speechFor(announcement, source, richGuidance.value, metric, translate)
@@ -264,6 +265,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
+  /** No usable fix lately: the puck is dead-reckoned. */
+  const signalLost = computed(() => progress.value?.puck.estimated ?? false)
 
   /** The camera mode in force: the preference, flattened when the battery saver forbids 3D. */
   const cameraMode = computed(() => navCameraMode(preferences.value.cameraMode, powerBudget.value))
@@ -297,7 +300,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (puck.snapped) updateHandoff(navRoute, puck)
     const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
     if (puck.snapped && !turnsMuted) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
-    if (puck.snapped && hasArrived(navRoute, puck)) arrive()
+    if (hasArrived(navRoute, puck, guidanceEngine.diagnostics?.lastFix ?? null, Date.now() / 1000)) arrive()
     else if (!puck.snapped && transit.value?.kind !== 'missed-stop') void reroute()
   }
 
@@ -744,6 +747,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const end = parts.at(-1)?.end?.location
     const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
     headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
+    arrivalSide = destinationSide(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
       const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
@@ -840,6 +844,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     powerBudget,
     cameraTuning,
     isActive,
+    signalLost,
     destinationLabel,
     nextLeg,
     start,

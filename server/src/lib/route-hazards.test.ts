@@ -29,6 +29,13 @@ describe('routeHazards', () => {
     expect(routeHazards(straight([{ crossing: 'uncontrolled', roadClass: 'residential' }], 'driving'))[0].kind).toBe('crosswalk')
   })
 
+  test('a road edge walked along places no light where the edge starts mid-block', () => {
+    const along = (roadClass: string) => routeHazards(straight([{ crossing: 'traffic_signals', roadClass }], 'walking')).map((h) => h.kind)
+    expect(along('residential')).toEqual([])
+    expect(along('footway')).toEqual(['traffic_signals'])
+    expect(routeHazards(straight([{ crossing: 'railway', roadClass: 'residential' }], 'walking'))[0].kind).toBe('rail_crossing')
+  })
+
   test('rail crossings warn every mode', () => {
     for (const mode of ['walking', 'biking', 'driving']) {
       expect(routeHazards(straight([{ crossing: 'railway' }], mode))[0]).toMatchObject({ kind: 'rail_crossing', severity: 'high' })
@@ -120,6 +127,41 @@ describe('routeHazards', () => {
     for (const mode of ['walking', 'biking', 'driving']) routeHazards({ mode, geometry, instructions })
     expect(performance.now() - started).toBeLessThan(3000)
   }, 20_000)
+})
+
+describe('bike lanes', () => {
+  const ride = (...cycleways: (string | undefined)[]) =>
+    routeHazards(straight(cycleways.map((cycleway) => ({ roadClass: 'secondary', cycleway })), 'biking'))
+      .map((h) => [h.kind, h.startDistance, !!h.premium])
+
+  test('a lane ending partway along the road says so where it ends', () => {
+    expect(ride('lane', 'lane', 'no', 'no')).toEqual([['bike_lane_end', 200, false]])
+  })
+
+  test('a lane, or a protected one, starting partway along', () => {
+    expect(ride('no', 'lane', 'lane')).toEqual([['bike_lane_start', 100, true]])
+    expect(ride('missing', 'track', 'track')).toEqual([['bike_track_start', 100, true]])
+    expect(ride('lane', 'lane', 'track', 'track')).toEqual([['bike_track_start', 200, true]])
+  })
+
+  test('short stretches, untagged edges, paths and turns say nothing', () => {
+    const junction = [
+      { roadClass: 'secondary', cycleway: 'lane', startDistance: 0, endDistance: 300 },
+      { roadClass: 'secondary', cycleway: 'no', startDistance: 300, endDistance: 330 },
+      { roadClass: 'secondary', cycleway: 'lane', startDistance: 330, endDistance: 1000 },
+    ]
+    expect(routeHazards(straight(junction, 'biking'))).toEqual([])
+    expect(ride('lane', undefined, 'no')).toEqual([])
+    const path = routeHazards(straight([{ roadClass: 'secondary', cycleway: 'lane' }, { roadClass: 'cycleway' }, { roadClass: 'secondary', cycleway: 'no' }], 'biking'))
+    expect(path).toEqual([])
+    const turning = straight([{ roadClass: 'secondary', cycleway: 'lane' }, { roadClass: 'secondary', cycleway: 'no' }], 'biking')
+    const instructions = [{ type: 'turn', text: '', coordinate: turning.geometry[10], distance: 0, duration: 0 }]
+    expect(routeHazards({ ...turning, instructions })).toEqual([])
+  })
+
+  test('not for drivers', () => {
+    expect(routeHazards(straight([{ roadClass: 'secondary', cycleway: 'lane' }, { roadClass: 'secondary', cycleway: 'no' }]))).toEqual([])
+  })
 })
 
 describe('with tagged hazards', () => {

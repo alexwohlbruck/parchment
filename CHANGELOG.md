@@ -40,6 +40,8 @@
 
 ### Fixed
 
+* Guidance says "after the light" only when it is the next light ahead, not with other lights still to pass first.
+
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
 
 * Riding or walking along a street no longer warns of every crosswalk that crosses it, or labels an unnamed driveway "Crosswalk".

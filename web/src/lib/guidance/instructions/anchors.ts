@@ -58,14 +58,16 @@ function lightAnchor(lights: number[], from: number, turn: number, reach: number
     const countable = ahead.every(s => isolated(lights, s))
     return countable && ahead.length <= MAX_ORDINAL ? { kind: 'traffic_signals', relation: 'at', ordinal: ahead.length, s: last } : null
   }
-  return turn - last <= reach ? { kind: 'traffic_signals', relation: 'after', s: last } : null
+  return turn - last <= reach && ahead.length === 1 ? { kind: 'traffic_signals', relation: 'after', s: last } : null
 }
 
 function pointAnchor(kind: AnchorKind, points: number[], from: number, turn: number, reach: number): Anchor | null {
-  const last = points.filter(s => s > from + NEAR_METERS && s <= turn + AT_PAST_METERS).at(-1)
+  const ahead = points.filter(s => s > from + NEAR_METERS && s <= turn + AT_PAST_METERS)
+  const last = ahead.at(-1)
   if (last == null || !isolated(points, last)) return null
   if (last >= turn - AT_BEFORE_METERS) return kind === 'rail_crossing' ? null : { kind, relation: 'at', s: last }
-  return turn - last <= reach ? { kind, relation: 'after', s: last } : null
+  // "After the stop sign" means the next one; with others before it, it names the wrong one.
+  return turn - last <= reach && ahead.length === 1 ? { kind, relation: 'after', s: last } : null
 }
 
 /** Bridges and tunnels that end just before the turn. */

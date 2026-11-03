@@ -6,6 +6,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import InstructionCard from '../InstructionCard.vue'
 import HazardChip from '../HazardChip.vue'
+import SignalLostChip from '../SignalLostChip.vue'
 import RoadNameLabel from '../RoadNameLabel.vue'
 import SpeedPanel from '../SpeedPanel.vue'
 import GuidanceMapButtons from '../GuidanceMapButtons.vue'
@@ -46,8 +47,9 @@ const sideInset = computed(() => {
     <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">
       <div ref="banner" class="absolute inset-x-0 top-0 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
         <InstructionCard v-if="guidance.kind === 'route'" />
-        <div class="absolute inset-x-0 top-full flex justify-center pt-2">
+        <div class="absolute inset-x-0 top-full flex flex-col items-center gap-2 pt-2">
           <HazardChip />
+          <SignalLostChip />
         </div>
       </div>
     </Transition>

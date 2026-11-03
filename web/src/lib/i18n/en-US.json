@@ -1234,6 +1234,7 @@
     "start": "Start",
     "exit": "End navigation",
     "waitingForLocation": "Waiting for your location…",
+    "signalLost": "GPS signal lost · estimating",
     "camera": {
       "resume": "Follow your position",
       "overview": "Show the whole route",

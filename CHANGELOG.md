@@ -4,7 +4,11 @@
 
 ### Changed
 
+* Airport gate numbers on indoor maps are smaller, so they no longer crowd the floor plan.
+
 ### Fixed
+
+* With 3D terrain on, indoor floor plans no longer flicker as the map pans or zooms.
 
 * Subway lines stay fully visible when viewing an underground station's floor plan, instead of fading out with the streets above.
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.

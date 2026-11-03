@@ -147,6 +147,17 @@ function drawsPlace(p: Record<string, unknown>): boolean {
     && (p.name != null || p.subclass === 'atm' || p.subclass === 'pharmacy')
 }
 
+/** Doors, lifts and station entrances a floor plan signs itself, as the style's `;node/1;` string of OSM ids. */
+export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[]): string {
+  const ids = new Set<string>()
+  for (const { properties: p } of features) {
+    if (p?.kind === 'poi' && typeof p.id === 'string' && FIXTURE_CLASSES.includes(String(p.class))) ids.add(p.id)
+  }
+  return ids.size ? `;${[...ids].sort().join(';')};` : ''
+}
+
+const FIXTURE_CLASSES = ['door', 'elevator', 'railway']
+
 /** The basemap ids of the places floor plans draw, as the style's `;id;` string. */
 export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[]): string {
   const ids = new Set<string>()

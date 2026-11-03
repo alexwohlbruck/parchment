@@ -13,7 +13,8 @@ import {
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import type { FlavorId } from '@/lib/map-style/build'
-import { clearedBuildings, focusedVenue, openingLevel, replacedPlaces, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { clearedBuildings, focusedVenue, openingLevel, replacedFixtures, replacedPlaces, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { INDOOR_FIXTURES_STATE } from '@/lib/map-style/fixture-layers'
 
 export function attachIndoor(
   map: any,
@@ -58,11 +59,13 @@ export function attachIndoor(
     if (!enabled || map.getZoom() < INDOOR_MINZOOM) {
       venues = []
       setState(INDOOR_STATE.places, '')
+      setState(INDOOR_FIXTURES_STATE, '')
       return apply(null)
     }
     venues = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
     const places = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_MAP_TILES, filter: ['==', ['get', 'kind'], 'poi'] })
     setState(INDOOR_STATE.places, replacedPlaces(places))
+    setState(INDOOR_FIXTURES_STATE, replacedFixtures(places))
     const { lng, lat } = map.getCenter()
     const venue = focusedVenue(venues, [lng, lat], focusArea())
     apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : openingLevel(venue) } : null)

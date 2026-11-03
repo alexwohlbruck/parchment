@@ -2894,6 +2894,16 @@ describe('indoor layers', () => {
   })
 })
 
+describe('fixtures', () => {
+  test('sign entrances and lifts under the places, in resolved colours', () => {
+    const layers = buildLayers({ flavor: 'light' }) as any[]
+    const at = layers.findIndex(l => l.id === 'Fixtures')
+    expect(at).toBeGreaterThan(-1)
+    expect(JSON.stringify(layers[at])).not.toMatch(/@[a-z_]+/)
+    expect(at).toBeLessThan(layers.findIndex(l => l.type === 'symbol' && l['source-layer'] === 'poi'))
+  })
+})
+
 describe('indoor colours', () => {
   test('resolves every colour token in the indoor layers', () => {
     const indoor = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l.id.startsWith('Indoor '))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedPlaces } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -111,5 +111,15 @@ describe('replacedPlaces', () => {
 
   it('is empty with nothing to replace', () => {
     expect(replacedPlaces([])).toBe('')
+  })
+})
+
+describe('replacedFixtures', () => {
+  it('lists the doors, lifts and station entrances a floor plan signs', () => {
+    expect(replacedFixtures([
+      { properties: { kind: 'poi', class: 'door', subclass: 'main', id: 'node/2' } },
+      { properties: { kind: 'poi', class: 'elevator', id: 'node/1' } },
+      { properties: { kind: 'poi', class: 'shop', id: 'node/3', name: 'Gap' } },
+    ])).toBe(';node/1;node/2;')
   })
 })

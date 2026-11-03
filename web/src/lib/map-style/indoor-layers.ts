@@ -4,6 +4,7 @@
  */
 import type { FlavorId } from './build'
 import { combineFilters } from './combine-filters'
+import { INDOOR_FIXTURES_STATE, tileBadge } from './fixture-layers'
 
 export const INDOOR_SOURCE = 'indoor'
 /** Barrelman's bundle name; see `TILE_BUNDLES` there. */
@@ -72,6 +73,7 @@ export function indoorState() {
     [INDOOR_STATE.level]: { default: 0 },
     [INDOOR_STATE.buildings]: { default: '' },
     [INDOOR_STATE.places]: { default: '' },
+    [INDOOR_FIXTURES_STATE]: { default: '' },
   }
 }
 
@@ -279,10 +281,7 @@ const FIXTURE_ART = [
   '',
 ]
 
-const fixtureBadge = [
-  'concat', 'poi|tile-', FIXTURE_ART,
-  '|', '@poi_transit_plate', '|', '@poi_transit_ink', '|', '@poi_transit_ring', '|', '@poi_lift',
-]
+const fixtureBadge = tileBadge(FIXTURE_ART)
 
 const isFixture = ['!=', FIXTURE_ART, '']
 

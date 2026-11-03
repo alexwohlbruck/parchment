@@ -1493,7 +1493,38 @@
       "crosswalkSignalsRoad": "Cross {road} at the light",
       "crossFirst": "{crossing}, then {action}",
       "crossAfter": "{action}, then {crossing}",
+      "crossings": {
+        "bare": "Cross {road}",
+        "then": "Cross {road}, then {next}",
+        "at": "Cross at {street}",
+        "atRoad": "Cross {road} at {street}",
+        "atLight": "Cross at the light at {street}",
+        "atLightRoad": "Cross {road} at the light at {street}",
+        "unmarked": "Cross carefully, there's no crosswalk",
+        "unmarkedRoad": "Cross {road} carefully, there's no crosswalk",
+        "carefully": "Carefully cross {road}",
+        "median": "Cross to the median, then wait for the next light",
+        "medianRoad": "Cross {road} to the median, then wait for the next light",
+        "island": "Cross using the island halfway",
+        "islandRoad": "Cross {road} using the island halfway",
+        "button": "Press the button to cross",
+        "buttonRoad": "Press the button to cross {road}",
+        "diagonal": "Cross diagonally when all traffic stops"
+      },
+      "ontoIt": "{action} onto it",
+      "headBack": "Head back along {road}",
+      "headBackUnnamed": "Head back",
+      "thenArrive": {
+        "left": "{action}; your destination is on the left",
+        "right": "{action}; your destination is on the right"
+      },
       "followPath": "Follow the path",
+      "followPathToward": "Follow the path toward {destination}",
+      "forkToward": {
+        "left": "At the fork, keep left toward {destination}",
+        "right": "At the fork, keep right toward {destination}"
+      },
+      "ontoToward": "{action} onto {road} toward {destination}",
       "enterPark": "Enter {park} and follow the path",
       "enterParkUnnamed": "Enter the park and follow the path",
       "intoPark": "{action} into {park}",
@@ -1504,6 +1535,8 @@
         "right": "Welcome home. Your destination is on the right"
       },
       "headAlong": "Head {heading} along {road}",
+      "headAlongToward": "Head along {road} toward {destination}",
+      "headToward": "Head toward {destination}",
       "turnAround": "Turn around to begin your route, then head {heading}",
       "turnAroundAlong": "Turn around to begin your route, then head {heading} along {road}",
       "toward": "{action} toward {destination}",
@@ -1568,6 +1601,9 @@
         }
       },
       "thenImmediately": "{action}, then immediately {next}",
+      "inBlocks": "In {n} blocks, {action}",
+      "continueBlocks": "Continue on {road} for {n} blocks",
+      "continueBlocksUnnamed": "Continue for {n} blocks",
       "afterTurning": {
         "left": "After turning left, {action}",
         "right": "After turning right, {action}",

@@ -48,10 +48,10 @@ describe('walkingSteps', () => {
       [{ startDistance: 300, endDistance: 315, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Sterling Place' }],
     )
     expect(summary(route)).toEqual([['straight', 'Sterling Place'], ['straight', 'Sterling Place'], ['arrive', null]])
-    expect(route.steps[1].crossing).toEqual({ road: 'Sterling Place', signals: true, first: true })
+    expect(route.steps[1].crossing).toEqual({ road: 'Sterling Place', signals: true, first: true, light: true })
   })
 
-  test('the kinks of a corner and its crosswalk are one turn, crossing after it', () => {
+  test('turning onto a street says nothing of crossing the one it leaves', () => {
     const route = walk(
       [[90, 300], [0, 15], [0, 300]],
       [
@@ -64,8 +64,79 @@ describe('walkingSteps', () => {
       [{ startDistance: 301, endDistance: 314, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'East 39th Street' }],
     )
     expect(summary(route)).toEqual([['straight', 'East 39th Street'], ['left', 'Madison Avenue'], ['arrive', null]])
-    expect(route.steps[1]).toMatchObject({ index: 1, crossing: { road: 'East 39th Street', signals: true, first: false } })
+    expect(route.steps[1].crossing).toBeUndefined()
     expect(route.steps[1].instruction.text).toBe('')
+  })
+
+  test('a turn onto a path still says which street it then crosses', () => {
+    const route = walk(
+      [[90, 300], [0, 15], [0, 300]],
+      [{ at: 0, type: 'depart', streetName: 'East 39th Street' }, { at: 301, modifier: 'left' }],
+      [{ startDistance: 302, endDistance: 314, roadClass: 'footway', crossing: 'marked', crossingName: 'Park Avenue' }],
+    )
+    expect(route.steps[1].crossing).toEqual({ road: 'Park Avenue', signals: false, first: false })
+  })
+
+  test('a diagonal corner names both streets, in the order crossed', () => {
+    const route = walk(
+      [[0, 300], [0, 15], [270, 15], [0, 300]],
+      [
+        { at: 0, type: 'depart', streetName: 'Rogers Avenue' },
+        { at: 315, modifier: 'left' },
+        { at: 330, modifier: 'right', streetName: 'Rogers Avenue' },
+      ],
+      [
+        { startDistance: 300, endDistance: 315, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Sterling Place' },
+        { startDistance: 315, endDistance: 330, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Rogers Avenue' },
+      ],
+    )
+    expect(route.steps[1].crossing).toEqual({ road: 'Sterling Place', then: 'Rogers Avenue', signals: true, first: true })
+  })
+
+  describe('crossing the street walked along', () => {
+    const across = (edges: Partial<RouteEdgeSegment>[] = [], tags: Partial<RouteEdgeSegment> = {}) => walk(
+      [[0, 300], [270, 15], [0, 300]],
+      [
+        { at: 0, type: 'depart', streetName: 'Madison Avenue' },
+        { at: 300, modifier: 'left', streetName: 'East 40th Street' },
+        { at: 315, modifier: 'right', streetName: 'Madison Avenue' },
+      ],
+      [{ startDistance: 300, endDistance: 315, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Madison Avenue', ...tags }, ...edges],
+    )
+
+    test('names the corner it is crossed at', () => {
+      expect(across().steps[1].crossing).toEqual({ road: 'Madison Avenue', at: 'East 40th Street', signals: true, first: true })
+    })
+
+    test('names the light when the corners passed before it had none', () => {
+      const route = across([{ startDistance: 150, endDistance: 165, roadClass: 'footway', crossing: 'marked', crossingName: 'East 39th Street' }])
+      expect(route.steps[1].crossing).toMatchObject({ at: 'East 40th Street', light: true })
+    })
+
+    test('carries how it is crossed', () => {
+      const tags = { crossingIsland: true, buttonOperated: true, crossingDiagonal: true }
+      expect(across([], tags).steps[1].crossing).toMatchObject({ island: true, button: true, diagonal: true })
+      expect(across([], { crossing: 'unmarked' }).steps[1].crossing).toMatchObject({ unmarked: true, signals: false })
+    })
+  })
+
+  test('doubling back to cross at the corner is one maneuver, crossing first', () => {
+    const route = walk(
+      [[270, 100], [0, 15], [90, 100]],
+      [
+        { at: 0, type: 'depart', streetName: 'Sterling Place' },
+        { at: 100, modifier: 'right', streetName: 'Rogers Avenue' },
+        { at: 115, modifier: 'right', streetName: 'Sterling Place' },
+      ],
+      [{ startDistance: 100, endDistance: 115, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Sterling Place' }],
+    )
+    expect(summary(route)).toEqual([['straight', 'Sterling Place'], ['uturn', 'Sterling Place'], ['arrive', null]])
+    expect(route.steps[1].crossing).toEqual({ at: 'Rogers Avenue', signals: true, first: true, light: true })
+  })
+
+  test('a new name straight on is no maneuver', () => {
+    const route = walk([[0, 300], [0, 300]], [{ at: 0, type: 'depart', streetName: 'Rogers Avenue' }, { at: 300, modifier: 'straight', streetName: 'Bedford Avenue' }])
+    expect(summary(route)).toEqual([['straight', 'Rogers Avenue'], ['arrive', null]])
   })
 
   test('the side of a corner it is crossed on names the street', () => {

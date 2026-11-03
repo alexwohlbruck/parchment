@@ -6,9 +6,11 @@ import type { Announcement } from '../announcements'
 import { laneHint, type LanePlan } from '../lanes'
 import type { NavRoute, NavStep } from '../nav-route'
 import { announcementText, spokenDistance } from '../phrases'
+import { travelModeAt } from '../guidance-display'
+import { blocksTo } from './blocks'
 import { chained, departure, richInstruction, type InstructionContext } from './rich-instruction'
 import { inline, voiceText, type TFn } from './instruction-text'
-import type { RichInstruction } from './instruction.types'
+import type { RichInstruction, Side } from './instruction.types'
 
 export interface RichSource {
   route: NavRoute
@@ -18,10 +20,11 @@ export interface RichSource {
   lanes: ReadonlyMap<number, LanePlan>
   /** The destination is the traveller's saved home. */
   home: boolean
+  destinationSide?: Side | null
 }
 
 function instructionFor(source: RichSource, step: NavStep, then: NavStep | null | undefined) {
-  const context: InstructionContext = { from: source.from, speed: source.speed, lanes: source.lanes.get(step.index) }
+  const context: InstructionContext = { from: source.from, speed: source.speed, lanes: source.lanes.get(step.index), destinationSide: source.destinationSide }
   const first = richInstruction(source.route, step, context)
   if (!then) return first
   const next = richInstruction(source.route, then, { from: step.startDistance, speed: source.speed, lanes: source.lanes.get(then.index) })
@@ -31,18 +34,34 @@ function instructionFor(source: RichSource, step: NavStep, then: NavStep | null 
 /** A landmark already says where the action is, so a distance on top of it only repeats that. */
 const placed = (instruction: RichInstruction) => !!instruction.anchor || instruction.action.kind === 'crosswalk' || !!instruction.crossing?.first
 
-function ahead(instruction: RichInstruction, distance: number, metric: boolean, t: TFn): string {
+const walking = (source: RichSource, step: NavStep) => travelModeAt(source.route, step.startDistance) === 'walking'
+
+function ahead(source: RichSource, instruction: RichInstruction, step: NavStep, distance: number, metric: boolean, t: TFn): string {
   const text = voiceText(instruction, t)
-  return placed(instruction) ? text : t('guidance.voice.in', { distance: spokenDistance(distance, metric, t), action: inline(text) })
+  if (placed(instruction)) return text
+  const blocks = walking(source, step) && blocksTo(source.route, step.startDistance - distance, step)
+  if (blocks) return t('guidance.rich.inBlocks', { n: blocks, action: inline(text) })
+  return t('guidance.voice.in', { distance: spokenDistance(distance, metric, t), action: inline(text) })
+}
+
+/** On foot, "Continue on Sterling Place for 6 blocks", or the distance where blocks can't be counted. */
+function continueText(source: RichSource, step: NavStep, distance: number, metric: boolean, t: TFn): string | null {
+  if (!walking(source, step)) return null
+  const current = source.route.steps[step.index - 1]?.instruction
+  const road = current?.streetName || current?.streetRef
+  const blocks = blocksTo(source.route, step.startDistance - distance, step)
+  if (blocks) return road ? t('guidance.rich.continueBlocks', { road, n: blocks }) : t('guidance.rich.continueBlocksUnnamed', { n: blocks })
+  const length = spokenDistance(distance, metric, t)
+  return road ? t('guidance.voice.continueOn', { road, distance: length }) : t('guidance.voice.continue', { distance: length })
 }
 
 export function richAnnouncementText(announcement: Announcement, source: RichSource, metric: boolean, t: TFn): string | null {
   switch (announcement.kind) {
     case 'maneuver': {
       const { phase, step, then, distance } = announcement
-      if (phase === 'continue') return null
+      if (phase === 'continue') return continueText(source, step, distance, metric, t)
       const instruction = instructionFor(source, step, then)
-      if (phase !== 'now') return ahead(instruction, distance, metric, t)
+      if (phase !== 'now') return ahead(source, instruction, step, distance, metric, t)
       const text = voiceText(instruction, t, { lanes: false })
       return announcement.pedestrians ? t('guidance.voice.watchPedestrians', { action: text }) : text
     }
@@ -51,7 +70,7 @@ export function richAnnouncementText(announcement: Announcement, source: RichSou
       const turns = step && maneuverKind(step.instruction) !== 'straight'
       const text = voiceText(turns ? instructionFor(source, step, null) : departure(source.route, step), t, { lanes: false })
       if (!then) return text
-      const later = ahead(instructionFor(source, then, null), then.startDistance, metric, t)
+      const later = ahead(source, instructionFor(source, then, null), then, then.startDistance, metric, t)
       return t('guidance.voice.then', { action: text, next: inline(later) })
     }
     case 'arrived':

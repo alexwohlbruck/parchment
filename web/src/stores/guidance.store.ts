@@ -28,7 +28,7 @@ import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { canReroute, requestReroute, requestTransitItineraries } from '@/services/guidance/reroute.service'
-import { Announcer, isAlert, type Announcement } from '@/lib/guidance/announcements'
+import { Announcer, destinationSide, isAlert, type Announcement } from '@/lib/guidance/announcements'
 import { dueHandoff, slowDuration, type Handoff } from '@/lib/guidance/handoff'
 import {
   rideStops,
@@ -223,12 +223,13 @@ export const useGuidanceStore = defineStore('guidance', () => {
   })
   /** Whether the leg ends at the traveller's saved home. */
   let headingHome = false
+  let arrivalSide: 'left' | 'right' | null = null
 
   function speechText(announcement: Announcement) {
     const metric = appStore.unitSystem === UnitSystem.METRIC
     const puck = progress.value?.puck
     const source: RichSource | null = route.value
-      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome }
+      ? { route: route.value, from: puck?.s ?? 0, speed: puck?.speed ?? 0, lanes: lanePlans.value, home: headingHome, destinationSide: arrivalSide }
       : null
     return source
       ? speechFor(announcement, source, richGuidance.value, metric, translate)
@@ -746,6 +747,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const end = parts.at(-1)?.end?.location
     const home = useBookmarksStore().bookmarks.find(b => b.frequentType === 'home')
     headingHome = !!end && !!home && distanceMeters(end, home) <= HOME_RADIUS_METERS
+    arrivalSide = destinationSide(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
       const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)

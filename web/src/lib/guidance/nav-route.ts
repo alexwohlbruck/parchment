@@ -25,8 +25,22 @@ export interface NavSegmentInput {
   lanePlan?: InstructionLanePlan[]
 }
 
+/** How a crosswalk is crossed, where that is worth saying. */
+export interface CrossingWay {
+  unmarked?: boolean
+  island?: boolean
+  button?: boolean
+  diagonal?: boolean
+  /** The light, not the corner, says which crossing to take. */
+  light?: boolean
+  /** The cross street where it's crossed. */
+  at?: string
+  /** A second street crossed straight after, from the far corner. */
+  then?: string
+}
+
 /** A street crossed as part of a walking maneuver; `first` when it's crossed before turning. */
-export interface StepCrossing {
+export interface StepCrossing extends CrossingWay {
   road?: string
   signals: boolean
   first: boolean

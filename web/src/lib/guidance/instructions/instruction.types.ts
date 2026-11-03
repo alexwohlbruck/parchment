@@ -4,7 +4,7 @@
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import type { RoadLabel } from '../guidance-display'
 import type { Cardinal } from '../turn-around'
-import type { StepCrossing } from '../nav-route'
+import type { CrossingWay, StepCrossing } from '../nav-route'
 
 export type Side = 'left' | 'right'
 
@@ -35,7 +35,7 @@ export type Action =
   | { kind: 'stairs'; side: Side | null }
   | { kind: 'footbridge' }
   /** `road`: the road crossed. */
-  | { kind: 'crosswalk'; signals: boolean; road?: string }
+  | ({ kind: 'crosswalk'; signals: boolean; road?: string } & CrossingWay)
   | { kind: 'arrive'; side: Side | null; home: boolean }
   | { kind: 'depart'; heading: Cardinal; along: boolean }
 
@@ -57,5 +57,9 @@ export interface RichInstruction {
   park?: { name?: string }
   /** A street crossed on foot as part of a turn. */
   crossing?: StepCrossing
+  /** On foot, where a path or a departure leads: the next street or park along it. */
+  leadsTo?: string
+  /** The destination's side, when this crossing is the last thing before it. */
+  arrival?: Side
   then?: { instruction: RichInstruction; immediately: boolean }
 }

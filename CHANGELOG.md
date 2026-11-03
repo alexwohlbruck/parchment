@@ -10,11 +10,25 @@
 
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
+* Walking directions count blocks where the grid is regular: "In 4 blocks, turn right onto Bedford Avenue", or "Continue on Sterling Place for 6 blocks".
+
+* Crossing to your destination's side of the street, guidance says so: "Cross Franklin Avenue; your destination is on the right".
+
+* Walking directions warn at crossings with no crosswalk, and say when to press the button, wait at the median, or cross diagonally.
+
 ### Changed
 
 * Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
+
+* Walking directions say "at the crosswalk" at ordinary corners, and "at the light" only where the light picks which crossing to take.
+
+* Turning onto a street no longer adds "then cross" the street you're leaving, and a diagonal corner names both streets: "Cross Bedford Avenue, then Sterling Place".
+
+* Walks set off toward the first cross street, "Head along Rogers Avenue toward Bergen Street", and unnamed paths and park forks say where they lead.
+
+* A street changing its name, with no turn to make, is no longer a walking step.
 
 ### Fixed
 

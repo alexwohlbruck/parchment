@@ -1459,7 +1459,38 @@
       "crosswalkSignalsRoad": "Cruza {road} en el semáforo",
       "crossFirst": "{crossing} y luego {action}",
       "crossAfter": "{action} y luego {crossing}",
+      "crossings": {
+        "bare": "Cruza {road}",
+        "then": "Cruza {road} y luego {next}",
+        "at": "Cruza a la altura de {street}",
+        "atRoad": "Cruza {road} a la altura de {street}",
+        "atLight": "Cruza en el semáforo de {street}",
+        "atLightRoad": "Cruza {road} en el semáforo de {street}",
+        "unmarked": "Cruza con cuidado, no hay paso de peatones",
+        "unmarkedRoad": "Cruza {road} con cuidado, no hay paso de peatones",
+        "carefully": "Cruza {road} con cuidado",
+        "median": "Cruza hasta la mediana y espera al siguiente semáforo",
+        "medianRoad": "Cruza {road} hasta la mediana y espera al siguiente semáforo",
+        "island": "Cruza usando la isleta a mitad de camino",
+        "islandRoad": "Cruza {road} usando la isleta a mitad de camino",
+        "button": "Pulsa el botón para cruzar",
+        "buttonRoad": "Pulsa el botón para cruzar {road}",
+        "diagonal": "Cruza en diagonal cuando se detenga todo el tráfico"
+      },
+      "ontoIt": "{action} por esa calle",
+      "headBack": "Vuelve por {road}",
+      "headBackUnnamed": "Vuelve atrás",
+      "thenArrive": {
+        "left": "{action}; tu destino está a la izquierda",
+        "right": "{action}; tu destino está a la derecha"
+      },
       "followPath": "Sigue el sendero",
+      "followPathToward": "Sigue el sendero en dirección a {destination}",
+      "forkToward": {
+        "left": "En la bifurcación, mantente a la izquierda en dirección a {destination}",
+        "right": "En la bifurcación, mantente a la derecha en dirección a {destination}"
+      },
+      "ontoToward": "{action} hacia {road} en dirección a {destination}",
       "enterPark": "Entra en {park} y sigue el sendero",
       "enterParkUnnamed": "Entra en el parque y sigue el sendero",
       "intoPark": "{action} para entrar en {park}",
@@ -1470,6 +1501,8 @@
         "right": "Bienvenido a casa. Tu destino está a la derecha"
       },
       "headAlong": "Ve hacia el {heading} por {road}",
+      "headAlongToward": "Ve por {road} en dirección a {destination}",
+      "headToward": "Ve en dirección a {destination}",
       "turnAround": "Da la vuelta para empezar la ruta y ve hacia el {heading}",
       "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
       "toward": "{action} en dirección a {destination}",
@@ -1534,6 +1567,9 @@
         }
       },
       "thenImmediately": "{action} e inmediatamente {next}",
+      "inBlocks": "En {n} manzanas, {action}",
+      "continueBlocks": "Sigue por {road} durante {n} manzanas",
+      "continueBlocksUnnamed": "Sigue durante {n} manzanas",
       "afterTurning": {
         "left": "Después de girar a la izquierda, {action}",
         "right": "Después de girar a la derecha, {action}",

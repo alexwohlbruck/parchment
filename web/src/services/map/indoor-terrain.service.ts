@@ -2,7 +2,7 @@
 import { standsOnGround, venueOutlines } from '@/lib/indoor/venue-outline'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import type { Point } from '@/lib/map-decks/decks'
-import { TerrainCarver } from '@/lib/map-terrain/carver'
+import type { Carving, TerrainCarver } from '@/lib/map-terrain/carver'
 import { carvePads, pad, padHeight, padSamples, type Pad } from '@/lib/map-terrain/pad'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { INDOOR_FLOOR_LAYER, INDOOR_MINZOOM, INDOOR_SOURCE, INDOOR_VENUE_TILES } from '@/lib/map-style/indoor-layers'
@@ -12,12 +12,13 @@ const LAYER_ID = 'indoor-terrain'
 /** Venue heights remembered, so panning back to one does not sample it again. */
 const REMEMBERED = 256
 
-export function attachIndoorTerrain(map: any, terrain: FineTerrain) {
+const padCarving = (p: Pad): Carving => ({ bounds: p.bounds, carve: (tile, at) => carvePads(tile, at, [p]) })
+
+export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: TerrainCarver) {
   let enabled = true
   let queued = 0
   let sampler: TerrainSampler | null = null
   const heights = new Map<string, number>()
-  const carver = new TerrainCarver<Pad>(() => map, carvePads, areas => terrain.focus(areas, LAYER_ID))
 
   // Carves before the frame's terrain is drawn; it draws nothing itself.
   const layer = { id: LAYER_ID, type: 'custom', renderingMode: '3d', prerender: () => carver.carveTiles(), render: () => {} }
@@ -45,15 +46,15 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain) {
     const next = on ? terrainSampler(map, sampler, schedule, template => (template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)) : sampler
     if (next !== sampler) heights.clear()
     sampler = next
-    const pads = new Map<string, Pad>()
+    const pads = new Map<string, Carving>()
     if (on && sampler) {
       for (const [id, ring] of venueOutlines(map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES }).filter(standsOnGround))) {
         const key = `${id}|${ring.join(';')}`
         const height = heightOf(key, ring, sampler.ground)
-        if (height != null) pads.set(key, pad(ring, height))
+        if (height != null) pads.set(key, padCarving(pad(ring, height)))
       }
     }
-    carver.set(pads)
+    carver.set(LAYER_ID, pads, { focus: true })
   }
 
   function schedule() {
@@ -91,7 +92,7 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain) {
       map.off('terrain', schedule)
       if (queued) clearTimeout(queued)
       if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
-      carver.clear()
+      carver.clear(LAYER_ID)
     },
   }
 }

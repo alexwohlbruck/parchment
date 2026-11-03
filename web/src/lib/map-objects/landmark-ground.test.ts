@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { elevationDrape, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
+import { baseSink, elevationDrape, GROUND_SINK, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
 
 /** A sloping site: the raw DEM rises 0.1 m per metre east, from 190 m. */
 const dem = (x: number) => 190 + x * 0.1
@@ -104,6 +104,33 @@ describe('groundLifts', () => {
     const none = groundLifts([0, 0, 0, 0], exaggeration, { follows: true, offset: -191 }, 1)
     expect([...none.lifts].every(v => v === 0)).toBe(true)
     expect(none.mean).toBe(0)
+  })
+
+  it('stands a terrain model\'s feet on filled ground from the ground it was built on', () => {
+    // The map's ground filled 3 m down at one point, under a lidar bump the model draws itself.
+    const filled = [heights[0], heights[1], heights[2], heights[3] - 3 * exaggeration]
+    const offset = -191
+    const { lifts, lowest } = groundLifts(filled, exaggeration, { follows: true, offset }, 1, [NaN, NaN, NaN, raw[3]])
+    raw.forEach((h, i) => {
+      const lift = lifts[i * 2] - lifts[i * 2 + 1]
+      expect(lowest + h + offset + lift).toBeCloseTo(filled[i], 4)
+    })
+  })
+})
+
+describe('baseSink', () => {
+  it('pushes only what stands on a flat model\'s ground under the terrain', () => {
+    expect(baseSink({ follows: false }, 1, true)).toEqual({ depth: GROUND_SINK, band: 0.05 })
+    // In model units: a model drawn at half size is pushed twice as far in its own.
+    expect(baseSink({ follows: false }, 0.5, true).depth).toBe(GROUND_SINK * 2)
+  })
+
+  it('takes every foot of a terrain model as base, scattered as they are', () => {
+    expect(baseSink({ follows: true, offset: -191 }, 1, true).band).toBe(1)
+  })
+
+  it('pushes nothing with the terrain off', () => {
+    expect(baseSink({ follows: false }, 1, false)).toEqual({ depth: 0, band: 0 })
   })
 })
 

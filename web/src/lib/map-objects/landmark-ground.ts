@@ -181,6 +181,29 @@ export function groundLifts(
   return { lifts, mean: heights.length ? sum / heights.length : 0, lowest }
 }
 
+/**
+ * Metres a landmark's base is pushed under the terrain. The terrain is read
+ * on a coarse grid and drawn as a finer mesh, so it can dip a little between
+ * samples; a base that floats over the dip shows daylight under the
+ * building, which is worse than burying its foot. Only the base: a plaza
+ * deck or a step above it stays at its true height, and the walls stretch.
+ */
+export const GROUND_SINK = 0.5
+
+/** Metres above its own ground a vertex still counts as the base, for a flat-based model. */
+export const BASE_BAND = 0.05
+
+/**
+ * How far, in model units, the base is pushed down, and how high above the
+ * model's own ground a vertex is still base. A model that follows the
+ * terrain has its feet scattered through a band (CONTACT_BAND), so all of
+ * them are base. Nothing with the terrain off, where the map is flat.
+ */
+export function baseSink(model: ModelGround, scale: number, terrain: boolean): { depth: number; band: number } {
+  if (!terrain) return { depth: 0, band: 0 }
+  return { depth: GROUND_SINK / scale, band: (model.follows ? CONTACT_BAND : BASE_BAND) / scale }
+}
+
 /** Metres: a floor this far down never clips anything. */
 const NO_FLOOR = 1e6
 

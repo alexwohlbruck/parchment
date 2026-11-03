@@ -37,7 +37,7 @@
  */
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
-  elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
+  baseSink, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
@@ -85,14 +85,6 @@ const EVICT_EVERY_MS = 5_000
 const LINGER_MS = 1500
 
 /**
- * Metres a landmark is set below the ground sampled under it. The terrain is
- * read on a coarse grid and drawn as a finer mesh, so it can dip a little
- * between samples; a base that floats over the dip shows daylight under the
- * building, which is worse than burying a plinth.
- */
-const GROUND_SINK = 0.5
-
-/**
  * Model metres over which a landmark goes from following the ground to
  * standing rigid. Below it every vertex is lifted by the terrain under it, so
  * a stadium's street side sits on the street and its field side on the
@@ -124,6 +116,9 @@ const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 
  * 1 stands a raised model rigid on the mean, `u_ground_at` measures the blend
  * from the real ground rather than the model's own, for a sunk one, and
  * `u_floor` clips what goes under the flat map with the terrain off.
+ *
+ * `u_sink` pushes the base under the terrain (see `baseSink`): by `.x`, every
+ * vertex no more than `.y` above the ground it meets.
  */
 const GROUND = `
   uniform vec2 u_ground[${GROUND_GRID * GROUND_GRID}];
@@ -133,6 +128,7 @@ const GROUND = `
   uniform float u_rigid;
   uniform float u_ground_at;
   uniform float u_floor;
+  uniform vec2 u_sink;
   vec2 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
   /**
    * At a plan point, held at the grid's edge beyond it: x the map's rise, y
@@ -148,11 +144,14 @@ const GROUND = `
       mix(groundAt(c.x, c.y + 1), groundAt(c.x + 1, c.y + 1), f.x),
       f.y);
   }
-  vec3 onGround(vec3 p) {
+  vec3 drape(vec3 p, float sink) {
     vec2 g = groundUnder(p.xz);
-    float follow = (1.0 - u_rigid) * (1.0 - clamp((p.y - g.y - u_ground_at) / u_blend, 0.0, 1.0));
-    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow), 0.0);
-  }`
+    float above = p.y - g.y - u_ground_at;
+    float follow = (1.0 - u_rigid) * (1.0 - clamp(above / u_blend, 0.0, 1.0));
+    float base = (1.0 - u_rigid) * step(above, u_sink.y) * sink;
+    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow) - base, 0.0);
+  }
+  vec3 onGround(vec3 p) { return drape(p, u_sink.x); }`
 
 /** Outside the clip volume, where a vertex goes to not be drawn. */
 const OFF_SCREEN = 'vec4(0.0, 0.0, 2.0, 1.0)'
@@ -412,7 +411,8 @@ const GLOW_VS = `#version 300 es
   layout(location = 0) in vec2 a_corner;
   out vec2 v_corner;
   void main() {
-    vec3 centre = u_local * onGround(u_points[gl_InstanceID]);
+    // At the door's true height: only the model's base is pushed under the ground.
+    vec3 centre = u_local * drape(u_points[gl_InstanceID], 0.0);
     // A door below the flat map's ground is not drawn, so neither is its glow.
     if (centre.z < u_floor - ${GLOW_FLOOR_SLACK.toFixed(1)}) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -451,7 +451,7 @@ const SHADOW_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
   uniform vec2 u_shear;
-  /** Metres the origin sits above the lowest ground under the model. */
+  /** Metres the origin sits above the lowest ground under the model: its elevation. */
   uniform float u_lift;
   /** cos and sin of the bearing, and the scale: map metres back to model plan. */
   uniform vec3 u_plan;
@@ -561,8 +561,8 @@ type Placement = Landmark & {
   /** The map's rise and the model's own ground, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
-  /** Metres the base was sunk below the lowest ground; 0 with terrain off. */
-  sink: number
+  /** How far its base is pushed under the terrain, and what counts as base, in model units; see `baseSink`. */
+  sink: { depth: number; band: number }
   /** How its elevation changes the way it meets the ground; see GROUND. */
   drape: ElevationDrape
   /** Whether it is close enough for its detail model; see `drawnModel`. */
@@ -665,18 +665,18 @@ export class LandmarkLayer {
     }
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node',
+        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
         'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_node'])
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor'])
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
-        'u_rigid', 'u_ground_at', 'u_floor'])
+        'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     const vao = gl.createVertexArray()!
     const buffer = gl.createBuffer()!
     gl.bindVertexArray(vao)
@@ -893,14 +893,14 @@ export class LandmarkLayer {
     const model = this.models.get(landmark.model)
     const footprint = model?.footprint
     let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * 2)
-    let base = 0, groundMean = 0, sink = 0
+    let base = 0, groundMean = 0
+    let own: ModelGround = { follows: false }
     if (sample) {
       const points = footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]
-      const own = footprint && model ? this.modelGround(landmark, model, sample) : { follows: false as const }
+      if (footprint && model) own = this.modelGround(landmark, model, sample)
       const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
       const lifts = groundLifts(points.map(sample), exaggeration, own, landmark.scale)
-      base = lifts.lowest - GROUND_SINK
-      sink = GROUND_SINK
+      base = lifts.lowest
       if (footprint) {
         ground = lifts.lifts
         groundMean = lifts.mean
@@ -912,6 +912,7 @@ export class LandmarkLayer {
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
     const drape = elevationDrape(landmark.elevation, landmark.scale, !!sample)
+    const sink = baseSink(own, landmark.scale, !!sample)
     const doors = new Float32Array(landmark.entrances.flat())
     return { ...landmark, placed, ground, groundMean, sink, drape, detailed, doors }
   }
@@ -1253,8 +1254,7 @@ export class LandmarkLayer {
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniform2f(u.u_shear, frame.shear[0] / perMetre, frame.shear[1] / perMetre)
-      // The origin sits GROUND_SINK below the lowest ground when terrain is on.
-      gl.uniform1f(u.u_lift, p.elevation - p.sink)
+      gl.uniform1f(u.u_lift, p.elevation)
       const b = (p.bearing * Math.PI) / 180
       gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
       this.groundUniforms(gl, u, p)
@@ -1377,6 +1377,7 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_rigid, p.drape.rigid ? 1 : 0)
     gl.uniform1f(u.u_ground_at, p.drape.groundAt)
     gl.uniform1f(u.u_floor, p.drape.floor)
+    gl.uniform2f(u.u_sink, p.sink.depth, p.sink.band)
   }
 
   /**

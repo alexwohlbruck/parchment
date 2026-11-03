@@ -53,6 +53,8 @@ const PREPARE_SEC = 115
 const APPROACH_SEC = 22
 const MIN_NOW_METERS = 12
 const CONTINUE_OVER_METERS = 2000
+/** On foot a long block or two already earns a "continue for N blocks". */
+const WALK_CONTINUE_OVER_METERS = 400
 /** Early prompts wait this long after the previous maneuver, so they don't talk over it. */
 const MIN_GAP_SEC = 8
 /** A border passed further back than this goes unwelcomed, as after a reroute. */
@@ -170,7 +172,7 @@ export class Announcer {
 
     if (puck.stepIndex !== this.lastStepIndex) {
       this.lastStepIndex = puck.stepIndex
-      if (distance > CONTINUE_OVER_METERS && this.once(`continue:${next.index}`)) {
+      if (distance > (mode === 'walking' ? WALK_CONTINUE_OVER_METERS : CONTINUE_OVER_METERS) && this.once(`continue:${next.index}`)) {
         due.push({ kind: 'maneuver', phase: 'continue', step: next, distance, then: null })
       }
     }

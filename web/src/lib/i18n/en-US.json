@@ -1600,6 +1600,9 @@
         }
       },
       "thenImmediately": "{action}, then immediately {next}",
+      "inBlocks": "In {n} blocks, {action}",
+      "continueBlocks": "Continue on {road} for {n} blocks",
+      "continueBlocksUnnamed": "Continue for {n} blocks",
       "afterTurning": {
         "left": "After turning left, {action}",
         "right": "After turning right, {action}",

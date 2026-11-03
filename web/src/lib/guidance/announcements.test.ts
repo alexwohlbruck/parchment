@@ -3,7 +3,7 @@ import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute }
 import { Announcer, destinationSide, leadDistances, type Announcement } from './announcements'
 import { announcementText } from './phrases'
 import type { PuckState } from './guidance-engine'
-import { cityDrive, polyline, translator } from './test-routes'
+import { cityDrive, gridWalk, polyline, translator } from './test-routes'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { speechDuration } from './speech-rate'
 import en from '@/lib/i18n/en-US.json'
@@ -65,6 +65,22 @@ describe('Announcer', () => {
     expect(heard[0].a).toMatchObject({ kind: 'maneuver', phase: 'continue' })
     expect(heard.some(h => h.a.kind === 'maneuver' && h.a.phase === 'prepare')).toBe(true)
   })
+})
+
+test('a long block on foot gets a continue prompt', () => {
+  const continues = (route: NavRoute) => drive(route, 1.4).filter(h => h.a.kind === 'maneuver' && h.a.phase === 'continue')
+  expect(continues(gridWalk([]))).toHaveLength(1)
+  const geometry = polyline([[0, 300], [90, 300]])
+  const short = buildNavRoute([{
+    mode: 'walking',
+    geometry,
+    instructions: [
+      { type: 'depart', text: '', coordinate: geometry[0], distance: 300, duration: 210 },
+      { type: 'turn', modifier: 'right', text: '', coordinate: geometry[30], distance: 300, duration: 210 },
+      { type: 'destination', text: '', coordinate: geometry[60], distance: 0, duration: 0 },
+    ],
+  }])
+  expect(continues(short)).toHaveLength(0)
 })
 
 describe('destinationSide', () => {

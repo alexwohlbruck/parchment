@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { Announcer, type Announcement } from '../announcements'
+import { Announcer, type Announcement, type AnnouncementPhase } from '../announcements'
 import type { LanePlan } from '../lanes'
 import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute } from '../nav-route'
-import { cityDrive, translator } from '../test-routes'
+import { cityDrive, gridWalk, translator } from '../test-routes'
 import { speechFor, type RichSource } from './rich-announcement'
 import en from '@/lib/i18n/en-US.json'
 import es from '@/lib/i18n/es-ES.json'
@@ -57,6 +57,27 @@ describe('speechFor', () => {
   test('turning around to set off', () => {
     const turn: Announcement = { kind: 'turn-around', heading: 'west', road: 'Trade Street' }
     expect(speechFor(turn, source(route), true, false, t)).toBe('Turn around to begin your route, then head west along Trade Street')
+  })
+})
+
+describe('blocks on foot', () => {
+  const route = gridWalk([[200, 'Lincoln Place'], [400, 'Saint Johns Place'], [600, 'Sterling Place'], [800, 'Park Place']])
+  const prompt = (phase: AnnouncementPhase, from: number): Announcement =>
+    ({ kind: 'maneuver', phase, step: route.steps[1], distance: 1000 - from, then: null })
+
+  test('the turn ahead, in blocks', () => {
+    expect(speechFor(prompt('approach', 20), source(route, { from: 20, speed: 1.4 }), true, false, t)).toBe('In 5 blocks, turn right onto Bedford Avenue')
+    expect(speechFor(prompt('approach', 20), source(route, { from: 20, speed: 1.4 }), true, true, tEs)).toBe('En 5 manzanas, gira a la derecha hacia Bedford Avenue')
+  })
+
+  test('how long to keep on the street', () => {
+    expect(speechFor(prompt('continue', 20), source(route, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for 5 blocks')
+  })
+
+  test('the distance where the blocks are too irregular to count', () => {
+    const irregular = gridWalk([[200, 'Lincoln Place'], [700, 'Park Place']])
+    const continuing: Announcement = { kind: 'maneuver', phase: 'continue', step: irregular.steps[1], distance: 980, then: null }
+    expect(speechFor(continuing, source(irregular, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for 0.6 miles')
   })
 })
 

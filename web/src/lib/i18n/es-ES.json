@@ -1566,6 +1566,9 @@
         }
       },
       "thenImmediately": "{action} e inmediatamente {next}",
+      "inBlocks": "En {n} manzanas, {action}",
+      "continueBlocks": "Sigue por {road} durante {n} manzanas",
+      "continueBlocksUnnamed": "Sigue durante {n} manzanas",
       "afterTurning": {
         "left": "Después de girar a la izquierda, {action}",
         "right": "Después de girar a la derecha, {action}",

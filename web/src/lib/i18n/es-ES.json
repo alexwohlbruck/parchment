@@ -1200,6 +1200,7 @@
     "start": "Iniciar",
     "exit": "Finalizar navegación",
     "waitingForLocation": "Esperando tu ubicación…",
+    "signalLost": "Sin señal GPS · estimando",
     "camera": {
       "resume": "Seguir tu posición",
       "overview": "Ver toda la ruta",

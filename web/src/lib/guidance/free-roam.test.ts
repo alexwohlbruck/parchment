@@ -22,6 +22,7 @@ const puckAt = (s: number, snapped = true, speed = 12): PuckState => ({
   speed,
   snapped,
   stepIndex: 0,
+  estimated: false,
 })
 
 describe('freeModeFor', () => {

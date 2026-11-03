@@ -264,6 +264,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const isActive = computed(() => route.value != null || kind.value === 'free')
+  /** No usable fix lately: the puck is dead-reckoned. */
+  const signalLost = computed(() => progress.value?.puck.estimated ?? false)
 
   /** The camera mode in force: the preference, flattened when the battery saver forbids 3D. */
   const cameraMode = computed(() => navCameraMode(preferences.value.cameraMode, powerBudget.value))
@@ -297,7 +299,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (puck.snapped) updateHandoff(navRoute, puck)
     const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
     if (puck.snapped && !turnsMuted) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
-    if (puck.snapped && hasArrived(navRoute, puck)) arrive()
+    if (hasArrived(navRoute, puck, guidanceEngine.diagnostics?.lastFix ?? null, Date.now() / 1000)) arrive()
     else if (!puck.snapped && transit.value?.kind !== 'missed-stop') void reroute()
   }
 
@@ -840,6 +842,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     powerBudget,
     cameraTuning,
     isActive,
+    signalLost,
     destinationLabel,
     nextLeg,
     start,

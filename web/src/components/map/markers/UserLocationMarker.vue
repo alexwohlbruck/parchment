@@ -7,11 +7,14 @@ interface Props {
   heading: number | null
   mode?: 'dot' | 'navigation'
   color?: string
+  /** Navigating without a usable fix: the position is dead-reckoned. */
+  estimated?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'dot',
   color: DEFAULT_VEHICLE_COLOR,
+  estimated: false,
 })
 const emit = defineEmits<{ select: [] }>()
 
@@ -21,7 +24,7 @@ const ink = computed(() => inkOn(props.color))
 <template>
   <div
     class="user-location-marker"
-    :class="{ 'navigation-mode': props.mode === 'navigation' }"
+    :class="{ 'navigation-mode': props.mode === 'navigation', estimated: props.mode === 'navigation' && props.estimated }"
     @click="props.mode === 'dot' && emit('select')"
   >
     <!--
@@ -53,6 +56,7 @@ const ink = computed(() => inkOn(props.color))
 
     <!-- Rotated and laid on the map by the layer; fades to a dot while the heading is unknown. -->
     <template v-if="props.mode === 'navigation'">
+      <div v-if="props.estimated" class="uncertainty-halo" :style="{ background: props.color }" />
       <svg class="navigation-arrow" width="46" height="46" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg">
         <circle cx="23" cy="23" r="20" fill="white" />
         <circle cx="23" cy="23" r="16.5" :fill="props.color" />
@@ -144,6 +148,39 @@ const ink = computed(() => inkOn(props.color))
   border: 3px solid white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   opacity: calc(1 - var(--heading-opacity, 1));
+}
+
+.estimated .navigation-arrow {
+  opacity: calc(var(--heading-opacity, 1) * 0.55);
+  filter: saturate(0.4) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.estimated .navigation-dot {
+  opacity: calc((1 - var(--heading-opacity, 1)) * 0.55);
+}
+
+.uncertainty-halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.16;
+  z-index: 1;
+  pointer-events: none;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 @keyframes pulse {

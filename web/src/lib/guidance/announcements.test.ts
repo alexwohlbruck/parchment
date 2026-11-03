@@ -9,7 +9,7 @@ import { speechDuration } from './speech-rate'
 import en from '@/lib/i18n/en-US.json'
 
 function puckAt(route: NavRoute, s: number, speed: number): PuckState {
-  return { position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed, snapped: true, stepIndex: stepIndexAt(route, s) }
+  return { position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed, snapped: true, stepIndex: stepIndexAt(route, s), estimated: false }
 }
 
 /** Drive the whole route at a steady speed, collecting every prompt. */

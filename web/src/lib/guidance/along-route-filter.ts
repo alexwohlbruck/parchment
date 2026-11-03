@@ -147,6 +147,27 @@ export class AlongRouteFilter {
     return { accepted }
   }
 
+  /** Fold in a coarse position without letting it count toward a re-seed. */
+  nudge(fix: { t: number; s: number; sigma: number }): boolean {
+    this.propagate(fix.t)
+    return this.measure(0, fix.s, fix.sigma * fix.sigma)
+  }
+
+  /** Dead-reckon to `t` at `speed` (1σ `speedSigma`); the position uncertainty grows with time. */
+  coast(t: number, speed: number, speedSigma: number): void {
+    const dt = t - this.t
+    if (dt <= 0) return
+    this.x = { s: this.x.s + speed * dt, v: Math.max(0, speed), a: 0 }
+    this.P = [this.P[0] + (speedSigma * dt) ** 2, 0, 0, 0, speedSigma ** 2, 0, 0, 0, 0.05]
+    this.t = t
+  }
+
+  /** Keep the position within [lo, hi]; held at `hi`, the vehicle waits there. */
+  confine(lo: number, hi: number): void {
+    if (this.x.s > hi) this.x = { s: hi, v: 0, a: 0 }
+    else if (this.x.s < lo) this.x = { ...this.x, s: lo }
+  }
+
   /** Hold position: the vehicle is stationary (red light, stop sign). */
   hold(t: number): void {
     this.propagate(t)

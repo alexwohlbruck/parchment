@@ -11,6 +11,10 @@ export interface ModeProfile {
   jerkSigma: number
   /** Below this reported speed a fix counts as stationary. */
   stillSpeed: number
+  /** Fastest plausible travel, m/s; a fix implying more is a glitch. */
+  maxSpeed: number
+  /** What dead reckoning settles to when nothing says how fast the traveller is going. */
+  coastSpeed: number
   camera: {
     minAhead: number
     maxAhead: number
@@ -31,6 +35,8 @@ export const MODE_PROFILES: Record<string, ModeProfile> = {
     handoffRadius: 40,
     jerkSigma: 1.5,
     stillSpeed: 0.7,
+    maxSpeed: 45,
+    coastSpeed: 8,
     camera: { minAhead: 150, maxAhead: 2000, minZoom: 13, maxZoom: 17.5, minManeuverZone: 180, pitchScale: 1 },
     speedometer: true,
     speedLimit: true,
@@ -41,6 +47,8 @@ export const MODE_PROFILES: Record<string, ModeProfile> = {
     handoffRadius: 30,
     jerkSigma: 1,
     stillSpeed: 0.5,
+    maxSpeed: 12,
+    coastSpeed: 3,
     camera: { minAhead: 90, maxAhead: 600, minZoom: 15, maxZoom: 18, minManeuverZone: 80, pitchScale: 0.9 },
     speedometer: true,
     speedLimit: false,
@@ -51,6 +59,8 @@ export const MODE_PROFILES: Record<string, ModeProfile> = {
     handoffRadius: 20,
     jerkSigma: 0.5,
     stillSpeed: 0.3,
+    maxSpeed: 2.5,
+    coastSpeed: 1,
     camera: { minAhead: 50, maxAhead: 250, minZoom: 16.5, maxZoom: 18.5, minManeuverZone: 40, pitchScale: 0.8 },
     speedometer: false,
     speedLimit: false,
@@ -61,6 +71,8 @@ export const MODE_PROFILES: Record<string, ModeProfile> = {
     handoffRadius: 40,
     jerkSigma: 1.5,
     stillSpeed: 0.7,
+    maxSpeed: 40,
+    coastSpeed: 6,
     camera: { minAhead: 300, maxAhead: 2500, minZoom: 12.5, maxZoom: 16.5, minManeuverZone: 0, pitchScale: 0.6 },
     speedometer: false,
     speedLimit: false,

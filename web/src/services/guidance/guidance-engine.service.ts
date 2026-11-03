@@ -85,6 +85,7 @@ export const guidanceEngine = {
   setFixInterval(ms: number): void {
     if (ms === fixInterval.value) return
     fixInterval.value = ms
+    engine?.setFixInterval(ms)
     source?.setFixInterval(ms)
   },
 

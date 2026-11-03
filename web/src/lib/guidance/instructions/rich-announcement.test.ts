@@ -69,7 +69,7 @@ describe('border welcomes', () => {
   function heard(announcer: Announcer, route: NavRoute) {
     const all: Announcement[] = []
     for (let s = 0; s <= route.length; s += 5) {
-      all.push(...announcer.update({ position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed: 12, snapped: true, stepIndex: stepIndexAt(route, s) }))
+      all.push(...announcer.update({ position: pointAt(route, s), bearing: smoothedBearingAt(route, s, 5), s, speed: 12, snapped: true, stepIndex: stepIndexAt(route, s), estimated: false }))
     }
     return all.filter(a => a.kind === 'border')
   }

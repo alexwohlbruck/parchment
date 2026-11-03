@@ -172,4 +172,23 @@ describe('walkingSteps', () => {
     const steps: Step[] = [{ at: 0, type: 'depart', streetName: 'A' }, { at: 300, modifier: 'slight-right' }, { at: 302, modifier: 'left', streetName: 'A' }]
     expect(walk([[0, 300], [330, 20], [0, 300]], steps, [], 'driving').steps).toHaveLength(4)
   })
+
+  test('walking straight into a passage keeps the step', () => {
+    const line = polyline([[0, 600]])
+    const route = buildNavRoute([{
+      mode: 'walking',
+      geometry: line,
+      instructions: [
+        { type: 'depart', text: '', coordinate: line[0], distance: 300, duration: 200 },
+        { type: 'continue', modifier: 'straight', text: '', coordinate: line[30], distance: 300, duration: 200 },
+        { type: 'destination', text: '', coordinate: line[60], distance: 0, duration: 0 },
+      ],
+      edgeSegments: [
+        { startDistance: 0, endDistance: 300, roadClass: 'footway' },
+        { startDistance: 300, endDistance: 360, roadClass: 'footway', passage: 'arcade' },
+        { startDistance: 360, endDistance: 600, roadClass: 'footway' },
+      ],
+    }])
+    expect(summary(route)).toEqual([['straight', null], ['straight', null], ['arrive', null]])
+  })
 })

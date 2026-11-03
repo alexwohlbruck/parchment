@@ -17,7 +17,7 @@ export interface HazardSegment {
   instructions?: RouteInstruction[]
 }
 
-const PREMIUM_KINDS = new Set<RouteHazardKind>(['rough_surface', 'dismount', 'ferry', 'toll', 'speed_camera', 'traffic_calming', 'movable_bridge'])
+const PREMIUM_KINDS = new Set<RouteHazardKind>(['rough_surface', 'dismount', 'ferry', 'toll', 'speed_camera', 'traffic_calming', 'movable_bridge', 'bike_lane_start', 'bike_track_start'])
 
 /** Whether a kind is gated; everything that warns of risk to someone stays free. */
 export function isPremiumHazard(kind: RouteHazardKind): boolean {
@@ -278,18 +278,23 @@ function nearestSample(samples: Coordinate[], point: Coordinate): number {
   return best
 }
 
-/** Bends sharp enough to slow for that aren't themselves a turn instruction. */
-function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): RouteHazard[] {
-  if (segment.mode === 'walking' || path.length < CURVE_PROBE_METERS * 3) return []
+/** Whether a distance along the segment is close to one of its turn instructions. */
+function maneuverNearness(segment: HazardSegment, path: ReturnType<typeof measure>): (d: number) => boolean {
   const samples: Coordinate[] = []
   for (let d = 0; d <= path.length; d += CURVE_SAMPLE_METERS) samples.push(path.at(d))
   const maneuvers = (segment.instructions ?? [])
     .map((instruction) => nearestSample(samples, instruction.coordinate) * CURVE_SAMPLE_METERS)
     .sort((a, b) => a - b)
-  const nearManeuver = (d: number) => {
+  return (d: number) => {
     const next = maneuvers[search(maneuvers, d - MANEUVER_CLEARANCE_METERS, 0, maneuvers.length, true)]
     return next !== undefined && next < d + MANEUVER_CLEARANCE_METERS
   }
+}
+
+/** Bends sharp enough to slow for that aren't themselves a turn instruction. */
+function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): RouteHazard[] {
+  if (segment.mode === 'walking' || path.length < CURVE_PROBE_METERS * 3) return []
+  const nearManeuver = maneuverNearness(segment, path)
   const curves: RouteHazard[] = []
   let lastCurve = -Infinity
   for (let d = CURVE_PROBE_METERS; d <= path.length - CURVE_PROBE_METERS; d += CURVE_SAMPLE_METERS) {
@@ -302,6 +307,64 @@ function sharpCurves(segment: HazardSegment, path: ReturnType<typeof measure>): 
     curves.push({ kind: 'sharp_curve', severity: turn >= 90 ? 'high' : 'medium', startDistance: d, coordinate: path.at(d), variant: String(Math.round(turn)) })
   }
   return curves
+}
+
+type LaneState = 'lane' | 'track' | 'none'
+const LANE_STATES: Record<string, LaneState> = { lane: 'lane', track: 'track', no: 'none', missing: 'none', shared_lane: 'none' }
+/** Either side of a change, the road must stay that way this long for it to be worth saying. */
+const LANE_RUN_METERS = 100
+const NO_LANE_RUN_METERS = 50
+
+interface LaneRun { state: LaneState; start: number; end: number }
+
+/** Stretches of road with one kind of bike lane; a path, an untagged edge or a gap ends a stretch. */
+function laneRuns(edges: RouteEdgeSegment[]): (LaneRun | null)[] {
+  const runs: (LaneRun | null)[] = []
+  for (const edge of edges) {
+    const state = edge.roadClass && !PATHS.has(edge.roadClass) ? LANE_STATES[edge.cycleway?.toLowerCase() ?? ''] : undefined
+    const last = runs.at(-1)
+    if (!state) {
+      if (last) runs.push(null)
+      continue
+    }
+    const joined = last && edge.startDistance - last.end <= 1
+    if (joined && last.state === state) {
+      last.end = edge.endDistance
+      continue
+    }
+    if (last && !joined) runs.push(null)
+    runs.push({ state, start: edge.startDistance, end: edge.endDistance })
+  }
+  return runs
+}
+
+/** Where a road's bike lane ends, or one starts, partway along it rather than at a turn. */
+function bikeLaneChanges(segment: HazardSegment, path: ReturnType<typeof measure>): RouteHazard[] {
+  if (segment.mode !== 'cycling') return []
+  const nearManeuver = maneuverNearness(segment, path)
+  const runs = laneRuns(segment.edgeSegments ?? [])
+  const changes: RouteHazard[] = []
+  runs.forEach((after, i) => {
+    const before = runs[i - 1]
+    if (!before || !after || nearManeuver(after.start)) return
+    const longer = (run: LaneRun, meters: number) => run.end - run.start >= meters
+    const kind: RouteHazardKind | null =
+      before.state !== 'none' && after.state === 'none' ? 'bike_lane_end'
+        : after.state === 'track' && before.state !== 'track' ? 'bike_track_start'
+          : after.state === 'lane' && before.state === 'none' ? 'bike_lane_start'
+            : null
+    if (!kind) return
+    const [laned, bare] = kind === 'bike_lane_end' ? [before, after] : [after, before]
+    if (!longer(laned, LANE_RUN_METERS) || !longer(bare, NO_LANE_RUN_METERS)) return
+    changes.push({
+      kind,
+      severity: kind === 'bike_lane_end' ? 'medium' : 'low',
+      startDistance: after.start,
+      coordinate: path.at(after.start),
+      ...(isPremiumHazard(kind) && { premium: true }),
+    })
+  })
+  return changes
 }
 
 export interface RouteHazardsOptions {
@@ -323,5 +386,5 @@ export function routeHazards(input: HazardSegment, options: RouteHazardsOptions 
   const points = options.points
   const own = points && segment.mode !== 'walking' ? edges.filter((h) => h.kind !== 'traffic_signals') : edges
   const merged = mergeAdjacent([...own, ...(points ?? [])].sort(byStart), path.at)
-  return [...merged, ...steepGrades(segment, path), ...sharpCurves(segment, path)].sort(byStart)
+  return [...merged, ...steepGrades(segment, path), ...sharpCurves(segment, path), ...bikeLaneChanges(segment, path)].sort(byStart)
 }

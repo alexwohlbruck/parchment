@@ -436,3 +436,85 @@ describe('Spanish', () => {
     expect(voiceText(turnRight(route, { lanes }), tEs)).toBe('En el segundo semáforo, usa el segundo carril por la derecha para girar a la derecha hacia Trade Street')
   })
 })
+
+describe('stairs', () => {
+  const stairs = (averageSlope: number, length = 40) =>
+    city({ mode: 'walking', right: { streetName: undefined }, edges: [{ startDistance: 600, endDistance: 600 + length, roadClass: 'steps', averageSlope }] })
+  const step = (route: NavRoute) => richInstruction(route, route.steps[1], { from: 560, speed: 1.4 })
+
+  test('say which way they go, keeping the side', () => {
+    expect(voiceText(step(stairs(10)), t)).toBe('Take the stairs up on your right')
+    expect(voiceText(step(stairs(-25, 10)), t)).toBe('Take the stairs down on your right')
+    expect(voiceText(step(stairs(10)), tEs)).toBe('Sube por las escaleras a tu derecha')
+  })
+
+  test('a rise too small for the elevation model to tell stays unsaid', () => {
+    expect(voiceText(step(stairs(10, 5)), t)).toBe('Take the stairs on your right')
+  })
+
+  test('indoor levels outrank the grade', () => {
+    const route = city({
+      mode: 'walking',
+      right: { streetName: undefined },
+      edges: [
+        { startDistance: 560, endDistance: 600, roadClass: 'footway', level: '1' },
+        { startDistance: 600, endDistance: 615, roadClass: 'steps', averageSlope: 10 },
+        { startDistance: 615, endDistance: 700, roadClass: 'footway', level: '0' },
+      ],
+    })
+    expect(voiceText(step(route), t)).toBe('Take the stairs down to level 0')
+  })
+})
+
+describe('passages', () => {
+  const through = (edge: Partial<RouteEdgeSegment>, right: Step = { streetName: undefined }) =>
+    city({ mode: 'walking', right, edges: [{ startDistance: 500, endDistance: 600, roadClass: 'footway' }, { startDistance: 600, endDistance: 700, roadClass: 'footway', ...edge }] })
+  const step = (route: NavRoute) => richInstruction(route, route.steps[1], { from: 560, speed: 1.4 })
+
+  test('a turn into a passage, an arcade or a building', () => {
+    expect(voiceText(step(through({ passage: 'building' })), t)).toBe('Turn right into the passage')
+    expect(voiceText(step(through({ passage: 'arcade' })), t)).toBe('Turn right into the arcade')
+    expect(voiceText(step(through({ passage: 'indoor' })), t)).toBe('Turn right and go inside')
+    expect(voiceText(step(through({ passage: 'indoor' })), tEs)).toBe('Gira a la derecha y entra en el edificio')
+  })
+
+  test('a footway tunnel is an underpass', () => {
+    expect(voiceText(step(through({ roadEnvironment: 'tunnel' })), t)).toBe('Turn right into the underpass')
+  })
+
+  test('already inside, a turn is a turn', () => {
+    const route = city({ mode: 'walking', right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 700, roadClass: 'footway', passage: 'arcade' }] })
+    expect(step(route).action.kind).toBe('turn')
+  })
+})
+
+describe('bike lanes', () => {
+  const ride = (edges: Partial<RouteEdgeSegment>[]) => city({ mode: 'cycling', edges })
+  const turnLeft = (route: NavRoute) => richInstruction(route, route.steps[2], { from: 960, speed: 5 })
+
+  test('a bike lane on the far side of the road turned onto', () => {
+    const route = ride([{ startDistance: 600, endDistance: 1000, roadClass: 'residential', cyclewaySide: 'left', cycleway: 'lane' }])
+    expect(voiceText(turnRight(route), t)).toBe('Turn right onto Trade Street and use the bike lane on the left')
+    expect(bannerCue(turnRight(route), t)).toBe('Bike lane on the left')
+    expect(voiceText(turnRight(route), tEs)).toBe('Gira a la derecha hacia Trade Street y usa el carril bici de la izquierda')
+  })
+
+  test('says nothing of a lane on the near side, or one the rider is already in', () => {
+    expect(turnRight(ride([{ startDistance: 600, endDistance: 1000, cyclewaySide: 'right' }])).bikeLane).toBeUndefined()
+    expect(turnRight(ride([{ startDistance: 0, endDistance: 1000, cyclewaySide: 'left' }])).bikeLane).toBeUndefined()
+  })
+
+  test('a left turn off a protected lane on a major road is made in two stages', () => {
+    const track = { startDistance: 600, endDistance: 1000, roadClass: 'secondary', cycleway: 'track', cyclewaySide: 'right' as const }
+    expect(voiceText(turnLeft(ride([track])), t)).toBe('Go straight across, then turn left onto College Street')
+    expect(bannerCue(turnLeft(ride([track])), t)).toBe('Two-stage turn')
+    expect(voiceText(turnLeft(ride([track])), tEs)).toBe('Cruza recto y luego gira a la izquierda hacia College Street')
+  })
+
+  test('a painted lane, a side street or an unknown side is an ordinary turn', () => {
+    const track = { startDistance: 600, endDistance: 1000, roadClass: 'secondary', cycleway: 'track', cyclewaySide: 'right' as const }
+    expect(turnLeft(ride([{ ...track, cycleway: 'lane' }])).action.kind).toBe('turn')
+    expect(turnLeft(ride([{ ...track, roadClass: 'residential' }])).action.kind).toBe('turn')
+    expect(turnLeft(ride([{ ...track, cyclewaySide: undefined }])).action.kind).toBe('turn')
+  })
+})

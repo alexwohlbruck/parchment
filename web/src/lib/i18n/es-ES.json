@@ -1330,7 +1330,12 @@
         "roundaboutExit": "En la rotonda, toma la salida {exit}",
         "arrive": "Llega",
         "board": "Sube",
-        "boardAt": "Sube en {stop}"
+        "boardAt": "Sube en {stop}",
+        "enterStation": "Entra en la estación",
+        "exitStation": "Sal de la estación",
+        "escalator": "Toma la escalera mecánica",
+        "elevator": "Toma el ascensor",
+        "stairs": "Toma las escaleras"
       },
       "onto": "{action} hacia {road}",
       "in": "En {distance}, {action}",
@@ -1382,6 +1387,10 @@
         "low_clearance": "Gálibo reducido más adelante",
         "speed_camera": "Radar de velocidad más adelante",
         "movable_bridge": "Puente móvil más adelante",
+        "dismount": "Más adelante, bájate de la bici",
+        "bike_lane_end": "El carril bici se acaba más adelante, incorpórate al tráfico",
+        "bike_lane_start": "Más adelante, entra en el carril bici",
+        "bike_track_start": "Más adelante, entra en el carril bici protegido",
         "hazard": "Peligro más adelante"
       },
       "useLanes": "{action}. Usa {lanes}",
@@ -1450,9 +1459,66 @@
       "stairs": {
         "left": "Toma las escaleras a tu izquierda",
         "right": "Toma las escaleras a tu derecha",
-        "ahead": "Toma las escaleras"
+        "ahead": "Toma las escaleras",
+        "up": {
+          "left": "Sube por las escaleras a tu izquierda",
+          "right": "Sube por las escaleras a tu derecha",
+          "ahead": "Sube por las escaleras"
+        },
+        "down": {
+          "left": "Baja por las escaleras a tu izquierda",
+          "right": "Baja por las escaleras a tu derecha",
+          "ahead": "Baja por las escaleras"
+        }
+      },
+      "escalator": {
+        "ahead": "Toma la escalera mecánica",
+        "up": "Sube por la escalera mecánica",
+        "down": "Baja por la escalera mecánica"
+      },
+      "elevator": {
+        "ahead": "Toma el ascensor",
+        "up": "Sube en el ascensor",
+        "down": "Baja en el ascensor"
+      },
+      "floorTo": {
+        "level": "{action} hasta la planta {level}",
+        "platform": "{action} hasta el andén",
+        "street": "{action} hasta la calle"
+      },
+      "station": {
+        "enter": {
+          "refName": "Entra en la estación por el acceso {ref}, {name}",
+          "ref": "Entra en la estación por el acceso {ref}",
+          "name": "Entra en la estación por {name}",
+          "plain": "Entra en la estación"
+        },
+        "exit": {
+          "refName": "Toma la salida {ref}, {name}",
+          "ref": "Toma la salida {ref}",
+          "name": "Toma la salida hacia {name}",
+          "plain": "Sal de la estación"
+        }
       },
       "footbridge": "Usa la pasarela peatonal",
+      "ramp": {
+        "ahead": "Sigue la rampa",
+        "up": "Sube por la rampa",
+        "down": "Baja por la rampa",
+        "bridge": "Sube por la rampa hasta el puente"
+      },
+      "passage": {
+        "building": "Atraviesa el pasaje",
+        "arcade": "Camina por los soportales",
+        "indoor": "Entra en el edificio",
+        "underpass": "Atraviesa el paso subterráneo"
+      },
+      "intoPassage": {
+        "building": "{action} para entrar en el pasaje",
+        "arcade": "{action} para entrar en los soportales",
+        "indoor": "{action} y entra en el edificio",
+        "underpass": "{action} para entrar en el paso subterráneo"
+      },
       "crosswalk": "Cruza por el paso de peatones",
       "crosswalkSignals": "Cruza en el semáforo",
       "crosswalkRoad": "Cruza {road} por el paso de peatones",
@@ -1507,6 +1573,31 @@
       "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
       "toward": "{action} en dirección a {destination}",
       "followSigns": "{action} y sigue las indicaciones hacia {destination}",
+      "twoStage": {
+        "left": "Cruza recto y luego gira a la izquierda",
+        "right": "Cruza recto y luego gira a la derecha"
+      },
+      "bikeLane": {
+        "left": "{action} y usa el carril bici de la izquierda",
+        "right": "{action} y usa el carril bici de la derecha"
+      },
+      "dismount": {
+        "walk": "Bájate y lleva la bici {place}",
+        "walkFor": "Bájate y lleva la bici {place} durante {distance}",
+        "carry": {
+          "up": "Sube las escaleras con la bici a cuestas",
+          "down": "Baja las escaleras con la bici a cuestas",
+          "any": "Lleva la bici a cuestas por las escaleras"
+        },
+        "places": {
+          "sidewalk": "por la acera",
+          "path": "por el sendero",
+          "plaza": "por la plaza",
+          "crosswalk": "por el paso de peatones",
+          "bridge": "por el puente",
+          "park": "por el parque"
+        }
+      },
       "infinitive": {
         "straight": "seguir recto",
         "slight-left": "girar ligeramente a la izquierda",
@@ -1583,7 +1674,13 @@
         "exit": "Salida {number}",
         "exitToward": "Salida {number} · {destination}",
         "toward": "Hacia {destination}",
-        "roundaboutExit": "Salida {exit}"
+        "roundaboutExit": "Salida {exit}",
+        "bikeLane": {
+          "left": "Carril bici a la izquierda",
+          "right": "Carril bici a la derecha"
+        },
+        "twoStage": "Giro en dos tiempos",
+        "dismount": "Bájate de la bici"
       }
     },
     "sound": {
@@ -1620,6 +1717,9 @@
       "toll": "Peaje",
       "speed_camera": "Radar",
       "movable_bridge": "Puente móvil",
+      "bike_lane_end": "Fin del carril bici",
+      "bike_lane_start": "Empieza el carril bici",
+      "bike_track_start": "Carril bici protegido",
       "hazard": "Peligro"
     },
     "hazardCounts": {

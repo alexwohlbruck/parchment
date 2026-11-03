@@ -16,6 +16,10 @@
 
 * Walking directions warn at crossings with no crosswalk, and say when to press the button, wait at the median, or cross diagonally.
 
+* Walking to a train, guidance says which entrance to use and, after you get off, which exit to take, along with escalators and elevators to the platform or street.
+
+* Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
+
 ### Changed
 
 * Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
@@ -30,6 +34,10 @@
 
 * A street changing its name, with no turn to make, is no longer a walking step.
 
+* Walking directions say whether stairs go up or down, sum up a ramp's switchbacks as "Follow the ramp up to the bridge", and say "Go through the passage" or "Walk through the arcade".
+
+* Bike directions say where and how far to walk your bike, such as "Walk your bike through the plaza for 260 feet".
+
 ### Fixed
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
@@ -40,7 +48,7 @@
 
 * Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
 
-* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue, then cross East 39th Street at the light". Crossing a side street goes unannounced, but crossing to the other side of your street is called out.
+* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue". Crossing a side street goes unannounced, but crossing to the other side of your street is called out.
 
 * The instruction card now always says the same thing as the voice.
 

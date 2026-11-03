@@ -165,6 +165,9 @@ export type RouteHazardKind =
   | 'toll'
   | 'speed_camera'
   | 'movable_bridge'
+  | 'bike_lane_end'
+  | 'bike_lane_start'
+  | 'bike_track_start'
   | 'hazard'
 
 /** Something a route passes through that's worth knowing about, placed by distance along its segment. */

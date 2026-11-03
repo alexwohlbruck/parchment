@@ -8,6 +8,7 @@ import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { angleDelta } from './spring'
 import type { CrossingWay, NavEdge, NavSegment, NavStep, StepCrossing } from './nav-route'
+import type { Passage } from './instructions/instruction.types'
 
 export interface WalkLine {
   at: (s: number) => LngLat
@@ -106,12 +107,20 @@ function heading(line: WalkLine, from: number, to: number): number {
   return bearingDeg(a, b)
 }
 
-/** Stairs, a footbridge or a park gate just past `s`: a step there says so, even going straight. */
+/** The passage, arcade, building or underpass walked into from `before` onto `past`. */
+export function passageInto(before: NavEdge | null | undefined, past: NavEdge | null | undefined): Passage | null {
+  if (past?.passage) return past.passage === before?.passage ? null : past.passage
+  const tunnel = (e: NavEdge | null | undefined) => e?.roadEnvironment === 'tunnel' && PATHS.has(e.roadClass ?? '')
+  return tunnel(past) && !tunnel(before) ? 'underpass' : null
+}
+
+/** Stairs, a footbridge, a passage or a park gate just past `s`: a step there says so, even going straight. */
 function marksPath(line: WalkLine, s: number): boolean {
   const past = line.edges.find(e => e.startDistance <= s + PAST_METERS && e.endDistance >= s + PAST_METERS)
   const before = line.edges.find(e => e.startDistance <= s - PAST_METERS && e.endDistance >= s - PAST_METERS)
   if (!past) return false
   return past.roadClass === 'steps' || (past.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) || (!!past.inPark && !before?.inPark)
+    || !!passageInto(before, past)
 }
 
 /**

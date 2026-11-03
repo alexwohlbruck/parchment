@@ -125,10 +125,11 @@ describe('replacedPlaces', () => {
 })
 
 describe('replacedFixtures', () => {
-  it('lists the doors, lifts and station entrances a floor plan signs', () => {
+  it('lists the doors and lifts a floor plan signs, leaving station entrances on every level', () => {
     expect(replacedFixtures([
       { properties: { kind: 'poi', class: 'door', subclass: 'main', id: 'node/2' } },
       { properties: { kind: 'poi', class: 'elevator', id: 'node/1' } },
+      { properties: { kind: 'poi', class: 'railway', subclass: 'subway_entrance', id: 'node/4' } },
       { properties: { kind: 'poi', class: 'shop', id: 'node/3', name: 'Gap' } },
     ], () => true)).toBe(';node/1;node/2;')
   })

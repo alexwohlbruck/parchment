@@ -6,6 +6,7 @@ import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { attachIndoor } from '@/services/map/indoor.service'
 import { attachIndoorTerrain } from '@/services/map/indoor-terrain.service'
+import { attachIndoorFlights } from '@/services/map/indoor-flights.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -324,6 +325,7 @@ export class MaplibreStrategy extends MapStrategy {
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private indoor: ReturnType<typeof attachIndoor> | null = null
   private indoorTerrain: ReturnType<typeof attachIndoorTerrain> | null = null
+  private indoorFlights: ReturnType<typeof attachIndoorFlights> | null = null
   private indoorBuildings: string[] = []
   /** Set when a click opened a venue's floor plan, so it opens nothing else. */
   private indoorClaimedClick = false
@@ -490,8 +492,10 @@ export class MaplibreStrategy extends MapStrategy {
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.golfPins = attachGolfPins(this.mapInstance)
     this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain)
+    this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))
     this.indoor = attachIndoor(this.mapInstance, {
       focus: focus => {
+        this.indoorFlights?.refresh()
         this.fadeBuildings(showsBasement(focus) ? BASEMENT_BUILDING_OPACITY : 1)
         this.fadeSurface(showsBasement(focus))
         mapEventBus.emit('indoor', focus)
@@ -768,6 +772,7 @@ export class MaplibreStrategy extends MapStrategy {
       if (id.startsWith(INDOOR_LAYER_PREFIX)) this.mapInstance.setLayoutProperty(id, 'visibility', visibility)
     this.indoor?.setEnabled(!!value)
     this.indoorTerrain?.setEnabled(!!value)
+    this.indoorFlights?.setEnabled(!!value)
   }
 
   setIndoorLevel(level: number | null) {
@@ -1851,6 +1856,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.golfPins?.detach()
     this.indoor?.detach()
     this.indoorTerrain?.detach()
+    this.indoorFlights?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

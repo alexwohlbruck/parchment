@@ -167,7 +167,7 @@ export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[], s
   return joined(ids)
 }
 
-const FIXTURE_CLASSES = ['door', 'elevator', 'railway']
+const FIXTURE_CLASSES = ['door', 'elevator']
 
 /** The basemap ids of the places showing floor plans draw on their own level, as the style's `;id;` string. */
 export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {

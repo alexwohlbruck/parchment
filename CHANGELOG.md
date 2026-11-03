@@ -20,6 +20,7 @@
 
 ### Fixed
 
+* Subway entrances show as square signs on every floor of a station, replacing the purple dots.
 * Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".

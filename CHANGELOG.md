@@ -6,6 +6,7 @@
 
 ### Fixed
 
+* Subway lines stay fully visible when viewing an underground station's floor plan, instead of fading out with the streets above.
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
 

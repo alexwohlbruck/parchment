@@ -57,6 +57,8 @@ export interface RichInstruction {
   park?: { name?: string }
   /** A street crossed on foot as part of a turn. */
   crossing?: StepCrossing
+  /** On foot, where a path or a departure leads: the next street or park along it. */
+  leadsTo?: string
   /** The destination's side, when this crossing is the last thing before it. */
   arrival?: Side
   then?: { instruction: RichInstruction; immediately: boolean }

@@ -1484,6 +1484,12 @@
         "right": "{action}; tu destino está a la derecha"
       },
       "followPath": "Sigue el sendero",
+      "followPathToward": "Sigue el sendero en dirección a {destination}",
+      "forkToward": {
+        "left": "En la bifurcación, mantente a la izquierda en dirección a {destination}",
+        "right": "En la bifurcación, mantente a la derecha en dirección a {destination}"
+      },
+      "ontoToward": "{action} hacia {road} en dirección a {destination}",
       "enterPark": "Entra en {park} y sigue el sendero",
       "enterParkUnnamed": "Entra en el parque y sigue el sendero",
       "intoPark": "{action} para entrar en {park}",
@@ -1494,6 +1500,8 @@
         "right": "Bienvenido a casa. Tu destino está a la derecha"
       },
       "headAlong": "Ve hacia el {heading} por {road}",
+      "headAlongToward": "Ve por {road} en dirección a {destination}",
+      "headToward": "Ve en dirección a {destination}",
       "turnAround": "Da la vuelta para empezar la ruta y ve hacia el {heading}",
       "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
       "toward": "{action} en dirección a {destination}",

@@ -22,6 +22,8 @@ export interface InstructionContext {
 /** Just past the maneuver, where the road taken is read. */
 const PAST_TURN_METERS = 8
 const CROSSING_REACH_METERS = 20
+/** How far ahead an unnamed path is named by where it leads, past its next maneuver. */
+const LEADS_TO_METERS = 300
 const ROUNDABOUT_PROBE_METERS = 10
 const THROUGH_DEGREES = 25
 const IMMEDIATE_METERS = 40
@@ -76,7 +78,8 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   // Walking steps already know their crossing; only a straight one is the crossing itself.
   if (mode === 'walking') {
-    if (!step.crossing || kind !== 'straight') return null
+    // A fork whose branch is a crosswalk is the crossing.
+    if (!step.crossing || (kind !== 'straight' && kind !== 'keep-left' && kind !== 'keep-right')) return null
     const { first: _first, ...crossing } = step.crossing
     return { kind: 'crosswalk', ...crossing }
   }
@@ -90,6 +93,32 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
   if (onto && (TURNING.has(kind) || crossing.startDistance > step.startDistance + PAST_TURN_METERS)) return null
   const signals = crossing.crossing!.toLowerCase() === 'traffic_signals'
   return { kind: 'crosswalk', signals, light: signals, ...(crossing.crossingName && { road: crossing.crossingName }) }
+}
+
+/** The road taken; a path that only carries a crossing's tag isn't the crosswalk itself. */
+function walkedRoad(route: NavRoute, step: NavStep): RoadLabel | undefined {
+  const target = targetRoad(route, step)
+  return target?.kind === 'generic' && target.key === 'crosswalk' && !step.crossing ? { kind: 'generic', key: 'path' } : target
+}
+
+const stepName = (step: NavStep) => step.instruction.streetName || step.instruction.streetRef || ''
+
+/**
+ * The first name ahead of `from`, other than `except`, through the next
+ * maneuver or some way further: a street crossed, a park entered, a road taken.
+ */
+function nameAhead(route: NavRoute, from: number, except = ''): string | undefined {
+  const next = route.steps.find(s => s.startDistance > from + PAST_TURN_METERS)
+  const until = Math.max(next?.startDistance ?? 0, from + LEADS_TO_METERS)
+  const inPark = edgeAt(route, from + PAST_TURN_METERS)?.parkName
+  const named = (name: string | undefined) => !!name && name !== except
+  const edge = route.edges.find(e => e.startDistance > from && e.startDistance <= until
+    && (named(PATHS.has(e.roadClass ?? '') ? e.crossingName : undefined) || (e.parkName !== inPark && named(e.parkName))))
+  const step = route.steps.find(s => s.startDistance > from + PAST_TURN_METERS && s.startDistance <= until && named(stepName(s)))
+  if (edge && (!step || edge.startDistance <= step.startDistance)) {
+    return named(edge.crossingName) && PATHS.has(edge.roadClass ?? '') ? edge.crossingName : edge.parkName
+  }
+  return step && stepName(step)
 }
 
 /** The park a walker steps into at the maneuver. */
@@ -146,15 +175,20 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
   const maneuver = maneuverKind(step.instruction)
   const instruction: RichInstruction = { action: action(route, step, maneuver, context), maneuver }
   if (maneuver === 'arrive') return instruction
-  const target = targetRoad(route, step)
+  const onFoot = ON_FOOT.has(travelModeAt(route, step.startDistance))
+  const target = walkedRoad(route, step)
   if (target) instruction.target = target
-  const park = target?.kind !== 'named' && ON_FOOT.has(travelModeAt(route, step.startDistance)) ? enteredPark(route, step) : undefined
+  const park = target?.kind !== 'named' && onFoot ? enteredPark(route, step) : undefined
   if (park) instruction.park = park
   if (step.crossing && instruction.action.kind !== 'crosswalk') {
     instruction.crossing = step.crossing
     if (target?.kind !== 'named') delete instruction.target
   }
   if (step.instruction.destination) instruction.toward = step.instruction.destination
+  if (onFoot && !instruction.crossing && instruction.target?.kind !== 'named' && instruction.action.kind !== 'crosswalk') {
+    const leadsTo = nameAhead(route, step.startDistance)
+    if (leadsTo) instruction.leadsTo = leadsTo
+  }
   const anchor = landmarkAnchor(route, step, context.from, context.speed, travelModeAt(route, step.startDistance))
   const saysLight = instruction.action.kind === 'crosswalk' && instruction.action.signals
   if (anchor && !(saysLight && anchor.kind === 'traffic_signals')) instruction.anchor = anchor
@@ -170,8 +204,10 @@ export function departure(route: NavRoute, step: NavStep | null): RichInstructio
     action: { kind: 'depart', heading: cardinal(bearingAt(route, 0)), along: ON_FOOT.has(mode) },
     maneuver: 'straight',
   }
-  const target = step ? targetRoad(route, step) : undefined
+  const target = step ? walkedRoad(route, step) : undefined
   if (target) instruction.target = target
+  const leadsTo = ON_FOOT.has(mode) ? nameAhead(route, 0, target?.kind === 'named' ? target.name : '') : undefined
+  if (leadsTo) instruction.leadsTo = leadsTo
   return instruction
 }
 

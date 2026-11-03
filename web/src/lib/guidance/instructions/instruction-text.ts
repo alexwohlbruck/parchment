@@ -111,8 +111,11 @@ export function bannerTitle(instruction: RichInstruction, t: TFn): string {
 }
 
 function maneuverText(instruction: RichInstruction, t: TFn): string {
-  const { action, maneuver, target, toward } = instruction
+  const { action, maneuver, target, toward, leadsTo } = instruction
   const road = target && roadText(target, t)
+  if (action.kind === 'depart' && action.along && leadsTo) {
+    return road ? t(`${K}.headAlongToward`, { road, destination: leadsTo }) : t(`${K}.headToward`, { destination: leadsTo })
+  }
   if (action.kind === 'depart' && road) {
     const heading = t(`guidance.voice.headings.${action.heading}`)
     return t(action.along ? `${K}.headAlong` : 'guidance.voice.headOn', { heading, road })
@@ -123,7 +126,10 @@ function maneuverText(instruction: RichInstruction, t: TFn): string {
     const base = baseAction(action, maneuver, t)
     return park ? t(`${K}.intoPark`, { action: base, park }) : t(`${K}.intoParkUnnamed`, { action: base })
   }
-  if (action.kind === 'turn' && maneuver === 'straight' && target?.kind === 'generic') return t(`${K}.followPath`)
+  if (action.kind === 'turn' && maneuver === 'straight' && target?.kind === 'generic') {
+    return leadsTo ? t(`${K}.followPathToward`, { destination: leadsTo }) : t(`${K}.followPath`)
+  }
+  if (action.kind === 'fork' && leadsTo && !toward) return t(`${K}.forkToward.${action.side}`, { destination: leadsTo })
   if (action.kind === 'stay' && road) return t(`${K}.stay`, { action: baseAction(action, maneuver, t), road })
   if (toward && SIGNPOSTED.has(action.kind)) {
     if (action.kind === 'exit') return t(`${K}.toward`, { action: baseAction(action, maneuver, t), destination: toward })
@@ -131,8 +137,10 @@ function maneuverText(instruction: RichInstruction, t: TFn): string {
   }
   const base = baseAction(action, maneuver, t)
   const onto = road && ONTO.has(action.kind) && !(action.kind === 'roundabout' && action.through)
+  if (onto && leadsTo && target.kind === 'generic') return t(`${K}.ontoToward`, { action: base, road, destination: leadsTo })
   if (onto) return t('guidance.voice.onto', { action: base, road })
-  return toward && action.kind === 'turn' ? t(`${K}.toward`, { action: base, destination: toward }) : base
+  const destination = toward ?? leadsTo
+  return destination && action.kind === 'turn' ? t(`${K}.toward`, { action: base, destination }) : base
 }
 
 function lanesText(lanes: LaneAdvice, t: TFn): string {

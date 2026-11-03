@@ -194,7 +194,7 @@ export function walkingSteps(steps: NavStep[], line: WalkLine): NavStep[] {
     // A lone fork between unnamed paths is a choice to make; on a street it's a sidewalk's kink.
     if (start === j && FORKS.has(ghKind) && !onto) {
       claimed = end
-      out.push(last)
+      out.push(crossing?.road ? { ...last, crossing } : last)
       continue
     }
     // On foot a new name with no turn and no street to cross is no maneuver.

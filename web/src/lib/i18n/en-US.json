@@ -1518,6 +1518,12 @@
         "right": "{action}; your destination is on the right"
       },
       "followPath": "Follow the path",
+      "followPathToward": "Follow the path toward {destination}",
+      "forkToward": {
+        "left": "At the fork, keep left toward {destination}",
+        "right": "At the fork, keep right toward {destination}"
+      },
+      "ontoToward": "{action} onto {road} toward {destination}",
       "enterPark": "Enter {park} and follow the path",
       "enterParkUnnamed": "Enter the park and follow the path",
       "intoPark": "{action} into {park}",
@@ -1528,6 +1534,8 @@
         "right": "Welcome home. Your destination is on the right"
       },
       "headAlong": "Head {heading} along {road}",
+      "headAlongToward": "Head along {road} toward {destination}",
+      "headToward": "Head toward {destination}",
       "turnAround": "Turn around to begin your route, then head {heading}",
       "turnAroundAlong": "Turn around to begin your route, then head {heading} along {road}",
       "toward": "{action} toward {destination}",

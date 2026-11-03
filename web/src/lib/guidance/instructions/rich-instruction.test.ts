@@ -352,10 +352,45 @@ describe('on foot', () => {
     expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north along Tryon Street')
   })
 
-  test('sets off along the road', () => {
+  test('sets off along the road toward the first street ahead', () => {
     const route = walk({})
-    expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north along Tryon Street')
-    expect(voiceText(departure(route, route.steps[0]), tEs)).toBe('Ve hacia el norte por Tryon Street')
+    expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head along Tryon Street toward Trade Street')
+    expect(voiceText(departure(route, route.steps[0]), tEs)).toBe('Ve por Tryon Street en dirección a Trade Street')
+    const crossed = walk({ edges: [{ startDistance: 300, endDistance: 315, roadClass: 'footway', crossing: 'marked', crossingName: '5th Street' }] })
+    expect(voiceText(departure(crossed, crossed.steps[0]), t)).toBe('Head along Tryon Street toward 5th Street')
+  })
+
+  test('an unnamed path is named by where it leads', () => {
+    const path = { startDistance: 600, endDistance: 1000, roadClass: 'path' }
+    const turn = walk({ right: { streetName: undefined }, edges: [path] })
+    expect(voiceText(step(turn), t)).toBe('Turn right onto the path toward College Street')
+    const park = walk({ right: { streetName: undefined }, left: { streetName: undefined }, edges: [{ ...path, endDistance: 900 }, { startDistance: 900, endDistance: 1500, roadClass: 'path', inPark: true, parkName: 'Marshall Park' }] })
+    expect(voiceText(step(park), t)).toBe('Turn right onto the path toward Marshall Park')
+  })
+
+  test('a fork in the park keeps toward where its branch leads', () => {
+    const route = walk({
+      right: { type: 'continue', modifier: 'slight-right', streetName: undefined },
+      edges: [{ startDistance: 0, endDistance: 1500, roadClass: 'path', inPark: true, parkName: 'Freedom Park' }, { startDistance: 800, endDistance: 812, roadClass: 'footway', crossing: 'marked', crossingName: 'East Boulevard' }],
+    })
+    expect(voiceText(step(route), t)).toBe('At the fork, keep right toward East Boulevard')
+  })
+
+  test('a fork whose branch is a crosswalk is the crossing', () => {
+    const route = walk({
+      right: { type: 'continue', modifier: 'slight-right', streetName: undefined },
+      edges: [{ startDistance: 600, endDistance: 612, roadClass: 'footway', crossing: 'marked', crossingName: 'Kings Drive' }],
+    })
+    expect(voiceText(step(route), t)).toBe('Cross Kings Drive at the crosswalk')
+  })
+
+  test('a fork onto a path tagged with a crossing it passes is a path', () => {
+    const route = walk({
+      right: { type: 'continue', modifier: 'slight-right', streetName: undefined },
+      left: { streetName: undefined },
+      edges: [{ startDistance: 600, endDistance: 1000, roadClass: 'footway', crossing: 'unmarked' }],
+    })
+    expect(voiceText(step(route), t)).toBe('At the fork, bear right onto the path')
   })
 })
 

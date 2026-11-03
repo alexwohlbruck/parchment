@@ -4,6 +4,7 @@
 import type { ManeuverKind } from '@/lib/directions/maneuver'
 import type { RoadLabel } from '../guidance-display'
 import type { Cardinal } from '../turn-around'
+import type { StepCrossing } from '../nav-route'
 
 export type Side = 'left' | 'right'
 
@@ -54,5 +55,7 @@ export interface RichInstruction {
   lanes?: LaneAdvice
   /** The park the maneuver enters, on foot. */
   park?: { name?: string }
+  /** A street crossed on foot as part of a turn. */
+  crossing?: StepCrossing
   then?: { instruction: RichInstruction; immediately: boolean }
 }

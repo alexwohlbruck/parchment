@@ -2,6 +2,7 @@
 // sees just before it. Never one that could be mistaken for another nearby.
 
 import type { RouteHazardKind } from '@/types/directions.types'
+import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
 import type { NavRoute, NavStep } from '../nav-route'
 import type { Anchor, AnchorKind } from './instruction.types'
 
@@ -35,6 +36,7 @@ const SALIENCE: Record<AnchorKind, number> = {
 const RELATION: Record<Anchor['relation'], number> = { at: 2, after: 1, past: 0.5 }
 
 const CONTROLS = new Set<RouteHazardKind>(['traffic_signals', 'stop', 'give_way'])
+const WALKING_TURNS = new Set<ManeuverKind>(['left', 'right', 'sharp-left', 'sharp-right'])
 
 function score(anchor: Anchor, turn: number): number {
   return SALIENCE[anchor.kind] + RELATION[anchor.relation] - Math.abs(turn - anchor.s) / 100
@@ -128,8 +130,10 @@ export function landmarkAnchor(route: NavRoute, step: NavStep, from: number, spe
     route.hazards.filter(h => kinds.includes(h.kind) && h.startDistance <= turn + CLUSTER_METERS).map(h => h.startDistance)
   const walking = mode === 'walking'
 
+  // A walker passes a light at every corner, so only the one they turn at, unless crossing at it says so already.
+  const light = lightAnchor(positions(['traffic_signals']), from, turn, reach)
   const candidates = [
-    lightAnchor(positions(['traffic_signals']), from, turn, reach),
+    walking && (light?.relation !== 'at' || step.crossing?.signals || !WALKING_TURNS.has(maneuverKind(step.instruction))) ? null : light,
     walking ? null : pointAnchor('stop', positions(['stop']), from, turn, reach),
     walking ? null : pointAnchor('give_way', positions(['give_way']), from, turn, reach),
     pointAnchor('rail_crossing', positions(['rail_crossing']), from, turn, reach),

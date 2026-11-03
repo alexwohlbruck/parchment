@@ -4,7 +4,7 @@ import type { LaneArrow, LanePlan } from '../lanes'
 import { buildNavRoute, type NavRoute, type NavSegmentInput } from '../nav-route'
 import { polyline, translator } from '../test-routes'
 import { chained, departure, richInstruction, type InstructionContext } from './rich-instruction'
-import { bannerCue, voiceText } from './instruction-text'
+import { bannerCue, bannerTitle, voiceText } from './instruction-text'
 import en from '@/lib/i18n/en-US.json'
 import es from '@/lib/i18n/es-ES.json'
 
@@ -227,6 +227,20 @@ describe('arrival', () => {
 describe('on foot', () => {
   const walk = (options: CityOptions) => city({ mode: 'walking', ...options })
   const step = (route: NavRoute) => richInstruction(route, route.steps[1], { from: 560, speed: 1.4 })
+  /** 1200 m north along a path, with a step straight on at 600 m. */
+  const ahead = (edges: Partial<RouteEdgeSegment>[], streetName?: string) => {
+    const line = polyline([[0, 1200]])
+    return buildNavRoute([{
+      mode: 'walking',
+      geometry: line,
+      instructions: [
+        { type: 'depart', text: '', coordinate: line[0], distance: 600, duration: 430 },
+        { type: 'continue', modifier: 'straight', text: '', coordinate: line[60], distance: 600, duration: 430, streetName },
+        { type: 'destination', text: '', coordinate: line[120], distance: 0, duration: 0 },
+      ],
+      edgeSegments: edges.map(e => ({ startDistance: 0, endDistance: 0, ...e })),
+    }])
+  }
 
   test('stairs on the side of the turn', () => {
     const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 600, endDistance: 640, roadClass: 'steps' }] })
@@ -239,21 +253,28 @@ describe('on foot', () => {
   })
 
   test('a crossing, at the light where it has one', () => {
-    const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 605, endDistance: 620, roadClass: 'footway', crossing: 'traffic_signals' }] })
+    const route = ahead([{ startDistance: 0, endDistance: 600, roadClass: 'path' }, { startDistance: 600, endDistance: 615, roadClass: 'footway', crossing: 'traffic_signals' }])
     expect(voiceText(step(route), t)).toBe('Cross at the light')
     expect(voiceText(step(route), tEs)).toBe('Cruza en el semáforo')
   })
 
   test('a crossing names the road it crosses', () => {
-    const crossing = (value: string) => walk({ right: { streetName: undefined }, edges: [{ startDistance: 605, endDistance: 620, roadClass: 'footway', crossing: value, crossingName: '7th Avenue' }] })
+    const crossing = (value: string) => ahead([{ startDistance: 600, endDistance: 615, roadClass: 'footway', crossing: value, crossingName: '7th Avenue' }])
     expect(voiceText(step(crossing('traffic_signals')), t)).toBe('Cross 7th Avenue at the light')
     expect(voiceText(step(crossing('marked')), t)).toBe('Cross 7th Avenue at the crosswalk')
     expect(voiceText(step(crossing('marked')), tEs)).toBe('Cruza 7th Avenue por el paso de peatones')
   })
 
-  test('a turn onto a named street keeps its name when the crossing comes after it', () => {
+  test('a turn says which street it then crosses, and the banner keeps the street turned onto', () => {
     const route = walk({ edges: [{ startDistance: 612, endDistance: 625, roadClass: 'footway', crossing: 'traffic_signals' }] })
-    expect(voiceText(step(route), t)).toBe('Turn right onto Trade Street')
+    expect(voiceText(step(route), t)).toBe('Turn right onto Trade Street, then cross Tryon Street at the light')
+    expect(bannerTitle(step(route), t)).toBe('Trade Street')
+    expect(bannerCue(step(route), t)).toBe('Cross Tryon Street at the light')
+  })
+
+  test('a light the walker crosses at is not also their landmark', () => {
+    const route = walk({ hazards: [['traffic_signals', 605]], edges: [{ startDistance: 600, endDistance: 615, roadClass: 'footway', crossing: 'traffic_signals', crossingName: 'Tryon Street' }] })
+    expect(step(route).anchor).toBeUndefined()
   })
 
   test('a turn onto a road through a signalled junction stays a turn', () => {
@@ -263,8 +284,8 @@ describe('on foot', () => {
 
   test('entering a park', () => {
     const park = { startDistance: 600, endDistance: 1000, roadClass: 'path', inPark: true }
-    const ahead = walk({ right: { type: 'continue', modifier: 'straight', streetName: undefined }, edges: [{ ...park, parkName: 'Freedom Park' }] })
-    expect(voiceText(step(ahead), t)).toBe('Enter Freedom Park and follow the path')
+    const into = ahead([{ ...park, parkName: 'Freedom Park' }])
+    expect(voiceText(step(into), t)).toBe('Enter Freedom Park and follow the path')
     const turn = walk({ right: { streetName: undefined }, edges: [park] })
     expect(voiceText(step(turn), t)).toBe('Turn right into the park')
     expect(voiceText(step(turn), tEs)).toBe('Gira a la derecha para entrar en el parque')
@@ -275,17 +296,17 @@ describe('on foot', () => {
     expect(step(route).park).toBeUndefined()
   })
 
-  test('an unnamed path straight ahead', () => {
-    const route = walk({ right: { type: 'continue', modifier: 'straight', streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, roadClass: 'footway' }] })
-    expect(voiceText(step(route), t)).toBe('Follow the path')
+  test('stairs straight ahead', () => {
+    const route = ahead([{ startDistance: 0, endDistance: 600, roadClass: 'path' }, { startDistance: 600, endDistance: 1200, roadClass: 'steps' }])
+    expect(voiceText(step(route), t)).toBe('Take the stairs')
   })
 
   test('a sidewalk takes the name of the street it runs beside', () => {
     const sidewalk = { roadClass: 'footway', streetName: 'Trade Street', streetNameSource: 'geometry' as const }
     const turn = walk({ right: { streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, ...sidewalk }] })
     expect(voiceText(step(turn), t)).toBe('Turn right onto Trade Street')
-    const ahead = walk({ right: { type: 'continue', modifier: 'straight', streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, ...sidewalk }] })
-    expect(voiceText(step(ahead), t)).toBe('Continue straight onto Trade Street')
+    const onward = ahead([{ startDistance: 600, endDistance: 1200, ...sidewalk }], 'Trade Street')
+    expect(voiceText(step(onward), t)).toBe('Continue straight onto Trade Street')
   })
 
   test('sets off along the street beside an unnamed sidewalk', () => {

@@ -33,6 +33,8 @@ const CROSSINGS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolle
 /** Unnamed road classes a walker or rider can be told to follow. */
 const FOLLOWABLE = new Set(['path', 'pedestrian', 'cycleway', 'steps', 'track', 'crosswalk', 'railCrossing', 'footbridge', 'underpass', 'parkPath'])
 const ON_FOOT = new Set(['walking', 'cycling', 'biking'])
+/** A turn onto a named street is told as the turn, whatever it crosses on the way. */
+const TURNING = new Set<ManeuverKind>(['left', 'right', 'sharp-left', 'sharp-right', 'uturn'])
 
 function sideOf(kind: ManeuverKind): Side | null {
   if (kind.endsWith('left')) return 'left'
@@ -67,10 +69,16 @@ function roundaboutAction(route: NavRoute, step: NavStep): Action {
 }
 
 /** On foot or by bike: the path's own shape, when it's stairs, a footbridge or a crossing. */
-function pathAction(route: NavRoute, step: NavStep, side: Side | null): Action | null {
+function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: string): Action | null {
+  const side = kind === 'uturn' ? null : sideOf(kind)
   const past = edgeAt(route, step.startDistance + PAST_TURN_METERS)
   if (past?.roadClass === 'steps') return { kind: 'stairs', side }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
+  // Walking steps already know their crossing; only a straight one is the crossing itself.
+  if (mode === 'walking') {
+    const crossing = step.crossing
+    return crossing && kind === 'straight' ? { kind: 'crosswalk', signals: crossing.signals, ...(crossing.road && { road: crossing.road }) } : null
+  }
   // Roads carry the crossing tag of junctions they pass through; only a crossing path is one to cross.
   const crossing = route.edges.find(
     e => e.startDistance >= step.startDistance - 1 && e.startDistance <= step.startDistance + CROSSING_REACH_METERS
@@ -78,7 +86,7 @@ function pathAction(route: NavRoute, step: NavStep, side: Side | null): Action |
   )
   if (!crossing) return null
   const onto = step.instruction.streetName || step.instruction.streetRef
-  if (onto && crossing.startDistance > step.startDistance + PAST_TURN_METERS) return null
+  if (onto && (TURNING.has(kind) || crossing.startDistance > step.startDistance + PAST_TURN_METERS)) return null
   return { kind: 'crosswalk', signals: crossing.crossing!.toLowerCase() === 'traffic_signals', ...(crossing.crossingName && { road: crossing.crossingName }) }
 }
 
@@ -108,7 +116,7 @@ function action(route: NavRoute, step: NavStep, kind: ManeuverKind, context: Ins
   if (kind === 'arrive') return { kind: 'arrive', side: context.destinationSide ?? null, home: !!context.home }
   if (kind === 'roundabout') return roundaboutAction(route, step)
   if (ON_FOOT.has(mode)) {
-    const onPath = pathAction(route, step, kind === 'uturn' ? null : side)
+    const onPath = pathAction(route, step, kind, mode)
     if (onPath) return onPath
   }
   if ((kind === 'keep-left' || kind === 'keep-right' || kind === 'slight-left' || kind === 'slight-right') && side && isExit(route, step, mode)) {
@@ -140,9 +148,14 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
   if (target) instruction.target = target
   const park = target?.kind !== 'named' && ON_FOOT.has(travelModeAt(route, step.startDistance)) ? enteredPark(route, step) : undefined
   if (park) instruction.park = park
+  if (step.crossing && instruction.action.kind !== 'crosswalk') {
+    instruction.crossing = step.crossing
+    if (target?.kind !== 'named') delete instruction.target
+  }
   if (step.instruction.destination) instruction.toward = step.instruction.destination
   const anchor = landmarkAnchor(route, step, context.from, context.speed, travelModeAt(route, step.startDistance))
-  if (anchor) instruction.anchor = anchor
+  const saysLight = instruction.action.kind === 'crosswalk' && instruction.action.signals
+  if (anchor && !(saysLight && anchor.kind === 'traffic_signals')) instruction.anchor = anchor
   const lanes = context.lanes && laneAdvice(context.lanes)
   if (lanes) instruction.lanes = lanes
   return instruction
@@ -163,6 +176,6 @@ export function departure(route: NavRoute, step: NavStep | null): RichInstructio
 /** `first` followed by `next`, which comes `gap` metres later. */
 export function chained(first: RichInstruction, next: RichInstruction, gap: number, speed: number): RichInstruction {
   const immediately = gap <= IMMEDIATE_METERS || (speed > 0.5 && gap / speed <= IMMEDIATE_SEC)
-  const { anchor: _anchor, lanes: _lanes, then: _then, ...bare } = next
+  const { anchor: _anchor, lanes: _lanes, then: _then, crossing: _crossing, ...bare } = next
   return { ...first, then: { instruction: bare, immediately } }
 }

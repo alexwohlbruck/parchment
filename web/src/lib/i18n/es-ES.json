@@ -1456,6 +1456,8 @@
       "crosswalkSignals": "Cruza en el semáforo",
       "crosswalkRoad": "Cruza {road} por el paso de peatones",
       "crosswalkSignalsRoad": "Cruza {road} en el semáforo",
+      "crossFirst": "{crossing} y luego {action}",
+      "crossAfter": "{action} y luego {crossing}",
       "followPath": "Sigue el sendero",
       "enterPark": "Entra en {park} y sigue el sendero",
       "enterParkUnnamed": "Entra en el parque y sigue el sendero",

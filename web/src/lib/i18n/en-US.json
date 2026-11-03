@@ -1490,6 +1490,8 @@
       "crosswalkSignals": "Cross at the light",
       "crosswalkRoad": "Cross {road} at the crosswalk",
       "crosswalkSignalsRoad": "Cross {road} at the light",
+      "crossFirst": "{crossing}, then {action}",
+      "crossAfter": "{action}, then {crossing}",
       "followPath": "Follow the path",
       "enterPark": "Enter {park} and follow the path",
       "enterParkUnnamed": "Enter the park and follow the path",

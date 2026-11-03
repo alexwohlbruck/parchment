@@ -1,7 +1,8 @@
 // Words for a structured instruction: the full spoken form, and the short
 // banner forms. `t` is the app's i18n function, passed in to stay testable.
 
-import type { ManeuverKind } from '@/lib/directions/maneuver'
+import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
+import type { RouteInstruction } from '@/types/directions.types'
 import type { RoadLabel } from '../guidance-display'
 import type { Action, Anchor, LaneAdvice, RichInstruction } from './instruction.types'
 
@@ -27,6 +28,11 @@ function roadText(road: RoadLabel, t: TFn): string {
   return road.kind === 'named' ? road.name : t(`${K}.roads.${road.key}`)
 }
 
+function crossingText(crossing: { signals: boolean; road?: string }, t: TFn): string {
+  const key = crossing.signals ? 'crosswalkSignals' : 'crosswalk'
+  return crossing.road ? t(`${K}.${key}Road`, { road: crossing.road }) : t(`${K}.${key}`)
+}
+
 function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
   switch (action.kind) {
     case 'turn':
@@ -48,10 +54,8 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
       return t(`${K}.stairs.${action.side ?? 'ahead'}`)
     case 'footbridge':
       return t(`${K}.footbridge`)
-    case 'crosswalk': {
-      const key = action.signals ? 'crosswalkSignals' : 'crosswalk'
-      return action.road ? t(`${K}.${key}Road`, { road: action.road }) : t(`${K}.${key}`)
-    }
+    case 'crosswalk':
+      return crossingText(action, t)
     case 'arrive':
       if (action.home) return t(action.side ? `${K}.homeSide.${action.side}` : `${K}.home`)
       return action.side ? t(`guidance.voice.arrivedSide.${action.side}`) : t('guidance.voice.arrived')
@@ -60,8 +64,32 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
   }
 }
 
-/** The instruction itself, with its road and signs: "Take exit 12 toward Brooklyn". */
+/** The instruction itself, with its road, signs and the street crossed on the way: "Take exit 12 toward Brooklyn". */
 export function actionText(instruction: RichInstruction, t: TFn): string {
+  const text = maneuverText(instruction, t)
+  const { crossing } = instruction
+  if (!crossing) return text
+  const cross = crossingText(crossing, t)
+  return crossing.first
+    ? t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
+    : t(`${K}.crossAfter`, { action: text, crossing: inline(cross) })
+}
+
+/** A step in the router's words, or in ours where merging steps left it none. */
+export function stepText(instruction: RouteInstruction, t: TFn): string {
+  if (instruction.text) return instruction.text
+  const action = t(`guidance.voice.maneuvers.${maneuverKind(instruction)}`)
+  const road = instruction.streetName || instruction.streetRef
+  return road ? t('guidance.voice.onto', { action, road }) : action
+}
+
+/** What the banner leads with: the road taken, else the maneuver in words. */
+export function bannerTitle(instruction: RichInstruction, t: TFn): string {
+  const { target, action } = instruction
+  return target?.kind === 'named' && action.kind !== 'crosswalk' ? target.name : maneuverText(instruction, t)
+}
+
+function maneuverText(instruction: RichInstruction, t: TFn): string {
   const { action, maneuver, target, toward } = instruction
   const road = target && roadText(target, t)
   if (action.kind === 'depart' && road) {
@@ -134,8 +162,9 @@ export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true }
   return t(then.immediately ? `${K}.thenImmediately` : 'guidance.voice.then', { action: text, next })
 }
 
-/** The banner's second line: the landmark, else the exit or where the signs point. */
+/** The banner's second line: the street crossed, the landmark, else the exit or where the signs point. */
 export function bannerCue(instruction: RichInstruction, t: TFn): string | null {
+  if (instruction.crossing) return crossingText(instruction.crossing, t)
   if (instruction.anchor) return anchorText(instruction.anchor, t)
   const { action, toward } = instruction
   if (action.kind === 'exit' && action.number) return toward ? t(`${K}.cues.exitToward`, { number: action.number, destination: toward }) : t(`${K}.cues.exit`, { number: action.number })

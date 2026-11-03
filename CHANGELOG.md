@@ -6,6 +6,8 @@
 
 * The map lays out each tile once as it opens, rather than two or three times over, so 3D city views finish drawing a couple of seconds sooner.
 
+* On a first visit the map's tile workers start sooner, and trees and street furniture download after the map's first tiles instead of competing with them.
+
 ### Fixed
 
 * Subway lines stay fully visible when viewing an underground station's floor plan, instead of fading out with the streets above.

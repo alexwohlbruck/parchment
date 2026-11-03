@@ -467,10 +467,10 @@ export function indoorLabelLayers(
       layout: {
         'icon-image': INDOOR_GATE_PLATE,
         'icon-text-fit': 'both',
-        'icon-text-fit-padding': [2, 5, 1, 5],
+        'icon-text-fit-padding': [1, 3.5, 0.5, 3.5],
         'text-field': ['get', 'ref'],
         'text-font': label.font,
-        'text-size': 12,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 16, 9, 19, 11],
         'text-padding': 2,
         'symbol-sort-key': 0,
       },
@@ -534,8 +534,8 @@ export function indoorLabelLayers(
 
 /** The gate plate as an image MapLibre can stretch around the text, at `ratio` device pixels. */
 export function gatePlate(ratio: number) {
-  const size = Math.round(18 * ratio)
-  const radius = 5 * ratio
+  const size = Math.round(14 * ratio)
+  const radius = 3.5 * ratio
   const canvas = new OffscreenCanvas(size, size)
   const ctx = canvas.getContext('2d')!
   ctx.fillStyle = GATE_EDGE

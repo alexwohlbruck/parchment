@@ -8,6 +8,7 @@ import { laneHint, type LanePlan } from '../lanes'
 import { angleDelta } from '../spring'
 import { cardinal } from '../turn-around'
 import { CLIMB_LOOKAHEAD_METERS, verticalAt } from '../vertical'
+import { passageInto } from '../walk-steps'
 import { landmarkAnchor } from './anchors'
 import type { Action, LaneAdvice, RichInstruction, Side } from './instruction.types'
 
@@ -79,6 +80,8 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
     return via === 'stairs' ? { kind: 'stairs', side, ...change } : { kind: via, ...change }
   }
   const past = edgeAt(route, step.startDistance + PAST_TURN_METERS)
+  const passage = passageInto(edgeAt(route, step.startDistance - PAST_TURN_METERS), past)
+  if (passage) return { kind: 'passage', passage }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   // Walking steps already know their crossing; only a straight one is the crossing itself.
   if (mode === 'walking') {

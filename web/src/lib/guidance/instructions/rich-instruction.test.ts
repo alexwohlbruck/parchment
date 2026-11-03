@@ -365,3 +365,25 @@ describe('stairs', () => {
     expect(voiceText(step(route), t)).toBe('Take the stairs down to level 0')
   })
 })
+
+describe('passages', () => {
+  const through = (edge: Partial<RouteEdgeSegment>, right: Step = { streetName: undefined }) =>
+    city({ mode: 'walking', right, edges: [{ startDistance: 500, endDistance: 600, roadClass: 'footway' }, { startDistance: 600, endDistance: 700, roadClass: 'footway', ...edge }] })
+  const step = (route: NavRoute) => richInstruction(route, route.steps[1], { from: 560, speed: 1.4 })
+
+  test('a turn into a passage, an arcade or a building', () => {
+    expect(voiceText(step(through({ passage: 'building' })), t)).toBe('Turn right into the passage')
+    expect(voiceText(step(through({ passage: 'arcade' })), t)).toBe('Turn right into the arcade')
+    expect(voiceText(step(through({ passage: 'indoor' })), t)).toBe('Turn right and go inside')
+    expect(voiceText(step(through({ passage: 'indoor' })), tEs)).toBe('Gira a la derecha y entra en el edificio')
+  })
+
+  test('a footway tunnel is an underpass', () => {
+    expect(voiceText(step(through({ roadEnvironment: 'tunnel' })), t)).toBe('Turn right into the underpass')
+  })
+
+  test('already inside, a turn is a turn', () => {
+    const route = city({ mode: 'walking', right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 700, roadClass: 'footway', passage: 'arcade' }] })
+    expect(step(route).action.kind).toBe('turn')
+  })
+})

@@ -97,6 +97,7 @@ function previewRoute() {
         :destination="guidance.destinationLabel"
         :metric="metric"
         :lanes="lanes"
+        :instruction="guidance.nextInstruction"
         :cue="cue"
         :dash="dash"
       />

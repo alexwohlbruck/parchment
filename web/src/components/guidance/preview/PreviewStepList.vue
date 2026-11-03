@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
+import { stepText } from '@/lib/guidance/instructions/instruction-text'
 import { useDistanceLabel } from '@/composables/guidance/useDistanceLabel'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
 
 const props = defineProps<{ metric: boolean }>()
+const { t } = useI18n()
 const distanceLabel = useDistanceLabel(() => props.metric)
 const preview = useRoutePreviewStore()
 const list = ref<HTMLElement | null>(null)
@@ -29,7 +32,7 @@ watch(
         @click="preview.select(step.index)"
       >
         <ManeuverIcon :kind="maneuverKind(step.instruction)" :exit="step.instruction.exitNumber" class="size-6 shrink-0" />
-        <span class="min-w-0 flex-1 text-[15px] leading-snug">{{ step.instruction.text }}</span>
+        <span class="min-w-0 flex-1 text-[15px] leading-snug">{{ stepText(step.instruction, t) }}</span>
         <span v-if="step.index > 0" class="shrink-0 text-sm text-muted-foreground tabular-nums">
           {{ distanceLabel(step.startDistance) }}
         </span>

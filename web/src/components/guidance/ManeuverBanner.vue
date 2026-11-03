@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
+import { bannerTitle, stepText } from '@/lib/guidance/instructions/instruction-text'
+import type { RichInstruction } from '@/lib/guidance/instructions/instruction.types'
 import type { LanePlan } from '@/lib/guidance/lanes'
 import LaneStrip from './LaneStrip.vue'
 import type { GuidanceProgress, GuidanceStatus } from '@/stores/guidance.store'
@@ -14,6 +16,8 @@ const props = defineProps<{
   destination: string | null
   metric: boolean
   lanes?: LanePlan | null
+  /** The next maneuver as rich guidance tells it, so the banner says what the voice does. */
+  instruction?: RichInstruction | null
   /** A landmark or sign naming where the maneuver is: "At the second light". */
   cue?: string | null
   /** The larger, arm's-length sizing of the wide layout. */
@@ -22,13 +26,14 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const next = computed(() => props.progress?.next ?? null)
-const kind = computed(() => (next.value ? maneuverKind(next.value.instruction) : 'straight'))
+const kind = computed(() => props.instruction?.maneuver ?? (next.value ? maneuverKind(next.value.instruction) : 'straight'))
 const distance = computed(() => bannerDistance(props.progress?.distanceToNext ?? 0, props.metric))
 const road = computed(() => {
   const instruction = next.value?.instruction
   if (!instruction) return ''
   if (kind.value === 'arrive') return t('guidance.banner.arrive')
-  return instruction.streetName || instruction.streetRef || instruction.text
+  if (props.instruction) return bannerTitle(props.instruction, t)
+  return instruction.streetName || instruction.streetRef || stepText(instruction, t)
 })
 const then = computed(() => (props.progress?.then ? maneuverKind(props.progress.then.instruction) : null))
 const offRoute = computed(() => props.progress && !props.progress.puck.snapped)

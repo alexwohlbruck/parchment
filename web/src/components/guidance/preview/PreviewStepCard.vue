@@ -6,6 +6,7 @@ import { ChevronLeftIcon, ChevronRightIcon, MapIcon, XIcon } from 'lucide-vue-ne
 import { Button } from '@/components/ui/button'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
+import { stepText } from '@/lib/guidance/instructions/instruction-text'
 import { formatDurationLong } from '@/lib/time-format'
 import { mapEventBus } from '@/lib/event-bus'
 import { useDistanceLabel } from '@/composables/guidance/useDistanceLabel'
@@ -54,7 +55,7 @@ function openStreetView() {
       <template v-if="step">
         <ManeuverIcon :kind="maneuverKind(step.instruction)" :exit="step.instruction.exitNumber" class="mt-0.5 size-9 shrink-0" />
         <div class="min-w-0 flex-1">
-          <div class="line-clamp-2 text-[17px] font-semibold leading-snug">{{ step.instruction.text }}</div>
+          <div class="line-clamp-2 text-[17px] font-semibold leading-snug">{{ stepText(step.instruction, t) }}</div>
           <div v-if="stepLength > 0" class="mt-0.5 text-[15px] text-muted-foreground tabular-nums">
             {{ t('guidance.preview.for', { distance: distanceLabel(stepLength) }) }}
           </div>

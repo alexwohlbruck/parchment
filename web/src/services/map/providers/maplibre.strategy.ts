@@ -129,12 +129,12 @@ import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
 import { showsBasement } from '@/lib/indoor/indoor-venue'
 import { fadedPaint } from '@/lib/map-style/surface-fade'
 
-/** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
+/** How solid the 3D buildings, and the rest of the surface but the transit network, stay while a floor plan shows a basement under them. */
 const BASEMENT_BUILDING_OPACITY = 0
 const BASEMENT_SURFACE_OPACITY = 0.22
 
 type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
-import { slotBeforeId } from '@/lib/map/layer-slots'
+import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
   OBJECT_MODELS,
@@ -807,7 +807,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
-      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || layer.sourceLayer === BUILDING_3D_TILES) continue
+      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || isOverlay(layer) || layer.sourceLayer === BUILDING_3D_TILES) continue
       const current = (property: string) => map.getPaintProperty(id, property as PaintProperty)
       const faded: Record<string, any> = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
       const properties = Object.keys(faded) as PaintProperty[]

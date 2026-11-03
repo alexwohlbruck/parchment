@@ -414,6 +414,8 @@ describe('crossing words', () => {
     expect(voiceText(cross({ signals: true, road: 'Atlantic Avenue', button: true }), t)).toBe('Press the button to cross Atlantic Avenue')
     expect(voiceText(cross({ signals: true, diagonal: true }), t)).toBe('Cross diagonally when all traffic stops')
     expect(voiceText(cross({ signals: false, unmarked: true }), tEs)).toBe('Cruza con cuidado, no hay paso de peatones')
+    const turn: RichInstruction = { action: { kind: 'turn', maneuver: 'left' }, maneuver: 'left', target: { kind: 'named', name: 'Clement Avenue' }, crossing: { signals: false, first: true, unmarked: true, road: 'Bay Street' } }
+    expect(voiceText(turn, t)).toBe('Carefully cross Bay Street, then turn left onto Clement Avenue')
   })
 
   test('doubling back to the light names the corner', () => {

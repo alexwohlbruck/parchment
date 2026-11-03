@@ -36,7 +36,7 @@ function crossingText(crossing: CrossingWay & { road?: string; signals: boolean 
   if (crossing.diagonal) return t(`${K}.crossings.diagonal`)
   if (crossing.button) return way('button')
   if (crossing.island) return way(crossing.signals ? 'median' : 'island')
-  if (crossing.unmarked) return way('unmarked')
+  if (crossing.unmarked) return bare && road ? t(`${K}.crossings.carefully`, { road }) : way('unmarked')
   if (crossing.then && road) return t(`${K}.crossings.then`, { road, next: crossing.then })
   if (crossing.at) return way(crossing.light ? 'atLight' : 'at', { street: crossing.at })
   if (bare && road && !crossing.light) return t(`${K}.crossings.bare`, { road })

@@ -1502,6 +1502,7 @@
         "atLightRoad": "Cross {road} at the light at {street}",
         "unmarked": "Cross carefully, there's no crosswalk",
         "unmarkedRoad": "Cross {road} carefully, there's no crosswalk",
+        "carefully": "Carefully cross {road}",
         "median": "Cross to the median, then wait for the next light",
         "medianRoad": "Cross {road} to the median, then wait for the next light",
         "island": "Cross using the island halfway",

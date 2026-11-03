@@ -1468,6 +1468,7 @@
         "atLightRoad": "Cruza {road} en el semáforo de {street}",
         "unmarked": "Cruza con cuidado, no hay paso de peatones",
         "unmarkedRoad": "Cruza {road} con cuidado, no hay paso de peatones",
+        "carefully": "Cruza {road} con cuidado",
         "median": "Cruza hasta la mediana y espera al siguiente semáforo",
         "medianRoad": "Cruza {road} hasta la mediana y espera al siguiente semáforo",
         "island": "Cruza usando la isleta a mitad de camino",

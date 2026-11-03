@@ -119,6 +119,35 @@ describe('remembering the answer between sessions', () => {
     expect(barrelmanBuildingsTiles()).toBe(null)
   })
 
+  test('a first visit starts on the assumed answer, and the probe corrects it', async () => {
+    recallBarrelmanBuildings(SERVER, 'detail')
+    expect(barrelmanBuildingsTiles()).toBe('detail')
+
+    vi.stubGlobal('fetch', answer({ ok: false }))
+    expect(await probeBarrelmanBuildings(url, CENTRE, 'detail')).toBe(true)
+    expect(barrelmanBuildingsReady()).toBe(false)
+  })
+
+  test('an empty tile is not remembered: it may only be open water', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 0 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings(SERVER, 'detail')
+    expect(barrelmanBuildingsTiles()).toBe('detail')
+  })
+
+  test('a remembered answer wins over the assumed one', async () => {
+    vi.stubGlobal('fetch', answer({ ok: false }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings(SERVER, 'detail')
+    expect(barrelmanBuildingsReady()).toBe(false)
+  })
+
   test('a remembered yes is still checked, and a source that went away is noticed', async () => {
     vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
     await probeBarrelmanBuildings(url, CENTRE, 'detail')

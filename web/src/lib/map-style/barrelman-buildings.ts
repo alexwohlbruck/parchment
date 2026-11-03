@@ -11,16 +11,16 @@
  * 404 and MapLibre has nothing to extrude. Which is worse than the fault it
  * fixes — a doubled building is at least a building.
  *
- * So the switch is made only once the source is known to answer. The style
- * starts on the basemap, one tile is asked for, and if it comes back the style
- * is rebuilt on Barrelman. An instance that has not been migrated keeps the map
- * it had.
+ * So one tile is asked for, and the style is rebuilt on whichever answer comes
+ * back. An instance that has not been migrated keeps the map it had.
  *
- * The answer is remembered per tile server, so only a first visit pays for that
- * rebuild. It is a full `setStyle`, which throws away every tile already
+ * That rebuild is a full `setStyle`, which throws away every tile already
  * loaded and asks for them again, and the probe only answers after a round trip
- * to the tile server, by which time the first screen of tiles is in. A later
- * session starts the style from the remembered answer and still asks, so an
+ * to the tile server, by which time the first screen of tiles is in. So the
+ * answer is remembered per tile server, and a session starts the style from it
+ * and only asks to confirm. With nothing remembered, the style starts on the
+ * answer a current Barrelman gives — the `detail` bundle — so a first visit
+ * pays for the rebuild only on an instance that turns out not to have it. An
  * instance that loses the source is caught on the next load, not never.
  */
 
@@ -34,8 +34,19 @@ let available: boolean | null = null
  */
 let answeredBy: string | null = null
 
+/**
+ * Whether the last answer says something about the tile server rather than
+ * the place. An empty tile is either a source never filled or open water, and
+ * the probe cannot tell which; acting on it for this session is harmless, but
+ * remembering it would start the next session — in a city, likely — on the
+ * basemap, and pay for a rebuild when that session's probe says yes.
+ */
+let conclusive = false
+
+type Answer = 'yes' | 'no' | 'empty'
+
 /** Tile servers already asked, so a style rebuild does not ask again. */
-const asked = new Map<string, Promise<boolean>>()
+const asked = new Map<string, Promise<Answer>>()
 
 const REMEMBERED_KEY = 'parchment-barrelman-buildings'
 
@@ -51,20 +62,20 @@ function remembered(): Record<string, string | null> {
 }
 
 /**
- * Start from the answer the last session got from this tile server, if any.
- * Call before the first style is built; the probe then only confirms it.
+ * Start from the answer the last session got from this tile server, or from
+ * `assumed` if it has never been asked. Call before the first style is built;
+ * the probe then only confirms it.
  */
-export function recallBarrelmanBuildings(server: string): void {
+export function recallBarrelmanBuildings(server: string, assumed: string | null = null): void {
   if (available !== null) return
   const all = remembered()
-  if (!(server in all)) return
-  answeredBy = all[server]
+  answeredBy = server in all ? all[server] : assumed
   available = answeredBy !== null
 }
 
 /** Keep this session's answer for the next one. */
 export function rememberBarrelmanBuildings(server: string): void {
-  if (available === null) return
+  if (available === null || !conclusive) return
   try {
     localStorage.setItem(REMEMBERED_KEY, JSON.stringify({ ...remembered(), [server]: barrelmanBuildingsTiles() }))
   } catch {
@@ -91,6 +102,7 @@ export function barrelmanBuildingsTiles(): string | null {
 export function setBarrelmanBuildingsReady(value: boolean | null, tiles: string | null = null): void {
   available = value
   answeredBy = tiles
+  conclusive = value !== null
   asked.clear()
 }
 
@@ -127,12 +139,15 @@ export async function probeBarrelmanBuildings(
       // Bytes, not just a status: a source that exists but is empty answers 204
       // or an empty body, and switching to it would trade doubled buildings for
       // none at all.
-      .then(r => (r.ok ? r.arrayBuffer().then(b => b.byteLength > 0) : false))
-      .catch(() => false)
+      .then(async (r): Promise<Answer> => (!r.ok ? 'no' : (await r.arrayBuffer()).byteLength > 0 ? 'yes' : 'empty'))
+      .catch((): Answer => 'empty')
     asked.set(url, pending)
   }
 
-  const answer = await pending
+  const reply = await pending
+  // A failed request is no evidence either way, like an empty tile.
+  conclusive = reply !== 'empty'
+  const answer = reply === 'yes'
   const changed = answer !== available || (answer && tiles !== answeredBy)
   available = answer
   if (answer) answeredBy = tiles

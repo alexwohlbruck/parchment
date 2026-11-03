@@ -345,7 +345,7 @@ export class MaplibreStrategy extends MapStrategy {
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
-    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl)
+    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl, DETAIL_TILES)
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -422,11 +422,10 @@ export class MaplibreStrategy extends MapStrategy {
   /**
    * Move the 3D buildings onto Barrelman's source once it is serving them.
    *
-   * The style is built on the basemap's buildings and stays there unless this
-   * finds the other source answering — see `barrelman-buildings.ts` for why
-   * that way round. One tile request per session, and a style rebuild only on
-   * an instance that has the source, which happens once before there is much
-   * on screen to lose.
+   * The style is built on the last answer this tile server gave, or on the
+   * `detail` bundle if it has never been asked, and this checks it — see
+   * `barrelman-buildings.ts`. One tile request per session, and a style
+   * rebuild only when the answer differs from what the style was built on.
    */
   private async adoptBarrelmanBuildings() {
     if (!this.tileServerUrl) return
@@ -443,10 +442,10 @@ export class MaplibreStrategy extends MapStrategy {
     if (!barrelmanBuildingsReady())
       await probeBarrelmanBuildings((z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}`, centre, BUILDING_3D_TILES)
     rememberBarrelmanBuildings(base)
-    // Only when the answer differs from what the style was built on: usually
-    // the last session's answer (see `recallBarrelmanBuildings`), or the
-    // basemap on a first visit. Rebuilding for the same answer would throw the
-    // map's tiles away and fetch them all again, in front of the user.
+    // Only when the answer differs from what the style was built on: the last
+    // session's answer, or the bundle on a first visit (see
+    // `recallBarrelmanBuildings`). Rebuilding for the same answer would throw
+    // the map's tiles away and fetch them all again, in front of the user.
     if (barrelmanBuildingsTiles() !== builtOn) this.reloadStyle()
   }
 

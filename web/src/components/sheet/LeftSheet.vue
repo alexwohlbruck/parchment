@@ -122,16 +122,14 @@ onUnmounted(() => {
   if (instance?.proxy) appStore.untrackObstructingComponent(instance.proxy)
   appStore.clearManualBounds(OBSTRUCTING_KEY)
   appStore.leftSheetHidden = false
-  appStore.leftSheetOverlayWidth = 0
+  appStore.leftSheetButtonColumnWidth = 0
 })
 
-// Measure the button column so map widgets can reserve matching space
-// when the drawer is collapsed (only the expand button is visible then).
 const { width: buttonColumnWidth } = useElementBounding(buttonColumnEl)
 watch(
-  [hidden, buttonColumnWidth],
-  ([isHidden, w]) => {
-    appStore.leftSheetOverlayWidth = isHidden ? w : 0
+  buttonColumnWidth,
+  w => {
+    appStore.leftSheetButtonColumnWidth = w
   },
   { immediate: true },
 )

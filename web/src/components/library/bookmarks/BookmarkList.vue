@@ -22,7 +22,11 @@ const props = defineProps<{
   bookmarks: Bookmark[]
   loading?: boolean
   collectionId?: string
+  /** Rows are encrypted copies; the parent removes them. */
+  encrypted?: boolean
 }>()
+
+const emit = defineEmits<{ remove: [bookmark: Bookmark] }>()
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
@@ -81,16 +85,11 @@ function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
   }
 }
 
-async function handleAddToCollection(bookmark: Bookmark) {
-  console.log('Bookmark added to collection:', bookmark.name)
-  // TODO: Re-fetch data or update UI if necessary after CollectionPicker interaction
-  // For now, CollectionPicker handles the API call and updates its internal state.
-  // We might need to refresh this list's data depending on UX.
-}
-
 // Handle bookmark removed from the *current* collection context
 async function handleRemoveFromCollection(bookmark: Bookmark) {
-  if (props.collectionId) {
+  if (props.encrypted) {
+    emit('remove', bookmark)
+  } else if (props.collectionId) {
     const success = await bookmarksService.removeBookmark(
       bookmark.id,
       [props.collectionId], // Only remove from this specific collection context
@@ -196,7 +195,7 @@ async function handleRemoveFromCollection(bookmark: Bookmark) {
         :key="bookmark.id"
         :bookmark="bookmark"
         :collection-id="collectionId"
-        @add-to-collection="handleAddToCollection"
+        :encrypted="encrypted"
         @remove-from-collection="handleRemoveFromCollection"
         class="w-full"
       />

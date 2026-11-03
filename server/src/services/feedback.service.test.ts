@@ -20,6 +20,8 @@ import {
   listBoards as serviceListBoards,
   submitFeedback as serviceSubmitFeedback,
   feedbackErrorMessage,
+  isFeedbackPortalLoginEnabled,
+  createFeedbackPortalLogin,
 } from './feedback.service'
 
 const PROVIDER = { capabilities: { feedback: { listBoards, submitFeedback } } }
@@ -61,7 +63,9 @@ describe('feedback.service', () => {
   describe('delegation', () => {
     test('lists boards through the provider', async () => {
       listBoards.mockImplementation(() =>
-        Promise.resolve([{ id: 'board_1', name: 'Bugs', slug: 'bugs', description: null }]),
+        Promise.resolve([
+          { id: 'board_1', name: 'Bugs', slug: 'bugs', description: null },
+        ]),
       )
       expect(await serviceListBoards()).toEqual([
         { id: 'board_1', name: 'Bugs', slug: 'bugs', description: null },
@@ -76,7 +80,10 @@ describe('feedback.service', () => {
         author: { email: 'ada@example.com', name: 'Ada' },
       }
       submitFeedback.mockImplementation(() =>
-        Promise.resolve({ id: 'post_5', url: 'https://x.test/b/bugs/posts/post_5' }),
+        Promise.resolve({
+          id: 'post_5',
+          url: 'https://x.test/b/bugs/posts/post_5',
+        }),
       )
 
       expect(await serviceSubmitFeedback(input)).toEqual({
@@ -93,10 +100,48 @@ describe('feedback.service', () => {
     })
   })
 
+  describe('portal login', () => {
+    test('stays disabled for a provider that only accepts submissions', async () => {
+      expect(isFeedbackPortalLoginEnabled()).toBe(false)
+      await expect(
+        createFeedbackPortalLogin({ id: 'user_1', email: 'ada@example.com' }),
+      ).rejects.toThrow('not configured')
+    })
+
+    test('delegates login with the authenticated identity and destination', async () => {
+      const createPortalLogin = mock(async () => ({
+        url: 'https://feedback.example.com/auth/widget-handoff?ott=once',
+      }))
+      instance = {
+        capabilities: {
+          feedback: {
+            listBoards,
+            submitFeedback,
+            isPortalLoginEnabled: () => true,
+            createPortalLogin,
+          },
+        },
+      }
+      const identity = { id: 'user_1', email: 'ada@example.com' }
+      expect(isFeedbackPortalLoginEnabled()).toBe(true)
+      await serviceListBoards()
+      await createFeedbackPortalLogin(
+        identity,
+        'https://feedback.example.com/b/bugs/posts/post_1',
+      )
+      expect(createPortalLogin).toHaveBeenCalledWith(
+        identity,
+        'https://feedback.example.com/b/bugs/posts/post_1',
+      )
+    })
+  })
+
   describe('feedbackErrorMessage', () => {
     test('surfaces the upstream message', () => {
       const error = {
-        response: { data: { error: { code: 'VALIDATION', message: 'Title is required' } } },
+        response: {
+          data: { error: { code: 'VALIDATION', message: 'Title is required' } },
+        },
       }
       expect(feedbackErrorMessage(error)).toBe('Title is required')
     })

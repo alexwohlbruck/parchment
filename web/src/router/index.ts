@@ -30,9 +30,12 @@ export enum AppRoute {
   PLACE_PROVIDER = 'place-provider',
   PLACE_LOCATION = 'place-location',
   PLACE_COORDS = 'place-coords',
+  MY_LOCATION = 'my-location',
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
+  GUIDANCE = 'guidance',
+  ROUTE_PREVIEW = 'route-preview',
   SEARCH_RESULTS = 'search-results',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
@@ -43,6 +46,7 @@ export enum AppRoute {
   LAYER_EDITOR = 'layer-editor',
   CANVAS_EDITOR = 'canvas-editor',
   CANVAS_PUBLIC = 'canvas-public',
+  COLLECTION_PUBLIC = 'collection-public',
   COLLECTION = 'collection',
   ROUTE_BUILDER = 'route-builder',
   ROUTE_BUILDER_EDIT = 'route-builder-edit',
@@ -160,6 +164,19 @@ const router = createRouter({
           props: true,
         },
         {
+          path: '/navigate',
+          name: AppRoute.GUIDANCE,
+          component: () => import('@/views/guidance/Guidance.vue'),
+          // Guidance takes over the whole screen: no rail, sheet or map chrome.
+          meta: { immersive: true },
+        },
+        {
+          path: '/navigate/preview',
+          name: AppRoute.ROUTE_PREVIEW,
+          component: () => import('@/views/guidance/RoutePreview.vue'),
+          meta: { immersive: true },
+        },
+        {
           path: '/place/:type/:id',
           name: AppRoute.PLACE,
           component: Place,
@@ -178,6 +195,11 @@ const router = createRouter({
           path: '/place/coords/:lat/:lng',
           name: AppRoute.PLACE_COORDS,
           component: Place,
+        },
+        {
+          path: '/location',
+          name: AppRoute.MY_LOCATION,
+          component: () => import('@/views/location/MyLocation.vue'),
         },
         {
           path: '/transit/route/:feedId/:routeId',
@@ -280,6 +302,13 @@ const router = createRouter({
             // overrides the map subtree's own `auth: true`.
             auth: false,
           },
+        },
+        {
+          path: '/shared/:token',
+          name: AppRoute.COLLECTION_PUBLIC,
+          component: () => import('@/views/library/collections/PublicCollection.vue'),
+          props: true,
+          meta: { auth: false },
         },
         {
           path: '/routes/new',

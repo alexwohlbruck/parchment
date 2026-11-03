@@ -59,6 +59,135 @@ describe('where an overlay slots into the basemap', () => {
     expect(belowLabelsBeforeId(layers)).toBe('portolan-station-labels')
   })
 
+  /**
+   * The basemap draws a path bridge over every road and a tunnel under them
+   * all, so which band a mark lands in is what says whether the way it marks
+   * crosses over, along, or under. Read off the filters: `Path` names both
+   * brunnels to exclude them, so mentioning one proves nothing.
+   */
+  describe('the bands the basemap draws its brunnels in', () => {
+    /** As the basemap serves them: a source, and a filter naming the brunnel. */
+    const road = (id: string, type: string, filter?: unknown) => ({
+      id,
+      type,
+      source: 'openmaptiles',
+      'source-layer': 'transportation',
+      ...(filter ? { filter } : {}),
+    })
+    const BRUNNEL_STYLE = [
+      { id: 'Background', type: 'background' },
+      { id: 'Water', type: 'fill', source: 'openmaptiles' },
+      road('Footway tunnel', 'line', [
+        'all',
+        ['in', 'class', 'path'],
+        ['==', 'brunnel', 'tunnel'],
+      ]),
+      road('Pier', 'line', ['==', 'class', 'pier']),
+      road('Path', 'line', [
+        'all',
+        ['!=', ['get', 'brunnel'], 'tunnel'],
+        ['!=', ['get', 'brunnel'], 'bridge'],
+      ]),
+      road('Minor road', 'line', ['!=', 'brunnel', 'tunnel']),
+      road('Oneway', 'symbol'),
+      road('Path bridge', 'line', [
+        'any',
+        ['==', ['get', 'brunnel'], 'bridge'],
+        ['>', ['get', 'layer'], 0],
+      ]),
+      { id: 'Building', type: 'fill', source: 'openmaptiles' },
+      { id: 'Road labels', type: 'symbol', source: 'openmaptiles' },
+    ]
+
+    test('bridge clears the decks, and the arrows drawn under them', () => {
+      expect(slotBeforeId(BRUNNEL_STYLE, 'bridge')).toBe('Building')
+    })
+
+    /** A deck crossing over a way covers its mark as it covers the way. */
+    test('grade lands under the decks, above the network at grade', () => {
+      expect(slotBeforeId(BRUNNEL_STYLE, 'grade')).toBe('Path bridge')
+      const at = (id: string | undefined) => BRUNNEL_STYLE.findIndex(l => l.id === id)
+      expect(at('Minor road')).toBeLessThan(at(slotBeforeId(BRUNNEL_STYLE, 'grade')))
+    })
+
+    test('tunnel lands between the tunnels and the surface', () => {
+      expect(slotBeforeId(BRUNNEL_STYLE, 'tunnel')).toBe('Pier')
+    })
+
+    test('the slots stack in the order they name', () => {
+      const at = (slot: string) =>
+        BRUNNEL_STYLE.findIndex(l => l.id === slotBeforeId(BRUNNEL_STYLE, slot))
+      expect(at('bottom')).toBeLessThan(at('tunnel'))
+      expect(at('tunnel')).toBeLessThan(at('grade'))
+      expect(at('grade')).toBeLessThan(at('bridge'))
+    })
+
+    /**
+     * `none` converts to a negated `any`, so an equality can sit under a `!`
+     * and say the layer draws everything BUT that brunnel.
+     */
+    test('a negated brunnel does not stand in for the band', () => {
+      const negated = [
+        ...BRUNNEL_STYLE.slice(0, 2),
+        {
+          id: 'Everything but a bridge',
+          type: 'line',
+          source: 'openmaptiles',
+          'source-layer': 'transportation',
+          filter: ['!', ['any', ['==', ['get', 'brunnel'], 'bridge']]],
+        },
+        ...BRUNNEL_STYLE.slice(2),
+      ]
+      expect(slotBeforeId(negated, 'grade')).toBe('Path bridge')
+      expect(slotBeforeId(negated, 'bridge')).toBe('Building')
+    })
+
+    /**
+     * An anchor is a position and overlays are inserted at it, so the bridge
+     * band has to name a layer of the basemap's: one answering `whatever sits
+     * here now` would name the mark added last and stack the rest in reverse.
+     */
+    test('a second mark on a deck stacks above the first', () => {
+      const stack = [...BRUNNEL_STYLE]
+      for (const id of ['bicycle-cycleways-bridge', 'bicycle-paths-bridge']) {
+        const before = slotBeforeId(stack, 'bridge')
+        stack.splice(stack.findIndex(l => l.id === before), 0, {
+          id,
+          type: 'line',
+          source: 'bicycle-ways',
+        } as any)
+      }
+      expect(stack.findIndex(l => l.id === 'bicycle-cycleways-bridge'))
+        .toBeLessThan(stack.findIndex(l => l.id === 'bicycle-paths-bridge'))
+    })
+
+    /** A mark on a tunnel goes above the basemap's, not under it. */
+    test('a tunnel already marked keeps the next mark above it', () => {
+      const marked = [
+        ...BRUNNEL_STYLE.slice(0, 3),
+        {
+          id: 'bicycle-cycleways-tunnel',
+          type: 'line',
+          source: 'bicycle-ways',
+          'source-layer': 'bicycle_ways',
+          filter: ['==', 'tunnel', true],
+        },
+        ...BRUNNEL_STYLE.slice(3),
+      ]
+      expect(slotBeforeId(marked, 'tunnel')).toBe('Pier')
+    })
+
+    /** A style with no bridges of its own still has to put a mark somewhere. */
+    test('without a band to find, both fall back to a slot that exists', () => {
+      const bare = [
+        { id: 'Minor road', type: 'line', source: 'openmaptiles' },
+        { id: 'Road labels', type: 'symbol', source: 'openmaptiles' },
+      ]
+      expect(slotBeforeId(bare, 'bridge')).toBe('Road labels')
+      expect(slotBeforeId(bare, 'tunnel')).toBe('Minor road')
+    })
+  })
+
   test('a style with nothing to anchor against draws on top', () => {
     expect(belowRoadsBeforeId([{ id: 'Background', type: 'background' }])).toBeUndefined()
     expect(belowLabelsBeforeId([{ id: 'Minor road', type: 'line' }])).toBeUndefined()

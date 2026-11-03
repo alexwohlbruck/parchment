@@ -10,7 +10,7 @@ export function useClipboard() {
     if (timeoutId) clearTimeout(timeoutId)
 
     await navigator.clipboard.writeText(text)
-    toast.info(message ?? 'Copied to clipboard')
+    toast.info(message ?? 'Copied to clipboard', { id: 'clipboard' })
     copied.value = true
 
     timeoutId = setTimeout(() => {

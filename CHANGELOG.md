@@ -2,8 +2,6 @@
 
 ### Added
 
-* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
-
 ### Changed
 
 ### Fixed
@@ -11,6 +9,613 @@
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
 
+## [0.19.0] - 2026-11-03
+
+### Added
+
+* Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
+
+* Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
+
+* Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
+
+* 3D landmarks can have see-through glass, so you can look into a glass cube or pavilion and see the stairs and lobby inside.
+
+* On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
+
+* If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
+
+* Walking directions count blocks where the grid is regular: "In 4 blocks, turn right onto Bedford Avenue", or "Continue on Sterling Place for 6 blocks".
+
+* Crossing to your destination's side of the street, guidance says so: "Cross Franklin Avenue; your destination is on the right".
+
+* Walking directions warn at crossings with no crosswalk, and say when to press the button, wait at the median, or cross diagonally.
+
+* Walking to a train, guidance says which entrance to use and, after you get off, which exit to take, along with escalators and elevators to the platform or street.
+
+* Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
+
+### Changed
+
+* Spoken directions round long distances the way people say them: "In half a mile" rather than "In 0.6 miles".
+
+* Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
+
+* 3D landmarks are shaded where they meet the ground, like the buildings around them.
+
+* Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
+
+* Walking directions say "at the crosswalk" at ordinary corners, and "at the light" only where the light picks which crossing to take.
+
+* Turning onto a street no longer adds "then cross" the street you're leaving, and a diagonal corner names both streets: "Cross Bedford Avenue, then Sterling Place".
+
+* Walks set off toward the first cross street, "Head along Rogers Avenue toward Bergen Street", and unnamed paths and park forks say where they lead.
+
+* A street changing its name, with no turn to make, is no longer a walking step.
+
+* Walking directions say whether stairs go up or down, sum up a ramp's switchbacks as "Follow the ramp up to the bridge", and say "Go through the passage" or "Walk through the arcade".
+
+* Bike directions say where and how far to walk your bike, such as "Walk your bike through the plaza for 260 feet".
+
+### Fixed
+
+* Guidance counts the lights before a turn, "After the third light, turn right", instead of "after the light" with other lights still to pass.
+
+* Subway entrances show as square signs on every floor of a station, replacing the purple dots.
+
+* Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
+
+* Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
+
+* Riding or walking along a street no longer warns of every crosswalk that crosses it, or labels an unnamed driveway "Crosswalk".
+
+* Guidance no longer calls a transit stop or parking spot "Your destination"; it names the stop to board at instead.
+
+* Guidance only asks which train you're on when it matters, such as when one of the possible trains skips your stop.
+
+* Walking directions no longer turn every sidewalk kink and crosswalk into its own step: a corner is one turn, such as "Turn left onto Madison Avenue". Crossing a side street goes unannounced, but crossing to the other side of your street is called out.
+
+* The instruction card now always says the same thing as the voice.
+
+* Traffic lights on walking and bike routes sit at their intersection instead of mid-block.
+
+* When GPS gets weak, navigation no longer jumps ahead or ends your trip early; it estimates your position from your steps and pace, and shows that the signal is lost.
+
+* With 3D terrain on, landmarks no longer sink into the ground: plazas, steps and terraces show at their real height, and the terrain under a landmark no longer pokes through it.
+
+## [0.18.4] - 2026-10-31
+
+### Added
+
+* Navigation warns of stop and yield signs, tram tracks, unlit paths after dark, flood-prone roads in rain, icy bridges, school zones, low clearances and more, and shows real traffic lights.
+
+* Transit guidance keeps counting down stops underground, estimating your position from the timetable and your phone's motion when GPS drops out.
+
+* Transit guidance notices when you board an earlier, later or interchangeable vehicle and follows it, asking which one you're on when it can't tell.
+
+* Premium navigation describes turns by what you see: the light or sign you turn at, the bridge you just crossed, which lane to use, the exit number and where the signs point.
+
+* Walking directions name the street a sidewalk runs beside, so steps, voice and the road label say "Turn left onto W 3rd St" instead of "Path".
+
+* Premium voice guidance names the road you cross at a crosswalk, mentions the overpass you just went under, welcomes you to each new state or province, and says when a walk enters a park.
+
+### Changed
+
+* Navigation is lighter on the battery: the app checks GPS less often on long highway stretches and between transit stops, and stops drawing the map while it is in the background.
+
+### Fixed
+
+* Walking navigation only offers a "quieter" route when it really crosses fewer streets.
+
+## [0.18.3] - 2026-10-30
+
+### Changed
+
+* The map opens faster on return visits: it no longer reloads every tile a second after starting to switch to 3D buildings.
+
+* Map tiles can be cached by a CDN close to you, and expired tiles revalidate instead of downloading again.
+
+## [0.18.2] - 2026-10-29
+
+### Added
+
+* Finishing onboarding unfolds a lit, 3D paper map panel by panel into your live map.
+
+* Connect your OpenStreetMap account during onboarding to leave map notes and contribute place updates.
+
+* The map flies to your location as soon as you allow location access.
+
+* Invitation emails open the sign-in page with your email already filled in.
+
+* Open the feedback board from Parchment without signing in again when your server enables feedback login.
+
+* The satellite globe includes the Moon with live lunar phases.
+
+### Changed
+
+* Onboarding opens with a welcome screen, has clearer recovery key and passkey setup, and no longer asks you to pick a plan.
+
+### Fixed
+
+* Keep the map hidden during onboarding until the paper map unfolds.
+
+* Dismiss toasts with a swipe or the close button while a dialog or bottom sheet is open.
+
+* In 3D, transit and cycling lines ride on top of bridge decks instead of disappearing under them, and dip below ground through tunnels.
+
+* Keep place searches working when the server build moves between machines.
+
+* Map gestures stay more responsive while points of interest and 3D map objects load.
+
+* Changing map styles while 3D objects load no longer interrupts their setup.
+
+## [0.18.1] - 2026-10-27
+
+### Changed
+
+* Arriving centres the map on your destination at the usual place zoom, with the tilt and heading you started with.
+
+* Navigation on larger screens uses the same swipeable sheet as on phones for the trip summary and menu.
+
+### Fixed
+
+* Arriving at a destination now opens that place's page instead of a page for its coordinates.
+
+* Finishing navigation clears the trip's route and pins from the map.
+
+## [0.18.0] - 2026-10-27
+
+### Added
+
+* Hear an opening direction as soon as route navigation starts, even before you begin moving.
+
+* Choose a navigation voice and speaking speed with self-hosted speech, browser fallback, and faster instructions for closely spaced turns.
+
+### Changed
+
+* Combine nearby navigation turns into one spoken instruction when their timing would overlap, using your chosen speaking speed.
+
+### Fixed
+
+* Keep navigation voices consistent through brief connection delays and resume audio after phone interruptions.
+
+* Give the first navigation instruction time to activate audio and load the selected voice before falling back to browser speech.
+
+* Cancel expired navigation speech and keep urgent instructions moving when audio playback stalls.
+
+## [0.17.1-1] - 2026-10-26
+
+### Fixed
+
+* Transit navigation uses the same line colors, station labels, route bullets, and live vehicle focus as the trip preview.
+
+* Transit trips with a timed transfer at the same station offer Start navigation.
+
+* Copy your recovery key directly from the sign-out confirmation before leaving your account.
+* Resending a sign-in code clears stale validation errors from the previous code.
+* Lane guidance no longer jumbles the lanes at divided crossroads, and bearing onto the road ahead lights the through lanes instead of the turning ones.
+
+## [0.17.1] - 2026-10-26
+
+### Fixed
+
+* When several lines run the same trip, transit results show the one that arrives first, or with an arrive-by time the one that leaves latest, rather than whichever leaves first.
+* Transit searches keep several walk-to-transit routes even when park-and-ride, bike-to-station and other options are offered alongside them.
+
+## [0.17.0] - 2026-10-26
+
+### Added
+
+* Start navigation from a walking, cycling or driving trip: a direction arrow follows the road smoothly as you move, with the next turn and distance left.
+* While navigating, the map follows you in 3D, heading-up or north-up, zooming out on open road and in before turns. Pan freely and it returns after a few seconds, or show the whole route.
+* Navigation shows the next turn with its distance, the road you're on, your speed against the limit, and arrival time, time and distance left, with the route ahead in its travel-mode colours.
+* The next turn is marked on the map with a callout showing the turn arrow and the road you turn onto, on the side you turn to.
+* Navigation reroutes within seconds when you leave the route, without starting the new route behind you, and says when you've arrived. Multi-stop trips continue with the next leg.
+* Spoken turn-by-turn directions, timed to your speed, with a choice of all prompts, alerts only or silent for each way of travelling.
+* Trips and navigation point out what's on the way: crosswalks drivers must yield at, railroad and uncontrolled crossings, sharp curves, stairs, steep climbs on foot or by bike, and more. Navigation warns you ahead of each one.
+* Multimodal navigation pauses at each mode change, telling you to park, lock your bike or board, and continues on its own after a short countdown.
+* Navigation now guides transit trips: a countdown to your departure, the stops left on board, and a get-off alert before your stop. If you miss the bus or your stop, it offers the next departure or another way.
+* On a transit trip, navigation checks for a quicker plan every couple of minutes while you're off board, and offers to switch when one gets you there clearly sooner.
+* Search along your route while navigating, for gas, charging, coffee, restrooms and more, with how much time each detour adds. Add one as a stop and navigation routes you there first.
+* Bike share trips keep an eye on your station: if it is filling up or running out of bikes, navigation offers a nearby one, or switches for you when it's empty or full.
+* Navigation suggests a better route when one appears: faster, or with more protected bike lanes or quieter streets when riding or walking. Routes in the menu lists every option.
+* With 3D on, your route and position ride up onto bridge decks instead of running along the ground beneath them, while navigating and when previewing a trip. The part already travelled greys out on the deck too.
+* Driving navigation shows which lanes to use before a turn, from the arrows painted on the road, and says it too. The route line now sits in your travel lanes and curves through junctions.
+* Driving navigation draws your route in the lane to take, moving across before each turn, with lane guidance from the road's mapped lanes where it is known. In countries that drive on the left, the route keeps left.
+* Start navigation from anywhere along a trip's route, not only its start. Away from the route, Preview replaces Start and steps through each turn with street-level imagery.
+* Cycling routes run down the bike lane where a street has one, or just inside the outer traffic lane where it doesn't. Separate bike paths keep their own line, and your position arrow rides in the lane with it.
+* Navigation takes over the whole screen: a large turn card and a swipe-up trip card on phones, and a car-dashboard column with big buttons on wider screens. The rest of the app returns when you end.
+* Hazards ahead show on the navigation map: traffic lights and railroad crossings as signs on the route, and crosswalks, stairs, sharp curves and the like as warning callouts.
+* Driving directions from your current location start off the way your car is facing, so you aren't told to turn where you can't.
+* When you start walking or cycling facing the wrong way, navigation tells you to turn around and which way to head.
+* Navigate with no destination: tap your location and choose Drive, Walk or Cycle to follow the road with your speed, the speed limit and hazard warnings, and pick a destination along the way. Keep going after you arrive, too.
+* Choose how you appear while navigating: a direction arrow, a 3D car, SUV or pickup when driving, or a bike when cycling, each in a colour of your choice.
+* Navigation's speed card shows the speed limit and your speed, turning orange, then red, when you're over. Choose to show either, both or neither.
+
+### Changed
+
+* Sharp turns show as sharp in step-by-step directions.
+
+### Fixed
+
+* Searching for a place shows matches near you first, instead of a same-named place in another state.
+* With 3D on, a route passing under a bridge disappears beneath the deck, and a route riding a deck no longer also draws on the ground or water below it.
+* Planning a trip with your car or bike saved in another city no longer freezes the app or suggests walking hundreds of kilometres to reach it.
+* On phones, the app now fits the screen exactly instead of scrolling by the height of the browser toolbar, which hid the bottom card.
+
+## [0.16.14] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear sooner on a first visit or a slow connection, ahead of the rest of the street detail.
+
+## [0.16.13] - 2026-10-26
+
+### Changed
+
+* Tunnel entrances appear with the map tiles around them, instead of up to a few seconds later.
+
+## [0.16.12] - 2026-10-25
+
+### Changed
+
+* Tunnel entrances cut into 3D terrain within about a second of the map loading, instead of several seconds later.
+
+## [0.16.11] - 2026-10-25
+
+### Changed
+
+* 3D terrain and bridge decks keep up with the map in busy views on slower connections too.
+
+## [0.16.10] - 2026-10-25
+
+### Changed
+
+* 3D terrain sharpens as soon as the map around it loads, instead of lagging seconds behind in busy views.
+
+## [0.16.9] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks also keep up with map tiles that load again or load without notice.
+
+## [0.16.8] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode several times faster and take less graphics memory.
+
+## [0.16.7] - 2026-10-25
+
+### Changed
+
+* 3D bridge decks decode while their map tile is still being read, so both appear in the same frame.
+
+## [0.16.6] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks draw as soon as their map tile lands and decode in parallel, so they keep up with the map.
+* Terrain cut away for tunnels is refined off the main thread.
+
+### Fixed
+
+* Road names on bridges no longer show through 3D decks after the road labels setting is reapplied.
+
+## [0.16.5] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks arrive inside the map tiles they are drawn over, so they appear with the map instead of after it.
+
+## [0.16.4] - 2026-10-24
+
+### Changed
+
+* 3D bridge decks start loading with the map tiles around them instead of after them, and decode off the main thread.
+* Panning and tilting around 3D landmarks and bridges does less work per frame.
+
+## [0.16.3] - 2026-10-24
+
+### Added
+
+* Review failed sync changes and open identity settings directly from their notifications.
+
+* Request a fresh sign-in code with Resend email on the verification screen.
+
+* At night, 3D landmarks light their lamps and floodlit stone, so the Brooklyn Bridge shows its lit towers and the necklace of lights along its cables.
+
+### Changed
+
+* 3D terrain draws faster: roads and areas are laid on the terrain in one pass instead of eight.
+
+* 3D bridges appear sooner after the map moves: their meshes download in under half the bytes and draw as soon as those in view arrive.
+
+* Repeated notifications update a single toast with a gentle pulse instead of stacking, and a failed save shows one error instead of two.
+
+* Creating a collection offers a View button that opens it.
+
+### Fixed
+
+* Load precomputed 3D bridges and road markings from the server, reusing their geometry as you move the map.
+
+* 3D bridges keep their true height over exaggerated terrain, so decks meet landmark towers where they should.
+
+* 3D bridges stay raised while you pan and orbit, instead of flickering back to flat roads.
+
+* 3D bridge ramps and approaches read as clean, continuous roads: no stray slabs, plates or walkway scraps around interchanges like the Brooklyn Bridge's.
+
+* Street names no longer lie on the ground or water under 3D bridges, and fences under a bridge no longer stretch up to its deck.
+
+* The Brooklyn Bridge's cables fade to a soft fan from a distance instead of a shimmering mesh.
+
+* Bike paths on 3D bridges are painted green, like bike lanes on the street, and carry on in the same green off the bridge. Bike paths shared with walkers show dashed green.
+
+* Street names stay visible in flat map views on Android phones.
+
+* Sign-in codes are easier to copy from email, ignore spaces when pasted, and open a numeric keyboard on mobile.
+
+## [0.16.2] - 2026-10-20
+
+### Added
+
+* Satellite and hybrid globes show recent satellite clouds with sunlight, warm twilight, and soft shadows.
+
+* The globe’s sky shows a real Milky Way panorama, and exposure gradually adjusts to reveal the galaxy and terrain as you rotate toward the night side.
+
+* Day & Night shows NASA city lights on the dark side of satellite and hybrid globes.
+
+* A softly glowing sun appears in the globe’s sky at its real position, disappearing behind Earth as you rotate.
+
+* The globe has a starry night sky and a soft blue atmosphere that fade away as you zoom in.
+
+### Changed
+
+* Satellite and hybrid globes have deeper blue oceans and soft sun reflections on the water.
+
+* The globe has a fuller blue atmosphere and pale daylight haze. Turn on Day & Night for sunlit terrain, a soft twilight boundary, and darkness across map and satellite views.
+
+## [0.16.1] - 2026-10-17
+
+### Added
+
+* 3D buildings have window bands that suit what they are (office glass, apartment windows, shopfronts), and at night some of them have a few warmly lit floors.
+* By day, buildings and 3D landmarks cast shadows onto each other, not only onto the ground.
+* By day, 3D bridges, tunnel portals, trees, signals and street furniture cast shadows too: the road under an overpass lies in its shade, and trees shade the buildings and bridges beside them.
+* A new Shadows setting in Appearance turns building and object shadows off, shows them only when the map is tilted, or always.
+
+### Changed
+
+* 3D road bridges are concrete with the road laid on at its own width, so streets no longer widen on a bridge and meet each bridge end without a seam.
+* 3D landmarks match the colours of the buildings around them, and at night their windows light up like their neighbours' and the tallest have floodlit crowns.
+* In the light theme, 3D buildings share one soft stone colour with a gentle warm or cool cast each, show their mapped colours more clearly, and landmarks sit at their neighbours' lightness while keeping their own colours.
+
+### Fixed
+
+* Every golf green gets a flag, not only greens with a mapped pin.
+* Lit windows stay the same as you zoom in and out.
+* 3D bridges at large interchanges load without freezing the map for seconds.
+
+## [0.16.0] - 2026-10-16
+
+### Added
+
+* Golf courses show their fairways, greens, tees and bunkers, with each hole's line, number and par, and a flag on every pin that stands and flutters in 3D up close.
+* Ski areas show their runs in the colours and signs used locally, with lifts, pylons and run names.
+* Running tracks show their lanes, and race circuits no longer look like side streets.
+* Disc golf courses show each hole's line and number, and their baskets.
+* Up close in 3D, traffic signals hang from mast arms over their lanes, and railway crossings have gates, flashing lights and crossbucks. Signals also get a small map symbol.
+* Car-free park drives and greenways are drawn as full-width paved roads with their bike lanes, center lines and walker symbols, instead of thin footpaths.
+
+### Changed
+
+* In the light theme, plazas, sidewalks, footpaths, piers and walkable bridges are a soft paving grey, so they stand out from the ground around them.
+* The map renders faster and stays smoother with detailed roads, 3D landmarks and transit on, especially on tilted views of dense cities.
+
+### Fixed
+
+* 3D bridges meet the road as one surface: paved like the street, with no notch at skewed ends and no gap between joined decks.
+* Where one 3D bridge crosses another, each keeps its own lane markings instead of the lower road's lines streaking across the upper deck.
+* 3D bridges meet the road cleanly at their ends and carry their sidewalks, tram and rail tracks, overhead wires and street furniture; zoomed out, they take the road colours.
+* 3D tunnel portals on paths and culverts fit the path's width, face along mapped headwalls, and no longer show a dark wedge or a step across the opening.
+* A road tunnel and the sidewalks mapped beside it now open through one portal, and twin carriageways share one headwall.
+* Railway and tram tracks are drawn over the road where they cross or run along it, instead of disappearing under it.
+* Panning back to somewhere you just were shows the map straight away, with its roads, buildings, terrain and landmarks, instead of loading it again.
+* Commuter rail legs like the LIRR and Metro-North show the branch name, such as Port Washington Branch, with the train number beside the destination.
+* Transit directions no longer send you through a station entrance signed for trains to somewhere else, like "R trains to Manhattan" when you're heading to Bay Ridge.
+
+## [0.15.0] - 2026-10-15
+
+### Added
+
+* Stairs on footpaths are drawn with steps up close, so you can see where a walk climbs.
+* Up close, cul-de-sacs end in round turning circles, and turning loops ring a planted island.
+* Detailed roads paint hatched medians, gores and bike lane buffers, center turn lanes with their arrows, no-lane-change lines, parking stalls, yield lines and speed hump chevrons.
+
+### Changed
+
+* Footpaths are drawn with a finer edge.
+* 3D bridges stand on slimmer round columns under a cap beam, with a thinner deck and smoother curves on ramps.
+* Detailed roads have smooth, antialiased kerbs and paint, and a darker asphalt with brighter yellow lines; flat tunnel dashes no longer show through the street above.
+* Power towers and poles are sturdier and easier to see, wires are a softer grey, and substations are drawn with low gantries and taut busbars instead of full-height towers.
+
+### Fixed
+
+* Power lines stay joined at every tower, including through bends and across map tile edges.
+* Building shadows now fall away from the real sun, and 3D landmarks and trees are lit from the same side as the buildings around them.
+* Long elevated roads like the FDR Drive no longer ripple up and down between the streets they cross.
+* Transit directions no longer drop the earliest train when a later one on the same lines rides faster.
+* A transit leg lists only the lines that stop at both ends at that hour, and Long Island Rail Road and Metro-North legs name just the train you board.
+* Transfers that mean leaving one station and paying again at another are ranked behind, or replaced by, a comparable in-station transfer.
+* Walking directions lead to a subway entrance for your direction of travel, not one signed for the opposite platform.
+* Transit searches no longer lose options when the routing service is busy.
+* Tapping a subway stop inside a large station, like the 4/5/6 at Grand Central, shows every line's departures instead of only a neighbouring platform's.
+
+## [0.14.0] - 2026-10-09
+
+### Added
+
+* Solar farms show rows of panels, flower beds bloom, and scrub, shrubbery and mapped shrubs grow as 3D bushes, clipped square where a planting is tagged that way.
+* With 3D terrain and objects on, bridges and elevated roads stand in 3D on piers, with their lane markings and your route carried up onto the deck.
+* Up close, roads draw at their real width with rounded kerbs, lane and centre lines, stop lines, crosswalks, turn arrows and bike lane symbols, easing across where lanes are added or dropped.
+* Fences, walls, hedges and guard rails now stand in 3D and follow the slope of the ground, power lines hang between their towers and poles up and down hills, and electrified rail carries its overhead wire.
+* Woods and forests are now planted with 3D trees of varied height over a soil floor, kept clear of roads, paths, buildings and water.
+* Sports courts and fields now show their markings, surfaces, nets, hoops and goals, from tennis and pickleball to basketball, soccer and football.
+* The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.
+* Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
+* Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
+* Points of interest can now be switched on and off from the layer selector.
+* Street and place labels can now be switched on and off from the layer selector.
+* With 3D terrain and objects on, tunnels for roads, paths, cycleways and railways now run underground: up close, each entrance is cut into the ground with retaining walls, a headwall and a dark mouth.
+
+### Changed
+
+* **A brand no longer sits right under the city you typed.** Searching
+  "austin" or "manhattan" put a small chain that only starts with the name
+  (Austin Bank, Manhattan Bagel) second, above the rest of the places with that
+  name. When a place is named exactly what was typed, a brand that only partly
+  matches now comes after the first few places. A brand still leads when it is
+  what was typed ("target") or when no place has that name ("starbuks").
+
+* A fountain in a pond or lake now draws as a jet of water rather than a stone basin.
+* The experimental HD roads setting now works on the MapLibre map too, drawing lane markings, crosswalks and turn arrows, and is on by default there.
+* 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
+* 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
+* 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
+* 3D bridges now take the shape of the bridge drawn on the map, widening, narrowing and ending where it does, and bridges near large interchanges build faster.
+
+### Fixed
+
+* Tilting the map no longer crowds highways with route shields; each road keeps a few, spaced out along it.
+* Distant palm trees on the 3D map now look like palms. Past the first screenful each one was drawn as a ball on a stick. Nearby palms are redrawn too: slimmer grey trunks, long arching fronds, and a fan palm alongside the feather palms.
+* Buildings near a 3D landmark no longer flatten a second after the map loads. A large ride such as a roller coaster hid every building standing anywhere within its outer bounds, so at Carowinds the entrance plaza, the Paladium and most of the buildings around Fury 325 lost their 3D shape. A landmark now hides only the buildings it actually stands on.
+
+## [0.13.2] - 2026-10-07
+
+### Fixed
+
+* Opening a shared link while signed out now takes you to that page after you sign in, including for new accounts finishing setup.
+* Roller coaster supports reach the ground with 3D terrain on, instead of stopping short of it on sloping ground.
+* 3D landmarks can be raised onto plinths and piers the map doesn't draw, or sunk below the street, and stay rigid when raised. Anything sunk below the ground is hidden with 3D terrain off too.
+
+## [0.13.1] - 2026-10-07
+
+### Fixed
+
+* The map no longer comes up blank after an update. A browser that had the previous version cached could pair the new map engine with an old piece of it.
+
+## [0.13.0] - 2026-10-06
+
+### Added
+
+* 3D landmarks: dozens of famous buildings, stadiums and rides in New York, Charlotte and Paris are drawn as small 3D models instead of plain blocks, lit and shadowed like the buildings around them and glowing at night. Some move, like the Wonder Wheel and Carowinds' SkyTower. Needs the MapLibre engine with 3D objects on.
+* Roller coaster tracks are drawn on the map.
+
+### Changed
+
+* 3D trees are smoother and more natural, vary in colour, cast shadows, and now appear from further out; benches and bins look more like the real thing.
+* Places on upper floors or inside tall buildings now sit on the roof or at their floor, instead of at street level.
+* The light map is brighter: buildings are near-white with soft pastel tints, shaded walls are lighter, and the ground is cleaner.
+
+## [0.12.7] - 2026-10-06
+
+### Added
+
+* Search "power outlet" (or "charge my phone") to find places to plug in: cafés with outlets, phone charging stations and public sockets. There's also a Power Outlets shortcut in the search palette.
+* Quick edit suggests tag updates as you edit, like iD does: outdated tags, missing details for the place type, and a chain's standard tags, with one tap to apply or decline.
+* Choose whether a collection is shareable or private when you create it, and switch later from its edit screen. Collections, canvases and the share dialog now show privacy the same way.
+* A collection's public link now opens a page anyone can view, signed in or not.
+* Share a private collection with friends. They can open it, and editors can add places, while it stays end-to-end encrypted.
+* A place's page now lists the collections you've saved it to. Tap one to open it.
+* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
+
+### Changed
+
+* A collection's name and icon now follow its encryption setting: readable on any signed-in device for standard collections, end-to-end encrypted along with the places for private ones.
+* MapLibre is now the default map engine for everyone. Mapbox is still available in appearance settings for those with access.
+* The MapLibre map engine is updated: 3D terrain no longer jolts the camera when a pan or zoom ends, and Arabic, Hebrew and South Asian scripts draw correctly in labels.
+
+### Fixed
+
+* The map no longer keeps redrawing while it sits still with transit on, which saves a lot of battery.
+* 3D buildings render much faster, especially in the top-down view.
+* Panning with transit on no longer stalls at the end of the gesture.
+* End-to-end encrypted collections this device can't open now say so and offer to unlock it, instead of showing a blank name or an empty list.
+* Making a named collection private no longer fails.
+* Places saved to a private collection are now encrypted on your device, and the collection lists them. Before, they were stored where the server could read them.
+* On mobile, opening a link straight to a place or collection no longer bounces back to the map.
+* Opening a collection straight from a link now centres its places in view, instead of near the top edge.
+* Pressing Escape with a menu or popover open now closes just that, not the panel underneath.
+* The "Create collection" button in an empty library now works.
+* Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
+* On the MapLibre map, labels and points of interest now actually hide when turned off in appearance settings, while searching, and while browsing a collection.
+
+## [0.12.6] - 2026-10-01
+
+### Added
+
+* 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+* An optional camera position readout shows the map's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press C.
+* Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
+* When you pan away from a place you opened, a pin at the edge of the map points back to it. Tap it to return.
+
+### Changed
+
+* The "Go to page" command now lists the app's main pages by name, like Directions, Library and Timeline, instead of internal route ids that led nowhere.
+
+### Fixed
+
+* Opening a park or other area with the Mapbox map engine now moves the map to it.
+* Searching for a street now shows the street itself, separate from the addresses along it, without unrelated brands mixed in.
+* Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
+* Searching for a street address no longer buries it under brands that merely share a word with it.
+
+## [0.12.5] - 2026-09-24
+
+### Changed
+
+* Bike routes are labelled by number when zoomed out and by their full name up close.
+* The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
+* Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
+* The Barrelman integration no longer asks for a tile key; map tiles authenticate with its API key alone.
+
+### Fixed
+
+* Streets along a signed bike route are now tinted green in the cycling layer, even where nothing is painted on the road.
+* Planned greenways tagged only as proposed now show as dotted proposed bikeways instead of being left off the map.
+* Zoomed out, the cycling layer draws signed bike routes instead of covering every bike-friendly street in green.
+* The map, search and transit no longer go dark for minutes when Barrelman is briefly rate-limiting the server as it starts. A throttled connection check used to switch the whole integration off until a background retry happened to land, and every map tile answered as though Barrelman were not configured at all.
+* Map tiles now reach the browser compressed. They were being handed on at 463 KB where 275 KB would do — the tile server compresses them, and decompressing to read them threw that away — so every tile the CDN fetched crossed the network at two-thirds more than its weight. Panning into new ground is quicker, most visibly on a slow connection.
+* Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
+* Footbridges now join the path they carry instead of ending in a lozenge laid over the junction, and are edged a shade deeper so the deck still reads as one.
+* Bridges now draw over the streets they cross instead of having them painted across the deck, and the roads and railways a bridge carries are drawn on it rather than under it.
+
+## [0.12.4] - 2026-09-16
+
+### Changed
+
+* The map holds recently drawn tiles in memory instead of fetching every one
+  from Barrelman again. Basemap and building tiles were forwarded uncached
+  while transit tiles were not, so panning around re-fetched the heaviest
+  tiles on the map every time.
+
+### Fixed
+
+* Tapping a station on the transit map opens it again instead of failing.
+  Stations are identified by their transit feed's stop key, and looking one up
+  went out to transit.land — which needs an account this server has no reason
+  to hold now that the transit data comes from Barrelman. Station details now
+  come from Barrelman, which already has them.
+
+## [0.12.3] - 2026-09-15
+
+### Added
+
+* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
+
+### Fixed
+
+* Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { KeyRound } from 'lucide-vue-next'
+import OnboardingHeader from './OnboardingHeader.vue'
 import { ref, inject, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
@@ -30,14 +32,11 @@ watch(
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.recoveryKey.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.recoveryKey.description') }}
-      </p>
-    </div>
+    <OnboardingHeader
+      :title="t('onboarding.recoveryKey.title')"
+      :description="t('onboarding.recoveryKey.description')"
+      :icon="KeyRound"
+    />
 
     <RecoveryKeySetupContent ref="contentRef" hide-footer />
   </div>

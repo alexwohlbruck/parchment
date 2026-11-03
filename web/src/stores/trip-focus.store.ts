@@ -14,6 +14,7 @@
 
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { useGuidanceStore } from '@/stores/guidance.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
 import {
@@ -29,6 +30,7 @@ const VEHICLE_POLL_MS = 5_000
 
 export const useTripFocusStore = defineStore('trip-focus', () => {
   const directionsStore = useDirectionsStore()
+  const guidance = useGuidanceStore()
 
   const vehicles = ref<Map<string, TransitVehiclePosition>>(new Map())
 
@@ -52,6 +54,7 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
   /** The trip on the map: the rider's pick, else the one the map defaults
    *  to when a fresh set of results lands. */
   const focusedTrip = computed(() => {
+    if (guidance.isActive) return guidance.kind === 'route' ? { segments: guidance.segments } : null
     const list = directionsStore.trips?.trips
     if (!list?.length) return null
     const selected = directionsStore.selectedTripId
@@ -62,7 +65,7 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
   const legs = computed<FocusedLeg[]>(() =>
     focusedLegs(focusedTrip.value).map((leg) => ({
       ...leg,
-      tripId: boardTripIds.value[leg.segmentIndex] ?? leg.tripId,
+      tripId: (guidance.isActive ? null : boardTripIds.value[leg.segmentIndex]) ?? leg.tripId,
     })),
   )
 

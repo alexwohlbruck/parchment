@@ -20,13 +20,18 @@ async function freshUseFeedback() {
   return mod.useFeedback()
 }
 
-const BOARDS = [{ id: 'board_1', name: 'Bugs', slug: 'bugs', description: null }]
+const BOARDS = [
+  { id: 'board_1', name: 'Bugs', slug: 'bugs', description: null },
+]
 
 describe('useFeedback', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     fetchFeedbackBoards.mockReset()
-    fetchFeedbackBoards.mockResolvedValue(BOARDS)
+    fetchFeedbackBoards.mockResolvedValue({
+      boards: BOARDS,
+      portalLoginEnabled: true,
+    })
     isFeedbackActive.value = false
   })
 
@@ -57,6 +62,7 @@ describe('useFeedback', () => {
 
       expect(feedback.boards.value).toEqual(BOARDS)
       expect(feedback.failed.value).toBe(false)
+      expect(feedback.portalLoginEnabled.value).toBe(true)
     })
 
     it('fetches only once across repeat calls', async () => {
@@ -84,6 +90,7 @@ describe('useFeedback', () => {
 
       expect(feedback.failed.value).toBe(true)
       expect(feedback.boards.value).toEqual([])
+      expect(feedback.portalLoginEnabled.value).toBe(false)
     })
   })
 })

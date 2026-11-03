@@ -8,6 +8,7 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { storeToRefs } from 'pinia'
 import CollectionList from '@/components/library/collections/CollectionList.vue'
+import { createCollectionFromDialog } from '@/components/library/collections/collection-dialog'
 
 const collectionsService = useCollectionsService()
 const collectionsStore = useCollectionsStore()
@@ -50,6 +51,7 @@ const loading = computed(() => {
       :offline="showOffline"
       class="flex-1"
       @retry="load"
+      @add="createCollectionFromDialog"
     />
 
     <CollectionList

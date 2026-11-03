@@ -18,6 +18,7 @@ import type {
 import {
   mapManeuverType,
   mapManeuverModifier,
+  maneuverSigns,
 } from '../../../lib/valhalla-maneuvers'
 
 /**
@@ -163,9 +164,7 @@ export class BarrelmanValhallaAdapter {
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],
       modifier: mapManeuverModifier(maneuver.type),
-      exitNumber: maneuver.sign?.exit_number
-        ? parseInt(maneuver.sign.exit_number)
-        : undefined,
+      ...maneuverSigns(maneuver),
     }
   }
 

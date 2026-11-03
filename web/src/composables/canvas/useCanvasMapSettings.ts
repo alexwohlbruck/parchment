@@ -26,6 +26,12 @@ import {
  */
 export function currentMapSettings(): CanvasMapSettings {
   const mapStore = useMapStore()
+  return { ...storedMapSettings(), hdRoads: mapStore.hdRoads }
+}
+
+/** As stored, so parking keeps an unchosen HD roads unchosen. */
+function storedMapSettings(): CanvasMapSettings {
+  const mapStore = useMapStore()
   return Object.fromEntries(
     CANVAS_MAP_SETTING_KEYS.map(key => [key, mapStore.settings[key]]),
   ) as unknown as CanvasMapSettings
@@ -42,7 +48,7 @@ export function useCanvasMapSettings(
 
   function park() {
     if (isParked()) return
-    mapStore.parkedSettings = currentMapSettings()
+    mapStore.parkedSettings = storedMapSettings()
   }
 
   function unpark() {

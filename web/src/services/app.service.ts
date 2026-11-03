@@ -20,6 +20,10 @@ function appService() {
     return appStore.createDialog(DialogType.Confirm, options)
   }
 
+  async function confirmSignOut(options: ConfirmDialogOptions): Promise<boolean> {
+    return appStore.createDialog(DialogType.SignOut, options)
+  }
+
   async function prompt(options: PromptDialogOptions): Promise<string> {
     return appStore.createDialog(DialogType.Prompt, options)
   }
@@ -32,6 +36,7 @@ function appService() {
   return {
     componentDialog,
     confirm,
+    confirmSignOut,
     prompt,
     promptForm,
     toast,

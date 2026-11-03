@@ -240,7 +240,8 @@ describe('the face a station name takes', () => {
    */
   test('an early Regular layer does not decide it', () => {
     const layers = buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[]
-    expect((layers.find(l => l.type === 'symbol') as any).layout['text-font'][0]).toBe('Geist Regular')
+    const lettered = layers.find(l => l.type === 'symbol' && l.layout?.['text-font'])
+    expect(lettered.layout['text-font'][0]).toBe('Geist Regular')
     expect(labelFontFor(layers, FALLBACK)[0]).not.toBe('Geist Regular')
   })
 

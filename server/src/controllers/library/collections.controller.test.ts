@@ -29,6 +29,8 @@ class SchemeAlreadySetError extends Error {}
 class CollectionVersionConflictError extends Error {}
 class RotationVersionError extends Error {}
 class PublicLinkNotAllowedOnE2eeError extends Error {}
+class PlaintextMetadataOnE2eeError extends Error {}
+class SchemeChangeMetadataError extends Error {}
 
 const OWNER_ID = 'owner-9'
 const collection = { id: 'col-1', userId: TEST_USER.id, scheme: 'server-key' }
@@ -85,11 +87,10 @@ mock.module('../../services/library/collections.service', () => ({
   CollectionVersionConflictError,
   RotationVersionError,
   PublicLinkNotAllowedOnE2eeError,
+  PlaintextMetadataOnE2eeError,
+  SchemeChangeMetadataError,
 }))
 
-const setCollectionSensitive = mock(
-  async (_id: string, _userId: string, _sensitive: boolean) => true,
-)
 const getEncryptedPointsInCollection = mock(
   async (_id: string, _userId: string) => [{ id: 'pt-1' }],
 )
@@ -103,7 +104,6 @@ const deleteEncryptedPoint = mock(
 )
 
 mock.module('../../services/library/encrypted-points.service', () => ({
-  setCollectionSensitive,
   getEncryptedPointsInCollection,
   createEncryptedPoint,
   updateEncryptedPoint,
@@ -161,8 +161,6 @@ beforeEach(() => {
   createPublicLink.mockImplementation(async () => ({ token: 'public-token' }))
   revokePublicLink.mockClear()
   revokePublicLink.mockImplementation(async () => true)
-  setCollectionSensitive.mockClear()
-  setCollectionSensitive.mockImplementation(async () => true)
   getEncryptedPointsInCollection.mockClear()
   createEncryptedPoint.mockClear()
   createEncryptedPoint.mockImplementation(async () => ({ id: 'pt-1' }))
@@ -180,7 +178,6 @@ describe('permission gating', () => {
     ['get', '/collections/col-1'],
     ['put', '/collections/col-1'],
     ['delete', '/collections/col-1'],
-    ['put', '/collections/col-1/sensitive'],
     ['post', '/collections/col-1/change-scheme'],
     ['post', '/collections/col-1/rotate-key'],
     ['post', '/collections/col-1/public-link'],
@@ -237,20 +234,32 @@ describe('GET /collections', () => {
 })
 
 describe('POST /collections', () => {
-  test('creates a collection owned by the caller', async () => {
+  test('creates a collection owned by the caller from cleartext metadata', async () => {
     const res = await req(app).post('/collections', {
-      body: { metadataEncrypted: 'cipher', metadataKeyVersion: 1 },
+      body: { name: 'Coffee', icon: 'Coffee', iconColor: 'cobalt' },
     })
 
     expect(res.status).toBe(200)
     expect(createCollection.mock.calls[0][0]).toMatchObject({
-      metadataEncrypted: 'cipher',
+      name: 'Coffee',
       userId: TEST_USER.id,
     })
   })
 
-  test('422s without the encrypted metadata envelope', async () => {
-    const res = await req(app).post('/collections', { body: { isPublic: true } })
+  test('400s on cleartext metadata for a user-e2ee collection', async () => {
+    createCollection.mockRejectedValueOnce(new PlaintextMetadataOnE2eeError())
+
+    const res = await req(app).post('/collections', {
+      body: { scheme: 'user-e2ee', name: 'Leaked' },
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  test('422s on an unknown icon pack', async () => {
+    const res = await req(app).post('/collections', {
+      body: { name: 'Coffee', iconPack: 'emoji' },
+    })
 
     expect(res.status).toBe(422)
     expect(createCollection).not.toHaveBeenCalled()
@@ -298,6 +307,22 @@ describe('PUT /collections/:id — role-scoped updates', () => {
     expect(updateCollection.mock.calls[0][2]).toMatchObject({
       metadataEncrypted: 'new-cipher',
     })
+  })
+
+  test('passes cleartext metadata through to the service', async () => {
+    await req(app).put('/collections/col-1', { body: { name: 'Renamed' } })
+
+    expect(updateCollection.mock.calls[0][2]).toMatchObject({ name: 'Renamed' })
+  })
+
+  test('400s when cleartext metadata targets a user-e2ee collection', async () => {
+    updateCollection.mockRejectedValueOnce(new PlaintextMetadataOnE2eeError())
+
+    const res = await req(app).put('/collections/col-1', {
+      body: { name: 'Leaked' },
+    })
+
+    expect(res.status).toBe(400)
   })
 
   test('an owner may flip isPublic', async () => {
@@ -413,34 +438,6 @@ describe('DELETE /collections/:id', () => {
   })
 })
 
-describe('PUT /collections/:id/sensitive', () => {
-  test('toggles sensitive mode', async () => {
-    const res = await req(app).put('/collections/col-1/sensitive', {
-      body: { isSensitive: true },
-    })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ success: true, isSensitive: true })
-    expect(setCollectionSensitive).toHaveBeenCalledWith('col-1', TEST_USER.id, true)
-  })
-
-  test('404s for a collection the caller does not own', async () => {
-    setCollectionSensitive.mockResolvedValueOnce(false)
-
-    const res = await req(app).put('/collections/other/sensitive', {
-      body: { isSensitive: true },
-    })
-
-    expect(res.status).toBe(404)
-  })
-
-  test('422s without the flag', async () => {
-    const res = await req(app).put('/collections/col-1/sensitive', { body: {} })
-
-    expect(res.status).toBe(422)
-  })
-})
-
 describe('POST /collections/:id/change-scheme', () => {
   test('applies the migration and returns the collection', async () => {
     const res = await req(app).post('/collections/col-1/change-scheme', {
@@ -465,6 +462,31 @@ describe('POST /collections/:id/change-scheme', () => {
     })
 
     expect(res.status).toBe(400)
+  })
+
+  test('400s when the target scheme’s metadata is missing', async () => {
+    changeCollectionScheme.mockRejectedValueOnce(
+      new SchemeChangeMetadataError('missing'),
+    )
+
+    const res = await req(app).post('/collections/col-1/change-scheme', {
+      body: schemeBody,
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  test('forwards cleartext metadata for a downgrade', async () => {
+    const { newMetadataEncrypted, ...rest } = schemeBody
+
+    await req(app).post('/collections/col-1/change-scheme', {
+      body: { ...rest, targetScheme: 'server-key', metadata: { name: 'Home' } },
+    })
+
+    expect(changeCollectionScheme.mock.calls[0][0]).toMatchObject({
+      targetScheme: 'server-key',
+      metadata: { name: 'Home' },
+    })
   })
 
   test('409s on a version conflict so the client can re-stage', async () => {
@@ -613,6 +635,28 @@ describe('encrypted points', () => {
     expect(res.status).toBe(200)
     expect(res.body.points).toEqual([{ id: 'pt-1' }])
     expect(getEncryptedPointsInCollection).toHaveBeenCalledWith('col-1', TEST_USER.id)
+  })
+
+  test('a share recipient reads the owner’s points', async () => {
+    getAccessibleCollection.mockResolvedValueOnce({
+      ...collection,
+      userId: OWNER_ID,
+      role: 'viewer',
+    })
+
+    const res = await req(app).get('/collections/col-1/encrypted-points')
+
+    expect(res.status).toBe(200)
+    expect(getEncryptedPointsInCollection).toHaveBeenCalledWith('col-1', OWNER_ID)
+  })
+
+  test('404s on points of a collection the caller cannot see', async () => {
+    getAccessibleCollection.mockResolvedValueOnce(null)
+
+    const res = await req(app).get('/collections/col-1/encrypted-points')
+
+    expect(res.status).toBe(404)
+    expect(getEncryptedPointsInCollection).not.toHaveBeenCalled()
   })
 
   test('creates a point under the owner’s id when an editor writes', async () => {

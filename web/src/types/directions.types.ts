@@ -14,6 +14,8 @@ export type {
   RouteInstruction,
   RouteLeg,
   RouteEdgeSegment,
+  RouteHazard,
+  RouteHazardKind,
   RouteSummary,
   Route,
 } from '@server/types/unified-routing.types'

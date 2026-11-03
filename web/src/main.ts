@@ -1,6 +1,8 @@
-import { createApp, effectScope } from 'vue'
+import { createApp, effectScope, watchEffect } from 'vue'
 import { createPinia } from 'pinia'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useAuthStore } from '@/stores/auth.store'
+import { useAppStore } from '@/stores/app.store'
 import { i18n } from '@/lib/i18n'
 import './style.css'
 import '@fontsource/geist-sans/400.css'
@@ -44,8 +46,15 @@ if (import.meta.env.DEV) {
   void import('@/dev/gpx-simulator').then(({ install }) => install())
 }
 
-// Start geolocation as early as possible — before any component mounts
-effectScope().run(() => useGeolocationService())
+// Start geolocation as early as possible, but never prompt before there is an
+// account or while onboarding (and its closing animation) is on screen.
+effectScope().run(() => {
+  const geolocation = useGeolocationService()
+  const auth = useAuthStore()
+  const appStore = useAppStore()
+  watchEffect(() => geolocation.hold(!auth.me || auth.needsOnboarding || appStore.chromeHeld))
+  geolocation.resume()
+})
 
 void setupPWA()
 

@@ -38,6 +38,7 @@ import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/event-bus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman'
 import { parseMapboxToOsmId } from '@/lib/map/osm-feature-id'
+import { mapboxSlot } from '@/lib/map/layer-slots'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
@@ -145,6 +146,8 @@ export class MapboxStrategy extends MapStrategy {
   private currentLanguage?: string
   private hdRoadsEnabled: boolean = false
   private indoorControl?: InstanceType<typeof mapboxgl.IndoorControl>
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null
+  private touchStartPoint: { x: number; y: number } | null = null
 
   constructor(
     container,
@@ -270,10 +273,7 @@ export class MapboxStrategy extends MapStrategy {
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
-      mapEventBus.emit('contextmenu', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      this.emitContextMenu(e.lngLat, e.point)
     })
 
     // Touch-and-hold for mobile context menu
@@ -316,6 +316,73 @@ export class MapboxStrategy extends MapStrategy {
    * reset it to nothing — meant the crosshair vanished the moment you moved
    * across a label, which is most of the time in a city.
    */
+  /**
+   * Mapbox fires no `contextmenu` on a touch long press, so detect one here.
+   */
+  private setupLongPressHandler() {
+    const LONG_PRESS_DURATION = 500 // ms
+    const MOVE_THRESHOLD = 10 // pixels
+
+    const canvas = this.mapInstance.getCanvas()
+
+    const clearLongPress = () => {
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer)
+        this.longPressTimer = null
+      }
+      this.touchStartPoint = null
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // Only handle single finger touch
+      if (e.touches.length !== 1) {
+        clearLongPress()
+        return
+      }
+
+      const touch = e.touches[0]
+      this.touchStartPoint = { x: touch.clientX, y: touch.clientY }
+
+      this.longPressTimer = setTimeout(() => {
+        if (this.touchStartPoint) {
+          const rect = canvas.getBoundingClientRect()
+          const x = this.touchStartPoint.x - rect.left
+          const y = this.touchStartPoint.y - rect.top
+          this.emitContextMenu(this.mapInstance.unproject([x, y]), { x, y })
+        }
+        this.longPressTimer = null
+      }, LONG_PRESS_DURATION)
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!this.longPressTimer || !this.touchStartPoint) return
+
+      const touch = e.touches[0]
+      const dx = touch.clientX - this.touchStartPoint.x
+      const dy = touch.clientY - this.touchStartPoint.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      // Cancel if finger moved too much (user is panning)
+      if (distance > MOVE_THRESHOLD) {
+        clearLongPress()
+      }
+    }
+
+    const handleTouchEnd = () => {
+      clearLongPress()
+    }
+
+    // Prevent default browser context menu on long-press
+    canvas.addEventListener('contextmenu', (e: Event) => {
+      e.preventDefault()
+    })
+
+    canvas.addEventListener('touchstart', handleTouchStart)
+    canvas.addEventListener('touchmove', handleTouchMove)
+    canvas.addEventListener('touchend', handleTouchEnd)
+    canvas.addEventListener('touchcancel', handleTouchEnd)
+  }
+
   private setHoverCursor(cursor: string) {
     if (
       cursor
@@ -702,6 +769,7 @@ export class MapboxStrategy extends MapStrategy {
     if (!existingLayer || overwrite) {
       this.mapInstance.addLayer({
         ...(configuration as any),
+        ...(configuration.slot ? { slot: mapboxSlot(configuration.slot) } : {}),
         layout: {
           ...configuration.layout,
           visibility: themedLayer.visible ? 'visible' : 'none',
@@ -763,12 +831,14 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
+  selectedMarkerColor() {
+    return cssHslToHex('hsl(var(--primary))')
+  }
+
   addMarker(id: string, lngLat: LngLat) {
     super.addMarker(id, lngLat)
 
-    const marker = new Marker({
-      color: cssHslToHex('hsl(var(--primary))'), // Convert CSS variable to hex color
-    })
+    const marker = new Marker({ color: this.selectedMarkerColor() })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
 

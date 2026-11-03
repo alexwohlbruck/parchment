@@ -1,7 +1,6 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from '@/lib/toast'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -9,7 +8,15 @@ import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useSyncStore } from '@/stores/sync.store'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
-import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
+import type {
+  CreateBookmarkParams,
+  Bookmark,
+  Collection,
+  DecryptedPoint,
+} from '@/types/library.types'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import { encryptCollectionPoint } from '@/lib/identity/library-crypto'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { isOffline } from '@/lib/connectivity'
@@ -19,13 +26,14 @@ import {
 } from '@/lib/network-errors'
 import { newOfflineId } from '@/lib/sync/offline-id'
 import { closestThemeColor } from '@/lib/utils'
-import { AppRoute } from '@/router'
 import { type FrequentType } from '@/lib/frequents'
 import type {
   CreateBookmarkMutation,
   RemoveBookmarkMutation,
   UpdateBookmarkMutation,
 } from '@/services/library/bookmarks.sync'
+import { isSamePlace } from '@/lib/library/external-ids'
+import { canWriteCollection } from '@/lib/library/collection-access'
 
 /** Plain-JSON snapshot of a (possibly reactive) row, for queue payloads. */
 function snapshot<T>(value: T | undefined): T | undefined {
@@ -38,24 +46,118 @@ export const useBookmarksService = createSharedComposable(() => {
   const authStore = useAuthStore()
   const bookmarksStore = useBookmarksStore()
   const collectionsStore = useCollectionsStore()
+  const collectionsService = useCollectionsService()
+  const encryptedPointsStore = useEncryptedPointsStore()
   const categoryPaletteStore = useCategoryPaletteStore()
   const syncStore = useSyncStore()
   const themeStore = useThemeStore()
-  const router = useRouter()
   const { t } = useI18n()
   const isSaving = ref(false)
 
-  // Toast helper: builds the optional "View" action button that takes
-  // the user to the collection they just added a bookmark to. Returns
-  // undefined when there's no resolvable target (so the toast renders
-  // without an action) instead of a no-op button.
-  function viewCollectionAction(collectionId: string | undefined) {
-    if (!collectionId) return undefined
+  /**
+   * What a saved copy of `place` records. The POI's own icon and its
+   * category colour, snapped to a `ThemeColor`, are stamped once and never
+   * edited. Null, after a toast, when the place can't be saved.
+   */
+  function placeFields(place: Place, name?: string): CreateBookmarkParams | null {
+    if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
+      toast.error(t('services.bookmarks.saveErrorNoOsmId'))
+      return null
+    }
+    const center = place.geometry?.value?.center
+    if (!center) {
+      toast.error(t('services.bookmarks.saveErrorNoCoordinates'))
+      return null
+    }
+    const placeIcon = place.icon
+    const categoryColor = placeIcon?.category
+      ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
+      : null
     return {
-      label: t('general.view'),
-      onClick: () => {
-        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
-      },
+      externalIds: place.externalIds,
+      name: name || place.name.value || '',
+      address: place.address?.value.formatted,
+      lat: center.lat,
+      lng: center.lng,
+      icon: placeIcon?.icon,
+      iconPack: placeIcon?.iconPack,
+      iconColor: closestThemeColor(categoryColor),
+    }
+  }
+
+  /**
+   * Save a place into a private collection as an encrypted point. A place
+   * already in it is left alone. Resolves to the point, or null on failure.
+   */
+  async function saveToPrivateCollection(
+    collection: Collection,
+    fields: CreateBookmarkParams,
+  ): Promise<DecryptedPoint | null> {
+    const existing = (await collectionsService.fetchAndDecryptPoints(collection)).find(
+      p => isSamePlace(fields.externalIds, p.externalIds),
+    )
+    if (existing) return existing
+
+    try {
+      const source = await collectionsService.collectionKeySource(collection)
+      if (!source) throw new Error('No key to this collection on this device')
+      const point: DecryptedPoint = {
+        id: crypto.randomUUID(),
+        externalIds: fields.externalIds,
+        name: fields.name,
+        address: fields.address ?? null,
+        lat: fields.lat,
+        lng: fields.lng,
+        icon: fields.icon ?? 'map-pin',
+        iconPack: fields.iconPack ?? 'lucide',
+        iconColor: fields.iconColor ?? 'cobalt',
+        frequentType: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      await collectionsService.createEncryptedPoint(collection.id, {
+        id: point.id,
+        encryptedData: encryptCollectionPoint({
+          point,
+          pointId: point.id,
+          source,
+          ownerUserId: collection.userId,
+          collectionId: collection.id,
+          keyVersion: collection.metadataKeyVersion,
+        }),
+      })
+      encryptedPointsStore.addPoint(collection.id, point)
+      rememberLastSaved([collection.id])
+      toast.success(
+        t('services.bookmarks.saveSuccessToCollection', {
+          name: point.name,
+          collection: collectionsService.getCollectionDisplayName(collection),
+        }),
+        { action: collectionsService.viewCollectionAction(collection.id) },
+      )
+      return point
+    } catch (err) {
+      console.error('[bookmarks] private save failed', err)
+      toast.error(t('services.bookmarks.saveError'), { cause: err })
+      return null
+    }
+  }
+
+  async function removeFromPrivateCollection(
+    collection: Collection,
+    point: DecryptedPoint,
+  ): Promise<boolean> {
+    try {
+      await collectionsService.deleteEncryptedPoint(collection.id, point.id)
+      encryptedPointsStore.removePoint(collection.id, point.id)
+      toast.success(
+        t('services.bookmarks.removeFromCollectionSuccess', { name: point.name }),
+      )
+      return true
+    } catch (err) {
+      console.error('[bookmarks] private remove failed', err)
+      toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: err })
+      return false
     }
   }
 
@@ -79,31 +181,10 @@ export const useBookmarksService = createSharedComposable(() => {
       name?: string
     } = {},
   ) {
-    if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
-      toast.error(t('services.bookmarks.saveErrorNoOsmId'))
-      return null
-    }
-
-    // Extract coordinates from place geometry
-    const geometry = place.geometry?.value
-    if (!geometry || !geometry.center) {
-      toast.error(t('services.bookmarks.saveErrorNoCoordinates'))
-      return null
-    }
+    const fields = placeFields(place, options.name)
+    if (!fields) return null
 
     isSaving.value = true
-
-    // Stamp the POI's own icon/colour onto the bookmark. The server emits
-    // `place.icon` with the maki/lucide name plus the abstract category; the
-    // category's CSS colour is snapped to the closest discrete `ThemeColor`
-    // so it matches the palette the rest of the UI renders with.
-    //
-    // This runs once, at creation. There is no picker and the update endpoint
-    // rejects these fields — a bookmark looks like the place it is.
-    const placeIcon = place.icon
-    const categoryColorString = placeIcon?.category
-      ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
-      : null
 
     // Preset saves surface their own "Set as Home" toast (handled by the
     // caller in `setFrequent`), so skip the generic "Saved to collection"
@@ -127,7 +208,7 @@ export const useBookmarksService = createSharedComposable(() => {
             collection:
               target.name || t('library.entities.collections.untitled'),
           }),
-          { action: viewCollectionAction(targetId) },
+          { action: collectionsService.viewCollectionAction(targetId) },
         )
       } else {
         toast.success(
@@ -137,14 +218,7 @@ export const useBookmarksService = createSharedComposable(() => {
     }
 
     const params: CreateBookmarkParams & { collectionIds?: string[] } = {
-      externalIds: place.externalIds,
-      name: options.name || place.name.value || '',
-      address: place.address?.value.formatted,
-      lat: geometry.center.lat,
-      lng: geometry.center.lng,
-      icon: placeIcon?.icon,
-      iconPack: placeIcon?.iconPack,
-      iconColor: closestThemeColor(categoryColorString),
+      ...fields,
       ...(options.frequentType ? { frequentType: options.frequentType } : {}),
       collectionIds,
     }
@@ -200,7 +274,7 @@ export const useBookmarksService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return createOffline()
       }
-      toast.error(t('services.bookmarks.saveError'))
+      toast.error(t('services.bookmarks.saveError'), { cause: error })
       return null
     } finally {
       isSaving.value = false
@@ -291,7 +365,7 @@ export const useBookmarksService = createSharedComposable(() => {
                 collection:
                   added.name || t('library.entities.collections.untitled'),
               }),
-              { action: viewCollectionAction(options.addedCollectionId) },
+              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
             )
           } else {
             toast.success(t('services.bookmarks.updateSuccess'))
@@ -321,7 +395,7 @@ export const useBookmarksService = createSharedComposable(() => {
               t('library.actions.addedToCollection', {
                 collection: added.name || t('library.entities.collections.untitled'),
               }),
-              { action: viewCollectionAction(options.addedCollectionId) },
+              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
             )
           } else {
             toast.success(t('services.bookmarks.updateSuccess'))
@@ -352,10 +426,10 @@ export const useBookmarksService = createSharedComposable(() => {
         return updateOffline()
       }
       if (error.response && error.response.status === 404) {
-        toast.error(t('services.bookmarks.updateErrorNotFound'))
+        toast.error(t('services.bookmarks.updateErrorNotFound'), { cause: error })
         bookmarksStore.removeBookmark(id)
       } else {
-        toast.error(t('services.bookmarks.updateError'))
+        toast.error(t('services.bookmarks.updateError'), { cause: error })
       }
       console.error(`Error updating bookmark ${id}:`, error)
       return null
@@ -416,7 +490,7 @@ export const useBookmarksService = createSharedComposable(() => {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
         return removeOffline()
       }
-      toast.error(t('services.bookmarks.removeFromCollectionError'))
+      toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: error })
       return false
     }
   }
@@ -468,7 +542,7 @@ export const useBookmarksService = createSharedComposable(() => {
    */
   function resolveDefaultCollectionId(): string | null {
     const writable = collectionsStore.collections.filter(
-      c => !c.role || c.role === 'owner' || c.role === 'editor',
+      canWriteCollection,
     )
     if (writable.length === 0) return null
 
@@ -483,9 +557,7 @@ export const useBookmarksService = createSharedComposable(() => {
     if (place.bookmark?.id) return place.bookmark.id
     const ids = place.externalIds
     if (!ids) return undefined
-    return bookmarksStore.bookmarks.find(b =>
-      Object.entries(ids).some(([provider, id]) => b.externalIds[provider] === id),
-    )?.id
+    return bookmarksStore.bookmarks.find(b => isSamePlace(ids, b.externalIds))?.id
   }
 
   /**
@@ -548,6 +620,9 @@ export const useBookmarksService = createSharedComposable(() => {
 
   return {
     isSaving,
+    placeFields,
+    saveToPrivateCollection,
+    removeFromPrivateCollection,
     createBookmark,
     updateBookmark,
     removeBookmark,

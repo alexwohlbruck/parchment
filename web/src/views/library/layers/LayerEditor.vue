@@ -176,7 +176,7 @@ async function save() {
     )
     router.push(destination.value)
   } catch (e) {
-    appService.toast.error(t('layers.editor.saveFailed'))
+    appService.toast.error(t('layers.editor.saveFailed'), { cause: e })
     console.error('Failed to save layer', e)
   } finally {
     saving.value = false

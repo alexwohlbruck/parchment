@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Place } from '@/types/place.types'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { Chip } from '@/components/ui/chip'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -46,20 +47,22 @@ function handleClick() {
 </script>
 
 <template>
-  <button
+  <Chip
     v-if="brand"
-    class="inline-flex items-center gap-1.5 rounded-full border pl-0.5 pr-2.5 py-0.5 bg-background transition-colors hover:bg-muted self-start"
+    class="self-start"
+    :label="t('place.brand.seeAll', { name: brand.name })"
     @click="handleClick"
   >
-    <ItemIcon
-      icon="Store"
-      icon-pack="lucide"
-      :image-url="(brand as any).logoUrl"
-      size="xs"
-      shape="circle"
-      variant="solid"
-      class="shadow-sm"
-    />
-    <span class="text-xs font-medium">{{ t('place.brand.seeAll', { name: brand.name }) }}</span>
-  </button>
+    <template #leading>
+      <ItemIcon
+        icon="Store"
+        icon-pack="lucide"
+        :image-url="(brand as any).logoUrl"
+        size="xs"
+        shape="circle"
+        variant="solid"
+        class="shadow-sm"
+      />
+    </template>
+  </Chip>
 </template>

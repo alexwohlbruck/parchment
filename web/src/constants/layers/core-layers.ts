@@ -31,11 +31,40 @@ export const BOOKMARKS_SOURCE_ID = 'bookmarks-source-internal'
 export const BOOKMARKS_CIRCLES_LAYER_ID = 'bookmarks-circles-internal'
 export const BOOKMARKS_ICONS_LAYER_ID = 'bookmarks-icons-internal'
 
+// The open collection's places, drawn as full POI markers over the saved-place dots.
+export const COLLECTION_MARKERS_SOURCE_ID = 'collection-markers-source-internal'
+export const COLLECTION_MARKERS_LAYER_ID = 'collection-markers-internal'
+export const COLLECTION_LABELS_LAYER_ID = 'collection-labels-internal'
+
 // Place polygon layer constants - these are internal and not user-modifiable
 export const PLACE_POLYGON_LAYER_ID = 'place-polygon-internal'
 export const PLACE_POLYGON_SOURCE_ID = 'place-polygon-source-internal'
 export const PLACE_POLYGON_FILL_LAYER_ID = 'place-polygon-fill-internal'
 export const PLACE_POLYGON_STROKE_LAYER_ID = 'place-polygon-stroke-internal'
+
+/** Lettering for a POI's name under its marker, shared by every marker set. */
+const POI_LABEL_LAYOUT = {
+  'symbol-z-elevate': true,
+  'text-size': 13,
+  'text-field': ['get', 'name'],
+  // Matches Mapbox Standard's native POI label font stack — and, through
+  // the MapLibre font table, the SemiBold the basemap's own POI labels
+  // are set in. A search result and the basemap POI under it are the same
+  // place, so they have to be lettered the same way.
+  'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+  // A long name wraps into a block under its marker rather than reaching
+  // across the street either side of it; the basemap uses the same width.
+  'text-max-width': 7,
+  'text-line-height': 1.05,
+  'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
+  'text-offset': [0, 1],
+  'text-anchor': 'top',
+  'text-allow-overlap': false,
+  'text-ignore-placement': false,
+  // Per-result rank (0 = nearest/best). Lower sort keys are placed first, so
+  // the top results win collisions and their labels stay visible.
+  'symbol-sort-key': ['get', 'sortKey'],
+}
 
 // Search results layer configuration - this layer is always present but hidden when no results
 export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
@@ -58,28 +87,7 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
     // (text-allow-overlap: false, below) hides any label that would overlap
     // another, so clutter is prevented without a hard zoom cutoff.
     filter: ['has', 'name'],
-    layout: {
-      'symbol-z-elevate': true,
-      'text-size': 13,
-      'text-field': ['get', 'name'],
-      // Matches Mapbox Standard's native POI label font stack — and, through
-      // the MapLibre font table, the SemiBold the basemap's own POI labels
-      // are set in. A search result and the basemap POI under it are the same
-      // place, so they have to be lettered the same way.
-      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-      // A long name wraps into a block under its marker rather than reaching
-      // across the street either side of it; the basemap uses the same width.
-      'text-max-width': 7,
-      'text-line-height': 1.05,
-      'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
-      'text-offset': [0, 1],
-      'text-anchor': 'top',
-      'text-allow-overlap': false,
-      'text-ignore-placement': false,
-      // Per-result rank (0 = nearest/best). Lower sort keys are placed first, so
-      // the top results win collisions and their labels stay visible.
-      'symbol-sort-key': ['get', 'sortKey'],
-    },
+    layout: POI_LABEL_LAYOUT,
   },
 }
 
@@ -89,6 +97,19 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
  * under it are the same place, so they get the same treatment.
  */
 const POI_LABEL_HALO = { light: '#FFFFFF', dark: '#0D0D0D' }
+
+/**
+ * Wide and slightly soft, so the halo reads as space around the letters rather
+ * than as an outline traced behind them. Same pair as `POI_PAINT` in
+ * `convert-basemap-style.mjs`.
+ */
+function poiLabelHalo(isDark: boolean): Record<string, unknown> {
+  return {
+    'text-halo-width': 1.5,
+    'text-halo-blur': 0.4,
+    'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
+  }
+}
 
 /**
  * What a search-result label is painted with.
@@ -124,12 +145,7 @@ export function searchResultLabelPaint(options: {
   const named = categories.filter(c => c !== 'default')
 
   return {
-    // Wide and slightly soft, so the halo reads as space around the letters
-    // rather than as an outline traced behind them. Same pair as `POI_PAINT`
-    // in `convert-basemap-style.mjs`.
-    'text-halo-width': 1.5,
-    'text-halo-blur': 0.4,
-    'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
+    ...poiLabelHalo(isDark),
     'text-color': named.length
       ? ['match', ['get', 'category'], ...named.flatMap(c => [c, ink(c)]), ink('default')]
       : ink('default'),
@@ -357,6 +373,55 @@ export const BOOKMARKS_ICONS_LAYER_CONFIG: Omit<
 export const EMPTY_BOOKMARKS_GEOJSON = {
   type: 'FeatureCollection' as const,
   features: [],
+}
+
+// Full size at every zoom, unlike the saved-place dots. Baked images, since the
+// dots' white-glyph-over-circle pair cannot draw a POI's tinted glyph.
+
+export const COLLECTION_MARKERS_LAYER_CONFIG: Omit<
+  Layer,
+  'id' | 'userId' | 'createdAt' | 'updatedAt'
+> = {
+  name: 'Collection Markers (Internal)',
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  showInLayerSelector: false,
+  visible: false,
+  icon: null,
+  order: 9998,
+  groupId: null,
+  configuration: {
+    id: COLLECTION_MARKERS_LAYER_ID,
+    type: MapboxLayerType.SYMBOL,
+    source: COLLECTION_MARKERS_SOURCE_ID,
+    layout: {
+      ...MARKER_GLYPH_PLACEMENT,
+      'icon-image': ['get', 'markerImage'],
+      'icon-size': 1,
+      'symbol-sort-key': ['get', 'sortKey'],
+    },
+  },
+}
+
+export const COLLECTION_LABELS_LAYER_CONFIG: Omit<
+  Layer,
+  'id' | 'userId' | 'createdAt' | 'updatedAt'
+> = {
+  ...COLLECTION_MARKERS_LAYER_CONFIG,
+  name: 'Collection Labels (Internal)',
+  order: 9999,
+  configuration: {
+    id: COLLECTION_LABELS_LAYER_ID,
+    type: MapboxLayerType.SYMBOL,
+    source: COLLECTION_MARKERS_SOURCE_ID,
+    filter: ['has', 'name'],
+    layout: POI_LABEL_LAYOUT,
+  },
+}
+
+/** Labels are set in their marker's glyph colour, as search results are. */
+export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
+  return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
 }
 
 // Place geometry layer configurations - used for showing place boundaries and lines

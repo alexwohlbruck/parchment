@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -34,7 +35,9 @@ import {
 
 const authService = useAuthService()
 const appService = useAppService()
-const email = ref('')
+const route = useRoute()
+const invitedEmail = typeof route.query.email === 'string' ? route.query.email : ''
+const email = ref(invitedEmail)
 const awaitingPasskey = ref(false)
 const isLoading = ref(false)
 
@@ -88,7 +91,7 @@ const formSchema = toTypedSchema(
 const { handleSubmit, setFieldValue, values } = useForm({
   validationSchema: formSchema,
   initialValues: {
-    email: '',
+    email: invitedEmail,
     selectedServer: selectedServer.value,
   },
 })

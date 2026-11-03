@@ -19,6 +19,8 @@ import BrandSuggestions from './BrandSuggestions.vue'
 import FeatureChips from './FeatureChips.vue'
 import AddressField from './AddressField.vue'
 import FormSection from './FormSection.vue'
+import TagUpgradeCard from './TagUpgradeCard.vue'
+import { useTagUpgrades } from '@/composables/quick-edit/useTagUpgrades'
 import {
   groupFields,
   sectionPreview,
@@ -35,13 +37,12 @@ const props = defineProps<{
   lng: number
   /** Set when edits go to a non-production OSM server. */
   sandboxServer?: string | null
-  /** Set when a brand match is already offered above the form. */
-  brandsOffered?: boolean
 }>()
 
 const emit = defineEmits<{
   set: [key: string, value: string | null]
   brand: [brand: NsiBrand]
+  logo: [url: string | null]
   submit: [comment: string]
 }>()
 
@@ -67,14 +68,30 @@ const rawTagCount = computed(() => Object.keys(props.tags).length)
 
 const canSubmit = computed(() => rawTagCount.value > 0 && !props.submitting)
 
+const { upgrade, ignore } = useTagUpgrades(props.tags)
+
 // Offer chains only while the feature isn't already identified as one, and
-// never alongside a brand match card offering the same thing.
+// never alongside an upgrade offering a chain already.
 const showBrands = computed(
   () =>
     Boolean(props.preset && props.tags.name) &&
     !props.tags['brand:wikidata'] &&
-    !props.brandsOffered,
+    !upgrade.value?.brand,
 )
+
+function applyUpgrade() {
+  const applied = upgrade.value
+  if (!applied) return
+  for (const change of applied.changes) set(change.key, change.to)
+  if (applied.brand) emit('logo', applied.brand.logoUrl)
+}
+
+function declineBrand() {
+  const wikidata = upgrade.value?.brand?.wikidata
+  if (!wikidata) return
+  const declined = props.tags['not:brand:wikidata']?.split(';') ?? []
+  set('not:brand:wikidata', [...declined, wikidata].join(';'))
+}
 
 function set(key: string, value: string | null) {
   emit('set', key, value)
@@ -90,6 +107,15 @@ function renameTag(oldKey: string, newKey: string) {
 
 <template>
   <div class="flex flex-col gap-2">
+    <TagUpgradeCard
+      v-if="upgrade"
+      :upgrade="upgrade"
+      class="mb-1"
+      @apply="applyUpgrade"
+      @decline="declineBrand"
+      @ignore="ignore"
+    />
+
     <div v-if="basics" class="space-y-3 pb-1">
       <template v-for="field in basics.fields" :key="field.id">
         <TagFieldRow :field="field" :tags="tags" @set="set" />

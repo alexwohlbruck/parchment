@@ -1,3 +1,6 @@
+import type { SpeechCapability } from './speech.types'
+import type { TransitPriority } from '../lib/transit/transit-gate'
+import type { StopBoard } from '../lib/transit/route-options'
 import { Place, TransitDeparture } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
@@ -10,6 +13,10 @@ import {
   MatrixRequest,
   MatrixResponse,
   UnifiedRoute,
+  RouteLanes,
+  RouteLanesRequest,
+  RoutePointHazard,
+  RoutePointHazardsRequest,
 } from './unified-routing.types'
 import type {
   LocationHistory,
@@ -114,6 +121,10 @@ export interface GeocodingCapability {
 export interface RoutingCapability {
   getRoute(request: RouteRequest): Promise<UnifiedRoute>
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
+  /** Lane-level geometry and lane plans for a driven route; null where the engine has none. */
+  getLanes?(request: RouteLanesRequest): Promise<RouteLanes | null>
+  /** Hazards read from OSM tags along a route; null where the engine has none. */
+  getHazards?(request: RoutePointHazardsRequest): Promise<RoutePointHazard[] | null>
   
   // Metadata about what this routing engine supports
   metadata?: RoutingCapabilityMetadata
@@ -284,10 +295,23 @@ export interface StationEntrance {
 
 export interface TransitRoutingCapability {
   getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
-  getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
-  getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
+  getIntermodalRoute?(
+    request: IntermodalRouteRequest,
+    priority?: TransitPriority,
+  ): Promise<TransitRouteResponse>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
   getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
+  /** Departure boards for one stop's station, from `time` for `windowMinutes`. */
+  getStopDepartures?(query: StopDeparturesQuery): Promise<StopBoard[] | null>
+}
+
+export interface StopDeparturesQuery {
+  feedId: string
+  stopId: string
+  /** ISO 8601 start of the window. */
+  time: string
+  windowMinutes: number
+  n: number
 }
 
 export interface TransitRouteRequest {
@@ -408,27 +432,6 @@ export interface TransitLegPlace {
   platformCode?: string
 }
 
-export interface NearbyStopsRequest {
-  lat: number
-  lng: number
-  radius?: number
-  limit?: number
-}
-
-export interface NearbyStopResult {
-  stopId: string
-  feedId: string
-  stopName: string
-  stopCode: string | null
-  lat: number
-  lng: number
-  distance: number
-  locationType: number
-  parentStation: string | null
-  wheelchairBoarding: number
-  platformCode: string | null
-}
-
 export interface StopRouteResult {
   routeId: string
   feedId: string
@@ -438,6 +441,8 @@ export interface StopRouteResult {
   routeColor: string | null
   routeTextColor: string | null
   agencyName: string | null
+  /** `station` calls here; `transfer` is reached in-system via transfers.txt. */
+  via?: 'station' | 'transfer' | 'nearby'
 }
 
 export interface WeatherData {
@@ -492,8 +497,16 @@ export interface AirQuality {
   stationName?: string // Name of the OpenAQ station, when source === 'openaq'
 }
 
+/** The next few hours at a place, as far as road conditions go. */
+export interface WeatherOutlook {
+  rain: boolean
+  /** Celsius. */
+  minTemperature: number
+}
+
 export interface WeatherCapability {
   getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
+  getOutlook?(lat: number, lng: number): Promise<WeatherOutlook>
 }
 
 /** A board feedback can be filed against (bugs, feature requests, …). */
@@ -508,6 +521,19 @@ export interface FeedbackBoard {
 export interface FeedbackAuthor {
   email: string
   name?: string
+}
+
+export interface FeedbackIdentity extends FeedbackAuthor {
+  id: string
+}
+
+export interface FeedbackBoardsResponse {
+  boards: FeedbackBoard[]
+  portalLoginEnabled: boolean
+}
+
+export interface FeedbackPortalLogin {
+  url: string
 }
 
 export interface FeedbackSubmission {
@@ -527,6 +553,11 @@ export interface SubmittedFeedback {
 export interface FeedbackCapability {
   listBoards(): Promise<FeedbackBoard[]>
   submitFeedback(input: FeedbackSubmission): Promise<SubmittedFeedback>
+  isPortalLoginEnabled?(): boolean
+  createPortalLogin?(
+    identity: FeedbackIdentity,
+    postUrl?: string,
+  ): Promise<FeedbackPortalLogin>
 }
 
 /** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */
@@ -663,6 +694,7 @@ export interface RideshareEstimateCapability {
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
+  tts?: SpeechCapability
   search?: SearchCapability
   searchCategory?: SearchCategoryCapability
   brandCatalog?: BrandCatalogCapability

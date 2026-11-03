@@ -20,8 +20,14 @@
  * `detail-layers.ts`.
  */
 import type { FlavorId } from './build'
+import { DETAIL_SOURCE } from './detail-layers'
 
-export const CYCLING_WAYS_SOURCE = 'bicycle-ways'
+/**
+ * Cycling ways come out of the shared `detail` bundle rather than a source of
+ * their own — one request carries them alongside parking, buildings and trees.
+ * Re-exported under the old name so the layer definitions below read the same.
+ */
+export const CYCLING_WAYS_SOURCE = DETAIL_SOURCE
 export const CYCLING_WAYS_TILES = 'bicycle_ways'
 
 /** Appended to the road layer a Barrelman tint is derived from. */
@@ -196,6 +202,24 @@ const INFRA_AS_SIDE: any = [
 ]
 
 /**
+ * A way in a tunnel is not drawn by the road layers these marks sit on, so a
+ * mark on one is a green ribbon through a hillside with no road under it. The
+ * dedicated-cycleway layers draw their tunnels in the basemap's own tunnel
+ * band instead; see `layer-slots.ts`.
+ */
+const NOT_TUNNEL: any = ['!=', ['get', 'tunnel'], true]
+
+/**
+ * Which of a rung's two layers a way belongs to.
+ *
+ * The basemap draws each rung twice — at grade, and again above the network it
+ * crosses — so a tint has to pick the same side of that split as the road it
+ * repaints, or it is painted under the carriageway and never seen.
+ */
+const ON_BRIDGE: any = ['==', ['get', 'bridge'], true]
+const AT_GRADE: any = ['!=', ['get', 'bridge'], true]
+
+/**
  * Highway values that are a road a bike lane can be painted on.
  *
  * An offset only makes sense when the geometry IS the carriageway. Where OSM
@@ -278,7 +302,7 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
   ['get', 'infra_type'],
   ['bicycle_road', 'cycle_street', 'bicycle_designated'],
   STRENGTH[flavor].strong,
-  ['shared_lane', 'share_busway', 'opposite'],
+  ['shared_lane', 'share_busway', 'opposite', 'bicycle_route'],
   STRENGTH[flavor].faint,
   STRENGTH[flavor].medium,
 ]
@@ -288,9 +312,10 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
  *
  * The tint claims the whole carriageway, so it has to mean the whole
  * carriageway is yours — a bicycle road, a cycle street, a road designated for
- * bikes, or a lane shared with traffic that you take by riding in it. Where
- * the provision is a strip at the edge, the street is left alone and the strip
- * is drawn where it actually is; see `STROKE_KINDS`. Bedford Avenue has a lane
+ * bikes, a lane shared with traffic that you take by riding in it, or a street
+ * a signed route sends you down with nothing painted on it. Where the
+ * provision is a strip at the edge, the street is left alone and the strip is
+ * drawn where it actually is; see `STROKE_KINDS`. Bedford Avenue has a lane
  * down each side, and painting the middle green would say you belong in the
  * traffic between them.
  *
@@ -299,7 +324,7 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
  * absent too: permission rather than provision, and on most of the grid.
  */
 const TINTED_INFRA = [
-  'shared_lane', 'share_busway', 'opposite',
+  'shared_lane', 'share_busway', 'opposite', 'bicycle_route',
   'bicycle_road', 'cycle_street', 'bicycle_designated',
 ]
 
@@ -315,14 +340,28 @@ const BY_ROAD_LAYER: { road: string; classes: string[] }[] = [
   { road: 'Highway', classes: ['motorway'] },
 ]
 
+/**
+ * Every rung the basemap draws: each one at grade, and again on its deck.
+ *
+ * `street` marks the ones a lane can be painted on, which is where the markings
+ * stop: they are a street's marks, so they go above the topmost carriageway and
+ * stay under the footbridges crossing over it.
+ */
+const RUNGS = BY_ROAD_LAYER.flatMap(rung => [
+  { ...rung, brunnel: AT_GRADE, bridge: false, street: rung.road !== 'Path' },
+  { ...rung, road: `${rung.road} bridge`, brunnel: ON_BRIDGE, bridge: true, street: rung.road !== 'Path' },
+])
+
 /** Appended to a stroke layer's id: which side, drawn in which grammar. */
-export const strokeLayerId = (kind: string, side: string) =>
-  `Cycling ${kind} ${side}`
+export const strokeLayerId = (kind: string, side: string, bridge = false) =>
+  `Cycling ${kind} ${side}${bridge ? ' bridge' : ''}`
 
 /** The ids every cycling layer takes, so the toggle can name them up front. */
 export const CYCLING_WAYS_LAYER_IDS = [
-  ...BY_ROAD_LAYER.map(r => r.road + CYCLING_WAYS_SUFFIX),
-  ...STROKE_KINDS.flatMap(k => ['left', 'right'].map(s => strokeLayerId(k.kind, s))),
+  ...RUNGS.map(r => r.road + CYCLING_WAYS_SUFFIX),
+  ...STROKE_KINDS.flatMap(k =>
+    ['left', 'right'].flatMap(s => [strokeLayerId(k.kind, s), strokeLayerId(k.kind, s, true)]),
+  ),
 ]
 
 /**
@@ -418,16 +457,22 @@ export function offsetRamp(width: any, factor: number): any {
   return [op, interpolation, input, SIDES_FROM - 0.5, 0, ...kept]
 }
 
+/**
+ * The markings for one band of the network: the street's own, so they follow
+ * the street between the two, and a marking on a way at grade stays under the
+ * deck crossing over it.
+ */
 export function cyclingStrokeLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
+  bridge = false,
 ): any[] {
   const width = roadWidthByClass(roadWidth)
   if (!width) return []
 
   return STROKE_KINDS.flatMap(({ kind, values, dash }) =>
     ['left', 'right'].map(side => ({
-      id: strokeLayerId(kind, side),
+      id: strokeLayerId(kind, side, bridge),
       type: 'line',
       source: CYCLING_WAYS_SOURCE,
       'source-layer': CYCLING_WAYS_TILES,
@@ -435,6 +480,8 @@ export function cyclingStrokeLayers(
       filter: [
         'all',
         ['!', ['has', 'state']],
+        NOT_TUNNEL,
+        bridge ? ON_BRIDGE : AT_GRADE,
         ['match', ['get', 'highway'], ROAD_HIGHWAYS, true, false],
         ['match', sideValue(side), values, true, false],
       ],
@@ -453,16 +500,6 @@ export function cyclingStrokeLayers(
   )
 }
 
-export function cyclingWaysSource(tileUrl: (source: string) => string) {
-  return {
-    [CYCLING_WAYS_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(CYCLING_WAYS_TILES)],
-      minzoom: 9,
-      maxzoom: 16,
-    },
-  }
-}
 
 /**
  * A tint layer per road rung, each carrying that rung's own width.
@@ -474,12 +511,14 @@ export function cyclingWaysSource(tileUrl: (source: string) => string) {
 export function cyclingWaysLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
-): { above: string; layer: any }[] {
-  return BY_ROAD_LAYER.flatMap(({ road, classes }) => {
+): { above: string; street: boolean; bridge: boolean; layer: any }[] {
+  return RUNGS.flatMap(({ road, classes, brunnel, street, bridge }) => {
     const width = roadWidth(road)
     if (!width) return []
     return [{
       above: road,
+      street,
+      bridge,
       layer: {
         id: road + CYCLING_WAYS_SUFFIX,
         type: 'line',
@@ -490,6 +529,8 @@ export function cyclingWaysLayers(
           'all',
           ['match', ['get', 'infra_type'], TINTED_INFRA, true, false],
           ['!', ['has', 'state']],
+          NOT_TUNNEL,
+          brunnel,
           ['match', CLASS_OF_HIGHWAY, classes, true, false],
         ],
         layout: { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' },

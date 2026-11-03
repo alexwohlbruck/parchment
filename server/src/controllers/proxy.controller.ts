@@ -14,9 +14,9 @@
 
 import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
-import { portolanTileCache, type CachedResponse } from '../lib/tile-cache'
+import { martinTileCache, portolanTileCache, type CachedResponse } from '../lib/tile-cache'
 import { IntegrationId } from '../types/integration.types'
-import { resolveBarrelmanConfig } from '../services/barrelman.service'
+import { resolveBarrelmanConfig, resolveLandmarksConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
@@ -169,11 +169,330 @@ app.get(
   },
 )
 
+/** The body a cached Martin miss replays, matching the live path so a hit and
+ *  a miss are indistinguishable to the client. */
+const MARTIN_MISSING_BODY = new TextEncoder().encode('Upstream error')
+  .buffer as ArrayBuffer
+
+/**
+ * CORS for tile answers: a fixed `*`, not the global plugin's echo of the
+ * caller's origin. Tiles are public and fetched without credentials, so `*`
+ * loses nothing — and an echo is unsafe behind a shared cache. A tile's own
+ * `Vary: Accept-Encoding` displaces the plugin's `Vary: Origin`, so the edge
+ * would store whichever site asked first and replay that origin to the next
+ * one (a preview, the Tauri app), whose browser then refuses the tile.
+ */
+const PUBLIC_TILE_CORS = { 'Access-Control-Allow-Origin': '*' } as const
+
+/**
+ * A validator for a tile body. With it, a browser or the edge holding an
+ * expired tile revalidates with a 304 of a few hundred bytes instead of
+ * fetching the whole tile again; tiles rarely change between imports, so
+ * that is nearly every revalidation. Weak because the bytes are the gzipped
+ * form, and the same tile served plain is still the same tile.
+ */
+function tileEtag(body: ArrayBuffer): string {
+  return `W/"${Bun.hash(body).toString(36)}"`
+}
+
+/** Whether an If-None-Match header names this ETag (or `*`). */
+function etagMatches(ifNoneMatch: string | undefined, etag: string): boolean {
+  if (!ifNoneMatch) return false
+  const bare = etag.replace(/^W\//, '')
+  return ifNoneMatch
+    .split(',')
+    .map((tag) => tag.trim())
+    .some((tag) => tag === '*' || tag.replace(/^W\//, '') === bare)
+}
+
+/**
+ * Whether the caller can read a gzipped tile. Deliberately lenient — this is a
+ * token list, and `gzip;q=0` means "not gzip", which is the one case a plain
+ * substring match gets wrong. Mirrors barrelman's own `acceptsGzip`.
+ */
+function acceptsGzip(header: string | undefined | null): boolean {
+  if (!header) return false
+  return header
+    .split(',')
+    .map((token) => token.trim().toLowerCase())
+    .some((token) => {
+      const [name, ...params] = token.split(';').map((part) => part.trim())
+      if (name !== 'gzip' && name !== '*') return false
+      return !params.some((param) => param.replace(/\s/g, '') === 'q=0')
+    })
+}
+
+/**
+ * Turn a cached Martin answer back into a response. Headers are rebuilt rather
+ * than stored — they are a pure function of the status and the caller.
+ *
+ * A 200 body is held gzipped (see the route below), so the common path is a
+ * straight handoff; a caller that cannot read gzip pays an unzip, which in
+ * practice is nothing, because every browser can.
+ */
+function martinResponse(
+  hit: CachedResponse,
+  state: 'HIT' | 'MISS' | 'BYPASS',
+  gzipOk: boolean,
+  ifNoneMatch?: string,
+): Response {
+  if (hit.status !== 200) {
+    return new Response(hit.body ?? null, {
+      status: hit.status,
+      headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state },
+    })
+  }
+
+  const body = hit.body ?? null
+  const headers: Record<string, string> = {
+    ...PUBLIC_TILE_CORS,
+    'Content-Type': hit.contentType || 'application/x-protobuf',
+    // A day of freshness, then a week in which the edge may serve the stale
+    // tile while it refreshes behind the request — tiles only change on an
+    // import, so making one unlucky user wait out a full origin round trip for
+    // a byte-identical tile buys nothing.
+    'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+    Vary: 'Accept-Encoding',
+    'X-Cache': state,
+  }
+
+  if (!body) return new Response(null, { headers })
+
+  headers['ETag'] = tileEtag(body)
+  if (etagMatches(ifNoneMatch, headers['ETag'])) {
+    return new Response(null, { status: 304, headers })
+  }
+
+  if (gzipOk) {
+    headers['Content-Encoding'] = 'gzip'
+    return new Response(body, { headers })
+  }
+
+  // Detached copy of the view's own bytes: `BodyInit` wants an ArrayBuffer, and
+  // the one behind a Bun.gunzipSync result may be larger than the view over it.
+  const plain = Bun.gunzipSync(new Uint8Array(body))
+  return new Response(
+    plain.buffer.slice(
+      plain.byteOffset,
+      plain.byteOffset + plain.byteLength,
+    ) as ArrayBuffer,
+    { headers },
+  )
+}
+
+/** One upstream fetch's outcome, shared by every caller that asked for the
+ *  same tile while it was in flight. */
+interface MartinFetch {
+  tile: CachedResponse
+  /** Barrelman marked it `no-store`: a tile it could only partly build. */
+  noStore: boolean
+}
+
+/**
+ * Upstream fetches in flight, by cache key. A map view asks for the same tile
+ * from several places at once — the style's source, the 3D-buildings probe, a
+ * second tab, every edge location filling its cache — and without this each
+ * of them went to Barrelman for it.
+ */
+const martinInflight = new Map<string, Promise<MartinFetch>>()
+
+/**
+ * 3D landmarks: a vector tile of placements, and the GLB models they name.
+ *
+ * Separate from the Martin route below because they may not live on the same
+ * host — see `resolveLandmarksConfig` — and because neither wants its cache.
+ * Placement tiles are a few hundred bytes and mostly empty; models are
+ * content-addressed and immutable, so the browser and the edge hold them and
+ * a server-side copy would only spend the tile cache's budget twice.
+ *
+ * Declared before `/barrelman/:source/...`: the static `landmarks` segment
+ * wins over the parameter either way, but reading in order makes that plain.
+ */
+const LANDMARK_MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
+const TILE_COORD_RE = /^\d{1,10}$/
+
+async function proxyLandmarks(path: string): Promise<Response> {
+  const config = resolveLandmarksConfig()
+  if (!config?.host) return new Response('Landmarks not configured', { status: 501 })
+  try {
+    const response = await fetch(new URL(`/tiles/landmarks/${path}`, config.host), {
+      headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+    })
+    // Passed on as they came: a 204 is an empty tile, and the upstream's
+    // cache-control is already right for each kind of answer.
+    const headers: Record<string, string> = {}
+    for (const name of ['content-type', 'cache-control', 'content-length'])
+      if (response.headers.has(name)) headers[name] = response.headers.get(name)!
+    if (!response.ok) logError(`Landmarks proxy: ${response.status} for ${path}`)
+    return new Response(response.ok ? response.body : null, { status: response.status, headers })
+  } catch (error) {
+    logError('Landmarks proxy error', error, { path })
+    return new Response('Proxy error', { status: 502 })
+  }
+}
+
+app.get(
+  '/barrelman/landmarks/:z/:x/:y',
+  ({ params: { z, x, y } }) => {
+    if (![z, x, y].every(v => TILE_COORD_RE.test(v)))
+      return new Response('Invalid tile coordinates', { status: 400 })
+    return proxyLandmarks(`${z}/${x}/${y}`)
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark placement tiles' } },
+)
+
+app.get(
+  '/barrelman/landmarks/models/:file',
+  ({ params: { file } }) => {
+    if (!LANDMARK_MODEL_RE.test(file)) return new Response('Not found', { status: 404 })
+    return proxyLandmarks(`models/${file}`)
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark models' } },
+)
+
+app.get(
+  '/barrelman/bridges/models/:file',
+  async ({ params: { file }, headers: requestHeaders }) => {
+    if (!/^[0-9a-f]{64}\.brm$/.test(file)) return new Response('Not found', { status: 404 })
+    const config = resolveBarrelmanConfig()
+    if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
+    try {
+      const response = await fetch(new URL(`/tiles/bridges/models/${file}`, config.host), {
+        headers: { ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}), 'Accept-Encoding': acceptsGzip(requestHeaders['accept-encoding']) ? 'gzip' : 'identity' },
+        decompress: false,
+      } as BunFetchRequestInit & { decompress: false })
+      return new Response(response.ok ? response.body : null, {
+        status: response.status,
+        headers: { 'content-type': 'application/octet-stream', vary: 'accept-encoding',
+          'cache-control': response.ok ? 'public, max-age=31536000, immutable' : 'no-store',
+          ...(response.ok && response.headers.get('content-encoding') === 'gzip' ? { 'content-encoding': 'gzip' } : {}),
+        },
+      })
+    } catch {
+      return new Response('Proxy error', { status: 502 })
+    }
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy precomputed bridge meshes' } },
+)
+
+app.get(
+  '/barrelman/bridges/index/:z/:x/:y',
+  async ({ params: { z, x, y }, headers: requestHeaders }) => {
+    if (![z, x, y].every(v => /^\d+$/.test(v))) return new Response('Not found', { status: 404 })
+    const config = resolveBarrelmanConfig()
+    if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
+    try {
+      const response = await fetch(new URL(`/tiles/bridges/index/${z}/${x}/${y}`, config.host), {
+        headers: {
+          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+          ...(requestHeaders['if-none-match'] ? { 'If-None-Match': requestHeaders['if-none-match'] } : {}),
+          'Accept-Encoding': acceptsGzip(requestHeaders['accept-encoding']) ? 'gzip' : 'identity',
+        },
+        decompress: false,
+      } as BunFetchRequestInit & { decompress: false })
+      const passed = ['etag', 'cache-control', 'content-encoding'].flatMap(name => {
+        const value = response.headers.get(name)
+        return value ? [[name, value] as [string, string]] : []
+      })
+      return new Response(response.ok ? response.body : null, {
+        status: response.status,
+        headers: { 'content-type': 'application/json', vary: 'accept-encoding', ...(response.ok || response.status === 304 ? Object.fromEntries(passed) : { 'cache-control': 'no-store' }) },
+      })
+    } catch {
+      return new Response('Proxy error', { status: 502 })
+    }
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy bridge deck mesh indexes', description: 'The precomputed deck meshes a zoom-14 tile meets, with their bounds, from Barrelman; revalidated by ETag.' } },
+)
+
+/**
+ * Fetch one tile from Barrelman and remember it if it is cacheable. Runs once
+ * per tile however many callers are waiting on it; see `martinInflight`.
+ */
+async function fetchMartinTile(
+  tileUrl: URL,
+  apiKey: string | undefined,
+  cacheKey: string,
+): Promise<MartinFetch> {
+  const headers: Record<string, string> = {}
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+
+  // Only gzip or nothing: an upstream that could also answer br or zstd
+  // would hand us an encoding the cache and the response do not handle.
+  headers['Accept-Encoding'] = 'gzip'
+
+  // `decompress: false` keeps Barrelman's gzip exactly as it arrived. By
+  // default Bun's fetch unzips the body — while still reporting
+  // `content-encoding: gzip` — so the tile would have to be zipped all
+  // over again to be sent on. See the comment where it is stored.
+  // Bun honours `decompress` at runtime; bun-types does not declare it.
+  const init: BunFetchRequestInit & { decompress: false } = {
+    headers,
+    decompress: false,
+  }
+  const response = await fetch(tileUrl.toString(), init)
+
+  if (!response.ok) {
+    logError(`Barrelman tile proxy: ${response.status} ${response.statusText}`)
+    const miss: CachedResponse = {
+      status: response.status,
+      body: MARTIN_MISSING_BODY,
+      contentType: null,
+    }
+    // A 404 is a stable answer and worth remembering; a 5xx is the
+    // upstream having a bad moment, and caching it for an hour would turn
+    // a blip into an outage.
+    if (response.status === 404) martinTileCache.set(cacheKey, miss)
+    return { tile: miss, noStore: response.status !== 404 }
+  }
+
+    /**
+     * Forward the tile compressed, as Barrelman sent it.
+     *
+     * This used to read the body through `fetch()`'s transparent unzip and
+     * re-emit it with no Content-Encoding, so a tile that left Barrelman at
+     * 275 KB left here at 463 KB, and the CDN re-compressed it for the
+     * browser. That hid the cost on the one hop that crosses a network —
+     * the edge filling its cache from an origin ~100 ms away, where the
+     * extra 190 KB is roughly another round trip of TCP slow start.
+     *
+     * Passed through rather than re-zipped: gzipping a dense tile takes
+     * ~10 ms of synchronous CPU, per tile, on the one thread serving every
+     * request. Only an upstream that sent it plain pays that.
+     *
+     * Stored gzipped too, so the cache's byte budget holds ~1.7x the tiles
+     * and a hit is a straight handoff.
+     */
+    // Judged by the gzip magic number, never the header: a fetch that
+    // unzipped anyway still reports `content-encoding: gzip`, and trusting
+    // it would label plain bytes as gzip and hand every client a corrupt
+    // tile. An MVT itself opens with 0x1a, so the two cannot be confused.
+  const body = new Uint8Array(await response.arrayBuffer())
+  const gzipped =
+    body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
+
+  const tile: CachedResponse = {
+    status: 200,
+    body: gzipped.buffer.slice(
+      gzipped.byteOffset,
+      gzipped.byteOffset + gzipped.byteLength,
+    ) as ArrayBuffer,
+    contentType:
+      response.headers.get('content-type') || 'application/x-protobuf',
+  }
+  // A tile Barrelman could only partly build (some of its decks unreadable) is passed on uncached.
+  if (/no-store/.test(response.headers.get('cache-control') ?? '')) {
+    return { tile, noStore: true }
+  }
+  martinTileCache.set(cacheKey, tile)
+  return { tile, noStore: false }
+}
+
 // Proxy vector tile requests through the Barrelman integration.
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
 // portolan proxy below uses, and the same auth: the integration's apiKey as a
-// Bearer header, its tileKey as a query parameter. This used to address a bare
+// Bearer header. This used to address a bare
 // Martin instead, at /{source}/{z}/{x}/{y} on a `martinHost` config field, and
 // both halves of that had rotted: Barrelman moved tiles behind /tiles/* when it
 // made them metered and revocable (there is no unmetered tile key any more),
@@ -182,7 +501,19 @@ app.get(
 // default, whatever the integration was pointed at. The basemap drew nothing.
 app.get(
   '/barrelman/:source/:z/:x/:y',
-  async ({ params }) => {
+  async ({ params, query, headers: reqHeaders }) => {
+    // Served from memory when we have it. Martin answers in 1-6 ms; the rest
+    // of the ~2 s a client used to wait was the trip to the Barrelman host and
+    // back, which a hit removes entirely.
+    const gzipOk = acceptsGzip(reqHeaders['accept-encoding'])
+    const ifNoneMatch = reqHeaders['if-none-match']
+    const { source, z, x, y } = params
+    // A detail tile can carry the 3D bridge decks drawn over it, when asked.
+    const decks = query.decks === '1' ? '?decks=1' : ''
+    const cacheKey = `${source}/${z}/${x}/${y}${decks}`
+    const hit = martinTileCache.get(cacheKey)
+    if (hit) return martinResponse(hit, 'HIT', gzipOk, ifNoneMatch)
+
     try {
       const config = resolveBarrelmanConfig()
       // Kept as an escape hatch for a Martin reachable directly, which is what
@@ -192,39 +523,22 @@ app.get(
         return new Response('Barrelman not configured', { status: 501 })
       }
 
-      const tileKey = (
-        integrationManager
-          .getConfiguredIntegrations()
-          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-          ?.config as { tileKey?: string }
-      )?.tileKey
-
-      const { source, z, x, y } = params
-      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
-      if (tileKey) tileUrl.searchParams.set('token', tileKey)
-
-      const headers: Record<string, string> = {}
-      if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
-
-      const response = await fetch(tileUrl.toString(), { headers })
-
-      if (!response.ok) {
-        logError(
-          `Barrelman tile proxy: ${response.status} ${response.statusText}`,
+      let pending = martinInflight.get(cacheKey)
+      if (!pending) {
+        const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}${decks}`, host)
+        pending = fetchMartinTile(tileUrl, config?.apiKey, cacheKey).finally(() =>
+          martinInflight.delete(cacheKey),
         )
-        return new Response('Upstream error', { status: response.status })
+        martinInflight.set(cacheKey, pending)
       }
+      const { tile, noStore } = await pending
 
-      const data = await response.arrayBuffer()
-
-      return new Response(data, {
-        headers: {
-          'Content-Type':
-            response.headers.get('content-type') ||
-            'application/x-protobuf',
-          'Cache-Control': 'public, max-age=86400',
-        },
-      })
+      if (noStore) {
+        const sent = martinResponse(tile, 'BYPASS', gzipOk)
+        sent.headers.set('Cache-Control', 'no-store')
+        return sent
+      }
+      return martinResponse(tile, 'MISS', gzipOk, ifNoneMatch)
     } catch (error) {
       logError('Barrelman tile proxy error', error, { params })
       return new Response('Proxy error', { status: 500 })
@@ -252,18 +566,19 @@ const MISSING_BODY = new TextEncoder().encode('Upstream error').buffer as ArrayB
  */
 function cachedResponse(rest: string, hit: CachedResponse, state: 'HIT' | 'MISS'): Response {
   if (hit.status === 204) {
-    return new Response(null, { status: 204, headers: { 'X-Cache': state } })
+    return new Response(null, { status: 204, headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state } })
   }
   if (hit.status !== 200) {
     // BodyInit rejects a nullable Uint8Array; a non-200 always has a body
     return new Response(hit.body ?? null, {
       status: hit.status,
-      headers: { 'X-Cache': state },
+      headers: { ...PUBLIC_TILE_CORS, 'X-Cache': state },
     })
   }
   const isJson = rest.endsWith('.json')
   return new Response(hit.body ?? null, {
     headers: {
+      ...PUBLIC_TILE_CORS,
       'Content-Type': isJson
         ? 'application/json'
         : hit.contentType || 'application/x-protobuf',
@@ -287,9 +602,7 @@ function store(rest: string, value: CachedResponse): Response {
 // Barrelman serves portolan's MVT pyramids at /tiles/portolan/*:
 // index.json lists every feed with a cut pyramid (bounds + maxzoom),
 // each feed directory holds tiles.json, style.json and {z}/{x}/{y}.mvt.
-// Auth mirrors the two existing Barrelman patterns: the integration's
-// apiKey rides as a Bearer header (like requestBarrelman) and tileKey as
-// ?token= (like the Martin tile proxy) — whichever the host enforces.
+// Auth is the integration's apiKey as a Bearer header, like requestBarrelman.
 //
 // tiles.json templates are normalized to RELATIVE so a client resolving
 // them against this proxy's URL lands back on the proxy; in practice the
@@ -316,15 +629,7 @@ app.get(
       if (!config?.host) {
         return new Response('Barrelman not configured', { status: 501 })
       }
-      const tileKey = (
-        integrationManager
-          .getConfiguredIntegrations()
-          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-          ?.config as { tileKey?: string }
-      )?.tileKey
-
       const targetUrl = new URL(`/tiles/portolan/${rest}`, config.host)
-      if (tileKey) targetUrl.searchParams.set('token', tileKey)
 
       const headers: Record<string, string> = {}
       if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`

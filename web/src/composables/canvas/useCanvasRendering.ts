@@ -298,7 +298,7 @@ export function useCanvasRendering(
     )
     const style: CollectionStyle = {
       icon: layer.icon ?? collection?.icon,
-      iconPack: collection?.iconPack,
+      iconPack: collection?.iconPack ?? undefined,
       iconColor: layer.iconColor ?? collection?.iconColor,
     }
     return selectSavedPlaces({

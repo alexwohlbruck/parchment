@@ -23,10 +23,8 @@ import QuickEditMarker from '@/components/quick-edit/QuickEditMarker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
 import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
-import BrandMatchCard from '@/components/quick-edit/BrandMatchCard.vue'
 import { whenMapReady } from '@/composables/map/whenMapReady'
 import type {
-  BrandSuggestion,
   EditablePreset,
   NsiBrand,
   OsmElementType,
@@ -58,8 +56,6 @@ const hasPendingEdit = ref(false)
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
 const osmServerUrl = ref<string | null>(null)
-const brandMatch = ref<BrandSuggestion | null>(null)
-const brandOffered = ref(false)
 const brandLogo = ref<string | null>(null)
 const markerAt = ref<LngLat | null>(null)
 
@@ -81,8 +77,6 @@ onMounted(async () => {
     ])
     element.value = response.element
     preset.value = response.preset
-    brandMatch.value = response.brand
-    brandOffered.value = Boolean(response.brand)
     Object.assign(tags, response.element.tags)
     osmServerUrl.value = server?.serverUrl ?? null
     if (server && server.server !== 'production') {
@@ -165,7 +159,6 @@ watch(
 function applyBrand(brand: NsiBrand) {
   for (const [key, value] of Object.entries(brand.tags)) tags[key] = value
   brandLogo.value = brand.logoUrl
-  brandMatch.value = null
 }
 
 /** Success, with a way through to the changeset it produced. */
@@ -205,7 +198,7 @@ async function handleSubmit(comment: string) {
     router.back()
   } catch (error: any) {
     if (error.response?.status === 409) {
-      toast.error(t('quickEdit.conflictError'))
+      toast.error(t('quickEdit.conflictError'), { cause: error })
       const live = error.response.data?.live as OsmLiveElement | undefined
       if (live) {
         element.value = live
@@ -213,7 +206,7 @@ async function handleSubmit(comment: string) {
         Object.assign(tags, live.tags)
       }
     } else {
-      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'))
+      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'), { cause: error })
     }
   } finally {
     submitting.value = false
@@ -286,14 +279,6 @@ async function handleSubmit(comment: string) {
         {{ t('quickEdit.dragHint') }}
       </p>
 
-      <BrandMatchCard
-        v-if="brandMatch"
-        :suggestion="brandMatch"
-        class="mb-3"
-        @apply="applyBrand(brandMatch.brand)"
-        @dismiss="brandMatch = null"
-      />
-
       <QuickEditForm
         :preset="preset"
         :tags="tags"
@@ -302,9 +287,9 @@ async function handleSubmit(comment: string) {
         :lat="movedTo?.lat ?? element.lat ?? 0"
         :lng="movedTo?.lng ?? element.lon ?? 0"
         :sandbox-server="sandboxServer"
-        :brands-offered="brandOffered"
         @set="setTag"
         @brand="applyBrand"
+        @logo="brandLogo = $event"
         @submit="handleSubmit"
       />
     </template>

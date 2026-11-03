@@ -105,7 +105,7 @@ async function deleteRole() {
     appService.toast.success('Role deleted')
     router.push({ name: AppRoute.ROLES })
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete role')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete role', { cause: err })
   }
 }
 
@@ -134,7 +134,7 @@ async function editRole() {
     role.value = await userService.getRole(roleId)
     appService.toast.success('Role updated')
   } catch (err: any) {
-    appService.toast.error(err?.response?.data?.message ?? 'Failed to update role')
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to update role', { cause: err })
   }
 }
 

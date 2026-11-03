@@ -743,16 +743,16 @@ describe('instructions', () => {
     expect((await instructionFor({ sign: 42 })).type).toBe('continue')
   })
 
-  test('maps signs to turn modifiers, flattening sharp turns', async () => {
+  test('maps signs to turn modifiers, keeping sharp turns distinct', async () => {
     for (const [sign, expected] of [
       [-8, 'u-turn'],
-      [-3, 'left'],
+      [-3, 'sharp-left'],
       [-2, 'left'],
       [-1, 'slight-left'],
       [0, 'straight'],
       [1, 'slight-right'],
       [2, 'right'],
-      [3, 'right'],
+      [3, 'sharp-right'],
     ] as const) {
       expect((await instructionFor({ sign })).modifier).toBe(expected)
     }

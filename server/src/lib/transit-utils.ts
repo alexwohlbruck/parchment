@@ -106,6 +106,21 @@ export function getGTFSRouteTypesFromTags(tags: Record<string, string> = {}): nu
   return [...types]
 }
 
+/**
+ * A rail stop position or platform: a spot inside a station rather than the
+ * station itself. Feeds name every platform group of an interchange alike (the
+ * MTA's three "Grand Central-42 St"), so its nearest same-named GTFS stop can
+ * belong to another line — its board has to cover the whole complex.
+ */
+export function isRailStopWithinStation(tags: Record<string, string> = {}): boolean {
+  const isSpot =
+    ['stop_position', 'platform'].includes(tags.public_transport) ||
+    ['stop', 'platform'].includes(tags.railway)
+  if (!isSpot) return false
+  const rail = new Set<number>([...GTFS_ROUTE_TYPES.subway, ...GTFS_ROUTE_TYPES.rail])
+  return getGTFSRouteTypesFromTags(tags).some((t) => rail.has(t))
+}
+
 export function extractTransitIdentifiers(
   tags: Record<string, string> = {}
 ): {

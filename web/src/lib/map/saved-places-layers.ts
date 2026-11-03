@@ -22,6 +22,7 @@ import {
   type LayerGroup,
 } from '@/types/map.types'
 import type { Bookmark, Collection } from '@/types/library.types'
+import { collectionIcon } from '@/lib/library/collection-display'
 import { BOOKMARKS_SOURCE_ID, BOOKMARKS_CIRCLES_LAYER_ID } from '@/constants/layers'
 
 export const SAVED_PLACES_GROUP_ID = 'virtual:saved-places'
@@ -104,6 +105,8 @@ interface BuildParams {
   groupLabel: string
   /** Localized label for a collection whose metadata won't decrypt here. */
   lockedLabel: string
+  /** Localized label for a readable collection with no name. */
+  untitledLabel: string
 }
 
 /**
@@ -174,6 +177,7 @@ export function buildSavedPlacesProjection(
     uncategorizedLabel,
     groupLabel,
     lockedLabel,
+    untitledLabel,
   } = params
 
   // A `user-e2ee` collection holds no bookmark rows at all — its places live
@@ -245,22 +249,21 @@ export function buildSavedPlacesProjection(
     const id = collectionLayerId(collection.id)
     const visible = layerOverrides[id] ?? DEFAULT_VISIBLE
     if (visible && groupVisible) visibleCollectionIds.add(collection.id)
+    const look = collectionIcon(collection)
     layers.push(
       virtualLayer({
         id,
-        // A collection whose metadata won't decrypt on this device (no
-        // recovery key imported yet, revoked device) has no name. It gets its
-        // own label rather than borrowing the unfiled one — two rows reading
-        // "Unfiled" is worse than admitting the collection is locked.
-        name: collection.name || lockedLabel,
-        icon: collection.icon,
+        name: collection.locked
+          ? lockedLabel
+          : collection.name || untitledLabel,
+        icon: look.icon,
         order: index,
         visible,
       }),
     )
     meta.set(id, {
-      iconPack: collection.iconPack ?? 'lucide',
-      iconColor: collection.iconColor,
+      iconPack: look.iconPack,
+      iconColor: look.color,
       // An encrypted collection's size isn't knowable without decrypting it,
       // so it shows no count rather than a misleading zero.
       count: counts.get(collection.id) ?? 0,

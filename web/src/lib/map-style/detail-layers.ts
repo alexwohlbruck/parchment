@@ -16,10 +16,29 @@
  * generated too.
  */
 import type { FlavorId } from './build'
+import { SDF_BUFFER } from './sdf.mjs'
 
-export const PARKING_SOURCE = 'parking'
-export const TREE_SOURCE = 'trees'
-export const TREE_ROW_SOURCE = 'tree-rows'
+/**
+ * One source for every detail overlay a client reads at z≤16.
+ *
+ * These used to be five separate vector sources, which meant five tile
+ * requests for every tile of ground — and a map view is thirty to sixty tiles
+ * *per source*. Barrelman serves them as a single bundle (`/tiles/detail`),
+ * each still arriving as its own layer under its own name, so only the
+ * `source` changed here. Measured against the deployment, a six-tile viewport
+ * over Manhattan went from 18 requests to 6, and from 2.04 s to 1.14 s warm.
+ */
+export const DETAIL_SOURCE = 'detail'
+
+/**
+ * Street furniture cannot join the bundle, so it stays its own source.
+ *
+ * It is minzoom 17 upstream, and a bundle is read at z≤16 — so it could
+ * contribute nothing to a `detail` tile, and folding it in would take benches
+ * and bins off the map rather than speed them up. Drop its minzoom to 16 in
+ * barrelman's `martin-config.yaml` and it joins, at which point this source
+ * and the `detail` entry below collapse into one.
+ */
 export const FURNITURE_SOURCE = 'furniture'
 /**
  * 3D buildings, served by Barrelman rather than read off the basemap.
@@ -40,20 +59,77 @@ export const FURNITURE_SOURCE = 'furniture'
  * the same colour on top of each other look like one, so the outline costs
  * nothing there, and the basemap is the cheaper source for it.
  */
-export const BUILDING_3D_SOURCE = 'buildings-3d'
+/**
+ * 3D landmark placements: a point per landmark, carrying its model and the
+ * buildings it replaces. Its own source rather than a bundle member, because
+ * it is not Martin — Barrelman builds these tiles itself — and because it may
+ * one day be served from somewhere else entirely. See `map-objects/landmarks.ts`.
+ */
+export const LANDMARK_SOURCE = 'landmarks'
+/** Barrelman's path under /tiles, and the tile's layer name. */
+export const LANDMARK_TILES = 'landmarks'
+export const LANDMARK_LAYER = 'Landmarks'
+
+/**
+ * `buildings_3d` as a source of its own, for a Barrelman that serves it but
+ * not yet the `detail` bundle. Only added to the style when that is the case;
+ * see `barrelmanBuildingsTiles`.
+ */
+export const BUILDINGS_SOURCE = 'buildings'
+
+/** The barrelman bundle behind {@link DETAIL_SOURCE}; see its `TILE_BUNDLES`. */
+export const DETAIL_TILES = 'detail'
 
 /** Martin source names; see barrelman's `martin-config.yaml`. */
 export const PARKING_TILES = 'parking_areas'
 export const TREE_TILES = 'street_trees'
 export const TREE_ROW_TILES = 'tree_rows'
+export const WOOD_TILES = 'woods'
 export const FURNITURE_TILES = 'street_furniture'
 export const BUILDING_3D_TILES = 'buildings_3d'
+export const COASTER_TRACK_TILES = 'coaster_tracks'
+export const PITCH_TILES = 'sport_pitches'
+export const OBJECT_LINE_TILES = 'object_lines'
+export const OBJECT_AREA_TILES = 'object_areas'
+export const GOLF_TILES = 'golf_features'
+/** One flag per green, worked out from `golf_features` by `golfPinSites`. */
+export const GOLF_PIN_SOURCE = 'golf-pins'
+/** Bridge decks with their solved height profiles; read by the deck layer, not styled. */
+export const BRIDGE_DECK_TILES = 'bridge_decks'
+/** The cut down to each tunnel portal, solved by barrelman; read by the tunnel layer, not styled. */
+export const TUNNEL_CUT_TILES = 'tunnel_cuts'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
 export const TREE_LAYER = 'Trees'
 export const TREE_ROW_LAYER = 'Tree rows'
 export const FURNITURE_LAYER = 'Street furniture'
+export const COASTER_TRACK_LAYER = 'Coaster track'
+export const COASTER_TRACK_CASING_LAYER = 'Coaster track casing'
+export const PITCH_SURFACE_LAYER = 'Pitch surface'
+export const SOLAR_LAYER = 'Solar array'
+export const FLOWERBED_LAYER = 'Flower bed'
+export const PITCH_MARKING_LAYER = 'Pitch markings'
+export const GOLF_SURFACE_LAYER = 'Golf surface'
+export const GOLF_HOLE_LAYER = 'Golf hole'
+export const GOLF_HOLE_LABEL_LAYER = 'Golf hole number'
+export const GOLF_PIN_LAYER = 'Golf pin'
+export const DISC_GOLF_BASKET_LAYER = 'Disc golf basket'
+/** Where the 3D flagstick takes over from the flat pin icon. */
+export const GOLF_FLAG_MINZOOM = 17
+
+/** Below this pitch a flagstick seen from above is a dot, so the flat pin stays. */
+export const GOLF_FLAG_MIN_PITCH = 30
+
+/** Whether the 3D flagstick stands up in view, so the flat pin should give way to it. */
+export function golfFlagStanding(objects3d: boolean, pitch: number): boolean {
+  return objects3d && pitch >= GOLF_FLAG_MIN_PITCH
+}
+
+/** The pin icon's opacity: hidden where a standing 3D flagstick takes over. */
+export function golfPinOpacity(standing: boolean): any {
+  return standing ? ['step', ['zoom'], 1, GOLF_FLAG_MINZOOM, 0] : 1
+}
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -85,14 +161,59 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     // the model's own foliage lands — see `OBJECT_PALETTE` in `map-objects`.
     tree: 'hsl(104, 40%, 55%)',
     furniture: 'hsl(210, 12%, 52%)',
+    // Galvanised steel, for a track OSM gives no colour: a cool mid grey,
+    // darker than the paving so it reads as a structure standing on it.
+    coaster: 'hsl(212, 10%, 52%)',
+    coasterCasing: 'hsla(212, 14%, 98%, 0.85)',
+    courtHard: 'hsl(198, 28%, 66%)',
+    courtClay: 'hsl(16, 48%, 66%)',
+    courtSand: 'hsl(42, 48%, 82%)',
+    courtAsphalt: 'hsl(210, 8%, 74%)',
+    field: 'hsl(104, 36%, 70%)',
+    pitchLine: 'hsla(0, 0%, 100%, 0.95)',
+    solar: 'hsl(80, 12%, 84%)',
+    solarPanel: 'hsl(220, 30%, 40%)',
+    flowerbed: 'hsl(330, 38%, 84%)',
+    golfRough: 'hsl(102, 34%, 70%)',
+    golfFairway: 'hsl(86, 58%, 81%)',
+    golfGreen: 'hsl(80, 64%, 87%)',
+    golfBunker: 'hsl(45, 58%, 87%)',
+    golfHole: 'hsl(105, 30%, 40%)',
+    discBasket: 'hsl(42, 85%, 36%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
     parkingCasing: 'hsl(216, 24%, 21%)',
     tree: 'hsl(112, 30%, 40%)',
     furniture: 'hsl(210, 12%, 44%)',
+    coaster: 'hsl(212, 12%, 62%)',
+    coasterCasing: 'hsla(216, 30%, 12%, 0.8)',
+    courtHard: 'hsl(205, 26%, 30%)',
+    courtClay: 'hsl(16, 30%, 30%)',
+    courtSand: 'hsl(40, 22%, 34%)',
+    courtAsphalt: 'hsl(216, 12%, 30%)',
+    field: 'hsl(112, 22%, 28%)',
+    pitchLine: 'hsla(0, 0%, 88%, 0.6)',
+    solar: 'hsl(222, 22%, 22%)',
+    solarPanel: 'hsl(222, 30%, 34%)',
+    flowerbed: 'hsl(330, 16%, 30%)',
+    golfRough: 'hsl(112, 20%, 20%)',
+    golfFairway: 'hsl(104, 20%, 24%)',
+    golfGreen: 'hsl(96, 24%, 29%)',
+    golfBunker: 'hsl(40, 14%, 34%)',
+    golfHole: 'hsl(95, 24%, 66%)',
+    discBasket: 'hsl(48, 80%, 58%)',
   },
 }
+
+/**
+ * How far a track's own `colour` is pulled toward the flavor's steel: OSM
+ * colours are written as the paint looks in a brochure, and a pure `red`
+ * thread is the loudest thing on the map. Further at night, where a saturated
+ * line reads as lit rather than painted (the same reason `BUILDING_TINT` is
+ * quieter at night).
+ */
+const COASTER_STEEL_PULL: Record<FlavorId, number> = { light: 0.25, dark: 0.45 }
 
 /**
  * Multi-storey and underground parking are not ground at all — the first is a
@@ -109,23 +230,31 @@ const SURFACE_ONLY = [
 
 export function detailSources(tileUrl: (source: string) => string) {
   return {
-    [PARKING_SOURCE]: {
+    /**
+     * The bundle's window is the union of its members': `bicycle_ways` starts
+     * at 9, `parking_areas` and `ski_features` at 13, `buildings_3d`,
+     * `coaster_tracks`, `golf_features` and `sport_tracks` at 14, the trees at
+     * 16, and
+     * every one of them stops at 16. A member below its own floor contributes
+     * nothing to the tile, so the low zooms cost only what the cycling layers
+     * put there — and MapLibre asks for nothing at all until a *visible* layer
+     * consumes the source, which below z13 means only the cycling layers, and
+     * they ship hidden.
+     *
+     * Stopping at 16 is what keeps buildings on the map above it: the tile is
+     * over-zoomed from 16 the way the basemap is over-zoomed from 14. Letting
+     * the source run to 17 would ask for a tile that `buildings_3d` no longer
+     * answers at, and they would vanish rather than over-zoom.
+     */
+    [DETAIL_SOURCE]: {
       type: 'vector' as const,
-      tiles: [tileUrl(PARKING_TILES)],
-      minzoom: 13,
+      tiles: [tileUrl(DETAIL_TILES)],
+      minzoom: 9,
       maxzoom: 16,
     },
-    [TREE_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(TREE_TILES)],
-      minzoom: 16,
-      maxzoom: 17,
-    },
-    [TREE_ROW_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(TREE_ROW_TILES)],
-      minzoom: 16,
-      maxzoom: 17,
+    [GOLF_PIN_SOURCE]: {
+      type: 'geojson' as const,
+      data: { type: 'FeatureCollection' as const, features: [] },
     },
     [FURNITURE_SOURCE]: {
       type: 'vector' as const,
@@ -133,14 +262,57 @@ export function detailSources(tileUrl: (source: string) => string) {
       minzoom: 17,
       maxzoom: 17,
     },
-    // Zooms match the basemap's own building layer, so switching source changes
-    // nothing about when buildings appear or when they start over-zooming.
-    [BUILDING_3D_SOURCE]: {
+    // Barrelman answers from z12 and the set barely changes past 14, so the
+    // tile is over-zoomed from there like the basemap is.
+    [LANDMARK_SOURCE]: {
       type: 'vector' as const,
-      tiles: [tileUrl(BUILDING_3D_TILES)],
-      minzoom: 14,
-      maxzoom: 16,
+      tiles: [tileUrl(LANDMARK_TILES)],
+      minzoom: 12,
+      maxzoom: 14,
     },
+  }
+}
+
+/**
+ * What keeps the landmark tiles loading. Never seen: the landmark layer reads
+ * the placements with `querySourceFeatures`, which only finds what some style
+ * layer has caused to load — the same reason the flat trees are muted rather
+ * than hidden (see `TREE_OPACITY`).
+ */
+export function landmarkLayers(): any[] {
+  return [
+    {
+      id: LANDMARK_LAYER,
+      type: 'circle',
+      source: LANDMARK_SOURCE,
+      'source-layer': LANDMARK_TILES,
+      minzoom: 12,
+      paint: { 'circle-opacity': 0, 'circle-radius': 1 },
+    },
+  ]
+}
+
+/** Detail layers the map only reads through `querySourceFeatures`, never draws. */
+export const READ_ONLY_DETAIL_TILES = [WOOD_TILES, OBJECT_LINE_TILES, BRIDGE_DECK_TILES]
+
+/**
+ * Invisible layers that keep the read-only detail layers in every tile. Past
+ * the source's maxzoom MapLibre builds tiles from the parent and keeps only
+ * source layers some style layer uses, so without these they vanish above z16.
+ */
+export function readOnlyDetailLayers(): any[] {
+  return READ_ONLY_DETAIL_TILES.map(keepDetailLayer)
+}
+
+/** An invisible layer that keeps one detail source layer in overzoomed tiles. */
+export function keepDetailLayer(sourceLayer: string): any {
+  return {
+    id: `Keep ${sourceLayer}`,
+    type: 'circle',
+    source: DETAIL_SOURCE,
+    'source-layer': sourceLayer,
+    minzoom: 14,
+    paint: { 'circle-opacity': 0, 'circle-radius': 1 },
   }
 }
 
@@ -151,7 +323,7 @@ export function parkingLayers(flavor: FlavorId): any[] {
     {
       id: PARKING_LAYER,
       type: 'fill',
-      source: PARKING_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': PARKING_TILES,
       minzoom: 13,
       filter: SURFACE_ONLY,
@@ -160,7 +332,7 @@ export function parkingLayers(flavor: FlavorId): any[] {
     {
       id: PARKING_CASING_LAYER,
       type: 'line',
-      source: PARKING_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': PARKING_TILES,
       // A lot's edge is only worth drawing once the lot is big enough to read
       // as a shape rather than as a smudge.
@@ -189,14 +361,14 @@ export function treeLayers(flavor: FlavorId): any[] {
     {
       id: TREE_LAYER,
       type: 'circle',
-      source: TREE_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': TREE_TILES,
-      minzoom: 16,
+      minzoom: 14.5,
       paint: {
         'circle-color': c.tree,
         // A canopy, roughly: a street tree reads about 4m across, which is
         // this many pixels at each of these zooms.
-        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 16, 2, 20, 14],
+        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 0.8, 16, 2, 20, 14],
         'circle-opacity': TREE_OPACITY,
         'circle-pitch-alignment': 'map',
       },
@@ -207,13 +379,13 @@ export function treeLayers(flavor: FlavorId): any[] {
       // path. The 3D form walks the same line and plants along it.
       id: TREE_ROW_LAYER,
       type: 'line',
-      source: TREE_ROW_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': TREE_ROW_TILES,
-      minzoom: 16,
+      minzoom: 14.5,
       layout: { 'line-cap': 'round' },
       paint: {
         'line-color': c.tree,
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 16, 3, 20, 20],
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 1.2, 16, 3, 20, 20],
         'line-opacity': TREE_OPACITY,
         'line-blur': 1,
       },
@@ -231,6 +403,290 @@ export function treeLayers(flavor: FlavorId): any[] {
         'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 17, 1.5, 20, 6],
         'circle-opacity': TREE_OPACITY,
         'circle-pitch-alignment': 'map',
+      },
+    },
+  ]
+}
+
+/**
+ * Roller coaster tracks, as a slim rail over a faint casing.
+ *
+ * From the bundle's `coaster_tracks` (barrelman's `create-detail-views.sql`),
+ * which serves a closed track as its ring, so both layers here are only ever
+ * fed lines. Where a 3D landmark models the coaster, its track ways are among
+ * the landmark's `replaces` and the strategy filters them out of both layers
+ * the moment the model is ready — see `REPLACEABLE_SOURCE_LAYERS`.
+ *
+ * `colour` is OSM's, so anything goes: `to-color` tries it and falls through
+ * to steel when it is missing or is not a colour MapLibre can parse.
+ *
+ * `layer` orders the stretches that pass over each other. Only within a
+ * layer — the casing still draws under every rail — but that is what costs
+ * nothing, and a crossing reads well enough without the casing interleaved.
+ */
+export function coasterTrackLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const color = [
+    'interpolate', ['linear'], COASTER_STEEL_PULL[flavor],
+    0, ['to-color', ['get', 'colour'], c.coaster],
+    1, c.coaster,
+  ]
+  const sortKey = ['coalesce', ['get', 'layer'], 0]
+  const width = (extra: number) =>
+    ['interpolate', ['exponential', 1.6], ['zoom'], 14, 0.6 + extra, 16, 1.4 + extra, 18, 2.6 + extra * 1.5, 20, 5 + extra * 2]
+  const common = {
+    type: 'line',
+    source: DETAIL_SOURCE,
+    'source-layer': COASTER_TRACK_TILES,
+    minzoom: 14,
+  }
+  return [
+    {
+      ...common,
+      id: COASTER_TRACK_CASING_LAYER,
+      layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
+      paint: { 'line-color': c.coasterCasing, 'line-width': width(1.6) },
+    },
+    {
+      ...common,
+      id: COASTER_TRACK_LAYER,
+      layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
+      paint: { 'line-color': color, 'line-width': width(0) },
+    },
+  ]
+}
+
+/**
+ * Sport surfaces and their markings, from barrelman's `sport_pitches`. Flat, so
+ * they drape over terrain with the rest of the ground; the nets and goals stand
+ * on them as 3D objects (see `map-objects/sports.ts`).
+ */
+export function pitchLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const surface = ['coalesce', ['get', 'surface'], '']
+  const sport = ['coalesce', ['get', 'sport'], '']
+  return [
+    {
+      id: PITCH_SURFACE_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 14,
+      filter: ['==', ['get', 'kind'], 'surface'],
+      paint: {
+        'fill-color': [
+          'case',
+          ['in', surface, ['literal', ['clay', 'dirt', 'tartan']]], c.courtClay,
+          ['==', surface, 'sand'], c.courtSand,
+          ['in', sport, ['literal', ['tennis', 'pickleball']]], c.courtHard,
+          ['in', sport, ['literal', ['beachvolleyball', 'beach_volleyball']]], c.courtSand,
+          ['==', sport, 'basketball'], c.courtAsphalt,
+          c.field,
+        ],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1],
+      },
+    },
+    {
+      id: PITCH_MARKING_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 15.5,
+      filter: ['==', ['get', 'kind'], 'lines'],
+      layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+      paint: {
+        'line-color': c.pitchLine,
+        // About 8 cm of paint at mid-US latitudes, never thinner than a hairline.
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 15.5, 0.6, 18, 1.2, 22, 8],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15.5, 0, 16.5, 1],
+      },
+    },
+  ]
+}
+
+/** The basemap's woodland fill, which turns to bare soil under the 3D forest. */
+export const WOOD_LAYER = 'Wood'
+
+const FOREST_FLOOR: Record<FlavorId, string> = {
+  light: 'hsl(32, 36%, 60%)',
+  dark: 'hsl(30, 22%, 22%)',
+}
+
+/** Fades from the wood's own colour to soil as the forest fills in at z15. */
+export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
+  return ['interpolate', ['linear'], ['zoom'], 14.5, wood, 15.5, FOREST_FLOOR[flavor]]
+}
+
+/** The colour `forestFloorColor` was built from, or the value unchanged. */
+export function woodColorOf(paint: unknown): any {
+  return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
+}
+
+/** Solar arrays and flower beds as flat ground, under the objects planted on them (see `map-objects/areas.ts`). */
+export function plantedAreaLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const kind = (k: string) => ['==', ['get', 'kind'], k]
+  return [
+    {
+      id: SOLAR_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 14,
+      filter: kind('solar'),
+      // Panel-coloured until the 3D rows take over at z17, then the ground between them.
+      paint: {
+        'fill-color': ['interpolate', ['linear'], ['zoom'], 16.5, c.solarPanel, 17, c.solar],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9],
+      },
+    },
+    {
+      id: FLOWERBED_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 15,
+      filter: kind('flowerbed'),
+      paint: { 'fill-color': c.flowerbed, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 1] },
+    },
+  ]
+}
+
+/**
+ * Golf course surfaces, from barrelman's `golf_features`. A course's rough,
+ * fairways and greens nest inside each other, so the sort key stacks them.
+ */
+export function golfSurfaceLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const kind = ['get', 'kind']
+  return [
+    {
+      id: GOLF_SURFACE_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 14,
+      filter: ['==', ['geometry-type'], 'Polygon'],
+      layout: {
+        'fill-sort-key': ['match', kind, 'rough', 0, ['fairway', 'driving_range'], 1, ['tee', 'green'], 2, 3],
+      },
+      paint: {
+        'fill-color': [
+          'match', kind,
+          'rough', c.golfRough,
+          ['fairway', 'driving_range'], c.golfFairway,
+          ['tee', 'green'], c.golfGreen,
+          'bunker', c.golfBunker,
+          'transparent',
+        ],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1],
+      },
+    },
+  ]
+}
+
+/** Each hole's line from tee to green, drawn over the water it often crosses. */
+export function golfHoleLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  return [
+    {
+      id: GOLF_HOLE_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 15,
+      filter: ['all', ['==', ['get', 'kind'], 'hole'], ['==', ['geometry-type'], 'LineString']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': c.golfHole,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1.4, 18, 2.6, 20, 3.6],
+        // Round dots: zero-length dashes drawn with round caps.
+        'line-dasharray': [0, 2.2],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 0.35, 18, 0.7],
+      },
+    },
+  ]
+}
+
+/** How the basemap writes a park's name, which golf and ski labels borrow. */
+export type DetailLabelStyle = {
+  font: string[]
+  color: string
+  halo: string
+  haloWidth: number
+  haloBlur: number
+}
+
+/** Hole numbers, from the point barrelman serves at each hole's tee, and pins. */
+export function golfLabelLayers(flavor: FlavorId, label: DetailLabelStyle): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const par = ['to-number', ['get', 'par'], 0]
+  return [
+    {
+      id: GOLF_HOLE_LABEL_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 15.5,
+      filter: ['all', ['==', ['get', 'kind'], 'hole'], ['==', ['geometry-type'], 'Point']],
+      layout: {
+        'text-field': [
+          'step', ['zoom'],
+          ['get', 'ref'],
+          17, ['case',
+            ['>', par, 0],
+            ['format', ['get', 'ref'], {}, '\n', {}, ['concat', 'Par ', ['get', 'par']], { 'font-scale': 0.7 }],
+            ['get', 'ref'],
+          ],
+        ],
+        'text-font': label.font,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 15.5, 12, 18, 15],
+        'text-line-height': 1.05,
+      },
+      paint: {
+        'text-color': label.color,
+        'text-halo-color': label.halo,
+        'text-halo-width': label.haloWidth,
+        'text-halo-blur': label.haloBlur,
+      },
+    },
+    {
+      id: GOLF_PIN_LAYER,
+      type: 'symbol',
+      source: GOLF_PIN_SOURCE,
+      minzoom: 16,
+      layout: {
+        'icon-image': 'golf-pin',
+        'icon-anchor': 'bottom',
+        // Down past the SDF padding, so the cup at the foot of the flag sits on the pin.
+        'icon-offset': [0, SDF_BUFFER + 1.7],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.9, 19, 1.3],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+      paint: {
+        'icon-color': label.color,
+        'icon-halo-color': label.halo,
+        'icon-halo-width': label.haloWidth,
+      },
+    },
+    {
+      id: DISC_GOLF_BASKET_LAYER,
+      type: 'symbol',
+      source: DETAIL_SOURCE,
+      'source-layer': GOLF_TILES,
+      minzoom: 16,
+      filter: ['==', ['get', 'kind'], 'basket'],
+      layout: {
+        'icon-image': 'disc-golf-basket',
+        'icon-anchor': 'bottom',
+        'icon-offset': [0, SDF_BUFFER + 1],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.8, 19, 1.25],
+      },
+      paint: {
+        'icon-color': c.discBasket,
+        'icon-halo-color': label.halo,
+        'icon-halo-width': 1,
       },
     },
   ]

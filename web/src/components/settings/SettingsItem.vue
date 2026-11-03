@@ -2,6 +2,8 @@
 import { H6 } from '@/components/ui/typography'
 import Caption from '@/components/ui/typography/Caption.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import Kbd from '@/components/ui/kbd/Kbd.vue'
+import type { CommandName } from '@/stores/command.store'
 import type { Component } from 'vue'
 
 interface Props {
@@ -11,6 +13,7 @@ interface Props {
   icon?: Component
   badge?: string
   badgeVariant?: 'default' | 'primary' | 'secondary' | 'destructive' | 'outline'
+  commandId?: CommandName
 }
 
 defineProps<Props>()
@@ -30,6 +33,7 @@ defineProps<Props>()
           >
             {{ badge }}
           </Badge>
+          <Kbd v-if="commandId" :command-id="commandId" size="xs" />
         </div>
         <Caption v-if="description">
           {{ description }}

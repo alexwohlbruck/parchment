@@ -40,11 +40,12 @@ function alert(id: string, overrides: Partial<ServiceAlert> = {}): ServiceAlert 
 }
 
 const iso = (ms: number) => new Date(ms).toISOString()
+const NOW = Date.now()
 
 /** In effect right now, with hours still to run. */
 const live = (id: string, extra: Partial<ServiceAlert> = {}) =>
   alert(id, {
-    activePeriods: [{ start: iso(Date.now() - HOUR), end: iso(Date.now() + 4 * HOUR) }],
+    activePeriods: [{ start: iso(NOW - HOUR), end: iso(NOW + 4 * HOUR) }],
     ...extra,
   })
 
@@ -52,8 +53,8 @@ const live = (id: string, extra: Partial<ServiceAlert> = {}) =>
 const scheduled = (id: string, hoursOut = 4) =>
   alert(id, {
     activePeriods: [
-      { start: iso(Date.now() - 48 * HOUR), end: iso(Date.now() - 44 * HOUR) },
-      { start: iso(Date.now() + hoursOut * HOUR), end: iso(Date.now() + (hoursOut + 4) * HOUR) },
+      { start: iso(NOW - 48 * HOUR), end: iso(NOW - 44 * HOUR) },
+      { start: iso(NOW + hoursOut * HOUR), end: iso(NOW + (hoursOut + 4) * HOUR) },
     ],
   })
 

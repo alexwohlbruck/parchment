@@ -10,17 +10,14 @@
  */
 import { computed, markRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { storeToRefs } from 'pinia'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { useMapStore } from '@/stores/map.store'
 import { useAppService } from '@/services/app.service'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { currentMapSettings } from '@/composables/canvas/useCanvasMapSettings'
-import { MapEngine } from '@/types/map.types'
 import {
   Building2Icon,
   DoorOpenIcon,
@@ -50,40 +47,29 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const mapStore = useMapStore()
 const appService = useAppService()
 const canvasesService = useCanvasesService()
-const { settings } = storeToRefs(mapStore)
 
-/** Terrain, HD roads and indoor maps are Mapbox features; MapLibre has no
- *  answer to give, so a canvas can't override what isn't there. */
 const ROWS: {
   key: keyof CanvasMapSettings
   icon: typeof Building2Icon
   label: string
-  mapboxOnly?: boolean
 }[] = [
   { key: 'objects3d', icon: Building2Icon, label: '3dObjects' },
-  { key: 'terrain3d', icon: MountainSnowIcon, label: '3dTerrain', mapboxOnly: true },
-  { key: 'hdRoads', icon: RouteIcon, label: 'hdRoads', mapboxOnly: true },
-  { key: 'indoorMaps', icon: DoorOpenIcon, label: 'indoorMaps', mapboxOnly: true },
+  { key: 'terrain3d', icon: MountainSnowIcon, label: '3dTerrain' },
+  { key: 'hdRoads', icon: RouteIcon, label: 'hdRoads' },
+  { key: 'indoorMaps', icon: DoorOpenIcon, label: 'indoorMaps' },
   { key: 'poiLabels', icon: InfoIcon, label: 'poiLabels' },
   { key: 'roadLabels', icon: SignpostIcon, label: 'roadLabels' },
   { key: 'transitLabels', icon: TrainFrontIcon, label: 'transitLabels' },
   { key: 'placeLabels', icon: MapPinIcon, label: 'placeLabels' },
 ]
 
-const rows = computed(() =>
-  ROWS.filter(
-    row => !row.mapboxOnly || settings.value.engine === MapEngine.MAPBOX,
-  ),
-)
-
 const overriding = computed(() => !!props.mapSettings)
 
 /** Off, the switches report what the app is set to rather than going blank. */
 function valueOf(key: keyof CanvasMapSettings) {
-  return props.mapSettings?.[key] ?? settings.value[key]
+  return (props.mapSettings ?? currentMapSettings())[key]
 }
 
 function setOverriding(on: boolean) {
@@ -130,7 +116,7 @@ const appearanceItems = computed<MenuItemDefinition[]>(() => [
   { type: 'separator' },
   // Shown while the canvas has no set of its own, so you can see what it
   // would take over, but not movable until it does.
-  ...rows.value.map(row => ({
+  ...ROWS.map(row => ({
     type: 'item' as const,
     id: row.key,
     label: t(`settings.mapSettings.configuration.${row.label}`),

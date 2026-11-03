@@ -31,11 +31,18 @@
  * Objects are read from the same vector source their flat form is drawn from,
  * so the two cannot disagree about what exists.
  */
+import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
+import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
+import { lightAbout, type SunFrame } from '@/lib/map/sun-shadow'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
+
+/** The model a far variant stands in for; any other name is its own. */
+export const nearOf = (model: string) =>
+  model.endsWith(FAR_SUFFIX) ? model.slice(0, -FAR_SUFFIX.length) : model
 
 /**
  * How far from the centre of the view an object may be, in ground pixels,
@@ -48,11 +55,27 @@ export const FAR_SUFFIX = '-far'
 const NEAR_PIXELS = 850
 
 /**
+ * Below this zoom every object is drawn with its far model: a tree is a few
+ * pixels across, and the near model's detail would be spent on nothing.
+ */
+const FAR_BELOW_ZOOM = 17
+
+/**
  * How long a burst of source events has to go quiet before the scene is
  * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
  */
 const SETTLE = 80
+
+/** Fewest milliseconds between gathers while the camera is still moving. */
+const MOVING_GATHER = 350
 const AT_MOST = 300
+
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: short while moving, longer at rest. */
+const SLICE = 8
+const RESTING_SLICE = 100
+/** Candidates placed, or features read, between checks of the slice clock. */
+const STEP = 256
+const FEATURE_STEP = 8
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
 const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
@@ -70,7 +93,12 @@ const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
  * nothing once, and a measurable share of a rebuild across a few thousand
  * trees, which is work done while somebody is panning.
  */
-export function project(lng: number, lat: number, elevation: number, out: Placed) {
+export function project(
+  lng: number,
+  lat: number,
+  elevation: number,
+  out: Pick<Placed, 'x' | 'y' | 'z' | 'perMetre'>,
+) {
   const perMetre = 1 / (EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180))
   out.x = (180 + lng) / 360
   out.y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360
@@ -83,15 +111,26 @@ const VS = `
   uniform vec3 u_light;
   uniform float u_ambient;
   uniform vec3 u_color;
+  /** The colour a fully tinted instance moves toward; equal to u_color for no tint. */
+  uniform vec3 u_color_alt;
+  /** Model-space y of the part's bottom and top, and how much darker its bottom is. */
+  uniform vec3 u_occlusion;
+  /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
+  uniform vec3 u_flutter;
+  uniform float u_time;
 
   attribute vec3 a_position;
   attribute vec3 a_normal;
   /** Instance: mercator position, relative to the layer's current origin. */
   attribute vec3 a_offset;
-  /** Instance: height and lateral scale in mercator units, plus a heading. */
-  attribute vec3 a_shape;
+  /** Instance: height and lateral scale in mercator units, a heading, and a stretch along the model's x. */
+  attribute vec4 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
   attribute float a_shade;
+  /** Instance: how far toward the role's alternate colour, 0-1. */
+  attribute float a_tint;
+  /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
+  attribute vec2 a_slope;
 
   varying vec3 v_color;
 
@@ -103,13 +142,20 @@ const VS = `
     // orientation so it opens correctly in any viewer; the swap happens here.
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
-    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    vec3 m = a_position;
+    if (u_flutter.x > 0.0) {
+      // A wave running out along the cloth, still at the pole; the heading staggers instances.
+      float along = clamp((m.x - u_flutter.y) / u_flutter.z, 0.0, 1.0);
+      m.z += u_flutter.x * along * sin(u_time * 6.0 - along * 5.0 + a_shape.z * 7.0);
+    }
+    vec3 p = vec3(m.x * a_shape.w, -m.z, m.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
     n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
 
-    vec3 world = a_offset + vec3(p.xy * a_shape.y, p.z * a_shape.x);
+    vec2 across = p.xy * a_shape.y;
+    vec3 world = a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across));
 
     vec3 unit = normalize(n);
     // Half-lambert: a plain dot product leaves every face turned away from the
@@ -126,7 +172,14 @@ const VS = `
     // decides whether the top or the bottom of a tree is lit.
     float sky = unit.z * 0.5 + 0.5;
     float lit = mix(sun, sky, 0.65);
-    v_color = u_color * a_shade * mix(u_ambient, 1.0, lit);
+    // Foliage is softer still: a crown reads as one mass lit from above, the
+    // look of a baked canopy, rather than as a faceted solid.
+    if (u_occlusion.z > 0.0) lit = mix(sun, sky, 0.85);
+    // A crown is darker underneath, where its own leaves shade it.
+    float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
+    float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
+    vec3 base = mix(u_color, u_color_alt, a_tint);
+    v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
 
     gl_Position = u_matrix * vec4(world, 1.0);
   }`
@@ -136,7 +189,81 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
+/**
+ * Roles that flutter in the wind, by amplitude as a share of the model's height.
+ * The wave is in the vertex shader; it runs for `FLUTTER_MS` once the map
+ * settles, then holds still so the map goes idle again. Every flutter frame
+ * repaints the whole map, so it is kept short.
+ */
+const FLUTTER: Record<string, number> = { pennant: 0.035 }
+const FLUTTER_MS = 3000
+const FLUTTER_FADE_IN_MS = 600
+const FLUTTER_FADE_OUT_MS = 1000
+/** A whole number of the shader's `sin(6t)` periods, so wrapping the clock never jumps. */
+const FLUTTER_CLOCK_WRAP = 1200 * Math.PI
+
+function flutterOf(role: string, position: Float32Array, far: boolean): [number, number, number] {
+  const amplitude = far ? 0 : FLUTTER[role]
+  if (!amplitude) return [0, 0, 1]
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.length; i += 3) {
+    min = Math.min(min, position[i])
+    max = Math.max(max, position[i])
+  }
+  return [amplitude, min, Math.max(max - min, 1e-4)]
+}
+
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
+
+/**
+ * The cast shadow: the object sheared along the light onto the ground it
+ * stands on, drawn into the building shade layer's mask so the two blur, fade
+ * and overlap as one.
+ */
+const SHADOW_VS = `
+  uniform mat4 u_matrix;
+  uniform vec2 u_shear;
+  uniform float u_per_metre;
+  attribute vec3 a_position;
+  attribute vec3 a_offset;
+  attribute vec4 a_shape;
+  attribute vec2 a_slope;
+  void main() {
+    float c = cos(a_shape.z);
+    float s = sin(a_shape.z);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
+    p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
+    float metres = p.z * a_shape.x / u_per_metre;
+    vec2 xy = p.xy * a_shape.y + u_shear * metres;
+    gl_Position = u_matrix * vec4(a_offset.xy + xy, a_offset.z + dot(a_slope, xy), 1.0);
+  }`
+
+const SHADOW_FS = `
+  precision mediump float;
+  void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
+
+/** The object where it stands, for the sun's shadow map: `VS` without the light or the flutter. */
+const SUN_VS = `
+  uniform mat4 u_matrix;
+  attribute vec3 a_position;
+  attribute vec3 a_offset;
+  attribute vec4 a_shape;
+  attribute vec2 a_slope;
+  void main() {
+    float c = cos(a_shape.z);
+    float s = sin(a_shape.z);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
+    p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
+    vec2 across = p.xy * a_shape.y;
+    gl_Position = u_matrix * vec4(a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across)), 1.0);
+  }`
+
+/** Texels of the sun's map an object must stand taller than to cast into it. */
+const SUN_MIN_TEXELS = 2
+
+/** How much darker the bottom of a crown is than its top. */
+const CROWN_OCCLUSION = 0.18
 
 /**
  * Which way round an outward-facing triangle lands on screen.
@@ -162,8 +289,12 @@ const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint'
+export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
+/**
+ * Colours by role. A `<role>-alt` entry is the colour an instance with a full
+ * `tint` moves toward, so a stand of trees varies in hue as well as value.
+ */
 export type ObjectPalette = Record<string, [number, number, number]>
 
 /** One object read out of the source, in the units the shader wants. */
@@ -172,14 +303,27 @@ export type ObjectInstance = {
   lat: number
   /** Metres. */
   height: number
-  /** Metres, across. */
+  /** Metres per model unit across: the height, to keep the model's proportions. */
   spread: number
+  /** Metres across, where it was measured; overrides `spread` using the model's own width. */
+  width?: number
+  /** Metres along the model's x, stretching it to span a segment; see `modelLength`. */
+  length?: number
   /** Radians. */
   heading: number
   /** Multiplier on the model's own colours. */
   shade: number
+  /** How far toward each role's alternate colour, 0-1. Defaults to none. */
+  tint?: number
   /** Which model to draw it with. */
   model: string
+  /**
+   * Follow the ground along `length`, and `across` metres the other way, rather
+   * than standing level at one height. For spans long enough to cross a slope.
+   */
+  conform?: true | { across: number }
+  /** Metres the +x end of `length` stands above the other, on top of any slope in the ground. */
+  rise?: number
 }
 
 export type ObjectSourceSpec = {
@@ -194,11 +338,39 @@ export type ObjectSourceSpec = {
   positions?: (feature: any) => Array<[number, number]>
   /** Turns one position into an instance, or null to skip it. */
   toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
+  /** Runs once per gather, before any feature, with the map. */
+  prepare?: (map: any, spec: ObjectSourceSpec) => void
+  /** Heavy setup run after `prepare` a step at a time, so a gather can yield between steps. */
+  prepareSteps?: () => Iterable<void>
+  /** False when one feature arrives as several tile pieces that must all be kept. Defaults to true. */
+  distinct?: boolean
+  /** Whether the objects depend on the view, so a pan has to gather again. */
+  followsView?: boolean
+  /** Most objects this spec may place, keeping those nearest the view centre. */
+  budget?: number
+  /**
+   * How an instance meets a bridge deck: stands on one it runs `along`, as a wire does, or at a `point` on one; or keeps
+   * `clear` of one, left out where a deck passes too close over it, as a wall under a low deck or beside one in the ground's data.
+   */
+  deck?: (instance: ObjectInstance) => 'along' | 'point' | 'clear' | null
 }
+
+/** The height a deck gives an object at a point, in the terrain's metres; `along` is a linear object's direction, east and south. Null for the ground. */
+export type StandOn = (lng: number, lat: number, along?: [number, number]) => number | null
+
+/** A deck's surface over a point, in the terrain's metres, or null. */
+export type SurfaceAt = (lng: number, lat: number) => number | null
+
+/** Least room under a deck, in metres, for an object that keeps `clear` of decks. */
+const DECK_CLEARANCE = 3
 
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
   cullable: boolean
+  /** The model's widest horizontal extent, in model units. */
+  width: number
+  /** The model's extent along x, in model units. */
+  length: number
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -207,7 +379,14 @@ type ModelBuffers = {
     indexType: number
     role: string
     color: [number, number, number]
+    colorAlt: [number, number, number]
+    /** Model-space y bounds and occlusion strength; see `u_occlusion`. */
+    occlusion: [number, number, number]
+    /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
+    flutter: [number, number, number]
   }>
+  /** Whether any part flutters, so a flag in view can start a flutter; see `startFlutter`. */
+  flutters: boolean
 }
 
 type Batch = {
@@ -215,7 +394,13 @@ type Batch = {
   offset: Float32Array
   shape: Float32Array
   shade: Float32Array
+  tint: Float32Array
+  slope: Float32Array
   count: number
+  /** Whether any instance sets a `length`, which scales by this model's own length. */
+  stretched: boolean
+  /** Its tallest instance, in mercator units, worked out when first cast into the sun's map. */
+  tallest?: number
   /**
    * Uploaded on the first frame that draws this batch, and not again.
    *
@@ -225,7 +410,7 @@ type Batch = {
    * does. GL is touched only inside `render`, so the arrays are built off the
    * render path and handed over here.
    */
-  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer } | null
 }
 
 /**
@@ -244,6 +429,42 @@ export type Placed = {
   /** Ground height in mercator units, which is how an object stands on terrain. */
   z: number
   perMetre: number
+  /** Ground slope, east and south; see `groundPlane`. */
+  gx: number
+  gy: number
+}
+
+/**
+ * The ground under a long object as a plane through its ends: the height at its
+ * anchor and the rise per unit run east and south, from `sample`, which reads
+ * the terrain at an offset in metres east and south of the anchor.
+ *
+ * The anchor takes the ends' mean rather than its own height, so consecutive
+ * spans meet at shared ends and a wire reaches both of its poles.
+ */
+export function groundPlane(
+  heading: number,
+  along: number,
+  across: number,
+  sample: (east: number, south: number) => number,
+): { elevation: number; gx: number; gy: number } {
+  const c = Math.cos(heading)
+  const s = Math.sin(heading)
+  const a = along / 2
+  const start = sample(-c * a, -s * a)
+  const end = sample(c * a, s * a)
+  const rise = along > 0 ? (end - start) / along : 0
+  if (!(across > 0)) return { elevation: (start + end) / 2, gx: rise * c, gy: rise * s }
+  const b = across / 2
+  const left = sample(s * b, -c * b)
+  const right = sample(-s * b, c * b)
+  const tilt = (right - left) / across
+  return { elevation: (start + end + left + right) / 4, gx: rise * c - tilt * s, gy: rise * s + tilt * c }
+}
+
+/** Longitude and latitude of a mercator position. */
+export function unproject(x: number, y: number): [number, number] {
+  return [x * 360 - 180, (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * Math.PI)) - 90]
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string) {
@@ -289,30 +510,61 @@ export class ObjectLayer {
   renderingMode = '3d' as const
 
   private map: any
+  /** `prefers-reduced-motion`; when it matches, fluttering parts hold still. */
+  private stillness: MediaQueryList | null = null
+  /** When the current flutter ends; 0 when none is running. */
+  private flutterUntil = 0
+  /** Cleared when a flutter starts and set again by a camera move, so one settle flutters once. */
+  private flutterArmed = true
+  private onIdle?: () => void
+  private onMoveStart?: () => void
+  private flutterTimer = 0
+  private onStillness = () => this.stopFlutter()
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
+  private shadowProgram!: WebGLProgram
+  private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
+  private sunProgram!: WebGLProgram
+  private sunMatrix: WebGLUniformLocation | null = null
+  /** Each model's height in its own units, for leaving the small ones out of the sun's map. */
+  private heights = new Map<string, number>()
   private models = new Map<string, ModelBuffers>()
   private batches: Batch[] = []
-  private retired: Array<{ offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer }> = []
+  private retired: Array<Record<string, WebGLBuffer>> = []
   private placed: Placed[] = []
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
   private gatheredZoom = NaN
+  private gatheredAt = 0
   private needsGather = true
   private needsArrange = true
   private scheduled = 0
+  private gathering: Iterator<void> | null = null
+  private slice = 0
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
+  /** Bumped whenever the drawn instances change, so a cached shadow mask is redrawn. */
+  shadowVersion = 0
 
   constructor(
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean> } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt } = {},
   ) {
     this.id = options.id ?? 'map-objects'
     this.solid = options.solid ?? {}
+    this.standOn = options.standOn
+    this.surfaceAt = options.surfaceAt
+  }
+
+  private standOn?: StandOn
+  private surfaceAt?: SurfaceAt
+
+  /** Place everything again, as when what it stands on has changed. */
+  refresh() {
+    if (this.map) this.invalidate(true)
   }
 
   /**
@@ -332,10 +584,21 @@ export class ObjectLayer {
    * dark one. Because colour lives in a uniform rather than in the model, this
    * is a single call and takes effect on the next frame.
    */
+  /** Below 1 the objects draw see-through, as the buildings do over an indoor basement. */
+  private opacity = 1
+
+  setOpacity(opacity: number) {
+    this.opacity = opacity
+    this.map?.triggerRepaint?.()
+  }
+
   setFlavor(palette: ObjectPalette) {
     this.palette = palette
     for (const model of this.models.values())
-      for (const p of model.primitives) p.color = palette[p.role] ?? p.color
+      for (const p of model.primitives) {
+        p.color = palette[p.role] ?? p.color
+        p.colorAlt = palette[`${p.role}-alt`] ?? p.color
+      }
     this.map?.triggerRepaint?.()
   }
 
@@ -343,20 +606,37 @@ export class ObjectLayer {
     this.map = map
 
     this.program = link(gl, VS, FS)
-    this.uniforms = uniformsOf(gl, this.program, ['u_matrix', 'u_light', 'u_ambient', 'u_color'])
+    this.uniforms = uniformsOf(gl, this.program,
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
+    this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+    this.stillness?.addEventListener('change', this.onStillness)
+    this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
+    this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
+    this.sunProgram = link(gl, SUN_VS, SHADOW_FS)
+    this.sunMatrix = gl.getUniformLocation(this.sunProgram, 'u_matrix')
 
     for (const [name, model] of Object.entries(this.sources)) {
+      const primitives = model.primitives.map(p => {
+          const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
+          return {
+            position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
+            normal: this.upload(gl, gl.ARRAY_BUFFER, p.normal),
+            index: this.upload(gl, gl.ELEMENT_ARRAY_BUFFER, p.index),
+            count: p.index.length,
+            indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+            role: p.material,
+            color,
+            colorAlt: this.palette[`${p.material}-alt`] ?? color,
+            occlusion: crownOcclusion(p.material, p.position),
+            flutter: flutterOf(p.material, p.position, name.endsWith(FAR_SUFFIX)),
+          }
+        })
       this.models.set(name, {
         cullable: this.solid[name] ?? false,
-        primitives: model.primitives.map(p => ({
-          position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
-          normal: this.upload(gl, gl.ARRAY_BUFFER, p.normal),
-          index: this.upload(gl, gl.ELEMENT_ARRAY_BUFFER, p.index),
-          count: p.index.length,
-          indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-          role: p.material,
-          color: this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]],
-        })),
+        width: modelWidth(model),
+        length: modelLength(model),
+        primitives,
+        flutters: primitives.some(p => p.flutter[0] > 0),
       })
     }
 
@@ -374,9 +654,17 @@ export class ObjectLayer {
     }
     // Panning does not change which objects exist, only which of them are far
     // enough away to draw cheaply — so it asks for the cheap half of the work.
-    this.onMoveEnd = () => this.invalidate(this.map.getZoom() !== this.gatheredZoom)
+    const followsView = this.specs.some(s => s.followsView)
+    this.onMoveEnd = () => this.invalidate(followsView || this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
     map.on('moveend', this.onMoveEnd)
+    this.onMoveStart = () => {
+      this.flutterArmed = true
+      this.stopFlutter()
+    }
+    this.onIdle = () => this.startFlutter()
+    map.on('movestart', this.onMoveStart)
+    map.on('idle', this.onIdle)
     // The tiles are usually already loaded when the layer is added — turning
     // the setting on mid-session is the common case — and neither event would
     // fire again on their own.
@@ -411,10 +699,51 @@ export class ObjectLayer {
     this.scheduled = setTimeout(() => {
       this.scheduled = 0
       if (!this.map) return
-      if (this.needsGather) this.gather()
-      if (this.needsArrange) this.arrange()
-      this.map.triggerRepaint?.()
+      // Tiles stream in all through a pan or orbit. Gathering on each stalls the
+      // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
+      const now = performance.now()
+      if (this.gathering) return
+      if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
+      else if (this.needsArrange) {
+        this.arrange()
+        this.map.triggerRepaint?.()
+      }
     }, wait) as unknown as number
+  }
+
+  /**
+   * Start a gather and run it a slice at a time. One in progress is never
+   * restarted: tiles stream in for seconds after a pan, and restarting on each
+   * meant a slow device never finished one. The next waits for it instead.
+   */
+  private gather() {
+    this.gathering = this.gatherSteps()
+    this.runSlice()
+  }
+
+  private runSlice() {
+    const steps = this.gathering
+    if (!steps || !this.map) return
+    const until = performance.now() + (this.map.isMoving?.() ? SLICE : RESTING_SLICE)
+    while (performance.now() < until) {
+      let done: boolean | undefined
+      try {
+        done = steps.next().done
+      } catch {
+        // `queryTerrainElevation` throws for a point whose DEM tile has not loaded
+        // yet. Drop this gather and try again, rather than leave it stuck forever.
+        this.gathering = null
+        this.invalidate(true)
+        return
+      }
+      if (!done) continue
+      this.gathering = null
+      this.arrange()
+      this.map.triggerRepaint?.()
+      if (this.needsGather) this.invalidate(true)
+      return
+    }
+    this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
   }
 
   private upload(gl: WebGL2RenderingContext, target: number, data: ArrayBufferView) {
@@ -424,13 +753,29 @@ export class ObjectLayer {
     return buffer
   }
 
-  onRemove(map: any, gl: WebGL2RenderingContext) {
+  /**
+   * Stop listening and animating. `onRemove` does it, but a full `setStyle`
+   * drops a custom layer without calling `onRemove`, so the owner calls this then.
+   */
+  detach(map: any) {
     if (this.onSourceData) map.off('sourcedata', this.onSourceData)
     if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
+    if (this.onMoveStart) map.off('movestart', this.onMoveStart)
+    if (this.onIdle) map.off('idle', this.onIdle)
+    this.stillness?.removeEventListener('change', this.onStillness)
+    this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
+    clearTimeout(this.slice)
     this.scheduled = 0
+    this.gathering = null
     this.map = null
+  }
+
+  onRemove(map: any, gl: WebGL2RenderingContext) {
+    this.detach(map)
     gl.deleteProgram(this.program)
+    gl.deleteProgram(this.shadowProgram)
+    gl.deleteProgram(this.sunProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -457,26 +802,51 @@ export class ObjectLayer {
    * an object on a tile boundary would otherwise be drawn twice — hence the id
    * set. Objects with no id are kept: a duplicate is better than a hole.
    */
-  private gather() {
+  private *gatherSteps(): Generator<void> {
     this.needsGather = false
+    this.gatheredAt = performance.now()
     const zoom = this.map.getZoom()
     this.gatheredZoom = zoom
-    this.placed = []
+    const placedNow: Placed[] = []
 
     const terrain = this.map.getTerrain?.() ? this.map : null
+    const heights = new Map<string, number>()
+    const heightAt = (lng: number, lat: number) => {
+      const key = `${Math.round(lng * 1e6)},${Math.round(lat * 1e6)}`
+      let h = heights.get(key)
+      if (h === undefined) {
+        h = (terrain.queryTerrainElevation([lng, lat]) ?? 0) as number
+        heights.set(key, h)
+      }
+      return h
+    }
     const seen = new Set<string>()
 
+    const { lng: centerLng, lat: centerLat } = this.map.getCenter()
+    const lngScale = Math.cos((centerLat * Math.PI) / 180)
+    const bounds = this.map.getBounds?.()
+    // Padded so a pan reveals objects already gathered.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.35 : 0
+    const inView = (lng: number, lat: number) =>
+      !bounds ||
+      (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
+      spec.prepare?.(this.map, spec)
+      if (spec.prepareSteps) yield* spec.prepareSteps()
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
       } catch {
         continue
       }
+      yield
       const positions = spec.positions ?? pointPositions
+      const candidates: Array<[any, number, number, number]> = []
+      let read = 0
       for (const feature of features) {
-        const key = feature.id ?? feature.properties?.id
+        if (++read % FEATURE_STEP === 0) yield
+        const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
           const scoped = `${spec.sourceLayer}:${key}`
           if (seen.has(scoped)) continue
@@ -485,15 +855,69 @@ export class ObjectLayer {
         const places = positions(feature)
         for (let i = 0; i < places.length; i++) {
           const [lng, lat] = places[i]
-          const instance = spec.toInstance(feature, lng, lat, i)
-          if (!instance) continue
-          const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
-          const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
-          project(lng, lat, elevation, placed)
-          this.placed.push(placed)
+          // A spec regathered on every pan can skip what is off screen; it will be back.
+          if (spec.followsView && !inView(lng, lat)) continue
+          candidates.push([feature, i, lng, lat])
         }
       }
+      // Trimmed to the budget before any instance is built or terrain read: those
+      // are the expensive half, and a wood offers twice the trees it may draw.
+      if (spec.budget !== undefined && candidates.length > spec.budget) {
+        const away = (c: [any, number, number, number]) =>
+          ((c[2] - centerLng) * lngScale) ** 2 + (c[3] - centerLat) ** 2
+        candidates.sort((a, b) => away(a) - away(b))
+        candidates.length = spec.budget
+      }
+      for (let c = 0; c < candidates.length; c++) {
+        if (c % STEP === STEP - 1) yield
+        const [feature, i, lng, lat] = candidates[c]
+        const instance = spec.toInstance(feature, lng, lat, i)
+        if (!instance) continue
+        const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
+        project(lng, lat, 0, placed)
+        const meets = terrain ? spec.deck?.(instance) : null
+        if (meets === 'clear' && this.surfaceAt) {
+          // A span is tested at both ends as well as its middle: one lying beside a deck can reach under it.
+          const half = ((instance.length ?? 0) / 2) * placed.perMetre
+          const [dx, dy] = [Math.cos(instance.heading) * half, Math.sin(instance.heading) * half]
+          const close = [[0, 0], [dx, dy], [-dx, -dy]].some(([ex, ey]) => {
+            const at = unproject(placed.x + ex, placed.y + ey)
+            const over = this.surfaceAt!(...at)
+            return over !== null && over - heightAt(...at) < DECK_CLEARANCE
+          })
+          if (close) continue
+        }
+        const onDeck = this.standOn && meets !== 'clear' ? meets : null
+        const along: [number, number] | undefined = onDeck === 'along' ? [Math.cos(instance.heading), Math.sin(instance.heading)] : undefined
+        const deckAt = (lng: number, lat: number) => (onDeck ? this.standOn!(lng, lat, along) : null)
+        if (terrain && instance.conform && instance.length) {
+          const { x, y, perMetre } = placed
+          const across = instance.conform === true ? 0 : instance.conform.across
+          const ground = (east: number, south: number) => heightAt(...unproject(x + east * perMetre, y + south * perMetre))
+          let [on, off, high] = [0, 0, false]
+          const decked = groundPlane(instance.heading, instance.length, across, (east, south) => {
+            const at = unproject(x + east * perMetre, y + south * perMetre)
+            const deck = deckAt(...at)
+            if (deck === null) return (off++, heightAt(...at))
+            on++
+            high ||= deck - heightAt(...at) > DECK_CLEARANCE
+            return deck
+          })
+          // Half on a deck high over the ground is a span running in under it, not along it.
+          const plane = on && off && high ? groundPlane(instance.heading, instance.length, across, ground) : decked
+          placed.z = plane.elevation * perMetre
+          placed.gx = plane.gx
+          placed.gy = plane.gy
+        } else if (terrain) placed.z = (deckAt(lng, lat) ?? terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        if (instance.rise && instance.length) {
+          const run = instance.rise / instance.length
+          placed.gx += run * Math.cos(instance.heading)
+          placed.gy += run * Math.sin(instance.heading)
+        }
+        placedNow.push(placed)
+      }
     }
+    this.placed = placedNow
   }
 
   /**
@@ -508,12 +932,13 @@ export class ObjectLayer {
    */
   private arrange() {
     this.needsArrange = false
+    this.shadowVersion++
     const zoom = this.map.getZoom()
     const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
     this.origin = [origin.x, origin.y, 0]
 
     const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
-    const nearLimitSquared = nearLimit * nearLimit
+    const nearLimitSquared = zoom < FAR_BELOW_ZOOM ? 0 : nearLimit * nearLimit
 
     const buckets = new Map<string, Placed[]>()
     for (const p of this.placed) {
@@ -534,19 +959,31 @@ export class ObjectLayer {
     for (const [model, group] of buckets) {
       if (!this.models.has(model)) continue
       const offset = new Float32Array(group.length * 3)
-      const shape = new Float32Array(group.length * 3)
+      const shape = new Float32Array(group.length * 4)
       const shade = new Float32Array(group.length)
+      const tint = new Float32Array(group.length)
+      const slope = new Float32Array(group.length * 2)
+      // A measured crown is sized against the near model's width even when the
+      // far one is drawn, so a tree doesn't grow or shrink as it crosses the switch.
+      const nearWidth = this.models.get(nearOf(model))?.width || 1
       for (let i = 0; i < group.length; i++) {
-        const { instance, x, y, z, perMetre } = group[i]
+        const { instance, x, y, z, perMetre, gx, gy } = group[i]
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
-        shape[i * 3] = instance.height * perMetre
-        shape[i * 3 + 1] = instance.spread * perMetre
-        shape[i * 3 + 2] = instance.heading
+        const buffers = this.models.get(model)
+        shape[i * 4] = instance.height * perMetre
+        const across = instance.width === undefined ? instance.spread : instance.width / nearWidth
+        shape[i * 4 + 1] = across * perMetre
+        shape[i * 4 + 2] = instance.heading
+        shape[i * 4 + 3] = instance.length === undefined ? 1 : instance.length / ((buffers?.length || 1) * across)
         shade[i] = instance.shade
+        tint[i] = instance.tint ?? 0
+        slope[i * 2] = gx
+        slope[i * 2 + 1] = gy
       }
-      this.batches.push({ model, offset, shape, shade, count: group.length, buffers: null })
+      const stretched = group.some(p => p.instance.length !== undefined)
+      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, stretched, buffers: null })
     }
   }
 
@@ -568,7 +1005,8 @@ export class ObjectLayer {
     // the origin is what lets the instance offsets stay small.
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const shifted = translate(matrix as ArrayLike<number>, this.origin)
-    const range = this.map.painter?.depthRangeFor3D
+    const painter = this.map.painter
+    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
 
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
@@ -612,16 +1050,22 @@ export class ObjectLayer {
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
         'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace'])
         if (context[key]) context[key].dirty = true
+
+    if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
   }
 
   private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
+    const now = performance.now()
+    gl.uniform1f(this.uniforms.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
+    const gain = this.flutterGain(now)
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
 
-    gl.depthMask(true)
-    gl.disable(gl.BLEND)
+    const ghost = ghostBlend(gl, this.opacity)
+    gl.depthMask(!ghost)
+    if (!ghost) gl.disable(gl.BLEND)
 
     for (const batch of this.batches) {
       const model = this.models.get(batch.model)
@@ -635,12 +1079,70 @@ export class ObjectLayer {
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
+        gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
+        gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
+        const [amplitude, held, run] = primitive.flutter
+        gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
         bindVec3(gl, LOC.a_position, primitive.position)
         bindVec3(gl, LOC.a_normal, primitive.normal)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
+  }
+
+  /** The flutter's strength now: eased in as it starts and out before it stops, 0 between. */
+  private flutterGain(now: number): number {
+    if (!this.flutterUntil) return 0
+    const rise = (now - (this.flutterUntil - FLUTTER_MS)) / FLUTTER_FADE_IN_MS
+    const fall = (this.flutterUntil - now) / FLUTTER_FADE_OUT_MS
+    const t = Math.max(0, Math.min(1, rise, fall))
+    return t * t * (3 - 2 * t)
+  }
+
+  /**
+   * Flutter for a while after the map settles, if a fluttering object is in view.
+   *
+   * `map.repaint` keeps frames coming without the map firing `idle` on each
+   * one, which a custom layer's own `triggerRepaint` would; everything waiting
+   * on idle has already had it, since this starts from one.
+   */
+  private startFlutter() {
+    if (!this.flutterArmed || !this.map) return
+    if (this.stillness?.matches || (this.map.getPitch?.() ?? 0) < FLUTTER_MIN_PITCH) return
+    if (!this.flutteringInView()) return
+    this.flutterArmed = false
+    this.flutterUntil = performance.now() + FLUTTER_MS
+    this.map.repaint = true
+    // Ends it even if no frame gets there, say when every batch has gone.
+    this.flutterTimer = setTimeout(() => this.stopFlutter(), FLUTTER_MS + 100) as unknown as number
+  }
+
+  private stopFlutter() {
+    if (!this.flutterUntil) return
+    this.flutterUntil = 0
+    clearTimeout(this.flutterTimer)
+    if (this.map) this.map.repaint = false
+  }
+
+  /** Whether any fluttering object stands inside the current viewport. */
+  private flutteringInView(): boolean {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return false
+    const corner: Placed = { instance: null as any, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
+    project(bounds.getWest(), bounds.getNorth(), 0, corner)
+    const [x0, y0] = [corner.x, corner.y]
+    project(bounds.getEast(), bounds.getSouth(), 0, corner)
+    const [x1, y1] = [corner.x, corner.y]
+    for (const batch of this.batches) {
+      if (!this.models.get(batch.model)?.flutters) continue
+      for (let i = 0; i < batch.count; i++) {
+        const x = batch.offset[i * 3] + this.origin[0]
+        const y = batch.offset[i * 3 + 1] + this.origin[1]
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true
+      }
+    }
+    return false
   }
 
   /**
@@ -657,6 +1159,8 @@ export class ObjectLayer {
       offset: gl.createBuffer()!,
       shape: gl.createBuffer()!,
       shade: gl.createBuffer()!,
+      tint: gl.createBuffer()!,
+      slope: gl.createBuffer()!,
     }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -666,22 +1170,140 @@ export class ObjectLayer {
       gl.vertexAttribDivisor(loc, 1)
     }
     attach(batch.buffers.offset, batch.offset, LOC.a_offset, 3)
-    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 3)
+    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 4)
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
+    attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
+    attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
   }
 
-  /** The style's own light, so objects agree with the buildings beside them. */
+  /**
+   * Cast this layer's shadows into the building shade layer's mask.
+   *
+   * Called from inside that layer's shadow pass, with its framebuffer, stencil
+   * and viewport already set, so only the program and the attributes are ours
+   * to touch. The pass leaves one of its own vertex arrays bound, and pointing
+   * attributes at our buffers while it is bound would rewrite it — so the
+   * default array is bound first and handed back clean.
+   */
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    if (!this.batches.length || !this.placed.length) return
+    gl.bindVertexArray(null)
+    gl.useProgram(this.shadowProgram)
+    gl.uniformMatrix4fv(this.shadowUniforms.u_matrix, false, translate(frame.matrix, this.origin))
+    gl.uniform2f(this.shadowUniforms.u_shear, frame.shear[0], frame.shear[1])
+    gl.uniform1f(this.shadowUniforms.u_per_metre, this.placed[0].perMetre)
+    gl.disable(gl.CULL_FACE)
+    for (const batch of this.batches) {
+      const model = this.models.get(shadowModel(batch, this.models))
+      if (!model) continue
+      this.bindInstances(gl, batch)
+      for (const primitive of model.primitives) {
+        bindVec3(gl, LOC.a_position, primitive.position)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
+    for (const loc of Object.values(LOC)) {
+      gl.vertexAttribDivisor(loc, 0)
+      gl.disableVertexAttribArray(loc)
+    }
+  }
+
+  /** Into the sun's shadow map, mid-pass in the building shade layer: what is too short to show there is left out. */
+  drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
+    if (!this.batches.length || !this.placed.length) return
+    const least = (SUN_MIN_TEXELS * frame.texelMetres) * this.placed[0].perMetre
+    gl.bindVertexArray(null)
+    gl.useProgram(this.sunProgram)
+    gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.light, this.origin))
+    for (const batch of this.batches) {
+      const name = shadowModel(batch, this.models)
+      const model = this.models.get(name)
+      if (!model || this.tallest(batch) < least) continue
+      this.bindInstances(gl, batch)
+      for (const primitive of model.primitives) {
+        bindVec3(gl, LOC.a_position, primitive.position)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
+    for (const loc of Object.values(LOC)) {
+      gl.vertexAttribDivisor(loc, 0)
+      gl.disableVertexAttribArray(loc)
+    }
+  }
+
+  /** The tallest instance in a batch, in mercator units. */
+  private tallest(batch: Batch): number {
+    if (batch.tallest !== undefined) return batch.tallest
+    let height = this.heights.get(batch.model)
+    if (height === undefined) {
+      height = 0
+      for (const p of this.sources[batch.model]?.primitives ?? [])
+        for (let i = 1; i < p.position.length; i += 3) height = Math.max(height, p.position[i])
+      this.heights.set(batch.model, height)
+    }
+    let scale = 0
+    for (let i = 0; i < batch.count; i++) scale = Math.max(scale, batch.shape[i * 4])
+    return (batch.tallest = scale * height)
+  }
+
+  /**
+   * The style's own light, so objects agree with the buildings beside them.
+   * MapLibre dots it with inward-facing extrusion normals, so for our outward
+   * normals the horizontal part is reversed.
+   */
   private lightDirection(): [number, number, number] {
     const light = this.map.style?.light
     const position = light?.getCartesianPosition?.() ?? light?.properties?.get?.('position')
     const [x, y, z] = Array.isArray(position) ? position : [0.4, -0.6, 0.7]
     const length = Math.hypot(x, y, z) || 1
-    return [x / length, y / length, z / length]
+    return [-x / length, -y / length, z / length]
   }
 }
 
+/**
+ * The model a batch casts its shadow with: the far variant, since the mask is too
+ * coarse to show more. Not for stretched batches, whose scale is set by their own model's length.
+ */
+export function shadowModel(batch: { model: string; stretched: boolean }, models: { has(name: string): boolean }): string {
+  const far = `${batch.model}${FAR_SUFFIX}`
+  return !batch.stretched && models.has(far) ? far : batch.model
+}
+
+/** The widest horizontal extent of a model, in its own units. */
+function modelWidth(model: GlbModel): number {
+  let width = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3)
+      width = Math.max(width, 2 * Math.abs(p.position[i]), 2 * Math.abs(p.position[i + 2]))
+  return width
+}
+
+const CANOPY = new Set(['foliage', 'blossom'])
+
+/** A model's extent along x, in its own units. */
+function modelLength(model: GlbModel): number {
+  let length = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3) length = Math.max(length, 2 * Math.abs(p.position[i]))
+  return length
+}
+
+/** A crown's y bounds, so its underside can be shaded; nothing else is. */
+function crownOcclusion(role: string, position: Float32Array): [number, number, number] {
+  if (!CANOPY.has(role)) return [0, 1, 0]
+  let low = Infinity
+  let high = -Infinity
+  for (let i = 1; i < position.length; i += 3) {
+    low = Math.min(low, position[i])
+    high = Math.max(high, position[i])
+  }
+  return [low, high, CROWN_OCCLUSION]
+}
+
 /** `matrix * translate(origin)`, without pulling in a matrix library. */
-function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
+export function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
   const out = new Float32Array(16)
   for (let i = 0; i < 16; i++) out[i] = matrix[i]
   const [x, y, z] = origin

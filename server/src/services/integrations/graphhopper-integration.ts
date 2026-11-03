@@ -32,6 +32,7 @@ import type {
 } from '../../types/graphhopper.types'
 import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
 import { logError, logWarn, logger } from '../../lib/logger'
+import { graphHopperSigns } from '../../lib/graphhopper-signs'
 
 /**
  * GraphHopper integration for routing
@@ -643,7 +644,10 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       duration: Math.round(instruction.time / 1000), // Convert ms to seconds
       heading: instruction.heading,
       streetName: instruction.street_name,
+      streetRef: instruction.street_ref || undefined,
       modifier: this.mapInstructionModifier(instruction.sign),
+      exitNumber: instruction.exit_number ?? undefined,
+      ...graphHopperSigns(instruction),
     }
   }
 
@@ -698,6 +702,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
     | undefined {
     switch (sign) {
@@ -706,6 +712,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       case 8:
         return 'u-turn'
       case -3:
+        return 'sharp-left'
       case -2:
         return 'left'
       case -1:
@@ -715,8 +722,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       case 1:
         return 'slight-right'
       case 2:
-      case 3:
         return 'right'
+      case 3:
+        return 'sharp-right'
       default:
         return undefined
     }

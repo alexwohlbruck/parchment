@@ -34,3 +34,5 @@ export { default as subscription } from './subscription.controller'
 export { default as avatar } from './avatar.controller'
 export { default as vehicles } from './vehicle.controller'
 export { default as feedback } from './feedback.controller'
+
+export { default as speech } from './speech.controller'

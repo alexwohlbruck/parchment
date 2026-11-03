@@ -228,7 +228,7 @@ async function testConnection() {
     }
   } catch (error: any) {
     testResult.value = null
-    toast.error(error.toString())
+    toast.error(error.toString(), { cause: error })
   } finally {
     isTesting.value = false
     updateValidity()

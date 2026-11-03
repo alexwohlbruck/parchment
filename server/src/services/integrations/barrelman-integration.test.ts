@@ -15,6 +15,7 @@ const mockAxiosGet = http.get
 const mockAxiosPost = http.post
 
 const { BarrelmanIntegration } = await import('./barrelman-integration')
+const { initialization } = await import('../../lib/i18n/translate')
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -37,6 +38,24 @@ describe('BarrelmanIntegration', () => {
     integration.initialize({ host: 'http://localhost:3100' })
     mockAxiosGet.mockClear()
     mockAxiosPost.mockClear()
+  })
+
+  describe('speech capability', () => {
+    test('discovers voices using the instance credential and forwards cancellation', async () => {
+      integration.initialize({ host: 'http://barrelman.test/', apiKey: 'service-key' })
+      const signal = new AbortController().signal
+      mockAxiosGet.mockResolvedValueOnce({ data: { voices: [], inflection: false } })
+      await integration.capabilities.tts.getCatalog(signal)
+      expect(mockAxiosGet).toHaveBeenCalledWith('http://barrelman.test/speech', expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer service-key' }), signal,
+      }))
+    })
+    test('forwards speech controls and returns bounded audio bytes', async () => {
+      const request = { text: 'Turn left', language: 'en-US', voice: 'af_heart', rate: 1.25 }
+      mockAxiosPost.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]).buffer, headers: { 'content-type': 'audio/mpeg' } })
+      expect(await integration.capabilities.tts.synthesize(request)).toEqual(new Uint8Array([1, 2, 3]))
+      expect(mockAxiosPost).toHaveBeenCalledWith('http://localhost:3100/speech', request, expect.objectContaining({ responseType: 'arraybuffer', maxContentLength: 2097152 }))
+    })
   })
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -91,6 +110,25 @@ describe('BarrelmanIntegration', () => {
       })
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(true)
+    })
+
+    test('stays connected when rate-limited — a 429 lifts on its own', async () => {
+      // A throttled health check at boot used to fail the test, leaving
+      // Barrelman uncached: every tile answered 501 and search, transit and
+      // routing went dark until a retry happened to land after the limit.
+      const err: any = new Error('Request failed with status code 429')
+      err.response = { status: 429, headers: { 'retry-after': '496' } }
+      mockAxiosGet.mockRejectedValueOnce(err)
+      const result = await integration.testConnection({ host: 'http://api.example.com', apiKey: 'k' })
+      expect(result.success).toBe(true)
+      expect(result.message).toContain('rate-limiting')
+    })
+
+    test('still fails when Barrelman cannot be reached at all', async () => {
+      mockAxiosGet.mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('ECONNREFUSED')
     })
 
     test('fails when the status is error — the database is down', async () => {
@@ -150,6 +188,25 @@ describe('BarrelmanIntegration', () => {
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(false)
       expect(result.message).toContain('Connection failed')
+    })
+  })
+
+  describe('getAutocomplete — proximity', () => {
+    const codeHit = (i: number) => ({ ...baseResult, id: `way/${i}`, name: `Far ${i}`, text_rank: 0.98, distance_m: 2_000_000 + i })
+    const nearHit = { ...baseResult, id: 'relation/3005307', name: 'Central Park', text_rank: 1.5, distance_m: 3353 }
+
+    test('forwards the position and fetches a wider pool than it returns', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [] })
+      await integration.getAutocomplete('central park', 40.7549, -73.984, { limit: 5 })
+      expect(mockAxiosPost.mock.calls[0][1]).toMatchObject({ lat: 40.7549, lng: -73.984, limit: 15, autocomplete: true })
+    })
+
+    test('a nearby match beats distant pinned codes and survives the cap', async () => {
+      const codes = Array.from({ length: 5 }, (_, i) => codeHit(i))
+      mockAxiosPost.mockResolvedValueOnce({ data: [...codes, nearHit] })
+      const places = await integration.getAutocomplete('central park', 40.7549, -73.984, { limit: 5 })
+      expect(places).toHaveLength(5)
+      expect(places[0].name?.value).toBe('Central Park')
     })
   })
 
@@ -341,6 +398,37 @@ describe('BarrelmanIntegration', () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [baseResult] })
       const [place] = await integration.searchPlaces('test')
       expect(place.address).toBeNull()
+    })
+  })
+
+  describe('adaptPlace — place type', () => {
+    test('a city boundary is a City, with its state to tell namesakes apart', async () => {
+      await initialization
+      mockAxiosPost.mockResolvedValueOnce({
+        data: [{
+          ...baseResult,
+          id: 'relation/177415', name: 'Charlotte', geom_type: 'area', categories: [],
+          tags: { name: 'Charlotte', boundary: 'administrative', admin_level: '8', border_type: 'city' },
+          address: { state: 'NC' },
+        }],
+      })
+      const [place] = await integration.searchPlaces('charlotte')
+      expect(place.placeType?.value).toBe('City')
+      expect(place.address?.value.region).toBe('NC')
+    })
+
+    test('a Pelias postal code is a Postal code, not an Address', async () => {
+      await initialization
+      mockAxiosPost.mockResolvedValueOnce({
+        data: [{
+          ...baseResult,
+          id: 'pelias/whosonfirst:postalcode:554711231', name: '28211', categories: ['pelias/postalcode'],
+          tags: { 'addr:city': 'Charlotte', 'addr:state': 'NC', 'addr:postcode': '28211' },
+          address: { city: 'Charlotte', state: 'NC', postcode: '28211' },
+        }],
+      })
+      const [place] = await integration.searchPlaces('28211')
+      expect(place.placeType?.value).toBe('Postal code')
     })
   })
 
@@ -578,17 +666,17 @@ describe('BarrelmanIntegration', () => {
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'http://localhost:3100/search',
         // Radius is passed as a hint; Barrelman uses proximity re-rank, not hard spatial filter
-        expect.objectContaining({ query: 'coffee', lat: 37.7749, lng: -122.4194, radius: 1000, limit: 10, semantic: true }),
+        expect.objectContaining({ query: 'coffee', lat: 37.7749, lng: -122.4194, radius: 1000, limit: 30, semantic: true }),
         expect.any(Object),
       )
     })
 
-    test('defaults limit to 20', async () => {
+    test('fetches a pool of three times the default 20 results', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.searchPlaces('test')
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ limit: 20 }),
+        expect.objectContaining({ limit: 60 }),
         expect.any(Object),
       )
     })
@@ -606,12 +694,12 @@ describe('BarrelmanIntegration', () => {
       )
     })
 
-    test('defaults limit to 10 and passes radius through', async () => {
+    test('fetches a pool of three times the default 10 results', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.getAutocomplete('test')
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ limit: 10 }),
+        expect.objectContaining({ limit: 30 }),
         expect.any(Object),
       )
     })
@@ -749,6 +837,58 @@ describe('BarrelmanIntegration', () => {
       expect(place?.name?.value).toBe('Central Park')
       expect(place?.id).toBe('osm/node/123456')
     })
+
+    // A station opened from the transit map carries only its transitland stop
+    // key — portolan writes `<feed-onestop-id>:<stop_id>` into the tile, and the
+    // click falls back to it when the station has no OSM match. That used to be
+    // resolved against transit.land's API, which needs a key nobody holds once
+    // the transit data comes from Barrelman, so every station click 404'd.
+    describe('transitland stop keys', () => {
+      const station = {
+        stopId: '640',
+        feedId: '5',
+        stopName: 'Brooklyn Bridge-City Hall',
+        lat: 40.713065,
+        lon: -74.004131,
+        entrances: [],
+        buildings: [],
+        routes: [
+          { routeId: '4', routeShortName: '4', routeType: 1, agencyName: 'MTA New York City Transit' },
+        ],
+      }
+
+      test('resolves through the station route, not the geocoder', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: station })
+        await integration.getPlaceInfo('f-dr5r-nyctsubway:640')
+        expect(mockAxiosGet).toHaveBeenCalledWith(
+          'http://localhost:3100/transit/station/f-dr5r-nyctsubway/640',
+          expect.any(Object),
+        )
+      })
+
+      test('adapts to a transit place the client opens in the transit view', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: station })
+        const place = await integration.getPlaceInfo('f-dr5r-nyctsubway:640')
+        expect(place?.name?.value).toBe('Brooklyn Bridge-City Hall')
+        // transitStop is what routes it to the transit view rather than the
+        // place detail view.
+        expect(place?.transitStop?.stopId).toBe('640')
+        expect(place?.transitStop?.feedOnestopId).toBe('f-dr5r-nyctsubway')
+        expect(place?.geometry?.value?.center).toEqual({ lat: 40.713065, lng: -74.004131 })
+        // route_type 1 is a subway, and the icon follows the mode
+        expect(place?.transitStop?.mode).toBe('subway')
+      })
+
+      // Pelias gids carry a colon too; only a feed onestop id starts with 'f-'.
+      test('leaves a Pelias gid on the geocoder path', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: baseResult })
+        await integration.getPlaceInfo('openaddresses:address:us/ny/statewide:1234')
+        expect(mockAxiosGet).toHaveBeenCalledWith(
+          'http://localhost:3100/geocode/place',
+          expect.objectContaining({ params: { id: 'openaddresses:address:us/ny/statewide:1234' } }),
+        )
+      })
+    })
   })
 
   describe('getContainingAreas', () => {
@@ -870,6 +1010,36 @@ describe('BarrelmanIntegration', () => {
       await integration.searchPlaces('test')
       const headers = (mockAxiosPost.mock.calls[0] as any)[2].headers
       expect(headers['Authorization']).toBeUndefined()
+    })
+  })
+  describe('routing host', () => {
+    const route = {
+      waypoints: [{ coordinate: { lat: 40.69, lng: -73.99 } }, { coordinate: { lat: 40.7, lng: -73.98 } }],
+      mode: 'cycling',
+    } as any
+    const lanes = { coordinates: [], ways: [], maneuvers: [], profile: 'bike' } as any
+
+    beforeEach(() => {
+      integration.initialize({ host: 'http://main', apiKey: 'main-key', routingHost: 'http://routing/', routingApiKey: 'routing-key' })
+    })
+
+    test('routes and draws lanes through the routing host, with its key', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: { paths: [] } })
+      mockAxiosPost.mockResolvedValueOnce({ data: { drivingSide: 'right', lanePlan: [], laneGeometry: null } })
+      await integration.capabilities.routing!.getRoute(route)
+      await integration.capabilities.routing!.getLanes!(lanes)
+      const calls = mockAxiosPost.mock.calls as any[]
+      expect(calls.map(c => c[0])).toEqual(['http://routing/route', 'http://routing/route/lanes'])
+      expect(calls[0][2].headers.Authorization).toBe('Bearer routing-key')
+    })
+
+    test('falls back to the main host when the routing host fails', async () => {
+      mockAxiosPost.mockRejectedValueOnce(Object.assign(new Error('bad'), { response: { status: 400 } }))
+      mockAxiosPost.mockResolvedValueOnce({ data: { paths: [] } })
+      await integration.capabilities.routing!.getRoute(route)
+      const calls = mockAxiosPost.mock.calls as any[]
+      expect(calls.map(c => c[0])).toEqual(['http://routing/route', 'http://main/route'])
+      expect(calls[1][2].headers.Authorization).toBe('Bearer main-key')
     })
   })
 })

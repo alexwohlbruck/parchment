@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingHeader from './OnboardingHeader.vue'
 import { ref, inject, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -47,8 +48,9 @@ const avatarFile = ref<File | null>(null)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
-const aliasInput = ref('')
-const aliasEdited = ref(false)
+const currentAlias = authStore.me?.alias ?? ''
+const aliasInput = ref(currentAlias)
+const aliasEdited = ref(!!currentAlias)
 const aliasError = ref<string | null>(null)
 const aliasChecking = ref(false)
 const aliasAvailable = ref<boolean | null>(null)
@@ -94,7 +96,10 @@ const checkAliasAvailability = useDebounceFn(async (alias: string) => {
 watch(aliasInput, val => {
   aliasError.value = null
   aliasAvailable.value = null
-  if (isAliasValid.value) {
+  if (val === currentAlias) {
+    aliasAvailable.value = true
+    aliasChecking.value = false
+  } else if (isAliasValid.value) {
     aliasChecking.value = true
     checkAliasAvailability(val)
   }
@@ -153,17 +158,19 @@ async function validateStep(): Promise<boolean> {
     await userService.updateMyProfile({
       firstName: (values.firstName || '').trim(),
       lastName: (values.lastName || '').trim() || null,
-      picture: avatarFile.value ? undefined : placeholderAvatar.value,
+      picture: avatarFile.value ? undefined : authStore.me?.picture || placeholderAvatar.value,
     })
 
     if (avatarFile.value) {
       await userService.uploadAvatar(avatarFile.value)
     }
 
-    const aliasResult = await identityStore.updateAlias(aliasInput.value)
-    if (!aliasResult.success) {
-      aliasError.value = aliasResult.error || t('onboarding.alias.saveFailed')
-      return false
+    if (aliasInput.value !== currentAlias) {
+      const aliasResult = await identityStore.updateAlias(aliasInput.value)
+      if (!aliasResult.success) {
+        aliasError.value = aliasResult.error || t('onboarding.alias.saveFailed')
+        return false
+      }
     }
 
     authStore.updateUser({
@@ -211,63 +218,59 @@ function removeAvatar() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="text-center space-y-1">
-      <h2 class="text-2xl font-semibold">
-        {{ t('onboarding.profile.title') }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t('onboarding.profile.description') }}
-      </p>
-    </div>
-
-    <!-- Avatar picker -->
-    <div class="flex justify-center">
-      <button
-        type="button"
-        class="avatar-picker group relative size-28 rounded-full overflow-hidden cursor-pointer ring-2 ring-border ring-offset-2 ring-offset-background focus-visible:ring-ring"
-        @click="triggerFileInput"
-      >
-        <div
-          class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+    <OnboardingHeader
+      :title="t('onboarding.profile.title')"
+      :description="t('onboarding.profile.description')"
+    >
+      <template #tile>
+        <button
+          type="button"
+          class="avatar-picker group relative block size-20 rounded-full cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
+          :aria-label="t('onboarding.profile.chooseAvatar')"
+          @click="triggerFileInput"
         >
-          <img
-            :src="avatarPreview || placeholderAvatar"
-            class="size-full object-cover"
-            alt=""
+          <div
+            class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+          >
+            <img
+              :src="avatarPreview || placeholderAvatar"
+              class="size-full object-cover"
+              alt=""
+            />
+          </div>
+
+          <div
+            class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
+          >
+            <Camera class="size-4 text-muted-foreground" />
+          </div>
+
+          <div
+            v-if="avatarPreview"
+            role="button"
+            tabindex="0"
+            :aria-label="t('onboarding.profile.removeAvatar')"
+            class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
+            @click.stop="removeAvatar"
+            @keydown.enter.stop="removeAvatar"
+          >
+            <X class="size-3" />
+          </div>
+
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            @change="onFileChange"
           />
-        </div>
-
-        <div
-          class="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-        >
-          <Camera class="size-5 text-white drop-shadow-sm" />
-        </div>
-
-        <div
-          v-if="avatarPreview"
-          role="button"
-          tabindex="0"
-          :aria-label="t('onboarding.profile.removeAvatar')"
-          class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
-          @click.stop="removeAvatar"
-          @keydown.enter.stop="removeAvatar"
-        >
-          <X class="size-3" />
-        </div>
-
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          class="hidden"
-          @change="onFileChange"
-        />
-      </button>
-    </div>
+        </button>
+      </template>
+    </OnboardingHeader>
 
     <form class="flex flex-col gap-4" @submit.prevent>
       <!-- Name fields -->
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2">
         <FormField v-slot="{ componentField }" name="firstName">
           <FormItem>
             <FormLabel>{{ t('onboarding.profile.firstName') }}</FormLabel>
@@ -309,7 +312,7 @@ function removeAvatar() {
           <input
             id="alias"
             :value="aliasInput"
-            class="flex-1 bg-transparent px-1 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            class="min-w-0 flex-1 bg-transparent px-1 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             :placeholder="t('onboarding.alias.placeholder')"
             :disabled="uploading"
             @input="onAliasInput"

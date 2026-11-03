@@ -5,8 +5,8 @@
  *   1. Generate a new 32-byte seed + derived signing/encryption keys.
  *   2. Re-encrypt every personal blob under the NEW seed's personal key.
  *      (In-memory — not uploaded yet.)
- *   3. Re-encrypt every collection's metadata envelope under the NEW
- *      per-collection key. (In-memory.)
+ *   3. Re-encrypt every collection's metadata envelope, and every private
+ *      collection's points, under the NEW per-collection key. (In-memory.)
  *   4. Re-seal K_m into every existing passkey-PRF slot. One biometric
  *      tap per slot, each scoped to that slot's credentialId (server
  *      restricts `allowCredentials` so the user can't accidentally tap
@@ -43,6 +43,8 @@ import {
 import {
   encryptCollectionMetadata,
   decryptCollectionMetadata,
+  encryptCollectionPoint,
+  decryptCollectionPoint,
 } from '@/lib/identity/library-crypto'
 import {
   buildWrappedKmSlot,
@@ -65,7 +67,9 @@ interface ServerBlobValue {
 
 interface ServerCollection {
   id: string
+  scheme: 'server-key' | 'user-e2ee'
   metadataEncrypted: string | null
+  metadataKeyVersion: number
 }
 
 /**
@@ -133,7 +137,8 @@ interface PreparedBlob {
 }
 interface PreparedCollection {
   id: string
-  metadataEncrypted: string
+  metadataEncrypted?: string
+  points?: Array<{ id: string; encryptedData: string }>
 }
 
 export async function rotateMasterKey(
@@ -177,21 +182,36 @@ export async function rotateMasterKey(
   const preparedCollections: PreparedCollection[] = []
   for (let i = 0; i < serverCollections.length; i++) {
     const c = serverCollections[i]
-    if (!c.metadataEncrypted) continue
+    if (!c.metadataEncrypted && c.scheme !== 'user-e2ee') continue
     progress({
       kind: 'reencrypt-collection',
       collectionId: c.id,
       index: i + 1,
       total: serverCollections.length,
     })
-    const rebuilt = rebuildCollection({
-      userId: params.userId,
-      collectionId: c.id,
-      oldEnvelope: c.metadataEncrypted,
-      oldSeed: params.oldSeed,
-      newSeed,
-    })
-    if (rebuilt) preparedCollections.push(rebuilt)
+    const rebuilt: PreparedCollection = { id: c.id }
+    if (c.metadataEncrypted) {
+      rebuilt.metadataEncrypted = rebuildCollectionMetadata({
+        userId: params.userId,
+        collectionId: c.id,
+        oldEnvelope: c.metadataEncrypted,
+        keyVersion: c.metadataKeyVersion,
+        oldSeed: params.oldSeed,
+        newSeed,
+      })
+    }
+    if (c.scheme === 'user-e2ee') {
+      rebuilt.points = await rebuildCollectionPoints({
+        userId: params.userId,
+        collectionId: c.id,
+        keyVersion: c.metadataKeyVersion,
+        oldSeed: params.oldSeed,
+        newSeed,
+      })
+    }
+    if (rebuilt.metadataEncrypted || rebuilt.points?.length) {
+      preparedCollections.push(rebuilt)
+    }
   }
 
   // 3. Re-seal every slot. One tap per slot, scoped to the slot's own
@@ -272,33 +292,73 @@ function personalBlobAad(userId: string, blobType: string): AAD {
   }
 }
 
-function rebuildCollection(params: {
+/** Null when the old envelope won't open: better left alone than overwritten. */
+function rebuildCollectionMetadata(params: {
   userId: string
   collectionId: string
   oldEnvelope: string
+  keyVersion: number
   oldSeed: Uint8Array
   newSeed: Uint8Array
-}): PreparedCollection | null {
+}): string | undefined {
   let metadata
   try {
     metadata = decryptCollectionMetadata({
       envelope: params.oldEnvelope,
-      seed: params.oldSeed,
+      source: { seed: params.oldSeed },
       userId: params.userId,
       collectionId: params.collectionId,
+      keyVersion: params.keyVersion,
     })
   } catch {
-    // Can't decrypt with old seed (already under new seed, or tampered).
-    // Skip rather than overwrite with garbage.
-    return null
+    return undefined
   }
-  const metadataEncrypted = encryptCollectionMetadata({
+  return encryptCollectionMetadata({
     metadata,
-    seed: params.newSeed,
+    source: { seed: params.newSeed },
     userId: params.userId,
     collectionId: params.collectionId,
+    keyVersion: params.keyVersion,
   })
-  return { id: params.collectionId, metadataEncrypted }
+}
+
+/** A private collection's points move to the new seed's key, keeping their ids. */
+async function rebuildCollectionPoints(params: {
+  userId: string
+  collectionId: string
+  keyVersion: number
+  oldSeed: Uint8Array
+  newSeed: Uint8Array
+}): Promise<Array<{ id: string; encryptedData: string }>> {
+  const { data } = await api.get<{ points: Array<{ id: string; encryptedData: string }> }>(
+    `/library/collections/${params.collectionId}/encrypted-points`,
+  )
+  return (data.points ?? []).flatMap(row => {
+    try {
+      const { id, ...point } = decryptCollectionPoint({
+        point: row,
+        source: { seed: params.oldSeed },
+        ownerUserId: params.userId,
+        collectionId: params.collectionId,
+        keyVersion: params.keyVersion,
+      })
+      return [
+        {
+          id,
+          encryptedData: encryptCollectionPoint({
+            point,
+            pointId: id,
+            source: { seed: params.newSeed },
+            ownerUserId: params.userId,
+            collectionId: params.collectionId,
+            keyVersion: params.keyVersion,
+          }),
+        },
+      ]
+    } catch {
+      return []
+    }
+  })
 }
 
 async function rebuildPersonalBlob(params: {

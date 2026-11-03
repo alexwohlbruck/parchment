@@ -4,11 +4,6 @@ import { Component, computed, ref, watch, markRaw } from 'vue'
 import { useWindowSize, useStorage } from '@vueuse/core'
 import { UnitSystem, FloorNumbering } from '@/types/map.types'
 
-import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
-import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
-import PromptDialog from '@/components/dialogs/PromptDialog.vue'
-import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
-
 export interface ManualBounds {
   x: number
   y: number
@@ -215,7 +210,7 @@ export const useAppStore = defineStore('app', () => {
   const dialogs = ref<
     {
       id: number
-      component: Component
+      type: DialogType
       props: any
       onSubmit: (payload: any) => void
       loading?: boolean
@@ -228,13 +223,6 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<any> {
     return new Promise(resolve => {
       const id = new Date().getTime()
-      const dialogTypesMap = {
-        [DialogType.Component]: ComponentDialog,
-        [DialogType.Confirm]: ConfirmDialog,
-        [DialogType.Prompt]: PromptDialog,
-        [DialogType.AutoForm]: AutoformDialog,
-        [DialogType.Template]: ConfirmDialog, // TODO: Implement template dialog
-      }
 
       if (
         type === DialogType.Component &&
@@ -248,13 +236,13 @@ export const useAppStore = defineStore('app', () => {
 
       const newDialog: {
         id: number
-        component: Component
+        type: DialogType
         props: any
         onSubmit: (payload: any) => void
         loading?: boolean
       } = {
         id,
-        component: markRaw(dialogTypesMap[type]),
+        type,
         props: options,
         onSubmit: async (payload: any) => {
           // If payload is falsy, it's a cancel action.
@@ -310,17 +298,25 @@ export const useAppStore = defineStore('app', () => {
   // access, and turning it on is the user gesture iOS requires to ask for it.
   const shakeForFeedback = useStorage<boolean>('shake-for-feedback', false)
 
-  // Width (px) of the peek-out area left by the collapsed left drawer's
-  // floating buttons. Map widgets in the top-left should add this much
-  // horizontal buffer to avoid being covered. 0 when drawer is expanded or
-  // not mounted.
-  const leftSheetOverlayWidth = ref(0)
-
   // Shared hidden state for the desktop LeftSheet so DesktopNavigation can
   // open the drawer when a nav link is clicked while it is collapsed.
   const leftSheetHidden = ref(false)
 
+  // The left drawer's floating button column, which overhangs the map beside
+  // the drawer. 0 when the drawer is not mounted.
+  const leftSheetButtonColumnWidth = ref(0)
+
+  // Horizontal buffer top-left map widgets need to clear the collapsed
+  // drawer's buttons.
+  const leftSheetOverlayWidth = computed(() =>
+    leftSheetHidden.value ? leftSheetButtonColumnWidth.value : 0,
+  )
+
+  // Onboarding holds the app's chrome back so it can slide in over the unfolding map.
+  const chromeHeld = ref(false)
+
   return {
+    chromeHeld,
     dialogs,
     createDialog,
     removeDialog,
@@ -339,6 +335,7 @@ export const useAppStore = defineStore('app', () => {
     unitSystem,
     floorNumbering,
     shakeForFeedback,
+    leftSheetButtonColumnWidth,
     leftSheetOverlayWidth,
     leftSheetHidden,
   }

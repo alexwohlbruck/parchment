@@ -69,6 +69,7 @@ describe('authentication', () => {
     '/transit/route-detail',
     '/transit/resolve-route',
     '/transit/departures',
+    '/transit/boarding-candidates',
     '/transit/bikes-allowed',
     '/transit/nearest-entrance',
     '/transit/station/feed-1/stop-1',
@@ -192,4 +193,44 @@ describe('caching', () => {
       expect(res.headers.get('cache-control')).toBe(expected)
     })
   }
+})
+
+describe('GET /transit/boarding-candidates', () => {
+  const at = (min: number) => new Date(Date.parse('2026-10-15T19:00:00Z') + min * 60_000).toISOString()
+  const run = (tripId: string, shortName: string, min: number) => ({
+    tripId,
+    route: { id: shortName, feedId: '5', shortName },
+    directionId: '0',
+    departureTime: at(min),
+  })
+
+  test('requires the boarding stop, later stops and planned times', async () => {
+    const res = await req(app).get('/transit/boarding-candidates', { query: { stopId: '5_120S' } })
+
+    expect(res.status).toBe(422)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test('joins the boarding board to the later stops and live vehicles', async () => {
+    fetchResponses = [
+      jsonResponse([{ departures: [run('d_5_A', '2', -3), run('d_5_B', '3', 1)] }]),
+      jsonResponse([{ departures: [run('d_5_A', '2', 4)] }]),
+      jsonResponse([{ departures: [run('d_5_A', '2', 9), run('d_5_B', '3', 8)] }]),
+      jsonResponse({ vehicles: [{ tripId: '5_B', position: { lat: 40.7, lng: -74 }, timestamp: at(2) }] }),
+    ]
+
+    const res = await req(app).get('/transit/boarding-candidates', {
+      query: { stopId: '5_120S', stops: '5_127S,5_132S', departure: at(0), arrival: at(9), routes: '2,3', directionId: '0' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(fetchCalls[0]).toContain('/transit/departures')
+    expect(fetchCalls[0]).toContain('stopId=120S')
+    expect(fetchCalls[3]).toContain('/transit/route-vehicles')
+    const [express, local] = [res.body.candidates[1], res.body.candidates[0]]
+    expect(local.calls.map((c: any) => c.stopId)).toEqual(['5_127S', '5_132S'])
+    expect(express.calls.map((c: any) => c.stopId)).toEqual(['5_132S'])
+    expect(express.position).toEqual({ lat: 40.7, lng: -74, at: at(2) })
+    expect(res.body.stops).toEqual(['5_127S', '5_132S'])
+  })
 })

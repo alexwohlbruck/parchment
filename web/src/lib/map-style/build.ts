@@ -1,4 +1,5 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
+import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -7,20 +8,63 @@ import {
   detailSources,
   parkingLayers,
   treeLayers,
-  BUILDING_3D_SOURCE,
+  landmarkLayers,
+  readOnlyDetailLayers,
+  keepDetailLayer,
+  coasterTrackLayers,
+  pitchLayers,
+  golfSurfaceLayers,
+  golfHoleLayers,
+  golfLabelLayers,
+  type DetailLabelStyle,
+  GOLF_HOLE_LABEL_LAYER,
+  GOLF_PIN_LAYER,
+  DISC_GOLF_BASKET_LAYER,
+  plantedAreaLayers,
+  BUILDINGS_SOURCE,
+  DETAIL_SOURCE,
   BUILDING_3D_TILES,
+  DETAIL_TILES,
 } from './detail-layers'
-import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { monorailLayers } from './monorail-layers'
+import { combineFilters } from './combine-filters'
+import {
+  skiAreaLayers,
+  pisteLayers,
+  liftLayers,
+  skiLabelLayers,
+  BASEMAP_AERIALWAY_LAYERS,
+  PISTE_SYMBOL_LAYER,
+  PISTE_LABEL_LAYER,
+  LIFT_LABEL_LAYER,
+} from './ski-layers'
+import {
+  INDOOR_SOURCE,
+  indoorLabelLayers,
+  indoorLayers,
+  indoorSource,
+  indoorUndergroundLayer,
+  indoorFootprintLayer,
+  indoorState,
+  withoutIndoorBuildings,
+  withoutIndoorPlaces,
+} from './indoor-layers'
+import { trackLayers, racewayLayer } from './track-layers'
+import { fixtureLayer, withFixtures } from './fixture-layers'
+import { stepsLayers } from './steps-layers'
+import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
+import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
-import { CYCLING_WAYS_SUFFIX } from './cycling-layers'
 import {
   CYCLING_WAYS_LAYER_IDS,
   cyclingStrokeLayers,
   cyclingWaysLayers,
-  cyclingWaysSource,
 } from './cycling-layers'
-import { barrelmanBuildingsReady } from './barrelman-buildings'
+import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
+import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { buildingFacadeColor } from './building-facade'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -140,9 +184,9 @@ export const MAX_PITCH = 85
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
     'sky-color': 'hsl(199, 88%, 78%)',
-    'horizon-color': 'hsl(44, 46%, 94%)',
-    'fog-color': 'hsl(44, 52%, 95%)',
-    'fog-ground-blend': 0.72,
+    'horizon-color': 'hsl(48, 14%, 93.5%)',
+    'fog-color': 'hsl(48, 16%, 94.5%)',
+    'fog-ground-blend': 0.8,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
     'atmosphere-blend': 0,
@@ -201,12 +245,14 @@ export interface BasemapStyleOptions {
   mapStyle?: MapStyleId
   /** Language code for labels (e.g. "en") */
   lang?: string
-  /** Auth token for tile requests (appended as query parameter) */
-  tileKey?: string
   /** Live category palette, so basemap POIs match search-result markers. */
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   /** How POIs are drawn; defaults to the category badge. */
   poiStyle?: PoiStyleId
+  /** Lane-level roads at street zoom; off by default. */
+  hdRoads?: boolean
+  /** Ask the detail tiles for the 3D bridge decks drawn over them. */
+  decks?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +261,7 @@ export interface BasemapStyleOptions {
 
 const CATEGORY_PREFIX = '@@category:'
 /** A palette colour run through the icon-tile treatment; see `tintOf`. */
-const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring):/
+const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring|dot-fill|dot-edge):/
 /** A literal colour run through the same treatment. */
 const TINT_PREFIX = /^@@tint-(plate|ink|ring):/
 
@@ -232,8 +278,11 @@ function tokenMap(flavor: FlavorId): Record<string, string> {
  * badge rather than none at all.
  */
 function tintOf(color: string, kind: string, flavor: FlavorId): string {
-  const tint = getCustomColorTint(color, 'solid', flavor === 'dark')
+  const dot = kind.startsWith('dot-')
+  const tint = getCustomColorTint(color, dot ? 'dot' : 'solid', flavor === 'dark')
   if (!tint) return color
+  if (kind === 'dot-fill') return tint.foreground
+  if (kind === 'dot-edge') return tint.background ?? color
   if (kind === 'ink') return tint.foreground
   if (kind === 'ring') return tint.ring ?? tint.foreground
   return tint.background ?? color
@@ -253,7 +302,7 @@ function resolve(
 ): any {
   if (typeof value === 'string') {
     if (!value.startsWith('@')) return value
-    const resolved = tokens[value.slice(1)]
+    const resolved = value.startsWith('@@') ? value : tokens[value.slice(1)]
     if (resolved === undefined) return value
     if (resolved.startsWith(CATEGORY_PREFIX)) {
       const category = resolved.slice(CATEGORY_PREFIX.length)
@@ -312,10 +361,18 @@ function isTransitStopLayer(l: any): boolean {
 }
 
 export const layerGroups = {
-  poi: idsWhere(
-    l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
-  ),
-  roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
+  poi: [
+    POI_DOTS_LAYER,
+    ...idsWhere(
+      l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
+    ),
+  ],
+  /** Hidden with the POI labels, but not clickable: a hole, pin or run is not a place the sheet can open. */
+  detailLabels: [GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER, PISTE_SYMBOL_LAYER, PISTE_LABEL_LAYER],
+  roadLabels: [
+    ...idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name' && !BASEMAP_AERIALWAY_LAYERS.includes(l.id)),
+    LIFT_LABEL_LAYER,
+  ],
   /**
    * Transit stop labels, not the rails under them. The transit overlay redraws
    * these stops itself, so the basemap's copies hide while it is on — but the
@@ -376,6 +433,9 @@ export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
  */
 export const BUILDING_3D_ROOF_LAYER = 'Building 3D roof colour'
 
+/** The same again, carrying each building's facade style; see `building-facade.ts`. */
+export const BUILDING_3D_FACADE_LAYER = 'Building 3D facade'
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
@@ -384,21 +444,24 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 // Assembly
 // ---------------------------------------------------------------------------
 
-function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
-  const params = new URLSearchParams()
-  if (tileKey) params.set('token', tileKey)
-  params.set('v', cacheBuster)
-  return `${tileServerUrl}/${source}/{z}/{x}/{y}?${params.toString()}`
+/** A detail tile url asking for the deck pieces drawn over the tile, or not. */
+export function withDeckPieces(url: string, on: boolean): string {
+  const plain = url.replace(/&decks=1(?=&|$)/, '')
+  return on ? `${plain}&decks=1` : plain
+}
+
+export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
+  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
 }
 
 function origin(): string {
   return typeof window !== 'undefined' ? window.location.origin : ''
 }
 
-function vectorSource(tileServerUrl: string, tileKey?: string) {
+function vectorSource(tileServerUrl: string) {
   return {
     type: 'vector' as const,
-    tiles: [buildTileUrl(tileServerUrl, tileKey)],
+    tiles: [buildTileUrl(tileServerUrl)],
     maxzoom: 14,
     attribution: OSM_ATTRIBUTION,
   }
@@ -449,28 +512,70 @@ export function buildLayers(options: {
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   lang?: string
   poiStyle?: PoiStyleId
+  hdRoads?: boolean
 }): LayerSpecification[] {
-  const { flavor, categoryColors, lang, poiStyle = 'badge' } = options
+  const { flavor, categoryColors, lang, poiStyle = 'badge', hdRoads = false } = options
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
 
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
+  base = withBuildingColor(base, flavor)
+  base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor)
+  base = withPoiDots(base)
 
   const converted = base
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(converted, flavor) as LayerSpecification[]
+  const park = converted.find(l => l.id === 'Park')
+  const detailLabel: DetailLabelStyle = {
+    font: park?.layout?.['text-font'] ?? ['Geist SemiBold'],
+    color: resolve('@poi_ink_park', tokens, categories, flavor),
+    halo: resolve('@poi_halo', tokens, categories, flavor),
+    haloWidth: park?.paint?.['text-halo-width'] ?? 1.5,
+    haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
+  }
+
+  const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
+  const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
+  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels, fixtures) as LayerSpecification[]
+}
+
+/** Basemap layers whose places a floor plan may draw itself, on their own level. */
+const INDOOR_PLACE_TILES = ['poi', 'aeroway']
+
+/** Floor plans before the buildings, so faded towers show a basement through them; labels on top, placed first. */
+function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[], fixtures: any): any[] {
+  const out = layers.map(l =>
+    l['source-layer'] === BUILDING_3D_TILES ? { ...l, filter: withoutIndoorBuildings(l.filter) }
+    : l.type === 'symbol' && l.source === SOURCE && INDOOR_PLACE_TILES.includes(l['source-layer']) ? { ...l, filter: withoutIndoorPlaces(l.filter) }
+    : l)
+  const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
+  const firstBuilding = out.findIndex(isBuilding)
+  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), indoorFootprintLayer(flavor, SOURCE), ...indoorLayers(flavor))
+  // Under the places, which win a collision with a door; the floor plan's labels over all.
+  const firstPoi = out.findIndex(l => l.type === 'symbol' && l['source-layer'] === 'poi')
+  out.splice(firstPoi < 0 ? out.length : firstPoi, 0, fixtures)
+  out.push(...labels)
+  return out
+}
+
+/** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
+function withPoiDots(layers: any[]): any[] {
+  const dots = poiDotLayer(layers)
+  if (!dots) return layers
+  const at = layers.findIndex(l => l['source-layer'] === 'poi')
+  return [...layers.slice(0, at), dots, ...layers.slice(at)]
 }
 
 /**
  * Point the 3D buildings at Barrelman's source, and add the roof-colour layer.
  *
  * The basemap's own building layer cannot tell a part-mapped building's outline
- * from its parts — see `BUILDING_3D_SOURCE` — so the extrusion reads from
+ * from its parts — see `DETAIL_SOURCE` — so the extrusion reads from
  * Barrelman instead, where the outline carries `hide_3d` and the filter the
  * spec already has (`["!has", "hide_3d"]`, MapTiler's own) finally bites.
  *
@@ -493,9 +598,11 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
   const at = layers.findIndex(l => l.type === 'fill-extrusion')
   if (at < 0) return layers
 
+  // The bundle normally; `buildings_3d` alone on a Barrelman without bundles.
+  const source = barrelmanBuildingsTiles() === BUILDING_3D_TILES ? BUILDINGS_SOURCE : DETAIL_SOURCE
   const fromBarrelman = (layer: any) => ({
     ...layer,
-    source: BUILDING_3D_SOURCE,
+    source,
     'source-layer': BUILDING_3D_TILES,
     // The same outlines have to go from here too, or the layer draws an edge
     // around a building that is no longer extruded under it.
@@ -526,11 +633,18 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
         // building: a building that records only `building:colour` should wear
         // it on the roof too, not band at the roofline.
         ['roof_colour', 'colour'],
+        unpaintedBuildingColor(flavor),
       ),
     },
   }
 
-  return [...layers.slice(0, at), buildings, roof, ...layers.slice(at + 1)]
+  const facade = {
+    ...buildings,
+    id: BUILDING_3D_FACADE_LAYER,
+    paint: { ...buildings.paint, 'fill-extrusion-opacity': 0, 'fill-extrusion-color': buildingFacadeColor() },
+  }
+
+  return [...layers.slice(0, at), buildings, roof, facade, ...layers.slice(at + 1)]
 }
 
 /**
@@ -543,11 +657,58 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle): any[] {
   const out = [...layers]
+
+  const stadium = out.findIndex(l => l.id === 'Stadium')
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...plantedAreaLayers(flavor), ...trackLayers(flavor), ...pitchLayers(flavor))
+
+  // A resort's snow lies under its glaciers and woods, so only open ground shows it;
+  // the runs are cut through those woods, and the rivers cross over them.
+  const glacier = out.findIndex(l => l.id === 'Glacier')
+  if (glacier >= 0) out.splice(glacier, 0, ...skiAreaLayers(flavor))
+  const river = out.findIndex(l => l.id === 'River tunnel')
+  if (river >= 0) out.splice(river, 0, ...pisteLayers(flavor))
+
+  const minorRoad = out.findIndex(l => l.id === 'Minor road')
+  if (minorRoad >= 0) out.splice(minorRoad + 1, 0, racewayLayer(flavor, out[minorRoad]))
+
+  const cablecar = out.findIndex(l => l.id === 'Cablecar')
+  if (cablecar >= 0) out.splice(cablecar, 0, ...liftLayers(flavor, SOURCE))
+  for (const id of BASEMAP_AERIALWAY_LAYERS) {
+    const at = out.findIndex(l => l.id === id)
+    if (at >= 0) out.splice(at, 1)
+  }
+  const roadLabels = out.findIndex(l => l.id === 'Road labels')
+  const roadName = out[roadLabels]?.layout?.['text-field'] ?? ['get', 'name']
+  if (roadLabels >= 0) {
+    const l = out[roadLabels]
+    out[roadLabels] = { ...l, filter: combineFilters([l.filter, ['!=', ['get', 'class'], 'aerialway']]) }
+  }
+
+  // Golf surfaces go over the basemap's sand, which would otherwise paint
+  // every bunker yellow, and the holes over its water, which they cross.
+  const sand = out.findIndex(l => l.id === 'Sand')
+  if (sand >= 0) out.splice(sand + 1, 0, ...golfSurfaceLayers(flavor))
+  const water = out.findIndex(l => l.id === 'Water')
+  if (water >= 0) out.splice(water + 1, 0, ...golfHoleLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
+
+  // Coaster tracks stand over the paths and the elevated roads they cross,
+  // and under every building — a station roof or a shed over the track
+  // covers it — and so under every label too.
+  const firstBuilding = out.findIndex(
+    l => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES,
+  )
+  // Monorails share the slot: an elevated beam passes over the bridges it crosses.
+  out.splice(
+    firstBuilding < 0 ? out.length : firstBuilding,
+    0,
+    ...monorailLayers(flavor, SOURCE),
+    ...coasterTrackLayers(flavor),
+  )
 
   // Both building source-layers: the flat fill still reads the basemap's
   // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go
@@ -556,7 +717,11 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const lastBuilding = out
     .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
     .lastIndexOf(true)
-  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
+  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers(), ...readOnlyDetailLayers())
+
+  // Hole numbers and pins sit under every basemap label.
+  const firstLabel = out.findIndex(l => l.id === 'River labels')
+  out.splice(firstLabel < 0 ? out.length : firstLabel, 0, ...golfLabelLayers(flavor, detailLabel), ...skiLabelLayers(flavor, detailLabel, SOURCE, roadName))
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.
@@ -568,17 +733,96 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     if (at >= 0) out.splice(at + 1, 0, layer)
   }
 
-  // The markings go over every tint, since they describe the street rather
-  // than any one rung of it. Above the topmost road, still below the labels.
-  const lastRoad = out.map(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)).lastIndexOf(true)
-  if (lastRoad >= 0) out.splice(lastRoad + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth))
+  // The markings go over every tint of their band, since they describe the
+  // street rather than any one rung of it — and they follow that street across
+  // the split, so a marking on a deck is drawn on the deck and one at grade
+  // stays under it.
+  for (const bridge of [false, true]) {
+    const band = new Set(
+      tints.filter(t => t.street && t.bridge === bridge).map(t => t.layer.id),
+    )
+    const last = out.map(l => band.has(l.id)).lastIndexOf(true)
+    if (last >= 0) {
+      out.splice(last + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth, bridge))
+    }
+  }
 
-  return out
+  // Treads go over the path and every tint of it, so a bike-designated stair
+  // still reads as a stair.
+  for (const { above, layer } of stepsLayers(out)) {
+    const last = out.map(l => l.id === above || l.id.startsWith(`${above} (`)).lastIndexOf(true)
+    if (last >= 0) out.splice(last + 1, 0, layer)
+  }
+
+
+  // Lane geometry goes on each band of the road network: the ground's under the
+  // first bridge and under the track crossing it, the bridges' over the last.
+  const bridges = bridgeBandIndex(out)
+  // The signals' 3D masts stand on their glyphs whether or not the lanes are drawn.
+  if (!hdRoads || bridges === undefined) {
+    const labels = out.findIndex(l => l.type === 'symbol')
+    out.splice(labels < 0 ? out.length : labels, 0, signalLayer(flavor))
+    return [...out, keepDetailLayer(ROAD_GLYPH_TILES)]
+  }
+  const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
+  const tunnels = tunnelledTrack(out)
+  out.splice(rails, 0, ...tunnels)
+  const roads = asphaltRoads(liftedTrack(out), flavor)
+  // Found again in the result: asphaltRoads adds layers (cycle tracks) ahead of the tunnels.
+  const lastTunnel = tunnels.at(-1)?.id
+  const ground = lastTunnel ? roads.findIndex(l => l.id === lastTunnel) + 1 : roads.findIndex(l => l.id === out[rails]?.id)
+  const decks = aboveBridgesIndex(roads)
+  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
+  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
+  return roads
+}
+
+/** The basemap's railway lines at grade, the first of which the lane geometry goes under. */
+const RAIL_AT_GRADE = ['Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching']
+/** Of those, the ones that also draw light rail and trams in tunnels, which stay under the road. */
+const RAIL_WITH_TUNNELS = ['Minor rail', 'Minor rail hatching']
+const IN_TUNNEL = ['==', ['get', 'brunnel'], 'tunnel']
+
+/** Copies of the track layers that draw tunnels, for tunnels alone, to stay under the lane geometry. */
+function tunnelledTrack(layers: any[]): any[] {
+  return layers.filter(l => RAIL_WITH_TUNNELS.includes(l.id))
+    .map(l => ({ ...l, id: `${l.id} tunnel`, filter: ['all', l.filter, IN_TUNNEL], metadata: { ...l.metadata, [BELOW_LANES]: true } }))
+}
+
+/** The track layers lifted over the lane geometry, tunnels left to their copies under it. */
+function liftedTrack(layers: any[]): any[] {
+  return layers.map(l => (RAIL_WITH_TUNNELS.includes(l.id) ? { ...l, filter: ['all', l.filter, ['!', IN_TUNNEL]] } : l))
+}
+
+/** The plan-view outline, rounded exactly as far as the extrusion it traces. */
+function withRoundedRoofEdge(layers: any[]): any[] {
+  const radius = layers.find(l => l.type === 'fill-extrusion')?.layout?.['fill-extrusion-rounded-corner-distance']
+  if (!radius) return layers
+  return layers.map(l => l.id !== BUILDING_ROOF_EDGE_LAYER ? l : {
+    ...l,
+    layout: { ...l.layout, 'line-rounded-corner-distance': radius },
+  })
+}
+
+/** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
+function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
+  return layers.map(l => l.type !== 'fill-extrusion' ? l : {
+    ...l,
+    paint: {
+      ...l.paint,
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        ['colour'],
+        unpaintedBuildingColor(flavor),
+      ),
+    },
+  })
 }
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle, hdRoads, decks } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -587,12 +831,23 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
-      [SOURCE]: vectorSource(tileServerUrl, tileKey),
-      ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
-      ...cyclingWaysSource(source => buildTileUrl(tileServerUrl, tileKey, source)),
+      [SOURCE]: vectorSource(tileServerUrl),
+      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withFixtures(withElevationFormat(buildTileUrl(tileServerUrl, source))) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
+        ? {
+            [BUILDINGS_SOURCE]: {
+              type: 'vector' as const,
+              tiles: [buildTileUrl(tileServerUrl, BUILDING_3D_TILES)],
+              minzoom: 14,
+              maxzoom: 16,
+            },
+          }
+        : {}),
+      [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
     },
+    state: indoorState(),
     sky: SKY[flavor],
-    layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
+    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }),
   } as StyleSpecification
 }
 
@@ -607,7 +862,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -627,15 +882,16 @@ export function buildSatelliteStyle(
   ]
 
   if (hybrid) {
-    sources[SOURCE] = vectorSource(tileServerUrl, tileKey)
+    sources[SOURCE] = vectorSource(tileServerUrl)
     const overlay = buildLayers({
       flavor: 'dark',
       categoryColors,
       lang,
       poiStyle,
+      hdRoads,
     }).filter(
       l =>
-        l.type === 'symbol' ||
+        (l.type === 'symbol' && (l as any).source === SOURCE) ||
         // Keep the arterial network so the imagery stays navigable.
         /^(Highway|Major road)$/.test(l.id),
     )
@@ -645,6 +901,7 @@ export function buildSatelliteStyle(
   return {
     version: 8,
     name: hybrid ? 'Parchment hybrid' : 'Parchment satellite',
+    ...(hybrid ? { state: indoorState() } : {}),
     // Daylight regardless of app theme, for the same reason hybrid's labels are
     // fixed: the ground here is aerial photography, taken in the day.
     sky: SKY.light,

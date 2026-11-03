@@ -47,9 +47,13 @@ export interface DecryptedPoint {
   iconPack?: 'lucide' | 'maki'
   iconColor: string
   frequentType?: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
-export type CollectionScheme = 'server-key' | 'user-e2ee'
+/** Whether a record is readable by the server or end-to-end encrypted. */
+export type EncryptionScheme = 'server-key' | 'user-e2ee'
+export type CollectionScheme = EncryptionScheme
 export type ResharingPolicy = 'owner-only' | 'editors-can-share'
 export type ShareRole = 'viewer' | 'editor'
 
@@ -74,18 +78,21 @@ export interface Collection {
   createdAt: string
   updatedAt: string
 
-  // Opaque encrypted metadata envelope as returned by the server.
+  // Metadata envelope. Set on user-e2ee collections, and on server-key
+  // rows the owner's client has not yet moved to the cleartext fields.
   metadataEncrypted?: string | null
   metadataKeyVersion?: number
 
-  // Decrypted metadata fields. Populated client-side after fetch by
-  // the collections service; NEVER sent back to the server in cleartext.
-  // Use `collection.name` / `.description` / etc. for display.
-  name?: string
-  description?: string
-  icon?: string
-  iconPack?: 'lucide' | 'maki'
-  iconColor?: string
+  // Display metadata. Server-key rows carry it from the server; for
+  // user-e2ee rows the collections service fills it in after decrypting.
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconPack?: 'lucide' | 'maki' | null
+  iconColor?: string | null
+
+  // Client-only: the metadata is encrypted and this device can't open it.
+  locked?: boolean
 
   // Caller's effective role on this collection. `'owner'` on collections the
   // caller owns; a `ShareRole` when the collection is shared TO the caller.
@@ -128,6 +135,7 @@ export interface CreateBookmarkParams {
 }
 
 export interface CreateCollectionParams {
+  scheme?: CollectionScheme
   name: string
   description?: string
   icon?: string

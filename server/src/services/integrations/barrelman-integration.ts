@@ -1,3 +1,4 @@
+import type { SpeechCatalog, SpeechRequest } from '../../types/speech.types'
 import axios from 'axios'
 import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
 import type {
@@ -19,9 +20,8 @@ import type {
   TransitRouteRequest,
   IntermodalRouteRequest,
   TransitRouteResponse,
-  NearbyStopsRequest,
-  NearbyStopResult,
   StopRouteResult,
+  StopDeparturesQuery,
   MapBounds,
 } from '../../types/integration.types'
 import {
@@ -29,6 +29,10 @@ import {
   IntegrationId,
 } from '../../types/integration.types'
 import type {
+  RouteLanes,
+  RouteLanesRequest,
+  RoutePointHazard,
+  RoutePointHazardsRequest,
   RouteRequest,
   UnifiedRoute,
 } from '../../types/unified-routing.types'
@@ -47,20 +51,27 @@ import type {
   TransitStopRef,
 } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
+import { logWarn } from '../../lib/logger'
 import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
+import { TransitGate, TransitPriority } from '../../lib/transit/transit-gate'
+import type { StopBoard } from '../../lib/transit/route-options'
 import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
+import { peliasLayerLabel } from '../../lib/place-type-label'
+import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
  *
- * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
- * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
- * — 100+ concurrent requests for one user action, none of it capped. Under
+ * A single intermodal trip plan fans out hard: up to seven intermodal queries
+ * of up to 10 itineraries each (and barrelman fans a walk search out to up to
+ * 16 station-pair MOTIS queries of its own), each itinerary re-routing 2-3
+ * walk legs through GraphHopper — 100+ concurrent requests for one user
+ * action, none of it capped. Under
  * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
  * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
  * closed unexpectedly"). Every later request blocks behind it and the app
@@ -74,6 +85,10 @@ import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../l
  * serialized, low enough that concurrent plans can't stampede the process.
  */
 const BARRELMAN_MAX_CONCURRENCY = 48
+/** How long to wait before asking a barrelman without lane geometry, or route hazards, again. */
+const LANES_RETRY_MS = 10 * 60_000
+/** Hazards are a garnish on a route; a slow answer is dropped rather than holding the route up. */
+const HAZARDS_TIMEOUT_MS = 3_000
 
 class Semaphore {
   private active = 0
@@ -120,6 +135,9 @@ const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
  */
 const SEARCH_BACKSTOP_TIMEOUT = 30_000
 
+/** Candidates fetched per result kept, so pinned codes hits cannot fill the page before the re-rank. */
+const CODES_RERANK_POOL = 3
+
 /**
  * Radius a sparse tag-only browse widens to (see `searchByCategory`). Metro
  * scale rather than unbounded: the nearest-first walk has to test the tag on
@@ -165,11 +183,23 @@ const barrelmanSearchHttp = createLimitedHttp(
   new Semaphore(BARRELMAN_INTERACTIVE_CONCURRENCY),
 )
 
+/**
+ * Barrelman's per-account cap on simultaneous `/transit` requests. Every
+ * transit call queues here and a 429 is retried, so a plan's fan-out degrades
+ * to waiting rather than to silently missing itineraries.
+ */
+const transitGate = new TransitGate({
+  concurrency: Number(process.env.BARRELMAN_TRANSIT_CONCURRENCY ?? 4),
+  maxRetries: 3,
+  maxRetryWaitMs: 3000,
+})
+
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
-  /** Public tile key — sent to client for authenticated tile requests */
-  tileKey?: string
+  /** Another barrelman to route through (`/route`, `/route/lanes`); `host` answers when it can't. */
+  routingHost?: string
+  routingApiKey?: string
 }
 
 /**
@@ -240,7 +270,7 @@ export class BarrelmanIntegration
   readonly integrationId = IntegrationId.BARRELMAN
   // PELIAS: Barrelman also fronts the Pelias geocoder for address results, so it
   // resolves `source=pelias` place lookups (getConfiguredIntegrationForSource).
-  readonly sources = [SOURCE.OSM, SOURCE.PELIAS]
+  readonly sources = [SOURCE.OSM, SOURCE.PELIAS, SOURCE.TRANSITLAND]
   private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
 
   readonly capabilityIds: IntegrationCapabilityId[] = [
@@ -256,9 +286,26 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.TILE_SERVER,
     IntegrationCapabilityId.ROUTING,
     IntegrationCapabilityId.TRANSIT_ROUTING,
+    IntegrationCapabilityId.TTS,
   ]
 
   readonly capabilities = {
+    tts: {
+      getCatalog: async (signal?: AbortSignal): Promise<SpeechCatalog> => {
+        const response = await axios.get(`${this.config.host.replace(/\/$/, '')}/speech`, {
+          headers: this.headers, timeout: 3000, signal,
+        })
+        return response.data
+      },
+      synthesize: async (request: SpeechRequest, signal?: AbortSignal): Promise<Uint8Array> => {
+        const response = await axios.post(`${this.config.host.replace(/\/$/, '')}/speech`, request, {
+          headers: this.headers, timeout: 4000, signal, responseType: 'arraybuffer',
+          maxContentLength: 2 * 1024 * 1024,
+        })
+        if (!String(response.headers['content-type']).startsWith('audio/')) throw new Error('Invalid speech audio')
+        return new Uint8Array(response.data)
+      },
+    },
     search: {
       searchPlaces: this.searchPlaces.bind(this),
     } as SearchCapability,
@@ -295,6 +342,8 @@ export class BarrelmanIntegration
     } as GeocodingCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
+      getLanes: this.getLanes.bind(this),
+      getHazards: this.getHazards.bind(this),
       metadata: {
         supportedPreferences: {
           // Range preferences (GraphHopper supports via custom_model)
@@ -339,9 +388,9 @@ export class BarrelmanIntegration
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
-      getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
+      getStopDepartures: this.getStopDepartures.bind(this),
     } as TransitRoutingCapability,
   }
 
@@ -384,6 +433,25 @@ export class BarrelmanIntegration
         return {
           success: false,
           message: config.apiKey ? 'Invalid API key' : 'API key required',
+        }
+      }
+      // Rate limited is not down, for the same reason `degraded` is not: an
+      // answer means Barrelman is up, and a 429 lifts on its own — a throttle
+      // window is a minute, a penalty a few. Failing here threw the whole
+      // integration out of the cache until the background retry, backing off
+      // to five minutes, happened to land after the limit lifted — so one
+      // refused health check at boot took search, transit, routing and every
+      // map tile down with it, tiles answering 501 "not configured" to a
+      // server that was only asking us to slow down. Kept connected, each
+      // request meets the limit on its own and recovers the moment it lifts.
+      //
+      // A penalty refuses before it checks the key, so this does not prove the
+      // key. At startup that was proven when the integration was saved; a bad
+      // key entered during a penalty fails on its first real request instead.
+      if (e.response?.status === 429) {
+        return {
+          success: true,
+          message: 'Connected, but Barrelman is rate-limiting this server for now',
         }
       }
       return { success: false, message: `Connection failed: ${e.message}` }
@@ -625,9 +693,15 @@ export class BarrelmanIntegration
     const icon: PlaceIcon | undefined = isIntersection
       ? { icon: 'Signpost', iconPack: 'lucide' as const }
       : buildPlaceIcon(presetMatch)
+    // Pelias rows have no tags to type them by beyond the address barrelman
+    // lends them, so a postal code or a city would read as an "Address".
+    const peliasLayer = r.categories?.[0]?.startsWith('pelias/')
+      ? r.categories[0].slice('pelias/'.length)
+      : null
     const placeTypeLabel = isIntersection
       ? 'Intersection'
-      : getPlaceType(tags, language, osmGeomHint as GeometryType) ||
+      : peliasLayerLabel(peliasLayer, language) ||
+        getPlaceType(tags, language, osmGeomHint as GeometryType) ||
         r.categories?.[0] ||
         'place'
 
@@ -757,6 +831,63 @@ export class BarrelmanIntegration
   }
 
   /**
+   * GTFS `route_type` to the mode string the rest of the pipeline uses.
+   *
+   * Barrelman's search rows carry `transit.mode` already; a station lookup
+   * returns its routes instead, so the mode is read off the first one. Covers
+   * the basic types and the extended HVT ranges, which agencies do publish.
+   */
+  private modeForRouteType(routeType: number | null | undefined): string | null {
+    const t = routeType ?? -1
+    if (t < 0) return null
+    if (t === 0 || (t >= 900 && t < 1000)) return 'tram'
+    if (t === 1 || (t >= 400 && t < 500)) return 'subway'
+    if (t === 2 || (t >= 100 && t < 300)) return 'rail'
+    if (t === 3 || (t >= 700 && t < 900)) return 'bus'
+    if (t === 11) return 'trolleybus'
+    if (t === 4 || t === 1000 || t === 1200) return 'ferry'
+    if (t === 5 || t === 1701) return 'cable_car'
+    if (t === 6 || t === 1300) return 'gondola'
+    if (t === 7 || t === 1400) return 'funicular'
+    if (t === 12 || t === 405) return 'monorail'
+    return null
+  }
+
+  /**
+   * A station from `/transit/station/:feedRef/:stopId` as a transit place.
+   *
+   * Shaped into the same pseudo-result a transit SEARCH hit produces and handed
+   * to the one adapter, so a station opened from the map and the same station
+   * found by search are the same object to the client — `transitStop` set, and
+   * therefore opening in the transit view rather than the place detail view.
+   */
+  private adaptStationToPlace(
+    station: any,
+    stopKey: string,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place | null {
+    if (!station?.stopId) return null
+    const [feedOnestopId] = stopKey.split(':')
+    const mode = this.modeForRouteType(station.routes?.[0]?.routeType)
+    return this.adaptTransitHit(
+      {
+        id: stopKey,
+        kind: 'transit_stop',
+        name: station.stopName ?? null,
+        geometry: { type: 'Point', coordinates: [station.lon, station.lat] },
+        transit: {
+          feedId: station.feedId,
+          feedOnestopId,
+          stopId: station.stopId,
+          mode,
+          agency: station.routes?.[0]?.agencyName ?? null,
+        },
+      } as any,
+      language,
+    )
+  }
+
+  /**
    * A transit search hit as a minimal pseudo-place. `transitLine` /
    * `transitStop` is what tells the rest of the pipeline (and the client)
    * that this row opens in the transit views, not the place detail view.
@@ -848,6 +979,7 @@ export class BarrelmanIntegration
     lng?: number,
     options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; language?: Language; signal?: AbortSignal },
   ): Promise<Place[]> {
+    const limit = options?.limit || 20
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -855,14 +987,15 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 20,
+        limit: options?.sort ? limit : limit * CODES_RERANK_POOL,
         semantic: true,
         ...(options?.sort ? { sort: options.sort } : {}),
         ...(options?.filter ? { filter: options.filter } : {}),
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    const hits = options?.sort ? (response.data || []) : rankCodesByProximity(response.data || [], limit)
+    return hits.map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
@@ -881,6 +1014,7 @@ export class BarrelmanIntegration
     // while a slow-but-live request is allowed to finish rather than being killed
     // mid-flight and surfacing as an empty result. The timeout is only a backstop
     // for a genuinely hung Barrelman.
+    const limit = options?.limit || 10
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
@@ -888,13 +1022,13 @@ export class BarrelmanIntegration
         lat,
         lng,
         radius: options?.radius,
-        limit: options?.limit || 10,
+        limit: limit * CODES_RERANK_POOL,
         semantic: false,
         autocomplete: true,
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) =>
+    return rankCodesByProximity(response.data || [], limit).map((r: any) =>
       r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
@@ -1053,6 +1187,27 @@ export class BarrelmanIntegration
       // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
       // rather than /place/:osmType/:osmId. Real OSM ids start with the element
       // type; anything else is treated as a geocoder gid.
+      // A transitland STOP KEY, `<feed-onestop-id>:<stop_id>`. This is the only
+      // identity a station carries on the map: portolan writes it into a
+      // station's `gtfs_ids`, and it is what the click falls back to when a
+      // station has no OSM match. It used to be resolved against transit.land's
+      // own API, which needs a key nobody holds once the transit data comes from
+      // Barrelman — so every station click 404'd. Barrelman has the stop, and
+      // its station route takes the feed's onestop id directly.
+      //
+      // Feed onestop ids always start with `f-`, which keeps this clear of
+      // Pelias gids (`openaddresses:address:…`, `whosonfirst:…`) that also
+      // carry a colon.
+      const stopKey = /^(f-[^:]+):(.+)$/.exec(id)
+      if (stopKey) {
+        const [, feedOnestopId, stopId] = stopKey
+        const response = await barrelmanSearchHttp.get(
+          `${this.config.host}/transit/station/${encodeURIComponent(feedOnestopId)}/${encodeURIComponent(stopId)}`,
+          { headers: this.headers, timeout: 10000 },
+        )
+        return this.adaptStationToPlace(response.data, id, options?.language)
+      }
+
       const isOsmId = /^(node|way|relation|intersection)\//.test(id)
       if (!isOsmId) {
         const response = await barrelmanSearchHttp.get(
@@ -1180,9 +1335,6 @@ export class BarrelmanIntegration
       throw new Error('At least 2 waypoints are required for routing')
     }
 
-    const host = this.config.host.replace(/\/$/, '')
-    const url = `${host}/route`
-
     const lang = request.language ? getLanguageCode(request.language) : 'en'
 
     // Build GraphHopper request body
@@ -1206,6 +1358,12 @@ export class BarrelmanIntegration
       ],
     }
 
+    // Favour leaving in the direction already travelled, so a reroute
+    // doesn't start with a U-turn.
+    if (request.startHeading != null) {
+      requestBody.headings = [request.startHeading]
+    }
+
     // Alternatives
     if (request.preferences?.alternatives) {
       requestBody.algorithm = 'alternative_route'
@@ -1218,8 +1376,18 @@ export class BarrelmanIntegration
       requestBody.custom_model = customModel
     }
 
+    const routing = this.routingTarget()
+    if (routing) {
+      try {
+        const response = await barrelmanHttp.post(`${routing.host}/route`, requestBody, { headers: routing.headers, timeout: 30_000 })
+        return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+      } catch (error: any) {
+        logWarn(`Barrelman routing host failed, using the main host: ${error.response?.status ?? error.message}`)
+      }
+    }
+
     try {
-      const response = await barrelmanHttp.post(url, requestBody, {
+      const response = await barrelmanHttp.post(`${this.config.host.replace(/\/$/, '')}/route`, requestBody, {
         headers: this.headers,
         timeout: 30_000,
       })
@@ -1238,6 +1406,48 @@ export class BarrelmanIntegration
       )
     }
   }
+
+  /** Until then, a barrelman without /route/lanes is not asked again. */
+  private lanesUnsupportedUntil = 0
+
+  private async getLanes(request: RouteLanesRequest): Promise<RouteLanes | null> {
+    // Way ids come from the routing graph, so the lanes come from the instance that routed.
+    const target = this.routingTarget() ?? (this.config.apiKey ? { host: this.config.host.replace(/\/$/, ''), headers: this.headers } : null)
+    if (!target || Date.now() < this.lanesUnsupportedUntil) return null
+    try {
+      const response = await barrelmanHttp.post(`${target.host}/route/lanes`, request, { headers: target.headers, timeout: 5_000 })
+      return response.data as RouteLanes
+    } catch (error: any) {
+      if (error.response?.status === 404) this.lanesUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman lanes unavailable: ${error.response?.status ?? error.message}`)
+      return null
+    }
+  }
+
+  private hazardsUnsupportedUntil = 0
+
+  private async getHazards(request: RoutePointHazardsRequest): Promise<RoutePointHazard[] | null> {
+    if (!this.config.apiKey || Date.now() < this.hazardsUnsupportedUntil) return null
+    try {
+      const response = await barrelmanHttp.post(`${this.config.host.replace(/\/$/, '')}/route/hazards`, request, {
+        headers: this.headers,
+        timeout: HAZARDS_TIMEOUT_MS,
+      })
+      return (response.data?.hazards as RoutePointHazard[]) ?? null
+    } catch (error: any) {
+      if (error.response?.status === 404) this.hazardsUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman route hazards unavailable: ${error.response?.status ?? error.message}`)
+      return null
+    }
+  }
+
+  private routingTarget(): { host: string; headers: Record<string, string> } | null {
+    const host = this.config.routingHost?.replace(/\/$/, '')
+    if (!host) return null
+    const key = this.config.routingApiKey ?? this.config.apiKey
+    return { host, headers: { 'Content-Type': 'application/json', ...(key && { Authorization: `Bearer ${key}` }) } }
+  }
+
 
   // ── GraphHopper profile mapping ───────────────────────────────
 
@@ -1273,13 +1483,15 @@ export class BarrelmanIntegration
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.post(
-        `${host}/transit/route`,
-        request,
-        {
-          headers: this.headers,
-          timeout: 25_000,
-        },
+      const response = await transitGate.run(TransitPriority.Core, () =>
+        barrelmanHttp.post(
+          `${host}/transit/route`,
+          request,
+          {
+            headers: this.headers,
+            timeout: 25_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1294,18 +1506,23 @@ export class BarrelmanIntegration
     }
   }
 
-  private async getIntermodalRoute(request: IntermodalRouteRequest): Promise<TransitRouteResponse> {
+  private async getIntermodalRoute(
+    request: IntermodalRouteRequest,
+    priority = TransitPriority.Core,
+  ): Promise<TransitRouteResponse> {
     const { host, apiKey } = this.config
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.post(
-        `${host}/transit/intermodal-route`,
-        request,
-        {
-          headers: this.headers,
-          timeout: 25_000,
-        },
+      const response = await transitGate.run(priority, () =>
+        barrelmanHttp.post(
+          `${host}/transit/intermodal-route`,
+          request,
+          {
+            headers: this.headers,
+            timeout: 25_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1320,45 +1537,19 @@ export class BarrelmanIntegration
     }
   }
 
-  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
-    const { host, apiKey } = this.config
-    if (!apiKey) throw new Error('Barrelman API key not configured')
-
-    const params = new URLSearchParams({
-      lat: String(request.lat),
-      lng: String(request.lng),
-    })
-    if (request.radius != null) params.set('radius', String(request.radius))
-    if (request.limit != null) params.set('limit', String(request.limit))
-
-    try {
-      const response = await barrelmanHttp.get(
-        `${host}/transit/stops?${params}`,
-        {
-          headers: this.headers,
-          timeout: 10_000,
-        },
-      )
-      return response.data
-    } catch (error: any) {
-      if (error.response) {
-        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
-      }
-      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
   private async getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]> {
     const { host, apiKey } = this.config
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await barrelmanHttp.get(
-        `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
-        {
-          headers: this.headers,
-          timeout: 10_000,
-        },
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(
+          `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
+          {
+            headers: this.headers,
+            timeout: 10_000,
+          },
+        ),
       )
       return response.data
     } catch (error: any) {
@@ -1366,6 +1557,27 @@ export class BarrelmanIntegration
         throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
       }
       throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getStopDepartures(query: StopDeparturesQuery): Promise<StopBoard[] | null> {
+    const params = new URLSearchParams({
+      feedId: query.feedId,
+      stopId: query.stopId,
+      time: query.time,
+      windowMinutes: String(query.windowMinutes),
+      n: String(query.n),
+    })
+    try {
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(`${this.config.host}/transit/departures?${params}`, {
+          headers: this.headers,
+          timeout: 10_000,
+        }),
+      )
+      return Array.isArray(response.data) ? response.data : null
+    } catch {
+      return null
     }
   }
 
@@ -1384,12 +1596,14 @@ export class BarrelmanIntegration
         maxDistance: String(maxDistanceM),
         ...(wheelchair && { wheelchair: 'true' }),
       })
-      const response = await barrelmanHttp.get(
-        `${host}/transit/nearest-entrance?${params}`,
-        {
-          headers: this.headers,
-          timeout: 5_000,
-        },
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(
+          `${host}/transit/nearest-entrance?${params}`,
+          {
+            headers: this.headers,
+            timeout: 5_000,
+          },
+        ),
       )
       return response.data
     } catch {

@@ -28,6 +28,7 @@ import {
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import BuildingShadeSection from '@/components/settings/developer/BuildingShadeSection.vue'
+import BatteryRunSection from '@/components/settings/developer/BatteryRunSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -37,6 +38,7 @@ import {
   simulatorStore,
   type SimulatorState,
 } from '@/dev/gpx-simulator'
+import { simulateNavigation } from '@/dev/guidance/simulate-navigation'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useUserService } from '@/services/user.service'
 import { useAuthService } from '@/services/auth.service'
@@ -158,7 +160,7 @@ async function forceBroadcast() {
     await locationBroadcast.broadcastNow()
     appService.toast.success('Location broadcast sent')
   } catch (err) {
-    appService.toast.error('Broadcast failed')
+    appService.toast.error('Broadcast failed', { cause: err })
   } finally {
     isBroadcasting.value = false
   }
@@ -214,6 +216,14 @@ onMounted(() => {
       :title="$t('settings.developer.gpxSimulator.title')"
       :description="$t('settings.developer.gpxSimulator.description')"
     >
+      <SettingsItem
+        :title="$t('settings.developer.gpxSimulator.simulateNavigation')"
+        :description="$t('settings.developer.gpxSimulator.simulateNavigationDescription')"
+        :icon="NavigationIcon"
+      >
+        <Switch v-model="simulateNavigation" />
+      </SettingsItem>
+
       <!-- File picker / current track row -->
       <SettingsItem
         :title="
@@ -425,6 +435,8 @@ onMounted(() => {
     </SettingsSection>
 
     <BuildingShadeSection />
+
+    <BatteryRunSection />
 
     <SettingsSection
       id="dev-info"

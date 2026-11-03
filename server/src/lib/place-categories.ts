@@ -323,6 +323,8 @@ const nonMakiFallbackMap: Record<string, { icon: string; iconPack: 'lucide' | 'm
   'temaki-pedestrian': { icon: 'marker', iconPack: 'maki' },
   'temaki-storage_tank': { icon: 'industry', iconPack: 'maki' },
   'temaki-power': { icon: 'industry', iconPack: 'maki' },
+  // Device charging stations: a plug reads better than the generic marker.
+  'temaki-electronic': { icon: 'PlugZap', iconPack: 'lucide' },
   'temaki-shinto': { icon: 'religious-shinto', iconPack: 'maki' },
   'temaki-rail_profile': { icon: 'rail', iconPack: 'maki' },
   'temaki-light_rail': { icon: 'rail-light', iconPack: 'maki' },

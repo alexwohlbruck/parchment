@@ -128,6 +128,26 @@ describe('transit descriptor', () => {
     expect(transit!.params.routeTypes).toBeUndefined()
   })
 
+  test('asks for the whole complex from a subway stop position', () => {
+    // Grand Central's 4/5/6 stop position sits nearer the 7's platforms, which
+    // share its GTFS name, so a single-station board showed only the 7.
+    const transit = findDescriptor(
+      place({ tags: { public_transport: 'stop_position', railway: 'stop', subway: 'yes' } }),
+      WidgetType.TRANSIT,
+    )
+
+    expect(transit!.params.complex).toBe('1')
+  })
+
+  test('keeps a station to its own board', () => {
+    const transit = findDescriptor(
+      place({ tags: { public_transport: 'station', station: 'subway' } }),
+      WidgetType.TRANSIT,
+    )
+
+    expect(transit!.params.complex).toBeUndefined()
+  })
+
   test('is not emitted for the aerial lift line itself', () => {
     const types = descriptorTypes(
       place({ tags: { aerialway: 'cable_car' }, placeType: { value: 'Cable Car' } }),

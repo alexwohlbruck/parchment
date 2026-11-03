@@ -7,6 +7,8 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useCategoryStore } from '@/stores/category.store'
 import { useSyncStore } from '@/stores/sync.store'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import { useCollectionKeysStore } from '@/stores/library/collection-keys.store'
 
 /**
  * Clear all cached user data from localStorage and Pinia stores.
@@ -24,6 +26,8 @@ export function clearAllUserCaches() {
   categoryStore.clearCache()
   // Un-replayed offline writes belong to the signed-out session.
   syncStore.clear()
+  useEncryptedPointsStore().clear()
+  useCollectionKeysStore().clear()
   
   // Clear any other localStorage keys that should be removed on sign out
   // Add additional keys here as needed

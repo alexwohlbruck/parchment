@@ -306,6 +306,15 @@ describe('mergePlacesCollection — merge decisions', () => {
     expect(merged).toHaveLength(2)
   })
 
+  test('never merges two geocoder rows, such as a street and an address on it', () => {
+    const merged = mergePlacesCollection([
+      place({ id: 'street', name: 'Elm Street', externalIds: { [SOURCE.PELIAS]: 'openstreetmap:street:polyline:1' } }),
+      place({ id: 'address', name: '1100 Elm Street', externalIds: { [SOURCE.PELIAS]: 'openaddresses:address:us/nc/charlotte:1' } }),
+    ])
+
+    expect(merged).toHaveLength(2)
+  })
+
   test('never merges an intersection with a non-intersection', () => {
     // A tram stop named after the crossing sits right on top of it.
     const merged = mergePlacesCollection([

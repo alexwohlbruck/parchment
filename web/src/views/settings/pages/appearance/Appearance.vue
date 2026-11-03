@@ -24,17 +24,20 @@ import {
   MapPinIcon,
   RouteIcon,
   DoorOpenIcon,
+  SunIcon,
 } from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map/map.service'
-import { MapEngine, type MapStyleId, type PoiStyleId } from '@/types/map.types'
+import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import { CommandName } from '@/stores/command.store'
 import Layers from '@/components/library/layers/LayerList.vue'
+import ControlSettingsSection from '@/components/map/controls/ControlSettingsSection.vue'
 
 // Theme store
 const themeStore = useThemeStore()
@@ -121,7 +124,10 @@ const handleColorChange = (value: any) => {
         </div>
       </SettingsItem>
 
-      <SettingsItem :title="$t('settings.appearance.appTheme.theme.title')">
+      <SettingsItem
+        :title="$t('settings.appearance.appTheme.theme.title')"
+        :command-id="CommandName.TOGGLE_THEME"
+      >
         <Select
           :model-value="isDark ? 'dark' : 'light'"
           @update:model-value="value => toggleDark(value === 'dark')"
@@ -171,7 +177,33 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.configuration.shadows.title')"
+        :description="
+          $t('settings.mapSettings.configuration.shadows.description')
+        "
+        :icon="SunIcon"
+      >
+        <Select
+          :model-value="settings.shadows"
+          @update:model-value="v => (settings.shadows = v as ShadowMode)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="mode in Object.values(ShadowMode)"
+              :key="mode"
+              :value="mode"
+            >
+              {{ $t(`settings.mapSettings.configuration.shadows.values.${mode}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
         :badge="$t('settings.mapSettings.configuration.experimental')"
@@ -183,7 +215,6 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.hdRoads')"
         :description="
           $t('settings.mapSettings.configuration.hdRoadsDescription')
@@ -192,19 +223,17 @@ const handleColorChange = (value: any) => {
         :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
-          :model-value="settings.hdRoads"
+          :model-value="mapStore.hdRoads"
           @update:model-value="mapService.toggleHdRoads()"
         />
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.indoorMaps')"
         :description="
           $t('settings.mapSettings.configuration.indoorMapsDescription')
         "
         :icon="DoorOpenIcon"
-        :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
           :model-value="settings.indoorMaps"
@@ -252,6 +281,8 @@ const handleColorChange = (value: any) => {
         />
       </SettingsItem>
     </SettingsSection>
+
+    <ControlSettingsSection />
 
     <SettingsSection
       id="style"

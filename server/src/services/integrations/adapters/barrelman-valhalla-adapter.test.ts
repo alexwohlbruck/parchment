@@ -328,17 +328,36 @@ describe('instructions', () => {
     expect(instruction.streetName).toBe('Main St')
   })
 
-  test('parses a motorway exit number', () => {
+  test('reads the motorway exit number and destinations off the sign', () => {
     const [instruction] = withManeuvers({
-      type: 1,
+      type: 20,
       instruction: 'Take exit 12',
       length: 1,
       time: 30,
       begin_shape_index: 0,
-      sign: { exit_number: '12' },
+      sign: {
+        exit_number_elements: [{ text: '12' }],
+        exit_branch_elements: [{ text: 'I 278' }],
+        exit_toward_elements: [{ text: 'Brooklyn' }],
+      },
     })
 
-    expect(instruction.exitNumber).toBe(12)
+    expect(instruction.exitRef).toBe('12')
+    expect(instruction.destination).toBe('I 278, Brooklyn')
+    expect(instruction.exitNumber).toBeUndefined()
+  })
+
+  test('takes a roundabout exit from its exit count', () => {
+    const [instruction] = withManeuvers({
+      type: 26,
+      instruction: 'Enter the roundabout',
+      length: 1,
+      time: 30,
+      begin_shape_index: 0,
+      roundabout_exit_count: 3,
+    })
+
+    expect(instruction.exitNumber).toBe(3)
   })
 
   test('leaves the exit number undefined when absent', () => {

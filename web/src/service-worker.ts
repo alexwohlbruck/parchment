@@ -54,7 +54,7 @@ const DAY = 24 * 60 * 60
 // the page origin) and the third-party raster hosts used by the basemap.
 const TILE_PROXY_PATH = /\/proxy\/[^/]+\//
 const TILE_HOSTS =
-  /(^|\.)(arcgisonline\.com|elevation-tiles-prod\.s3\.amazonaws\.com|tile\.openstreetmap\.org|opentopomap\.org|openrailwaymap\.org|openseamap\.org)$/
+  /(^|\.)(arcgisonline\.com|elevation-tiles-prod\.s3\.amazonaws\.com|tiles\.mapterhorn\.com|tile\.openstreetmap\.org|opentopomap\.org|openrailwaymap\.org|openseamap\.org)$/
 
 const stripAuthParams = {
   cacheKeyWillBeUsed: async ({ request }: { request: Request }) => {

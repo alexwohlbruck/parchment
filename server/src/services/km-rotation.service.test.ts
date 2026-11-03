@@ -168,6 +168,37 @@ describe('commitRotation — writes', () => {
     expect(dbMock.updated[1]).toMatchObject({ metadataEncrypted: 'meta-1' })
   })
 
+  test('re-seals a private collection’s points in the same commit', async () => {
+    await commitRotation({
+      ...baseParams,
+      collections: [
+        {
+          id: 'col-1',
+          metadataEncrypted: 'meta',
+          points: [
+            { id: 'pt-1', encryptedData: 'p1' },
+            { id: 'pt-2', encryptedData: 'p2' },
+          ],
+        },
+      ],
+    })
+
+    // User row, collection metadata, then one update per point.
+    expect(dbMock.updateCount).toBe(4)
+    expect(dbMock.updated[2]).toMatchObject({ encryptedData: 'p1' })
+    expect(dbMock.updated[3]).toMatchObject({ encryptedData: 'p2' })
+  })
+
+  test('re-seals points even without a metadata envelope', async () => {
+    await commitRotation({
+      ...baseParams,
+      collections: [{ id: 'col-1', points: [{ id: 'pt-1', encryptedData: 'p1' }] }],
+    })
+
+    expect(dbMock.updateCount).toBe(2)
+    expect(dbMock.updated[1]).toMatchObject({ encryptedData: 'p1' })
+  })
+
   test('upserts every re-sealed wrapped-key slot', async () => {
     await commitRotation({
       ...baseParams,

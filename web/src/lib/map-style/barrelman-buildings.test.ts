@@ -9,7 +9,10 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
+  barrelmanBuildingsTiles,
   setBarrelmanBuildingsReady,
+  recallBarrelmanBuildings,
+  rememberBarrelmanBuildings,
 } from './barrelman-buildings'
 
 const CENTRE = { lng: -80.8431, lat: 35.2271 } // Charlotte
@@ -73,5 +76,59 @@ describe('probeBarrelmanBuildings', () => {
     // z14 tile containing Charlotte — a fixed tile would answer for open ocean
     // on an instance whose view exists but was never populated.
     expect(fetchMock.mock.calls[0][0]).toBe('https://tiles.test/buildings_3d/14/4512/6477')
+  })
+
+  test('remembers which tiles answered, so a member can stand in for the bundle', async () => {
+    // A Barrelman from before bundles: `detail` 404s, `buildings_3d` serves.
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => ({
+      ok: u.includes('/buildings_3d/'),
+      arrayBuffer: async () => new ArrayBuffer(64),
+    })) as any)
+    const tile = (tiles: string) => (z: number, x: number, y: number) => `https://tiles.test/${tiles}/${z}/${x}/${y}`
+    await probeBarrelmanBuildings(tile('detail'), CENTRE, 'detail')
+    expect(barrelmanBuildingsTiles()).toBeNull()
+    const changed = await probeBarrelmanBuildings(tile('buildings_3d'), CENTRE, 'buildings_3d')
+    expect(changed).toBe(true)
+    expect(barrelmanBuildingsTiles()).toBe('buildings_3d')
+  })
+})
+
+describe('remembering the answer between sessions', () => {
+  const SERVER = 'https://api.test/proxy/barrelman'
+  beforeEach(() => localStorage.clear())
+
+  test('a later session starts from the last answer, so the style is built on it at once', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null) // a new page load
+    recallBarrelmanBuildings(SERVER)
+    expect(barrelmanBuildingsReady()).toBe(true)
+    expect(barrelmanBuildingsTiles()).toBe('detail')
+  })
+
+  test('the answer belongs to one tile server', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings('https://other.test/proxy/barrelman')
+    expect(barrelmanBuildingsReady()).toBe(false)
+    expect(barrelmanBuildingsTiles()).toBe(null)
+  })
+
+  test('a remembered yes is still checked, and a source that went away is noticed', async () => {
+    vi.stubGlobal('fetch', answer({ ok: true, bytes: 1024 }))
+    await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    rememberBarrelmanBuildings(SERVER)
+
+    setBarrelmanBuildingsReady(null)
+    recallBarrelmanBuildings(SERVER)
+    vi.stubGlobal('fetch', answer({ ok: false }))
+    const changed = await probeBarrelmanBuildings(url, CENTRE, 'detail')
+    expect(changed).toBe(true)
+    expect(barrelmanBuildingsReady()).toBe(false)
   })
 })

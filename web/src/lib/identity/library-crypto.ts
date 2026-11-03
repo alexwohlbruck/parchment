@@ -84,13 +84,34 @@ function canvasAAD(params: { userId: string; canvasId: string }): AAD {
   }
 }
 
+/**
+ * Where a collection key comes from: the owner derives it from their seed, a
+ * share recipient holds it outright for the collection's current version.
+ */
+export type CollectionKeySource = { seed: Uint8Array } | { key: Uint8Array }
+
+function collectionKeyFrom(
+  source: CollectionKeySource,
+  collectionId: string,
+  version: number,
+): Uint8Array {
+  return 'key' in source
+    ? source.key
+    : deriveCollectionKey(source.seed, collectionId, version)
+}
+
 export function encryptCollectionMetadata(params: {
   metadata: CollectionMetadata
-  seed: Uint8Array
+  source: CollectionKeySource
   userId: string
   collectionId: string
+  keyVersion?: number
 }): string {
-  const key = deriveCollectionKey(params.seed, params.collectionId)
+  const key = collectionKeyFrom(
+    params.source,
+    params.collectionId,
+    params.keyVersion ?? 1,
+  )
   return encryptEnvelopeString({
     plaintext: JSON.stringify(params.metadata),
     key,
@@ -101,22 +122,62 @@ export function encryptCollectionMetadata(params: {
   })
 }
 
+/**
+ * Older envelopes were sealed under the v1 key regardless of rotation, or
+ * with the points' AAD context by the scheme switch; both still open.
+ */
 export function decryptCollectionMetadata(params: {
   envelope: string
-  seed: Uint8Array
+  source: CollectionKeySource
   userId: string
   collectionId: string
+  keyVersion?: number
 }): CollectionMetadata {
-  const key = deriveCollectionKey(params.seed, params.collectionId)
-  const plaintext = decryptEnvelopeString({
-    envelope: params.envelope,
-    key,
-    aad: collectionAAD({
-      userId: params.userId,
-      collectionId: params.collectionId,
-    }),
-  })
-  return JSON.parse(plaintext) as CollectionMetadata
+  const version = params.keyVersion ?? 1
+  const attempts: Array<{ version: number; aad: AAD }> = [
+    { version, aad: collectionAAD(params) },
+    {
+      version,
+      aad: {
+        ...collectionAAD(params),
+        keyContext: `parchment-collection-${params.collectionId}`,
+      },
+    },
+    // Only the owner can re-derive an older version's key.
+    ...('seed' in params.source ? [{ version: 1, aad: collectionAAD(params) }] : []),
+  ]
+
+  let lastError: unknown
+  for (const attempt of attempts) {
+    try {
+      const plaintext = decryptEnvelopeString({
+        envelope: params.envelope,
+        key: collectionKeyFrom(params.source, params.collectionId, attempt.version),
+        aad: attempt.aad,
+      })
+      return JSON.parse(plaintext) as CollectionMetadata
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError
+}
+
+/** The display metadata a hydrated collection carries. */
+export function collectionMetadataOf(collection: {
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconPack?: 'lucide' | 'maki' | null
+  iconColor?: string | null
+}): CollectionMetadata {
+  return {
+    name: collection.name ?? undefined,
+    description: collection.description ?? undefined,
+    icon: collection.icon ?? undefined,
+    iconPack: collection.iconPack ?? undefined,
+    iconColor: collection.iconColor ?? undefined,
+  }
 }
 
 /**
@@ -139,6 +200,43 @@ export function collectionPointAAD(params: {
   }
 }
 
+/** The place a point holds, before it has an id. */
+export type CollectionPointFields = Omit<DecryptedPoint, 'id'>
+
+/**
+ * Seal a place as a point. `pointId` is minted by the caller: the AAD binds
+ * it, so it has to exist before the server sees the row.
+ */
+export function encryptCollectionPoint(params: {
+  point: CollectionPointFields
+  pointId: string
+  source: CollectionKeySource
+  ownerUserId: string
+  collectionId: string
+  keyVersion?: number
+}): string {
+  const { point } = params
+  return encryptEnvelopeString({
+    plaintext: JSON.stringify({
+      externalIds: point.externalIds,
+      name: point.name,
+      address: point.address ?? null,
+      lat: point.lat,
+      lng: point.lng,
+      icon: point.icon,
+      iconPack: point.iconPack,
+      iconColor: point.iconColor,
+      frequentType: point.frequentType ?? null,
+    }),
+    key: collectionKeyFrom(params.source, params.collectionId, params.keyVersion ?? 1),
+    aad: collectionPointAAD({
+      collectionId: params.collectionId,
+      pointId: params.pointId,
+      ownerUserId: params.ownerUserId,
+    }),
+  })
+}
+
 /**
  * Decrypt one stored point into the plaintext place it represents.
  *
@@ -148,13 +246,13 @@ export function collectionPointAAD(params: {
  */
 export function decryptCollectionPoint(params: {
   point: { id: string; encryptedData: string }
-  seed: Uint8Array
+  source: CollectionKeySource
   ownerUserId: string
   collectionId: string
   keyVersion?: number
 }): DecryptedPoint {
-  const key = deriveCollectionKey(
-    params.seed,
+  const key = collectionKeyFrom(
+    params.source,
     params.collectionId,
     params.keyVersion ?? 1,
   )

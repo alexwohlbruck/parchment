@@ -1,19 +1,31 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { DEFAULT_VEHICLE_COLOR, inkOn } from '@/lib/guidance/vehicle-indicator'
+
 interface Props {
   accuracy: number | null
   heading: number | null
   mode?: 'dot' | 'navigation'
+  color?: string
+  /** Navigating without a usable fix: the position is dead-reckoned. */
+  estimated?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'dot',
+  color: DEFAULT_VEHICLE_COLOR,
+  estimated: false,
 })
+const emit = defineEmits<{ select: [] }>()
+
+const ink = computed(() => inkOn(props.color))
 </script>
 
 <template>
   <div
     class="user-location-marker"
-    :class="{ 'navigation-mode': props.mode === 'navigation' }"
+    :class="{ 'navigation-mode': props.mode === 'navigation', estimated: props.mode === 'navigation' && props.estimated }"
+    @click="props.mode === 'dot' && emit('select')"
   >
     <!--
       Compass direction beam (dot mode). Points "up" in the marker's local
@@ -42,29 +54,16 @@ const props = withDefaults(defineProps<Props>(), {
     <!-- Blue dot (dot mode) -->
     <div v-if="props.mode === 'dot'" class="location-dot" />
 
-    <!-- Navigation arrow (navigation mode) -->
-    <div
-      v-if="props.mode === 'navigation'"
-      class="navigation-arrow"
-      :style="{ transform: `rotate(${props.heading ?? 0}deg)` }"
-    >
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 40 40"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <!-- Directional chevron / arrow -->
-        <path
-          d="M20 4L32 28L20 22L8 28L20 4Z"
-          fill="hsl(var(--primary))"
-          stroke="white"
-          stroke-width="2"
-          stroke-linejoin="round"
-        />
+    <!-- Rotated and laid on the map by the layer; fades to a dot while the heading is unknown. -->
+    <template v-if="props.mode === 'navigation'">
+      <div v-if="props.estimated" class="uncertainty-halo" :style="{ background: props.color }" />
+      <svg class="navigation-arrow" width="46" height="46" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="23" cy="23" r="20" fill="white" />
+        <circle cx="23" cy="23" r="16.5" :fill="props.color" />
+        <path d="M23 10.5L31.5 32L23 27.2L14.5 32Z" :fill="ink" stroke-linejoin="round" :stroke="ink" stroke-width="1.5" />
       </svg>
-    </div>
+      <div class="navigation-dot" :style="{ background: props.color }" />
+    </template>
   </div>
 </template>
 
@@ -76,6 +75,10 @@ const props = withDefaults(defineProps<Props>(), {
   justify-content: center;
   width: 48px;
   height: 48px;
+}
+
+.user-location-marker:not(.navigation-mode) {
+  cursor: pointer;
 }
 
 .location-dot {
@@ -123,10 +126,61 @@ const props = withDefaults(defineProps<Props>(), {
   z-index: 1;
 }
 
-.navigation-arrow {
+.navigation-arrow,
+.navigation-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 2;
-  transition: transform 0.3s ease;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+  transition: opacity 0.3s ease;
+}
+
+.navigation-arrow {
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
+  opacity: var(--heading-opacity, 1);
+}
+
+.navigation-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  opacity: calc(1 - var(--heading-opacity, 1));
+}
+
+.estimated .navigation-arrow {
+  opacity: calc(var(--heading-opacity, 1) * 0.55);
+  filter: saturate(0.4) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.estimated .navigation-dot {
+  opacity: calc((1 - var(--heading-opacity, 1)) * 0.55);
+}
+
+.uncertainty-halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.16;
+  z-index: 1;
+  pointer-events: none;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 @keyframes pulse {

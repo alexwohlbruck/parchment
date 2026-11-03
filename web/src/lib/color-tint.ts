@@ -108,6 +108,11 @@ const COLOR_TINTS = {
     light: { bg: null, fg: { l: 42, s: 1 }, ring: null },
     dark: { bg: null, fg: { l: 80, s: 0.85 }, ring: null },
   },
+  /** A mini map dot: filled in the foreground, edged in the background. */
+  dot: {
+    light: { bg: { l: 88, s: 0.7 }, fg: { l: 30, s: 0.95 }, ring: null },
+    dark: { bg: { l: 21, s: 0.75 }, fg: { l: 42, s: 0.8 }, ring: null },
+  },
 } as const
 
 export type ColorTint = {
@@ -126,7 +131,7 @@ export type ColorTint = {
  */
 export function getCustomColorTint(
   color: string,
-  variant: 'solid' | 'ghost',
+  variant: keyof typeof COLOR_TINTS,
   isDark: boolean,
 ): ColorTint | null {
   const hsl = parseColorToHsl(color)

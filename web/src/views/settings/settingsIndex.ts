@@ -153,18 +153,6 @@ export const settingsIndex: SettingsPageDef[] = [
         ],
       },
       {
-        id: 'controls',
-        titleKey: 'settings.mapSettings.controls.title',
-        items: [
-          { titleKey: 'settings.mapSettings.controls.zoom' },
-          { titleKey: 'settings.mapSettings.controls.compass' },
-          { titleKey: 'settings.mapSettings.controls.scale' },
-          { titleKey: 'settings.mapSettings.controls.streetView' },
-          { titleKey: 'settings.mapSettings.controls.locate' },
-          { titleKey: 'settings.mapSettings.controls.weather' },
-        ],
-      },
-      {
         id: 'location',
         titleKey: 'settings.mapSettings.location.title',
         items: [
@@ -190,6 +178,12 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'settings.behavior.units.title',
         descriptionKey: 'settings.behavior.units.description',
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
+      },
+      {
+        id: 'navigation',
+        titleKey: 'guidance.settings.title',
+        descriptionKey: 'guidance.settings.cameraModeDescription',
+        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn'],
       },
     ],
   },
@@ -229,6 +223,22 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.configuration.roadLabels' },
           { titleKey: 'settings.mapSettings.configuration.transitLabels' },
           { titleKey: 'settings.mapSettings.configuration.placeLabels' },
+        ],
+      },
+      {
+        id: 'controls',
+        titleKey: 'settings.mapSettings.controls.title',
+        items: [
+          { titleKey: 'settings.mapSettings.controls.zoom' },
+          { titleKey: 'settings.mapSettings.controls.compass' },
+          { titleKey: 'settings.mapSettings.controls.scale' },
+          { titleKey: 'settings.mapSettings.controls.streetView' },
+          { titleKey: 'settings.mapSettings.controls.locate' },
+          { titleKey: 'settings.mapSettings.controls.weather' },
+          {
+            titleKey: 'settings.mapSettings.controls.camera',
+            descriptionKey: 'settings.mapSettings.controls.cameraDescription',
+          },
         ],
       },
       {
@@ -353,6 +363,12 @@ export const settingsIndex: SettingsPageDef[] = [
               titleKey: 'settings.developer.buildingShading.title',
               descriptionKey: 'settings.developer.buildingShading.description',
               keywords: ['building', 'shadow', 'shading', 'occlusion', 'edge', '3d', 'lighting'],
+            },
+            {
+              id: 'battery-run',
+              titleKey: 'settings.developer.batteryRun.title',
+              descriptionKey: 'settings.developer.batteryRun.description',
+              keywords: ['battery', 'power', 'saver', 'drain', 'gps'],
             },
             {
               id: 'dev-info',

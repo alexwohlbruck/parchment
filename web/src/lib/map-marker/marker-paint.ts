@@ -78,3 +78,6 @@ export function markerPaint(
     ring: tint?.ring ?? ink,
   }
 }
+
+/** The pin dropped on the place being viewed. */
+export const SELECTED_MARKER_COLOR = '#2563eb'

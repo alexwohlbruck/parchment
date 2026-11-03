@@ -27,14 +27,14 @@ function badgeStyle(chip: Extract<TripChip, { kind: 'transit' }>) {
         class="size-3 shrink-0 text-muted-foreground/40"
       />
 
-      <span v-if="chip.kind === 'transit'" class="inline-flex items-center gap-1">
+      <span v-if="chip.kind === 'transit'" class="inline-flex items-center gap-1 min-w-0">
         <component
           :is="getSegmentIcon('transit', chip.routeType)"
           class="size-3.5 text-muted-foreground"
         />
         <span
           v-if="chip.label"
-          class="rounded px-1.5 py-px text-[11px] font-bold leading-[1.35] text-white"
+          class="rounded px-1.5 py-px text-[11px] font-bold leading-[1.35] text-white truncate max-w-40"
           :class="!chip.color && getTravelModeCssClass('transit')"
           :style="badgeStyle(chip)"
         >

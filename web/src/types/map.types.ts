@@ -3,6 +3,7 @@ import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 import { Image, PointOfView } from 'mapillary-js'
 import { Place } from '@/types/place.types'
+import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
 
 // TODO: Use types from official libs
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
@@ -82,6 +83,13 @@ export enum GridSnapMode {
   ALL = 'all',
 }
 
+export enum ShadowMode {
+  OFF = 'off',
+  /** Only once the camera tilts away from the flat top-down view. */
+  TILTED = 'tilted',
+  ALWAYS = 'always',
+}
+
 export enum FloorNumbering {
   ZERO_BASED = 'zero-based',
   ONE_BASED = 'one-based',
@@ -104,11 +112,14 @@ export interface MapSettings {
    * `buildings3d`, which used to carry both.
    */
   objects3d: boolean
+  /** Cast shadows and ground occlusion under 3D buildings and objects. MapLibre only. */
+  shadows: ShadowMode
   poiLabels: boolean
   roadLabels: boolean
   transitLabels: boolean
   placeLabels: boolean
-  hdRoads: boolean
+  /** `null` until the user chooses; see `resolveHdRoads`. */
+  hdRoads: boolean | null
   /**
    * Render indoor floor plans (airports, malls, stadiums) with a floor
    * selector. Mapbox Standard style only, and only from zoom 16.
@@ -217,6 +228,7 @@ export type MapEvents = {
   'click:tracker-marker': {
     trackerId: string
   }
+  indoor: IndoorFocus
 }
 
 export enum SourceType {
@@ -436,6 +448,7 @@ export interface MapControlSettings {
     | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
   weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  camera: ControlVisibility.ALWAYS | ControlVisibility.NEVER
 }
 
 export enum UnitSystem {

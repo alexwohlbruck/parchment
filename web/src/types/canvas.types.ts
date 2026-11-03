@@ -17,8 +17,9 @@ import type { FeatureCollection, Position } from 'geojson'
 import type { MapEngine } from '@/types/map.types'
 import { MARKER_PLATE_SIZE } from '@/lib/map-marker/marker-metrics.mjs'
 import type { MarkerShape } from '@/lib/map-marker/marker-shape'
+import type { EncryptionScheme } from '@/types/library.types'
 
-export type CanvasScheme = 'server-key' | 'user-e2ee'
+export type CanvasScheme = EncryptionScheme
 
 /** A style layer authored in the layer editor. Its source is inlined. */
 export interface CanvasStyleLayer {

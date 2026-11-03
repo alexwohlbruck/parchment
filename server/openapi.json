@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to.",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street instructions carry `exitNumber` for roundabouts and, where the map signposts the maneuver, `exitRef` (a motorway exit's number) and `destination` (where the signs point). Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low clearances, school zones, where a bike lane ends or starts partway along a road, and the like, placed by distance along the segment. Some depend on conditions: unlit paths after sunset, flood-prone roads when rain is forecast, bridges at 2 °C or below, and speed cameras only where warning of them is lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic calming, movable bridges, speed cameras, bike lanes starting) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it.",
         "tags": [
           "Trip Planning"
         ],
@@ -1239,6 +1239,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -1613,6 +1624,17 @@
                         "dwellTime": {
                           "minimum": 0,
                           "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -1985,6 +2007,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -2308,6 +2341,488 @@
         }
       }
     },
+    "/directions/reroute": {
+      "post": {
+        "parameters": [],
+        "operationId": "postDirectionsReroute",
+        "summary": "Reroute the current segment during navigation",
+        "description": "Plans a fresh street route from where the traveller is to the end of the segment they are on, favouring the direction they are already heading so the new route does not open with a U-turn. Send a position projected a few seconds ahead of the last fix. Returns one segment in the same shape as a `/directions` trip segment.",
+        "tags": [
+          "Trip Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/directions/alternatives": {
+      "post": {
+        "parameters": [],
+        "operationId": "postDirectionsAlternatives",
+        "summary": "Alternative routes for the rest of the current segment",
+        "description": "The same request as `/reroute`, answered with up to three routes from where the traveller is to the end of their segment. Each is a segment like `/reroute` returns, plus `metrics`: `duration`, `distance`, `turns`, `protectedShare` and `majorRoadShare` (fractions of distance), `crossings`, and `via`, the street carrying most of the route.",
+        "tags": [
+          "Trip Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "heading": {
+                    "minimum": 0,
+                    "maximum": 360,
+                    "type": "number"
+                  },
+                  "speed": {
+                    "minimum": 0,
+                    "description": "Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.",
+                    "type": "number"
+                  },
+                  "destination": {
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "type": "number"
+                      },
+                      "lng": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "position",
+                  "destination",
+                  "mode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/directions/vehicle-types": {
       "get": {
         "operationId": "getDirectionsVehicle-types",
@@ -2390,6 +2905,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -2764,6 +3290,17 @@
                         "dwellTime": {
                           "minimum": 0,
                           "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
+                          "type": "number"
                         }
                       },
                       "required": [
@@ -3136,6 +3673,17 @@
                         },
                         "dwellTime": {
                           "minimum": 0,
+                          "type": "number"
+                        },
+                        "heading": {
+                          "minimum": 0,
+                          "maximum": 360,
+                          "description": "Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.",
+                          "type": "number"
+                        },
+                        "speed": {
+                          "minimum": 0,
+                          "description": "Origin only: the device speed in m/s.",
                           "type": "number"
                         }
                       },
@@ -3857,6 +4405,7 @@
           "Feedback"
         ],
         "summary": "List feedback boards",
+        "description": "Lists available feedback boards and whether automatic portal login is configured.",
         "responses": {
           "200": {}
         }
@@ -3949,6 +4498,235 @@
         },
         "responses": {
           "200": {}
+        }
+      }
+    },
+    "/feedback/portal-login": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "format": "uri",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "format": "uri",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "format": "uri",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postFeedbackPortal-login",
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Sign in to the feedback portal",
+        "description": "Exchanges the authenticated Parchment identity for a one-time feedback portal login URL. Staff accounts receive the ordinary portal URL. No passwords or reusable provider session tokens are returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postUrl": {
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postUrl": {
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postUrl": {
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -4292,6 +5070,92 @@
           "GBFS"
         ],
         "summary": "GBFS system catalog",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/gbfs/station": {
+      "get": {
+        "operationId": "getGbfsStation",
+        "tags": [
+          "GBFS"
+        ],
+        "summary": "One station with live availability",
+        "description": "By `systemId` + `stationId`, or the station nearest `lat`/`lng` within `radius` metres.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/gbfs/station/alternatives": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "lat",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "lng",
+            "required": true
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "dock",
+                  "type": "string"
+                },
+                {
+                  "const": "bike",
+                  "type": "string"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "need",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 1
+            },
+            "in": "query",
+            "name": "min",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "toLat",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "number"
+            },
+            "in": "query",
+            "name": "toLng",
+            "required": false
+          }
+        ],
+        "operationId": "getGbfsStationAlternatives",
+        "tags": [
+          "GBFS"
+        ],
+        "summary": "Stations to switch to when one fills up or runs dry",
+        "description": "Nearby stations within 700 m of `lat`/`lng` holding at least `min` (default 3) free docks (`need=dock`) or bikes (`need=bike`), excluding the original. Ranked by distance to `toLat`/`toLng` (where the traveller goes next) when given, else to the original. Requires the premium navigation permission.",
         "responses": {
           "200": {}
         }
@@ -6211,6 +7075,7 @@
           "Library"
         ],
         "summary": "Create a new collection",
+        "description": "Creates a collection, `server-key` unless `scheme` says otherwise. A server-key collection takes cleartext metadata. A user-e2ee collection takes none: the client seals it with `PUT /:id` once the id exists, and cleartext fields are rejected with 400.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6218,6 +7083,42 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6227,16 +7128,49 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             },
             "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6246,16 +7180,49 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             },
             "text/plain": {
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6265,10 +7232,7 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             }
           }
@@ -6327,6 +7291,7 @@
           "Library"
         ],
         "summary": "Update a collection",
+        "description": "Server-key collections take cleartext metadata, which also clears any legacy envelope. User-e2ee collections take only `metadataEncrypted`; cleartext fields are rejected with 400.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6334,6 +7299,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6350,6 +7339,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6366,6 +7379,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6405,72 +7442,6 @@
         }
       }
     },
-    "/library/collections/{id}/sensitive": {
-      "put": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "operationId": "putLibraryCollectionsByIdSensitive",
-        "tags": [
-          "Library"
-        ],
-        "summary": "Toggle sensitive mode for a collection",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
     "/library/collections/{id}/change-scheme": {
       "post": {
         "parameters": [
@@ -6488,6 +7459,7 @@
           "Library"
         ],
         "summary": "Change a collection's encryption scheme",
+        "description": "Metadata moves with the scheme: upgrading to user-e2ee requires `newMetadataEncrypted` and clears the cleartext fields; downgrading to server-key requires `metadata` and clears the envelope.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6509,6 +7481,35 @@
                   },
                   "newMetadataEncrypted": {
                     "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
                   },
                   "newMetadataKeyVersion": {
                     "type": "number"
@@ -6576,6 +7577,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6624,7 +7637,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -6649,6 +7661,35 @@
                   "newMetadataEncrypted": {
                     "type": "string"
                   },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
+                  },
                   "newMetadataKeyVersion": {
                     "type": "number"
                   },
@@ -6715,6 +7756,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6763,7 +7816,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -6788,6 +7840,35 @@
                   "newMetadataEncrypted": {
                     "type": "string"
                   },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
+                  },
                   "newMetadataKeyVersion": {
                     "type": "number"
                   },
@@ -6854,6 +7935,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6902,7 +7995,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -7228,6 +8320,7 @@
           "Library"
         ],
         "summary": "Create an encrypted point",
+        "description": "Pass `id` when the envelope was sealed with it: the point AAD binds the point id, so the client mints it before encrypting.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7235,6 +8328,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -7252,6 +8350,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -7269,6 +8372,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -10480,6 +11588,127 @@
         }
       }
     },
+    "/osm/tags/upgrades": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOsmTagsUpgrades",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Suggest tag upgrades",
+        "description": "Mirrors iD's outdated-tags check: replaces deprecated tags, adds tags the matched preset implies, and applies Name Suggestion Index brand tags when the name matches a chain. Returns the changes and the matched brand, if any.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/osm/brands/search": {
       "get": {
         "parameters": [
@@ -11415,6 +12644,127 @@
         }
       }
     },
+    "/proxy/barrelman/landmarks/{z}/{x}/{y}": {
+      "get": {
+        "operationId": "getProxyBarrelmanLandmarksByZByXByY",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy 3D landmark placement tiles",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "z",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "x",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "y",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/proxy/barrelman/landmarks/models/{file}": {
+      "get": {
+        "operationId": "getProxyBarrelmanLandmarksModelsByFile",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy 3D landmark models",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "file",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/proxy/barrelman/bridges/models/{file}": {
+      "get": {
+        "operationId": "getProxyBarrelmanBridgesModelsByFile",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy precomputed bridge meshes",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "file",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/proxy/barrelman/bridges/index/{z}/{x}/{y}": {
+      "get": {
+        "operationId": "getProxyBarrelmanBridgesIndexByZByXByY",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy bridge deck mesh indexes",
+        "description": "The precomputed deck meshes a zoom-14 tile meets, with their bounds, from Barrelman; revalidated by ETag.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "z",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "x",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "y",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/proxy/barrelman/{source}/{z}/{x}/{y}": {
       "get": {
         "operationId": "getProxyBarrelmanBySourceByZByXByY",
@@ -11563,6 +12913,7 @@
             "required": false
           },
           {
+            "description": "Latitude to bias results toward. Places are only searched when lat and lng are both given.",
             "schema": {
               "type": "string"
             },
@@ -11571,6 +12922,7 @@
             "required": false
           },
           {
+            "description": "Longitude to bias results toward.",
             "schema": {
               "type": "string"
             },
@@ -11629,6 +12981,7 @@
           "Search"
         ],
         "summary": "Search for places",
+        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.",
         "responses": {
           "200": {}
         }
@@ -11918,6 +13271,208 @@
                 },
                 "required": [
                   "route"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/search/along-route": {
+      "post": {
+        "parameters": [],
+        "operationId": "postSearchAlong-route",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search ahead on the route being navigated",
+        "description": "Finds places within a corridor around the route still ahead (250 m walking, 500 m cycling, 2 km driving), ordered by distance along it. Each result carries `alongDistance` in metres and `detourSeconds`: the extra time stopping there adds over staying on the route, or null when the detour could not be routed. Send the remaining route from the current position, simplified to at most 500 points.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "route": {
+                    "minItems": 2,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number"
+                        },
+                        "lng": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "const": "walking",
+                        "type": "string"
+                      },
+                      {
+                        "const": "cycling",
+                        "type": "string"
+                      },
+                      {
+                        "const": "driving",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "limit": {
+                    "minimum": 1,
+                    "maximum": 20,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "route",
+                  "mode"
                 ]
               }
             }
@@ -13122,6 +14677,135 @@
         }
       }
     },
+    "/speech/": {
+      "get": {
+        "operationId": "getSpeech",
+        "tags": [
+          "Speech"
+        ],
+        "summary": "List speech voices, languages and supported controls",
+        "responses": {
+          "200": {}
+        }
+      },
+      "post": {
+        "parameters": [],
+        "operationId": "postSpeech",
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Synthesize a short instruction",
+        "description": "Returns MP3 audio from a configured TTS integration. Rate 1 is normal; larger values speak faster. Returns 503 when unavailable or the voice/language is unsupported; clients should use browser speech fallback.",
+        "responses": {
+          "200": {
+            "description": "Synthesized MP3",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "language": {
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "type": "string"
+                  },
+                  "voice": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "rate": {
+                    "minimum": 0.75,
+                    "maximum": 1.5,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "text",
+                  "language"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/subscriptions/config": {
       "get": {
         "operationId": "getSubscriptionsConfig",
@@ -13225,6 +14909,78 @@
           "Transit"
         ],
         "summary": "Upcoming departures at a stop",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/transit/boarding-candidates": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Timetable stop id (`{feed}_{stop}`) where the leg boards",
+            "schema": {
+              "type": "string",
+              "minLength": 3
+            },
+            "in": "query",
+            "name": "stopId",
+            "required": true
+          },
+          {
+            "description": "Comma-separated stop ids after boarding, in ride order, the alighting stop last",
+            "schema": {
+              "type": "string",
+              "minLength": 3
+            },
+            "in": "query",
+            "name": "stops",
+            "required": true
+          },
+          {
+            "description": "Planned departure from the boarding stop",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "departure",
+            "required": true
+          },
+          {
+            "description": "Planned arrival at the alighting stop",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "arrival",
+            "required": true
+          },
+          {
+            "description": "Comma-separated short names of the leg's interchangeable routes, its own included",
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "routes",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "directionId",
+            "required": false
+          }
+        ],
+        "operationId": "getTransitBoarding-candidates",
+        "tags": [
+          "Transit"
+        ],
+        "summary": "Runs a rider may have boarded in place of the planned one",
+        "description": "Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure`: any run of `routes` in the leg's direction, and runs of other routes that also call at the alighting stop. Each lists the given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express can be told from a local, and carries its live `position` when the feed publishes vehicle positions. `stops` names the later stops whose boards could be read: a run missing from one of those does not call there.",
         "responses": {
           "200": {}
         }
@@ -14530,11 +16286,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },
@@ -14612,11 +16385,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },
@@ -14694,11 +16484,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },

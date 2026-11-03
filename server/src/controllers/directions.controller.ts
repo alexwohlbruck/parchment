@@ -5,6 +5,12 @@ import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
+import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
+import { attachHazards } from '../services/route-hazards.service'
+import { attachLanes } from '../services/route-lanes.service'
+import { optionalAuth } from '../middleware/auth.middleware'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionId } from '../types/auth.types'
 import {
   TripRequest,
   SelectedMode,
@@ -21,6 +27,15 @@ const CoordinateSchema = t.Object({
   lng: t.Number(),
 })
 
+const RerouteBodySchema = t.Object({
+  position: CoordinateSchema,
+  heading: t.Optional(t.Number({ minimum: 0, maximum: 360 })),
+  speed: t.Optional(t.Number({ minimum: 0, description: 'Metres per second. Walking, and cycling below 4 m/s, ignore `heading`: they can turn round.' })),
+  destination: CoordinateSchema,
+  mode: t.Union([t.Literal('walking'), t.Literal('cycling'), t.Literal('driving')]),
+  routingPreferences: t.Optional(t.Record(t.String(), t.Any())),
+})
+
 const WaypointSchema = t.Object({
   location: CoordinateSchema,
   address: t.Optional(t.String()),
@@ -34,6 +49,12 @@ const WaypointSchema = t.Object({
   departAfter: t.Optional(t.String({ format: 'date-time' })),
   arriveBy: t.Optional(t.String({ format: 'date-time' })),
   dwellTime: t.Optional(t.Number({ minimum: 0 })),
+  heading: t.Optional(t.Number({
+    minimum: 0,
+    maximum: 360,
+    description: 'Origin only, when it is the device location: the compass heading in degrees the traveller faces or moves.',
+  })),
+  speed: t.Optional(t.Number({ minimum: 0, description: 'Origin only: the device speed in m/s.' })),
 })
 
 const VehicleSchema = t.Object({
@@ -142,7 +163,13 @@ const TripRequestSchema = t.Object({
   timestamp: t.Optional(t.String()),
 })
 
-const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
+const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
+
+/** Comfort hazards are a premium feature; safety ones go to everyone. */
+async function seesPremiumHazards(userId: string | undefined): Promise<boolean> {
+  if (!userId) return false
+  return hasPermission(await getPermissions(userId), PermissionId.PREMIUM_NAVIGATION)
+}
 
 /**
  * Plan a multimodal trip (replaces original directions endpoint)
@@ -151,7 +178,7 @@ const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
 app.post(
   '/',
   async (ctx) => {
-    const { body, language } = ctx
+    const { body, language, user } = ctx
     try {
       const request: TripRequest = {
         language,
@@ -166,6 +193,8 @@ app.post(
           departAfter: wp.departAfter,
           arriveBy: wp.arriveBy,
           dwellTime: wp.dwellTime,
+          heading: wp.heading,
+          speed: wp.speed,
         })),
         selectedMode: body.selectedMode,
         sortPreference: body.sortPreference as any,
@@ -203,6 +232,12 @@ app.post(
 
       // Plan the trip using multimodal strategy
       const result = await multimodalTripService.planTrip(request)
+      const premium = await seesPremiumHazards(user?.id)
+      const departure = request.preferredDepartureTime ? new Date(request.preferredDepartureTime) : undefined
+      await Promise.all([
+        ...result.trips.map(candidate => attachHazards((candidate.trip?.segments ?? []) as any[], { premium, departure })),
+        attachLanes(result.trips.flatMap(candidate => (candidate.trip?.segments ?? []).flatMap(s => [s, ...(s.details?.multimodalSegments ?? [])]))),
+      ])
 
       return result
     } catch (error) {
@@ -223,11 +258,90 @@ app.post(
         + 'A request with more than two waypoints returns one whole journey per travel '
         + 'strategy, each carried from stop to stop — a journey that cycles to the first stop '
         + 'still has the bike at the second. Segments carry `legIndex` to say which hop they '
-        + 'belong to.',
+        + 'belong to. A transit leg\'s `routeOptions` lists the other lines running the same '
+        + 'stops at that time. Its `shortName` names the line; a line with no GTFS short name '
+        + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
+        + 'segment with `streetTransfer` leaves the paid area '
+        + 'between stations the agency does not connect, so the next ride is a new fare. '
+        + 'Street instructions carry `exitNumber` for roundabouts and, where the map signposts '
+        + 'the maneuver, `exitRef` (a motorway exit\'s number) and `destination` (where the signs point). '
+        + 'Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, '
+        + 'rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low '
+        + 'clearances, school zones, where a bike lane ends or starts partway along a road, and '
+        + 'the like, placed by distance along the segment. Some '
+        + 'depend on conditions: unlit paths after sunset, flood-prone roads when rain is '
+        + 'forecast, bridges at 2 °C or below, and speed cameras only where warning of them is '
+        + 'lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic '
+        + 'calming, movable bridges, speed cameras, bike lanes starting) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the '
+        + 'routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for '
+        + 'cycling, the bike lane, or beside the traffic), with `measures` giving the distance along '
+        + '`geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per '
+        + 'instruction index, the approach lanes left to right and which lead on. An origin with '
+        + '`heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that '
+        + 'direction; walking routes ignore it.',
       tags: ['Trip Planning'],
     },
   },
 )
+
+app.post(
+  '/reroute',
+  async ({ body, language, set, user }) => {
+    try {
+      const segment = await rerouteSegment({ ...body, language })
+      if (!segment) {
+        set.status = 404
+        return { error: 'No route found' }
+      }
+      await Promise.all([attachHazards([segment], { premium: await seesPremiumHazards(user?.id) }), attachLanes([segment])])
+      return { segment }
+    } catch (error) {
+      logError('Reroute failed', error)
+      set.status = 502
+      return { error: error instanceof Error ? error.message : 'Reroute failed' }
+    }
+  },
+  {
+    body: RerouteBodySchema,
+    detail: {
+      summary: 'Reroute the current segment during navigation',
+      description:
+        'Plans a fresh street route from where the traveller is to the end of the segment '
+        + 'they are on, favouring the direction they are already heading so the new route '
+        + 'does not open with a U-turn. Send a position projected a few seconds ahead of the '
+        + 'last fix. Returns one segment in the same shape as a `/directions` trip segment.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+app.post(
+  '/alternatives',
+  async ({ body, language, set, user }) => {
+    try {
+      const alternatives = await alternativeSegments({ ...body, language })
+      await Promise.all([attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) }), attachLanes(alternatives)])
+      return { alternatives }
+    } catch (error) {
+      logError('Route alternatives failed', error)
+      set.status = 502
+      return { error: error instanceof Error ? error.message : 'Route alternatives failed' }
+    }
+  },
+  {
+    body: RerouteBodySchema,
+    detail: {
+      summary: 'Alternative routes for the rest of the current segment',
+      description:
+        'The same request as `/reroute`, answered with up to three routes from where the traveller '
+        + 'is to the end of their segment. Each is a segment like `/reroute` returns, plus `metrics`: '
+        + '`duration`, `distance`, `turns`, `protectedShare` and `majorRoadShare` (fractions of '
+        + 'distance), `crossings`, and `via`, the street carrying most of the route.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
 
 /**
  * Get available vehicle types

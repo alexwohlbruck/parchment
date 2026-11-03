@@ -27,6 +27,7 @@ import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import PlaceVisitHistoryWidget from '@/components/timeline/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './details/NearbyCategories.vue'
+import PlaceCollections from './details/PlaceCollections.vue'
 import BrandSeeAllChip from './details/BrandSeeAllChip.vue'
 import PlaceDisplayChips from './details/PlaceDisplayChips.vue'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
@@ -384,6 +385,7 @@ function handleBrandLogoError() {
                 <DetailsList :place="place" />
                 <PlaceVisitHistoryWidget :place="place" />
                 <PlaceWidgets :place="place" />
+                <PlaceCollections :place="place" />
                 <BrandSeeAllChip :place="place" />
                 <NearbyCategories :place="place" />
               </TabsContent>

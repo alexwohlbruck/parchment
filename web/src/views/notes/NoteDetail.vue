@@ -52,7 +52,7 @@ async function handleComment(text: string) {
     note.value = await notesService.commentOnNote(note.value.id, text)
     toast.success(t('notes.commentAdded'))
   } catch (error) {
-    toast.error(t('notes.commentError'))
+    toast.error(t('notes.commentError'), { cause: error })
   } finally {
     submittingAction.value = null
   }
@@ -65,7 +65,7 @@ async function handleClose(text?: string) {
     note.value = await notesService.closeNote(note.value.id, text)
     toast.success(t('notes.noteClosed'))
   } catch (error) {
-    toast.error(t('notes.closeError'))
+    toast.error(t('notes.closeError'), { cause: error })
   } finally {
     submittingAction.value = null
   }
@@ -78,7 +78,7 @@ async function handleReopen(text?: string) {
     note.value = await notesService.reopenNote(note.value.id, text)
     toast.success(t('notes.noteReopened'))
   } catch (error) {
-    toast.error(t('notes.reopenError'))
+    toast.error(t('notes.reopenError'), { cause: error })
   } finally {
     submittingAction.value = null
   }

@@ -1,4 +1,7 @@
 {
+  "notifications": {
+    "manageIdentity": "Manage identity"
+  },
   "taglines": {
     "short": "The next generation of digital maps",
     "long": "Explore the world with beautiful, detailed maps crafted by the community"
@@ -213,6 +216,7 @@
           "atms": "ATMs",
           "banks": "Banks",
           "evCharging": "EV Charging",
+          "powerOutlets": "Power Outlets",
           "postOffices": "Post Offices",
           "convenience": "Convenience",
           "bakeries": "Bakeries",
@@ -282,6 +286,18 @@
           "page": {
             "name": "Page"
           }
+        },
+        "pages": {
+          "map": "Map",
+          "dashboard": "Dashboard",
+          "directions": "Directions",
+          "collections": "Collections",
+          "routes": "Routes",
+          "layers": "Layers",
+          "canvases": "Canvases",
+          "lookout": "Lookout",
+          "timeline": "Timeline",
+          "settings": "Settings"
         }
       },
       "toggleTheme": {
@@ -346,6 +362,11 @@
           }
         }
       },
+      "toggleCameraPosition": {
+        "name": "Toggle camera position",
+        "description": "Show or hide the map's coordinates, zoom, pitch and bearing",
+        "keywords": "camera coordinates zoom pitch bearing debug"
+      },
       "openHotkeysMenu": {
         "name": "Keyboard shortcuts",
         "description": "View all available keyboard shortcuts",
@@ -393,6 +414,7 @@
   "map": {
     "title": "Map",
     "searchThisArea": "Search this area",
+    "returnToPlace": "Return to place",
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
@@ -456,6 +478,8 @@
       },
       "baseMap": "Base map",
       "overlays": "Overlays",
+      "pois": "Points of interest",
+      "labels": "Labels",
       "savedPlaces": "Show saved places",
       "showCanvases": "Show canvases",
       "placeCount": "{count} places",
@@ -735,6 +759,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "toward {headsign}",
+    "trainNumber": "Train {number}",
     "or": "or",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
@@ -782,14 +807,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Add to Collection",
+      "addToCollection": "Add to collection",
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
       "removedFromCollectionSuccess": "Removed from collection",
       "addedToCollection": "Added to {collection}",
       "failedToAddToCollection": "Failed to add to collection",
-      "saveToCollection": "Save to {collection}"
+      "saveToCollection": "Save to {collection}",
+      "newCollection": "New collection"
     },
     "empty": {
       "message": "no {entityPlural} yet",
@@ -815,7 +841,21 @@
         "manage": "Manage collections",
         "untitled": "Untitled collection",
         "lastSaved": "Last saved to",
-        "sharedBy": "Shared by {name}"
+        "sharedBy": "Shared by {name}",
+        "locked": "Locked collection",
+        "lockedNotice": {
+          "title": "End-to-end encrypted",
+          "description": "Only your devices can open this collection, and this one hasn't been set up yet.",
+          "unlock": "Unlock this device",
+          "reshare": "{name} shared this collection, but not in a way this device can open. Ask them to share it with you again."
+        },
+        "public": {
+          "subtitle": "Shared with you",
+          "gone": {
+            "title": "This link no longer works",
+            "description": "It may have been revoked, or the collection made private."
+          }
+        }
       },
       "routes": {
         "title": {
@@ -839,12 +879,12 @@
     "confirmDelete": "Are you sure you want to delete \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Create Collection",
-        "description": "Create a new collection to organize your bookmarks"
+        "title": "New collection",
+        "description": "Give it a name and decide who can read it."
       },
       "editCollection": {
-        "title": "Edit Collection",
-        "description": "Modify collection details"
+        "title": "Collection details",
+        "description": "Give it a name and decide who can read it."
       },
       "editBookmark": {
         "title": "Edit Bookmark",
@@ -875,6 +915,48 @@
     },
     "loading": {
       "collection": "Loading collection..."
+    },
+    "privacy": {
+      "label": "Privacy",
+      "schemes": {
+        "server-key": {
+          "title": "Shareable",
+          "description": "The server can read it, so it can have a public link."
+        },
+        "user-e2ee": {
+          "title": "Private",
+          "description": "End-to-end encrypted, so the server can’t read it."
+        }
+      },
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "switched": "Privacy updated",
+      "switchFailed": "Couldn't change privacy",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "Make this collection shareable?",
+            "description": "Its name and places will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this collection private?",
+            "description": "Its name and places will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "Make this canvas shareable?",
+            "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this canvas private?",
+            "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -1148,6 +1230,748 @@
     "toggle": "Toggle navigation",
     "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
+  "guidance": {
+    "start": "Start",
+    "exit": "End navigation",
+    "waitingForLocation": "Waiting for your location…",
+    "signalLost": "GPS signal lost · estimating",
+    "camera": {
+      "resume": "Follow your position",
+      "overview": "Show the whole route",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Heading up",
+        "north-up": "North up"
+      },
+      "bearing": {
+        "look-ahead": "Look ahead",
+        "straight": "Straight ahead"
+      }
+    },
+    "settings": {
+      "speechVoice": "Navigation voice",
+      "speechVoiceDescription": "Uses voices for your app language when server speech is available.",
+      "speechFallback": "Browser voice is used when server speech is unavailable.",
+      "speechAutomatic": "Automatic",
+      "speechRate": "Speaking speed",
+      "speechRateDescription": "Choose a comfortable pace for spoken instructions.",
+      "speechPreview": "Listen",
+      "speechSample": "In 200 feet, turn right, then keep left.",
+      "adaptiveSpeech": "Faster speech for close turns",
+      "adaptiveSpeechDescription": "Increase the pace when several maneuvers are close together, up to 1.5×.",
+      "title": "Navigation",
+      "cameraMode": "Camera",
+      "cameraModeDescription": "How the map follows you while navigating",
+      "bearingMode": "Camera direction",
+      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading",
+      "autoSwitchDocks": "Switch bike share stations",
+      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes",
+      "speedDisplay": "Speed display",
+      "speedDisplayDescription": "Show the posted limit, your current speed, or both while driving"
+    },
+    "exitShort": "End",
+    "banner": {
+      "arrive": "Your destination",
+      "then": "Then",
+      "offRoute": "Off route",
+      "offRouteHint": "Head back to the route",
+      "arrived": "You have arrived",
+      "rerouting": "Rerouting…",
+      "turnAround": "Turn around",
+      "head": "Then head {heading}",
+      "headOn": "Then head {heading} on {road}",
+      "away": "You're away from the route",
+      "awayHint": "Guidance starts once you're near it"
+    },
+    "units": {
+      "ft": "ft",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "LIMIT",
+      "displays": {
+        "both": "Limit and speed",
+        "limit": "Speed limit only",
+        "speedometer": "Speedometer only",
+        "none": "Hidden"
+      },
+      "displaysShort": {
+        "both": "Both",
+        "limit": "Limit",
+        "speedometer": "Speed",
+        "none": "Off"
+      }
+    },
+    "roads": {
+      "path": "Path",
+      "pedestrian": "Pedestrian street",
+      "cycleway": "Bike path",
+      "steps": "Stairs",
+      "crosswalk": "Crosswalk",
+      "railCrossing": "Railroad crossing",
+      "footbridge": "Footbridge",
+      "underpass": "Underpass",
+      "parkPath": "Park path",
+      "track": "Track",
+      "service": "Service road",
+      "road": "Unnamed road"
+    },
+    "menu": {
+      "searchAlongRoute": "Search along route",
+      "search": "Search",
+      "addStop": "Add stop",
+      "report": "Report",
+      "steps": "Steps",
+      "routes": "Routes",
+      "title": "Options",
+      "back": "Back",
+      "close": "Close",
+      "show": "Show trip options",
+      "hide": "Hide trip options",
+      "destination": "Destination",
+      "alongTheWay": "Along the way"
+    },
+    "startLeg": "Start leg {leg}",
+    "arrival": {
+      "destination": "Your destination",
+      "at": "Arrived at {time}",
+      "nextLeg": "Next leg",
+      "done": "Done"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} feet",
+        "meters": "{value} meters",
+        "mile": "1 mile",
+        "miles": "{value} miles",
+        "mileAndHalf": "a mile and a half",
+        "milesAndHalf": "{value} and a half miles",
+        "mileFraction": {
+          "1": "a quarter mile",
+          "2": "half a mile",
+          "3": "three quarters of a mile"
+        },
+        "kilometer": "1 kilometer",
+        "kilometers": "{value} kilometers",
+        "kilometerAndHalf": "a kilometer and a half",
+        "kilometersAndHalf": "{value} and a half kilometers"
+      },
+      "maneuvers": {
+        "straight": "Continue straight",
+        "slight-left": "Bear left",
+        "slight-right": "Bear right",
+        "left": "Turn left",
+        "right": "Turn right",
+        "sharp-left": "Make a sharp left",
+        "sharp-right": "Make a sharp right",
+        "keep-left": "Keep left",
+        "keep-right": "Keep right",
+        "uturn": "Make a U-turn",
+        "roundabout": "Enter the roundabout",
+        "roundaboutExit": "At the roundabout, take exit {exit}",
+        "arrive": "Arrive",
+        "board": "Board",
+        "boardAt": "Board at {stop}",
+        "enterStation": "Enter the station",
+        "exitStation": "Leave the station",
+        "escalator": "Take the escalator",
+        "elevator": "Take the elevator",
+        "stairs": "Take the stairs"
+      },
+      "onto": "{action} onto {road}",
+      "in": "In {distance}, {action}",
+      "then": "{action}, then {next}",
+      "continue": "Continue for {distance}",
+      "continueOn": "Continue on {road} for {distance}",
+      "arrive": "In {distance}, you will arrive",
+      "arriveSide": {
+        "left": "In {distance}, your destination is on the left",
+        "right": "In {distance}, your destination is on the right"
+      },
+      "arrived": "You have arrived",
+      "arrivedSide": {
+        "left": "You have arrived. Your destination is on the left",
+        "right": "You have arrived. Your destination is on the right"
+      },
+      "head": "Head {heading}",
+      "headOn": "Head {heading} on {road}",
+      "rerouting": "Rerouting",
+      "turnAround": "Turn around, then head {heading}",
+      "turnAroundOn": "Turn around, then head {heading} on {road}",
+      "headings": {
+        "north": "north",
+        "northeast": "northeast",
+        "east": "east",
+        "southeast": "southeast",
+        "south": "south",
+        "southwest": "southwest",
+        "west": "west",
+        "northwest": "northwest"
+      },
+      "watchPedestrians": "{action}, and watch for pedestrians",
+      "hazards": {
+        "crosswalk": "Crosswalk ahead",
+        "uncontrolled_crossing": "Uncontrolled crossing ahead",
+        "rail_crossing": "Railroad crossing ahead",
+        "ford": "Water crossing ahead",
+        "sharp_curve": "Sharp curve ahead",
+        "steep_grade": "Steep grade ahead",
+        "steps": "Stairs ahead",
+        "shared_space": "Shared street ahead, watch for people walking",
+        "tram_tracks": "Tram tracks in the road ahead, keep clear of the rails",
+        "tram_crossing": "Tram tracks ahead, cross them square on",
+        "unlit": "Unlit stretch ahead",
+        "flood_prone": "Road ahead floods in heavy rain",
+        "icy_bridge": "Bridge ahead may be icy",
+        "school_zone": "School zone ahead",
+        "no_sidewalk": "No sidewalk ahead, watch for traffic",
+        "low_clearance": "Low clearance ahead",
+        "speed_camera": "Speed camera ahead",
+        "movable_bridge": "Drawbridge ahead",
+        "dismount": "Walk your bike ahead",
+        "bike_lane_end": "Bike lane ends ahead, merge with traffic",
+        "bike_lane_start": "Join the bike lane ahead",
+        "bike_track_start": "Join the protected bike lane ahead",
+        "hazard": "Hazard ahead"
+      },
+      "useLanes": "{action}. Use {lanes}",
+      "lanes": {
+        "left": "the left lane",
+        "leftMany": "the left {n} lanes",
+        "right": "the right lane",
+        "rightMany": "the right {n} lanes",
+        "middle": "the middle lane",
+        "middleMany": "the middle {n} lanes"
+      },
+      "welcome": "Welcome to {region}"
+    },
+    "rich": {
+      "ordinals": {
+        "m": {
+          "1": "first",
+          "2": "second",
+          "3": "third",
+          "4": "fourth",
+          "5": "fifth",
+          "6": "sixth",
+          "7": "seventh",
+          "8": "eighth"
+        },
+        "f": {
+          "1": "first",
+          "2": "second",
+          "3": "third",
+          "4": "fourth",
+          "5": "fifth",
+          "6": "sixth",
+          "7": "seventh",
+          "8": "eighth"
+        }
+      },
+      "roads": {
+        "path": "the path",
+        "pedestrian": "the pedestrian street",
+        "cycleway": "the bike path",
+        "steps": "the stairs",
+        "crosswalk": "the crosswalk",
+        "railCrossing": "the railroad crossing",
+        "footbridge": "the footbridge",
+        "underpass": "the underpass",
+        "parkPath": "the park path",
+        "track": "the track"
+      },
+      "fork": {
+        "left": "At the fork, bear left",
+        "right": "At the fork, bear right"
+      },
+      "endOfRoad": {
+        "left": "At the end of the road, turn left",
+        "right": "At the end of the road, turn right"
+      },
+      "stay": "{action} to stay on {road}",
+      "exit": {
+        "left": "Take the exit on the left",
+        "right": "Take the exit on the right"
+      },
+      "exitNumber": "Take exit {number}",
+      "roundabout": "Enter the roundabout and take the {ordinal} exit",
+      "roundaboutExit": "Enter the roundabout and take exit {exit}",
+      "roundaboutThrough": "Continue straight through the roundabout",
+      "stairs": {
+        "left": "Take the stairs on your left",
+        "right": "Take the stairs on your right",
+        "ahead": "Take the stairs",
+        "up": {
+          "left": "Take the stairs up on your left",
+          "right": "Take the stairs up on your right",
+          "ahead": "Take the stairs up"
+        },
+        "down": {
+          "left": "Take the stairs down on your left",
+          "right": "Take the stairs down on your right",
+          "ahead": "Take the stairs down"
+        }
+      },
+      "escalator": {
+        "ahead": "Take the escalator",
+        "up": "Take the escalator up",
+        "down": "Take the escalator down"
+      },
+      "elevator": {
+        "ahead": "Take the elevator",
+        "up": "Take the elevator up",
+        "down": "Take the elevator down"
+      },
+      "floorTo": {
+        "level": "{action} to level {level}",
+        "platform": "{action} to the platform",
+        "street": "{action} to the street"
+      },
+      "station": {
+        "enter": {
+          "refName": "Enter the station at entrance {ref}, {name}",
+          "ref": "Enter the station at entrance {ref}",
+          "name": "Enter the station at {name}",
+          "plain": "Enter the station"
+        },
+        "exit": {
+          "refName": "Take exit {ref}, {name}",
+          "ref": "Take exit {ref}",
+          "name": "Take the exit to {name}",
+          "plain": "Leave the station"
+        }
+      },
+      "footbridge": "Use the pedestrian bridge",
+      "ramp": {
+        "ahead": "Follow the ramp",
+        "up": "Follow the ramp up",
+        "down": "Follow the ramp down",
+        "bridge": "Follow the ramp up to the bridge"
+      },
+      "passage": {
+        "building": "Go through the passage",
+        "arcade": "Walk through the arcade",
+        "indoor": "Go inside",
+        "underpass": "Go through the underpass"
+      },
+      "intoPassage": {
+        "building": "{action} into the passage",
+        "arcade": "{action} into the arcade",
+        "indoor": "{action} and go inside",
+        "underpass": "{action} into the underpass"
+      },
+      "crosswalk": "Cross at the crosswalk",
+      "crosswalkSignals": "Cross at the light",
+      "crosswalkRoad": "Cross {road} at the crosswalk",
+      "crosswalkSignalsRoad": "Cross {road} at the light",
+      "crossFirst": "{crossing}, then {action}",
+      "crossAfter": "{action}, then {crossing}",
+      "crossings": {
+        "bare": "Cross {road}",
+        "then": "Cross {road}, then {next}",
+        "at": "Cross at {street}",
+        "atRoad": "Cross {road} at {street}",
+        "atLight": "Cross at the light at {street}",
+        "atLightRoad": "Cross {road} at the light at {street}",
+        "unmarked": "Cross carefully, there's no crosswalk",
+        "unmarkedRoad": "Cross {road} carefully, there's no crosswalk",
+        "carefully": "Carefully cross {road}",
+        "median": "Cross to the median, then wait for the next light",
+        "medianRoad": "Cross {road} to the median, then wait for the next light",
+        "island": "Cross using the island halfway",
+        "islandRoad": "Cross {road} using the island halfway",
+        "button": "Press the button to cross",
+        "buttonRoad": "Press the button to cross {road}",
+        "diagonal": "Cross diagonally when all traffic stops"
+      },
+      "ontoIt": "{action} onto it",
+      "headBack": "Head back along {road}",
+      "headBackUnnamed": "Head back",
+      "thenArrive": {
+        "left": "{action}; your destination is on the left",
+        "right": "{action}; your destination is on the right"
+      },
+      "followPath": "Follow the path",
+      "followPathToward": "Follow the path toward {destination}",
+      "forkToward": {
+        "left": "At the fork, keep left toward {destination}",
+        "right": "At the fork, keep right toward {destination}"
+      },
+      "ontoToward": "{action} onto {road} toward {destination}",
+      "enterPark": "Enter {park} and follow the path",
+      "enterParkUnnamed": "Enter the park and follow the path",
+      "intoPark": "{action} into {park}",
+      "intoParkUnnamed": "{action} into the park",
+      "home": "Welcome home",
+      "homeSide": {
+        "left": "Welcome home. Your destination is on the left",
+        "right": "Welcome home. Your destination is on the right"
+      },
+      "headAlong": "Head {heading} along {road}",
+      "headAlongToward": "Head along {road} toward {destination}",
+      "headToward": "Head toward {destination}",
+      "turnAround": "Turn around to begin your route, then head {heading}",
+      "turnAroundAlong": "Turn around to begin your route, then head {heading} along {road}",
+      "toward": "{action} toward {destination}",
+      "followSigns": "{action}, following signs for {destination}",
+      "twoStage": {
+        "left": "Go straight across, then turn left",
+        "right": "Go straight across, then turn right"
+      },
+      "bikeLane": {
+        "left": "{action} and use the bike lane on the left",
+        "right": "{action} and use the bike lane on the right"
+      },
+      "dismount": {
+        "walk": "Walk your bike {place}",
+        "walkFor": "Walk your bike {place} for {distance}",
+        "carry": {
+          "up": "Carry your bike up the stairs",
+          "down": "Carry your bike down the stairs",
+          "any": "Carry your bike on the stairs"
+        },
+        "places": {
+          "sidewalk": "on the sidewalk",
+          "path": "along the path",
+          "plaza": "through the plaza",
+          "crosswalk": "across the crosswalk",
+          "bridge": "across the bridge",
+          "park": "through the park"
+        }
+      },
+      "infinitive": {
+        "straight": "continue straight",
+        "slight-left": "bear left",
+        "slight-right": "bear right",
+        "left": "turn left",
+        "right": "turn right",
+        "sharp-left": "make a sharp left",
+        "sharp-right": "make a sharp right",
+        "keep-left": "keep left",
+        "keep-right": "keep right",
+        "uturn": "make a U-turn",
+        "roundabout": "enter the roundabout",
+        "board": "board",
+        "exit": "take the exit"
+      },
+      "useLanes": "Use {lanes} to {action}",
+      "lanes": {
+        "edge": {
+          "left": "the left lane",
+          "right": "the right lane"
+        },
+        "nth": {
+          "left": "the {ordinal} lane from the left",
+          "right": "the {ordinal} lane from the right"
+        },
+        "either": {
+          "left": "either of the two left lanes",
+          "right": "either of the two right lanes"
+        },
+        "any": {
+          "left": "any of the {n} left lanes",
+          "right": "any of the {n} right lanes"
+        },
+        "middle": "the middle lane",
+        "middleMany": "the middle {n} lanes"
+      },
+      "anchored": "{anchor}, {action}",
+      "past": "Go past this intersection, then {action}",
+      "underOverpass": "Go under the overpass, then {action}",
+      "anchors": {
+        "at": {
+          "traffic_signals": "At the light",
+          "stop": "At the stop sign",
+          "give_way": "At the yield sign"
+        },
+        "atOrdinal": "At the {ordinal} light",
+        "afterOrdinal": "After the {ordinal} light",
+        "after": {
+          "traffic_signals": "After the light",
+          "stop": "After the stop sign",
+          "give_way": "After the yield sign",
+          "rail_crossing": "After the railroad crossing",
+          "bridge": "After the bridge",
+          "tunnel": "After the tunnel",
+          "overpass": "After the overpass"
+        },
+        "past": {
+          "intersection": "Past this intersection"
+        }
+      },
+      "thenImmediately": "{action}, then immediately {next}",
+      "inBlocks": "In {n} blocks, {action}",
+      "continueBlocks": "Continue on {road} for {n} blocks",
+      "continueBlocksUnnamed": "Continue for {n} blocks",
+      "afterTurning": {
+        "left": "After turning left, {action}",
+        "right": "After turning right, {action}",
+        "slight-left": "After bearing left, {action}",
+        "slight-right": "After bearing right, {action}",
+        "sharp-left": "After the sharp left, {action}",
+        "sharp-right": "After the sharp right, {action}",
+        "uturn": "After the U-turn, {action}"
+      },
+      "cues": {
+        "exit": "Exit {number}",
+        "exitToward": "Exit {number} · {destination}",
+        "toward": "Toward {destination}",
+        "roundaboutExit": "Exit {exit}",
+        "bikeLane": {
+          "left": "Bike lane on the left",
+          "right": "Bike lane on the right"
+        },
+        "twoStage": "Two-stage turn",
+        "dismount": "Walk your bike"
+      }
+    },
+    "sound": {
+      "title": "Sound",
+      "all": "All",
+      "alerts": "Alerts only",
+      "silent": "Silent"
+    },
+    "hazards": {
+      "crosswalk": "Crosswalk",
+      "traffic_signals": "Traffic light",
+      "uncontrolled_crossing": "Uncontrolled crossing",
+      "rail_crossing": "Railroad crossing",
+      "tunnel": "Tunnel",
+      "ford": "Water crossing",
+      "ferry": "Ferry",
+      "steep_grade": "Steep grade",
+      "steps": "Stairs",
+      "dismount": "Walk your bike",
+      "rough_surface": "Rough surface",
+      "shared_space": "Shared street",
+      "sharp_curve": "Sharp curve",
+      "stop": "Stop sign",
+      "give_way": "Yield sign",
+      "tram_tracks": "Tram tracks",
+      "tram_crossing": "Tram crossing",
+      "unlit": "Unlit",
+      "flood_prone": "Flood-prone road",
+      "icy_bridge": "Icy bridge",
+      "school_zone": "School zone",
+      "traffic_calming": "Speed bump",
+      "no_sidewalk": "No sidewalk",
+      "low_clearance": "Low clearance",
+      "toll": "Toll",
+      "speed_camera": "Speed camera",
+      "movable_bridge": "Drawbridge",
+      "bike_lane_end": "Bike lane ends",
+      "bike_lane_start": "Bike lane starts",
+      "bike_track_start": "Protected bike lane",
+      "hazard": "Hazard"
+    },
+    "hazardCounts": {
+      "crosswalk": "{n} crosswalk | {n} crosswalks",
+      "traffic_signals": "{n} light | {n} lights",
+      "stop": "{n} stop sign | {n} stop signs"
+    },
+    "handoff": {
+      "park": "Park",
+      "lock-bike": "Lock up your bike",
+      "dock-bike": "Dock the bike at {station}",
+      "unlock-bike": "Unlock a bike at {station}",
+      "get-in-car": "Get in your car",
+      "get-on-bike": "Get on your bike",
+      "continue": "Carry on",
+      "then": "then {mode} {duration}",
+      "thenTo": "then {mode} {duration} to {place}",
+      "modes": {
+        "walking": "walk",
+        "cycling": "ride",
+        "driving": "drive",
+        "transit": "ride"
+      },
+      "go": "Go",
+      "notYet": "Not yet",
+      "docksFree": "{n} dock free | {n} docks free"
+    },
+    "transit": {
+      "voice": {
+        "board": "Board the {line}",
+        "boardToward": "Board the {line} toward {headsign}",
+        "alight-next": "Get off at the next stop, {stop}",
+        "alight-now": "Get off at {stop}",
+        "missed-vehicle": "The {line} has left. Catch the next one or find another way",
+        "missed-stop": "You passed {stop}. Get off at the next stop"
+      },
+      "departsIn": "Departs in {duration}",
+      "departingNow": "Departing now",
+      "from": "from {stop}",
+      "stopsLeft": "{n} stop | {n} stops",
+      "estimated": "No signal, position estimated from the timetable",
+      "getOffAt": "Get off at {stop}",
+      "getOffNext": "Get off at the next stop",
+      "getOffNow": "Get off now",
+      "nextStop": "Next: {stop}",
+      "missedVehicle": "The {line} has left",
+      "missedVehicleHint": "Catch the next one or find another way",
+      "nextDeparture": "Next departure",
+      "anotherWay": "Another way",
+      "noLaterRun": "No later departure today",
+      "missedStop": "You passed {stop}",
+      "missedStopHint": "Get off at the next stop",
+      "whichVehicle": {
+        "subway": "Which train are you on?",
+        "rail": "Which train are you on?",
+        "tram": "Which tram are you on?",
+        "bus": "Which bus are you on?",
+        "ferry": "Which ferry are you on?",
+        "vehicle": "Which vehicle are you on?"
+      },
+      "noneOfThese": "None of these",
+      "reach": {
+        "ok": "On track",
+        "hurry": "Hurry",
+        "late": "You may miss it"
+      },
+      "inDuration": "in {duration}",
+      "leg": {
+        "walking": "Walk {duration}",
+        "cycling": "Ride {duration}",
+        "driving": "Drive {duration}"
+      },
+      "toPlace": "to {place}"
+    },
+    "ahead": {
+      "title": "Along the route",
+      "placeholder": "Search along the route",
+      "categories": {
+        "fuel": "Gas",
+        "charging": "EV charging",
+        "coffee": "Coffee",
+        "food": "Food",
+        "restrooms": "Restrooms",
+        "parking": "Parking",
+        "water": "Water",
+        "bikeRepair": "Bike repair"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "On the way",
+      "ahead": "{distance} ahead",
+      "add": "Add stop",
+      "empty": "Nothing found along the route",
+      "failed": "Search is unavailable right now",
+      "addFailed": "Could not add that stop"
+    },
+    "docks": {
+      "docks": "{n} dock | {n} docks",
+      "bikes": "{n} bike | {n} bikes",
+      "atRisk": {
+        "dock": "{station} may be full when you arrive",
+        "bike": "{station} may run out of bikes"
+      },
+      "gone": {
+        "dock": "{station} is full",
+        "bike": "{station} has no bikes"
+      },
+      "switchTo": "Switch to {station}",
+      "keep": "Keep",
+      "voice": {
+        "switched": "Switching to {station}"
+      }
+    },
+    "alternatives": {
+      "faster": "{duration} faster",
+      "slower": "{duration} slower",
+      "sameTime": "Same time",
+      "via": "via {street}",
+      "protected": "More protected bike lanes",
+      "quieter": "Quieter streets",
+      "switch": "Switch",
+      "title": "Routes",
+      "current": "Current route",
+      "protectedShare": "{n}% protected",
+      "empty": "No other routes right now"
+    },
+    "itinerary": {
+      "sooner": "Arrive {duration} sooner",
+      "take": "Take the {lines}"
+    },
+    "recovery": {
+      "finding": "Finding the next way…",
+      "next": "Next {line} in {duration}",
+      "arrive": "arrive {time}",
+      "later": "+{duration}",
+      "take": "Take the {lines} from {stop}",
+      "orWait": "Or wait for the next {line} · arrive {time}",
+      "switch": "Switch",
+      "otherRoutes": "Other routes",
+      "fromAt": "from {stop} · {time}"
+    },
+    "lanes": {
+      "label": "Lanes"
+    },
+    "preview": {
+      "action": "Preview",
+      "title": "Route preview",
+      "previewRoute": "Preview route",
+      "overview": "Overview",
+      "previous": "Previous step",
+      "next": "Next step",
+      "close": "Close preview",
+      "stepOf": "{n} of {total}",
+      "for": "for {distance}",
+      "steps": "{n} steps",
+      "streetView": "Street-level view at this step"
+    },
+    "free": {
+      "title": {
+        "driving": "Free drive",
+        "cycling": "Free ride",
+        "walking": "Free walk"
+      },
+      "start": {
+        "driving": "Drive",
+        "cycling": "Cycle",
+        "walking": "Walk"
+      },
+      "keepGoing": {
+        "driving": "Keep driving",
+        "cycling": "Keep riding",
+        "walking": "Keep walking"
+      },
+      "withoutDestination": {
+        "driving": "Drive without a destination",
+        "cycling": "Ride without a destination",
+        "walking": "Walk without a destination"
+      },
+      "otherModes": "Other ways to go",
+      "mode": "Travel mode",
+      "whereTo": "Where to?",
+      "searchPlaceholder": "Search for a destination",
+      "empty": "No places found",
+      "go": "Go",
+      "goFailed": "Could not plan a route there",
+      "ahead": {
+        "title": "Along the way",
+        "placeholder": "Search along the way",
+        "empty": "Nothing found ahead"
+      }
+    },
+    "vehicle": {
+      "title": "Location marker",
+      "description": "How you appear on the map while navigating",
+      "color": "Color",
+      "modes": {
+        "driving": "Driving",
+        "cycling": "Cycling",
+        "walking": "Walking"
+      },
+      "indicators": {
+        "arrow": "Arrow",
+        "hatchback": "Hatchback",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bike"
+      }
+    }
+  },
   "attribution": {
     "poweredBy": "Powered by",
     "contribute": "Contribute",
@@ -1155,6 +1979,9 @@
     "madeWith": "Made with ❤️ by"
   },
   "feedback": {
+    "openBoard": "Open feedback board",
+    "portalFailed": "Could not open the feedback board. Please try again.",
+    "popupBlocked": "Allow pop-ups to open the feedback board.",
     "title": "Feedback",
     "description": "Report a bug or suggest an idea. You'll be notified when it ships.",
     "titleLabel": "Summary",
@@ -1330,6 +2157,9 @@
       "reviews": "Reviews",
       "visits": "Visits"
     },
+    "collections": {
+      "savedIn": "Saved in"
+    },
     "nearby": {
       "findNearby": "Find nearby"
     },
@@ -1491,22 +2321,22 @@
           "title": "Set Up Federation Identity",
           "description": "Your recovery key is your last-resort way back in if you lose every device. Save it somewhere safe — a password manager is ideal. We'll offer to set up a passkey for everyday recovery in the next step.",
           "importantTitle": "Important",
-          "importantDescription": "If you lose this key AND every passkey, you will need to create a new identity and re-add all your friends.",
-          "keyLabel": "Your Recovery Key",
+          "importantDescription": "If you lose every device and passkey, this key is your only way to restore encrypted data.",
+          "keyLabel": "Recovery key",
           "generating": "Generating...",
           "keyCopiedToast": "Recovery key copied. Paste it into your password manager.",
-          "masterPasswordHint": "Like a master password. Keep it secret and safe.",
-          "confirmSavedLabel": "I have saved my recovery key in a secure location",
+          "masterPasswordHint": "Save it in your password manager.",
+          "confirmSavedLabel": "I’ve saved my recovery key somewhere safe.",
           "failedFallback": "Setup failed"
         },
         "passkeyOffer": {
           "title": "Add a passkey for recovery?",
           "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery key required. You can always add more later from Settings.",
           "alertDescription": "Your recovery key is already safe. Adding a passkey is optional but strongly recommended.",
-          "existingLabel": "You already have a passkey:",
-          "existingHint": "Tap it below to enable recovery on it. Some browsers or older passkeys can't do this — if it doesn't work, use \"Add new\" instead.",
-          "useExisting": "Use \"{name}\" for recovery",
-          "addNewInstead": "Add a new passkey instead",
+          "existingLabel": "Your existing passkey",
+          "existingHint": "Use it for recovery, too.",
+          "useExisting": "Use this passkey",
+          "addNewInstead": "Create a new passkey",
           "addPasskey": "Add passkey",
           "skipForNow": "Skip for now",
           "cannotUseError": "This passkey can't be used for recovery. Try adding a new one.",
@@ -1724,7 +2554,9 @@
         "loopDescription": "Restart from the beginning when the track ends",
         "position": "Position",
         "speed": "Speed",
-        "heading": "Heading"
+        "heading": "Heading",
+        "simulateNavigation": "Simulate navigation",
+        "simulateNavigationDescription": "Drive each navigated route with simulated GPS as soon as navigation starts"
       },
       "impersonation": {
         "title": "Impersonate user"
@@ -1738,6 +2570,10 @@
       "buildingShading": {
         "title": "Building lighting",
         "description": "Tune the shadows, occlusion and edges on the 3D buildings. Changes apply to the map live and are not saved."
+      },
+      "batteryRun": {
+        "title": "Battery run",
+        "description": "Record battery drain through a navigation run, such as a 20 minute simulated drive, and copy the result."
       }
     },
     "behavior": {
@@ -1815,8 +2651,17 @@
         "3dBuildings": "3D buildings",
         "3dObjects": "3D objects",
         "3dObjectsDescription": "Draw trees and street furniture as models. MapLibre only.",
+        "shadows": {
+          "title": "Shadows",
+          "description": "Building and object shadows. “When tilted” hides them in the flat top-down view.",
+          "values": {
+            "off": "Off",
+            "tilted": "When tilted",
+            "always": "Always"
+          }
+        },
         "hdRoads": "HD roads",
-        "hdRoadsDescription": "High-definition road visualization with enhanced detail",
+        "hdRoadsDescription": "Draw lanes, crosswalks and turn arrows at street level",
         "indoorMaps": "Indoor maps",
         "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
         "poiLabels": "POI labels",
@@ -1827,6 +2672,8 @@
       "controls": {
         "title": "Map controls",
         "zoom": "Zoom",
+        "floors": "Floors",
+        "exterior": "Building exterior",
         "compass": "Compass",
         "scale": "Scale bar",
         "streetView": "Street view",
@@ -1838,7 +2685,10 @@
           "whileRotating": "While rotating",
           "whileZooming": "While zooming",
           "whileActive": "While active"
-        }
+        },
+        "camera": "Camera position",
+        "cameraDescription": "Coordinates, zoom, pitch and bearing",
+        "cameraCopied": "Camera position copied"
       },
       "location": {
         "title": "Location",
@@ -2029,6 +2879,7 @@
         "tileServer": "Tile Server",
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
+        "tts": "Speech synthesis",
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback"
@@ -2176,31 +3027,10 @@
         "copyAction": "Copy link",
         "revokeAction": "Revoke link"
       },
-      "e2ee": {
-        "title": "End-to-end encrypted",
-        "description": "Only invited friends can decrypt this collection. Public link unavailable.",
-        "switchAction": "Switch to server-stored encryption"
-      },
-      "serverKey": {
-        "switchAction": "Switch to end-to-end encryption"
-      }
+      "privateHint": "Public links need a shareable collection."
     },
     "publicLink": {
       "copied": "Link copied to clipboard"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "Switch to end-to-end encryption?",
-        "description": "Every saved place in this collection will be re-encrypted under your personal key. The Parchment server will no longer be able to read them. Any public link will be revoked. Friends with access will be re-shared under the new key.",
-        "continueText": "Switch to end-to-end"
-      },
-      "downgradeConfirm": {
-        "title": "Switch to server-stored encryption?",
-        "description": "The Parchment server will be able to read every saved place in this collection. Friends with access will be re-shared under the new scheme. This cannot be undone without switching back and re-encrypting.",
-        "continueText": "Switch to server-stored"
-      },
-      "success": "Encryption scheme switched",
-      "failed": "Failed to switch encryption scheme"
     },
     "errors": {
       "loadFailed": "Failed to load shares",
@@ -2212,7 +3042,8 @@
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
       "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
-    }
+    },
+    "removeAction": "Remove {name}"
   },
   "auth": {
     "signIn": {
@@ -2227,6 +3058,10 @@
     "otp": {
       "title": "Verification code",
       "description": "Code sent to {email}",
+      "resend": "Resend email",
+      "resending": "Sending…",
+      "resent": "Email resent. Check your inbox.",
+      "resendFailed": "Couldn’t resend the email. Please try again.",
       "submit": "Submit",
       "cancel": "Cancel",
       "verifying": "Verifying...",
@@ -2249,15 +3084,27 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "title": "Welcome to Parchment",
+      "description": "The world's best digital map.",
+      "privacy": "Privacy",
+      "privacyDetail": "All your data, secure and encrypted",
+      "sustainability": "Sustainability",
+      "sustainabilityDetail": "Nav by transit, bikes, walking, or all together",
+      "community": "Community",
+      "communityDetail": "Mapped by millions of volunteers",
+      "start": "Get started"
+    },
     "finish": "Finish",
     "profile": {
-      "title": "Set up your profile",
-      "description": "Tell us a bit about yourself to get started.",
+      "title": "Your profile",
+      "description": "A name and a photo so friends can find you.",
       "firstName": "First name",
       "lastName": "Last name",
       "firstNamePlaceholder": "Christopher",
       "lastNamePlaceholder": "Columbus",
-      "removeAvatar": "Remove avatar"
+      "removeAvatar": "Remove avatar",
+      "chooseAvatar": "Choose a profile photo"
     },
     "alias": {
       "title": "Choose a username",
@@ -2272,11 +3119,11 @@
     },
     "recoveryKey": {
       "title": "Save your recovery key",
-      "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
+      "description": "Save this key to restore your encrypted data if you lose access."
     },
     "theme": {
-      "title": "Preferences",
-      "description": "Set your language, units, and visual style.",
+      "title": "Make it yours",
+      "description": "Choose how Parchment looks and feels.",
       "languageLabel": "Language",
       "unitsLabel": "Units",
       "colorLabel": "Accent color",
@@ -2285,20 +3132,17 @@
         "light": "Light",
         "dark": "Dark",
         "auto": "System"
-      }
+      },
+      "metric": "Metric",
+      "imperial": "Imperial"
     },
     "passkey": {
-      "title": "Add a passkey",
-      "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
-    },
-    "subscription": {
-      "title": "Choose your plan",
-      "description": "Unlock bookmarks, collections, friends, and integrations with a paid plan.",
-      "skipLabel": "Continue with {plan}"
+      "title": "Sign in with a passkey",
+      "description": "Use your fingerprint, face, or device PIN to sign in and unlock your data."
     },
     "integrations": {
-      "title": "Set up integrations",
-      "description": "Connect services for maps, search, geocoding, and more. Free integrations have been enabled automatically."
+      "title": "Connect your apps",
+      "description": "Connect services for maps, search, and more."
     },
     "invite": {
       "title": "Invite others",
@@ -2309,6 +3153,16 @@
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",
       "sentSummary": "{count} invitation(s) sent"
+    },
+    "openstreetmap": {
+      "title": "Make the map better, together",
+      "description": "Connect your account to contribute to OpenStreetMap.",
+      "notesTitle": "Report missing places",
+      "editsTitle": "Update place details",
+      "connect": "Sign in with OpenStreetMap",
+      "connected": "Your OpenStreetMap account is connected",
+      "skip": "Skip for now",
+      "popupBlocked": "Allow popups to sign in with OpenStreetMap, then try again."
     }
   },
   "canvases": {
@@ -2334,18 +3188,7 @@
       "editTitle": "Canvas details",
       "description": "Give it a name and decide who can read it.",
       "namePlaceholder": "Canvas name",
-      "descriptionPlaceholder": "What is this canvas for? (optional)",
-      "privacy": "Privacy"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Shareable",
-        "description": "Stored so it can be published with a link later."
-      },
-      "user-e2ee": {
-        "title": "Private",
-        "description": "End-to-end encrypted. Only your devices can read it."
-      }
+      "descriptionPlaceholder": "What is this canvas for? (optional)"
     },
     "layers": {
       "missing": "Missing layer",
@@ -2415,24 +3258,6 @@
     "delete": {
       "title": "Delete canvas?",
       "description": "\"{name}\" and its layers will be removed. This can't be undone."
-    },
-    "privacy": {
-      "needsIdentity": "Needs your recovery key on this device.",
-      "switched": "Canvas privacy updated",
-      "switchTo": {
-        "server-key": "Make it shareable",
-        "user-e2ee": "Make it private"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "Make this canvas shareable?",
-          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
-        },
-        "user-e2ee": {
-          "title": "Make this canvas private?",
-          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
-        }
-      }
     },
     "import": {
       "errors": {
@@ -2641,7 +3466,9 @@
       "willSync": "Your changes will sync when you reconnect",
       "syncing": "Syncing…",
       "failed": "Couldn't sync",
+      "reviewAction": "Review sync",
       "failedToast": "Couldn't sync \"{label}\"",
+      "failedManyToast": "Couldn't sync {count} changes",
       "cancel": "Cancel",
       "retryAction": "Retry",
       "dismiss": "Dismiss",
@@ -2719,11 +3546,16 @@
     "brand": {
       "isThis": "Is this one of these chains?",
       "addsTags": "Fills in {count} detail | Fills in {count} detail | Fills in {count} details",
-      "matchTitle": "This looks like {brand}",
-      "matchHint": "Chains are tagged the same way everywhere. Apply the standard details?",
-      "apply": "Apply",
-      "dismiss": "Not this chain",
       "chainsHeading": "Chains"
+    },
+    "upgrade": {
+      "title": "Some tags are out of date",
+      "hint": "Bring them in line with current OpenStreetMap conventions?",
+      "brandTitle": "This looks like {brand}",
+      "brandHint": "Chains are tagged the same way everywhere. Apply the standard details?",
+      "apply": "Apply updates",
+      "decline": "Not {brand}",
+      "ignore": "Ignore"
     },
     "section": {
       "basics": "Details",
@@ -2735,5 +3567,9 @@
     },
     "wikiLink": "About {label} on the OpenStreetMap wiki",
     "viewChangeset": "View"
+  },
+  "myLocation": {
+    "title": "My location",
+    "accuracy": "Within {distance}"
   }
 }

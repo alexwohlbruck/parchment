@@ -1,5 +1,5 @@
 import mitt from 'mitt'
-import { computed, ref, toRaw } from 'vue'
+import { computed, ref, shallowRef, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import {
   Basemap,
@@ -17,15 +17,18 @@ import {
   LocateFlySpeed,
   StartupLocation,
   GridSnapMode,
+  ShadowMode,
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
+import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { resolveHdRoads } from '@/lib/map-style/hd-roads'
 
 const emitter = mitt<MapEvents>()
 
 const defaultSettings: MapSettings = {
   theme: MapTheme.LIGHT,
-  engine: MapEngine.MAPBOX,
+  engine: MapEngine.MAPLIBRE,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
   mapStyle: 'parchment',
@@ -33,12 +36,13 @@ const defaultSettings: MapSettings = {
   terrain3d: false,
   buildings3d: true,
   objects3d: true,
+  shadows: ShadowMode.ALWAYS,
   poiLabels: true,
   roadLabels: true,
   transitLabels: true,
   placeLabels: true,
-  hdRoads: false,
-  indoorMaps: false,
+  hdRoads: null,
+  indoorMaps: true,
   northUpSnap: true,
   gridSnapMode: GridSnapMode.NORTH_UP,
   locateFlySpeed: LocateFlySpeed.NORMAL,
@@ -63,6 +67,7 @@ function getDefaultControlSettings(): MapControlSettings {
       : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
+    camera: ControlVisibility.NEVER,
   }
 }
 
@@ -121,9 +126,32 @@ export const useMapStore = defineStore('map', () => {
     settings.value.buildings3d = settings.value.objects3d ?? true
   }
   if (settings.value.objects3d === undefined) settings.value.objects3d = true
+  settings.value.shadows ??= ShadowMode.ALWAYS
+
+  // HD roads became default-on for MapLibre. A stored `false` from the old
+  // default can't be told apart from a chosen one, so clear it once.
+  const hdRoadsDefaultApplied = useStorage('map-hd-roads-default', false)
+  if (!hdRoadsDefaultApplied.value) {
+    if (settings.value.hdRoads === false) settings.value.hdRoads = null
+    hdRoadsDefaultApplied.value = true
+  }
+
+  // Indoor maps became default-on once MapLibre drew them; clear the old default once.
+  const indoorDefaultApplied = useStorage('map-indoor-default', false)
+  if (!indoorDefaultApplied.value) {
+    settings.value.indoorMaps = true
+    indoorDefaultApplied.value = true
+  }
+
+  const hdRoads = computed(() =>
+    resolveHdRoads(settings.value.hdRoads, settings.value.engine),
+  )
+
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
     getDefaultControlSettings(),
+    undefined,
+    { mergeDefaults: true },
   )
 
   const persistedCamera = useStorage<MapCamera>('map-camera', {
@@ -177,6 +205,9 @@ export const useMapStore = defineStore('map', () => {
 
   const pegman = ref<Pegman | null>(null)
 
+  /** The venue whose floors the picker offers, and the one showing. */
+  const indoorFocus = shallowRef<IndoorFocus>(null)
+
   function setPegman(pegman_: Pegman) {
     pegman.value = pegman_
   }
@@ -191,6 +222,7 @@ export const useMapStore = defineStore('map', () => {
     setMapStrategy,
     getMapStrategy,
     settings,
+    hdRoads,
     controlSettings,
     mapCamera,
     setMapCamera,
@@ -203,5 +235,6 @@ export const useMapStore = defineStore('map', () => {
     pegman,
     setPegman,
     clearPegman,
+    indoorFocus,
   }
 })

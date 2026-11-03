@@ -6,6 +6,7 @@ import {
   Integration,
   WeatherCapability,
   WeatherData,
+  WeatherOutlook,
 } from '../../types/integration.types'
 import { logError } from '../../lib/logger'
 
@@ -20,6 +21,7 @@ export interface OpenWeatherMapConfig extends IntegrationConfig {
 export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConfig> {
   private initialized = false
   private readonly WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather'
+  private readonly FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast'
 
   readonly integrationId = IntegrationId.OPENWEATHERMAP
   readonly capabilityIds: IntegrationCapabilityId[] = [
@@ -28,6 +30,7 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
   readonly capabilities = {
     weather: {
       getWeather: this.getWeather.bind(this),
+      getOutlook: this.getOutlook.bind(this),
     } as WeatherCapability,
   }
 
@@ -171,6 +174,14 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
     }
   }
 
+  /** The next six hours, from the two 3-hour forecast steps after now. */
+  async getOutlook(lat: number, lng: number): Promise<WeatherOutlook> {
+    this.ensureInitialized()
+    const response = await fetch(`${this.FORECAST_URL}?lat=${lat}&lon=${lng}&cnt=2&units=metric&appid=${this.config.apiKey}`)
+    if (!response.ok) throw new Error(`Forecast API error: ${response.status}`)
+    return outlookFromForecast(await response.json())
+  }
+
   /**
    * Validates that the configuration has all required fields
    * @param config The configuration to validate
@@ -178,5 +189,15 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
    */
   validateConfig(config: OpenWeatherMapConfig): boolean {
     return Boolean(config && config.apiKey)
+  }
+}
+
+const RAIN_CONDITIONS = new Set(['Rain', 'Drizzle', 'Thunderstorm'])
+
+export function outlookFromForecast(forecast: { list?: { main: { temp_min: number }; weather?: { main: string }[] }[] }): WeatherOutlook {
+  const steps = forecast.list ?? []
+  return {
+    rain: steps.some(step => step.weather?.some(w => RAIN_CONDITIONS.has(w.main))),
+    minTemperature: Math.min(...steps.map(step => step.main.temp_min)),
   }
 }

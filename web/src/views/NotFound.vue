@@ -15,7 +15,7 @@ const goHome = () => {
 </script>
 
 <template>
-  <div class="h-full w-full flex gap-4 items-center justify-center h-screen">
+  <div class="h-full w-full flex gap-4 items-center justify-center">
     <div class="ship-wrapper">
       <div class="ship">⛵</div>
     </div>

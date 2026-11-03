@@ -231,6 +231,27 @@ const DARK_OVERRIDES = {
 }
 
 /**
+ * Anything planted, at night, in the green family the daylight map uses.
+ *
+ * MapTiler's dark landcover is a set of blues at the ground's own lightness —
+ * woodland `hsl(203, 47%, 22%)` under ground `hsl(216, 37%, 24%)` — so the
+ * forest a county is half covered in disappears into the land it sits on. Hue
+ * carries this, not lightness: a green a shade under the ground reads as
+ * woodland where a two-point lift would turn the whole Piedmont into a slab.
+ *
+ * Grass draws at half opacity over that blue ground, which drags a green
+ * towards teal, so its token is pitched past the intended green by as much as
+ * the blend pulls back — the same correction `LIGHT_LAND` makes, further,
+ * because the ground underneath is more saturated.
+ */
+const DARK_FOLIAGE = {
+  wood_fill_color: 'hsl(145, 22%, 19%)',
+  grass_fill_color: 'hsl(96, 59%, 17%)',
+  stadium_fill_color: 'hsl(150, 20%, 21%)',
+  stadium_outline_color: 'hsl(150, 18%, 24%)',
+}
+
+/**
  * Route shields, rebuilt on Mapbox Standard's `road-number-shield` — see that
  * layer in `src/components/map/styles/standard.json`.
  *
@@ -321,6 +342,8 @@ const PATH_CASING_LAYER = 'Path outline'
 const PATH_LAYER = 'Path'
 const PEDESTRIAN_AREA_LAYER = 'Pedestrian'
 const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
+const BRIDGE_AREA_LAYER = 'Bridge'
+const BRIDGE_AREA_CASING_LAYER = 'Bridge area outline'
 
 /** The lowest road layer — the casings, which everything else stacks onto. */
 const FIRST_ROAD_LAYER = 'Minor road outline'
@@ -394,18 +417,18 @@ const ROAD_INK = {
  * moving it in value adds colour and disturbs nothing that was tuned.
  */
 const LIGHT_LAND = {
-  background_background_color: 'hsl(44, 52%, 95%)',
-  background_background_color_2: 'hsl(44, 46%, 94%)',
-  residential_fill_color: 'hsl(43, 40%, 90%)',
-  residential_fill_color_2: 'hsl(43, 44%, 92%)',
-  pier_fill_color: 'hsl(44, 44%, 94%)',
+  background_background_color: 'hsl(48, 16%, 94.5%)',
+  background_background_color_2: 'hsl(48, 14%, 93.5%)',
+  residential_fill_color: 'hsl(45, 14%, 92.5%)',
+  residential_fill_color_2: 'hsl(45, 14%, 93%)',
+  pier_fill_color: 'hsl(40, 20%, 90.5%)',
   bridge_outline_line_color: 'hsl(44, 44%, 94%)',
   // Industrial land is a neutral in MapTiler too, just a warm one; the two
   // translucent members keep their alpha, which is what they are for.
-  industrial_fill_color: 'hsl(40, 18%, 89%)',
+  industrial_fill_color: 'hsl(220, 8%, 88%)',
   industrial_fill_color_2: 'hsla(40, 18%, 86%, 0.2)',
-  industrial_fill_color_3: 'hsl(40, 14%, 87%)',
-  industrial_fill_color_4: 'hsl(40, 18%, 89%)',
+  industrial_fill_color_3: 'hsl(220, 6%, 86%)',
+  industrial_fill_color_4: 'hsl(220, 8%, 88%)',
   industrial_fill_color_5: 'hsla(40, 18%, 86%, 0.5)',
   // Anything planted, in one green family: a soft yellow-green rather than the
   // pure one, which is what stops a park reading as a colour swatch next to
@@ -414,9 +437,9 @@ const LIGHT_LAND = {
   // than cuts — so the token is pitched about as far past the intended green as
   // the blend pulls it back: on the map it lands near hsl(95, 52%, 76%), a
   // shade above the wood it borders.
-  grass_fill_color: 'hsl(100, 54%, 58%)',
-  wood_fill_color: 'hsl(95, 48%, 71%)',
-  stadium_fill_color: 'hsl(95, 54%, 75%)',
+  grass_fill_color: 'hsl(112, 46%, 52%)',
+  wood_fill_color: 'hsl(128, 34%, 52%)',
+  stadium_fill_color: 'hsl(110, 44%, 66%)',
   // A pitch is a made surface with a boundary, so it gets an edge — the
   // same green a shade down, which reads as the line around a field rather
   // than as a second colour.
@@ -438,11 +461,11 @@ const LIGHT_LAND = {
   // The water the land meets: a light cyan-leaning blue rather than the azure
   // it was. Deep blue is what a nautical chart wants — a map of a city wants
   // water that reads as shallow and lit, the way it does from a plane.
-  water_fill_color: 'hsl(197, 92%, 72%)',
+  water_fill_color: 'hsl(206, 82%, 62%)',
   water_intermittent_fill_color: 'hsl(198, 84%, 82%)',
-  river_line_color: 'hsl(199, 82%, 68%)',
-  river_tunnel_line_color: 'hsl(199, 82%, 68%)',
-  aqueduct_line_color: 'hsl(197, 92%, 72%)',
+  river_line_color: 'hsl(206, 76%, 58%)',
+  river_tunnel_line_color: 'hsl(206, 76%, 58%)',
+  aqueduct_line_color: 'hsl(206, 82%, 62%)',
 }
 
 /** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */
@@ -673,11 +696,16 @@ const PATH_SURFACE_WIDTH = [
  * The casing straddling the surface's edges.
  *
  * `line-width` is the whole stroke and it is centred on the edge, so half of
- * this lands on the pavement and half on the ground beside it — a 3px casing
- * reads as a 1.5px line either side.
+ * this lands on the pavement and half on the ground beside it — a 1.8px casing
+ * reads as a 0.9px line either side.
  */
 const PATH_CASING_WIDTH = [
-  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 3, 22, 4.5,
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 0.8, 18, 1.8, 22, 2.7,
+]
+
+/** Half again the path's, so a deck reads as one without changing its width. */
+const BRIDGE_CASING_WIDTH = [
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 2.7, 22, 4,
 ]
 
 /**
@@ -697,18 +725,17 @@ const PATH_CASING_WIDTH = [
  * road crosses a square: the square is drawn over it. Pedestrian areas are
  * car-free by definition, so that is the cheaper of the two errors.
  */
-/** Ground level: not a bridge, and not stacked above the surface. */
-const AT_GRADE = [
-  'all',
-  ['!=', ['get', 'brunnel'], 'bridge'],
-  ['<=', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
-/** Carried over whatever it crosses. */
-const ELEVATED = [
-  'any',
-  ['==', ['get', 'brunnel'], 'bridge'],
-  ['>', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
+/**
+ * Ground level, and carried over whatever it crosses.
+ *
+ * The brunnel alone, matching the tunnel split and matching what Barrelman
+ * serves for the cycling network: a `layer` clause here and a `bridge` boolean
+ * there disagree on a way tagged `layer=1` with no bridge, and the disagreement
+ * is silent — the road rises into the elevated band and its green tint stays
+ * below, where the road it describes is no longer drawn.
+ */
+const AT_GRADE = ['!=', ['get', 'brunnel'], 'bridge']
+const ELEVATED = ['==', ['get', 'brunnel'], 'bridge']
 
 function withCondition(layer, condition, suffix) {
   const base = layer.filter ? toExpressionFilter(layer.filter) : null
@@ -717,6 +744,66 @@ function withCondition(layer, condition, suffix) {
     id: suffix ? `${layer.id}${suffix}` : layer.id,
     filter: base ? ['all', base, condition] : condition,
   }
+}
+
+/**
+ * The road network, carried over whatever it crosses.
+ *
+ * MapTiler draws a bridge inline with the road it is part of, and hints at the
+ * structure with a wide translucent casing underneath. That works until a deck
+ * has to be drawn: an elevated structure with at-grade roads painted over it is
+ * not a bridge, it is a stain on the ground. So the roads split the way the
+ * paths already do — the same layers, the same widths, twice, with the elevated
+ * copy after the network it crosses and the deck it stands on beneath it.
+ *
+ * Casings first, then surfaces, mirroring the order at grade: two carriageways
+ * of one bridge have to merge, not draw a casing down the join between them.
+ * The deck goes between the two, because a deck IS the casing for everything
+ * standing on it — under it, each carriageway drew its own edge on the slab and
+ * a bridge carrying four of them came out striped.
+ */
+const ROAD_BRIDGE_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline']
+const ROAD_BRIDGE_SURFACES = ['Minor road', 'Major road', 'Highway']
+
+/**
+ * Rail is carried too, and over the roads it is carried with: a line crosses a
+ * street at grade as a level crossing, and everywhere else it is on a viaduct.
+ * Each track keeps its hatching immediately above it.
+ */
+const RAIL_BRIDGE_LAYERS = [
+  'Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching',
+]
+
+/** The deck a bridge stands on, with its own edge under it. */
+const BRIDGE_DECK_LAYERS = [BRIDGE_AREA_CASING_LAYER, BRIDGE_AREA_LAYER]
+
+function raiseRoadBridges(layers) {
+  const take = id => {
+    const at = layers.findIndex(l => l.id === id)
+    return at < 0 ? null : layers.splice(at, 1)[0]
+  }
+  const deck = BRIDGE_DECK_LAYERS.map(take).filter(Boolean)
+
+  const raise = ids => ids.flatMap(id => {
+    const at = layers.findIndex(l => l.id === id)
+    if (at < 0) return []
+    const road = layers[at]
+    layers[at] = withCondition(road, AT_GRADE)
+    return [{
+      ...withCondition(road, ELEVATED, ' bridge'),
+      layout: { ...road.layout, 'line-cap': 'butt' },
+    }]
+  })
+  const casings = raise(ROAD_BRIDGE_CASINGS)
+  const surfaces = raise(ROAD_BRIDGE_SURFACES)
+  const rail = raise(RAIL_BRIDGE_LAYERS)
+  if (!surfaces.length) return
+
+  // Below the one-way arrows: an arrow is paint on the carriageway, and a
+  // carriageway that is carried still carries its markings.
+  const marking = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
+  const at = marking < 0 ? layers.length : marking
+  layers.splice(at, 0, ...casings, ...deck, ...surfaces, ...rail)
 }
 
 /** Whatever zoom the path casing starts at, so the plaza edge matches it. */
@@ -748,10 +835,26 @@ function orderPedestrianSurfaces(layers) {
   // A footbridge is the exception, and the reason this is split at all: it
   // crosses over the road rather than under it, so it is drawn after every road
   // and rail — but still below the buildings.
+  //
+  // Cut square at the ends. A round cap on a line this wide overshoots the
+  // bridge's last node by half its width, so the deck ends in a lozenge laid
+  // over the path it joins — cap and casing drawn across the junction. Butt
+  // caps end the deck where the bridge ends and the path runs out of it.
+  //
+  // What says bridge is the edge: the same line, drawn heavier and a shade
+  // deeper, for the drop either side. The surface between keeps the path's
+  // width, so the way itself does not widen where it is carried.
   const elevated = [
-    withCondition(pathCasing, ELEVATED, ' bridge'),
+    {
+      ...withCondition(pathCasing, ELEVATED, ' bridge'),
+      paint: {
+        ...pathCasing.paint,
+        'line-color': '@path_bridge_casing',
+        'line-width': BRIDGE_CASING_WIDTH,
+      },
+    },
     withCondition(path, ELEVATED, ' bridge'),
-  ]
+  ].map(l => ({ ...l, layout: { ...l.layout, 'line-cap': 'butt' } }))
 
   const roads = layers.findIndex(l => l.id === FIRST_ROAD_LAYER)
   layers.splice(roads < 0 ? layers.length : roads, 0, ...ground)
@@ -839,20 +942,55 @@ function longestRef(art, network) {
   return max
 }
 
-/** The sprite name for a feature's marker, falling back to the plaque. */
+/**
+ * The sprite name for a feature's marker, falling back to the plaque.
+ *
+ * `@shield_variant` is the flavor suffix: empty by day, `-dark` at night, where
+ * `build-sprite.mjs` ships a second cut of every marker. It belongs in the name
+ * rather than in a paint property because the art is full-colour, not an SDF —
+ * there is nothing to tint, so the night version has to be its own image.
+ */
 function shieldImageExpression() {
   const len = ['to-string', ['get', 'ref_length']]
   return [
     'coalesce',
-    ['image', ['concat', ['coalesce', ['get', 'network'], 'default'], '-', len]],
-    ['image', ['concat', 'default-', len]],
+    [
+      'image',
+      ['concat', ['coalesce', ['get', 'network'], 'default'], '-', len, '@shield_variant'],
+    ],
+    ['image', ['concat', 'default-', len, '@shield_variant']],
+  ]
+}
+
+/**
+ * Which roads carry a marker, by zoom: motorways alone at the top, then trunks,
+ * then primaries, and every numbered road from z12 down.
+ *
+ * Without the ramp a state-highway ref is drawn at z6 beside an interstate,
+ * where neither the road nor the marker has room, and the country reads as a
+ * field of plaques.
+ */
+function shieldRoadClassFilter() {
+  const only = (...classes) => ['match', ['get', 'class'], classes, true, false]
+  return [
+    'step',
+    ['zoom'],
+    only('motorway'),
+    8,
+    only('motorway', 'trunk'),
+    10,
+    only('motorway', 'trunk', 'primary'),
+    12,
+    ['match', ['get', 'class'], ['pedestrian', 'service', 'path'], false, true],
   ]
 }
 
 /**
  * The one route-marker layer, on Standard's geometry: markers appear as points
- * while the map is zoomed out and switch to riding the line at z11, spaced
- * further apart as they get closer.
+ * while the map is zoomed out and switch to riding the line at z11.
+ *
+ * Spacing grows past z16 because a tilted camera lays a whole tile out at the
+ * zoom of its nearest edge; a flat ramp packs the far end of it with markers.
  */
 function routeShieldLayer(layer, art) {
   const interstateMax = longestRef(art, 'us-interstate')
@@ -863,7 +1001,7 @@ function routeShieldLayer(layer, art) {
       'icon-image': shieldImageExpression(),
       'icon-rotation-alignment': 'viewport',
       'symbol-placement': ['step', ['zoom'], 'point', 11, 'line'],
-      'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 400, 14, 600],
+      'symbol-spacing': ['interpolate', ['exponential', 1.6], ['zoom'], 11, 350, 13, 200, 16, 200, 22, 3200],
       'icon-size': 1,
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],
@@ -891,7 +1029,9 @@ function routeShieldLayer(layer, art) {
       'all',
       ['has', 'ref'],
       ['<=', ['get', 'ref_length'], 6],
-      ['match', ['get', 'class'], ['pedestrian', 'service', 'path'], false, true],
+      // Exit numbers are `Highway junction`'s job; without this they draw twice.
+      ['!=', ['coalesce', ['get', 'subclass'], ''], 'junction'],
+      shieldRoadClassFilter(),
     ],
   }
 }
@@ -901,7 +1041,7 @@ function exitShieldLayer(layer) {
   return {
     layout: {
       ...layer.layout,
-      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']]],
+      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']], '@shield_variant'],
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],
       'text-size': 9,
@@ -1088,11 +1228,17 @@ const CYCLING_TINTED = [
   ['Highway outline', '@cycling_casing'],
   ['Path outline', '@cycling_casing'],
   ['Path outline bridge', '@cycling_casing'],
+  ['Minor road outline bridge', '@cycling_casing'],
+  ['Major road outline bridge', '@cycling_casing'],
+  ['Highway outline bridge', '@cycling_casing'],
   ['Minor road', '@cycling_surface'],
   ['Major road', '@cycling_surface'],
   ['Highway', '@cycling_surface'],
   [PATH_LAYER, '@cycling_surface'],
   ['Path bridge', '@cycling_surface'],
+  ['Minor road bridge', '@cycling_surface'],
+  ['Major road bridge', '@cycling_surface'],
+  ['Highway bridge', '@cycling_surface'],
 ]
 
 function addCyclingSurface(layers) {
@@ -1369,7 +1515,7 @@ const LABEL_TOKENS = {
   // `portolan-expressions.ts`, which letters transit stations over whatever
   // basemap is loaded — including ones that are not this style.
   label_ink_strong: { light: 'hsl(222, 25%, 21%)', dark: 'hsl(222, 25%, 93%)' },
-  label_ink_muted: { light: 'hsl(222, 10%, 46%)', dark: 'hsl(220, 12%, 76%)' },
+  label_ink_muted: { light: 'hsl(222, 10%, 44%)', dark: 'hsl(220, 12%, 76%)' },
   label_ink_road: { light: 'hsl(30, 6%, 42%)', dark: 'hsl(220, 12%, 84%)' },
   label_ink_road_minor: { light: 'hsl(30, 5%, 45%)', dark: 'hsl(220, 10%, 80%)' },
 }
@@ -1772,6 +1918,12 @@ async function main() {
       // as the paths running into it or the joins show as a change of tone.
       out.paint = { 'fill-color': '@path_surface' }
     }
+    if (layer.id === BRIDGE_AREA_LAYER) {
+      // A deck mapped as an area is the same deck as one mapped as a way, so it
+      // takes the same surface. MapTiler had it in the pier colour at 0.6,
+      // which let the water it carries over show through the structure.
+      out.paint = { 'fill-antialias': true, 'fill-color': '@path_surface' }
+    }
 
     layers.push(out)
   }
@@ -1809,7 +1961,23 @@ async function main() {
       paint: { 'line-color': '@path_casing', 'line-width': PATH_CASING_WIDTH },
     })
   }
+  // The deck's edge, the same drop the cased bridge ways carry, so an area and
+  // a way that are one bridge in life are drawn as one bridge here.
+  const deck = layers.find(l => l.id === BRIDGE_AREA_LAYER)
+  if (deck) {
+    layers.splice(layers.indexOf(deck), 0, {
+      id: BRIDGE_AREA_CASING_LAYER,
+      type: 'line',
+      source: SOURCE,
+      'source-layer': deck['source-layer'],
+      minzoom: pathCasingMinzoom(layers),
+      filter: deck.filter,
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': '@path_bridge_casing', 'line-width': BRIDGE_CASING_WIDTH },
+    })
+  }
   orderPedestrianSurfaces(layers)
+  raiseRoadBridges(layers)
   // After every pass that touches a road's width or its place in the stack,
   // so the twins inherit the widths the roads actually ship with.
   addCyclingSurface(layers)
@@ -1887,21 +2055,19 @@ async function main() {
 
   // Shield lettering is ours, not MapTiler's — their shields are sprite art.
   //
-  // Both flavors get the same two values, which is deliberate: the markers are
-  // full-colour art rather than tintable SDFs, so a blue interstate marker is
-  // blue on the night map too, and its numerals have to stay white to be
-  // legible against it. Mapbox does the same — a route marker is a physical
-  // sign, and darkness does not repaint it.
+  // `shield_variant` picks the flavor's cut of that art (see
+  // `shieldImageExpression`). The night plaques are charcoal, so their numerals
+  // invert with them; the interstate marker keeps white numerals in both, since
+  // its field stays blue — a route marker is a physical sign, and darkness does
+  // not repaint it.
+  tokens.light.shield_variant = ''
+  tokens.dark.shield_variant = '-dark'
+  tokens.light.shield_ink = 'hsl(0, 0%, 12%)'
+  tokens.dark.shield_ink = 'hsl(220, 12%, 82%)'
   for (const flavor of [tokens.light, tokens.dark]) {
-    flavor.shield_ink = 'hsl(0, 0%, 12%)'
     flavor.shield_ink_reversed = 'hsl(0, 0%, 100%)'
   }
 
-  // Pedestrian surfaces. Light follows Standard: a near-white pavement with a
-  // grey casing. Dark cannot — Standard's values are for a light map — so it
-  // sits a few points above the night ground the way the pavement sits above
-  // the earth in daylight, with a casing darker than the surface rather than
-  // lighter, since at night the surface is the bright thing.
   // Transit blue. Its own token rather than a category colour: a stop is
   // wayfinding, not a category of place, and every transit system's own maps
   // agree it is blue.
@@ -1916,15 +2082,14 @@ async function main() {
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
-  // The pitch edge is authored, not lifted, so the night value is set here
-  // rather than in `DARK_OVERRIDES`: a shade off its own fill in each flavor,
-  // which at night means lighter, since there the fill is the dark thing.
-  tokens.dark.stadium_outline_color = 'hsl(183, 20%, 27%)'
-
-  tokens.light.path_surface = 'hsl(44, 40%, 96%)'
-  tokens.light.path_casing = 'hsl(42, 16%, 81%)'
+  // Pedestrian surfaces: paving a step darker than the daylight ground so plazas
+  // read, and a step lighter than the night ground, with the casing darker still.
+  tokens.light.path_surface = 'hsl(40, 20%, 90.5%)'
+  tokens.light.path_casing = 'hsl(40, 14%, 80%)'
+  tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
+  tokens.dark.path_bridge_casing = 'hsl(216, 24%, 13%)'
 
   for (const [rung, color] of Object.entries(ROAD_INK.light)) tokens.light[`road_${rung}`] = color
   for (const [rung, color] of Object.entries(ROAD_INK.dark)) tokens.dark[`road_${rung}`] = color
@@ -1934,6 +2099,8 @@ async function main() {
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
     if (name in tokens.dark) tokens.dark[name] = color
   }
+
+  Object.assign(tokens.dark, DARK_FOLIAGE)
 
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.
@@ -1974,7 +2141,7 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 95%)    hsl(42, 38%, 88%)
+  //   light   hsl(48, 16%, 94.5%)  hsl(36, 20%, 84%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
   // Daylight is the one place the roof goes the other way — seven points below
@@ -1986,11 +2153,11 @@ async function main() {
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 88%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(36, 20%, 84%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(42, 30%, 72%)'
+  tokens.light.building_roof_edge = 'hsl(36, 14%, 71%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

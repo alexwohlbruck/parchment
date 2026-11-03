@@ -45,10 +45,16 @@ export interface BrandChoice {
   preset: PresetSummary
 }
 
-/** A chain a feature's name matches, with the tags it would add or correct. */
-export interface BrandSuggestion {
-  brand: NsiBrand
-  diff: Array<{ key: string; from: string | null; to: string }>
+export interface TagChange {
+  key: string
+  from: string | null
+  to: string | null
+}
+
+/** Suggested updates to a feature's tags, and the chain they come from. */
+export interface TagUpgrade {
+  changes: TagChange[]
+  brand: NsiBrand | null
 }
 
 export interface DuplicateCandidate {

@@ -94,20 +94,6 @@ describe('what the menu offers', () => {
   })
 })
 
-describe('which switches a canvas is offered', () => {
-  it('offers the Mapbox-only ones on Mapbox', () => {
-    useMapStore().settings.engine = MapEngine.MAPBOX
-    expect(render(settings()).rows()).toHaveLength(8)
-  })
-
-  it('leaves them out on MapLibre, which has no answer to give', () => {
-    useMapStore().settings.engine = MapEngine.MAPLIBRE
-    const rows = render(settings()).rows()
-    expect(rows).toHaveLength(5)
-    expect(rows.map(r => r.id)).not.toContain('terrain3d')
-  })
-})
-
 describe('a canvas with no appearance of its own', () => {
   beforeEach(() => {
     const store = useMapStore()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   Dialog,
@@ -19,11 +20,14 @@ import PeopleWithAccessList, {
   type AccessRow,
 } from './PeopleWithAccessList.vue'
 import GeneralAccessSection from './GeneralAccessSection.vue'
+import PrivacySection from '@/components/library/privacy/PrivacySection.vue'
+import { useCollectionPrivacy } from '@/composables/library/useCollectionPrivacy'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { sealCollectionShare } from '@/lib/identity/collection-share'
 
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { useAppService } from '@/services/app.service'
 import { useServerUrl, api } from '@/lib/api'
 import {
   listSharesForResource,
@@ -36,16 +40,11 @@ import {
   type OutgoingShare,
 } from '@/services/sharing.service'
 import {
-  encryptForFriend,
   importPublicKey,
   buildSignableMessageV2,
   generateNonce as generateFederationNonce,
   sign as signEd25519,
 } from '@/lib/identity/federation-crypto'
-import {
-  upgradeCollectionToE2ee,
-  downgradeCollectionToServerKey,
-} from '@/lib/identity/collection-scheme-switch'
 import { rotateCollectionKey } from '@/lib/identity/collection-rotation'
 import type { Collection, ShareRole } from '@/types/library.types'
 
@@ -76,11 +75,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const serverUrl = useServerUrl()
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
 const authStore = useAuthStore()
-const appService = useAppService()
 const { friends } = storeToRefs(friendsStore)
 const { encryptionPrivateKey, signingPrivateKey, isSetupComplete } =
   storeToRefs(identityStore)
@@ -152,7 +151,7 @@ async function refreshShares() {
     shares.value = list.filter(s => s.status !== 'revoked')
   } catch (err) {
     console.error('Failed to load shares', err)
-    toast.error(t('sharing.errors.loadFailed'))
+    toast.error(t('sharing.errors.loadFailed'), { cause: err })
   } finally {
     loading.value = false
   }
@@ -205,7 +204,7 @@ const filteredFriends = computed(() => {
 
 const publicUrl = computed(() => {
   if (!publicToken.value) return undefined
-  return buildPublicLinkUrl(serverUrl.value, publicToken.value)
+  return buildPublicLinkUrl(window.location.origin, publicToken.value)
 })
 
 /**
@@ -221,9 +220,22 @@ function isRemoteHandle(handle: string): boolean {
   return recipientDomain !== domain
 }
 
+function showIdentityWarning() {
+  toast.warning(t('sharing.errors.identityRequired'), {
+    id: 'identity-required',
+    action: {
+      label: t('notifications.manageIdentity'),
+      onClick: () => {
+        emit('update:open', false)
+        void router.push({ path: '/settings/account', hash: '#identity' })
+      },
+    },
+  })
+}
+
 async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
   if (!isSetupComplete.value || !encryptionPrivateKey.value) {
-    toast.warning(t('sharing.errors.identityRequired'))
+    showIdentityWarning()
     return
   }
   const friend = friends.value.find(f => f.friendHandle === friendHandle)
@@ -234,32 +246,24 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
 
   mutating.value = true
   try {
-    // The ECIES envelope carries everything the recipient needs to
-    // render the shared collection:
-    //   - the collection id + scheme (routing)
-    //   - the display metadata (name, icon, iconColor, description)
-    //     because the server-stored `metadataEncrypted` envelope is
-    //     encrypted under Alice's personal K_m which Bob can't derive
-    // So without this, Bob sees an untitled, iconless card (the bug
-    // the owner reported). Metadata lives in the payload for both
-    // server-key and user-e2ee schemes to keep one delivery path.
-    const friendPub = importPublicKey(friend.friendEncryptionKey)
-    const payload = JSON.stringify({
-      collectionId: props.collection.id,
-      scheme: props.collection.scheme,
-      metadata: {
-        name: props.collection.name,
-        description: props.collection.description,
-        icon: props.collection.icon,
-        iconColor: props.collection.iconColor,
+    const isPrivate = props.collection.scheme === 'user-e2ee'
+    const key = isPrivate
+      ? await collectionsService.collectionKey(props.collection)
+      : undefined
+    if (isPrivate && !key) {
+      showIdentityWarning()
+      return
+    }
+    const encrypted = sealCollectionShare({
+      share: {
+        collectionId: props.collection.id,
+        scheme: props.collection.scheme,
+        key: key ?? undefined,
+        keyVersion: props.collection.metadataKeyVersion ?? 1,
       },
+      ownerPrivateKey: encryptionPrivateKey.value,
+      recipientPublicKey: importPublicKey(friend.friendEncryptionKey),
     })
-    const encrypted = encryptForFriend(
-      payload,
-      encryptionPrivateKey.value,
-      friendPub,
-      `parchment-share-collection-v1`,
-    )
 
     // Build the v2 federation envelope when the recipient is remote. The
     // server-side forwarder sends the envelope verbatim so the peer
@@ -270,7 +274,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     let federationTimestamp: string | undefined
     if (isRemoteHandle(friendHandle)) {
       if (!signingPrivateKey.value) {
-        toast.warning(t('sharing.errors.identityRequired'))
+        showIdentityWarning()
         return
       }
       federationNonce = generateFederationNonce()
@@ -286,7 +290,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
         payload: {
           resourceType: 'collection',
           resourceId: props.collection.id,
-          encryptedData: encrypted.ciphertext,
+          encryptedData: encrypted.encryptedData,
           nonce: encrypted.nonce,
           role,
         },
@@ -299,17 +303,18 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
       resourceType: 'collection',
       resourceId: props.collection.id,
       role,
-      encryptedData: encrypted.ciphertext,
+      encryptedData: encrypted.encryptedData,
       nonce: encrypted.nonce,
       federationSignature,
       federationNonce,
       federationTimestamp,
     })
+    searchQuery.value = ''
     await refreshShares()
     emit('changed')
   } catch (err) {
     console.error('Failed to create share', err)
-    toast.error(t('sharing.errors.createFailed'))
+    toast.error(t('sharing.errors.createFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -324,7 +329,7 @@ async function onChangeRole(row: AccessRow, newRole: ShareRole) {
     emit('changed')
   } catch (err) {
     console.error('Failed to change role', err)
-    toast.error(t('sharing.errors.roleChangeFailed'))
+    toast.error(t('sharing.errors.roleChangeFailed'), { cause: err })
     await refreshShares()
   } finally {
     mutating.value = false
@@ -349,7 +354,7 @@ async function onRemove(row: AccessRow) {
     // return ciphertext they can't decrypt.
     if (props.collection.scheme === 'user-e2ee') {
       if (!encryptionPrivateKey.value || !authStore.me?.id) {
-        toast.warning(t('sharing.errors.identityRequired'))
+        showIdentityWarning()
         return
       }
 
@@ -392,7 +397,7 @@ async function onRemove(row: AccessRow) {
     emit('changed')
   } catch (err) {
     console.error('Failed to revoke share', err)
-    toast.error(t('sharing.errors.revokeFailed'))
+    toast.error(t('sharing.errors.revokeFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -406,7 +411,7 @@ async function onMintPublicLink() {
     emit('changed')
   } catch (err) {
     console.error('Failed to mint public link', err)
-    toast.error(t('sharing.errors.publicLinkFailed'))
+    toast.error(t('sharing.errors.publicLinkFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -420,7 +425,7 @@ async function onRevokePublicLink() {
     emit('changed')
   } catch (err) {
     console.error('Failed to revoke public link', err)
-    toast.error(t('sharing.errors.publicLinkRevokeFailed'))
+    toast.error(t('sharing.errors.publicLinkRevokeFailed'), { cause: err })
   } finally {
     mutating.value = false
   }
@@ -431,105 +436,19 @@ async function onCopyPublicLink() {
   try {
     await navigator.clipboard.writeText(publicUrl.value)
     toast.success(t('sharing.publicLink.copied'))
-  } catch {
-    toast.error(t('sharing.errors.copyFailed'))
+  } catch (error) {
+    toast.error(t('sharing.errors.copyFailed'), { cause: error })
   }
 }
 
-/**
- * Trigger the bidirectional scheme switch.
- *
- * Currently this only surfaces via the "Switch to server-stored" affordance
- * inside the e2ee General Access panel, meaning it's always a DOWNGRADE
- * direction (user-e2ee → server-key). An UPGRADE affordance lives on the
- * server-key panel; both converge here.
- */
-async function onRequestSchemeSwitch() {
-  if (!isSetupComplete.value || !encryptionPrivateKey.value) {
-    toast.warning(t('sharing.errors.identityRequired'))
-    return
-  }
+const { switchPrivacy, switching, hasIdentity } = useCollectionPrivacy()
+const collectionsService = useCollectionsService()
 
-  const ownerUserId = authStore.me?.id
-  if (!ownerUserId) return
-
-  const goingToE2ee = props.collection.scheme === 'server-key'
-
-  // Both directions are transactional on the server and can't be trivially
-  // undone without running the reverse migration. The downgrade is louder
-  // (trust escalation to the server) but both deserve a confirm step.
-  const confirmed = await appService.confirm({
-    title: goingToE2ee
-      ? t('sharing.schemeSwitch.upgradeConfirm.title')
-      : t('sharing.schemeSwitch.downgradeConfirm.title'),
-    description: goingToE2ee
-      ? t('sharing.schemeSwitch.upgradeConfirm.description')
-      : t('sharing.schemeSwitch.downgradeConfirm.description'),
-    continueText: goingToE2ee
-      ? t('sharing.schemeSwitch.upgradeConfirm.continueText')
-      : t('sharing.schemeSwitch.downgradeConfirm.continueText'),
-    destructive: !goingToE2ee,
-  })
-  if (!confirmed) return
-
-  mutating.value = true
-  try {
-    // Fetch the current bookmarks or encrypted points so the orchestrator
-    // can transform them under the new scheme. Both endpoints are
-    // idempotent reads — fine to call even on a large collection.
-    const { data: detail } = await api.get(
-      `/library/collections/${props.collection.id}`,
-    )
-
-    // Map the existing shares into the shape the orchestrator expects.
-    // Recipient public keys come from the friends store — every remaining
-    // friend-share must have the recipient's long-term X25519 pub cached.
-    const remainingShares = activeShares.value
-      .map(s => {
-        const friend = friends.value.find(
-          f => f.friendHandle === s.recipientHandle,
-        )
-        if (!friend?.friendEncryptionKey) return null
-        return {
-          id: s.id,
-          recipientHandle: s.recipientHandle,
-          recipientEncryptionKey: friend.friendEncryptionKey,
-        }
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-
-    if (goingToE2ee) {
-      await upgradeCollectionToE2ee({
-        collection: props.collection,
-        ownerUserId,
-        currentBookmarks: detail.bookmarks ?? [],
-        remainingShares,
-        ownerEncryptionPrivateKey: encryptionPrivateKey.value,
-      })
-    } else {
-      const { data: pointsResp } = await api.get(
-        `/library/collections/${props.collection.id}/encrypted-points`,
-      )
-      await downgradeCollectionToServerKey({
-        collection: props.collection,
-        ownerUserId,
-        currentPoints: pointsResp.points ?? [],
-        remainingShares,
-        ownerEncryptionPrivateKey: encryptionPrivateKey.value,
-      })
-    }
-
-    toast.success(t('sharing.schemeSwitch.success'))
-    emit('changed')
-    // The collection passed in as a prop is now stale (scheme flipped).
-    // Close the dialog — the parent will refetch on the `changed` event.
-    emit('update:open', false)
-  } catch (err) {
-    console.error('Scheme switch failed', err)
-    toast.error(t('sharing.schemeSwitch.failed'))
-  } finally {
-    mutating.value = false
-  }
+/** The collection prop goes stale once its scheme flips; the parent refetches. */
+async function onSwitchPrivacy(target: Collection['scheme']) {
+  if (!(await switchPrivacy(props.collection, target))) return
+  emit('changed')
+  emit('update:open', false)
 }
 
 function close() {
@@ -626,16 +545,25 @@ const collectionName = computed(
         />
       </section>
 
-      <!-- General access -->
-      <GeneralAccessSection
+      <PrivacySection
         :scheme="collection.scheme"
+        :has-identity="hasIdentity"
+        :readonly="collection.role !== undefined && collection.role !== 'owner'"
+        :disabled="mutating || switching"
+        @switch="onSwitchPrivacy"
+      />
+
+      <p v-if="collection.scheme === 'user-e2ee'" class="text-xs text-muted-foreground -mt-2">
+        {{ t('sharing.generalAccess.privateHint') }}
+      </p>
+      <GeneralAccessSection
+        v-else
         :public-token="publicToken"
         :public-url="publicUrl"
-        :disabled="mutating"
+        :disabled="mutating || switching"
         @mint-public-link="onMintPublicLink"
         @revoke-public-link="onRevokePublicLink"
         @copy-public-link="onCopyPublicLink"
-        @request-scheme-switch="onRequestSchemeSwitch"
       />
 
       <div class="flex justify-end">

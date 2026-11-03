@@ -4,7 +4,7 @@
  * The buildings the extrusion draws moved from the basemap to Barrelman's own
  * `buildings_3d` source, because only that one carries `hide_3d` — the flag
  * that says which of a part-mapped building's two footprints is the outline to
- * drop. See `BUILDING_3D_SOURCE` in `detail-layers.ts`.
+ * drop. See `DETAIL_SOURCE` in `detail-layers.ts`.
  *
  * That source has to be created on the Barrelman instance before it answers,
  * and until it does, a style pointed at it draws no buildings at all: the tiles
@@ -13,19 +13,73 @@
  *
  * So the switch is made only once the source is known to answer. The style
  * starts on the basemap, one tile is asked for, and if it comes back the style
- * is rebuilt on Barrelman. An instance that has been migrated pays one extra
- * tile request per session; one that has not keeps the map it had.
+ * is rebuilt on Barrelman. An instance that has not been migrated keeps the map
+ * it had.
+ *
+ * The answer is remembered per tile server, so only a first visit pays for that
+ * rebuild. It is a full `setStyle`, which throws away every tile already
+ * loaded and asks for them again, and the probe only answers after a round trip
+ * to the tile server, by which time the first screen of tiles is in. A later
+ * session starts the style from the remembered answer and still asks, so an
+ * instance that loses the source is caught on the next load, not never.
  */
 
 /** Null until the probe has answered; the style reads it as "not yet". */
 let available: boolean | null = null
 
+/**
+ * Which Barrelman tiles answered: the `detail` bundle, or — on an instance
+ * from before bundles — the `buildings_3d` source on its own. The style reads
+ * the extrusion from whichever it is.
+ */
+let answeredBy: string | null = null
+
 /** Tile servers already asked, so a style rebuild does not ask again. */
 const asked = new Map<string, Promise<boolean>>()
+
+const REMEMBERED_KEY = 'parchment-barrelman-buildings'
+
+/** The answers previous sessions got, keyed by tile server. */
+function remembered(): Record<string, string | null> {
+  try {
+    const raw = localStorage.getItem(REMEMBERED_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Start from the answer the last session got from this tile server, if any.
+ * Call before the first style is built; the probe then only confirms it.
+ */
+export function recallBarrelmanBuildings(server: string): void {
+  if (available !== null) return
+  const all = remembered()
+  if (!(server in all)) return
+  answeredBy = all[server]
+  available = answeredBy !== null
+}
+
+/** Keep this session's answer for the next one. */
+export function rememberBarrelmanBuildings(server: string): void {
+  if (available === null) return
+  try {
+    localStorage.setItem(REMEMBERED_KEY, JSON.stringify({ ...remembered(), [server]: barrelmanBuildingsTiles() }))
+  } catch {
+    // Storage full or disabled: the next session probes and rebuilds, as before.
+  }
+}
 
 /** Whether the style should read buildings from Barrelman rather than the basemap. */
 export function barrelmanBuildingsReady(): boolean {
   return available === true
+}
+
+/** The Barrelman tiles the buildings come from, once the probe has said yes. */
+export function barrelmanBuildingsTiles(): string | null {
+  return available === true ? answeredBy : null
 }
 
 /**
@@ -34,8 +88,9 @@ export function barrelmanBuildingsReady(): boolean {
  * Both, because they are one piece of state between them — leaving the cache
  * behind would have the next probe replay the previous test's answer.
  */
-export function setBarrelmanBuildingsReady(value: boolean | null): void {
+export function setBarrelmanBuildingsReady(value: boolean | null, tiles: string | null = null): void {
   available = value
+  answeredBy = tiles
   asked.clear()
 }
 
@@ -54,6 +109,8 @@ export function setBarrelmanBuildingsReady(value: boolean | null): void {
 export async function probeBarrelmanBuildings(
   tileUrl: (z: number, x: number, y: number) => string,
   centre: { lng: number; lat: number },
+  /** Which tiles `tileUrl` asks for, remembered on a yes. */
+  tiles: string | null = null,
 ): Promise<boolean> {
   const z = 14
   const n = 2 ** z
@@ -76,7 +133,8 @@ export async function probeBarrelmanBuildings(
   }
 
   const answer = await pending
-  const changed = answer !== available
+  const changed = answer !== available || (answer && tiles !== answeredBy)
   available = answer
+  if (answer) answeredBy = tiles
   return changed
 }

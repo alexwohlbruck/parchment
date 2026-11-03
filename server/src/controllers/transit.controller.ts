@@ -6,9 +6,10 @@
  * enumerate live vehicle positions and the full route graph anonymously.
  */
 
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { requestBarrelman } from '../services/barrelman.service'
+import { findBoardingCandidates } from '../services/boarding-candidates.service'
 import {
   routesRunningAt,
   SERVICE_BOARD_EVENTS,
@@ -144,6 +145,39 @@ app.get('/departures', ({ query }) =>
   requestBarrelman('/transit/departures', query, { cacheControl: 'public, max-age=30' }),
   { detail: { tags: ['Transit'], summary: 'Upcoming departures at a stop' } },
 )
+
+const list = (value?: string) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+
+app.get('/boarding-candidates', async ({ query, set }) => {
+  set.headers['Cache-Control'] = 'no-cache'
+  return findBoardingCandidates({
+    stopId: query.stopId,
+    stops: list(query.stops),
+    departure: query.departure,
+    arrival: query.arrival,
+    routes: list(query.routes),
+    directionId: query.directionId || undefined,
+  })
+}, {
+  query: t.Object({
+    stopId: t.String({ minLength: 3, description: 'Timetable stop id (`{feed}_{stop}`) where the leg boards' }),
+    stops: t.String({ minLength: 3, description: "Comma-separated stop ids after boarding, in ride order, the alighting stop last" }),
+    departure: t.String({ format: 'date-time', description: 'Planned departure from the boarding stop' }),
+    arrival: t.String({ format: 'date-time', description: 'Planned arrival at the alighting stop' }),
+    routes: t.Optional(t.String({ description: "Comma-separated short names of the leg's interchangeable routes, its own included" })),
+    directionId: t.Optional(t.String()),
+  }),
+  detail: {
+    tags: ['Transit'],
+    summary: 'Runs a rider may have boarded in place of the planned one',
+    description:
+      'Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure`: any run of `routes` '
+      + 'in the leg\'s direction, and runs of other routes that also call at the alighting stop. Each lists the '
+      + 'given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express '
+      + 'can be told from a local, and carries its live `position` when the feed publishes vehicle positions. '
+      + '`stops` names the later stops whose boards could be read: a run missing from one of those does not call there.',
+  },
+})
 
 app.get('/alerts', ({ query }) =>
   requestBarrelman('/transit/alerts', query, { cacheControl: 'public, max-age=60' }),

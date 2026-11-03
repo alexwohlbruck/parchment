@@ -1,0 +1,155 @@
+// What the guidance UI shows, derived from the route and the puck: banner
+// distances rounded the way people say them, the road being driven, timing.
+
+import { edgeAt, segmentAt, type NavEdge, type NavRoute, type NavStep } from './nav-route'
+import type { Fix, PuckState } from './guidance-engine'
+import { modeProfile } from './mode-profiles'
+import { distanceMeters } from '@/lib/map/movement-interpolation'
+
+const FEET_PER_METER = 3.28084
+const METERS_PER_MILE = 1609.344
+
+export interface SpokenDistance {
+  value: string
+  unit: 'ft' | 'mi' | 'm' | 'km'
+}
+
+/** "0.4 mi", "500 ft", "50 ft" — coarse far away, fine close in. */
+export function bannerDistance(meters: number, metric: boolean): SpokenDistance {
+  const m = Math.max(0, meters)
+  if (metric) {
+    if (m >= 950) return { value: (m / 1000).toFixed(m >= 9500 ? 0 : 1), unit: 'km' }
+    const step = m >= 200 ? 50 : 10
+    return { value: String(Math.max(step === 10 ? 10 : 50, Math.round(m / step) * step)), unit: 'm' }
+  }
+  const miles = m / METERS_PER_MILE
+  if (miles >= 0.19) return { value: miles.toFixed(miles >= 9.5 ? 0 : 1), unit: 'mi' }
+  const feet = m * FEET_PER_METER
+  const step = feet >= 300 ? 50 : 10
+  return { value: String(Math.max(10, Math.round(feet / step) * step)), unit: 'ft' }
+}
+
+/** Road-class names for ways without one, and no street beside them. */
+const GENERIC_ROADS: Record<string, string> = {
+  footway: 'path',
+  path: 'path',
+  pedestrian: 'pedestrian',
+  cycleway: 'cycleway',
+  steps: 'steps',
+  track: 'track',
+  service: 'service',
+}
+
+const CROSSWALKS = new Set(['marked', 'unmarked', 'traffic_signals', 'uncontrolled'])
+const RAIL_CROSSINGS = new Set(['railway', 'railway_barrier'])
+const WALKWAYS = new Set(['footway', 'path', 'pedestrian'])
+
+/** What an unnamed way is to someone on it: a crosswalk, a footbridge, a park path, else its class. */
+function genericRoad(edge: NavEdge | null | undefined): string {
+  const roadClass = edge?.roadClass ?? ''
+  const crossing = edge?.crossing?.toLowerCase() ?? ''
+  // A road carries the crossings of junctions it passes through; only a path is the crossing itself.
+  if (CROSSWALKS.has(crossing) && (WALKWAYS.has(roadClass) || roadClass === 'cycleway')) return 'crosswalk'
+  if (RAIL_CROSSINGS.has(crossing)) return 'railCrossing'
+  if (WALKWAYS.has(roadClass)) {
+    if (edge?.roadEnvironment === 'bridge') return 'footbridge'
+    if (edge?.roadEnvironment === 'tunnel') return 'underpass'
+    if (edge?.inPark && roadClass !== 'pedestrian') return 'parkPath'
+  }
+  return GENERIC_ROADS[roadClass] ?? 'road'
+}
+
+export type RoadLabel =
+  | { kind: 'named'; name: string; ref?: string }
+  | { kind: 'generic'; key: string }
+
+/** How far past a maneuver the label waits before naming the new road. */
+const LABEL_SETTLE_METERS = 15
+
+export function currentRoadStep(route: NavRoute, s: number): NavStep | null {
+  let found: NavStep | null = null
+  for (const step of route.steps) {
+    if (step.startDistance + (step.index === 0 ? 0 : LABEL_SETTLE_METERS) > s) break
+    found = step
+  }
+  return found
+}
+
+/** The road under `s`: the street beside a sidewalk as it changes along the step, else the step's own. */
+export function roadLabel(route: NavRoute, s: number): RoadLabel {
+  const beside = edgeAt(route, s)?.streetName
+  return beside ? { kind: 'named', name: beside } : stepRoad(route, currentRoadStep(route, s), s)
+}
+
+/** The road a step follows, by its name or number, else the street beside the sidewalk under `s`, else its class. */
+export function stepRoad(route: NavRoute, step: NavStep | null, s: number): RoadLabel {
+  const name = step?.instruction.streetName?.trim()
+  const ref = step?.instruction.streetRef?.trim()
+  if (name) return { kind: 'named', name, ref: ref && ref !== name ? ref : undefined }
+  if (ref) return { kind: 'named', name: ref }
+  const edge = edgeAt(route, s)
+  if (edge?.streetName) return { kind: 'named', name: edge.streetName }
+  return { kind: 'generic', key: genericRoad(edge) }
+}
+
+export interface ProgressSummary {
+  /** Seconds left in the leg, from the planned segment durations. */
+  remainingSeconds: number
+  remainingMeters: number
+  stepIndex: number
+  next: NavStep | null
+  /** The maneuver after `next`, when it follows closely enough to mention. */
+  then: NavStep | null
+  distanceToNext: number | null
+  speedLimitKmh: number | null
+}
+
+const THEN_WITHIN_METERS = 150
+
+export function summarizeProgress(route: NavRoute, puck: PuckState, durations: number[]): ProgressSummary {
+  let remainingSeconds = 0
+  for (const segment of route.segments) {
+    const span = segment.endDistance - segment.startDistance
+    const duration = durations[segment.index] ?? 0
+    if (puck.s >= segment.endDistance || span <= 0) continue
+    const left = Math.min(1, (segment.endDistance - Math.max(puck.s, segment.startDistance)) / span)
+    remainingSeconds += duration * left
+  }
+
+  const next = route.steps[puck.stepIndex + 1] ?? null
+  const afterNext = next ? route.steps[next.index + 1] ?? null : null
+  const then =
+    next && afterNext && afterNext.startDistance - next.startDistance <= THEN_WITHIN_METERS ? afterNext : null
+
+  return {
+    remainingSeconds,
+    remainingMeters: Math.max(0, route.length - puck.s),
+    stepIndex: puck.stepIndex,
+    next,
+    then,
+    distanceToNext: next ? Math.max(0, next.startDistance - puck.s) : null,
+    speedLimitKmh: edgeAt(route, puck.s)?.speedLimit ?? null,
+  }
+}
+
+/** A speed limit in the driver's units: mph limits are posted in steps of 5. */
+export function postedLimit(kmh: number, metric: boolean): number {
+  return metric ? Math.round(kmh / 5) * 5 : Math.round(kmh / 1.609344 / 5) * 5
+}
+
+
+/** A fix this coarse can't tell arriving from being across the street. */
+const ARRIVAL_MAX_ACCURACY = 30
+const ARRIVAL_FIX_MAX_AGE_SEC = 15
+
+/** Arrived only on a fresh, accurate fix at the destination; an estimated puck never arrives. */
+export function hasArrived(route: NavRoute, puck: PuckState, fix: Fix | null, nowSec: number): boolean {
+  const radius = modeProfile(travelModeAt(route, puck.s)).arrivalRadius
+  if (!puck.snapped || puck.estimated || route.length - puck.s > radius) return false
+  if (!fix || fix.accuracy > ARRIVAL_MAX_ACCURACY || nowSec - fix.t > ARRIVAL_FIX_MAX_AGE_SEC) return false
+  return distanceMeters(fix.position, route.points[route.points.length - 1]) <= radius + fix.accuracy
+}
+
+export function travelModeAt(route: NavRoute, s: number): string {
+  return segmentAt(route, s)?.mode ?? 'driving'
+}

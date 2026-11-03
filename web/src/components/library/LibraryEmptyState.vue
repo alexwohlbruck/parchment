@@ -19,7 +19,7 @@ withDefaults(
   { offline: false },
 )
 
-const emit = defineEmits<{ retry: [] }>()
+const emit = defineEmits<{ retry: []; add: [] }>()
 
 const { t } = useI18n()
 </script>
@@ -38,7 +38,7 @@ const { t } = useI18n()
     "
     class="mt-24"
   >
-    <Button disabled variant="outline" size="sm" class="gap-1.5">
+    <Button variant="outline" size="sm" class="gap-1.5" @click="emit('add')">
       <PlusIcon class="h-3 w-3" />
       {{
         capitalize(

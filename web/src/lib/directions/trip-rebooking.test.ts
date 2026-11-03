@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { applyDepartureChange, type RebookableSegment } from './trip-rebooking'
+import { applyDepartureChange, cascadeAfter, type RebookableSegment } from './trip-rebooking'
 
 const T0 = new Date('2026-06-12T14:00:00Z').getTime()
 const min = (n: number) => T0 + n * 60_000
@@ -153,5 +153,20 @@ describe('applyDepartureChange', () => {
     expect(ok2).toBe(false)
     expect(ms(segs2[3].startTime)).toBe(min(25))
     expect(segs2[2].waitSeconds).toBe(120)
+  })
+})
+
+describe('cascadeAfter', () => {
+  it('reports a broken connection that no later run replaces', async () => {
+    const segs = makeTrip()
+    segs[1].endTime = new Date(min(26))
+    expect(await cascadeAfter(segs, 1, vi.fn(async () => null))).toBe(false)
+  })
+
+  it('holds when the next run of the line still connects', async () => {
+    const segs = makeTrip()
+    segs[1].endTime = new Date(min(26))
+    expect(await cascadeAfter(segs, 1, vi.fn(async () => min(35)))).toBe(true)
+    expect(ms(segs[3].startTime)).toBe(min(35))
   })
 })

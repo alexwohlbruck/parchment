@@ -73,24 +73,28 @@ async function deleteCollection() {
 }
 
 const menuItems = computed<MenuItemDefinition[]>(() => {
-  const items: MenuItemDefinition[] = [
-    {
-      type: 'item',
-      id: 'edit',
-      label: t('general.edit'),
-      icon: markRaw(Pencil),
-      onSelect: editCollection,
-    },
-    {
-      type: 'item',
-      id: 'share',
-      label: t('general.share'),
-      icon: markRaw(Share2Icon),
-      onSelect: () => {
-        isShareOpen.value = true
-      },
-    },
-  ]
+  // Editing or sharing a locked collection would overwrite metadata this
+  // device can't read.
+  const items: MenuItemDefinition[] = props.collection.locked
+    ? []
+    : [
+        {
+          type: 'item',
+          id: 'edit',
+          label: t('general.edit'),
+          icon: markRaw(Pencil),
+          onSelect: editCollection,
+        },
+        {
+          type: 'item',
+          id: 'share',
+          label: t('general.share'),
+          icon: markRaw(Share2Icon),
+          onSelect: () => {
+            isShareOpen.value = true
+          },
+        },
+      ]
 
   items.push({
     type: 'item',

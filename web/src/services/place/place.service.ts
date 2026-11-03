@@ -11,6 +11,7 @@ import { useSearchStore } from '@/stores/search.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { usePlaceCacheStore, buildPlaceCacheKey } from '@/stores/place-cache.store'
 import { useRecentsStore } from '@/stores/recents.store'
+import { isSamePlace } from '@/lib/library/external-ids'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
@@ -236,9 +237,7 @@ function placeService() {
     if (!partialPlace.externalIds) return undefined
     const bookmarksStore = useBookmarksStore()
     const bookmark = bookmarksStore.bookmarks.find(b =>
-      Object.entries(partialPlace.externalIds!).some(
-        ([provider, id]) => b.externalIds[provider] === id,
-      ),
+      isSamePlace(partialPlace.externalIds!, b.externalIds),
     )
     if (!bookmark) return undefined
 

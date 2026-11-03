@@ -346,6 +346,7 @@ export const useLayersStore = defineStore('layers', () => {
       frequentsLabel: translate('layers.savedPlaces.frequents'),
       uncategorizedLabel: translate('layers.savedPlaces.uncategorized'),
       lockedLabel: translate('layers.savedPlaces.locked'),
+      untitledLabel: translate('library.entities.collections.untitled'),
     }),
   )
 

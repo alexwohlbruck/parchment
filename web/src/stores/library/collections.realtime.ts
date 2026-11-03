@@ -14,6 +14,7 @@
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type { Collection } from '@/types/library.types'
 
 function isCollectionLike(p: unknown): p is Collection {
@@ -26,31 +27,21 @@ function applyUpdated(payload: unknown) {
   const store = useCollectionsStore()
   const existing = store.collections.find((c) => c.id === payload.id)
 
-  // For a collection the caller doesn't own, the event's raw payload is
-  // K_m-encrypted metadata that the recipient can't decrypt. Direct
-  // upsert would wipe the name/icon we previously stamped from the
-  // ECIES share envelope. Refetch instead — `fetchCollectionById` runs
-  // the full hydrate pipeline (share-envelope branch included).
-  const iAmRecipient =
-    existing && existing.role && existing.role !== 'owner'
-  if (iAmRecipient) {
+  // Encrypted metadata has to go through the hydrate pipeline: the owner
+  // decrypts with their seed, a recipient through the share envelope.
+  if (payload.metadataEncrypted) {
     void useCollectionsService().fetchCollectionById(payload.id)
     return
   }
 
-  // Owner path: K_m decrypt works client-side, safe to upsert directly.
-  // Preserve any already-decrypted display fields in case the server's
-  // payload lacks them (e.g. the row was never fetched via the service
-  // that hydrates them).
-  const merged: Collection = {
+  // The event carries the bare row: keep what only the list fetch supplies,
+  // like a recipient's share envelope and the place ids.
+  store.updateCollection({
+    ...existing,
     ...payload,
-    name: payload.name ?? existing?.name,
-    description: payload.description ?? existing?.description,
-    icon: payload.icon ?? existing?.icon,
-    iconColor: payload.iconColor ?? existing?.iconColor,
+    locked: false,
     role: existing?.role ?? payload.role,
-  }
-  store.updateCollection(merged)
+  })
 }
 
 function applyDeleted(payload: unknown) {
@@ -65,13 +56,20 @@ function applyPublicLinkChanged(payload: unknown) {
   applyUpdated(payload)
 }
 
-function applyRotatedOrSchemeChanged(payload: unknown) {
-  // Rotation and scheme changes return a fresh collection row. Upserting
-  // it is enough for the UI — but we ALSO need to drop any cached
-  // encrypted_points / bookmarks that belong to the old scheme, since
-  // the next fetch will bring the new ones. Simplest: let the service's
-  // refetch handle it when the user next opens the collection.
-  applyUpdated(payload)
+/**
+ * A new key or scheme invalidates every decrypted place. Refetching the
+ * collection opens its new share envelope; places on screen re-decrypt.
+ */
+async function applyRotatedOrSchemeChanged(payload: unknown) {
+  if (!isCollectionLike(payload)) return
+  const pointsStore = useEncryptedPointsStore()
+  const wasShowing = pointsStore.isLoaded(payload.id)
+  pointsStore.clearCollection(payload.id)
+  const service = useCollectionsService()
+  const fresh = await service.fetchCollectionById(payload.id)
+  if (wasShowing && fresh?.scheme === 'user-e2ee') {
+    void service.fetchAndDecryptPoints(fresh)
+  }
 }
 
 /**
@@ -141,23 +139,20 @@ registerRealtimeHandlers('collections', {
   'realtime:reconnected': applyReconnected,
 })
 
-// Encrypted-point updates are emitted by the server but they live in the
-// bookmarks store (rendered under a collection). We register a thin
-// handler here that forwards to the bookmarks store's accessor — not
-// ideal co-location, but simpler than adding a whole separate registry
-// for encrypted points.
+/** Re-decrypt a private collection's places, if this session had loaded them. */
+function refreshPrivatePoints(payload: unknown) {
+  const collectionId = (payload as { collectionId?: unknown } | null)?.collectionId
+  if (typeof collectionId !== 'string') return
+  const pointsStore = useEncryptedPointsStore()
+  if (!pointsStore.isLoaded(collectionId)) return
+  const collection = useCollectionsStore().getCollectionById(collectionId)
+  if (!collection) return
+  pointsStore.clearCollection(collectionId)
+  void useCollectionsService().fetchAndDecryptPoints(collection)
+}
+
 registerRealtimeHandlers('encrypted-points', {
-  'encrypted-point:created': (_p) => {
-    // Encrypted points need decryption before they're usable, which
-    // involves the per-collection key. Simplest correct behavior: fire
-    // a refetch on the owning collection so the service path that
-    // already handles decryption fills them in.
-    void useCollectionsService().fetchCollections()
-  },
-  'encrypted-point:updated': () => {
-    void useCollectionsService().fetchCollections()
-  },
-  'encrypted-point:deleted': () => {
-    void useCollectionsService().fetchCollections()
-  },
+  'encrypted-point:created': refreshPrivatePoints,
+  'encrypted-point:updated': refreshPrivatePoints,
+  'encrypted-point:deleted': refreshPrivatePoints,
 })

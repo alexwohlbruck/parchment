@@ -137,6 +137,18 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
   }
 }
 
+/** The detail page for a trip waypoint: its place when it has one, else its coordinates. */
+export function getWaypointPlaceRoute(
+  waypoint: { place?: { id?: string } | null; location?: { lat: number; lng: number } } | undefined | null,
+): RouteLocationRaw | null {
+  if (waypoint?.place?.id) return getPlaceRoute(waypoint.place.id)
+  if (!waypoint?.location) return null
+  return {
+    name: AppRoute.PLACE_COORDS,
+    params: { lat: String(waypoint.location.lat), lng: String(waypoint.location.lng) },
+  }
+}
+
 /**
  * Route for a GTFS-only stop (no OSM object to open): the location place view
  * at its coordinates with the transit widget expanded — the same treatment a

@@ -35,7 +35,8 @@ jobs:
 
     services:
       postgres:
-        image: kartoza/postgis:latest
+        # Pinned: the 3.7 image fails first-run init (its SQLDIR still points at postgis-3.6).
+        image: kartoza/postgis:18.6-3.6.4--v2026.10.25
         env:
           POSTGRES_DB: parchment_test
           POSTGRES_USER: test_user

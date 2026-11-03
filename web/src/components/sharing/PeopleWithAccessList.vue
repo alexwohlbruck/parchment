@@ -122,6 +122,8 @@ const roleOptions = computed(() => [
           size="icon"
           class="size-8"
           :disabled="disabled"
+          :aria-label="t('sharing.removeAction', { name: row.name })"
+          :title="t('sharing.removeAction', { name: row.name })"
           @click="emit('remove', row)"
         >
           <XIcon class="size-4" />

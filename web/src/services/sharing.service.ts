@@ -145,12 +145,7 @@ export async function revokePublicLink(collectionId: string): Promise<void> {
   await api.delete(`/library/collections/${collectionId}/public-link`)
 }
 
-/**
- * Build the publicly-shareable URL for a collection token. The URL
- * always points at the owner's home server; callers should read
- * `useServerUrl()` for the correct base.
- */
-export function buildPublicLinkUrl(serverUrl: string, token: string): string {
-  const base = serverUrl.replace(/\/$/, '')
-  return `${base}/public/collections/${token}`
+/** The page a public collection link opens, on the web app at `origin`. */
+export function buildPublicLinkUrl(origin: string, token: string): string {
+  return `${origin.replace(/\/$/, '')}/shared/${token}`
 }

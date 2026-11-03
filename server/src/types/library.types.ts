@@ -2,6 +2,7 @@ import {
   bookmarks,
   collections,
   bookmarksCollections,
+  type CollectionScheme,
 } from '../schema/library.schema'
 
 // For API responses, we want to expose lat/lng instead of raw geometry
@@ -29,7 +30,19 @@ export type CreateBookmarkParams = {
   userId: string
 }
 
-export type CreateCollectionParams = {
+export type CollectionMetadata = Pick<
+  NewCollection,
+  'name' | 'description' | 'icon' | 'iconPack' | 'iconColor'
+>
+
+export type CollectionUpdate = CollectionMetadata & {
+  metadataEncrypted?: string
+  metadataKeyVersion?: number
+  isPublic?: boolean
+}
+
+export type CreateCollectionParams = CollectionMetadata & {
+  scheme?: CollectionScheme
   metadataEncrypted?: string
   metadataKeyVersion?: number
   isPublic?: boolean

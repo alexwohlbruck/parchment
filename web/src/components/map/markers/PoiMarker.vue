@@ -3,8 +3,8 @@ import { computed } from 'vue'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
 import * as LucideIcons from 'lucide-vue-next'
 import { MapPinIcon } from 'lucide-vue-next'
-import { categoryMarkerPaint, getCategoryColor } from '@/services/place/place-colors'
-import { markerCss, type MarkerShape } from '@/lib/map-marker'
+import { categoryMarkerPaint } from '@/services/place/place-colors'
+import { MARKER_HALO, markerCss, type MarkerShape } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
 
 const {
@@ -30,17 +30,17 @@ const {
 
 const themeStore = useThemeStore()
 
-const css = computed(() =>
-  markerCss(categoryMarkerPaint(category, themeStore.isDark, shape), shape),
+const paint = computed(() =>
+  categoryMarkerPaint(category, themeStore.isDark, shape),
 )
+const css = computed(() => markerCss(paint.value, shape))
 
-// Matches the basemap's own POI labels: category-coloured, haloed so it stays
-// legible over any fill.
+// Mirrors the basemap's POI label layers: ink colour, 1.5px halo.
 const labelCss = computed(() => {
-  const halo = themeStore.isDark ? 'rgba(12,12,12,0.9)' : 'rgba(255,255,255,0.9)'
+  const halo = themeStore.isDark ? MARKER_HALO.dark : MARKER_HALO.light
   return {
-    color: getCategoryColor(category, themeStore.isDark),
-    textShadow: `0 0 3px ${halo}, 0 0 3px ${halo}, 0 0 3px ${halo}`,
+    color: paint.value.ink,
+    textShadow: `0 0 1.5px ${halo}, 0 0 1.5px ${halo}, 0 0 1.5px ${halo}, 0 0 1.5px ${halo}`,
   }
 })
 
@@ -72,7 +72,7 @@ const lucideIcon = computed(() => {
     </div>
     <span
       v-if="label"
-      class="pointer-events-none absolute top-full mt-0.5 max-w-[120px] truncate text-center text-[11px] font-medium leading-tight"
+      class="pointer-events-none absolute top-full mt-1 w-max font-sans max-w-[7em] text-center text-[13px] font-semibold leading-[1.05]"
       :class="{ 'opacity-50': muted }"
       :style="labelCss"
     >

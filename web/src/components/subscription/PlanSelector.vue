@@ -155,7 +155,7 @@ function checkout(tier: Tier) {
     <div
       v-for="tier in tiers"
       :key="tier.id"
-      class="rounded-lg bg-card text-card-foreground shadow-xs p-4 flex flex-col gap-4"
+      class="rounded-2xl bg-card text-card-foreground shadow-xs p-5 flex flex-col gap-4"
       :class="tier.isCurrent ? '' : 'border'"
       :style="tier.isCurrent ? {
         background: 'linear-gradient(180deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--card)) 40%)',
@@ -179,10 +179,11 @@ function checkout(tier: Tier) {
 
       <!-- Price -->
       <div>
-        <p class="text-[32px] font-display leading-tight">
+        <p v-if="tier.price !== null" class="text-[32px] font-display leading-tight">
           {{ tier.price }}
           <span class="text-sm font-sans font-normal text-muted-foreground">{{ tier.interval }}</span>
         </p>
+        <div v-else class="h-9 w-24 animate-pulse rounded-lg bg-muted" role="status" :aria-label="t('general.loading')" />
         <p
           v-if="tier.trialLabel"
           class="text-xs text-primary font-medium mt-1"

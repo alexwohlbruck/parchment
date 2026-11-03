@@ -32,7 +32,7 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
-import { collections } from '../schema/library.schema'
+import { collections, encryptedPoints } from '../schema/library.schema'
 import { wrappedMasterKeys } from '../schema/wrapped-master-keys.schema'
 
 export async function getUserKmVersion(userId: string): Promise<number | null> {
@@ -56,7 +56,9 @@ export interface RotationBlob {
 
 export interface RotationCollection {
   id: string
-  metadataEncrypted: string
+  metadataEncrypted?: string
+  /** A private collection's points, re-sealed under the new seed's key. */
+  points?: Array<{ id: string; encryptedData: string }>
 }
 
 export interface RotationSlot {
@@ -93,9 +95,9 @@ export class RotationConflict extends Error {
  *   2. Update `users.signingKey`, `users.encryptionKey`,
  *      `users.kmVersion = expectedCurrent + 1`.
  *   3. Upsert every rebuilt personal-blob envelope (by blobType).
- *   4. Update every rebuilt collection metadata envelope (by id, scoped
- *      to this user so we can't be tricked into touching another user's
- *      collection).
+ *   4. Update every rebuilt collection metadata envelope and private point
+ *      (by id, scoped to this user so we can't be tricked into touching
+ *      another user's collection).
  *   5. Upsert every re-sealed wrapped-master-key slot.
  *
  * Everything runs inside `db.transaction` so a mid-write failure rolls
@@ -156,15 +158,29 @@ export async function commitRotation(
     }
 
     for (const c of params.collections ?? []) {
-      await tx
-        .update(collections)
-        .set({
-          metadataEncrypted: c.metadataEncrypted,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(collections.id, c.id), eq(collections.userId, params.userId)),
-        )
+      if (c.metadataEncrypted !== undefined) {
+        await tx
+          .update(collections)
+          .set({
+            metadataEncrypted: c.metadataEncrypted,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(collections.id, c.id), eq(collections.userId, params.userId)),
+          )
+      }
+      for (const point of c.points ?? []) {
+        await tx
+          .update(encryptedPoints)
+          .set({ encryptedData: point.encryptedData, updatedAt: new Date() })
+          .where(
+            and(
+              eq(encryptedPoints.id, point.id),
+              eq(encryptedPoints.collectionId, c.id),
+              eq(encryptedPoints.userId, params.userId),
+            ),
+          )
+      }
     }
 
     for (const s of params.slots ?? []) {

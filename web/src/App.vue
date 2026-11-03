@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+import { DialogType } from '@/types/app.types'
+import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
+import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
+import PromptDialog from '@/components/dialogs/PromptDialog.vue'
+import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
+import SignOutDialog from '@/components/identity/SignOutDialog.vue'
+
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -45,6 +52,7 @@ import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
 import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
+import SyncQueueDialog from '@/components/sync/SyncQueueDialog.vue'
 import { TransitionSlide } from '@morev/vue-transitions'
 
 const route = useRoute()
@@ -102,6 +110,15 @@ watch(
 
 const { openExternalLink } = useExternalLink()
 
+const dialogComponents = {
+  [DialogType.Component]: ComponentDialog,
+  [DialogType.Confirm]: ConfirmDialog,
+  [DialogType.Prompt]: PromptDialog,
+  [DialogType.AutoForm]: AutoformDialog,
+  [DialogType.Template]: ConfirmDialog,
+  [DialogType.SignOut]: SignOutDialog,
+}
+
 const { dialogs } = appStore
 // Collapsed by default, and remembered — the rail's width changes the map's
 // viewport, so relearning it on every load is a visible layout shift.
@@ -110,13 +127,25 @@ const navCollapsed = useStorage('sidebar-collapsed', true)
 const navWidth = useStorage('sidebar-width', SIDEBAR_WIDTH)
 const viewRef = ref()
 
-const hideUI = ref(true)
+const routeHidesUI = ref(true)
+const onboardingFinishing = ref(false)
+const onboardingChromeIn = ref(false)
+const hideUI = computed(() => routeHidesUI.value || appStore.chromeHeld)
 const authStore = useAuthStore()
+watchEffect(() => {
+  appStore.chromeHeld = (authStore.needsOnboarding || onboardingFinishing.value) && !onboardingChromeIn.value
+})
 const integrationsStore = useIntegrationsStore()
+// The rail stays mounted through onboarding so the map keeps its final size; it slides in from offscreen.
+const navOnboardingStyle = computed(() =>
+  authStore.needsOnboarding || onboardingFinishing.value
+    ? { transform: appStore.chromeHeld ? 'translateX(-130%)' : 'none', transition: 'transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1)' }
+    : undefined,
+)
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
-  hideUI.value = route.meta?.hideUI ?? false
+  routeHidesUI.value = !!(route.meta?.hideUI || route.meta?.immersive)
 })
 
 // Global click handler for external links
@@ -182,13 +211,14 @@ async function bootstrapAuthenticatedUser() {
   // Hydrate the full bookmark list. Covers frequents (standalone, in no
   // collection) and everything the saved-places map layer draws, neither of
   // which the per-collection hydrate would surface.
-  void bookmarksService.fetchBookmarks()
+  const hasLibrary = authService.hasPermission(PermissionId.LIBRARY_READ)
+  if (hasLibrary) void bookmarksService.fetchBookmarks()
   // Collections are needed alongside them, not just on the library screen:
   // the map styles each saved place after its collection, and the layer
   // selector builds a toggle per collection. Without this a fresh device has
   // bookmarks whose collections it has never heard of, so they'd draw nowhere
   // and have no switch that could turn them on.
-  void collectionsService.fetchCollections()
+  if (hasLibrary) void collectionsService.fetchCollections()
   // Fetch user vehicles for trip planning
   vehiclesStore.fetchVehicles()
   // Initialize categories and palette (returns from cache instantly if available)
@@ -197,8 +227,10 @@ async function bootstrapAuthenticatedUser() {
   // Recents fill the search palette's idle state. Fetching + decrypting them
   // here means opening the palette renders from memory rather than waiting on
   // the encrypted blob.
-  void recentsStore.ensureSearchesHydrated()
-  void recentsStore.ensurePlacesHydrated()
+  if (hasLibrary) {
+    void recentsStore.ensureSearchesHydrated()
+    void recentsStore.ensurePlacesHydrated()
+  }
   // Initialize friend locations layer (watches visibility and polls accordingly)
   // Requires social permissions — skip for free users to avoid 403s
   if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
@@ -265,6 +297,7 @@ watch(
   },
 )
 
+
 function afterNavTransition(value: boolean) {
   if (viewRef.value?.navTransitioning) {
     viewRef.value.navTransitioning(value)
@@ -285,16 +318,22 @@ function beforeNavTransition(value: boolean) {
 
   <!-- Popups and modals -->
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
+  <SyncQueueDialog v-if="authStore.me" />
   <HotkeysMenu />
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />
   <component :is="BuildingShadePopover" v-if="shadePopoverOpen" />
-  <OnboardingDialog v-if="authStore.needsOnboarding" />
+  <OnboardingDialog
+    v-if="authStore.needsOnboarding || onboardingFinishing"
+    @finishing="onboardingFinishing = $event"
+    @chrome="onboardingChromeIn = true"
+    @complete="onboardingFinishing = false; onboardingChromeIn = false"
+  />
   <KeyRestoreDialog v-else-if="authStore.me" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component
-      :is="dialog.component"
+      :is="dialogComponents[dialog.type]"
       v-bind="dialog.props"
       @submit="async e => dialog.onSubmit(await e)"
       :loading="dialog.loading"
@@ -302,7 +341,7 @@ function beforeNavTransition(value: boolean) {
   </div>
 
   <div
-    class="flex flex-row h-[100vh] items-stretch"
+    class="flex flex-row h-full items-stretch"
     :class="isTauri ? '' : 'bg-background'"
   >
     <!-- Desktop navigation -->
@@ -315,7 +354,8 @@ function beforeNavTransition(value: boolean) {
         @before-leave="() => beforeNavTransition(false)"
       >
         <DesktopNav
-          v-if="!hideUI"
+          v-if="!routeHidesUI"
+          :style="navOnboardingStyle"
           v-model:collapsed="navCollapsed"
           v-model:width="navWidth"
           class="z-40 h-full"

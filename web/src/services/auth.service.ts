@@ -1,4 +1,5 @@
 import { api, isTauri } from '@/lib/api'
+import router from '@/router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAppService } from '@/services/app.service'
@@ -193,7 +194,7 @@ function authService() {
     // Cast avoids vue-i18n's "excessively deep" inference on the
     // global typed schema — this call site is fine at runtime.
     const t = (i18n.global as unknown as { t: (key: string) => string }).t
-    const confirmed = await appService.confirm({
+    const confirmed = await appService.confirmSignOut({
       title: t('palette.commands.signOut.confirmTitle'),
       description: t('palette.commands.signOut.confirmDescription'),
       destructive: true,
@@ -350,7 +351,13 @@ function authService() {
         toast.success(t('auth.passkey.restoredSuccess'))
       }
       if (result === 'failed') {
-        toast.warning(t('auth.passkey.restoreFailed'))
+        toast.warning(t('auth.passkey.restoreFailed'), {
+          id: 'identity-restore',
+          action: {
+            label: t('notifications.manageIdentity'),
+            onClick: () => { void router.push({ path: '/settings/account', hash: '#identity' }) },
+          },
+        })
       }
       // 'not-needed' and 'cancelled' fall through silently.
     } catch {

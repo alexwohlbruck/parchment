@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest'
+import { batchPrimitives, MAX_BATCH_MATERIALS, opacityOf } from './landmark-batches'
+import type { GlbPrimitive } from './glb.mjs'
+
+const triangle = (over: Partial<GlbPrimitive> = {}): GlbPrimitive => ({
+  position: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+  normal: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  index: new Uint16Array([0, 1, 2]),
+  color: [1, 1, 1, 1],
+  material: 'wall',
+  uv: null,
+  floodlight: null,
+  image: null,
+  alphaMode: 'OPAQUE',
+  alphaCutoff: 0.5,
+  doubleSided: false,
+  node: -1,
+  ...over,
+})
+
+describe('batchPrimitives', () => {
+  it('merges untextured primitives into one draw, tagging each vertex with its primitive', () => {
+    const [batch, ...rest] = batchPrimitives([triangle(), triangle({ material: 'roof' })])
+
+    expect(rest).toEqual([])
+    expect(batch.primitives.map(p => p.material)).toEqual(['wall', 'roof'])
+    expect([...batch.index]).toEqual([0, 1, 2, 3, 4, 5])
+    expect([...batch.material]).toEqual([0, 0, 0, 1, 1, 1])
+    expect(batch.position.length).toBe(18)
+  })
+
+  it('carries floodlight per vertex, unlit where a primitive has none, and none for an unlit batch', () => {
+    const [batch] = batchPrimitives([triangle(), triangle({ floodlight: new Float32Array([1, 0.5, 0.25]) })])
+
+    expect([...batch.floodlight!]).toEqual([0, 0, 0, 1, 0.5, 0.25])
+    expect(batchPrimitives([triangle()])[0].floodlight).toBeNull()
+  })
+
+  it('keeps apart primitives on another node, culled differently, or textured', () => {
+    const textured = triangle({ uv: new Float32Array(6), image: { bytes: new Uint8Array(), mimeType: 'image/png' } })
+    const batches = batchPrimitives([triangle(), triangle({ node: 2 }), triangle({ doubleSided: true }), textured])
+
+    expect(batches.map(b => b.primitives.length)).toEqual([1, 1, 1, 1])
+    expect(batches.at(-1)!.uv).toBe(textured.uv)
+  })
+
+  it('keeps translucent glass apart, at its own opacity', () => {
+    const glass = triangle({ material: 'glass', alphaMode: 'BLEND', color: [0.4, 0.5, 0.7, 0.3] })
+    const batches = batchPrimitives([triangle(), glass, triangle({ material: 'roof' })])
+
+    expect(batches.map(b => b.primitives.map(p => p.material))).toEqual([['wall', 'roof'], ['glass']])
+    expect(batches.map(b => b.opacity)).toEqual([1, expect.closeTo(0.3, 5)])
+  })
+
+  it('draws a material opaque unless it blends, and never by a texture', () => {
+    expect(opacityOf(triangle({ color: [1, 1, 1, 0.3] }))).toBe(1)
+    expect(opacityOf(triangle({ alphaMode: 'BLEND', color: [1, 1, 1, 0.3] }))).toBeCloseTo(0.3)
+    expect(opacityOf(triangle({ alphaMode: 'BLEND', color: [1, 1, 1, 0.3], image: { bytes: new Uint8Array(), mimeType: 'image/png' } }))).toBe(1)
+  })
+
+  it('splits a run longer than the material table', () => {
+    const batches = batchPrimitives(Array.from({ length: MAX_BATCH_MATERIALS + 1 }, () => triangle()))
+
+    expect(batches.map(b => b.primitives.length)).toEqual([MAX_BATCH_MATERIALS, 1])
+  })
+
+  it('widens the index once the vertices outgrow 16 bits', () => {
+    const big = triangle({ position: new Float32Array(0x10000 * 3), normal: new Float32Array(0x10000 * 3) })
+    const [batch] = batchPrimitives([big, triangle()])
+
+    expect(batch.index).toBeInstanceOf(Uint32Array)
+    expect(batch.index[3]).toBe(0x10000)
+  })
+})

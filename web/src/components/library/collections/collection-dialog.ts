@@ -1,8 +1,13 @@
 import { markRaw } from 'vue'
 import { i18n } from '@/lib/i18n'
 import { useAppService } from '@/services/app.service'
+import { useCollectionsService } from '@/services/library/collections.service'
 import type { ThemeColor } from '@/lib/utils'
-import type { CreateCollectionParams, Collection } from '@/types/library.types'
+import type {
+  CreateCollectionParams,
+  Collection,
+  CollectionScheme,
+} from '@/types/library.types'
 import CollectionForm from './CollectionForm.vue'
 
 /**
@@ -36,6 +41,7 @@ export async function openCollectionDialog(
   if (!formData) return null
 
   return {
+    ...(editing ? {} : { scheme: formData.scheme as CollectionScheme }),
     name: formData.name,
     ...(formData.description ? { description: formData.description } : {}),
     icon: formData.icon,
@@ -43,4 +49,11 @@ export async function openCollectionDialog(
     iconColor: formData.iconColor as ThemeColor,
     isPublic: formData.isPublic,
   }
+}
+
+/** Ask for a new collection's details and create it. Null when cancelled. */
+export async function createCollectionFromDialog(): Promise<Collection | null> {
+  const params = await openCollectionDialog()
+  if (!params) return null
+  return useCollectionsService().createCollection(params)
 }

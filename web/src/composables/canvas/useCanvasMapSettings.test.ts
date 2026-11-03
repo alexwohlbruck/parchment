@@ -111,4 +111,16 @@ describe('useCanvasMapSettings', () => {
     expect(map.parkedSettings?.placeLabels).toBe(true)
     canvas.close()
   })
+
+  it('hands HD roads back unchosen, so it keeps following the engine', () => {
+    const map = useMapStore()
+    expect(map.settings.hdRoads).toBeNull()
+
+    const canvas = open({ ...CANVAS, hdRoads: false })
+    expect(map.hdRoads).toBe(false)
+    canvas.close()
+
+    expect(map.settings.hdRoads).toBeNull()
+    expect(map.hdRoads).toBe(true)
+  })
 })

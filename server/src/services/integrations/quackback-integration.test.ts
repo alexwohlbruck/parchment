@@ -1,10 +1,13 @@
+import { createHmac } from 'node:crypto'
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
-const mockGet = mock((_url: string, _config?: any): Promise<any> =>
-  Promise.resolve({ data: { data: [] } }),
+const mockGet = mock(
+  (_url: string, _config?: any): Promise<any> =>
+    Promise.resolve({ data: { data: [] } }),
 )
 const mockPost = mock(
-  (_url: string, _body?: any): Promise<any> => Promise.resolve({ data: { data: {} } }),
+  (_url: string, _body?: any): Promise<any> =>
+    Promise.resolve({ data: { data: {} } }),
 )
 
 mock.module('axios', () => ({
@@ -24,7 +27,10 @@ const BOARDS = {
 function configured() {
   const integration = new QuackbackIntegration()
   // Trailing slash on purpose — it must be trimmed before building URLs.
-  integration.initialize({ url: 'https://feedback.example.com/', apiKey: '  qb_test  ' })
+  integration.initialize({
+    url: 'https://feedback.example.com/',
+    apiKey: '  qb_test  ',
+  })
   return integration
 }
 
@@ -45,14 +51,21 @@ describe('QuackbackIntegration', () => {
 
     test('requires both a url and an api key', () => {
       const integration = new QuackbackIntegration()
-      expect(integration.validateConfig({ url: 'https://x.test', apiKey: 'k' })).toBe(true)
-      expect(integration.validateConfig({ url: 'https://x.test', apiKey: ' ' })).toBe(false)
+      expect(
+        integration.validateConfig({ url: 'https://x.test', apiKey: 'k' }),
+      ).toBe(true)
+      expect(
+        integration.validateConfig({ url: 'https://x.test', apiKey: ' ' }),
+      ).toBe(false)
       expect(integration.validateConfig({ url: '', apiKey: 'k' })).toBe(false)
     })
 
     test('refuses to initialize half-configured', () => {
       expect(() =>
-        new QuackbackIntegration().initialize({ url: 'https://x.test', apiKey: '' }),
+        new QuackbackIntegration().initialize({
+          url: 'https://x.test',
+          apiKey: '',
+        }),
       ).toThrow('Invalid configuration')
     })
 
@@ -66,7 +79,12 @@ describe('QuackbackIntegration', () => {
   describe('listBoards', () => {
     test('maps the upstream envelope to boards', async () => {
       expect(await configured().listBoards()).toEqual([
-        { id: 'board_1', name: 'Bugs', slug: 'bugs', description: 'Report bugs' },
+        {
+          id: 'board_1',
+          name: 'Bugs',
+          slug: 'bugs',
+          description: 'Report bugs',
+        },
         { id: 'board_2', name: 'Ideas', slug: 'ideas', description: null },
       ])
     })
@@ -89,7 +107,10 @@ describe('QuackbackIntegration', () => {
     test('re-initializing drops a stale cache', async () => {
       const integration = configured()
       await integration.listBoards()
-      integration.initialize({ url: 'https://other.example.com', apiKey: 'qb_other' })
+      integration.initialize({
+        url: 'https://other.example.com',
+        apiKey: 'qb_other',
+      })
       await integration.listBoards()
       expect(mockGet).toHaveBeenCalledTimes(2)
     })
@@ -160,6 +181,134 @@ describe('QuackbackIntegration', () => {
       })
 
       expect(result.url).toBeNull()
+    })
+  })
+
+  describe('portal login', () => {
+    const identity = { id: 'user_123', email: 'ada@example.com', name: 'Ada' }
+    function loginIntegration() {
+      const integration = configured()
+      integration.initialize({
+        url: 'https://feedback.example.com/',
+        apiKey: 'qb_admin',
+        widgetSecret: 'test-signing-secret',
+      })
+      return integration
+    }
+    beforeEach(() => {
+      mockPost.mockResolvedValue({ data: { sessionToken: 'private-session' } })
+      mockGet.mockResolvedValue({ data: { token: 'one-time-token' } })
+    })
+
+    test('signs a five-minute identity and exchanges only its session for a one-time login', async () => {
+      const result = await loginIntegration().createPortalLogin(identity)
+      const [path, body] = mockPost.mock.calls[0]!
+      expect(path).toBe('/api/widget/identify')
+      const [header, claims, signature] = body.ssoToken.split('.')
+      expect(JSON.parse(Buffer.from(header, 'base64url').toString())).toEqual({
+        alg: 'HS256',
+        typ: 'JWT',
+      })
+      const payload = JSON.parse(Buffer.from(claims, 'base64url').toString())
+      expect(payload).toMatchObject({
+        sub: 'user_123',
+        email: identity.email,
+        name: 'Ada',
+      })
+      expect(payload.exp - payload.iat).toBe(300)
+      expect(payload.iat).toBeCloseTo(Date.now() / 1000, -1)
+      expect(signature).toBe(
+        createHmac('sha256', 'test-signing-secret')
+          .update(`${header}.${claims}`)
+          .digest('base64url'),
+      )
+      expect(mockGet).toHaveBeenCalledWith(
+        '/api/auth/one-time-token/generate',
+        {
+          headers: { Authorization: 'Bearer private-session' },
+        },
+      )
+      const url = new URL(result.url)
+      expect(url.origin + url.pathname).toBe(
+        'https://feedback.example.com/auth/widget-handoff',
+      )
+      expect(url.searchParams.get('ott')).toBe('one-time-token')
+      expect(url.searchParams.get('returnTo')).toBe('/')
+      expect(result.url).not.toContain('private-session')
+      expect(result.url).not.toContain(body.ssoToken)
+    })
+
+    test('returns to a feedback post without forwarding its query or fragment', async () => {
+      const { url } = await loginIntegration().createPortalLogin(
+        identity,
+        'https://feedback.example.com/b/ideas/posts/post_5?untrusted=true#fragment',
+      )
+      expect(new URL(url).searchParams.get('returnTo')).toBe(
+        '/b/ideas/posts/post_5',
+      )
+    })
+
+    test('rejects foreign origins and non-post destinations before identifying the user', async () => {
+      for (const url of [
+        'https://evil.test/b/ideas/posts/post_5',
+        'https://feedback.example.com/auth/login',
+        'https://feedback.example.com/b/ideas/posts/../../auth',
+      ]) {
+        await expect(
+          loginIntegration().createPortalLogin(identity, url),
+        ).rejects.toThrow('Invalid feedback post URL')
+      }
+      expect(mockPost).not.toHaveBeenCalled()
+    })
+
+    test('keeps login disabled without a signing secret', async () => {
+      expect(configured().isPortalLoginEnabled()).toBe(false)
+      await expect(configured().createPortalLogin(identity)).rejects.toThrow(
+        'not configured',
+      )
+      expect(mockPost).not.toHaveBeenCalled()
+    })
+
+    test('does not continue when identity verification fails or omits the session', async () => {
+      mockPost.mockRejectedValueOnce(new Error('Identity refused'))
+      await expect(
+        loginIntegration().createPortalLogin(identity),
+      ).rejects.toThrow('Identity refused')
+      mockPost.mockResolvedValueOnce({ data: {} })
+      await expect(
+        loginIntegration().createPortalLogin(identity),
+      ).rejects.toThrow('no session')
+      expect(mockGet).not.toHaveBeenCalled()
+    })
+
+    test('opens normal portal login for staff without minting an admin session', async () => {
+      mockPost.mockRejectedValueOnce({
+        response: {
+          status: 403,
+          data: { error: { code: 'IDENTITY_NOT_ALLOWED' } },
+        },
+      })
+      expect(await loginIntegration().createPortalLogin(identity)).toEqual({
+        url: 'https://feedback.example.com/',
+      })
+      expect(mockGet).not.toHaveBeenCalled()
+    })
+
+    test('does not fall back when a user is blocked', async () => {
+      mockPost.mockRejectedValueOnce({
+        response: { status: 403, data: { error: { code: 'BLOCKED' } } },
+      })
+      await expect(
+        loginIntegration().createPortalLogin(identity),
+      ).rejects.toMatchObject({ response: { status: 403 } })
+      expect(mockGet).not.toHaveBeenCalled()
+    })
+
+    test('rejects a missing one-time token', async () => {
+      mockGet.mockResolvedValueOnce({ data: {} })
+      await expect(
+        loginIntegration().createPortalLogin(identity),
+      ).rejects.toThrow('no login token')
     })
   })
 

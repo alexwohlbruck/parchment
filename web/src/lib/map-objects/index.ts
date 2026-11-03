@@ -11,11 +11,27 @@ import { type ObjectPalette, type ObjectSourceSpec } from './object-layer'
 import models from './models.json'
 import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
+import { SPORT_MODELS, SPORT_OBJECTS } from './sports'
+import { GOLF_MODELS, GOLF_OBJECTS } from './golf'
+import { FOREST_OBJECTS } from './forest'
+import { LINE_MODELS, LINE_OBJECTS } from './lines'
+import { POWER_MODELS } from './power'
+import { AREA_MODELS, AREA_OBJECTS } from './areas'
+import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
+import { FIXTURE_MODELS, FIXTURE_OBJECTS } from './fixtures'
+import { INDOOR_FLIGHT_MODELS } from './indoor-flights'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
   TREE_ROW_OBJECTS,
   FURNITURE_OBJECTS,
+  SPORT_OBJECTS,
+  GOLF_OBJECTS,
+  FOREST_OBJECTS,
+  LINE_OBJECTS,
+  AREA_OBJECTS,
+  SOLAR_OBJECTS,
+  FIXTURE_OBJECTS,
 ]
 
 /**
@@ -26,7 +42,7 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
  * that was skipped is a 404 that takes the whole layer down with it.
  */
 export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
-  Object.keys(models).map(name => [name, `/models/${name}.glb`]),
+  Object.keys(models).filter(name => !(name in INDOOR_FLIGHT_MODELS)).map(name => [name, `/models/${name}.glb`]),
 )
 
 /**
@@ -43,7 +59,7 @@ export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
 export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
-export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
+export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS, ...FIXTURE_MODELS }
 
 /**
  * Role colours, per flavor.
@@ -55,32 +71,94 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  * way it looks at noon. The layer resolves them per draw rather than baking them
  * in: switching theme is a uniform, not a reload.
  *
- * Daylight foliage is `#B6E694`, as a plain sRGB triple. The models' own
- * `baseColorFactor` is nominally linear and this comment used to say these were
- * too, but nothing in the pipeline treats them that way: the fragment shader
- * writes the colour straight to `gl_FragColor` and the drawing buffer is not
- * sRGB, so what is written here is what the screen shows. Converting a hex to
- * linear before pasting it in renders the tree several steps too dark.
- *
- * What does move it is the shading — the half-lambert term against ambient, and
- * the instance's own `shade`. A crown seen from above keeps roughly 93-100% of
- * the value below, so the named colour is close to what the top of a tree
- * reads as, and its flanks sit under that.
+ * Colours are plain sRGB triples, written straight to the screen: nothing in
+ * the pipeline linearises them. Foliage carries an `-alt`, the bluer green an
+ * instance moves toward with its `tint`, so a street of trees varies in hue
+ * and not only in value. The shader darkens a crown's underside on top of this,
+ * so the named colour is roughly what the sunlit top of a tree reads as.
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
-    bark: [0.55, 0.42, 0.32],
-    foliage: [0.713, 0.901, 0.579],
-    metal: [0.46, 0.49, 0.51],
-    wood: [0.56, 0.42, 0.29],
-    paint: [0.24, 0.44, 0.32],
+    bark: [0.56, 0.45, 0.36],
+    // A palm's trunk is grey, not brown: ringed, fibrous, and pale as concrete
+    // on a royal palm.
+    'palm-bark': [0.62, 0.58, 0.52],
+    foliage: [0.66, 0.83, 0.5],
+    'foliage-alt': [0.55, 0.77, 0.52],
+    metal: [0.3, 0.36, 0.33],
+    wood: [0.62, 0.47, 0.31],
+    paint: [0.22, 0.47, 0.36],
+    interior: [0.16, 0.18, 0.17],
+    bench: [0.88, 0.8, 0.68],
+    bin: [0.35, 0.37, 0.4],
+    recycling: [0.22, 0.36, 0.56],
+    spray: [0.92, 0.96, 1],
+    stone: [0.8, 0.78, 0.74],
+    water: [0.55, 0.72, 0.82],
+    lamp: [1, 0.95, 0.82],
+    panel: [0.95, 0.94, 0.91],
+    blossom: [0.97, 0.76, 0.84],
+    'blossom-alt': [0.98, 0.86, 0.9],
+    thatch: [0.74, 0.64, 0.48],
+    net: [0.45, 0.48, 0.48],
+    tape: [0.97, 0.97, 0.95],
+    rim: [0.88, 0.42, 0.18],
+    frame: [0.97, 0.97, 0.96],
+    goalpost: [0.96, 0.8, 0.22],
+    pennant: [0.8, 0.3, 0.26],
+    wire: [0.38, 0.39, 0.41],
+    mesh: [0.72, 0.74, 0.74],
+    bloom: [0.9, 0.52, 0.68],
+    'bloom-alt': [0.96, 0.82, 0.36],
+    pv: [0.26, 0.34, 0.5],
+    lattice: [0.66, 0.68, 0.7],
+    housing: [0.2, 0.21, 0.21],
+    steel: [0.36, 0.38, 0.4],
+    reflector: [0.96, 0.8, 0.22],
+    'lens-red': [0.9, 0.24, 0.2],
+    'lens-amber': [0.98, 0.7, 0.2],
+    'lens-green': [0.24, 0.78, 0.52],
+    sign: [0.97, 0.97, 0.95],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
-    foliage: [0.15, 0.27, 0.16],
+    'palm-bark': [0.2, 0.19, 0.17],
+    foliage: [0.17, 0.3, 0.17],
+    'foliage-alt': [0.12, 0.25, 0.18],
     metal: [0.2, 0.23, 0.26],
     wood: [0.24, 0.18, 0.13],
     paint: [0.12, 0.23, 0.17],
+    interior: [0.06, 0.07, 0.07],
+    bench: [0.36, 0.32, 0.27],
+    bin: [0.16, 0.17, 0.19],
+    recycling: [0.1, 0.16, 0.26],
+    spray: [0.7, 0.78, 0.84],
+    stone: [0.3, 0.3, 0.29],
+    water: [0.13, 0.2, 0.26],
+    lamp: [1, 0.86, 0.58],
+    panel: [0.42, 0.42, 0.4],
+    blossom: [0.36, 0.24, 0.3],
+    'blossom-alt': [0.4, 0.3, 0.35],
+    thatch: [0.25, 0.21, 0.16],
+    net: [0.2, 0.22, 0.22],
+    tape: [0.6, 0.6, 0.58],
+    rim: [0.55, 0.27, 0.12],
+    frame: [0.62, 0.62, 0.6],
+    goalpost: [0.6, 0.5, 0.16],
+    pennant: [0.55, 0.22, 0.19],
+    wire: [0.3, 0.31, 0.33],
+    mesh: [0.3, 0.31, 0.32],
+    bloom: [0.42, 0.24, 0.32],
+    'bloom-alt': [0.46, 0.4, 0.18],
+    pv: [0.22, 0.29, 0.45],
+    lattice: [0.32, 0.34, 0.36],
+    housing: [0.1, 0.11, 0.11],
+    steel: [0.22, 0.23, 0.25],
+    reflector: [0.6, 0.5, 0.16],
+    'lens-red': [0.86, 0.22, 0.18],
+    'lens-amber': [0.92, 0.64, 0.18],
+    'lens-green': [0.2, 0.7, 0.46],
+    sign: [0.62, 0.62, 0.6],
   },
 }
 

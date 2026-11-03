@@ -60,6 +60,9 @@ export const COMMON_CATEGORIES: CommonCategory[] = [
   { id: 'shop/mall', labelKey: key('shoppingMalls'), icon: 'ShoppingBag', category: 'store' },
   { id: 'shop/bakery', labelKey: key('bakeries'), icon: 'Croissant', category: 'food_and_drink' },
   { id: 'amenity/charging_station', labelKey: key('evCharging'), icon: 'BatteryCharging', category: 'commercial_services' },
+  // Barrelman's umbrella category: sockets, device charging stations, and cafes
+  // and other venues tagged as having outlets. Not an iD preset.
+  { id: 'power/outlet', labelKey: key('powerOutlets'), icon: 'PlugZap', category: 'commercial_services' },
   // `public_transport=platform` rather than `highway=bus_stop`: it's the modern
   // tagging every mode shares, so one chip covers bus, tram and rail stops
   // (bus stops carry both tags, so none are lost).

@@ -1,4 +1,5 @@
-import { LngLatBounds, type CameraOptions } from 'maplibre-gl'
+import { type CameraOptions } from 'maplibre-gl'
+import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
@@ -17,12 +18,16 @@ import {
   Pegman,
   LngLat,
   Waypoint,
+  ShadowMode,
 } from '@/types/map.types'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
-import { impactFeedback } from '@tauri-apps/plugin-haptics'
+import { hapticImpact } from '@/lib/haptics'
+import { liftPixels } from '@/lib/guidance/deck-lift'
+import type { RouteTrack } from '@/lib/map-decks/deck.types'
+import { metersPerPixel } from '@/lib/guidance/camera-framing'
 import {
   mapPoiClickPolicy,
   PoiTapController,
@@ -37,8 +42,6 @@ export class MapStrategy {
   markers: Map<string, any> = new Map() // Track active markers
   layerGroups: Map<string, MapLayerGroup> = new Map()
   protected fitMapToTrips(_trips: TripsResponse, _visibleTripIds: Set<string>) {}
-  protected longPressTimer: ReturnType<typeof setTimeout> | null = null
-  protected touchStartPoint: { x: number; y: number } | null = null
   protected clickDebounceTimer: number | null = null
   private poiTapController: PoiTapController | null = null
   private cancelPendingDoubleTapZoom = (event: {
@@ -62,86 +65,12 @@ export class MapStrategy {
     this.accessToken = accessToken
   }
 
-  /**
-   * Sets up touch-and-hold gesture to trigger context menu on mobile.
-   * Should be called from configureEventListeners() in child classes after mapInstance is initialized.
-   */
-  protected setupLongPressHandler() {
-    const LONG_PRESS_DURATION = 500 // ms
-    const MOVE_THRESHOLD = 10 // pixels
-
-    const canvas = this.mapInstance.getCanvas()
-
-    const clearLongPress = () => {
-      if (this.longPressTimer) {
-        clearTimeout(this.longPressTimer)
-        this.longPressTimer = null
-      }
-      this.touchStartPoint = null
-    }
-
-    const handleTouchStart = (e: TouchEvent) => {
-      // Only handle single finger touch
-      if (e.touches.length !== 1) {
-        clearLongPress()
-        return
-      }
-
-      const touch = e.touches[0]
-      this.touchStartPoint = { x: touch.clientX, y: touch.clientY }
-
-      this.longPressTimer = setTimeout(async () => {
-        if (this.touchStartPoint) {
-          const rect = canvas.getBoundingClientRect()
-          const x = this.touchStartPoint.x - rect.left
-          const y = this.touchStartPoint.y - rect.top
-
-          // Convert pixel coordinates to lng/lat
-          const lngLat = this.mapInstance.unproject([x, y])
-
-          // Trigger haptic feedback on mobile
-          try {
-            await impactFeedback('medium')
-          } catch {
-            // Haptics not available (e.g., web/desktop)
-          }
-
-          mapEventBus.emit('contextmenu', {
-            lngLat,
-            point: { x, y },
-          })
-        }
-        this.longPressTimer = null
-      }, LONG_PRESS_DURATION)
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!this.longPressTimer || !this.touchStartPoint) return
-
-      const touch = e.touches[0]
-      const dx = touch.clientX - this.touchStartPoint.x
-      const dy = touch.clientY - this.touchStartPoint.y
-      const distance = Math.sqrt(dx * dx + dy * dy)
-
-      // Cancel if finger moved too much (user is panning)
-      if (distance > MOVE_THRESHOLD) {
-        clearLongPress()
-      }
-    }
-
-    const handleTouchEnd = () => {
-      clearLongPress()
-    }
-
-    // Prevent default browser context menu on long-press
-    canvas.addEventListener('contextmenu', (e: Event) => {
-      e.preventDefault()
-    })
-
-    canvas.addEventListener('touchstart', handleTouchStart)
-    canvas.addEventListener('touchmove', handleTouchMove)
-    canvas.addEventListener('touchend', handleTouchEnd)
-    canvas.addEventListener('touchcancel', handleTouchEnd)
+  protected async emitContextMenu(
+    lngLat: { lng: number; lat: number },
+    point: { x: number; y: number },
+  ) {
+    await hapticImpact('medium')
+    mapEventBus.emit('contextmenu', { lngLat, point })
   }
 
   /** Attach the shared single/double/drag tap recognizer after map creation. */
@@ -274,12 +203,16 @@ export class MapStrategy {
    * anything the style or the caller has to know about.
    */
   setBuildingShade(value: boolean) {}
+  /** Which views the building lighting casts shadows in. MapLibre only. */
+  setShadowMode(mode: ShadowMode) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
   setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
   setIndoorMaps(value: boolean) {}
+  /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
+  setIndoorLevel(level: number | null) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }
@@ -319,6 +252,11 @@ export class MapStrategy {
     }
   }
 
+  /** Colour of the pin `addMarker` drops. */
+  selectedMarkerColor(): string {
+    return SELECTED_MARKER_COLOR
+  }
+
   addMarker(id: string, lngLat: LngLat) {}
 
   addVueMarker(
@@ -346,6 +284,42 @@ export class MapStrategy {
   }
 
   /** Update an existing marker's position without removing it (e.g. during drag of another marker). */
+  /** Draws a mounted marker this many metres above the ground, as on a bridge deck. */
+  setMarkerLift(id: string, metres: number) {
+    const marker = this.markers.get(id)
+    if (!marker?.setOffset) return
+    const lat = marker.getLngLat?.().lat ?? 0
+    const px = liftPixels(metres, metersPerPixel(this.mapInstance.getZoom(), lat), this.mapInstance.getPitch())
+    marker.setOffset([0, -px])
+  }
+
+  /** A 3D bridge deck's height under a point, in terrain metres, or null where there is none. */
+  deckHeight(_lng: number, _lat: number, _along?: [number, number]): number | null {
+    return null
+  }
+
+  /** The terrain's height at a point, or null without terrain. */
+  groundHeight(_lng: number, _lat: number): number | null {
+    return null
+  }
+
+  /** Runs whenever the drawn decks change; returns an unsubscribe. */
+  onDecksChanged(_listener: () => void): () => void {
+    return () => {}
+  }
+
+  /** Raises the camera's centre this far above the ground, as over a bridge deck; 0 rests it on the ground. */
+  liftCenter(_metres: number) {}
+
+  /** Colours routes lifted onto bridge decks, or restores the default with null. */
+  setDeckRouteColors(_colors: { route: string; casing: string } | null) {}
+
+  /** Lays the navigated route over bridge decks as its track says, and tells it where; null stops. */
+  trackDeckRoute(_track: RouteTrack | null) {}
+
+  /** Metres of the measured route already travelled. */
+  setDeckRouteTravelled(_metres: number) {}
+
   setMarkerLngLat(id: string, lngLat: LngLat) {
     const marker = this.markers.get(id)
     if (marker && typeof marker.setLngLat === 'function') {
@@ -357,10 +331,16 @@ export class MapStrategy {
    * Rotate an existing marker to a compass heading without recreating it, and
    * toggle the `--heading-opacity` cue its element uses to show/hide the beam.
    * The marker is switched to `rotationAlignment: 'map'` so the heading stays
-   * north-relative as the map rotates (pitch stays viewport-flat so the dot
-   * doesn't distort when the map is tilted). `null` hides the beam.
+   * north-relative as the map rotates. Pitch defaults to viewport-flat so the
+   * dot doesn't distort when tilted; the navigation arrow lies on the map.
+   * `null` hides the beam.
    */
-  setMarkerHeading(id: string, heading: number | null, spread = 1) {
+  setMarkerHeading(
+    id: string,
+    heading: number | null,
+    spread = 1,
+    pitchAlignment: 'map' | 'viewport' = 'viewport',
+  ) {
     const marker = this.markers.get(id)
     if (!marker || typeof marker.setRotation !== 'function') return
 
@@ -375,7 +355,7 @@ export class MapStrategy {
       marker.setRotationAlignment('map')
     }
     if (typeof marker.setPitchAlignment === 'function') {
-      marker.setPitchAlignment('viewport')
+      marker.setPitchAlignment(pitchAlignment)
     }
     marker.setRotation(heading)
     element?.style.setProperty('--beam-spread', String(spread))
@@ -414,12 +394,13 @@ export class MapStrategy {
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
     options: any = {},
   ) {
-    const mapboxBounds = new LngLatBounds(
+    // A plain array, since either engine rejects the other's LngLatBounds.
+    const lngLatBounds: [[number, number], [number, number]] = [
       [bounds.minLng, bounds.minLat],
       [bounds.maxLng, bounds.maxLat],
-    )
+    ]
 
-    this.mapInstance.fitBounds(mapboxBounds, {
+    this.mapInstance.fitBounds(lngLatBounds, {
       padding: options.padding || 100,
       duration: options.duration || 1000,
       easing: options.easing || (t => t * (2 - t)),
@@ -465,10 +446,14 @@ export class MapStrategy {
     this.mapInstance.resize()
   }
 
+  protected terrainSource() {
+    return terrainSource()
+  }
+
   setMap3dTerrain(value: boolean) {
     const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
     if (value && !present) {
-      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, this.terrainSource() as any)
       this.mapInstance.setTerrain({
         source: TERRAIN_SOURCE_ID,
         exaggeration: TERRAIN_EXAGGERATION,

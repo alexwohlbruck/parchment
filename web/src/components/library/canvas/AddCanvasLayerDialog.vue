@@ -17,8 +17,10 @@ import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import { Input } from '@/components/ui/input'
 import { useLayersStore } from '@/stores/layers.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { collectionIcon } from '@/lib/library/collection-display'
 import { useRoutesStore } from '@/stores/library/routes.store'
-import { fuzzyFilter, type ThemeColor } from '@/lib/utils'
+import { fuzzyFilter } from '@/lib/utils'
 import { newCanvasId, type CanvasLayer } from '@/types/canvas.types'
 import { SearchIcon } from 'lucide-vue-next'
 
@@ -34,6 +36,7 @@ const emit = defineEmits<{ add: [layer: CanvasLayer] }>()
 const { t } = useI18n()
 const layersStore = useLayersStore()
 const collectionsStore = useCollectionsStore()
+const collectionsService = useCollectionsService()
 const routesStore = useRoutesStore()
 const { layers } = storeToRefs(layersStore)
 const { collections } = storeToRefs(collectionsStore)
@@ -163,12 +166,10 @@ const rowClass = [
               :class="rowClass"
               @click="addCollection(collection.id)"
             >
-              <ItemIcon
-                :icon="collection.icon ?? 'BookmarkIcon'"
-                :color="(collection.iconColor as ThemeColor) ?? 'coral'"
-                size="xs"
-              />
-              <span class="text-sm truncate">{{ collection.name }}</span>
+              <ItemIcon v-bind="collectionIcon(collection)" size="xs" />
+              <span class="text-sm truncate">
+                {{ collectionsService.getCollectionDisplayName(collection) }}
+              </span>
             </button>
             <p
               v-if="!filteredCollections.length"

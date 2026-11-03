@@ -47,16 +47,6 @@ interface CategorySearchResponse {
   executedAt: string
 }
 
-interface RouteSearchOptions {
-  query?: string
-  buffer?: number
-  categories?: string[]
-  tags?: Record<string, string>
-  limit?: number
-  semantic?: boolean
-  autocomplete?: boolean
-}
-
 interface BrandSearchOptions {
   brandKey: string
   brandName?: string
@@ -80,13 +70,6 @@ export interface BrandHeader {
 interface BrandSearchResponse {
   brandKey: string
   brand: BrandHeader
-  results: Place[]
-  totalCount: number
-  executedAt: string
-}
-
-interface RouteSearchResponse {
-  route: any
   results: Place[]
   totalCount: number
   executedAt: string
@@ -276,30 +259,6 @@ function searchService() {
     }
   }
 
-  async function searchAlongRoute(
-    route: { type: 'LineString'; coordinates: number[][] },
-    options: RouteSearchOptions = {},
-  ): Promise<Place[]> {
-    loading.value = true
-    error.value = null
-
-    try {
-      const response = await api.post<RouteSearchResponse>(
-        '/search/route',
-        { route, ...options },
-      )
-
-      return response.data.results
-    } catch (err) {
-      console.error('Error in route search:', err)
-      error.value =
-        err instanceof Error ? err.message : 'Failed to execute route search'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
   function clearAdvancedResults(): void {
     lastAdvancedResults.value = []
     error.value = null
@@ -314,7 +273,6 @@ function searchService() {
     search,
     searchByCategory,
     searchByBrand,
-    searchAlongRoute,
     isAdvancedSearchAvailable,
     executeOverpassQuery,
     clearAdvancedResults,

@@ -12,9 +12,11 @@ import LayerControl from '@/components/map/controls/LayerControl.vue'
 import StreetViewControl from '@/components/map/street-view/StreetViewControl.vue'
 import ZoomControl from '@/components/map/controls/ZoomControl.vue'
 import CompassControl from '@/components/map/controls/CompassControl.vue'
+import FloorControl from '@/components/map/controls/FloorControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import AttributionControl from '@/components/map/controls/AttributionControl.vue'
+import CameraPositionControl from '@/components/map/controls/CameraPositionControl.vue'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import LeftSheet from '@/components/sheet/LeftSheet.vue'
 import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
@@ -56,8 +58,7 @@ const canvasesStore = useCanvasesStore()
 const { currentPlace } = usePlaceService()
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
-  const isNotDialog = !route.meta.dialog
-  return isSubview && isNotDialog
+  return isSubview && !route.meta.dialog && !route.meta.immersive
 })
 
 // Back button mirrors browser-back behavior. vue-router stores the previous
@@ -129,7 +130,9 @@ watch(
     // Directions opens at peek (just the inputs) and expands to full once
     // suggestions load — see the watcher below. Other views open at half.
     bottomSheetSnapIndex.value =
-      name === AppRoute.DIRECTIONS ? 0 : MOBILE_DEFAULT_SNAP_INDEX
+      name === AppRoute.DIRECTIONS
+        ? 0
+        : MOBILE_DEFAULT_SNAP_INDEX
   },
 )
 
@@ -156,7 +159,9 @@ const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
-const hideUI = computed(() => !!route.meta?.hideUI)
+const hideUI = computed(() => !!route.meta?.hideUI || appStore.chromeHeld)
+// A view that takes over the whole map (turn-by-turn) replaces the sheets and the map's chrome.
+const immersive = computed(() => !!route.meta?.immersive)
 
 // ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
 // Tracks whether entering street view auto-enabled the street view layer group,
@@ -250,8 +255,9 @@ function navTransitioning(value: boolean) {
   isNavTransitioning.value = value
 }
 
-// Open bottom sheet when a map subview is opened
-watch(isBottomSheetView, async isOpen => {
+// Open bottom sheet when a map subview is opened, including a cold load
+// straight onto one: a closed sheet there would dismiss itself back to the map.
+watch(isBottomSheetView, async (isOpen, wasOpen) => {
   if (isOpen) {
     // Small delay to allow other drawers to start their close animation
     // This works in conjunction with useDrawerCoordination to prevent race conditions
@@ -263,11 +269,11 @@ watch(isBottomSheetView, async isOpen => {
     // dialog route (e.g. /settings/integrations) or a full-screen takeover
     // (e.g. /street/:id street view). The user wants to stay there; pushing to
     // MAP here would bounce them back immediately.
-    if (!route.meta.dialog && !route.meta.hideUI) {
+    if (wasOpen && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
       router.push({ name: AppRoute.MAP })
     }
   }
-})
+}, { immediate: true })
 
 // Navigate back to map when the bottom sheet is dismissed — but not when it
 // closed because we navigated to a dialog route or a full-screen takeover
@@ -275,7 +281,7 @@ watch(isBottomSheetView, async isOpen => {
 // sheet's close event would bounce mobile street view straight back to the map.
 function onOpenChange(value: boolean) {
   bottomSheetOpen.value = value
-  if (!value && !route.meta.dialog && !route.meta.hideUI) {
+  if (!value && !route.meta.dialog && !route.meta.hideUI && !route.meta.immersive) {
     router.push({ name: AppRoute.MAP })
   }
 }
@@ -449,7 +455,7 @@ defineExpose({
             @home="handleHome"
           />
         </template>
-        <router-view />
+        <router-view v-if="!immersive" />
       </bottom-sheet>
     </template>
 
@@ -469,20 +475,20 @@ defineExpose({
         @back="handleBack"
         @home="handleHome"
       >
-        <router-view />
+        <router-view v-if="!immersive" />
       </LeftSheet>
     </template>
 
     <!-- Map canvas -->
     <div id="mainContent" class="flex-1 relative w-full h-full">
       <!-- Map UI controls positioned within map container -->
-      <template v-if="!hideUI">
+      <template v-if="!hideUI && !immersive">
         <!-- z-50 above drawers -->
         <div
           class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
         >
           <!-- Left section -->
-          <div class="flex flex-col items-start gap-2">
+          <div class="flex min-w-0 flex-col items-start gap-2">
             <!-- Left top -->
             <transition-slide appear no-opacity :offset="[0, '-130%']">
               <div
@@ -549,10 +555,11 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto mt-auto flex flex-col gap-2"
+                class="pointer-events-auto mt-auto flex items-center gap-2"
                 :class="{ 'mb-16': isMobileScreen }"
               >
                 <AttributionControl />
+                <CameraPositionControl />
               </div>
             </transition-slide>
           </div>
@@ -567,6 +574,7 @@ defineExpose({
               <div class="pointer-events-auto flex flex-col gap-2">
                 <ZoomControl />
                 <CompassControl />
+                <FloorControl />
               </div>
 
               <!-- Right bottom -->
@@ -643,6 +651,8 @@ defineExpose({
           <StreetImageryPeek />
         </div>
       </Transition>
+
+      <router-view v-if="immersive" />
 
       <template v-if="mountTeleports">
         <Teleport

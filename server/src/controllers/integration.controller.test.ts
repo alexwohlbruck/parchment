@@ -218,8 +218,7 @@ describe('GET /integrations/configured', () => {
     expect(systemDto.encryptedConfig).toBeUndefined()
   })
 
-  test('adds the caller’s own integrations when they may read them', async () => {
-    permissions = [READ_USER]
+  test('adds the caller’s own integrations', async () => {
 
     const res = await req(app).get('/integrations/configured')
 
@@ -229,13 +228,12 @@ describe('GET /integrations/configured', () => {
     expect(userDto.encryptedConfig).toBe('opaque-envelope')
   })
 
-  test('withholds user integrations without the read permission', async () => {
+  test('shows the caller their own integrations without the read permission', async () => {
     permissions = []
 
     const res = await req(app).get('/integrations/configured')
 
-    expect(res.body).toHaveLength(1)
-    expect(res.body[0].id).toBe('sys-1')
+    expect(res.body.map((i: any) => i.id)).toEqual(['sys-1', 'usr-1'])
   })
 
   test('user rows are also stripped to public config only', async () => {

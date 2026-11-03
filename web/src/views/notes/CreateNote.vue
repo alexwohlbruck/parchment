@@ -58,7 +58,7 @@ async function handleSubmit(text: string) {
     await notesService.refreshNotes()
     router.replace({ name: AppRoute.NOTE, params: { id: String(note.id) } })
   } catch (error) {
-    toast.error(t('notes.createError'))
+    toast.error(t('notes.createError'), { cause: error })
   } finally {
     isSubmitting.value = false
   }

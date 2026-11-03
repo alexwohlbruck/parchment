@@ -13,10 +13,10 @@
  *   diameter_crown  the canopy across, in metres — sets the spread directly
  *   circumference   the trunk's girth. Not a height, but strongly correlated
  *                   with one, so a girth with no height still narrows it down
- *   leaf_type       broadleaved or needleleaved, the one tag with real coverage
- *                   (~13%), and the one that picks the model
- *   genus / species which of the three families this is, including the palms
- *                   that `leaf_type` has no value for
+ *   leaf_type       broadleaved, needleleaved or palm, the one tag with real
+ *                   coverage (~13%), and most of the palms
+ *   genus / species which family this is: pines, palms by kind, and flowering
+ *                   cherries, none of which `leaf_type` can tell apart
  *   denotation      a street tree is pruned and smaller than one with room
  *
  * WHAT THE ID DECIDES. Everything still missing, through `vary.ts`: which of
@@ -26,7 +26,7 @@
  * tree on every reload, and uncorrelated between properties, so a row of them
  * does not come out as a repeating pattern.
  */
-import { TREE_SOURCE, TREE_TILES, TREE_ROW_SOURCE, TREE_ROW_TILES } from '@/lib/map-style/detail-layers'
+import { DETAIL_SOURCE, TREE_TILES, TREE_ROW_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
 import { hash, lerp, pick, tagged } from './vary'
 
@@ -37,8 +37,12 @@ import { hash, lerp, pick, tagged } from './vary'
  */
 export const TREE_FAMILIES = {
   broadleaf: ['tree-broadleaf-a', 'tree-broadleaf-b', 'tree-broadleaf-c', 'tree-broadleaf-d'],
-  conifer: ['tree-conifer-a', 'tree-conifer-b', 'tree-conifer-c', 'tree-conifer-d'],
-  palm: ['tree-palm-a', 'tree-palm-b', 'tree-palm-c'],
+  conifer: ['tree-conifer-a', 'tree-conifer-b', 'tree-conifer-c', 'tree-conifer-d', 'tree-conifer-e', 'tree-pine-a'],
+  pine: ['tree-pine-a', 'tree-pine-b'],
+  palm: ['tree-palm-a', 'tree-palm-b', 'tree-palm-c', 'tree-palm-fan-b', 'tree-palm-date-a'],
+  fanPalm: ['tree-palm-fan-a', 'tree-palm-fan-b'],
+  datePalm: ['tree-palm-date-a', 'tree-palm-date-b'],
+  blossom: ['tree-blossom-a', 'tree-blossom-b'],
 } as const
 
 export type TreeFamily = keyof typeof TREE_FAMILIES
@@ -47,26 +51,42 @@ export const TREE_MODELS = Object.fromEntries(
   Object.values(TREE_FAMILIES).flat().map(name => [name, `/models/${name}.glb`]),
 )
 
-/** Genera that are palms, and genera that are conifers, where OSM names one. */
-const PALM_GENERA = /^(phoenix|washingtonia|roystonea|cocos|sabal|trachycarpus|butia|syagrus|livistona|chamaerops)/i
-const CONIFER_GENERA = /^(pinus|picea|abies|cedrus|juniperus|thuja|taxus|tsuga|larix|cupressus|chamaecyparis|sequoia|cryptomeria|metasequoia)/i
+/** Families by genus, where OSM names one. First match wins. */
+const GENERA: [RegExp, TreeFamily][] = [
+  [/^(washingtonia|sabal|trachycarpus|livistona|chamaerops|brahea)/i, 'fanPalm'],
+  [/^phoenix/i, 'datePalm'],
+  [/^(roystonea|cocos|butia|syagrus|archontophoenix|dypsis)/i, 'palm'],
+  [/^pinus/i, 'pine'],
+  [/^(picea|abies|cedrus|juniperus|thuja|taxus|tsuga|larix|cupressus|chamaecyparis|sequoia|cryptomeria|metasequoia|pseudotsuga)/i, 'conifer'],
+  [/^(prunus|malus|cercis)/i, 'blossom'],
+]
 
 /** Plausible heights, per family — a palm is tall and thin, a pine taller. */
 const HEIGHT: Record<TreeFamily, { min: number; max: number }> = {
   broadleaf: { min: 7, max: 15 },
   conifer: { min: 9, max: 20 },
+  pine: { min: 14, max: 26 },
   palm: { min: 8, max: 16 },
+  fanPalm: { min: 10, max: 22 },
+  datePalm: { min: 7, max: 14 },
+  blossom: { min: 5, max: 9 },
 }
 
 /** A street tree is pruned to clear the traffic and the wires above it. */
 const STREET_HEIGHT = { min: 5, max: 9.5 }
 
-/** Canopy across, as a fraction of height. A palm's crown is a tuft. */
-const SPREAD: Record<TreeFamily, { min: number; max: number }> = {
-  broadleaf: { min: 0.55, max: 0.9 },
-  conifer: { min: 0.32, max: 0.5 },
-  palm: { min: 0.3, max: 0.45 },
-}
+/**
+ * How much wider or narrower than its model a tree may come out. The models
+ * carry each family's proportions; this only keeps a row from looking cloned.
+ */
+const SPREAD_VARIETY = { min: 0.85, max: 1.15 }
+
+/**
+ * Above this height a crown widens more slowly than the tree grows, as real
+ * crowns do; a 35 m pine is not three times as wide as a 12 m one.
+ */
+const CROWN_REFERENCE = 12
+const CROWN_GROWTH = 0.55
 
 /**
  * Trunk girth to height. A rough allometric rule — girth in metres times this
@@ -77,9 +97,13 @@ const GIRTH_TO_HEIGHT = 11
 
 export function treeFamily(props: Record<string, any>): TreeFamily {
   const taxon = `${props.genus ?? ''} ${props.species ?? ''} ${props.taxon ?? ''}`.trim()
-  if (PALM_GENERA.test(taxon)) return 'palm'
-  if (CONIFER_GENERA.test(taxon)) return 'conifer'
+  const named = GENERA.find(([genus]) => genus.test(taxon))
+  if (named) return named[1]
   if (props.leaf_type === 'needleleaved') return 'conifer'
+  // OSM has a leaf type for palms, and it is what most palms carry: Bayfront
+  // Park in Miami has hundreds tagged this way and none with a genus. Without
+  // a genus to name the kind, the id picks one from the mixed `palm` family.
+  if (props.leaf_type === 'palm') return 'palm'
   return 'broadleaf'
 }
 
@@ -110,27 +134,30 @@ export function treeInstance(
 
   // A measured crown wins over any ratio; otherwise it follows the height.
   const crown = tagged(props.diameter_crown, 0.5, 40)
-  const spread = crown ?? height * lerp(SPREAD[family], hash(seed, 2))
+  const proportion = height > CROWN_REFERENCE ? (CROWN_REFERENCE / height) ** (1 - CROWN_GROWTH) : 1
+  const spread = height * proportion * lerp(SPREAD_VARIETY, hash(seed, 2))
 
   return {
     lng,
     lat,
     height,
     spread,
+    ...(crown === null ? {} : { width: crown }),
     heading: hash(seed, 3) * Math.PI * 2,
     // ±12% on the model's own greens, so a stand of trees is not one flat
     // block of colour.
     shade: 0.88 + hash(seed, 4) * 0.24,
+    tint: hash(seed, 6),
     model: pick(TREE_FAMILIES[family], hash(seed, 5)),
   }
 }
 
 export const TREE_OBJECTS: ObjectSourceSpec = {
-  source: TREE_SOURCE,
+  source: DETAIL_SOURCE,
   sourceLayer: TREE_TILES,
   // Matches the flat form's minzoom: the two are the same features, and a zoom
   // where one draws and the other does not would show as trees appearing twice.
-  minzoom: 16,
+  minzoom: 14.5,
   toInstance: treeInstance,
 }
 
@@ -201,9 +228,9 @@ function rowPositions(feature: any): Array<[number, number]> {
 }
 
 export const TREE_ROW_OBJECTS: ObjectSourceSpec = {
-  source: TREE_ROW_SOURCE,
+  source: DETAIL_SOURCE,
   sourceLayer: TREE_ROW_TILES,
-  minzoom: 16,
+  minzoom: 14.5,
   positions: rowPositions,
   // A row is one feature, so each tree along it is seeded by its index or they
   // would all come out identical.

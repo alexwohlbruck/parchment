@@ -13,7 +13,7 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
 import { authMockModule, setAuthUser, resetAuth } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
-import { portolanTileCache } from '../lib/tile-cache'
+import { martinTileCache, portolanTileCache } from '../lib/tile-cache'
 
 let configuredIntegrations: any[] = []
 
@@ -40,10 +40,13 @@ let fetchError: Error | null = null
 const fetchCalls: string[] = []
 /** Headers per call, so auth can be asserted as well as the URL. */
 const fetchHeaders: Record<string, string>[] = []
+/** Whether each call asked Bun to leave the body compressed. */
+const fetchDecompress: (boolean | undefined)[] = []
 
 globalThis.fetch = mock(async (url: any, init?: any) => {
   fetchCalls.push(String(url))
   fetchHeaders.push({ ...(init?.headers ?? {}) })
+  fetchDecompress.push(init?.decompress)
   if (fetchError) throw fetchError
   return fetchResponses.shift() ?? new Response(new Uint8Array([1, 2, 3]))
 }) as any
@@ -66,8 +69,10 @@ const barrelmanIntegration = {
 beforeEach(() => {
   resetAuth()
   portolanTileCache.clear()
+  martinTileCache.clear()
   fetchCalls.length = 0
   fetchHeaders.length = 0
+  fetchDecompress.length = 0
   fetchResponses = []
   fetchError = null
   configuredIntegrations = [barrelmanIntegration]
@@ -150,6 +155,220 @@ describe('GET /proxy/mapillary/...', () => {
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
   })
 
+  // Martin answers in 1-6 ms; the rest of the ~2 s a client waited was the trip
+  // to the Barrelman host. These tiles were forwarded uncached, so every
+  // basemap tile for every user paid it.
+  test('serves a repeat tile from cache instead of re-fetching upstream', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse()]
+
+    const first = await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    expect(first.headers.get('X-Cache')).toBe('MISS')
+    expect(fetchCalls.length).toBe(1)
+
+    const second = await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    expect(second.headers.get('X-Cache')).toBe('HIT')
+    // the whole point: no second trip upstream
+    expect(fetchCalls.length).toBe(1)
+    expect(second.status).toBe(200)
+  })
+
+  test('caches per tile, so a different tile still goes upstream', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse(), tileResponse()]
+
+    await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    await req(app).get('/proxy/barrelman/basemap/12/1170/1568')
+    expect(fetchCalls.length).toBe(2)
+  })
+
+  // A 404 is a stable answer; a 5xx is the upstream having a bad moment, and
+  // remembering it for an hour would turn a blip into an outage.
+  test('caches a 404 but never a 5xx', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [
+      new Response('nope', { status: 404 }),
+      new Response('boom', { status: 503 }),
+      new Response('boom', { status: 503 }),
+    ]
+
+    await req(app).get('/proxy/barrelman/basemap/9/1/1')
+    const cached404 = await req(app).get('/proxy/barrelman/basemap/9/1/1')
+    expect(cached404.headers.get('X-Cache')).toBe('HIT')
+    expect(cached404.status).toBe(404)
+    expect(fetchCalls.length).toBe(1)
+
+    await req(app).get('/proxy/barrelman/basemap/9/2/2')
+    await req(app).get('/proxy/barrelman/basemap/9/2/2')
+    // both 503s went upstream — the failure was not remembered
+    expect(fetchCalls.length).toBe(3)
+  })
+
+  /**
+   * Barrelman gzips its tiles and `fetch()` silently decompresses them, so
+   * without this every tile was handed on at roughly 1.6x the size Barrelman
+   * produced, with no encoding header — and the CDN re-compressed it for the
+   * browser, hiding the cost on the one hop that crosses a network.
+   */
+  test('gzips the tile and says so when the caller accepts it', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(4096).fill(0x42)
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/4825/6156', {
+        headers: { 'accept-encoding': 'gzip, deflate, br' },
+      }),
+    )
+
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+    expect(res.headers.get('vary')).toBe('Accept-Encoding')
+
+    const sent = new Uint8Array(await res.arrayBuffer())
+    expect(sent.byteLength).toBeLessThan(tile.byteLength)
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  /**
+   * The gzip Barrelman sent is handed on untouched. Unzipping it and zipping
+   * it again cost ~10 ms of synchronous CPU per dense tile, on the thread that
+   * serves every request, to produce bytes Barrelman had already produced.
+   */
+  test('passes upstream gzip through without re-zipping it', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const upstream = new Uint8Array(Bun.gzipSync(new Uint8Array(4096).fill(0x42)))
+    fetchResponses = [
+      new Response(upstream, {
+        headers: { 'content-type': 'application/x-protobuf', 'content-encoding': 'gzip' },
+      }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/7/7', {
+        headers: { 'accept-encoding': 'gzip' },
+      }),
+    )
+
+    expect(fetchDecompress[0]).toBe(false)
+    expect(fetchHeaders[0]['Accept-Encoding']).toBe('gzip')
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(upstream)
+  })
+
+  /**
+   * Bun's fetch reports `content-encoding: gzip` even when it has unzipped
+   * the body. Trusting that header would send plain bytes labelled as gzip —
+   * a corrupt tile for every client — so the bytes themselves decide.
+   */
+  test('re-zips a plain body even when the header claims gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(2048).fill(0x1a)
+    fetchResponses = [
+      new Response(tile, {
+        headers: { 'content-type': 'application/x-protobuf', 'content-encoding': 'gzip' },
+      }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/8/8', {
+        headers: { 'accept-encoding': 'gzip' },
+      }),
+    )
+
+    const sent = new Uint8Array(await res.arrayBuffer())
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  test('sends plain bytes to a caller that cannot read gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array([1, 2, 3, 4, 5])
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/1/1', {
+        headers: { 'accept-encoding': 'identity' },
+      }),
+    )
+
+    expect(res.headers.get('content-encoding')).toBeNull()
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(tile)
+  })
+
+  /** The cache holds the gzipped bytes, so a hit must still decode. */
+  test('a cached hit is served gzipped too', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(2048).fill(0x7)
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const url = 'http://localhost/proxy/barrelman/basemap/14/9/9'
+    const opts = { headers: { 'accept-encoding': 'gzip' } }
+    const first = await app.handle(new Request(url, opts))
+    expect(first.headers.get('X-Cache')).toBe('MISS')
+
+    const second = await app.handle(new Request(url, opts))
+    expect(second.headers.get('X-Cache')).toBe('HIT')
+    expect(second.headers.get('content-encoding')).toBe('gzip')
+    expect(fetchCalls.length).toBe(1)
+
+    const sent = new Uint8Array(await second.arrayBuffer())
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  /** And a hit still unzips for the caller that cannot read gzip. */
+  test('a cached hit unzips for a caller that cannot read gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array([9, 8, 7, 6])
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const url = 'http://localhost/proxy/barrelman/basemap/14/3/3'
+    await app.handle(new Request(url, { headers: { 'accept-encoding': 'gzip' } }))
+    const hit = await app.handle(
+      new Request(url, { headers: { 'accept-encoding': 'identity' } }),
+    )
+
+    expect(hit.headers.get('X-Cache')).toBe('HIT')
+    expect(hit.headers.get('content-encoding')).toBeNull()
+    expect(new Uint8Array(await hit.arrayBuffer())).toEqual(tile)
+  })
+
+  test('tiles carry stale-while-revalidate so an expiry is not a cold wait', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse()]
+
+    const res = await req(app).get('/proxy/barrelman/basemap/12/5/5')
+    expect(res.headers.get('cache-control')).toBe(
+      'public, max-age=86400, stale-while-revalidate=604800',
+    )
+  })
+
   test('forwards the upstream status on failure', async () => {
     configuredIntegrations = [
       { integrationId: 'mapillary', config: { accessToken: 'mly-token' } },
@@ -216,11 +435,11 @@ describe('GET /proxy/transitland/...', () => {
  * integration actually stores.
  */
 describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
-  test('proxies to the Barrelman host under /tiles, with the tile token', async () => {
+  test('proxies to the Barrelman host under /tiles', async () => {
     configuredIntegrations = [
       {
         integrationId: 'barrelman',
-        config: { host: 'https://barrelman.test', tileKey: 'tile-key' },
+        config: { host: 'https://barrelman.test' },
       },
     ]
     fetchResponses = [tileResponse()]
@@ -229,7 +448,27 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
 
     expect(res.status).toBe(200)
     expect(fetchCalls[0]).toContain('https://barrelman.test/tiles/geo_places/12/1170/1567')
-    expect(fetchCalls[0]).toContain('token=tile-key')
+  })
+
+  test('asks for deck pieces only when the client does, and caches the two apart', async () => {
+    fetchResponses = [tileResponse(), tileResponse()]
+
+    await req(app).get('/proxy/barrelman/detail/16/19300/24640?v=1&decks=1')
+    await req(app).get('/proxy/barrelman/detail/16/19300/24640?v=1')
+
+    expect(fetchCalls[0]).toContain('/tiles/detail/16/19300/24640?decks=1')
+    expect(fetchCalls[1]).toMatch(/\/tiles\/detail\/16\/19300\/24640$/)
+  })
+
+  test('passes a no-store tile on uncached', async () => {
+    const partial = () => new Response(Bun.gzipSync(Uint8Array.of(0x1a, 0)).buffer as ArrayBuffer, { headers: { 'content-encoding': 'gzip', 'cache-control': 'no-store' } })
+    fetchResponses = [partial(), partial()]
+
+    const first = await req(app).get('/proxy/barrelman/detail/16/19301/24640?decks=1')
+    await req(app).get('/proxy/barrelman/detail/16/19301/24640?decks=1')
+
+    expect(first.headers.get('cache-control')).toBe('no-store')
+    expect(fetchCalls).toHaveLength(2)
   })
 
   test('sends the integration apiKey as a bearer, like every other Barrelman call', async () => {
@@ -260,17 +499,6 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     expect(fetchCalls).toEqual([])
   })
 
-  test('omits the token when none is configured', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { host: 'https://barrelman.test' } },
-    ]
-    fetchResponses = [tileResponse()]
-
-    await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(fetchCalls[0]).not.toContain('token=')
-  })
-
   test('preserves the upstream content type', async () => {
     fetchResponses = [
       new Response(new Uint8Array([1]), {
@@ -289,6 +517,55 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
 
     expect(res.status).toBe(404)
+  })
+
+  // Behind a shared cache, an echoed origin would be stored with the tile and
+  // replayed to the next site that asks for it.
+  test('answers every origin with *, so a shared cache can serve the tile to any site', async () => {
+    fetchResponses = [tileResponse()]
+    const miss = await req(app).get('/proxy/barrelman/basemap/12/1/1', { headers: { origin: 'https://a.example' } })
+    const hit = await req(app).get('/proxy/barrelman/basemap/12/1/1', { headers: { origin: 'https://b.example' } })
+    expect(miss.headers.get('access-control-allow-origin')).toBe('*')
+    expect(hit.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  test('revalidates an unchanged tile with a 304 and no body', async () => {
+    fetchResponses = [tileResponse()]
+    const first = await req(app).get('/proxy/barrelman/basemap/12/2/2')
+    const etag = first.headers.get('etag')
+    expect(etag).toBeTruthy()
+
+    const again = await req(app).get('/proxy/barrelman/basemap/12/2/2', { headers: { 'if-none-match': etag! } })
+    expect(again.status).toBe(304)
+    expect(again.body).toBe('')
+    expect(again.headers.get('etag')).toBe(etag)
+
+    const stale = await req(app).get('/proxy/barrelman/basemap/12/2/2', { headers: { 'if-none-match': 'W/"other"' } })
+    expect(stale.status).toBe(200)
+  })
+
+  test('sends concurrent requests for one uncached tile upstream once', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const slow = globalThis.fetch
+    globalThis.fetch = mock(async (url: any, init?: any) => {
+      await gate
+      return (slow as any)(url, init)
+    }) as any
+    fetchResponses = [tileResponse(), tileResponse()]
+    try {
+      const both = Promise.all([
+        req(app).get('/proxy/barrelman/detail/14/3/3'),
+        req(app).get('/proxy/barrelman/detail/14/3/3'),
+      ])
+      release()
+      const [a, b] = await both
+      expect(a.status).toBe(200)
+      expect(b.status).toBe(200)
+      expect(fetchCalls.length).toBe(1)
+    } finally {
+      globalThis.fetch = slow
+    }
   })
 })
 
@@ -377,3 +654,49 @@ describe('GET /proxy/portolan/* — server-side caching', () => {
     expect(hit.headers.get('cache-control')).toContain('max-age=3600')
   })
 })
+
+describe('precomputed bridge mesh proxy', () => {
+  const file = `${'a'.repeat(64)}.brm`
+  test('forwards binary meshes and upstream credentials without recomputing geometry', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test', apiKey: 'bridge-key' } }]
+    fetchResponses = [new Response(new Uint8Array([66, 82, 77, 49]))]
+    const response = await req(app).get(`/proxy/barrelman/bridges/models/${file}`)
+    expect(response.status).toBe(200)
+    expect(fetchCalls[0]).toBe(`https://barrelman.test/tiles/bridges/models/${file}`)
+    expect(fetchHeaders[0].Authorization).toBe('Bearer bridge-key')
+    expect(fetchDecompress[0]).toBe(false)
+    expect(response.headers.get('cache-control')).toContain('immutable')
+  })
+  test('rejects invalid filenames before contacting Barrelman', async () => {
+    const response = await req(app).get('/proxy/barrelman/bridges/models/secret.env')
+    expect(response.status).toBe(404)
+    expect(fetchCalls).toHaveLength(0)
+  })
+  test('keeps missing meshes retryable', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test' } }]
+    fetchResponses = [new Response(null, { status: 404 })]
+    const response = await req(app).get(`/proxy/barrelman/bridges/models/${file}`)
+    expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+})
+
+describe('bridge deck index proxy', () => {
+  test('forwards a tile index with its validators, and revalidation', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'https://barrelman.test', apiKey: 'bridge-key' } }]
+    fetchResponses = [new Response('{"decks":[]}', { headers: { etag: '"abc"', 'cache-control': 'public, max-age=600, stale-while-revalidate=604800' } })]
+    const response = await req(app).get('/proxy/barrelman/bridges/index/14/4824/6159', { headers: { 'if-none-match': '"old"' } })
+    expect(response.status).toBe(200)
+    expect(fetchCalls[0]).toBe('https://barrelman.test/tiles/bridges/index/14/4824/6159')
+    expect(fetchHeaders[0].Authorization).toBe('Bearer bridge-key')
+    expect(fetchHeaders[0]['If-None-Match']).toBe('"old"')
+    expect(response.headers.get('etag')).toBe('"abc"')
+    expect(response.headers.get('cache-control')).toContain('stale-while-revalidate')
+  })
+  test('rejects a non-numeric tile before contacting Barrelman', async () => {
+    const response = await req(app).get('/proxy/barrelman/bridges/index/14/x/1')
+    expect(response.status).toBe(404)
+    expect(fetchCalls).toHaveLength(0)
+  })
+})
+

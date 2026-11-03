@@ -23,7 +23,12 @@ export {
   markerGlyphSizeForRadius,
 } from './marker-metrics.mjs'
 
-export { markerPaint, MARKER_HALO, type MarkerPaint } from './marker-paint'
+export {
+  markerPaint,
+  MARKER_HALO,
+  SELECTED_MARKER_COLOR,
+  type MarkerPaint,
+} from './marker-paint'
 export { markerCss, type MarkerCss } from './marker-css'
 export {
   markerLayers,
@@ -43,3 +48,4 @@ export {
   type MarkerImageData,
   type MarkerImageHost,
 } from './marker-image'
+export { edgeHint, intersectRect, type EdgeHint, type Point } from './edge-hint'

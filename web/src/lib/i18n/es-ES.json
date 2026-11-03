@@ -1,4 +1,7 @@
 {
+  "notifications": {
+    "manageIdentity": "Gestionar identidad"
+  },
   "taglines": {
     "short": "La próxima generación de mapas digitales",
     "long": "Explora el mundo con mapas hermosos y detallados creados por la comunidad"
@@ -211,6 +214,7 @@
           "atms": "Cajeros",
           "banks": "Bancos",
           "evCharging": "Carga eléctrica",
+          "powerOutlets": "Enchufes",
           "postOffices": "Oficinas de correos",
           "convenience": "Tiendas de conveniencia",
           "bakeries": "Panaderías",
@@ -280,6 +284,18 @@
           "page": {
             "name": "Página"
           }
+        },
+        "pages": {
+          "map": "Mapa",
+          "dashboard": "Panel",
+          "directions": "Direcciones",
+          "collections": "Colecciones",
+          "routes": "Rutas",
+          "layers": "Capas",
+          "canvases": "Lienzos",
+          "lookout": "Lookout",
+          "timeline": "Cronología",
+          "settings": "Configuración"
         }
       },
       "toggleTheme": {
@@ -342,6 +358,11 @@
           }
         }
       },
+      "toggleCameraPosition": {
+        "name": "Alternar posición de la cámara",
+        "description": "Mostrar u ocultar las coordenadas, el zoom, la inclinación y el rumbo del mapa",
+        "keywords": "cámara coordenadas zoom inclinación rumbo depuración"
+      },
       "openHotkeysMenu": {
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"
@@ -387,6 +408,7 @@
   "map": {
     "title": "Mapa",
     "searchThisArea": "Buscar en esta zona",
+    "returnToPlace": "Volver al lugar",
     "contextMenu": {
       "edit": "Editar mapa",
       "viewIn": "Ver en",
@@ -450,6 +472,8 @@
       },
       "baseMap": "Mapa base",
       "overlays": "Superposiciones",
+      "pois": "Puntos de interés",
+      "labels": "Etiquetas",
       "savedPlaces": "Mostrar lugares guardados",
       "showCanvases": "Mostrar lienzos",
       "placeCount": "{count} lugares",
@@ -716,6 +740,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "trainNumber": "Tren {number}",
     "or": "o",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",
@@ -746,14 +771,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Añadir a Colección",
+      "addToCollection": "Añadir a colección",
       "createNewCollection": "Crear nueva colección",
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Eliminar de la colección",
       "removedFromCollectionSuccess": "Eliminado de la colección",
       "addedToCollection": "Añadido a {collection}",
       "failedToAddToCollection": "Error al añadir a la colección",
-      "saveToCollection": "Guardar en {collection}"
+      "saveToCollection": "Guardar en {collection}",
+      "newCollection": "Nueva colección"
     },
     "empty": {
       "message": "no hay {entityPlural} todavía",
@@ -779,7 +805,21 @@
         "manage": "Gestionar colecciones",
         "untitled": "Colección sin título",
         "lastSaved": "Última guardada",
-        "sharedBy": "Compartida por {name}"
+        "sharedBy": "Compartida por {name}",
+        "locked": "Colección bloqueada",
+        "lockedNotice": {
+          "title": "Cifrada de extremo a extremo",
+          "description": "Solo tus dispositivos pueden abrir esta colección, y este aún no está configurado.",
+          "unlock": "Desbloquear este dispositivo",
+          "reshare": "{name} compartió esta colección, pero no de una forma que este dispositivo pueda abrir. Pídele que vuelva a compartirla contigo."
+        },
+        "public": {
+          "subtitle": "Compartida contigo",
+          "gone": {
+            "title": "Este enlace ya no funciona",
+            "description": "Puede que se haya revocado o que la colección sea ahora privada."
+          }
+        }
       },
       "routes": {
         "title": {
@@ -803,12 +843,12 @@
     "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Crear Colección",
-        "description": "Crear una nueva colección para organizar tus marcadores"
+        "title": "Nueva colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editCollection": {
-        "title": "Editar Colección",
-        "description": "Modificar detalles de la colección"
+        "title": "Detalles de la colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editBookmark": {
         "title": "Editar Marcador",
@@ -839,6 +879,48 @@
     },
     "loading": {
       "collection": "Cargando colección..."
+    },
+    "privacy": {
+      "label": "Privacidad",
+      "schemes": {
+        "server-key": {
+          "title": "Compartible",
+          "description": "El servidor puede leerlo, así que puede tener un enlace público."
+        },
+        "user-e2ee": {
+          "title": "Privado",
+          "description": "Cifrado de extremo a extremo, así que el servidor no puede leerlo."
+        }
+      },
+      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
+      "switchTo": {
+        "server-key": "Hacerlo compartible",
+        "user-e2ee": "Hacerlo privado"
+      },
+      "switched": "Se actualizó la privacidad",
+      "switchFailed": "No se pudo cambiar la privacidad",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "¿Hacer compartible esta colección?",
+            "description": "Su nombre y sus lugares se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privada esta colección?",
+            "description": "Su nombre y sus lugares se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirla, y se revocará cualquier enlace público."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "¿Hacer compartible este lienzo?",
+            "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privado este lienzo?",
+            "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -1114,6 +1196,748 @@
     "toggle": "Alternar navegación",
     "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida"
   },
+  "guidance": {
+    "start": "Iniciar",
+    "exit": "Finalizar navegación",
+    "waitingForLocation": "Esperando tu ubicación…",
+    "signalLost": "Sin señal GPS · estimando",
+    "camera": {
+      "resume": "Seguir tu posición",
+      "overview": "Ver toda la ruta",
+      "modes": {
+        "follow-3d": "3D",
+        "heading-up": "Rumbo arriba",
+        "north-up": "Norte arriba"
+      },
+      "bearing": {
+        "look-ahead": "Anticipar curvas",
+        "straight": "Rumbo recto"
+      }
+    },
+    "settings": {
+      "speechVoice": "Voz de navegación",
+      "speechVoiceDescription": "Usa voces del idioma de la app cuando la voz del servidor está disponible.",
+      "speechFallback": "Se usa la voz del navegador si la voz del servidor no está disponible.",
+      "speechAutomatic": "Automática",
+      "speechRate": "Velocidad de voz",
+      "speechRateDescription": "Elige un ritmo cómodo para las instrucciones.",
+      "speechPreview": "Escuchar",
+      "speechSample": "En 200 metros, gira a la derecha y luego mantente a la izquierda.",
+      "adaptiveSpeech": "Voz más rápida en giros seguidos",
+      "adaptiveSpeechDescription": "Aumenta el ritmo cuando hay varias maniobras seguidas, hasta 1,5×.",
+      "title": "Navegación",
+      "cameraMode": "Cámara",
+      "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
+      "bearingMode": "Dirección de la cámara",
+      "bearingModeDescription": "Anticipar gira el mapa hacia las próximas curvas; rumbo recto lo mantiene en tu dirección",
+      "autoSwitchDocks": "Cambiar de estación",
+      "autoSwitchDocksDescription": "Ir a otra estación automáticamente cuando la tuya se llene o se quede sin bicis",
+      "speedDisplay": "Indicador de velocidad",
+      "speedDisplayDescription": "Muestra el límite de velocidad, tu velocidad actual o ambos al conducir"
+    },
+    "exitShort": "Terminar",
+    "banner": {
+      "arrive": "Tu destino",
+      "then": "Luego",
+      "offRoute": "Fuera de ruta",
+      "offRouteHint": "Vuelve a la ruta",
+      "arrived": "Has llegado",
+      "rerouting": "Recalculando…",
+      "turnAround": "Da la vuelta",
+      "head": "Luego ve hacia el {heading}",
+      "headOn": "Luego ve hacia el {heading} por {road}",
+      "away": "Estás lejos de la ruta",
+      "awayHint": "La guía empieza cuando estés cerca"
+    },
+    "units": {
+      "ft": "pies",
+      "mi": "mi",
+      "m": "m",
+      "km": "km"
+    },
+    "speed": {
+      "limitSign": "LÍMITE",
+      "displays": {
+        "both": "Límite y velocidad",
+        "limit": "Solo el límite",
+        "speedometer": "Solo el velocímetro",
+        "none": "Oculto"
+      },
+      "displaysShort": {
+        "both": "Ambos",
+        "limit": "Límite",
+        "speedometer": "Velocidad",
+        "none": "No"
+      }
+    },
+    "roads": {
+      "path": "Sendero",
+      "pedestrian": "Calle peatonal",
+      "cycleway": "Ciclovía",
+      "steps": "Escaleras",
+      "crosswalk": "Paso de peatones",
+      "railCrossing": "Paso a nivel",
+      "footbridge": "Pasarela",
+      "underpass": "Paso subterráneo",
+      "parkPath": "Sendero del parque",
+      "track": "Camino",
+      "service": "Vía de servicio",
+      "road": "Calle sin nombre"
+    },
+    "menu": {
+      "searchAlongRoute": "Buscar en la ruta",
+      "search": "Buscar",
+      "addStop": "Añadir parada",
+      "report": "Reportar",
+      "steps": "Pasos",
+      "routes": "Rutas",
+      "title": "Opciones",
+      "back": "Atrás",
+      "close": "Cerrar",
+      "show": "Mostrar opciones del viaje",
+      "hide": "Ocultar opciones del viaje",
+      "destination": "Destino",
+      "alongTheWay": "En el camino"
+    },
+    "startLeg": "Iniciar tramo {leg}",
+    "arrival": {
+      "destination": "Tu destino",
+      "at": "Llegada a las {time}",
+      "nextLeg": "Siguiente tramo",
+      "done": "Listo"
+    },
+    "voice": {
+      "units": {
+        "feet": "{value} pies",
+        "meters": "{value} metros",
+        "mile": "1 milla",
+        "miles": "{value} millas",
+        "mileAndHalf": "milla y media",
+        "milesAndHalf": "{value} millas y media",
+        "mileFraction": {
+          "1": "un cuarto de milla",
+          "2": "media milla",
+          "3": "tres cuartos de milla"
+        },
+        "kilometer": "1 kilómetro",
+        "kilometers": "{value} kilómetros",
+        "kilometerAndHalf": "kilómetro y medio",
+        "kilometersAndHalf": "{value} kilómetros y medio"
+      },
+      "maneuvers": {
+        "straight": "Sigue recto",
+        "slight-left": "Gira ligeramente a la izquierda",
+        "slight-right": "Gira ligeramente a la derecha",
+        "left": "Gira a la izquierda",
+        "right": "Gira a la derecha",
+        "sharp-left": "Gira bruscamente a la izquierda",
+        "sharp-right": "Gira bruscamente a la derecha",
+        "keep-left": "Mantente a la izquierda",
+        "keep-right": "Mantente a la derecha",
+        "uturn": "Da la vuelta",
+        "roundabout": "Entra en la rotonda",
+        "roundaboutExit": "En la rotonda, toma la salida {exit}",
+        "arrive": "Llega",
+        "board": "Sube",
+        "boardAt": "Sube en {stop}",
+        "enterStation": "Entra en la estación",
+        "exitStation": "Sal de la estación",
+        "escalator": "Toma la escalera mecánica",
+        "elevator": "Toma el ascensor",
+        "stairs": "Toma las escaleras"
+      },
+      "onto": "{action} hacia {road}",
+      "in": "En {distance}, {action}",
+      "then": "{action} y luego {next}",
+      "continue": "Sigue durante {distance}",
+      "continueOn": "Sigue por {road} durante {distance}",
+      "arrive": "En {distance}, llegarás",
+      "arriveSide": {
+        "left": "En {distance}, tu destino estará a la izquierda",
+        "right": "En {distance}, tu destino estará a la derecha"
+      },
+      "arrived": "Has llegado",
+      "arrivedSide": {
+        "left": "Has llegado. Tu destino está a la izquierda",
+        "right": "Has llegado. Tu destino está a la derecha"
+      },
+      "head": "Ve hacia el {heading}",
+      "headOn": "Ve hacia el {heading} por {road}",
+      "rerouting": "Recalculando la ruta",
+      "turnAround": "Da la vuelta y ve hacia el {heading}",
+      "turnAroundOn": "Da la vuelta y ve hacia el {heading} por {road}",
+      "headings": {
+        "north": "norte",
+        "northeast": "noreste",
+        "east": "este",
+        "southeast": "sureste",
+        "south": "sur",
+        "southwest": "suroeste",
+        "west": "oeste",
+        "northwest": "noroeste"
+      },
+      "watchPedestrians": "{action} y atención a los peatones",
+      "hazards": {
+        "crosswalk": "Paso de peatones más adelante",
+        "uncontrolled_crossing": "Cruce sin semáforo más adelante",
+        "rail_crossing": "Paso a nivel más adelante",
+        "ford": "Vado más adelante",
+        "sharp_curve": "Curva cerrada más adelante",
+        "steep_grade": "Pendiente pronunciada más adelante",
+        "steps": "Escaleras más adelante",
+        "shared_space": "Calle compartida más adelante, atención a los peatones",
+        "tram_tracks": "Vías de tranvía en la calzada más adelante, evita los raíles",
+        "tram_crossing": "Vías de tranvía más adelante, crúzalas en perpendicular",
+        "unlit": "Tramo sin iluminación más adelante",
+        "flood_prone": "La calzada más adelante se inunda con lluvia fuerte",
+        "icy_bridge": "Puente con posible hielo más adelante",
+        "school_zone": "Zona escolar más adelante",
+        "no_sidewalk": "Sin acera más adelante, atención al tráfico",
+        "low_clearance": "Gálibo reducido más adelante",
+        "speed_camera": "Radar de velocidad más adelante",
+        "movable_bridge": "Puente móvil más adelante",
+        "dismount": "Más adelante, bájate de la bici",
+        "bike_lane_end": "El carril bici se acaba más adelante, incorpórate al tráfico",
+        "bike_lane_start": "Más adelante, entra en el carril bici",
+        "bike_track_start": "Más adelante, entra en el carril bici protegido",
+        "hazard": "Peligro más adelante"
+      },
+      "useLanes": "{action}. Usa {lanes}",
+      "lanes": {
+        "left": "el carril izquierdo",
+        "leftMany": "los {n} carriles de la izquierda",
+        "right": "el carril derecho",
+        "rightMany": "los {n} carriles de la derecha",
+        "middle": "el carril central",
+        "middleMany": "los {n} carriles centrales"
+      },
+      "welcome": "Bienvenido a {region}"
+    },
+    "rich": {
+      "ordinals": {
+        "m": {
+          "1": "primer",
+          "2": "segundo",
+          "3": "tercer",
+          "4": "cuarto",
+          "5": "quinto",
+          "6": "sexto",
+          "7": "séptimo",
+          "8": "octavo"
+        },
+        "f": {
+          "1": "primera",
+          "2": "segunda",
+          "3": "tercera",
+          "4": "cuarta",
+          "5": "quinta",
+          "6": "sexta",
+          "7": "séptima",
+          "8": "octava"
+        }
+      },
+      "roads": {
+        "path": "el sendero",
+        "pedestrian": "la calle peatonal",
+        "cycleway": "la ciclovía",
+        "steps": "las escaleras",
+        "crosswalk": "el paso de peatones",
+        "railCrossing": "el paso a nivel",
+        "footbridge": "la pasarela",
+        "underpass": "el paso subterráneo",
+        "parkPath": "el sendero del parque",
+        "track": "el camino"
+      },
+      "fork": {
+        "left": "En la bifurcación, mantente a la izquierda",
+        "right": "En la bifurcación, mantente a la derecha"
+      },
+      "endOfRoad": {
+        "left": "Al final de la calle, gira a la izquierda",
+        "right": "Al final de la calle, gira a la derecha"
+      },
+      "stay": "{action} para seguir por {road}",
+      "exit": {
+        "left": "Toma la salida de la izquierda",
+        "right": "Toma la salida de la derecha"
+      },
+      "exitNumber": "Toma la salida {number}",
+      "roundabout": "Entra en la rotonda y toma la {ordinal} salida",
+      "roundaboutExit": "Entra en la rotonda y toma la salida {exit}",
+      "roundaboutThrough": "Sigue recto en la rotonda",
+      "stairs": {
+        "left": "Toma las escaleras a tu izquierda",
+        "right": "Toma las escaleras a tu derecha",
+        "ahead": "Toma las escaleras",
+        "up": {
+          "left": "Sube por las escaleras a tu izquierda",
+          "right": "Sube por las escaleras a tu derecha",
+          "ahead": "Sube por las escaleras"
+        },
+        "down": {
+          "left": "Baja por las escaleras a tu izquierda",
+          "right": "Baja por las escaleras a tu derecha",
+          "ahead": "Baja por las escaleras"
+        }
+      },
+      "escalator": {
+        "ahead": "Toma la escalera mecánica",
+        "up": "Sube por la escalera mecánica",
+        "down": "Baja por la escalera mecánica"
+      },
+      "elevator": {
+        "ahead": "Toma el ascensor",
+        "up": "Sube en el ascensor",
+        "down": "Baja en el ascensor"
+      },
+      "floorTo": {
+        "level": "{action} hasta la planta {level}",
+        "platform": "{action} hasta el andén",
+        "street": "{action} hasta la calle"
+      },
+      "station": {
+        "enter": {
+          "refName": "Entra en la estación por el acceso {ref}, {name}",
+          "ref": "Entra en la estación por el acceso {ref}",
+          "name": "Entra en la estación por {name}",
+          "plain": "Entra en la estación"
+        },
+        "exit": {
+          "refName": "Toma la salida {ref}, {name}",
+          "ref": "Toma la salida {ref}",
+          "name": "Toma la salida hacia {name}",
+          "plain": "Sal de la estación"
+        }
+      },
+      "footbridge": "Usa la pasarela peatonal",
+      "ramp": {
+        "ahead": "Sigue la rampa",
+        "up": "Sube por la rampa",
+        "down": "Baja por la rampa",
+        "bridge": "Sube por la rampa hasta el puente"
+      },
+      "passage": {
+        "building": "Atraviesa el pasaje",
+        "arcade": "Camina por los soportales",
+        "indoor": "Entra en el edificio",
+        "underpass": "Atraviesa el paso subterráneo"
+      },
+      "intoPassage": {
+        "building": "{action} para entrar en el pasaje",
+        "arcade": "{action} para entrar en los soportales",
+        "indoor": "{action} y entra en el edificio",
+        "underpass": "{action} para entrar en el paso subterráneo"
+      },
+      "crosswalk": "Cruza por el paso de peatones",
+      "crosswalkSignals": "Cruza en el semáforo",
+      "crosswalkRoad": "Cruza {road} por el paso de peatones",
+      "crosswalkSignalsRoad": "Cruza {road} en el semáforo",
+      "crossFirst": "{crossing} y luego {action}",
+      "crossAfter": "{action} y luego {crossing}",
+      "crossings": {
+        "bare": "Cruza {road}",
+        "then": "Cruza {road} y luego {next}",
+        "at": "Cruza a la altura de {street}",
+        "atRoad": "Cruza {road} a la altura de {street}",
+        "atLight": "Cruza en el semáforo de {street}",
+        "atLightRoad": "Cruza {road} en el semáforo de {street}",
+        "unmarked": "Cruza con cuidado, no hay paso de peatones",
+        "unmarkedRoad": "Cruza {road} con cuidado, no hay paso de peatones",
+        "carefully": "Cruza {road} con cuidado",
+        "median": "Cruza hasta la mediana y espera al siguiente semáforo",
+        "medianRoad": "Cruza {road} hasta la mediana y espera al siguiente semáforo",
+        "island": "Cruza usando la isleta a mitad de camino",
+        "islandRoad": "Cruza {road} usando la isleta a mitad de camino",
+        "button": "Pulsa el botón para cruzar",
+        "buttonRoad": "Pulsa el botón para cruzar {road}",
+        "diagonal": "Cruza en diagonal cuando se detenga todo el tráfico"
+      },
+      "ontoIt": "{action} por esa calle",
+      "headBack": "Vuelve por {road}",
+      "headBackUnnamed": "Vuelve atrás",
+      "thenArrive": {
+        "left": "{action}; tu destino está a la izquierda",
+        "right": "{action}; tu destino está a la derecha"
+      },
+      "followPath": "Sigue el sendero",
+      "followPathToward": "Sigue el sendero en dirección a {destination}",
+      "forkToward": {
+        "left": "En la bifurcación, mantente a la izquierda en dirección a {destination}",
+        "right": "En la bifurcación, mantente a la derecha en dirección a {destination}"
+      },
+      "ontoToward": "{action} hacia {road} en dirección a {destination}",
+      "enterPark": "Entra en {park} y sigue el sendero",
+      "enterParkUnnamed": "Entra en el parque y sigue el sendero",
+      "intoPark": "{action} para entrar en {park}",
+      "intoParkUnnamed": "{action} para entrar en el parque",
+      "home": "Bienvenido a casa",
+      "homeSide": {
+        "left": "Bienvenido a casa. Tu destino está a la izquierda",
+        "right": "Bienvenido a casa. Tu destino está a la derecha"
+      },
+      "headAlong": "Ve hacia el {heading} por {road}",
+      "headAlongToward": "Ve por {road} en dirección a {destination}",
+      "headToward": "Ve en dirección a {destination}",
+      "turnAround": "Da la vuelta para empezar la ruta y ve hacia el {heading}",
+      "turnAroundAlong": "Da la vuelta para empezar la ruta y ve hacia el {heading} por {road}",
+      "toward": "{action} en dirección a {destination}",
+      "followSigns": "{action} y sigue las indicaciones hacia {destination}",
+      "twoStage": {
+        "left": "Cruza recto y luego gira a la izquierda",
+        "right": "Cruza recto y luego gira a la derecha"
+      },
+      "bikeLane": {
+        "left": "{action} y usa el carril bici de la izquierda",
+        "right": "{action} y usa el carril bici de la derecha"
+      },
+      "dismount": {
+        "walk": "Bájate y lleva la bici {place}",
+        "walkFor": "Bájate y lleva la bici {place} durante {distance}",
+        "carry": {
+          "up": "Sube las escaleras con la bici a cuestas",
+          "down": "Baja las escaleras con la bici a cuestas",
+          "any": "Lleva la bici a cuestas por las escaleras"
+        },
+        "places": {
+          "sidewalk": "por la acera",
+          "path": "por el sendero",
+          "plaza": "por la plaza",
+          "crosswalk": "por el paso de peatones",
+          "bridge": "por el puente",
+          "park": "por el parque"
+        }
+      },
+      "infinitive": {
+        "straight": "seguir recto",
+        "slight-left": "girar ligeramente a la izquierda",
+        "slight-right": "girar ligeramente a la derecha",
+        "left": "girar a la izquierda",
+        "right": "girar a la derecha",
+        "sharp-left": "girar bruscamente a la izquierda",
+        "sharp-right": "girar bruscamente a la derecha",
+        "keep-left": "mantenerte a la izquierda",
+        "keep-right": "mantenerte a la derecha",
+        "uturn": "dar la vuelta",
+        "roundabout": "entrar en la rotonda",
+        "board": "subir",
+        "exit": "tomar la salida"
+      },
+      "useLanes": "Usa {lanes} para {action}",
+      "lanes": {
+        "edge": {
+          "left": "el carril izquierdo",
+          "right": "el carril derecho"
+        },
+        "nth": {
+          "left": "el {ordinal} carril por la izquierda",
+          "right": "el {ordinal} carril por la derecha"
+        },
+        "either": {
+          "left": "cualquiera de los dos carriles izquierdos",
+          "right": "cualquiera de los dos carriles derechos"
+        },
+        "any": {
+          "left": "cualquiera de los {n} carriles izquierdos",
+          "right": "cualquiera de los {n} carriles derechos"
+        },
+        "middle": "el carril central",
+        "middleMany": "los {n} carriles centrales"
+      },
+      "anchored": "{anchor}, {action}",
+      "past": "Pasa este cruce y luego {action}",
+      "underOverpass": "Pasa por debajo del paso elevado y luego {action}",
+      "anchors": {
+        "at": {
+          "traffic_signals": "En el semáforo",
+          "stop": "En el stop",
+          "give_way": "En el ceda el paso"
+        },
+        "atOrdinal": "En el {ordinal} semáforo",
+        "afterOrdinal": "Después del {ordinal} semáforo",
+        "after": {
+          "traffic_signals": "Después del semáforo",
+          "stop": "Después del stop",
+          "give_way": "Después del ceda el paso",
+          "rail_crossing": "Después del paso a nivel",
+          "bridge": "Después del puente",
+          "tunnel": "Después del túnel",
+          "overpass": "Después del paso elevado"
+        },
+        "past": {
+          "intersection": "Pasado este cruce"
+        }
+      },
+      "thenImmediately": "{action} e inmediatamente {next}",
+      "inBlocks": "En {n} manzanas, {action}",
+      "continueBlocks": "Sigue por {road} durante {n} manzanas",
+      "continueBlocksUnnamed": "Sigue durante {n} manzanas",
+      "afterTurning": {
+        "left": "Después de girar a la izquierda, {action}",
+        "right": "Después de girar a la derecha, {action}",
+        "slight-left": "Después de girar ligeramente a la izquierda, {action}",
+        "slight-right": "Después de girar ligeramente a la derecha, {action}",
+        "sharp-left": "Después del giro brusco a la izquierda, {action}",
+        "sharp-right": "Después del giro brusco a la derecha, {action}",
+        "uturn": "Después de dar la vuelta, {action}"
+      },
+      "cues": {
+        "exit": "Salida {number}",
+        "exitToward": "Salida {number} · {destination}",
+        "toward": "Hacia {destination}",
+        "roundaboutExit": "Salida {exit}",
+        "bikeLane": {
+          "left": "Carril bici a la izquierda",
+          "right": "Carril bici a la derecha"
+        },
+        "twoStage": "Giro en dos tiempos",
+        "dismount": "Bájate de la bici"
+      }
+    },
+    "sound": {
+      "title": "Sonido",
+      "all": "Todo",
+      "alerts": "Solo alertas",
+      "silent": "Silencio"
+    },
+    "hazards": {
+      "crosswalk": "Paso de peatones",
+      "traffic_signals": "Semáforo",
+      "uncontrolled_crossing": "Cruce sin semáforo",
+      "rail_crossing": "Paso a nivel",
+      "tunnel": "Túnel",
+      "ford": "Vado",
+      "ferry": "Ferri",
+      "steep_grade": "Pendiente pronunciada",
+      "steps": "Escaleras",
+      "dismount": "Bájate de la bici",
+      "rough_surface": "Firme irregular",
+      "shared_space": "Calle compartida",
+      "sharp_curve": "Curva cerrada",
+      "stop": "Señal de stop",
+      "give_way": "Ceda el paso",
+      "tram_tracks": "Vías de tranvía",
+      "tram_crossing": "Cruce de tranvía",
+      "unlit": "Sin iluminación",
+      "flood_prone": "Calzada inundable",
+      "icy_bridge": "Puente con hielo",
+      "school_zone": "Zona escolar",
+      "traffic_calming": "Badén",
+      "no_sidewalk": "Sin acera",
+      "low_clearance": "Gálibo reducido",
+      "toll": "Peaje",
+      "speed_camera": "Radar",
+      "movable_bridge": "Puente móvil",
+      "bike_lane_end": "Fin del carril bici",
+      "bike_lane_start": "Empieza el carril bici",
+      "bike_track_start": "Carril bici protegido",
+      "hazard": "Peligro"
+    },
+    "hazardCounts": {
+      "crosswalk": "{n} paso de peatones | {n} pasos de peatones",
+      "traffic_signals": "{n} semáforo | {n} semáforos",
+      "stop": "{n} señal de stop | {n} señales de stop"
+    },
+    "handoff": {
+      "park": "Aparca",
+      "lock-bike": "Asegura tu bici",
+      "dock-bike": "Deja la bici en {station}",
+      "unlock-bike": "Desbloquea una bici en {station}",
+      "get-in-car": "Sube a tu coche",
+      "get-on-bike": "Sube a tu bici",
+      "continue": "Sigue",
+      "then": "luego {mode} {duration}",
+      "thenTo": "luego {mode} {duration} hasta {place}",
+      "modes": {
+        "walking": "camina",
+        "cycling": "pedalea",
+        "driving": "conduce",
+        "transit": "viaja"
+      },
+      "go": "Vamos",
+      "notYet": "Todavía no",
+      "docksFree": "{n} anclaje libre | {n} anclajes libres"
+    },
+    "transit": {
+      "voice": {
+        "board": "Sube al {line}",
+        "boardToward": "Sube al {line} hacia {headsign}",
+        "alight-next": "Bájate en la próxima parada, {stop}",
+        "alight-now": "Bájate en {stop}",
+        "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
+        "missed-stop": "Pasaste {stop}. Bájate en la próxima parada"
+      },
+      "departsIn": "Sale en {duration}",
+      "departingNow": "Saliendo ahora",
+      "from": "desde {stop}",
+      "stopsLeft": "{n} parada | {n} paradas",
+      "estimated": "Sin señal, posición estimada según el horario",
+      "getOffAt": "Bájate en {stop}",
+      "getOffNext": "Bájate en la próxima parada",
+      "getOffNow": "Bájate ahora",
+      "nextStop": "Próxima: {stop}",
+      "missedVehicle": "El {line} ya salió",
+      "missedVehicleHint": "Toma el siguiente o busca otra ruta",
+      "nextDeparture": "Siguiente salida",
+      "anotherWay": "Otra ruta",
+      "noLaterRun": "No hay más salidas hoy",
+      "missedStop": "Pasaste {stop}",
+      "missedStopHint": "Bájate en la próxima parada",
+      "whichVehicle": {
+        "subway": "¿En qué tren vas?",
+        "rail": "¿En qué tren vas?",
+        "tram": "¿En qué tranvía vas?",
+        "bus": "¿En qué autobús vas?",
+        "ferry": "¿En qué ferri vas?",
+        "vehicle": "¿En qué vehículo vas?"
+      },
+      "noneOfThese": "Ninguno de estos",
+      "reach": {
+        "ok": "A tiempo",
+        "hurry": "Date prisa",
+        "late": "Puede que no llegues"
+      },
+      "inDuration": "en {duration}",
+      "leg": {
+        "walking": "Camina {duration}",
+        "cycling": "Pedalea {duration}",
+        "driving": "Conduce {duration}"
+      },
+      "toPlace": "hasta {place}"
+    },
+    "ahead": {
+      "title": "En la ruta",
+      "placeholder": "Buscar en la ruta",
+      "categories": {
+        "fuel": "Gasolina",
+        "charging": "Carga eléctrica",
+        "coffee": "Café",
+        "food": "Comida",
+        "restrooms": "Baños",
+        "parking": "Estacionamiento",
+        "water": "Agua",
+        "bikeRepair": "Taller de bicis"
+      },
+      "detour": "+{duration}",
+      "onTheWay": "De camino",
+      "ahead": "a {distance}",
+      "add": "Añadir parada",
+      "empty": "No hay nada en la ruta",
+      "failed": "La búsqueda no está disponible ahora",
+      "addFailed": "No se pudo añadir la parada"
+    },
+    "docks": {
+      "docks": "{n} anclaje | {n} anclajes",
+      "bikes": "{n} bici | {n} bicis",
+      "atRisk": {
+        "dock": "Puede que {station} esté llena cuando llegues",
+        "bike": "Puede que {station} se quede sin bicis"
+      },
+      "gone": {
+        "dock": "{station} está llena",
+        "bike": "{station} no tiene bicis"
+      },
+      "switchTo": "Cambiar a {station}",
+      "keep": "Mantener",
+      "voice": {
+        "switched": "Cambiando a {station}"
+      }
+    },
+    "alternatives": {
+      "faster": "{duration} más rápido",
+      "slower": "{duration} más lento",
+      "sameTime": "Mismo tiempo",
+      "via": "por {street}",
+      "protected": "Más carriles bici protegidos",
+      "quieter": "Calles más tranquilas",
+      "switch": "Cambiar",
+      "title": "Rutas",
+      "current": "Ruta actual",
+      "protectedShare": "{n}% protegido",
+      "empty": "No hay otras rutas ahora"
+    },
+    "itinerary": {
+      "sooner": "Llega {duration} antes",
+      "take": "Toma el {lines}"
+    },
+    "recovery": {
+      "finding": "Buscando otra forma…",
+      "next": "Próximo {line} en {duration}",
+      "arrive": "llegada {time}",
+      "later": "+{duration}",
+      "take": "Toma el {lines} desde {stop}",
+      "orWait": "O espera al próximo {line} · llegada {time}",
+      "switch": "Cambiar",
+      "otherRoutes": "Otras rutas",
+      "fromAt": "desde {stop} · {time}"
+    },
+    "lanes": {
+      "label": "Carriles"
+    },
+    "preview": {
+      "action": "Vista previa",
+      "title": "Vista previa de la ruta",
+      "previewRoute": "Ver la ruta",
+      "overview": "Vista general",
+      "previous": "Paso anterior",
+      "next": "Paso siguiente",
+      "close": "Cerrar vista previa",
+      "stepOf": "{n} de {total}",
+      "for": "durante {distance}",
+      "steps": "{n} pasos",
+      "streetView": "Vista a pie de calle en este paso"
+    },
+    "free": {
+      "title": {
+        "driving": "Conducción libre",
+        "cycling": "Paseo libre",
+        "walking": "Caminata libre"
+      },
+      "start": {
+        "driving": "Conducir",
+        "cycling": "Pedalear",
+        "walking": "Caminar"
+      },
+      "keepGoing": {
+        "driving": "Seguir conduciendo",
+        "cycling": "Seguir pedaleando",
+        "walking": "Seguir caminando"
+      },
+      "withoutDestination": {
+        "driving": "Conducir sin destino",
+        "cycling": "Pedalear sin destino",
+        "walking": "Caminar sin destino"
+      },
+      "otherModes": "Otras formas de ir",
+      "mode": "Modo de viaje",
+      "whereTo": "¿Adónde?",
+      "searchPlaceholder": "Busca un destino",
+      "empty": "No se encontraron lugares",
+      "go": "Ir",
+      "goFailed": "No se pudo planificar una ruta hasta allí",
+      "ahead": {
+        "title": "En el camino",
+        "placeholder": "Buscar en el camino",
+        "empty": "No se encontró nada adelante"
+      }
+    },
+    "vehicle": {
+      "title": "Marcador de ubicación",
+      "description": "Cómo apareces en el mapa al navegar",
+      "color": "Color",
+      "modes": {
+        "driving": "En coche",
+        "cycling": "En bici",
+        "walking": "A pie"
+      },
+      "indicators": {
+        "arrow": "Flecha",
+        "hatchback": "Compacto",
+        "suv": "SUV",
+        "pickup": "Pickup",
+        "bike": "Bici"
+      }
+    }
+  },
   "attribution": {
     "poweredBy": "Desarrollado por",
     "contribute": "Contribuir",
@@ -1280,6 +2104,9 @@
       "reviews": "Opiniones",
       "visits": "Visitas"
     },
+    "collections": {
+      "savedIn": "Guardado en"
+    },
     "nearby": {
       "findNearby": "Encontrar cerca"
     },
@@ -1442,22 +2269,22 @@
           "title": "Configurar identidad federada",
           "description": "Tu clave de recuperación es tu último recurso para volver a entrar si pierdes todos los dispositivos. Guárdala en un lugar seguro — un gestor de contraseñas es ideal. En el siguiente paso te ofreceremos configurar una clave de acceso para la recuperación diaria.",
           "importantTitle": "Importante",
-          "importantDescription": "Si pierdes esta clave Y todas las claves de acceso, tendrás que crear una nueva identidad y volver a añadir a todos tus amigos.",
-          "keyLabel": "Tu clave de recuperación",
+          "importantDescription": "Si pierdes todos tus dispositivos y claves de acceso, esta clave será la única forma de restaurar tus datos cifrados.",
+          "keyLabel": "Clave de recuperación",
           "generating": "Generando...",
           "keyCopiedToast": "Clave de recuperación copiada. Pégala en tu gestor de contraseñas.",
-          "masterPasswordHint": "Como una contraseña maestra. Mantenla en secreto y a salvo.",
-          "confirmSavedLabel": "He guardado mi clave de recuperación en un lugar seguro",
+          "masterPasswordHint": "Guárdala en tu gestor de contraseñas.",
+          "confirmSavedLabel": "He guardado mi clave de recuperación en un lugar seguro.",
           "failedFallback": "Error de configuración"
         },
         "passkeyOffer": {
           "title": "¿Añadir una clave de acceso para recuperación?",
           "description": "Las claves de acceso te permiten recuperar tu identidad en un nuevo dispositivo con un solo toque, sin necesidad de clave de recuperación. Siempre puedes añadir más desde Configuración.",
           "alertDescription": "Tu clave de recuperación ya está a salvo. Añadir una clave de acceso es opcional pero muy recomendable.",
-          "existingLabel": "Ya tienes una clave de acceso:",
-          "existingHint": "Tócala abajo para habilitar la recuperación. Algunos navegadores o claves de acceso antiguas no pueden hacerlo — si no funciona, usa \"Añadir nueva\" en su lugar.",
-          "useExisting": "Usar \"{name}\" para recuperación",
-          "addNewInstead": "Añadir una nueva clave de acceso en su lugar",
+          "existingLabel": "Tu clave de acceso actual",
+          "existingHint": "Úsala también para recuperar tus datos.",
+          "useExisting": "Usar esta clave de acceso",
+          "addNewInstead": "Crear una nueva clave de acceso",
           "addPasskey": "Añadir clave de acceso",
           "skipForNow": "Omitir por ahora",
           "cannotUseError": "Esta clave de acceso no se puede usar para recuperación. Prueba añadiendo una nueva.",
@@ -1730,8 +2557,17 @@
         "3dBuildings": "Edificios 3D",
         "3dObjects": "Objetos 3D",
         "3dObjectsDescription": "Dibuja árboles y mobiliario urbano como modelos. Solo MapLibre.",
+        "shadows": {
+          "title": "Sombras",
+          "description": "Sombras de edificios y objetos. «Con inclinación» las oculta en la vista cenital plana.",
+          "values": {
+            "off": "Desactivadas",
+            "tilted": "Con inclinación",
+            "always": "Siempre"
+          }
+        },
         "hdRoads": "Carreteras HD",
-        "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
+        "hdRoadsDescription": "Dibuja carriles, pasos de peatones y flechas de giro a nivel de calle",
         "indoorMaps": "Mapas de interiores",
         "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",
         "poiLabels": "Etiquetas de POI",
@@ -1742,6 +2578,8 @@
       "controls": {
         "title": "Controles del mapa",
         "zoom": "Zoom",
+        "floors": "Plantas",
+        "exterior": "Exterior del edificio",
         "compass": "Brújula",
         "scale": "Barra de escala",
         "streetView": "Vista de calle",
@@ -1753,7 +2591,10 @@
           "whileRotating": "Mientras rota",
           "whileZooming": "Mientras hace zoom",
           "whileActive": "Mientras está activo"
-        }
+        },
+        "camera": "Posición de la cámara",
+        "cameraDescription": "Coordenadas, zoom, inclinación y rumbo",
+        "cameraCopied": "Posición de la cámara copiada"
       },
       "location": {
         "title": "Ubicación",
@@ -1921,6 +2762,7 @@
         "tileServer": "Servidor de teselas",
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
+        "tts": "Síntesis de voz",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios"
@@ -2054,31 +2896,10 @@
         "copyAction": "Copiar enlace",
         "revokeAction": "Revocar enlace"
       },
-      "e2ee": {
-        "title": "Cifrado de extremo a extremo",
-        "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
-        "switchAction": "Cambiar a cifrado gestionado por el servidor"
-      },
-      "serverKey": {
-        "switchAction": "Cambiar a cifrado de extremo a extremo"
-      }
+      "privateHint": "Los enlaces públicos necesitan una colección compartible."
     },
     "publicLink": {
       "copied": "Enlace copiado al portapapeles"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "¿Cambiar a cifrado de extremo a extremo?",
-        "description": "Cada lugar guardado en esta colección se volverá a cifrar con tu clave personal. El servidor de Parchment ya no podrá leerlos. Cualquier enlace público será revocado. Los amigos con acceso se volverán a compartir con la nueva clave.",
-        "continueText": "Cambiar a extremo a extremo"
-      },
-      "downgradeConfirm": {
-        "title": "¿Cambiar a cifrado gestionado por el servidor?",
-        "description": "El servidor de Parchment podrá leer cada lugar guardado en esta colección. Los amigos con acceso se volverán a compartir con el nuevo esquema. Esto no se puede deshacer sin volver a cambiar y cifrar.",
-        "continueText": "Cambiar a gestionado por el servidor"
-      },
-      "success": "Esquema de cifrado cambiado",
-      "failed": "No se pudo cambiar el esquema de cifrado"
     },
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
@@ -2090,7 +2911,8 @@
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
       "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
-    }
+    },
+    "removeAction": "Quitar a {name}"
   },
   "auth": {
     "signIn": {
@@ -2105,6 +2927,10 @@
     "otp": {
       "title": "Código de verificación",
       "description": "Código enviado a {email}",
+      "resend": "Reenviar correo",
+      "resending": "Enviando…",
+      "resent": "Correo reenviado. Revisa tu bandeja de entrada.",
+      "resendFailed": "No se pudo reenviar el correo. Inténtalo de nuevo.",
       "submit": "Enviar",
       "cancel": "Cancelar",
       "verifying": "Verificando...",
@@ -2127,15 +2953,27 @@
     }
   },
   "onboarding": {
+    "welcome": {
+      "title": "Te damos la bienvenida a Parchment",
+      "description": "El mejor mapa digital del mundo.",
+      "privacy": "Privacidad",
+      "privacyDetail": "Todos tus datos, seguros y cifrados",
+      "sustainability": "Sostenibilidad",
+      "sustainabilityDetail": "Navega en transporte, bici, a pie o todo junto",
+      "community": "Comunidad",
+      "communityDetail": "Mapeado por millones de voluntarios",
+      "start": "Comenzar"
+    },
     "finish": "Finalizar",
     "profile": {
-      "title": "Configura tu perfil",
-      "description": "Cuéntanos un poco sobre ti para comenzar.",
+      "title": "Tu perfil",
+      "description": "Un nombre y una foto para que tus amigos te encuentren.",
       "firstName": "Nombre",
       "lastName": "Apellido",
       "firstNamePlaceholder": "Cristóbal",
       "lastNamePlaceholder": "Colón",
-      "removeAvatar": "Eliminar avatar"
+      "removeAvatar": "Eliminar avatar",
+      "chooseAvatar": "Elegir una foto de perfil"
     },
     "alias": {
       "title": "Elige un nombre de usuario",
@@ -2150,11 +2988,11 @@
     },
     "recoveryKey": {
       "title": "Guarda tu clave de recuperación",
-      "description": "Esta clave es la única forma de recuperar tus datos cifrados. Guárdala en un lugar seguro."
+      "description": "Guarda esta clave para restaurar tus datos cifrados si pierdes el acceso."
     },
     "theme": {
-      "title": "Preferencias",
-      "description": "Configura tu idioma, unidades y estilo visual.",
+      "title": "A tu gusto",
+      "description": "Elige el aspecto y las preferencias de Parchment.",
       "languageLabel": "Idioma",
       "unitsLabel": "Unidades",
       "colorLabel": "Color de acento",
@@ -2163,20 +3001,17 @@
         "light": "Claro",
         "dark": "Oscuro",
         "auto": "Sistema"
-      }
+      },
+      "metric": "Métrico",
+      "imperial": "Imperial"
     },
     "passkey": {
-      "title": "Añadir una clave de acceso",
-      "description": "Las claves de acceso te permiten iniciar sesión y restaurar tus datos cifrados sin escribir una clave de recuperación."
-    },
-    "subscription": {
-      "title": "Elige tu plan",
-      "description": "Desbloquea marcadores, colecciones, amigos e integraciones con un plan de pago.",
-      "skipLabel": "Continuar con {plan}"
+      "title": "Inicia sesión con una clave de acceso",
+      "description": "Usa tu huella, rostro o PIN del dispositivo para iniciar sesión y desbloquear tus datos."
     },
     "integrations": {
-      "title": "Configurar integraciones",
-      "description": "Conecta servicios para mapas, búsqueda, geocodificación y más. Las integraciones gratuitas se han habilitado automáticamente."
+      "title": "Conecta tus aplicaciones",
+      "description": "Conecta servicios de mapas, búsqueda y más."
     },
     "invite": {
       "title": "Invitar a otros",
@@ -2187,6 +3022,16 @@
       "sendFailed": "No se pudo enviar la invitación.",
       "sent": "{count} invitación(es) enviada(s).",
       "sentSummary": "{count} invitación(es) enviada(s)"
+    },
+    "openstreetmap": {
+      "title": "Mejoremos el mapa juntos",
+      "description": "Conecta tu cuenta para contribuir a OpenStreetMap.",
+      "notesTitle": "Señala lugares que faltan",
+      "editsTitle": "Actualiza los detalles de los lugares",
+      "connect": "Iniciar sesión con OpenStreetMap",
+      "connected": "Tu cuenta de OpenStreetMap está conectada",
+      "skip": "Omitir por ahora",
+      "popupBlocked": "Permite las ventanas emergentes para iniciar sesión con OpenStreetMap y vuelve a intentarlo."
     }
   },
   "canvases": {
@@ -2212,18 +3057,7 @@
       "editTitle": "Detalles del lienzo",
       "description": "Ponle un nombre y decide quién puede leerlo.",
       "namePlaceholder": "Nombre del lienzo",
-      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)",
-      "privacy": "Privacidad"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Compartible",
-        "description": "Se guarda de forma que pueda publicarse con un enlace más adelante."
-      },
-      "user-e2ee": {
-        "title": "Privado",
-        "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
-      }
+      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)"
     },
     "layers": {
       "missing": "Capa no encontrada",
@@ -2293,24 +3127,6 @@
     "delete": {
       "title": "¿Eliminar el lienzo?",
       "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
-    },
-    "privacy": {
-      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
-      "switched": "Se actualizó la privacidad del lienzo",
-      "switchTo": {
-        "server-key": "Hacerlo compartible",
-        "user-e2ee": "Hacerlo privado"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "¿Hacer compartible este lienzo?",
-          "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
-        },
-        "user-e2ee": {
-          "title": "¿Hacer privado este lienzo?",
-          "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
-        }
-      }
     },
     "import": {
       "errors": {
@@ -2519,7 +3335,9 @@
       "willSync": "Tus cambios se sincronizarán cuando te reconectes",
       "syncing": "Sincronizando…",
       "failed": "No se pudo sincronizar",
+      "reviewAction": "Revisar sincronización",
       "failedToast": "No se pudo sincronizar «{label}»",
+      "failedManyToast": "No se pudieron sincronizar {count} cambios",
       "cancel": "Cancelar",
       "retryAction": "Reintentar",
       "dismiss": "Descartar",
@@ -2535,5 +3353,9 @@
       "title": "Esta vista debe cargarse primero",
       "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
+  },
+  "myLocation": {
+    "title": "Mi ubicación",
+    "accuracy": "Precisión de {distance}"
   }
 }

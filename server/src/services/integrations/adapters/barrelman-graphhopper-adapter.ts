@@ -8,6 +8,11 @@ import type {
   UnifiedRoute,
   RouteRequest,
 } from '../../../types/unified-routing.types'
+import { nameSidewalkSteps } from '../../../lib/route-street-names'
+import { foldRouteContext } from '../../../lib/route-context'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
+import { translate } from '../../../lib/i18n/translate'
+import { graphHopperSigns } from '../../../lib/graphhopper-signs'
 
 /**
  * Adapter for transforming GraphHopper responses received through the
@@ -66,7 +71,7 @@ export class BarrelmanGraphHopperAdapter {
       elevation: elevation ?? undefined,
     }))
 
-    const edgeSegments: RouteEdgeSegment[] | undefined =
+    const edgeSegments: RouteEdgeSegment[] | undefined = foldRouteContext(
       path.edge_segments?.map((seg: any) => ({
         startDistance: seg.startDistance,
         endDistance: seg.endDistance,
@@ -86,7 +91,23 @@ export class BarrelmanGraphHopperAdapter {
         speedLimit: seg.speedLimit,
         bikePriority: seg.bikePriority,
         crossing: seg.crossing,
-      }))
+        osmWayId: seg.osmWayId,
+        country: seg.country,
+        streetName: seg.streetName,
+        streetNameSource: seg.streetNameSource,
+        crossingName: seg.crossingName,
+        crossingIsland: seg.crossingIsland,
+        buttonOperated: seg.buttonOperated,
+        crossingDiagonal: seg.crossingDiagonal,
+        passage: seg.passage,
+        cyclewaySide: seg.cyclewaySide,
+        entrance: seg.entrance,
+        level: seg.level,
+        conveying: seg.conveying,
+        elevator: seg.elevator,
+      })),
+      path,
+    )
 
     const bbox = path.bbox || [0, 0, 0, 0]
 
@@ -97,8 +118,10 @@ export class BarrelmanGraphHopperAdapter {
       distance: path.distance || 0,
       duration: (path.time || 0) / 1000, // ms → s
       geometry,
-      instructions: (path.instructions || []).map((instr: any) =>
-        this.buildRouteInstruction(instr, geometry),
+      instructions: nameSidewalkSteps(
+        (path.instructions || []).map((instr: any) => this.buildRouteInstruction(instr, geometry)),
+        edgeSegments,
+        this.onto(request.language),
       ),
       // Elevation data
       totalElevationGain: path.elevation_stats?.totalGain ?? path.ascend,
@@ -129,6 +152,11 @@ export class BarrelmanGraphHopperAdapter {
 
   // ── Instructions ────────────────────────────────────────────────
 
+  private onto(language: Language = DEFAULT_LANGUAGE) {
+    const t = translate(language)
+    return (action: string, road: string) => t('routing.onto', { action, road })
+  }
+
   private buildRouteInstruction(
     instr: any,
     geometry: Coordinate[],
@@ -143,8 +171,10 @@ export class BarrelmanGraphHopperAdapter {
       distance: instr.distance || 0,
       duration: (instr.time || 0) / 1000,
       streetName: instr.street_name || undefined,
+      streetRef: instr.street_ref || undefined,
       modifier: this.mapInstructionModifier(instr.sign),
       exitNumber: instr.exit_number ?? undefined,
+      ...graphHopperSigns(instr),
     }
   }
 
@@ -192,6 +222,8 @@ export class BarrelmanGraphHopperAdapter {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
     | undefined {
     switch (sign) {
@@ -199,8 +231,8 @@ export class BarrelmanGraphHopperAdapter {
       case 1: return 'slight-right'
       case -2: return 'left'
       case 2: return 'right'
-      case -3: return 'left'  // sharp left
-      case 3: return 'right'  // sharp right
+      case -3: return 'sharp-left'
+      case 3: return 'sharp-right'
       case -7: return 'slight-left'  // keep left
       case 7: return 'slight-right'  // keep right
       case -8: case 8: case -98: return 'u-turn'

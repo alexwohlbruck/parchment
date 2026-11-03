@@ -129,9 +129,59 @@ export interface RouteRequest {
   // Timing
   departureTime?: Date
 
+  /** Compass bearing the traveller is already moving in at the first waypoint. */
+  startHeading?: number
+
   // Provider selection
   preferredProvider?: string
   requestId?: string
+}
+
+export type RouteHazardKind =
+  | 'crosswalk'
+  | 'traffic_signals'
+  | 'uncontrolled_crossing'
+  | 'rail_crossing'
+  | 'tunnel'
+  | 'ford'
+  | 'ferry'
+  | 'steep_grade'
+  | 'steps'
+  | 'dismount'
+  | 'rough_surface'
+  | 'shared_space'
+  | 'sharp_curve'
+  | 'stop'
+  | 'give_way'
+  | 'tram_tracks'
+  | 'tram_crossing'
+  | 'unlit'
+  | 'flood_prone'
+  | 'icy_bridge'
+  | 'school_zone'
+  | 'traffic_calming'
+  | 'no_sidewalk'
+  | 'low_clearance'
+  | 'toll'
+  | 'speed_camera'
+  | 'movable_bridge'
+  | 'bike_lane_end'
+  | 'bike_lane_start'
+  | 'bike_track_start'
+  | 'hazard'
+
+/** Something a route passes through that's worth knowing about, placed by distance along its segment. */
+export interface RouteHazard {
+  kind: RouteHazardKind
+  severity: 'low' | 'medium' | 'high'
+  startDistance: number
+  /** Present for stretches (a tunnel, a steep grade); absent for points. */
+  endDistance?: number
+  coordinate: Coordinate
+  /** Finer detail, e.g. a crosswalk's `marked` / `unmarked` / `uncontrolled`. */
+  variant?: string
+  /** Comfort and convenience kinds, shown to premium members only. Safety kinds never are. */
+  premium?: boolean
 }
 
 export interface RouteInstruction {
@@ -142,6 +192,10 @@ export interface RouteInstruction {
   duration: number // seconds to next instruction
   heading?: number
   streetName?: string
+  /** Set when `streetName` is the street beside an unnamed sidewalk rather than the way's own name. */
+  streetNameSource?: StreetNameSource
+  /** Route number of the road, e.g. "I 85" */
+  streetRef?: string
 
   // Turn details
   modifier?:
@@ -150,8 +204,14 @@ export interface RouteInstruction {
     | 'straight'
     | 'slight-left'
     | 'slight-right'
+    | 'sharp-left'
+    | 'sharp-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
+  /** A motorway exit's posted number, e.g. "12A". */
+  exitRef?: string
+  /** Where the signs at the maneuver point, e.g. "Downtown, Brooklyn". */
+  destination?: string
 
   // Elevation and surface data (for bike/pedestrian modes)
   elevation?: number // meters above sea level
@@ -164,6 +224,11 @@ export interface RouteInstruction {
 }
 
 /** Per-edge attributes mapped to distance along the route */
+/** `tag`: the sidewalk's own is_sidepath:of:name or street:name; `geometry`: the street found running beside it. */
+export type StreetNameSource = 'tag' | 'geometry'
+
+export type OverpassKind = 'road' | 'rail'
+
 export interface RouteEdgeSegment {
   startDistance: number     // meters from leg start
   endDistance: number       // meters from leg start
@@ -181,6 +246,24 @@ export interface RouteEdgeSegment {
   averageSpeed?: number     // km/h — actual routing speed used
   bikePriority?: number     // 0–1 — GraphHopper's bike-friendliness (higher = safer/friendlier)
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
+  osmWayId?: number         // the OSM way the edge belongs to
+  country?: string          // ISO 3166-1 alpha-3
+  streetName?: string       // the street an unnamed sidewalk runs beside
+  streetNameSource?: StreetNameSource
+  crossingName?: string     // the road a crosswalk crosses
+  overpass?: OverpassKind   // set beneath a road or railway passing over the route
+  state?: string            // the state or province the edge is in
+  inPark?: boolean          // on foot, inside a park
+  parkName?: string
+  crossingIsland?: boolean  // a crosswalk with a refuge island partway across
+  buttonOperated?: boolean  // a signalled crosswalk that waits for its push button
+  crossingDiagonal?: boolean // a crosswalk cutting diagonally across a junction, for an all-way walk phase
+  passage?: 'building' | 'arcade' | 'indoor' // a walkway through or under a building
+  cyclewaySide?: 'left' | 'right' | 'both' // which side of the road its bike lane is on
+  entrance?: StationEntrance // the edge starts at a station entrance
+  level?: string            // the OSM level of an indoor walkway, e.g. "-1" or "2"
+  conveying?: boolean       // an escalator or moving walkway
+  elevator?: boolean        // the edge is an elevator ride
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string
@@ -190,6 +273,68 @@ export interface RouteEdgeSegment {
   laneCount?: number
   weightedGrade?: number
   meanElevation?: number
+}
+
+export type DrivingSide = 'right' | 'left'
+
+export type LaneArrow = 'left' | 'slight-left' | 'through' | 'slight-right' | 'right' | 'uturn'
+
+export interface Lane {
+  arrows: LaneArrow[]
+  /** Leads on to the maneuver. */
+  valid: boolean
+  recommended: boolean
+}
+
+/** The approach lanes at a maneuver, left to right as the driver sees them. */
+export interface LanePlan {
+  lanes: Lane[]
+}
+
+/** A lane plan for one of a segment's instructions. */
+export interface InstructionLanePlan extends LanePlan {
+  instruction: number
+}
+
+/** A driven route drawn in its lanes; `measures[i]` is the distance along the segment's geometry that coordinate stands for. */
+export interface LaneGeometry {
+  coordinates: [lng: number, lat: number][]
+  measures: number[]
+}
+
+export interface RouteLanesRequest {
+  coordinates: [lng: number, lat: number][]
+  ways: { from: number; to: number; osmWayId: number }[]
+  maneuvers: { distance: number; turn?: string }[]
+  country?: string
+  /** `bike` rides the bike lane, or beside the traffic, and has no lane plan. */
+  profile: LanesProfile
+}
+
+export type LanesProfile = 'car' | 'bike'
+
+export type PointHazardsProfile = 'car' | 'bike' | 'foot'
+
+/** What barrelman's /route/hazards takes: a street segment's line and who travels it. */
+export interface RoutePointHazardsRequest {
+  coordinates: [lng: number, lat: number][]
+  profile: PointHazardsProfile
+}
+
+/** A hazard barrelman read from OSM tags along a route, by metres along the line sent. */
+export interface RoutePointHazard {
+  kind: string
+  distance: number
+  endDistance?: number
+  coordinate: [lng: number, lat: number]
+  osm: string
+  detail?: string
+}
+
+export interface RouteLanes {
+  drivingSide: DrivingSide
+  lanePlan: { maneuver: number; lanes: { turns: string[]; valid: boolean; recommended: boolean }[] }[]
+  laneGeometry: { coordinates: [number, number][]; measures: number[] } | null
 }
 
 export interface RouteLeg {
@@ -410,14 +555,7 @@ export interface TimelineSegment {
     amount: number
   }
 
-  // Hazards and alerts
-  hazards?: Array<{
-    type: string
-    description: string
-    severity: 'low' | 'medium' | 'high'
-    coordinate: Coordinate
-    timestamp: Date
-  }>
+  hazards?: RouteHazard[]
 
   // Status
   isRecommended?: boolean
@@ -526,4 +664,9 @@ export const VEHICLE_MODE_MAP: Record<string, TravelMode> = {
   bike: TravelMode.CYCLING,
   scooter: TravelMode.CYCLING, // Use cycling profile for scooters
   walking: TravelMode.WALKING,
+}
+
+export interface StationEntrance {
+  name?: string
+  ref?: string
 }

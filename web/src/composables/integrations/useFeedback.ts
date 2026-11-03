@@ -16,6 +16,7 @@ function feedback() {
   const { isFeedbackActive } = storeToRefs(useIntegrationsStore())
 
   const boards = ref<FeedbackBoard[]>([])
+  const portalLoginEnabled = ref(false)
   const loading = ref(false)
   const failed = ref(false)
   let inFlight: Promise<void> | null = null
@@ -26,9 +27,12 @@ function feedback() {
     loading.value = true
     failed.value = false
     try {
-      boards.value = await fetchFeedbackBoards()
+      const result = await fetchFeedbackBoards()
+      boards.value = result.boards
+      portalLoginEnabled.value = result.portalLoginEnabled
     } catch {
       boards.value = []
+      portalLoginEnabled.value = false
       failed.value = true
     } finally {
       loading.value = false
@@ -42,7 +46,14 @@ function feedback() {
     return inFlight
   }
 
-  return { boards, available, loading, failed, ensureLoaded }
+  return {
+    boards,
+    available,
+    portalLoginEnabled,
+    loading,
+    failed,
+    ensureLoaded,
+  }
 }
 
 export const useFeedback = createSharedComposable(feedback)

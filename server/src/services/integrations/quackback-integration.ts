@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance } from 'axios'
+import { createHmac } from 'node:crypto'
+import axios, { type AxiosInstance, type AxiosError } from 'axios'
 import type {
   Integration,
   IntegrationConfig,
@@ -8,12 +9,18 @@ import type {
   FeedbackBoard,
   FeedbackSubmission,
   SubmittedFeedback,
+  FeedbackIdentity,
+  FeedbackPortalLogin,
 } from '../../types/integration.types'
-import { IntegrationId, IntegrationCapabilityId } from '../../types/integration.enums'
+import {
+  IntegrationId,
+  IntegrationCapabilityId,
+} from '../../types/integration.enums'
 
 export interface QuackbackConfig extends IntegrationConfig {
   url: string
   apiKey: string
+  widgetSecret?: string
 }
 
 /** Boards change rarely and every dialog open needs them. */
@@ -33,21 +40,27 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     feedback: {
       listBoards: this.listBoards.bind(this),
       submitFeedback: this.submitFeedback.bind(this),
+      isPortalLoginEnabled: this.isPortalLoginEnabled.bind(this),
+      createPortalLogin: this.createPortalLogin.bind(this),
     } as FeedbackCapability,
   }
 
   private config: QuackbackConfig = { url: '', apiKey: '' }
   private initialized = false
-  private boardsCache: { boards: FeedbackBoard[]; expiresAt: number } | null = null
+  private boardsCache: { boards: FeedbackBoard[]; expiresAt: number } | null =
+    null
 
   initialize(config: QuackbackConfig): void {
     if (!this.validateConfig(config)) {
-      throw new Error('Invalid configuration: instance URL and API key are required')
+      throw new Error(
+        'Invalid configuration: instance URL and API key are required',
+      )
     }
 
     this.config = {
       url: config.url.trim().replace(/\/+$/, ''),
       apiKey: config.apiKey.trim(),
+      widgetSecret: config.widgetSecret?.trim(),
     }
     this.boardsCache = null
     this.initialized = true
@@ -68,6 +81,89 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
       headers: { Authorization: `Bearer ${this.config.apiKey}` },
       timeout: 10_000,
     })
+  }
+
+  isPortalLoginEnabled(): boolean {
+    return this.initialized && Boolean(this.config.widgetSecret)
+  }
+
+  async createPortalLogin(
+    identity: FeedbackIdentity,
+    postUrl?: string,
+  ): Promise<FeedbackPortalLogin> {
+    if (!this.isPortalLoginEnabled()) {
+      throw new Error('Feedback login is not configured')
+    }
+
+    let returnTo = '/'
+    if (postUrl) {
+      const target = new URL(postUrl)
+      if (
+        target.origin !== new URL(this.config.url).origin ||
+        !/^\/b\/[a-zA-Z0-9_-]+\/posts\/[a-zA-Z0-9_-]+$/.test(target.pathname)
+      ) {
+        throw new Error('Invalid feedback post URL')
+      }
+      returnTo = target.pathname
+    }
+
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const encode = (value: object) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url')
+    const payload = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({
+      sub: identity.id,
+      email: identity.email,
+      ...(identity.name ? { name: identity.name } : {}),
+      iat: issuedAt,
+      exp: issuedAt + 300,
+    })}`
+    const signature = createHmac('sha256', this.config.widgetSecret!)
+      .update(payload)
+      .digest('base64url')
+
+    const client = axios.create({
+      baseURL: this.config.url,
+      timeout: 10_000,
+      maxRedirects: 0,
+    })
+    let identified: { sessionToken?: string }
+    try {
+      const response = await client.post('/api/widget/identify', {
+        ssoToken: `${payload}.${signature}`,
+      })
+      identified = response.data
+    } catch (error) {
+      const response = (error as AxiosError<{ error?: { code?: string } }>)
+        .response
+      if (
+        response?.status === 403 &&
+        response.data?.error?.code === 'IDENTITY_NOT_ALLOWED'
+      ) {
+        // Staff accounts must use Quackback's own login; widget tokens cannot authorize them.
+        return { url: new URL(returnTo, this.config.url).toString() }
+      }
+      throw error
+    }
+    if (
+      typeof identified?.sessionToken !== 'string' ||
+      !identified.sessionToken
+    ) {
+      throw new Error('Feedback provider returned no session')
+    }
+    const { data: handoff } = await client.get(
+      '/api/auth/one-time-token/generate',
+      {
+        headers: { Authorization: `Bearer ${identified.sessionToken}` },
+      },
+    )
+    if (typeof handoff?.token !== 'string' || !handoff.token) {
+      throw new Error('Feedback provider returned no login token')
+    }
+
+    const url = new URL(`${this.config.url}/auth/widget-handoff`)
+    url.searchParams.set('ott', handoff.token)
+    url.searchParams.set('returnTo', returnTo)
+    return { url: url.toString() }
   }
 
   private static toBoards(payload: any): FeedbackBoard[] {
@@ -123,7 +219,9 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     })
 
     const id = created?.data?.id
-    const slug = (await this.listBoards()).find(board => board.id === boardId)?.slug
+    const slug = (await this.listBoards()).find(
+      (board) => board.id === boardId,
+    )?.slug
 
     return {
       id,
@@ -131,9 +229,14 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     }
   }
 
-  async testConnection(config: QuackbackConfig): Promise<IntegrationTestResult> {
+  async testConnection(
+    config: QuackbackConfig,
+  ): Promise<IntegrationTestResult> {
     if (!this.validateConfig(config)) {
-      return { success: false, message: 'Instance URL and API key are required' }
+      return {
+        success: false,
+        message: 'Instance URL and API key are required',
+      }
     }
 
     const url = config.url.trim().replace(/\/+$/, '')
@@ -150,7 +253,8 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
       if (boards.length === 0) {
         return {
           success: false,
-          message: 'Connected, but no boards exist yet — create one in Quackback first',
+          message:
+            'Connected, but no boards exist yet — create one in Quackback first',
         }
       }
 

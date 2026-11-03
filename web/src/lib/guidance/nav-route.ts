@@ -11,6 +11,7 @@ import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan } from '@
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
+import { walkingSteps } from './walk-steps'
 
 export interface NavSegmentInput {
   lineColor?: string | null
@@ -24,12 +25,20 @@ export interface NavSegmentInput {
   lanePlan?: InstructionLanePlan[]
 }
 
+/** A street crossed as part of a walking maneuver; `first` when it's crossed before turning. */
+export interface StepCrossing {
+  road?: string
+  signals: boolean
+  first: boolean
+}
+
 export interface NavStep {
   index: number
   segmentIndex: number
   startDistance: number
   instruction: RouteInstruction
   lanePlan?: LanePlan
+  crossing?: StepCrossing
 }
 
 export interface NavSegment {
@@ -150,12 +159,14 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
 
   edges.sort((a, b) => a.startDistance - b.startDistance)
   hazards.sort((a, b) => a.startDistance - b.startDistance)
+  const cumulative = Float64Array.from(distances)
+  const at = (s: number) => pointAt({ points, cumulative, length: offset }, s)
   return {
     points,
-    cumulative: Float64Array.from(distances),
+    cumulative,
     length: offset,
     segments,
-    steps,
+    steps: walkingSteps(steps, { at, edges, segments }),
     edges,
     hazards,
     drivingSide: inputs.find(i => i.drivingSide)?.drivingSide ?? 'right',

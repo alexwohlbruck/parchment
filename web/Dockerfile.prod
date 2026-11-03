@@ -13,6 +13,7 @@ COPY server/src ./src
 # Now switch to web and install web dependencies
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
+COPY web/scripts/patch-maplibre-terrain.mjs ./scripts/
 RUN bun install
 
 # Copy web source code

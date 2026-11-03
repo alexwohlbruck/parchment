@@ -383,6 +383,9 @@ export class MaplibreStrategy extends MapStrategy {
       // mapped straight to bearing wherever the cursor was — which is what this
       // map has always felt like, and what Mapbox does.
       aroundCenter: false,
+      // Overscale past the source maxzoom rather than re-clip deeper tiles, so
+      // a building keeps one terrain elevation across zooms.
+      zoomLevelsToOverscale: undefined,
     })
 
     // A console handle for poking the live map — camera, transform, layers —

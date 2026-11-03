@@ -155,13 +155,16 @@ function bottom(values: readonly number[], width: number): number[] {
  * real heights is a tile that has not loaded, not the sea, and is read as the
  * lowest ground. A model that follows the terrain follows the raw DEM, which
  * is what it was built on; the exaggeration's extra rise is taken up by the
- * drape, so its supports stretch to meet the taller hills.
+ * drape, so its supports stretch to meet the taller hills. `raw` is that DEM
+ * in true metres where it differs from the map's, which fills the ground
+ * under a landmark (see `map-terrain/fill.ts`): NaN where unknown.
  */
 export function groundLifts(
   heights: readonly number[],
   exaggeration: number,
   model: ModelGround,
   scale: number,
+  raw: readonly number[] = [],
 ): { lifts: Float32Array<ArrayBuffer>; mean: number; lowest: number } {
   const loaded = heights.some(h => h !== 0)
   const known = loaded ? heights.filter(h => h !== 0) : [...heights]
@@ -173,7 +176,8 @@ export function groundLifts(
   heights.forEach((h, i) => {
     const at = loaded && h === 0 ? lowest : h
     const rise = (at - lowest) / scale
-    const own = offset === null ? 0 : at / exaggeration / scale + offset
+    const built = Number.isFinite(raw[i]) ? raw[i] : at / exaggeration
+    const own = offset === null ? 0 : built / scale + offset
     lifts[i * 2] = rise
     lifts[i * 2 + 1] = own
     sum += rise - own

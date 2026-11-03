@@ -5,6 +5,7 @@
  */
 import type { Bounds } from '@/lib/map-decks/decks'
 import { carveTile, tileUnder, type Elevation, type Footprint } from './carve'
+import { fillTile, type GroundFill } from './fill'
 
 /** Milliseconds a frame may spend carving tiles. */
 const CARVE_BUDGET = 16
@@ -14,7 +15,12 @@ export type Carving = { bounds: Bounds; carve: (tile: Elevation, at: [number, nu
 
 export const cutCarving = (f: Footprint): Carving => ({ bounds: f.bounds, carve: (tile, at) => carveTile(tile, at, [f]) })
 
-/** One owner's carvings. `rank` orders owners, lowest first; `focus` asks for finer terrain under them. */
+export const fillCarving = (f: GroundFill): Carving => ({ bounds: f.bounds, carve: (tile, at) => fillTile(tile, at, f) })
+
+/**
+ * One owner's carvings. `rank` orders owners, lowest first, so a cut lands
+ * in ground already filled; `focus` asks for finer terrain under them.
+ */
 type Owned = { carvings: Map<string, Carving>; rank: number; focus: boolean }
 
 /** A MapLibre DEM tile's pixels, read and written in metres. */

@@ -315,7 +315,7 @@ export class MaplibreStrategy extends MapStrategy {
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
-  /** What is carved into the terrain, by every layer that carves it. */
+  /** What the tunnels and the landmarks carve into the terrain, together. */
   private terrainCarver = new TerrainCarver(() => this.mapInstance, (areas, owner) => fineTerrain.focus(areas, owner))
   private buildingFilters = new Map<string, unknown>()
 
@@ -808,6 +808,8 @@ export class MaplibreStrategy extends MapStrategy {
       sourceLayer: LANDMARK_TILES,
       modelUrl: file => `${base}/${LANDMARK_TILES}/models/${file}`,
       flavor: LANDMARK_FLAVOR[flavor],
+      carver: this.terrainCarver,
+      heights: (z, x, y) => fineTerrain.heights(z, x, y),
       // Ignored once this layer is no longer the live one: a style swap
       // removes it after the next style's filters are already in place.
       onReplace: replaced => {

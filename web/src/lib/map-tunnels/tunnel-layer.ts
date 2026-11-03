@@ -44,7 +44,7 @@ const CUT_TILES = 64
 /** Metres past its line a cut's walls and carving reach. */
 const CUT_REACH = 30
 
-/** Its name among the carver's owners. */
+/** Its name among the carver's owners. Ranked after the landmarks' fills, so a cut is carved into filled ground. */
 const CARVER_OWNER = 'tunnels'
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })

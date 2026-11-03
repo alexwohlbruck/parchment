@@ -51,6 +51,7 @@
 * Guidance counts the lights before a turn, "After the third light, turn right", instead of "after the light" with other lights still to pass.
 
 * Subway entrances show as square signs on every floor of a station, replacing the purple dots.
+
 * Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
@@ -68,6 +69,8 @@
 * Traffic lights on walking and bike routes sit at their intersection instead of mid-block.
 
 * When GPS gets weak, navigation no longer jumps ahead or ends your trip early; it estimates your position from your steps and pace, and shows that the signal is lost.
+
+* With 3D terrain on, landmarks no longer sink into the ground: plazas, steps and terraces show at their real height, and the terrain under a landmark no longer pokes through it.
 
 ## [0.18.4] - 2026-10-31
 

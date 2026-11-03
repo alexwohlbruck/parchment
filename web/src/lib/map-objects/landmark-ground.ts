@@ -155,13 +155,16 @@ function bottom(values: readonly number[], width: number): number[] {
  * real heights is a tile that has not loaded, not the sea, and is read as the
  * lowest ground. A model that follows the terrain follows the raw DEM, which
  * is what it was built on; the exaggeration's extra rise is taken up by the
- * drape, so its supports stretch to meet the taller hills.
+ * drape, so its supports stretch to meet the taller hills. `raw` is that DEM
+ * in true metres where it differs from the map's, which fills the ground
+ * under a landmark (see `map-terrain/fill.ts`): NaN where unknown.
  */
 export function groundLifts(
   heights: readonly number[],
   exaggeration: number,
   model: ModelGround,
   scale: number,
+  raw: readonly number[] = [],
 ): { lifts: Float32Array<ArrayBuffer>; mean: number; lowest: number } {
   const loaded = heights.some(h => h !== 0)
   const known = loaded ? heights.filter(h => h !== 0) : [...heights]
@@ -173,12 +176,36 @@ export function groundLifts(
   heights.forEach((h, i) => {
     const at = loaded && h === 0 ? lowest : h
     const rise = (at - lowest) / scale
-    const own = offset === null ? 0 : at / exaggeration / scale + offset
+    const built = Number.isFinite(raw[i]) ? raw[i] : at / exaggeration
+    const own = offset === null ? 0 : built / scale + offset
     lifts[i * 2] = rise
     lifts[i * 2 + 1] = own
     sum += rise - own
   })
   return { lifts, mean: heights.length ? sum / heights.length : 0, lowest }
+}
+
+/**
+ * Metres a landmark's base is pushed under the terrain. The terrain is read
+ * on a coarse grid and drawn as a finer mesh, so it can dip a little between
+ * samples; a base that floats over the dip shows daylight under the
+ * building, which is worse than burying its foot. Only the base: a plaza
+ * deck or a step above it stays at its true height, and the walls stretch.
+ */
+export const GROUND_SINK = 0.5
+
+/** Metres above its own ground a vertex still counts as the base, for a flat-based model. */
+export const BASE_BAND = 0.05
+
+/**
+ * How far, in model units, the base is pushed down, and how high above the
+ * model's own ground a vertex is still base. A model that follows the
+ * terrain has its feet scattered through a band (CONTACT_BAND), so all of
+ * them are base. Nothing with the terrain off, where the map is flat.
+ */
+export function baseSink(model: ModelGround, scale: number, terrain: boolean): { depth: number; band: number } {
+  if (!terrain) return { depth: 0, band: 0 }
+  return { depth: GROUND_SINK / scale, band: (model.follows ? CONTACT_BAND : BASE_BAND) / scale }
 }
 
 /** Metres: a floor this far down never clips anything. */

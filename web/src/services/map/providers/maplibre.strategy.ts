@@ -121,6 +121,7 @@ import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
+import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
@@ -332,6 +333,8 @@ export class MaplibreStrategy extends MapStrategy {
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
+  /** What the tunnels and the landmarks carve into the terrain, together. */
+  private terrainCarver = new TerrainCarver(() => this.mapInstance, (areas, owner) => fineTerrain.focus(areas, owner))
   private buildingFilters = new Map<string, unknown>()
 
   constructor(
@@ -491,7 +494,7 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.golfPins = attachGolfPins(this.mapInstance)
-    this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain)
+    this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain, this.terrainCarver)
     this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))
     this.indoor = attachIndoor(this.mapInstance, {
       focus: focus => {
@@ -916,6 +919,8 @@ export class MaplibreStrategy extends MapStrategy {
       sourceLayer: LANDMARK_TILES,
       modelUrl: file => `${base}/${LANDMARK_TILES}/models/${file}`,
       flavor: LANDMARK_FLAVOR[flavor],
+      carver: this.terrainCarver,
+      heights: (z, x, y) => fineTerrain.heights(z, x, y),
       // Ignored once this layer is no longer the live one: a style swap
       // removes it after the next style's filters are already in place.
       onReplace: replaced => {
@@ -1174,7 +1179,7 @@ export class MaplibreStrategy extends MapStrategy {
       return ids
     }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, DECK_PALETTE[flavor], { terrain: fineTerrain })
+      this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, DECK_PALETTE[flavor], { terrain: fineTerrain, carver: this.terrainCarver })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {

@@ -10,7 +10,7 @@ import { travelModeAt } from '../guidance-display'
 import { blocksTo } from './blocks'
 import { chained, departure, richInstruction, type InstructionContext } from './rich-instruction'
 import { inline, voiceText, type TFn } from './instruction-text'
-import type { RichInstruction } from './instruction.types'
+import type { RichInstruction, Side } from './instruction.types'
 
 export interface RichSource {
   route: NavRoute
@@ -20,10 +20,11 @@ export interface RichSource {
   lanes: ReadonlyMap<number, LanePlan>
   /** The destination is the traveller's saved home. */
   home: boolean
+  destinationSide?: Side | null
 }
 
 function instructionFor(source: RichSource, step: NavStep, then: NavStep | null | undefined) {
-  const context: InstructionContext = { from: source.from, speed: source.speed, lanes: source.lanes.get(step.index) }
+  const context: InstructionContext = { from: source.from, speed: source.speed, lanes: source.lanes.get(step.index), destinationSide: source.destinationSide }
   const first = richInstruction(source.route, step, context)
   if (!then) return first
   const next = richInstruction(source.route, then, { from: step.startDistance, speed: source.speed, lanes: source.lanes.get(then.index) })

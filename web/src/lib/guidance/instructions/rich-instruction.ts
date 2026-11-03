@@ -26,6 +26,8 @@ const CROSSING_REACH_METERS = 20
 const LEADS_TO_METERS = 300
 const ROUNDABOUT_PROBE_METERS = 10
 const THROUGH_DEGREES = 25
+/** A crossing this close before the destination is the one that reaches its side. */
+const ARRIVAL_AFTER_CROSSING_METERS = 150
 const IMMEDIATE_METERS = 40
 const IMMEDIATE_SEC = 5
 
@@ -185,6 +187,9 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
     if (target?.kind !== 'named') delete instruction.target
   }
   if (step.instruction.destination) instruction.toward = step.instruction.destination
+  const arrival = route.steps[step.index + 1]
+  if (instruction.action.kind === 'crosswalk' && context.destinationSide && arrival && maneuverKind(arrival.instruction) === 'arrive'
+    && arrival.startDistance - step.startDistance <= ARRIVAL_AFTER_CROSSING_METERS) instruction.arrival = context.destinationSide
   if (onFoot && !instruction.crossing && instruction.target?.kind !== 'named' && instruction.action.kind !== 'crosswalk') {
     const leadsTo = nameAhead(route, step.startDistance)
     if (leadsTo) instruction.leadsTo = leadsTo

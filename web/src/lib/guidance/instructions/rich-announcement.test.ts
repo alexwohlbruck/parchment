@@ -77,7 +77,7 @@ describe('blocks on foot', () => {
   test('the distance where the blocks are too irregular to count', () => {
     const irregular = gridWalk([[200, 'Lincoln Place'], [700, 'Park Place']])
     const continuing: Announcement = { kind: 'maneuver', phase: 'continue', step: irregular.steps[1], distance: 980, then: null }
-    expect(speechFor(continuing, source(irregular, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for 0.6 miles')
+    expect(speechFor(continuing, source(irregular, { from: 20, speed: 1.4 }), true, false, t)).toBe('Continue on Rogers Avenue for half a mile')
   })
 })
 

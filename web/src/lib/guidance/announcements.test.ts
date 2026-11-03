@@ -108,7 +108,7 @@ describe('announcementText', () => {
   })
 
   test('uses singular units and the destination side', () => {
-    expect(announcementText({ kind: 'arrive', distance: 1609, side: 'left' }, false, t)).toBe('In 1.0 mile, your destination is on the left')
+    expect(announcementText({ kind: 'arrive', distance: 1609, side: 'left' }, false, t)).toBe('In 1 mile, your destination is on the left')
   })
 })
 

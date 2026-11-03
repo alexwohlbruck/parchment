@@ -22,6 +22,8 @@
 
 ### Changed
 
+* Spoken directions round long distances the way people say them: "In half a mile" rather than "In 0.6 miles".
+
 * Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".

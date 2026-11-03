@@ -1343,11 +1343,20 @@
     "voice": {
       "units": {
         "feet": "{value} feet",
-        "mile": "{value} mile",
-        "miles": "{value} miles",
         "meters": "{value} meters",
-        "kilometer": "{value} kilometer",
-        "kilometers": "{value} kilometers"
+        "mile": "1 mile",
+        "miles": "{value} miles",
+        "mileAndHalf": "a mile and a half",
+        "milesAndHalf": "{value} and a half miles",
+        "mileFraction": {
+          "1": "a quarter mile",
+          "2": "half a mile",
+          "3": "three quarters of a mile"
+        },
+        "kilometer": "1 kilometer",
+        "kilometers": "{value} kilometers",
+        "kilometerAndHalf": "a kilometer and a half",
+        "kilometersAndHalf": "{value} and a half kilometers"
       },
       "maneuvers": {
         "straight": "Continue straight",

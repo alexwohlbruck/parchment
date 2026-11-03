@@ -1309,11 +1309,20 @@
     "voice": {
       "units": {
         "feet": "{value} pies",
-        "mile": "{value} milla",
-        "miles": "{value} millas",
         "meters": "{value} metros",
-        "kilometer": "{value} kilómetro",
-        "kilometers": "{value} kilómetros"
+        "mile": "1 milla",
+        "miles": "{value} millas",
+        "mileAndHalf": "milla y media",
+        "milesAndHalf": "{value} millas y media",
+        "mileFraction": {
+          "1": "un cuarto de milla",
+          "2": "media milla",
+          "3": "tres cuartos de milla"
+        },
+        "kilometer": "1 kilómetro",
+        "kilometers": "{value} kilómetros",
+        "kilometerAndHalf": "kilómetro y medio",
+        "kilometersAndHalf": "{value} kilómetros y medio"
       },
       "maneuvers": {
         "straight": "Sigue recto",

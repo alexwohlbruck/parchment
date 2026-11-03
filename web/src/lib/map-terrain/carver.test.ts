@@ -60,6 +60,18 @@ describe('TerrainCarver', () => {
     expect(log).toEqual([5])
   })
 
+  test('carves a widened shape over the ground it already levelled instead of reloading it', () => {
+    const map = fakeMap([demTile(14, 1, 1)])
+    const carver = new TerrainCarver(() => map)
+    const small = { bounds: { minX: 0.2, minY: 0.2, maxX: 0.4, maxY: 0.4 }, carve: () => true }
+    const large = { bounds: { minX: 0.1, minY: 0.1, maxX: 0.5, maxY: 0.5 }, carve: () => true }
+    carver.set('indoor', new Map([['small', small]]), { widens: true })
+    carver.set('indoor', new Map([['large', large]]), { widens: true })
+    expect(map.refreshTiles).not.toHaveBeenCalled()
+    carver.set('indoor', new Map(), { widens: true })
+    expect(map.refreshTiles).toHaveBeenCalledTimes(1)
+  })
+
   test('asks for finer terrain only for the owners that want it, under each', () => {
     const focus = vi.fn()
     const carver = new TerrainCarver(() => fakeMap([]), focus)

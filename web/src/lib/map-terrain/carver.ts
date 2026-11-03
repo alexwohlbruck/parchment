@@ -60,11 +60,18 @@ export class TerrainCarver {
     return this.rounds
   }
 
-  /** Take on an owner's new set: carved over what is there, or, where one has gone, into freshly loaded ground. */
-  set(owner: string, next: Map<string, Carving>, { rank = 0, focus = false } = {}) {
+  /**
+   * Take on an owner's new set: carved over what is there, or, where one has gone, into freshly loaded ground.
+   * `widens` says each carving only ever grows over the one it replaces, so ground a new one spans is carved over rather than reloaded.
+   */
+  set(owner: string, next: Map<string, Carving>, { rank = 0, focus = false, widens = false } = {}) {
     const had = this.owners.get(owner)?.carvings ?? new Map<string, Carving>()
     if (next.size === had.size && [...next.keys()].every(k => had.has(k))) return
-    const removed = [...had].filter(([key]) => !next.has(key)).map(([, c]) => c.bounds)
+    const covers = (a: Bounds, b: Bounds) => a.minX <= b.minX && a.minY <= b.minY && a.maxX >= b.maxX && a.maxY >= b.maxY
+    const removed = [...had]
+      .filter(([key]) => !next.has(key))
+      .map(([, c]) => c.bounds)
+      .filter(b => !widens || ![...next.values()].some(c => covers(c.bounds, b)))
     if (next.size) this.owners.set(owner, { carvings: next, rank, focus })
     else this.owners.delete(owner)
     this.ordered = [...this.owners.values()].sort((a, b) => a.rank - b.rank).flatMap(o => [...o.carvings.values()])
@@ -72,7 +79,7 @@ export class TerrainCarver {
     if (focus) {
       const areas = [...next.values()].map(c => c.bounds)
       const before = [...had.values()].map(c => c.bounds)
-      const reached = areas.filter(a => !before.some(b => b.minX <= a.minX && b.minY <= a.minY && b.maxX >= a.maxX && b.maxY >= a.maxY))
+      const reached = areas.filter(a => !before.some(b => covers(b, a)))
       this.focus?.(areas, owner)
       this.reload(reached, tile => tile.state === 'errored')
     }

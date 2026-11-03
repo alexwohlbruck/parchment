@@ -142,4 +142,30 @@ describe('climbs inside a station', () => {
     const route = trip([{ startDistance: 100, endDistance: 110, roadClass: 'steps' }], [])
     expect(route.steps).toHaveLength(4)
   })
+
+  test('changing trains, the last climb reaches the next platform', () => {
+    const first = polyline([[0, 500]])
+    const transfer = polyline([[90, 120]], first.at(-1)!)
+    const second = polyline([[0, 500]], transfer.at(-1)!)
+    const ride = (geometry: typeof first): NavSegmentInput => ({
+      mode: 'transit',
+      geometry,
+      instructions: [{ type: 'board', text: '', coordinate: geometry[0], distance: 0, duration: 0 }],
+    })
+    const route = buildNavRoute([
+      ride(first),
+      {
+        mode: 'walking',
+        geometry: transfer,
+        instructions: [{ type: 'depart', text: '', coordinate: transfer[0], distance: 120, duration: 90 }],
+        edgeSegments: [
+          { startDistance: 0, endDistance: 60, roadClass: 'footway', level: '-1' },
+          { startDistance: 60, endDistance: 75, roadClass: 'steps', conveying: true },
+          { startDistance: 75, endDistance: 120, roadClass: 'footway', level: '-2' },
+        ],
+      },
+      { ...ride(second), instructions: [...ride(second).instructions!, { type: 'destination', text: '', coordinate: second.at(-1)!, distance: 0, duration: 0 }] },
+    ])
+    expect(words(route)).toEqual(['Board', 'Follow the path', 'Take the escalator down to the platform', 'Board', 'You have arrived'])
+  })
 })

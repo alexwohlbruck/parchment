@@ -76,15 +76,15 @@ const entranceWithin = (edges: NavEdge[], segmentIndex: number, from: number, to
 const climbWithin = (edges: NavEdge[], from: number, to: number) =>
   edges.some(e => viaOf(e) && e.startDistance > from && e.startDistance < to)
 
-/** Inside a station, the last climb before boarding reaches the platform, and the last before the exit the street. */
+/** Inside a station, or changing trains, the last climb before boarding reaches the platform; the last before the exit, the street. */
 function stationEnd(route: Line, run: { start: number; end: number; segmentIndex: number }): FloorChange['to'] {
   const segment = route.segments[run.segmentIndex]
   if (segment?.mode !== 'walking') return undefined
   const { edges } = route
   const before = route.segments[run.segmentIndex - 1]
   const after = route.segments[run.segmentIndex + 1]
-  if (after?.mode === 'transit' && entranceWithin(edges, run.segmentIndex, segment.startDistance, run.start)
-    && !climbWithin(edges, run.end, segment.endDistance)) return 'platform'
+  const inside = before?.mode === 'transit' || entranceWithin(edges, run.segmentIndex, segment.startDistance, run.start)
+  if (after?.mode === 'transit' && inside && !climbWithin(edges, run.end, segment.endDistance)) return 'platform'
   if (before?.mode === 'transit') {
     const exit = edges.find(e => e.entrance && e.segmentIndex === run.segmentIndex && e.startDistance >= run.end - JOINED_METERS)
     if (exit && !entranceWithin(edges, run.segmentIndex, segment.startDistance, run.start) && !climbWithin(edges, run.end, exit.startDistance)) return 'street'

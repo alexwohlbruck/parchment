@@ -566,7 +566,17 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelChecked.clear()
       this.buildingFilters.clear()
       this.fadedSurface.clear()
-      this.applyLandmarks()
+      // After the basemap rather than with it: a city's landmark models run to
+      // megabytes, and placing them reads every building in view, all of it
+      // competing with the first screen of tiles for the connection and the
+      // main thread. The style this was for may be gone by then.
+      const style = this.mapInstance.style
+      this.landmarksAfterTiles = style
+      void this.firstTilesLaidOut().then(() => {
+        if (this.landmarksAfterTiles !== style) return
+        this.landmarksAfterTiles = null
+        if (this.mapInstance.style === style) this.applyLandmarks()
+      })
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -904,10 +914,15 @@ export class MaplibreStrategy extends MapStrategy {
    * The layer loads its own models, lazily and per landmark, so turning it on
    * costs nothing until one is in view.
    */
+  /** The style whose landmarks wait for its first tiles; see the `style.load` handler. */
+  private landmarksAfterTiles: unknown = null
+
   private applyLandmarks() {
     const map = this.mapInstance
     const want = this.map3dObjects && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    // Settings applied while the first tiles load land here too; the wait adds the layer.
+    if (want && this.landmarksAfterTiles && this.landmarksAfterTiles === map.style) return
 
     if (!want) {
       const layer = this.landmarkLayer
@@ -1032,9 +1047,9 @@ export class MaplibreStrategy extends MapStrategy {
   /**
    * Resolves once the first screen of tiles has been laid out, or after
    * FIRST_TILES_WAIT_MS. The object models — some hundred and fifty of them —
-   * are decoration on top of those tiles; fetched alongside them, they compete
-   * with the tiles and the MapLibre worker for the connection on the one load
-   * where every request is a cold one.
+   * and the landmarks are decoration on top of those tiles; started alongside
+   * them, they compete with the tiles and the MapLibre worker for the
+   * connection and the main thread, and the ground arrives last.
    */
   private firstTilesLaidOut(): Promise<void> {
     const map = this.mapInstance

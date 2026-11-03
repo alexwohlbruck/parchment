@@ -5,6 +5,7 @@
 import type { FlavorId } from './build'
 import { combineFilters } from './combine-filters'
 import { INDOOR_FIXTURES_STATE, tileBadge } from './fixture-layers'
+import { FLOOR_HEIGHT, WALL_HEIGHT } from '@/lib/indoor/indoor-sizes.mjs'
 
 export const INDOOR_SOURCE = 'indoor'
 /** Barrelman's bundle name; see `TILE_BUNDLES` there. */
@@ -34,7 +35,6 @@ export const INDOOR_WALL_LAYER = 'Indoor walls'
 export const INDOOR_STEPS_LAYER = 'Indoor steps'
 export const INDOOR_TREAD_LAYER = 'Indoor stair treads'
 export const INDOOR_STAIR_EDGE_LAYER = 'Indoor stair edges'
-export const INDOOR_FLIGHT_LAYER = 'Indoor flights'
 export const INDOOR_LABEL_LAYER = 'Indoor room labels'
 export const INDOOR_POI_LAYER = 'Indoor places'
 export const INDOOR_GATE_LAYER = 'Indoor gates'
@@ -49,13 +49,11 @@ export const INDOOR_UNDERGROUND_LAYER = 'Indoor underground'
 export const INDOOR_FOOTPRINT_LAYER = 'Indoor footprints'
 
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
-const FLOOR_HEIGHT = 0.3
 const ROOM_HEIGHT = 0.4
 const LIFT_HEIGHT = 2.4
-const WALL_HEIGHT = 3.5
 
 /** Barrelman's `indoor_features` version; a new one asks past the day-long tile caches. */
-const INDOOR_FORMAT = 11
+const INDOOR_FORMAT = 15
 
 export function indoorSource(tileUrl: (source: string) => string) {
   return {
@@ -135,7 +133,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     platform: 'hsl(240, 50%, 87.5%)',
     baggage: 'hsl(240, 80%, 92%)',
     stairs: 'hsl(30, 8%, 88%)',
-    escalator: 'hsl(222, 40%, 90%)',
+    escalator: 'hsl(216, 58%, 82%)',
     tread: 'hsl(0, 0%, 100%)',
     shaft: 'hsl(30, 8%, 88%)',
     column: 'hsl(27, 20%, 80%)',
@@ -149,7 +147,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatchGap: 'hsl(45, 90%, 99%)',
     label: 'hsl(222, 12%, 42%)',
     jetBridge: 'hsl(220, 10%, 88%)',
-    lift: 'hsl(212, 34%, 80%)',
+    lift: 'hsl(214, 52%, 76%)',
   },
   dark: {
     underground: 'hsl(222, 40%, 8%)',
@@ -161,7 +159,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     platform: 'hsl(240, 26%, 36%)',
     baggage: 'hsl(240, 30%, 42%)',
     stairs: 'hsl(222, 12%, 38%)',
-    escalator: 'hsl(222, 26%, 40%)',
+    escalator: 'hsl(216, 34%, 46%)',
     tread: 'hsl(222, 14%, 52%)',
     shaft: 'hsl(222, 12%, 38%)',
     column: 'hsl(222, 12%, 44%)',
@@ -175,7 +173,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatchGap: 'hsl(45, 25%, 30%)',
     label: 'hsl(220, 12%, 80%)',
     jetBridge: 'hsl(222, 14%, 34%)',
-    lift: 'hsl(214, 26%, 46%)',
+    lift: 'hsl(214, 34%, 48%)',
   },
 }
 
@@ -418,19 +416,6 @@ export function indoorLayers(flavor: FlavorId): any[] {
         'line-width': stairWidth(0.86),
         'line-dasharray': [0.1, 0.22],
         'line-opacity': fadeIn,
-      },
-    },
-    {
-      ...base,
-      // Each tread of a flight that climbs from this level, rising to the floor above.
-      id: INDOOR_FLIGHT_LAYER,
-      type: 'fill-extrusion',
-      filter: ['all', kind('flight'), onShownLevel],
-      paint: {
-        'fill-extrusion-color': ['match', cls, 'escalator', c.escalator, c.stairs],
-        'fill-extrusion-base': FLOOR_HEIGHT,
-        'fill-extrusion-height': ['+', FLOOR_HEIGHT, ['*', ['coalesce', ['get', 'height'], 0], WALL_HEIGHT - FLOOR_HEIGHT]],
-        'fill-extrusion-vertical-gradient': true,
       },
     },
     {

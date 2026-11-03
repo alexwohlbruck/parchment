@@ -36,7 +36,7 @@ const FIXED = new Set<ManeuverKind>(['arrive', 'board', 'roundabout'])
 const FORKS = new Set<ManeuverKind>(['keep-left', 'keep-right'])
 
 /** A path tagged as crossing something nameless and unsignalled is most likely passing a driveway. */
-export const isCrossing = (e: NavEdge) => PATHS.has(e.roadClass ?? '') && CROSSINGS.has(e.crossing?.toLowerCase() ?? '')
+const isCrossing = (e: NavEdge) => PATHS.has(e.roadClass ?? '') && CROSSINGS.has(e.crossing?.toLowerCase() ?? '')
   && (!!e.crossingName || e.crossing!.toLowerCase() === 'traffic_signals')
 
 type WalkTurn = Extract<ManeuverKind, 'straight' | 'uturn' | `${'' | 'slight-' | 'sharp-'}${'left' | 'right'}`>
@@ -197,7 +197,7 @@ export function walkingSteps(steps: NavStep[], line: WalkLine): NavStep[] {
       out.push(crossing?.road ? { ...last, crossing } : last)
       continue
     }
-    // On foot a new name with no turn and no street to cross is no maneuver.
+    // Straight on, a new name or a side street crossed is no maneuver.
     if (kind === 'straight' && !special && !sideSwitch && (!!along || !crossing)) continue
     claimed = end
 

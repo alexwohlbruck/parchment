@@ -2,7 +2,7 @@
 // onto what, by which landmark and lane. Words come later, in instruction-text.
 
 import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
-import { bearingAt, edgeAt, type NavRoute, type NavStep } from '../nav-route'
+import { bearingAt, edgeAt, type NavEdge, type NavRoute, type NavStep } from '../nav-route'
 import { stepRoad, travelModeAt, type RoadLabel } from '../guidance-display'
 import { laneHint, type LanePlan } from '../lanes'
 import { angleDelta } from '../spring'
@@ -113,13 +113,11 @@ function nameAhead(route: NavRoute, from: number, except = ''): string | undefin
   const next = route.steps.find(s => s.startDistance > from + PAST_TURN_METERS)
   const until = Math.max(next?.startDistance ?? 0, from + LEADS_TO_METERS)
   const inPark = edgeAt(route, from + PAST_TURN_METERS)?.parkName
-  const named = (name: string | undefined) => !!name && name !== except
-  const edge = route.edges.find(e => e.startDistance > from && e.startDistance <= until
-    && (named(PATHS.has(e.roadClass ?? '') ? e.crossingName : undefined) || (e.parkName !== inPark && named(e.parkName))))
+  const named = (name: string | undefined): name is string => !!name && name !== except
+  const edgeName = (e: NavEdge) => [PATHS.has(e.roadClass ?? '') ? e.crossingName : undefined, e.parkName !== inPark ? e.parkName : undefined].find(named)
+  const edge = route.edges.find(e => e.startDistance > from && e.startDistance <= until && edgeName(e))
   const step = route.steps.find(s => s.startDistance > from + PAST_TURN_METERS && s.startDistance <= until && named(stepName(s)))
-  if (edge && (!step || edge.startDistance <= step.startDistance)) {
-    return named(edge.crossingName) && PATHS.has(edge.roadClass ?? '') ? edge.crossingName : edge.parkName
-  }
+  if (edge && (!step || edge.startDistance <= step.startDistance)) return edgeName(edge)
   return step && stepName(step)
 }
 

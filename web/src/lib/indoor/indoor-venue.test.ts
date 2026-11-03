@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -97,6 +97,8 @@ describe('replacedPlaces', () => {
     expect(basemapId('changeset/7')).toBeNull()
   })
 
+  const everyVenue = () => true
+
   it('takes over gates and named shops, but leaves the basemap its facilities', () => {
     const places = replacedPlaces([
       poi({ id: 'node/1', class: 'aeroway', subclass: 'gate', ref: 'E2' }),
@@ -105,12 +107,20 @@ describe('replacedPlaces', () => {
       poi({ id: 'node/4', class: 'shop', subclass: 'kiosk' }),
       poi({ id: 'way/5', class: 'amenity', subclass: 'atm' }),
       { properties: { kind: 'area', class: 'room', id: 'way/6', name: 'Lounge' } },
-    ])
+    ], everyVenue)
     expect(places).toBe(';11;21;52;')
   })
 
   it('is empty with nothing to replace', () => {
-    expect(replacedPlaces([])).toBe('')
+    expect(replacedPlaces([], everyVenue)).toBe('')
+  })
+
+  it('leaves a venue shown from outside to the basemap', () => {
+    const gate = poi({ id: 'node/1', class: 'aeroway', ref: 'E2', venue: 7, default_level: -1 })
+    expect(replacedPlaces([gate], shownInside(null))).toBe('')
+    const venue = { id: 7, levels: [], defaultLevel: -1, buildings: [] }
+    expect(replacedPlaces([gate], shownInside({ venue, level: -1 }))).toBe(';11;')
+    expect(replacedPlaces([gate], shownInside({ venue, level: null }))).toBe('')
   })
 })
 
@@ -120,6 +130,6 @@ describe('replacedFixtures', () => {
       { properties: { kind: 'poi', class: 'door', subclass: 'main', id: 'node/2' } },
       { properties: { kind: 'poi', class: 'elevator', id: 'node/1' } },
       { properties: { kind: 'poi', class: 'shop', id: 'node/3', name: 'Gap' } },
-    ])).toBe(';node/1;node/2;')
+    ], () => true)).toBe(';node/1;node/2;')
   })
 })

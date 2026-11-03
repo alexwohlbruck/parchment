@@ -147,23 +147,34 @@ function drawsPlace(p: Record<string, unknown>): boolean {
     && (p.name != null || p.subclass === 'atm' || p.subclass === 'pharmacy')
 }
 
-/** Doors, lifts and station entrances a floor plan signs itself, as the style's `;node/1;` string of OSM ids. */
-export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[]): string {
+/** Whether a venue's floor plan is showing, rather than its outside. */
+export type ShownInside = (venue: number, defaultLevel: number) => boolean
+
+/** Whether the focused venue shows a floor, and any other its default one, as the style draws them. */
+export const shownInside = (focus: IndoorFocus): ShownInside => (venue, defaultLevel) =>
+  focus?.venue.id === venue ? focus.level !== null : defaultLevel >= 0
+
+const inside = (p: Record<string, unknown>, shown: ShownInside) => shown(Number(p.venue), Number(p.default_level ?? 0))
+
+const joined = (ids: Set<string>) => (ids.size ? `;${[...ids].sort().join(';')};` : '')
+
+/** Doors, lifts and station entrances a showing floor plan signs itself, as the style's `;node/1;` string of OSM ids. */
+export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {
   const ids = new Set<string>()
   for (const { properties: p } of features) {
-    if (p?.kind === 'poi' && typeof p.id === 'string' && FIXTURE_CLASSES.includes(String(p.class))) ids.add(p.id)
+    if (p?.kind === 'poi' && typeof p.id === 'string' && FIXTURE_CLASSES.includes(String(p.class)) && inside(p, shown)) ids.add(p.id)
   }
-  return ids.size ? `;${[...ids].sort().join(';')};` : ''
+  return joined(ids)
 }
 
 const FIXTURE_CLASSES = ['door', 'elevator', 'railway']
 
-/** The basemap ids of the places floor plans draw, as the style's `;id;` string. */
-export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[]): string {
+/** The basemap ids of the places showing floor plans draw on their own level, as the style's `;id;` string. */
+export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {
   const ids = new Set<string>()
   for (const { properties: p } of features) {
-    const id = p && p.kind === 'poi' && typeof p.id === 'string' && drawsPlace(p) ? basemapId(p.id) : null
+    const id = p && p.kind === 'poi' && typeof p.id === 'string' && drawsPlace(p) && inside(p, shown) ? basemapId(p.id) : null
     if (id) ids.add(id)
   }
-  return ids.size ? `;${[...ids].sort().join(';')};` : ''
+  return joined(ids)
 }

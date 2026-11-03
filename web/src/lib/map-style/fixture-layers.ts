@@ -25,15 +25,15 @@ export function fixtureLayer(): any {
     type: 'symbol',
     source: DETAIL_SOURCE,
     'source-layer': FIXTURE_TILES,
-    minzoom: 17,
+    minzoom: 16,
     filter: [
       'all',
-      ['any', ['!=', kind, 'entrance'], ['>=', ['zoom'], 18]],
+      ['>=', ['zoom'], ['match', kind, 'station_entrance', 16, 'elevator', 17, 18]],
       ['!', ['in', ['concat', ';', ['get', 'id'], ';'], ['global-state', INDOOR_FIXTURES_STATE]]],
     ],
     layout: {
       'icon-image': tileBadge(['match', kind, 'station_entrance', 'entrance', 'elevator', 'elevator', 'entrance-alt1']),
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 17, 0.66, 19, 0.8],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.56, 17, 0.66, 19, 0.8],
       'icon-padding': 2,
       'symbol-sort-key': ['match', kind, 'station_entrance', 0, 'elevator', 1, 2],
     },

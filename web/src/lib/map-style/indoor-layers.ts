@@ -278,7 +278,6 @@ const FIXTURE_ART = [
   'match', ['concat', cls, ':', sub],
   ['elevator:elevator', 'poi:elevator'], 'elevator',
   ['door:main', 'door:entrance', 'door:service', 'door:emergency', 'door:exit'], 'entrance-alt1',
-  ['railway:subway_entrance', 'railway:train_station_entrance'], 'entrance',
   ['escalator:forward', 'escalator:backward', 'escalator:reversible', 'escalator:yes'], 'escalator',
   ['steps:'], 'stairs',
   '',

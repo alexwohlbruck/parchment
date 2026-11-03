@@ -255,6 +255,19 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
       }, wait)
     }
   }
+  /**
+   * Move the layers now rather than on the hydration's first frame. By then
+   * the basemap tiles have been sent to the workers with the POI layers still
+   * on them, and laid out with their badges; MapLibre then lays every one of
+   * them out again when those badges are drawn for the raised source.
+   */
+  const mountNow = () => {
+    try {
+      mount()
+    } catch {
+      // Style not parsed yet: the hydration mounts once it is.
+    }
+  }
   const onStyle = () => {
     signature = ''
     hydration.cancel()
@@ -265,6 +278,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     currentNear = () => []
     elevations.clear()
     if (!map.getSource(SOURCE)) tiles = null
+    mountNow()
     request()
   }
   const onMoveEnd = () => {
@@ -276,6 +290,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   map.on('moveend', onMoveEnd)
   map.on('sourcedata', onSourceData)
   map.on('style.load', onStyle)
+  mountNow()
   request()
 
   return {

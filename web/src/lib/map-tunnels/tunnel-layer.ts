@@ -15,7 +15,7 @@ import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
-import { TerrainCarver } from '@/lib/map-terrain/carver'
+import { cutCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
 import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
@@ -43,6 +43,9 @@ const CUT_PAD = 0.15
 const CUT_TILES = 64
 /** Metres past its line a cut's walls and carving reach. */
 const CUT_REACH = 30
+
+/** Its name among the carver's owners. */
+const CARVER_OWNER = 'tunnels'
 
 const emptyMesh = (): Mesh => ({ position: [], normal: [], color: [] })
 
@@ -109,7 +112,7 @@ export class TunnelLayer {
   /** The ground the walls rise out of, for their shadows. */
   private sampler: TerrainSampler | null = null
   private built = ''
-  /** The floors carved into the terrain, keyed by their cut. */
+  /** Carves the floors into the terrain, keyed by their cut, beside whatever else is carved there. */
   private carver: TerrainCarver
   private stale = true
   /** The walls standing out of the ground cast as the buildings do; see `building-shade.ts`. */
@@ -132,9 +135,9 @@ export class TunnelLayer {
    * `terrain` serves finer elevation where cuts are carved, holding it back
    * until the cuts in view are known, so it arrives finer the first time.
    */
-  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; terrain?: FineTerrain } = {}) {
+  constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; terrain?: FineTerrain; carver: TerrainCarver }) {
     this.id = options.id ?? 'map-tunnels'
-    this.carver = new TerrainCarver(() => this.map, options.terrain && (areas => options.terrain!.focus(areas)))
+    this.carver = options.carver
   }
 
   setPalette(palette: DeckPalette) {
@@ -228,7 +231,7 @@ export class TunnelLayer {
     this.release(gl)
     this.shadow.delete(gl)
     gl.deleteProgram(this.program)
-    this.carver.clear()
+    this.carver.clear(CARVER_OWNER)
     this.map = null
   }
 
@@ -334,7 +337,7 @@ export class TunnelLayer {
       const { walls, mouth, lid, floor, floors, bore, footprints } = this.pending
       this.buffers = { walls: uploadMesh(gl, walls), mouth: uploadMesh(gl, mouth), lid: uploadMesh(gl, lid), floor: uploadMesh(gl, floor), bore: uploadMesh(gl, bore) }
       this.floors = floors
-      this.carver.set(footprints)
+      this.carver.set(CARVER_OWNER, new Map([...footprints].map(([key, f]) => [key, cutCarving(f)])), { rank: 1, focus: true })
       if (this.pending.complete) this.settle()
       this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
       this.pending = null

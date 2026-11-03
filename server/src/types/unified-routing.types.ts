@@ -254,9 +254,13 @@ export interface RouteEdgeSegment {
   parkName?: string
   crossingIsland?: boolean  // a crosswalk with a refuge island partway across
   buttonOperated?: boolean  // a signalled crosswalk that waits for its push button
+  crossingDiagonal?: boolean // a crosswalk cutting diagonally across a junction, for an all-way walk phase
   passage?: 'building' | 'arcade' | 'indoor' // a walkway through or under a building
   cyclewaySide?: 'left' | 'right' | 'both' // which side of the road its bike lane is on
   entrance?: StationEntrance // the edge starts at a station entrance
+  level?: string            // the OSM level of an indoor walkway, e.g. "-1" or "2"
+  conveying?: boolean       // an escalator or moving walkway
+  elevator?: boolean        // the edge is an elevator ride
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string

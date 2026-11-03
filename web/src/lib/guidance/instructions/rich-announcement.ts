@@ -8,6 +8,7 @@ import type { NavRoute, NavStep } from '../nav-route'
 import { announcementText, spokenDistance } from '../phrases'
 import { chained, departure, richInstruction, type InstructionContext } from './rich-instruction'
 import { inline, voiceText, type TFn } from './instruction-text'
+import type { RichInstruction } from './instruction.types'
 
 export interface RichSource {
   route: NavRoute
@@ -27,13 +28,22 @@ function instructionFor(source: RichSource, step: NavStep, then: NavStep | null 
   return chained(first, next, then.startDistance - step.startDistance, source.speed)
 }
 
+/** A landmark already says where the action is, so a distance on top of it only repeats that. */
+const placed = (instruction: RichInstruction) => !!instruction.anchor || instruction.action.kind === 'crosswalk' || !!instruction.crossing?.first
+
+function ahead(instruction: RichInstruction, distance: number, metric: boolean, t: TFn): string {
+  const text = voiceText(instruction, t)
+  return placed(instruction) ? text : t('guidance.voice.in', { distance: spokenDistance(distance, metric, t), action: inline(text) })
+}
+
 export function richAnnouncementText(announcement: Announcement, source: RichSource, metric: boolean, t: TFn): string | null {
   switch (announcement.kind) {
     case 'maneuver': {
       const { phase, step, then, distance } = announcement
       if (phase === 'continue') return null
-      const text = voiceText(instructionFor(source, step, then), t, { lanes: phase !== 'now' })
-      if (phase !== 'now') return t('guidance.voice.in', { distance: spokenDistance(distance, metric, t), action: inline(text) })
+      const instruction = instructionFor(source, step, then)
+      if (phase !== 'now') return ahead(instruction, distance, metric, t)
+      const text = voiceText(instruction, t, { lanes: false })
       return announcement.pedestrians ? t('guidance.voice.watchPedestrians', { action: text }) : text
     }
     case 'start': {
@@ -41,8 +51,7 @@ export function richAnnouncementText(announcement: Announcement, source: RichSou
       const turns = step && maneuverKind(step.instruction) !== 'straight'
       const text = voiceText(turns ? instructionFor(source, step, null) : departure(source.route, step), t, { lanes: false })
       if (!then) return text
-      const next = voiceText(instructionFor(source, then, null), t)
-      const later = t('guidance.voice.in', { distance: spokenDistance(then.startDistance, metric, t), action: inline(next) })
+      const later = ahead(instructionFor(source, then, null), then.startDistance, metric, t)
       return t('guidance.voice.then', { action: text, next: inline(later) })
     }
     case 'arrived':

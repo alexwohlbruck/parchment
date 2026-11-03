@@ -31,9 +31,13 @@ const approach = (route: NavRoute): Announcement => ({ kind: 'maneuver', phase: 
 describe('speechFor', () => {
   const route = withLight()
 
-  test('premium travellers hear the landmark', () => {
-    expect(speechFor(approach(route), source(route), true, false, t)).toBe('In 650 feet, at the light, turn right onto Trade Street')
-    expect(speechFor(approach(route), source(route), true, true, tEs)).toBe('En 200 metros, en el semáforo, gira a la derecha hacia Trade Street')
+  test('premium travellers hear the landmark in place of the distance', () => {
+    expect(speechFor(approach(route), source(route), true, false, t)).toBe('At the light, turn right onto Trade Street')
+    expect(speechFor(approach(route), source(route), true, true, tEs)).toBe('En el semáforo, gira a la derecha hacia Trade Street')
+  })
+
+  test('the distance stands in where no landmark places the turn', () => {
+    expect(speechFor(approach(route), source(route, { from: 590 }), true, false, t)).toBe('In 650 feet, turn right onto Trade Street')
   })
 
   test('everyone else hears the standard phrasing, lanes included', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearedBuildings, focusedVenue, openingLevel, parseVenueLevels } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -84,5 +84,52 @@ describe('clearedBuildings', () => {
 
   it('clears nothing with no venue in view', () => {
     expect(clearedBuildings([], null)).toBe('')
+  })
+})
+
+describe('replacedPlaces', () => {
+  const poi = (props: Record<string, unknown>) => ({ properties: { kind: 'poi', ...props } })
+
+  it('numbers OSM elements the way basemap tiles do', () => {
+    expect(basemapId('node/1096086074')).toBe('10960860741')
+    expect(basemapId('way/5')).toBe('52')
+    expect(basemapId('relation/7')).toBe('73')
+    expect(basemapId('changeset/7')).toBeNull()
+  })
+
+  const everyVenue = () => true
+
+  it('takes over gates and named shops, but leaves the basemap its facilities', () => {
+    const places = replacedPlaces([
+      poi({ id: 'node/1', class: 'aeroway', subclass: 'gate', ref: 'E2' }),
+      poi({ id: 'node/2', class: 'shop', subclass: 'clothes', name: 'Gap' }),
+      poi({ id: 'node/3', class: 'amenity', subclass: 'toilets', name: 'Restrooms' }),
+      poi({ id: 'node/4', class: 'shop', subclass: 'kiosk' }),
+      poi({ id: 'way/5', class: 'amenity', subclass: 'atm' }),
+      { properties: { kind: 'area', class: 'room', id: 'way/6', name: 'Lounge' } },
+    ], everyVenue)
+    expect(places).toBe(';11;21;52;')
+  })
+
+  it('is empty with nothing to replace', () => {
+    expect(replacedPlaces([], everyVenue)).toBe('')
+  })
+
+  it('leaves a venue shown from outside to the basemap', () => {
+    const gate = poi({ id: 'node/1', class: 'aeroway', ref: 'E2', venue: 7, default_level: -1 })
+    expect(replacedPlaces([gate], shownInside(null))).toBe('')
+    const venue = { id: 7, levels: [], defaultLevel: -1, buildings: [] }
+    expect(replacedPlaces([gate], shownInside({ venue, level: -1 }))).toBe(';11;')
+    expect(replacedPlaces([gate], shownInside({ venue, level: null }))).toBe('')
+  })
+})
+
+describe('replacedFixtures', () => {
+  it('lists the doors, lifts and station entrances a floor plan signs', () => {
+    expect(replacedFixtures([
+      { properties: { kind: 'poi', class: 'door', subclass: 'main', id: 'node/2' } },
+      { properties: { kind: 'poi', class: 'elevator', id: 'node/1' } },
+      { properties: { kind: 'poi', class: 'shop', id: 'node/3', name: 'Gap' } },
+    ], () => true)).toBe(';node/1;node/2;')
   })
 })

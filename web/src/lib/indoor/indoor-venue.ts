@@ -1,4 +1,5 @@
 /** Which indoor venue the floor picker serves, from the venue outlines in view. */
+import { BASEMAP_FACILITIES, INDOOR_PLACE_CLASSES } from '@/lib/map-style/indoor-layers'
 
 export type IndoorLevel = { level: number; name: string }
 
@@ -128,4 +129,52 @@ function insideRing(ring: number[][], x: number, y: number): boolean {
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
   return inside
+}
+
+const OSM_TYPE_DIGIT: Record<string, number> = { node: 1, way: 2, relation: 3 }
+
+/** The basemap tiles' id for an OSM element: `node/5` is 51. */
+export function basemapId(ref: string): string | null {
+  const [type, id] = ref.split('/')
+  return OSM_TYPE_DIGIT[type] && /^\d+$/.test(id ?? '') ? `${id}${OSM_TYPE_DIGIT[type]}` : null
+}
+
+/** Whether a floor plan badges this place itself, so the basemap should not. */
+function drawsPlace(p: Record<string, unknown>): boolean {
+  if (p.class === 'aeroway') return p.ref != null
+  return INDOOR_PLACE_CLASSES.includes(String(p.class))
+    && !BASEMAP_FACILITIES.includes(String(p.subclass ?? ''))
+    && (p.name != null || p.subclass === 'atm' || p.subclass === 'pharmacy')
+}
+
+/** Whether a venue's floor plan is showing, rather than its outside. */
+export type ShownInside = (venue: number, defaultLevel: number) => boolean
+
+/** Whether the focused venue shows a floor, and any other its default one, as the style draws them. */
+export const shownInside = (focus: IndoorFocus): ShownInside => (venue, defaultLevel) =>
+  focus?.venue.id === venue ? focus.level !== null : defaultLevel >= 0
+
+const inside = (p: Record<string, unknown>, shown: ShownInside) => shown(Number(p.venue), Number(p.default_level ?? 0))
+
+const joined = (ids: Set<string>) => (ids.size ? `;${[...ids].sort().join(';')};` : '')
+
+/** Doors, lifts and station entrances a showing floor plan signs itself, as the style's `;node/1;` string of OSM ids. */
+export function replacedFixtures(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {
+  const ids = new Set<string>()
+  for (const { properties: p } of features) {
+    if (p?.kind === 'poi' && typeof p.id === 'string' && FIXTURE_CLASSES.includes(String(p.class)) && inside(p, shown)) ids.add(p.id)
+  }
+  return joined(ids)
+}
+
+const FIXTURE_CLASSES = ['door', 'elevator', 'railway']
+
+/** The basemap ids of the places showing floor plans draw on their own level, as the style's `;id;` string. */
+export function replacedPlaces(features: Pick<VenueFeature, 'properties'>[], shown: ShownInside): string {
+  const ids = new Set<string>()
+  for (const { properties: p } of features) {
+    const id = p && p.kind === 'poi' && typeof p.id === 'string' && drawsPlace(p) && inside(p, shown) ? basemapId(p.id) : null
+    if (id) ids.add(id)
+  }
+  return joined(ids)
 }

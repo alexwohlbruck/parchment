@@ -10,11 +10,17 @@
 
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
+* Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
+
+* Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
+
 ### Changed
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
 
 ### Fixed
+
+* Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
 

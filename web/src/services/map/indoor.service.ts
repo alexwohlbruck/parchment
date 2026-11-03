@@ -9,10 +9,12 @@ import {
   INDOOR_SOURCE,
   INDOOR_STATE,
   INDOOR_VENUE_TILES,
+  INDOOR_MAP_TILES,
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import type { FlavorId } from '@/lib/map-style/build'
-import { clearedBuildings, focusedVenue, openingLevel, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { clearedBuildings, focusedVenue, openingLevel, replacedFixtures, replacedPlaces, shownInside, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { INDOOR_FIXTURES_STATE } from '@/lib/map-style/fixture-layers'
 
 export function attachIndoor(
   map: any,
@@ -30,6 +32,7 @@ export function attachIndoor(
   let focus: IndoorFocus = null
   let buildings = ''
   let venues: any[] = []
+  let places: any[] = []
   /** The floor last picked in each venue, or null for its outside, so panning away and back keeps it. */
   const picked = new Map<number, number | null>()
 
@@ -46,6 +49,8 @@ export function attachIndoor(
     }
     setState(INDOOR_STATE.venue, next?.venue.id ?? 0)
     setState(INDOOR_STATE.level, next ? next.level ?? EXTERIOR_LEVEL : 0)
+    setState(INDOOR_STATE.places, replacedPlaces(places, shownInside(next)))
+    setState(INDOOR_FIXTURES_STATE, replacedFixtures(places, shownInside(next)))
     const changed = next?.venue.id !== focus?.venue.id || next?.level !== focus?.level
     focus = next
     if (changed) on.focus(focus)
@@ -56,9 +61,11 @@ export function attachIndoor(
     if (!map.getSource(INDOOR_SOURCE)) return
     if (!enabled || map.getZoom() < INDOOR_MINZOOM) {
       venues = []
+      places = []
       return apply(null)
     }
     venues = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES })
+    places = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_MAP_TILES, filter: ['==', ['get', 'kind'], 'poi'] })
     const { lng, lat } = map.getCenter()
     const venue = focusedVenue(venues, [lng, lat], focusArea())
     apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : openingLevel(venue) } : null)

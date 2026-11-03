@@ -14,7 +14,7 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
-import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
+import { BANK, carveTile, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
@@ -110,7 +110,7 @@ export class TunnelLayer {
   private sampler: TerrainSampler | null = null
   private built = ''
   /** The floors carved into the terrain, keyed by their cut. */
-  private carver: TerrainCarver
+  private carver: TerrainCarver<Footprint>
   private stale = true
   /** The walls standing out of the ground cast as the buildings do; see `building-shade.ts`. */
   private shadow = new MeshShadow()
@@ -134,7 +134,7 @@ export class TunnelLayer {
    */
   constructor(private sources: TunnelSources, private palette: DeckPalette, private options: { id?: string; terrain?: FineTerrain } = {}) {
     this.id = options.id ?? 'map-tunnels'
-    this.carver = new TerrainCarver(() => this.map, options.terrain && (areas => options.terrain!.focus(areas)))
+    this.carver = new TerrainCarver(() => this.map, carveTile, options.terrain && (areas => options.terrain!.focus(areas)))
   }
 
   setPalette(palette: DeckPalette) {

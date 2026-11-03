@@ -20,11 +20,17 @@
 
 * Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
 
+* Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
+
+* Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
+
 ### Changed
 
 * Spoken directions round long distances the way people say them: "In half a mile" rather than "In 0.6 miles".
 
 * Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
+
+* 3D landmarks are shaded where they meet the ground, like the buildings around them.
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
 
@@ -43,6 +49,9 @@
 ### Fixed
 
 * Guidance counts the lights before a turn, "After the third light, turn right", instead of "after the light" with other lights still to pass.
+
+* Subway entrances show as square signs on every floor of a station, replacing the purple dots.
+* Airports open their floor plan on the gate level and take the airport's name, and gate labels no longer appear twice.
 
 * Bike and walking directions say "Turn right onto Rogers Avenue" at signalled junctions again, instead of "Cross at the light".
 

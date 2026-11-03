@@ -47,8 +47,10 @@ import {
   indoorFootprintLayer,
   indoorState,
   withoutIndoorBuildings,
+  withoutIndoorPlaces,
 } from './indoor-layers'
 import { trackLayers, racewayLayer } from './track-layers'
+import { fixtureLayer, withFixtures } from './fixture-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
@@ -538,15 +540,25 @@ export function buildLayers(options: {
   }
 
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
-  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels) as LayerSpecification[]
+  const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
+  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels, fixtures) as LayerSpecification[]
 }
 
+/** Basemap layers whose places a floor plan may draw itself, on their own level. */
+const INDOOR_PLACE_TILES = ['poi', 'aeroway']
+
 /** Floor plans before the buildings, so faded towers show a basement through them; labels on top, placed first. */
-function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[]): any[] {
-  const out = layers.map(l => l['source-layer'] !== BUILDING_3D_TILES ? l : { ...l, filter: withoutIndoorBuildings(l.filter) })
+function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[], fixtures: any): any[] {
+  const out = layers.map(l =>
+    l['source-layer'] === BUILDING_3D_TILES ? { ...l, filter: withoutIndoorBuildings(l.filter) }
+    : l.type === 'symbol' && l.source === SOURCE && INDOOR_PLACE_TILES.includes(l['source-layer']) ? { ...l, filter: withoutIndoorPlaces(l.filter) }
+    : l)
   const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
   const firstBuilding = out.findIndex(isBuilding)
   out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, indoorUndergroundLayer(flavor), indoorFootprintLayer(flavor, SOURCE), ...indoorLayers(flavor))
+  // Under the places, which win a collision with a door; the floor plan's labels over all.
+  const firstPoi = out.findIndex(l => l.type === 'symbol' && l['source-layer'] === 'poi')
+  out.splice(firstPoi < 0 ? out.length : firstPoi, 0, fixtures)
   out.push(...labels)
   return out
 }
@@ -820,7 +832,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withElevationFormat(buildTileUrl(tileServerUrl, source)) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withFixtures(withElevationFormat(buildTileUrl(tileServerUrl, source))) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {
@@ -889,6 +901,7 @@ export function buildSatelliteStyle(
   return {
     version: 8,
     name: hybrid ? 'Parchment hybrid' : 'Parchment satellite',
+    ...(hybrid ? { state: indoorState() } : {}),
     // Daylight regardless of app theme, for the same reason hybrid's labels are
     // fixed: the ground here is aerial photography, taken in the day.
     sky: SKY.light,

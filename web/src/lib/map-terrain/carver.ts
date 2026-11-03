@@ -3,7 +3,10 @@
  * owner's set at a time, each tile carved once a round, a few a frame.
  */
 import type { Bounds } from '@/lib/map-decks/decks'
-import { carveTile, tileUnder, type Elevation, type Footprint } from './carve'
+import { tileUnder, type Elevation } from './carve'
+
+/** Brings a tile's ground to some shapes carved into it; whether anything changed. */
+export type Carve<T> = (tile: Elevation, id: [number, number, number], shapes: T[]) => boolean
 
 /** Milliseconds a frame may spend carving tiles. */
 const CARVE_BUDGET = 16
@@ -26,8 +29,8 @@ function elevation(dem: any): Elevation {
   }
 }
 
-export class TerrainCarver {
-  private carving = new Map<string, Footprint>()
+export class TerrainCarver<T extends { bounds: Bounds }> {
+  private carving = new Map<string, T>()
   /** The round of carving each elevation tile has had; a tile behind the current round is carved again. */
   private carved = new WeakMap<object, number>()
   private rounds = 0
@@ -35,7 +38,7 @@ export class TerrainCarver {
   private focused: Bounds[] = []
 
   /** `focus` is told where footprints are carved, so finer terrain is served there. */
-  constructor(private map: () => any, private focus?: (areas: Bounds[]) => void) {}
+  constructor(private map: () => any, private carve: Carve<T>, private focus?: (areas: Bounds[]) => void) {}
 
   get size() {
     return this.carving.size
@@ -47,7 +50,7 @@ export class TerrainCarver {
   }
 
   /** Take on a new set of footprints: carved over what is there, or, where one has gone, into freshly loaded ground. */
-  set(next: Map<string, Footprint>) {
+  set(next: Map<string, T>) {
     if (next.size === this.carving.size && [...next.keys()].every(k => this.carving.has(k))) return
     const removed = [...this.carving].filter(([key]) => !next.has(key)).map(([, f]) => f.bounds)
     const areas = [...next.values()].map(f => f.bounds)
@@ -89,7 +92,7 @@ export class TerrainCarver {
       }
       this.carved.set(tile.dem, this.rounds)
       const { z, x, y } = tile.tileID.canonical
-      if (!carveTile(elevation(tile.dem), [z, x, y], footprints)) continue
+      if (!this.carve(elevation(tile.dem), [z, x, y], footprints)) continue
       tile.needsTerrainPrepare = true
       tile.needsHillshadePrepare = true
       changed = true

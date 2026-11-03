@@ -4,6 +4,8 @@
  */
 import type { FlavorId } from './build'
 import { combineFilters } from './combine-filters'
+import { INDOOR_FIXTURES_STATE, tileBadge } from './fixture-layers'
+import { FLOOR_HEIGHT, WALL_HEIGHT } from '@/lib/indoor/indoor-sizes.mjs'
 
 export const INDOOR_SOURCE = 'indoor'
 /** Barrelman's bundle name; see `TILE_BUNDLES` there. */
@@ -20,6 +22,8 @@ export const INDOOR_STATE = {
   level: 'indoorLevel',
   /** `;`-delimited ids of the buildings_3d outlines floor plans stand in. */
   buildings: 'indoorBuildings',
+  /** `;`-delimited basemap feature ids of the places floor plans draw on their own level. */
+  places: 'indoorPlaces',
 } as const
 
 /** Every indoor layer's id starts with this, so the setting can hide them all. */
@@ -45,14 +49,16 @@ export const INDOOR_UNDERGROUND_LAYER = 'Indoor underground'
 export const INDOOR_FOOTPRINT_LAYER = 'Indoor footprints'
 
 /** Heights in metres: the plinth, the rooms inlaid on it, and the walls. */
-const FLOOR_HEIGHT = 0.3
 const ROOM_HEIGHT = 0.4
-const WALL_HEIGHT = 3.5
+const LIFT_HEIGHT = 2.4
+
+/** Barrelman's `indoor_features` version; a new one asks past the day-long tile caches. */
+const INDOOR_FORMAT = 15
 
 export function indoorSource(tileUrl: (source: string) => string) {
   return {
     type: 'vector' as const,
-    tiles: [tileUrl(INDOOR_TILES)],
+    tiles: [`${tileUrl(INDOOR_TILES)}&indoor=${INDOOR_FORMAT}`],
     minzoom: 15,
     maxzoom: 17,
   }
@@ -67,6 +73,8 @@ export function indoorState() {
     [INDOOR_STATE.venue]: { default: 0 },
     [INDOOR_STATE.level]: { default: 0 },
     [INDOOR_STATE.buildings]: { default: '' },
+    [INDOOR_STATE.places]: { default: '' },
+    [INDOOR_FIXTURES_STATE]: { default: '' },
   }
 }
 
@@ -83,13 +91,21 @@ const kind = (...kinds: string[]) => ['match', ['get', 'kind'], kinds, true, fal
 const cls = ['get', 'class']
 const sub = ['coalesce', ['get', 'subclass'], '']
 
+const listed = (key: unknown, state: string) => ['in', ['concat', ';', ['to-string', key], ';'], ['global-state', state]]
+
 /** A buildings_3d filter without the buildings a floor plan is showing inside. */
 export function withoutIndoorBuildings(filter: unknown): unknown {
-  return combineFilters([
-    filter,
-    ['!', ['in', ['concat', ';', ['to-string', ['get', 'id']], ';'], ['global-state', INDOOR_STATE.buildings]]],
-  ])
+  return combineFilters([filter, ['!', listed(['get', 'id'], INDOOR_STATE.buildings)]])
 }
+
+/** A basemap label filter without the places a floor plan draws on their own level. */
+export function withoutIndoorPlaces(filter: unknown): unknown {
+  return combineFilters([filter, ['!', listed(['id'], INDOOR_STATE.places)]])
+}
+
+/** Place classes the floor plan badges, but not the facilities the basemap's POI layer already draws. */
+export const INDOOR_PLACE_CLASSES = ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft']
+export const BASEMAP_FACILITIES = ['toilets', 'toilet', 'drinking_water', 'information', 'water_point']
 
 const FOOD = ['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream', 'bakery', 'biergarten', 'coffee']
 const STORE = ['shop', 'kiosk', 'marketplace', 'duty_free', 'retail']
@@ -100,7 +116,8 @@ const BAGGAGE = ['baggage_claim', 'baggage_carousel', 'luggage_carousel', 'bagga
 
 type IndoorPalette = Record<
   'underground' | 'footprint' | 'escalator' | 'tread' | 'floor' | 'area' | 'room' | 'private' | 'platform' | 'baggage'
-  | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps' | 'food' | 'store' | 'health' | 'service' | 'hatch' | 'hatchGap' | 'label',
+  | 'stairs' | 'shaft' | 'column' | 'wall' | 'steps' | 'food' | 'store' | 'health' | 'service' | 'hatch' | 'hatchGap' | 'label'
+  | 'jetBridge' | 'lift',
   string
 >
 
@@ -116,7 +133,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     platform: 'hsl(240, 50%, 87.5%)',
     baggage: 'hsl(240, 80%, 92%)',
     stairs: 'hsl(30, 8%, 88%)',
-    escalator: 'hsl(222, 40%, 90%)',
+    escalator: 'hsl(216, 58%, 82%)',
     tread: 'hsl(0, 0%, 100%)',
     shaft: 'hsl(30, 8%, 88%)',
     column: 'hsl(27, 20%, 80%)',
@@ -129,6 +146,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatch: 'hsl(45, 98%, 75%)',
     hatchGap: 'hsl(45, 90%, 99%)',
     label: 'hsl(222, 12%, 42%)',
+    jetBridge: 'hsl(220, 10%, 88%)',
+    lift: 'hsl(214, 52%, 76%)',
   },
   dark: {
     underground: 'hsl(222, 40%, 8%)',
@@ -140,7 +159,7 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     platform: 'hsl(240, 26%, 36%)',
     baggage: 'hsl(240, 30%, 42%)',
     stairs: 'hsl(222, 12%, 38%)',
-    escalator: 'hsl(222, 26%, 40%)',
+    escalator: 'hsl(216, 34%, 46%)',
     tread: 'hsl(222, 14%, 52%)',
     shaft: 'hsl(222, 12%, 38%)',
     column: 'hsl(222, 12%, 44%)',
@@ -153,6 +172,8 @@ const COLORS: Record<FlavorId, IndoorPalette> = {
     hatch: 'hsl(45, 55%, 42%)',
     hatchGap: 'hsl(45, 25%, 30%)',
     label: 'hsl(220, 12%, 80%)',
+    jetBridge: 'hsl(222, 14%, 34%)',
+    lift: 'hsl(214, 34%, 48%)',
   },
 }
 
@@ -161,7 +182,8 @@ function roomColor(c: IndoorPalette) {
     'match', cls,
     'platform', c.platform,
     'stairs', c.stairs,
-    'elevator', c.shaft,
+    'elevator', c.lift,
+    'corridor', ['match', sub, 'jet_bridge', c.jetBridge, c.area],
     'column', c.column,
     'room', ['match', sub,
       FOOD, c.food,
@@ -254,16 +276,12 @@ const FIXTURE_ART = [
   'match', ['concat', cls, ':', sub],
   ['elevator:elevator', 'poi:elevator'], 'elevator',
   ['door:main', 'door:entrance', 'door:service', 'door:emergency', 'door:exit'], 'entrance-alt1',
-  ['railway:subway_entrance', 'railway:train_station_entrance'], 'entrance',
   ['escalator:forward', 'escalator:backward', 'escalator:reversible', 'escalator:yes'], 'escalator',
   ['steps:'], 'stairs',
   '',
 ]
 
-const fixtureBadge = [
-  'concat', 'poi|tile-', FIXTURE_ART,
-  '|', '@poi_transit_plate', '|', '@poi_transit_ink', '|', '@poi_transit_ring', '|', '@poi_lift',
-]
+const fixtureBadge = tileBadge(FIXTURE_ART)
 
 const isFixture = ['!=', FIXTURE_ART, '']
 
@@ -345,7 +363,7 @@ export function indoorLayers(flavor: FlavorId): any[] {
       paint: {
         'fill-extrusion-color': roomColor(c),
         'fill-extrusion-base': FLOOR_HEIGHT,
-        'fill-extrusion-height': ['match', cls, 'column', WALL_HEIGHT, ['room', 'elevator', 'stairs'], ROOM_HEIGHT, FLOOR_HEIGHT + 0.02],
+        'fill-extrusion-height': ['match', cls, 'column', WALL_HEIGHT, 'elevator', LIFT_HEIGHT, ['room', 'stairs'], ROOM_HEIGHT, FLOOR_HEIGHT + 0.02],
         'fill-extrusion-vertical-gradient': false,
       },
     },
@@ -465,10 +483,9 @@ export function indoorLabelLayers(
       filter: [
         'all',
         kind('poi'),
-        ['match', cls, ['shop', 'amenity', 'tourism', 'healthcare', 'leisure', 'office', 'craft'], true, false],
+        ['match', cls, INDOOR_PLACE_CLASSES, true, false],
         ['any', ['has', 'name'], ['match', sub, ['atm', 'pharmacy'], true, false]],
-        // Facilities the basemap's own POI layer already draws.
-        ['!', ['match', sub, ['toilets', 'toilet', 'drinking_water', 'information', 'water_point'], true, false]],
+        ['!', ['match', sub, BASEMAP_FACILITIES, true, false]],
         ['!', isFixture],
         onShownLevel,
       ],

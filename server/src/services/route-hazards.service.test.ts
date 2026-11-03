@@ -21,6 +21,14 @@ describe('attachHazards', () => {
     expect(segment.hazards.map((h: any) => h.kind)).toEqual(['traffic_signals'])
   })
 
+  test('itineraries sharing a line ask barrelman about it once', async () => {
+    const segments = [street(), street(), { ...street(), geometry: geometry.slice(0, 50) }]
+    let calls = 0
+    await attachHazards(segments, { premium: false, getHazards: async () => (calls++, [stop]), getOutlook: noWeather })
+    expect(calls).toBe(2)
+    expect(segments.every(s => s.hazards.some((h: any) => h.kind === 'stop'))).toBe(true)
+  })
+
   test('premium kinds are stripped for everyone else, including nested segments', async () => {
     const nested = street()
     const trip = [{ mode: 'multimodal', details: { multimodalSegments: [nested] } }] as any[]

@@ -29,10 +29,17 @@ function withNested<T extends HazardedSegment>(segments: T[]): T[] {
 export async function attachHazards<T extends HazardedSegment>(segments: T[], options: AttachOptions): Promise<void> {
   const getHazards = options.getHazards ?? routingService.getHazards.bind(routingService)
   const getOutlook = options.getOutlook ?? getWeatherOutlook
+  // Itineraries share their walks; ask barrelman about each line once.
+  const asked = new Map<string, Promise<RoutePointHazard[] | null>>()
+  const ask = (request: RoutePointHazardsRequest) => {
+    const key = JSON.stringify(request)
+    if (!asked.has(key)) asked.set(key, getHazards(request).catch(() => null))
+    return asked.get(key)!
+  }
   await Promise.all(
     withNested(segments).map(async segment => {
       const request = pointHazardsRequest(segment)
-      const found = request ? await getHazards(request).catch(() => null) : null
+      const found = request ? await ask(request) : null
       const origin = segment.geometry?.[0]
       const outlook = origin && needsOutlook(segment, found) ? await getOutlook(origin.lat, origin.lng) : null
       const start = segment.startTime ? new Date(segment.startTime) : (options.departure ?? new Date())

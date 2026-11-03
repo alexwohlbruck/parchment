@@ -2,13 +2,25 @@
 
 ### Added
 
-* On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
+### Changed
 
-* If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
+### Fixed
+
+## [0.19.0] - 2026-11-03
+
+### Added
+
+* Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
+
+* Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
+
+* Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
 
 * 3D landmarks can have see-through glass, so you can look into a glass cube or pavilion and see the stairs and lobby inside.
 
-* Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
+* On the way to a transit stop, guidance shows the next two departures after yours, so you know what follows if you miss it.
+
+* If you miss your train or bus, guidance moves you onto the next one with your new arrival time, and suggests a clearly faster route when there is one.
 
 * Walking directions count blocks where the grid is regular: "In 4 blocks, turn right onto Bedford Avenue", or "Continue on Sterling Place for 6 blocks".
 
@@ -19,10 +31,6 @@
 * Walking to a train, guidance says which entrance to use and, after you get off, which exit to take, along with escalators and elevators to the platform or street.
 
 * Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
-
-* Indoor maps show escalators and stairs climbing in 3D, lift shafts, and airport jet bridges.
-
-* Building entrances, subway entrances and street lifts appear as small square signs when you zoom in close.
 
 ### Changed
 

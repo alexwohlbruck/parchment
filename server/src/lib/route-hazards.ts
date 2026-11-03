@@ -106,10 +106,13 @@ function crossingHazard(mode: string, crossing: string): { kind: RouteHazardKind
 
 const PATHS = new Set(['footway', 'path', 'pedestrian', 'cycleway', 'steps', 'track', 'bridleway'])
 
-/** A crosswalk tagged on a road is for people crossing it; someone walking or riding along the road isn't one of them. */
+/**
+ * A road carries the crossing tag of every junction it passes through, from the edge's start. Someone walking or riding
+ * along it isn't crossing it, and the junction's own signal reaches them from barrelman's points.
+ */
 function crossedByOthers(mode: string, edge: RouteEdgeSegment, kind: RouteHazardKind): boolean {
   if (mode === 'driving' || !edge.roadClass || PATHS.has(edge.roadClass)) return false
-  return kind === 'crosswalk' || kind === 'uncontrolled_crossing'
+  return kind !== 'rail_crossing'
 }
 
 function edgeHazards(segment: HazardSegment, at: (d: number) => Coordinate, freezing: boolean): RouteHazard[] {

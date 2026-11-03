@@ -54,10 +54,13 @@ const ROOM_HEIGHT = 0.4
 const LIFT_HEIGHT = 2.4
 const WALL_HEIGHT = 3.5
 
+/** Barrelman's `indoor_features` version; a new one asks past the day-long tile caches. */
+const INDOOR_FORMAT = 10
+
 export function indoorSource(tileUrl: (source: string) => string) {
   return {
     type: 'vector' as const,
-    tiles: [tileUrl(INDOOR_TILES)],
+    tiles: [`${tileUrl(INDOOR_TILES)}&indoor=${INDOOR_FORMAT}`],
     minzoom: 15,
     maxzoom: 17,
   }

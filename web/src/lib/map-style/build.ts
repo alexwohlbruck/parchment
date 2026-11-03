@@ -50,7 +50,7 @@ import {
   withoutIndoorPlaces,
 } from './indoor-layers'
 import { trackLayers, racewayLayer } from './track-layers'
-import { fixtureLayer } from './fixture-layers'
+import { fixtureLayer, withFixtures } from './fixture-layers'
 import { stepsLayers } from './steps-layers'
 import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
@@ -832,7 +832,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withElevationFormat(buildTileUrl(tileServerUrl, source)) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withFixtures(withElevationFormat(buildTileUrl(tileServerUrl, source))) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {

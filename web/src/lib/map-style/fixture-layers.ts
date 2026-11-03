@@ -13,6 +13,9 @@ export const tileBadge = (art: unknown) => [
   '|', '@poi_transit_plate', '|', '@poi_transit_ink', '|', '@poi_transit_ring', '|', '@poi_lift',
 ]
 
+/** Asked of the detail bundle once it carries fixtures, past the day-long tile caches. */
+export const withFixtures = (url: string) => `${url}${url.includes('?') ? '&' : '?'}fixtures=1`
+
 const kind = ['get', 'kind']
 
 /** Station entrances and lifts from street zoom; a building's own doors only once closer in. */

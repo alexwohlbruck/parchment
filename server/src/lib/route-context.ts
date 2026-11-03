@@ -31,7 +31,9 @@ export function applyStretches(segments: RouteEdgeSegment[], stretches: Stretch[
       const startDistance = sorted[i]
       const mid = (startDistance + endDistance) / 2
       const patches = over.filter(s => s.startDistance <= mid && mid <= s.endDistance).map(s => s.patch)
-      return Object.assign({ ...segment, startDistance, endDistance }, ...patches)
+      const { entrance, ...rest } = segment
+      const piece = startDistance === segment.startDistance ? segment : rest
+      return Object.assign({ ...piece, startDistance, endDistance }, ...patches)
     })
   })
 }

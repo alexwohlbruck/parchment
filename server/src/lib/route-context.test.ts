@@ -35,6 +35,12 @@ describe('foldRouteContext', () => {
     expect(folded.filter(e => e.inPark).map(e => [e.startDistance, e.parkName])).toEqual([[0, 'Freedom Park'], [200, undefined]])
   })
 
+  test('a split edge keeps its station entrance on the piece that starts there', () => {
+    const stairs: RouteEdgeSegment[] = [{ startDistance: 0, endDistance: 40, entrance: { ref: 'A' }, passage: 'indoor' }]
+    const folded = foldRouteContext(stairs, { parks: [{ startDistance: 20, endDistance: 40 }] })!
+    expect(folded.map(e => [e.startDistance, e.entrance, e.passage])).toEqual([[0, { ref: 'A' }, 'indoor'], [20, undefined, 'indoor']])
+  })
+
   test('leaves edges alone without context, as from an older barrelman', () => {
     expect(foldRouteContext(edges, {})).toBe(edges)
   })

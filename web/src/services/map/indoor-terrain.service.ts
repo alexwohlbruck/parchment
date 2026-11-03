@@ -1,5 +1,5 @@
 /** Levels the terrain under each indoor venue in view, so its floors, rooms and walls all stand at one height. */
-import { standsOnGround, venueOutlines } from '@/lib/indoor/venue-outline'
+import { grownOutline, standsOnGround, venueOutlines } from '@/lib/indoor/venue-outline'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import type { Point } from '@/lib/map-decks/decks'
 import type { Carving, TerrainCarver } from '@/lib/map-terrain/carver'
@@ -9,7 +9,7 @@ import { INDOOR_FLOOR_LAYER, INDOOR_MINZOOM, INDOOR_SOURCE, INDOOR_VENUE_TILES }
 import { TERRAIN_TILES } from '@/lib/map-style/terrain'
 
 const LAYER_ID = 'indoor-terrain'
-/** Venue heights remembered, so panning back to one does not sample it again. */
+/** Venues remembered, so panning back to one does not sample it again. */
 const REMEMBERED = 256
 
 const padCarving = (p: Pad): Carving => ({ bounds: p.bounds, carve: (tile, at) => carvePads(tile, at, [p]) })
@@ -18,7 +18,8 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
   let enabled = true
   let queued = 0
   let sampler: TerrainSampler | null = null
-  const heights = new Map<string, number>()
+  /** Each venue's outline, only ever grown, and its height once sampled: a pad that changes reloads the terrain under it. */
+  const venues = new Map<number, { ring: Point[]; height?: number }>()
 
   // Carves before the frame's terrain is drawn; it draws nothing itself.
   const layer = { id: LAYER_ID, type: 'custom', renderingMode: '3d', prerender: () => carver.carveTiles(), render: () => {} }
@@ -27,16 +28,10 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     if (!map.getLayer(LAYER_ID) && map.getLayer(INDOOR_FLOOR_LAYER)) map.addLayer(layer, INDOOR_FLOOR_LAYER)
   }
 
-  /** The height a venue's outline is levelled to: undefined while its ground loads, null where there is none. */
-  function heightOf(key: string, ring: Point[], ground: TerrainSampler['ground']): number | null | undefined {
-    if (heights.has(key)) return heights.get(key)
+  /** The height an outline is levelled to: undefined while its ground loads, null where there is none. */
+  function heightOf(ring: Point[], ground: TerrainSampler['ground']): number | null | undefined {
     const samples = padSamples(ring).map(p => ground.at(p))
-    if (samples.includes(null)) return undefined
-    const height = padHeight(samples as number[])
-    if (height === null) return null
-    heights.set(key, height)
-    if (heights.size > REMEMBERED) heights.delete(heights.keys().next().value!)
-    return height
+    return samples.includes(null) ? undefined : padHeight(samples as number[])
   }
 
   function update() {
@@ -44,17 +39,20 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     addLayer()
     const on = enabled && !!map.getTerrain?.() && map.getZoom() >= INDOOR_MINZOOM && !!map.getSource(INDOOR_SOURCE)
     const next = on ? terrainSampler(map, sampler, schedule, template => (template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)) : sampler
-    if (next !== sampler) heights.clear()
+    if (next !== sampler) venues.clear()
     sampler = next
     const pads = new Map<string, Carving>()
     if (on && sampler) {
-      for (const [id, ring] of venueOutlines(map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES }).filter(standsOnGround))) {
-        const key = `${id}|${ring.join(';')}`
-        const height = heightOf(key, ring, sampler.ground)
-        if (height != null) pads.set(key, padCarving(pad(ring, height)))
+      for (const [id, pieces] of venueOutlines(map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES }).filter(standsOnGround))) {
+        const known = venues.get(id)
+        const ring = grownOutline(known?.ring, pieces)
+        venues.set(id, { ring, height: known?.height ?? heightOf(ring, sampler.ground) ?? undefined })
+        if (venues.size > REMEMBERED) venues.delete(venues.keys().next().value!)
       }
+      // Venues panned out of view keep their pads: dropping one reloads the ground it shares with those in view.
+      for (const [id, { ring, height }] of venues) if (height != null) pads.set(`${id}|${ring.join(';')}`, padCarving(pad(ring, height)))
     }
-    carver.set(LAYER_ID, pads, { focus: true })
+    carver.set(LAYER_ID, pads, { focus: true, widens: true })
   }
 
   function schedule() {
@@ -65,8 +63,9 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     if (!e.tile) return
     if (e.sourceId === INDOOR_SOURCE) schedule()
     else if (e.sourceId === map.getTerrain?.()?.source && carver.size) {
+      // Carved now, before the next frame draws the tile's raw ground under the floors.
       carver.recarveAround(e.tile)
-      map.triggerRepaint()
+      carver.carveTiles()
     }
   }
   const onStyleLoad = () => {

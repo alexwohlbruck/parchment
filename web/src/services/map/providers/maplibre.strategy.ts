@@ -21,6 +21,7 @@ import {
   LngLat as MaplibreLngLat,
   CameraOptions,
   setWorkerUrl,
+  prewarm,
   addProtocol,
 } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
@@ -39,6 +40,12 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 setWorkerUrl(maplibreWorkerUrl)
+// Start the workers now, while the rest of the bundle is still evaluating,
+// rather than when the map is made at the end of it. Each fetches the worker
+// and then the chunk it imports, one after the other, and no tile can be laid
+// out until both are in: left to the map, that was the first second after it
+// appeared.
+if (typeof Worker !== 'undefined') prewarm()
 
 import {
   Basemap,
@@ -279,6 +286,9 @@ const OBJECT_LAYER_ID = 'map-objects'
 
 /** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
 const LANDMARK_LAYER_ID = 'map-landmarks'
+
+/** Longest the object models wait for the first tiles; see `firstTilesLaidOut`. */
+const FIRST_TILES_WAIT_MS = 3000
 
 /**
  * The first label layer the 3D objects have to stay behind.
@@ -1019,6 +1029,36 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
+  /**
+   * Resolves once the first screen of tiles has been laid out, or after
+   * FIRST_TILES_WAIT_MS. The object models — some hundred and fifty of them —
+   * are decoration on top of those tiles; fetched alongside them, they compete
+   * with the tiles and the MapLibre worker for the connection on the one load
+   * where every request is a cold one.
+   */
+  private firstTilesLaidOut(): Promise<void> {
+    const map = this.mapInstance
+    return new Promise(resolve => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        map.off('data', check)
+        clearTimeout(timer)
+        resolve()
+      }
+      // On a vector tile's arrival only: before the first is asked for there
+      // is nothing in flight and `areTilesLoaded` is trivially true, and the
+      // app's own GeoJSON sources answer at once, while the basemap's tiles
+      // are still on their way.
+      const check = (e: any) => {
+        if (e?.tile && map.getSource(e.sourceId)?.type === 'vector' && map.areTilesLoaded()) finish()
+      }
+      const timer = setTimeout(finish, FIRST_TILES_WAIT_MS)
+      map.on('data', check)
+    })
+  }
+
   private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
@@ -1050,9 +1090,9 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
 
-    this.objectModels ??= Promise.all(
+    this.objectModels ??= this.firstTilesLaidOut().then(() => Promise.all(
       Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
-    ).then(entries => Object.fromEntries(entries))
+    )).then(entries => Object.fromEntries(entries))
 
     let models: Record<string, GlbModel>
     try {

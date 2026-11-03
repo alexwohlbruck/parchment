@@ -12,6 +12,7 @@ import { haversineMeters } from '@/lib/geo/geo-line'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { walkingSteps } from './walk-steps'
+import { rampSteps } from './ramp-steps'
 import { stationSteps } from './station-steps'
 import type { Vertical } from './vertical'
 
@@ -177,7 +178,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     cumulative,
     length: offset,
     segments,
-    steps: stationSteps(walkingSteps(steps, line), line),
+    steps: stationSteps(rampSteps(walkingSteps(steps, line), line), line),
     edges,
     hazards,
     drivingSide: inputs.find(i => i.drivingSide)?.drivingSide ?? 'right',

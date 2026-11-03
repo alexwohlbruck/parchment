@@ -71,6 +71,7 @@ function roundaboutAction(route: NavRoute, step: NavStep): Action {
 
 /** On foot or by bike: the path's own shape, when it's stairs, a footbridge or a crossing. */
 function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: string): Action | null {
+  if (step.ramp) return { kind: 'ramp', ...step.ramp }
   const side = kind === 'uturn' ? null : sideOf(kind)
   const climb = verticalAt(route, step.startDistance, step.startDistance + CLIMB_LOOKAHEAD_METERS)
   if (climb) {

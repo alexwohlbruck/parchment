@@ -10,11 +10,19 @@
 
 * Indoor maps: zoom into a mall, airport or station to see its floor plan, with a floor picker to move between levels, including underground concourses and platforms.
 
+* Walking to a train, guidance says which entrance to use and, after you get off, which exit to take, along with escalators and elevators to the platform or street.
+
+* Bike directions tell you when a bike lane ends or starts, when the lane on a new street is on the far side, and when to make a two-stage left from a protected lane.
+
 ### Changed
 
 * Spoken directions place a turn by its landmark or its distance, not both: "At the light, turn right" rather than "In 200 feet, at the light, turn right".
 
 * Walking directions call unnamed walkways what they are, such as "Crosswalk", "Footbridge", "Underpass" or "Park path", instead of "Path".
+
+* Walking directions say whether stairs go up or down, sum up a ramp's switchbacks as "Follow the ramp up to the bridge", and say "Go through the passage" or "Walk through the arcade".
+
+* Bike directions say where and how far to walk your bike, such as "Walk your bike through the plaza for 260 feet".
 
 ### Fixed
 

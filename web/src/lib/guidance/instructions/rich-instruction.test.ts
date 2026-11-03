@@ -486,6 +486,11 @@ describe('passages', () => {
     const route = city({ mode: 'walking', right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 700, roadClass: 'footway', passage: 'arcade' }] })
     expect(step(route).action.kind).toBe('turn')
   })
+
+  test('setting off inside, there is nothing to go into', () => {
+    const route = city({ mode: 'walking', edges: [{ startDistance: 0, endDistance: 100, roadClass: 'footway', passage: 'indoor' }] })
+    expect(richInstruction(route, route.steps[0], { from: 0, speed: 1.4 }).action.kind).not.toBe('passage')
+  })
 })
 
 describe('bike lanes', () => {

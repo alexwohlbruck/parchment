@@ -88,7 +88,9 @@ function pathAction(route: NavRoute, step: NavStep, kind: ManeuverKind, mode: st
     return via === 'stairs' ? { kind: 'stairs', side, ...change } : { kind: via, ...change }
   }
   const past = edgeAt(route, step.startDistance + PAST_TURN_METERS)
-  const passage = passageInto(edgeAt(route, step.startDistance - PAST_TURN_METERS), past)
+  // Setting off already inside, there's nothing to enter.
+  const start = route.segments[step.segmentIndex]?.startDistance ?? 0
+  const passage = passageInto(edgeAt(route, Math.max(start, step.startDistance - PAST_TURN_METERS)), past)
   if (passage) return { kind: 'passage', passage }
   if (past?.roadEnvironment === 'bridge' && PATHS.has(past.roadClass ?? '')) return { kind: 'footbridge' }
   // Walking steps already know their crossing; only a straight one is the crossing itself.

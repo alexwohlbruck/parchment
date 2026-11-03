@@ -252,6 +252,11 @@ export interface RouteEdgeSegment {
   state?: string            // the state or province the edge is in
   inPark?: boolean          // on foot, inside a park
   parkName?: string
+  crossingIsland?: boolean  // a crosswalk with a refuge island partway across
+  buttonOperated?: boolean  // a signalled crosswalk that waits for its push button
+  passage?: 'building' | 'arcade' | 'indoor' // a walkway through or under a building
+  cyclewaySide?: 'left' | 'right' | 'both' // which side of the road its bike lane is on
+  entrance?: StationEntrance // the edge starts at a station entrance
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string
@@ -652,4 +657,9 @@ export const VEHICLE_MODE_MAP: Record<string, TravelMode> = {
   bike: TravelMode.CYCLING,
   scooter: TravelMode.CYCLING, // Use cycling profile for scooters
   walking: TravelMode.WALKING,
+}
+
+export interface StationEntrance {
+  name?: string
+  ref?: string
 }

@@ -9,7 +9,9 @@ import { angleDelta } from '../spring'
 import { cardinal } from '../turn-around'
 import { CLIMB_LOOKAHEAD_METERS, verticalAt } from '../vertical'
 import { passageInto } from '../walk-steps'
+import { DISMOUNT_LEAD_METERS, TURN_HAZARD_METERS } from '../hazards'
 import { landmarkAnchor } from './anchors'
+import { dismountAt } from './dismount'
 import type { Action, LaneAdvice, RichInstruction, Side } from './instruction.types'
 
 export interface InstructionContext {
@@ -184,8 +186,15 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
     instruction.crossing = step.crossing
     if (target?.kind !== 'named') delete instruction.target
   }
-  const bikeLane = CYCLING.has(travelModeAt(route, step.startDistance)) ? farBikeLane(route, step) : undefined
-  if (bikeLane) instruction.bikeLane = bikeLane
+  if (CYCLING.has(travelModeAt(route, step.startDistance))) {
+    const bikeLane = farBikeLane(route, step)
+    if (bikeLane) instruction.bikeLane = bikeLane
+    const says = step.index > 0 && instruction.action.kind !== 'stairs'
+    const next = route.steps[step.index + 1]?.startDistance ?? Infinity
+    const to = Math.min(step.startDistance + TURN_HAZARD_METERS, next - DISMOUNT_LEAD_METERS - 0.01)
+    const dismount = says && dismountAt(route, step.startDistance - DISMOUNT_LEAD_METERS, to)
+    if (dismount) instruction.dismount = dismount
+  }
   if (step.instruction.destination) instruction.toward = step.instruction.destination
   const anchor = landmarkAnchor(route, step, context.from, context.speed, travelModeAt(route, step.startDistance))
   const saysLight = instruction.action.kind === 'crosswalk' && instruction.action.signals

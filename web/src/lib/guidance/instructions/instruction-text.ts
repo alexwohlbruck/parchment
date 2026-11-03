@@ -5,12 +5,15 @@ import { maneuverKind, type ManeuverKind } from '@/lib/directions/maneuver'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RoadLabel } from '../guidance-display'
 import { STATION_STEP_TYPES } from '../station-steps'
-import type { Action, Anchor, LaneAdvice, RichInstruction } from './instruction.types'
+import type { Action, Anchor, Dismount, LaneAdvice, RichInstruction } from './instruction.types'
 
 export type TFn = (key: string, named?: Record<string, unknown>) => string
+/** A distance in words, as "250 feet". */
+export type DistanceFn = (meters: number) => string
 
 const K = 'guidance.rich'
 const MAX_ORDINAL = 8
+const SAY_PUSH_DISTANCE_METERS = 30
 const ONTO = new Set<Action['kind']>(['turn', 'end-of-road', 'fork', 'roundabout', 'two-stage'])
 /** Actions the banner names over the road they lead onto. */
 const OWN_TITLE = new Set<Action['kind']>(['crosswalk', 'station'])
@@ -99,9 +102,18 @@ function baseAction(action: Action, maneuver: ManeuverKind, t: TFn): string {
   }
 }
 
+/** "Walk your bike through the plaza for 250 feet", "Carry your bike up the stairs". */
+export function dismountText(dismount: Dismount, t: TFn, distance?: DistanceFn): string {
+  if (dismount.place === 'stairs') return t(`${K}.dismount.carry.${dismount.direction ?? 'any'}`)
+  const place = t(`${K}.dismount.places.${dismount.place}`)
+  return distance && dismount.meters >= SAY_PUSH_DISTANCE_METERS
+    ? t(`${K}.dismount.walkFor`, { place, distance: distance(dismount.meters) })
+    : t(`${K}.dismount.walk`, { place })
+}
+
 /** The instruction itself, with its road, signs and the street crossed on the way: "Take exit 12 toward Brooklyn". */
-export function actionText(instruction: RichInstruction, t: TFn): string {
-  const { crossing, bikeLane } = instruction
+export function actionText(instruction: RichInstruction, t: TFn, distance?: DistanceFn): string {
+  const { crossing, bikeLane, dismount } = instruction
   let text = maneuverText(instruction, t)
   if (crossing) {
     const cross = crossingText(crossing, t)
@@ -109,7 +121,8 @@ export function actionText(instruction: RichInstruction, t: TFn): string {
       ? t(`${K}.crossFirst`, { crossing: cross, action: inline(text) })
       : t(`${K}.crossAfter`, { action: text, crossing: inline(cross) })
   }
-  return bikeLane ? t(`${K}.bikeLane.${bikeLane}`, { action: text }) : text
+  if (bikeLane) text = t(`${K}.bikeLane.${bikeLane}`, { action: text })
+  return dismount ? t('guidance.voice.then', { action: text, next: inline(dismountText(dismount, t, distance)) }) : text
 }
 
 /** A step in the router's words, or in ours where merging steps left it none. */
@@ -180,12 +193,14 @@ export function anchorText(anchor: Anchor, t: TFn): string {
 export interface VoiceOptions {
   /** Lane advice is for the approach; at the turn it's too late. */
   lanes?: boolean
+  /** Words a distance, for how far to push a bike; without it, the distance goes unsaid. */
+  distance?: DistanceFn
 }
 
 /** The full spoken instruction: landmark, lanes, action, and what follows. */
-export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true }: VoiceOptions = {}): string {
+export function voiceText(instruction: RichInstruction, t: TFn, { lanes = true, distance }: VoiceOptions = {}): string {
   const verb = lanes && instruction.lanes ? infinitive(instruction, t) : null
-  let text = verb ? t(`${K}.useLanes`, { lanes: lanesText(instruction.lanes!, t), action: verb }) : actionText(instruction, t)
+  let text = verb ? t(`${K}.useLanes`, { lanes: lanesText(instruction.lanes!, t), action: verb }) : actionText(instruction, t, distance)
   const { anchor, then } = instruction
   if (anchor) {
     if (anchor.relation === 'past') text = t(`${K}.past`, { action: inline(text) })
@@ -208,6 +223,7 @@ export function bannerCue(instruction: RichInstruction, t: TFn): string | null {
   if (action.kind === 'two-stage') return t(`${K}.cues.twoStage`)
   if (instruction.anchor) return anchorText(instruction.anchor, t)
   if (instruction.bikeLane) return t(`${K}.cues.bikeLane.${instruction.bikeLane}`)
+  if (instruction.dismount) return t(`${K}.cues.dismount`)
   if (action.kind === 'exit' && action.number) return toward ? t(`${K}.cues.exitToward`, { number: action.number, destination: toward }) : t(`${K}.cues.exit`, { number: action.number })
   if (action.kind === 'roundabout' && action.exit != null && !action.through) return t(`${K}.cues.roundaboutExit`, { exit: action.exit })
   return toward ? t(`${K}.cues.toward`, { destination: toward }) : null

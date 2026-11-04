@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
+
 ## [0.19.1] - 2026-11-03
 
 ### Changed

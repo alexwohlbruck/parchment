@@ -223,7 +223,15 @@ export interface TripSegment {
 export interface StationEntranceRef {
   role: 'enter' | 'exit'
   name?: string
+  /** The entrance's own OSM `ref`. */
+  ref?: string
   description?: string
+  /** Where the entrance is, from the streets around it: "Broadway & West 28th Street · NW corner". */
+  cornerLabel?: string
+  /** False for an exit-only entrance; absent when unknown. */
+  entryAllowed?: boolean
+  /** False for an entry-only entrance; absent when unknown. */
+  exitAllowed?: boolean
   /** OSM access-point type: subway_entrance, train_station_entrance,
    *  elevator, etc. */
   accessType?: string
@@ -281,6 +289,9 @@ export interface TransitDetails {
   departureStop: TransitStop
   arrivalStop: TransitStop
   headsign?: string
+  /** What the boarding platform's signs call this direction ("Uptown & The
+   *  Bronx"). Absent where unknown; show the headsign instead. */
+  directionLabel?: string
   shortName?: string
   color?: string
   textColor?: string

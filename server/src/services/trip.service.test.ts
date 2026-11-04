@@ -45,12 +45,14 @@ const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   metadata: { searchWindow: 3600 },
 }))
 const mockGetNearestEntrance = mock<AnyAsync>(async () => null)
+const mockFindEntrances = mock<AnyAsync>(async () => null)
 const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
+    findEntrances: mockFindEntrances,
     getRoutesForStop: mockGetRoutesForStop,
   },
 }))
@@ -2870,6 +2872,56 @@ describe('TripService — destination-signed entrances', () => {
     mockGetNearestEntrance.mockImplementation(async () => toSouth as any)
 
     expect((await planNorthboundRide())?.description).toBe('1 trains to Southpark')
+  })
+})
+
+describe('TripService — entry- and exit-only entrances', () => {
+  const entrance = (osmId: string, name: string, distanceM: number, flags: object) => ({
+    osmId, name, description: null, wheelchair: null, level: '0', accessType: 'subway_entrance',
+    lat: 35.2251, lon: -80.8451, distanceM, cornerLabel: `${name} · NE corner`, ...flags,
+  })
+
+  test('never leaves a station by an entry-only entrance', async () => {
+    mockFindEntrances.mockImplementation(async () => [
+      entrance('n1', 'Entry Only', 5, { entryAllowed: true, exitAllowed: false }),
+      entrance('n2', 'Both Ways', 40, { entryAllowed: null, exitAllowed: null }),
+    ] as any)
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'stop-a' },
+            to: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:20:00Z',
+            duration: 1200, distance: 5000, routeShortName: '1', headsign: 'Northlake',
+            directionLabel: 'Uptown',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            to: { name: 'Destination', lat: 35.2304, lng: -80.8433 },
+            startTime: '2026-01-15T08:20:00Z', endTime: '2026-01-15T08:25:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [{ location: { lat: 35.21, lng: -80.85 }, type: 'origin' }, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T07:55:00Z',
+      })
+      const ride = response.trips.find((t: any) => t.trip.segments.some((x: any) => x.mode === 'transit'))
+      const segments = ride!.trip.segments
+      expect(segments.at(-1)?.stationEntrance).toMatchObject({ role: 'exit', name: 'Both Ways', cornerLabel: 'Both Ways · NE corner' })
+      expect(segments.find((x: any) => x.mode === 'transit')?.details?.transitDetails?.directionLabel).toBe('Uptown')
+    } finally {
+      mockFindEntrances.mockImplementation(async () => null)
+    }
   })
 })
 

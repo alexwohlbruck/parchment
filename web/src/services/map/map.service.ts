@@ -513,11 +513,26 @@ function mapService() {
 
   }
 
+  /**
+   * Whether the style is parsed and can take layers. Not `isStyleLoaded()`:
+   * MapLibre reports that false until every source has finished loading its
+   * tiles, so waiting on it landed every layer and filter change below just
+   * after the first tiles were laid out, and each one sent them all back to
+   * the workers to be laid out again.
+   */
+  function styleParsed(): boolean {
+    const map = mapStrategy?.mapInstance as any
+    try {
+      const layers = typeof map?.getLayersOrder === 'function' ? map.getLayersOrder() : map?.getStyle?.()?.layers
+      return (layers?.length ?? 0) > 0
+    } catch {
+      return false
+    }
+  }
+
   function onStyleLoad() {
-    // Wait for style to be fully loaded before initializing layers
     const initializeAfterStyleLoad = () => {
-      if (!mapStrategy?.mapInstance?.isStyleLoaded()) {
-        // Style not fully loaded yet, wait a bit and try again
+      if (!styleParsed()) {
         setTimeout(initializeAfterStyleLoad, 50)
         return
       }

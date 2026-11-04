@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Places load again as soon as you're back online, and Reload works right away, without restarting the app.
+
 ## [0.19.1] - 2026-11-03
 
 ### Changed

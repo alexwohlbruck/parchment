@@ -378,9 +378,10 @@ export interface RouteSummary {
   totalDuration: number // seconds
   totalDurationInTraffic?: number
 
-  hasTolls: boolean
-  hasHighways: boolean
-  hasFerries: boolean
+  // Absent when the engine does not report them
+  hasTolls?: boolean
+  hasHighways?: boolean
+  hasFerries?: boolean
 
   // Elevation data (for bike/pedestrian modes)
   totalElevationGain?: number // total meters climbed

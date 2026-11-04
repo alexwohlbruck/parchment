@@ -33,16 +33,15 @@ export interface GraphHopperRouteRequest {
   'alternative_route.max_share_factor'?: number
 }
 
+export interface GraphHopperCustomModelRule {
+  if: string
+  multiply_by?: number | string
+  limit_to?: number | string
+}
+
 export interface GraphHopperCustomModel {
-  speed?: Array<{
-    if: string
-    limit_to?: string
-    multiply_by?: string
-  }>
-  priority?: Array<{
-    if: string
-    multiply_by: string
-  }>
+  speed?: GraphHopperCustomModelRule[]
+  priority?: GraphHopperCustomModelRule[]
   distance_influence?: number
   areas?: Record<string, any>
 }

@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* The transit map no longer disappears while you zoom in or out, and areas you have already seen redraw instantly instead of loading again.
+
 ## [0.19.1] - 2026-11-03
 
 ### Changed

@@ -37,6 +37,9 @@ import {
   getOrCreateUserPreferences,
   updateUserPreferences,
 } from '../services/user-preferences.service'
+import { toPreferencesResponse } from '../lib/user-preferences'
+import { TRIP_MODE_TOKENS, type TripModeToken } from '../types/departure-profile.types'
+import { SORT_PREFERENCES } from '../types/navigation-preferences.types'
 import { createInitialCollection } from '../services/library/collections.service'
 import {
   listPendingRevocations,
@@ -1196,22 +1199,47 @@ app.use(requireAuth).post(
   },
 )
 
+const PreferenceBlob = t.Record(t.String(), t.Unknown())
+
+const NavigationPreferencesSchema = t.Object(
+  {
+    excludedModes: t.Array(
+      t.UnionEnum(TRIP_MODE_TOKENS as [TripModeToken, ...TripModeToken[]]),
+      { uniqueItems: true, description: 'Modes left out of trip planning. Walking is always allowed.' },
+    ),
+    sortPreference: t.Nullable(t.UnionEnum(SORT_PREFERENCES), {
+      description: 'Default trip ranking; null is balanced.',
+    }),
+    routing: t.Object(
+      { general: PreferenceBlob, mode: t.Record(t.String(), PreferenceBlob) },
+      { description: 'Routing preferences: keys shared by every mode, plus per-mode slices.' },
+    ),
+    speech: t.Object({}, { additionalProperties: true, description: 'Voice guidance speech settings.' }),
+    guidance: t.Object({}, { additionalProperties: true, description: 'Turn-by-turn guidance settings.' }),
+  },
+  { additionalProperties: false },
+)
+
+const UserPreferencesSchema = t.Object({
+  language: t.String(),
+  unitSystem: t.String(),
+  navigation: t.Partial(NavigationPreferencesSchema),
+})
+
 /**
  * Get current user's preferences
  */
 app.use(requireAuth).get(
   '/me/preferences',
-  async ({ user }) => {
-    const prefs = await getOrCreateUserPreferences(user.id)
-    return {
-      language: prefs.language,
-      unitSystem: prefs.unitSystem,
-    }
-  },
+  async ({ user }) => toPreferencesResponse(await getOrCreateUserPreferences(user.id)),
   {
+    response: UserPreferencesSchema,
     detail: {
       tags: ['Users'],
-      description: 'Get current user preferences (language, unit system)',
+      description:
+        'Get current user preferences: language, unit system and navigation. ' +
+        'Navigation always carries excludedModes and sortPreference; routing, ' +
+        'speech and guidance are absent until first saved.',
     },
   },
 )
@@ -1222,18 +1250,14 @@ app.use(requireAuth).get(
 app.use(requireAuth).put(
   '/me/preferences',
   async ({ user, body }) => {
-    const updates: {
-      language?: import('../lib/i18n').Language
-      unitSystem?: string
-    } = {}
+    const updates: Parameters<typeof updateUserPreferences>[1] = {}
     if (body.language !== undefined) updates.language = body.language
     if (body.unitSystem !== undefined) updates.unitSystem = body.unitSystem
-    if (Object.keys(updates).length === 0) {
-      const prefs = await getOrCreateUserPreferences(user.id)
-      return { language: prefs.language, unitSystem: prefs.unitSystem }
-    }
-    const prefs = await updateUserPreferences(user.id, updates)
-    return { language: prefs.language, unitSystem: prefs.unitSystem }
+    if (body.navigation !== undefined) updates.navigation = body.navigation
+    const prefs = Object.keys(updates).length
+      ? await updateUserPreferences(user.id, updates)
+      : await getOrCreateUserPreferences(user.id)
+    return toPreferencesResponse(prefs)
   },
   {
     body: t.Object({
@@ -1241,10 +1265,14 @@ app.use(requireAuth).put(
       unitSystem: t.Optional(
         t.Union([t.Literal('metric'), t.Literal('imperial')]),
       ),
+      navigation: t.Optional(t.Partial(NavigationPreferencesSchema)),
     }),
+    response: UserPreferencesSchema,
     detail: {
       tags: ['Users'],
-      description: 'Update current user preferences (language, unit system)',
+      description:
+        'Update current user preferences. Each navigation section sent ' +
+        'replaces the stored one; sections left out are kept.',
     },
   },
 )

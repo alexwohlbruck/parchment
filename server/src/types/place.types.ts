@@ -6,7 +6,7 @@ export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
 export interface SourceReference {
   id: SourceId
   name: string
-  url: string
+  url?: string
   updated?: string // ISO date string
   updatedBy?: string
 }
@@ -47,6 +47,8 @@ export interface PlacePhoto {
   isPrimary?: boolean
   isCover?: boolean
   isLogo?: boolean
+  /** Licence and attribution fields, where the source provides them */
+  metadata?: Record<string, string>
 }
 
 export interface Review {

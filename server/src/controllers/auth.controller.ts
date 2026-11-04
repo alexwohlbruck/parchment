@@ -37,11 +37,11 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
-import {
+import type {
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
   RegistrationResponseJSON,
-} from '@simplewebauthn/server/script/deps'
+} from '@simplewebauthn/types'
 import { generateId } from '../util'
 import { billing, registrationMode } from '../config'
 import { getSubscriptionStatus } from '../services/subscription.service'

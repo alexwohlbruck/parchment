@@ -1115,7 +1115,7 @@ describe('TripService — scoring', () => {
     })
 
     test('balanced weights sum to 1.0', () => {
-      const weights = (tripService as any).getScoreWeights()
+      const weights = tripService['getScoreWeights']()
       const sum = Object.values(weights).reduce(
         (a: number, b: number) => a + b,
         0,

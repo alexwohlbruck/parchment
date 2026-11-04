@@ -2,7 +2,10 @@ import Elysia, { t } from 'elysia'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { integrationManager } from '../services/integrations'
-import { IntegrationId } from '../types/integration.types'
+import {
+  IntegrationCapabilityId,
+  IntegrationId,
+} from '../types/integration.types'
 import { logger } from '../lib/logger'
 
 const packageJson = require('../../package.json')
@@ -12,6 +15,14 @@ interface ServiceHealth {
   responseTime?: number
   error?: string
   provider?: string
+}
+
+type HealthStatus = ServiceHealth['status']
+
+interface CriticalServices {
+  database: HealthStatus
+  geocoding: HealthStatus
+  routing: HealthStatus
 }
 
 interface HealthResponse {
@@ -114,20 +125,18 @@ app.get('/', async ({ set }) => {
 /**
  * Check the health of critical external services
  */
-async function checkCriticalServices(): Promise<{
-  database: 'healthy' | 'degraded' | 'unhealthy'
-  geocoding: 'healthy' | 'degraded' | 'unhealthy'
-  routing: 'healthy' | 'degraded' | 'unhealthy'
-}> {
-  const result = {
-    database: 'healthy' as const,
-    geocoding: 'healthy' as const,
-    routing: 'healthy' as const
+async function checkCriticalServices(): Promise<CriticalServices> {
+  const result: CriticalServices = {
+    database: 'healthy',
+    geocoding: 'healthy',
+    routing: 'healthy',
   }
 
   // Check geocoding service (try Pelias first, fallback to Nominatim)
   try {
-    const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability('geocoding')
+    const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.GEOCODING,
+    )
     
     if (geocodingIntegrations.length > 0) {
       // Test the first available geocoding integration
@@ -147,7 +156,9 @@ async function checkCriticalServices(): Promise<{
 
   // Check routing service (Valhalla)
   try {
-    const routingIntegrations = integrationManager.getConfiguredIntegrationsByCapability('routing')
+    const routingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.ROUTING,
+    )
     
     if (routingIntegrations.length > 0) {
       // Test the first available routing integration

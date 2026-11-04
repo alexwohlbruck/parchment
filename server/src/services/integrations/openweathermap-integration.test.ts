@@ -12,6 +12,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 const realFetch = globalThis.fetch
 let fetchResponse: Response | null = null
@@ -96,7 +97,7 @@ describe('configuration', () => {
   })
 
   test('exposes the weather capability', () => {
-    expect(new OpenWeatherMapIntegration().capabilityIds).toEqual(['weather'])
+    expect(new OpenWeatherMapIntegration().capabilityIds).toEqual([IntegrationCapabilityId.WEATHER])
     expect(
       typeof new OpenWeatherMapIntegration().capabilities.weather.getWeather,
     ).toBe('function')

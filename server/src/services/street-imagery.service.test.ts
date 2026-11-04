@@ -7,6 +7,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import type { StreetImageryPreview } from '../types/place.types'
 
 let configuredIntegrations: any[] = []
 let instance: any = null
@@ -33,8 +34,16 @@ mock.module('../lib/logger', () => ({
 
 const { fetchNearestStreetImage } = await import('./street-imagery.service')
 
-const preview = { id: 'img-1', url: 'https://images.test/1.jpg' }
-const findNearestImage = mock(async (_lat: number, _lng: number) => preview as any)
+const preview: StreetImageryPreview = {
+  imageId: 'img-1',
+  thumbUrl: 'https://images.test/1.jpg',
+  isPano: false,
+  lat: 35.2,
+  lng: -80.8,
+}
+const findNearestImage = mock(
+  async (_lat: number, _lng: number): Promise<StreetImageryPreview | null> => preview,
+)
 
 beforeEach(() => {
   configuredIntegrations = [{ integrationId: 'mapillary' }]

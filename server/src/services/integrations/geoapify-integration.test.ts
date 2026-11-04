@@ -14,6 +14,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -129,11 +130,11 @@ describe('configuration', () => {
 
   test('declares all five capabilities', () => {
     expect(new GeoapifyIntegration().capabilityIds).toEqual([
-      'searchCategory',
-      'autocomplete',
-      'geocoding',
-      'placeInfo',
-      'routing',
+      IntegrationCapabilityId.SEARCH_CATEGORY,
+      IntegrationCapabilityId.AUTOCOMPLETE,
+      IntegrationCapabilityId.GEOCODING,
+      IntegrationCapabilityId.PLACE_INFO,
+      IntegrationCapabilityId.ROUTING,
     ])
   })
 
@@ -151,7 +152,15 @@ describe('configuration', () => {
 })
 
 describe('routing metadata', () => {
-  const metadata = new GeoapifyIntegration().capabilities.routing.metadata
+  const routing = new GeoapifyIntegration().capabilities.routing.metadata
+  if (!routing?.features || !routing.limits) {
+    throw new Error('routing metadata is incomplete')
+  }
+  const metadata = {
+    ...routing,
+    features: routing.features,
+    limits: routing.limits,
+  }
 
   test('advertises the four road modes it can map', () => {
     expect(metadata.supportedModes).toEqual([
@@ -169,7 +178,7 @@ describe('routing metadata', () => {
   })
 
   test('claims only the avoid preferences it forwards', () => {
-    const prefs = metadata.supportedPreferences
+    const prefs: Record<string, unknown> = metadata.supportedPreferences
 
     expect(prefs.avoidTolls).toBe(true)
     expect(prefs.avoidHighways).toBe(true)
@@ -430,7 +439,7 @@ describe('getPlaceInfo', () => {
 
     const place = await configured().getPlaceInfo('geoapify-place-1')
 
-    expect(place.name.value).toBe('Amelie’s French Bakery')
+    expect(place?.name.value).toBe('Amelie’s French Bakery')
     expect(http.get.mock.calls[0][0]).toBe(
       'https://api.geoapify.com/v2/place-details',
     )

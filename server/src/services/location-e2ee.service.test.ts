@@ -8,22 +8,25 @@
  * Note: These tests mock the database layer to test service logic in isolation.
  */
 
-import { describe, test, expect, beforeEach, mock, spyOn } from 'bun:test'
+import { describe, test, expect, beforeEach, mock, spyOn, type Mock } from 'bun:test'
 
 // Mock the database module before importing the service
+type QueryMock = Mock<(...args: unknown[]) => unknown>
+const chainable = (): QueryMock => mock<(...args: unknown[]) => unknown>(() => mockDb)
+
 const mockDb = {
-  select: mock(() => mockDb),
-  insert: mock(() => mockDb),
-  update: mock(() => mockDb),
-  delete: mock(() => mockDb),
-  from: mock(() => mockDb),
-  where: mock(() => mockDb),
-  set: mock(() => mockDb),
-  values: mock(() => mockDb),
-  limit: mock(() => mockDb),
-  orderBy: mock(() => mockDb),
+  select: chainable(),
+  insert: chainable(),
+  update: chainable(),
+  delete: chainable(),
+  from: chainable(),
+  where: chainable(),
+  set: chainable(),
+  values: chainable(),
+  limit: chainable(),
+  orderBy: chainable(),
   returning: mock(() => Promise.resolve([])),
-  leftJoin: mock(() => mockDb),
+  leftJoin: chainable(),
 }
 
 // Mock modules

@@ -343,7 +343,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
   async searchByCategory(
     presetId: string,
-    bounds?: MapBounds,
+    bounds: MapBounds,
     options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
     if (!this.config.host) {
@@ -424,9 +424,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       .map(([key, value]) => `["${key}"="${value}"]`)
       .join('')
 
-    let locationFilter = ''
-
-    locationFilter = `(${bounds.south},${bounds.west},${bounds.north},${bounds.east})`
+    const locationFilter = `(${bounds.south},${bounds.west},${bounds.north},${bounds.east})`
 
     return `[out:json][timeout:90];
       (

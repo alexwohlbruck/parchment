@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 import type { IntegrationCredentials } from '../types/integration.types'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /** Header carrying the upstream base URL for an e2ee-scheme capability call. */
 export const INTEGRATION_ENDPOINT_HEADER = 'x-integration-endpoint'
@@ -20,7 +21,7 @@ const HTTPS_OR_HTTP = /^https?:\/\//i
  * Returns 400 if either header is missing, or the endpoint isn't a valid URL.
  */
 export const requireIntegrationCredentials = (app: Elysia) =>
-  app.derive(
+  app.use(i18nPlugin).derive(
     async ({
       request,
       status,

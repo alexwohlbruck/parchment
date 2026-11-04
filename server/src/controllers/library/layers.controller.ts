@@ -3,6 +3,7 @@ import { requireAuth } from '../../middleware/auth.middleware'
 import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as layersService from '../../services/layers.service'
+import { LAYER_TYPES, MAP_ENGINES } from '../../schema/layers.schema'
 import { i18nPlugin } from '../../lib/i18n/plugin'
 
 const app = new Elysia().use(i18nPlugin)
@@ -48,8 +49,8 @@ app.group('', (g) =>
       {
         body: t.Object({
           name: t.String(),
-          type: t.Optional(t.String()),
-          engine: t.Optional(t.Array(t.String())),
+          type: t.Optional(t.Union(LAYER_TYPES.map((type) => t.Literal(type)))),
+          engine: t.Optional(t.Array(t.Union(MAP_ENGINES.map((engine) => t.Literal(engine))))),
           showInLayerSelector: t.Optional(t.Boolean()),
           visible: t.Optional(t.Boolean()),
           fadeBasemap: t.Optional(t.Boolean()),
@@ -84,8 +85,8 @@ app.group('', (g) =>
         params: t.Object({ id: t.String() }),
         body: t.Object({
           name: t.Optional(t.String()),
-          type: t.Optional(t.String()),
-          engine: t.Optional(t.Array(t.String())),
+          type: t.Optional(t.Union(LAYER_TYPES.map((type) => t.Literal(type)))),
+          engine: t.Optional(t.Array(t.Union(MAP_ENGINES.map((engine) => t.Literal(engine))))),
           showInLayerSelector: t.Optional(t.Boolean()),
           visible: t.Optional(t.Boolean()),
           fadeBasemap: t.Optional(t.Boolean()),

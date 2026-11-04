@@ -695,7 +695,7 @@ export class BarrelmanIntegration
     const isIntersection = r.id.startsWith('intersection/')
     const presetMatch = isIntersection ? null : matchTags(tags, osmGeomHint as GeometryType)
     const icon: PlaceIcon | undefined = isIntersection
-      ? { icon: 'Signpost', iconPack: 'lucide' as const }
+      ? { category: 'default', icon: 'Signpost', iconPack: 'lucide' }
       : buildPlaceIcon(presetMatch)
     // Pelias rows have no tags to type them by beyond the address barrelman
     // lends them, so a postal code or a city would read as an "Address".

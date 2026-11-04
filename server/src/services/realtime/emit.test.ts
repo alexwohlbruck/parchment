@@ -13,8 +13,9 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import type { Recipients } from './event-bus.service'
 
-const publish = mock((event: string, payload: unknown, recipients: unknown) => ({
+const publish = mock((event: string, payload: unknown, recipients: Recipients) => ({
   id: 'evt-1',
   event,
   payload,

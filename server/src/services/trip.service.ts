@@ -45,6 +45,7 @@ import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
 import { haversineMeters } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
+import { activeExclusions, dropExcludedTrips } from '../lib/directions/excluded-modes'
 
 const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
@@ -88,8 +89,10 @@ export class TripService {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
 
-    // Determine which modes to generate based on selectedMode
-    const modes: Mode[] = this.getModesToGenerate(request.selectedMode)
+    const excluded = activeExclusions(request.excludedModes, request.selectedMode)
+    const tabModes = this.getModesToGenerate(request.selectedMode)
+    const modes = tabModes.filter((mode) => !(excluded as ReadonlySet<string>).has(mode))
+    const offersBikeshare = tabModes.includes('biking') && !excluded.has('bikeshare')
 
     // When useKnownParkingLocations is on, vehicle modes (driving/biking)
     // are replaced by their parking-aware variants — you can't just teleport
@@ -126,7 +129,7 @@ export class TripService {
     const wantsShared = !continuation
       || continuation.strategy.startsWith('bikeshare')
       || continuation.strategy.startsWith('scootershare')
-    if (modes.includes('biking') && wantsShared) {
+    if (offersBikeshare && wantsShared) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
           logError('Shared vehicle planning failed', error)
@@ -170,7 +173,7 @@ export class TripService {
 
     const modeResults = await Promise.all(modePromises)
     for (const trips of modeResults) {
-      candidates.push(...trips)
+      candidates.push(...dropExcludedTrips(trips, excluded))
     }
 
     // Collapse trips that differ only by an interchangeable route (the 4 vs the
@@ -2237,6 +2240,10 @@ export class TripService {
     continuation?: Continuation,
   ): Promise<TripResponse[]> {
     const needs = TripService.continuationNeeds(continuation)
+    const excluded = activeExclusions(request.excludedModes, request.selectedMode)
+    if (excluded.has('driving')) needs.car = false
+    if (excluded.has('biking')) needs.bikeCarry = needs.bikeAccess = false
+    if (excluded.has('rideshare')) needs.rideshare = false
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]
@@ -2314,14 +2321,16 @@ export class TripService {
     // Transit + shared-mobility egress. Its own trip type, so multi runs it
     // too — narrower, since multi wants one of each type rather than four
     // variants of this one.
-    const rentalFetch = fetchMotis('rental', {
-      ...baseRequest,
-      numItineraries: isMulti ? 2 : 4,
-      preTransitModes: ['WALK'],
-      postTransitModes: ['RENTAL'],
-      maxPreTransitTime: maxWalkSec,
-      maxPostTransitTime: maxWalkSec,
-    })
+    const rentalFetch = excluded.has('bikeshare')
+      ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
+      : fetchMotis('rental', {
+          ...baseRequest,
+          numItineraries: isMulti ? 2 : 4,
+          preTransitModes: ['WALK'],
+          postTransitModes: ['RENTAL'],
+          maxPreTransitTime: maxWalkSec,
+          maxPostTransitTime: maxWalkSec,
+        })
 
     const extraQueries: Promise<TripResponse[]>[] = []
 

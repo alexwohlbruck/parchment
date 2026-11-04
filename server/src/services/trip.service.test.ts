@@ -1371,6 +1371,46 @@ describe('TripService — scoring', () => {
       expect(modes).toContain('transit')
     })
 
+    test('excluded modes never query their access variants', async () => {
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        excludedModes: ['driving', 'biking', 'bikeshare', 'transit'],
+        availableVehicles: [bikeVehicle, carVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const queried = mockGetIntermodalRoute.mock.calls.flatMap(([req]: any[]) => [
+        ...(req.preTransitModes ?? []), ...(req.postTransitModes ?? []),
+      ])
+      expect(queried).not.toContain('CAR_PARKING')
+      expect(queried).not.toContain('BIKE')
+      expect(queried).not.toContain('RENTAL')
+      expect(response.trips.length).toBeGreaterThan(0)
+      for (const { trip } of response.trips) {
+        expect(trip.segments.every((s) => s.mode === 'walking' || s.mode === 'transit')).toBe(true)
+      }
+    })
+
+    test('excluding transit in multi skips the transit planner', async () => {
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3000, 900))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        excludedModes: ['transit', 'bikeshare'],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(mockGetIntermodalRoute).not.toHaveBeenCalled()
+      expect(response.trips.some((t) => t.trip.segments.some((s) => s.mode === 'transit'))).toBe(false)
+      expect(response.trips.some((t) => t.trip.segments.some((s) => s.mode === 'driving'))).toBe(true)
+    })
+
     test('generates car+transit candidates when car is available', async () => {
       mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))

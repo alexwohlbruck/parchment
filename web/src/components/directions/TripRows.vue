@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useTripListAdvice } from '@/composables/directions/useTripAdvice'
 import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
 
 const props = defineProps<{ trips: TripOption[] }>()
 
 const ranked = computed(() => byRank(props.trips))
+const advice = useTripListAdvice(() => props.trips)
 </script>
 
 <template>
@@ -16,7 +18,7 @@ const ranked = computed(() => byRank(props.trips))
       :key="trip.id || index"
       :style="{ '--trip-delay': `${Math.min(index, 8) * 45}ms` }"
     >
-      <slot :trip="trip" :index="index" />
+      <slot :trip="trip" :index="index" :advice="advice[trip.id]" />
       <div
         v-if="index < ranked.length - 1"
         class="border-b border-border/50 mx-4"

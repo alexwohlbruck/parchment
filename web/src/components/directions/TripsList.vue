@@ -229,9 +229,10 @@ const { openTrip } = useTripNavigation(() => props.trips.request)
             : undefined,
         }"
       >
-        <TripRows :trips="trips.trips" v-slot="{ trip }">
+        <TripRows :trips="trips.trips" v-slot="{ trip, advice }">
           <TripItem
             :trip="trip"
+            :advice="advice"
             :trip-request="trips.request"
             :timeline-start="timelineStart.toDate()"
             :px-per-minute="pxPerMinute"

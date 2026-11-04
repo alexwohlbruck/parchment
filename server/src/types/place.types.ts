@@ -121,6 +121,8 @@ export interface TransitDeparture {
   realTime?: boolean
   headsign?: string
   direction?: string
+  /** What the platform's signs call this direction ("Uptown & The Bronx"), where known. */
+  directionLabel?: string
   stopSequence?: number
   trip: {
     id: string

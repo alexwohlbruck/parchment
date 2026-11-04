@@ -45,6 +45,22 @@ describe('groupDepartures', () => {
     expect(groups[1].directions).toHaveLength(1)
   })
 
+  it('groups by the signed direction where the platform has one', () => {
+    const groups = groupDepartures(
+      [
+        dep('A', 'Inwood-207 St', 3, { directionLabel: 'Uptown & The Bronx' }),
+        dep('A', 'Ozone Park-Lefferts Blvd', 4, { directionLabel: 'Downtown & Brooklyn' }),
+        dep('A', 'Far Rockaway', 6, { directionLabel: 'Downtown & Brooklyn' }),
+      ],
+      NOW,
+      OPTS,
+    )
+    expect(groups[0].directions.map(d => [d.headsign, d.departures.length])).toEqual([
+      ['Uptown & The Bronx', 1],
+      ['Downtown & Brooklyn', 2],
+    ])
+  })
+
   it('drops departures more than a minute past', () => {
     const groups = groupDepartures([dep('4', 'Uptown', -5), dep('4', 'Uptown', 3)], NOW, OPTS)
     expect(groups[0].directions[0].departures).toHaveLength(1)

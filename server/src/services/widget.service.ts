@@ -346,6 +346,7 @@ interface BarrelmanDeparture {
   serviceDate?: string
   route: { id: string; feedId: string; shortName?: string; longName?: string; type: number; color?: string; textColor?: string; agencyId?: string; agencyName?: string }
   headsign?: string
+  directionLabel?: string
   directionId?: string
   departureTime: string
   arrivalTime: string
@@ -390,6 +391,7 @@ function adaptDeparture(dep: BarrelmanDeparture, timezone: string): TransitDepar
     realTime: dep.realTime,
     headsign: dep.headsign,
     direction: dep.headsign,
+    ...(dep.directionLabel && { directionLabel: dep.directionLabel }),
     trip: {
       id: dep.tripId,
       headsign: dep.headsign,

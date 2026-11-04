@@ -23,6 +23,7 @@ export type BoardDeparture = TransitDeparture & {
 }
 
 export interface DirectionGroup {
+  /** The direction as its platform is signed, else the headsign. */
   headsign: string
   /** Soonest first; unknown times last. */
   departures: BoardDeparture[]
@@ -176,7 +177,7 @@ export function groupDepartures(
     const routeKey =
       departure.route.shortName || departure.route.longName || departure.route.id
     const headsign =
-      departure.headsign || departure.direction || unknownDirectionLabel
+      departure.directionLabel || departure.headsign || departure.direction || unknownDirectionLabel
 
     if (!byRoute.has(routeKey)) {
       byRoute.set(routeKey, {

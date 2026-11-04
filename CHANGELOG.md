@@ -2,6 +2,8 @@
 
 ### Added
 
+* Transit trips say when to leave: hurry, leave now, or the latest time that still gets you there as planned. They also flag tight transfers, a missed run's replacement, and when biking becomes faster.
+
 ### Changed
 
 ### Fixed

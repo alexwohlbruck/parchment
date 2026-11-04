@@ -44,6 +44,7 @@ import {
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
+import { HALO_FLOATS, NEON_HALO, neonHalos, packHalos } from './neon-halos'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
@@ -525,6 +526,73 @@ const GLOW_FS = `#version 300 es
     fragColor = vec4(u_glow, u_opacity * fall * fall);
   }`
 
+/** Metres a flat sign's glow is pulled toward the camera, clear of its wall. */
+const HALO_PULL = 0.5
+
+/**
+ * A lit sign's glow: a card per sign from `neonHalos`, in the sign's own
+ * plane or, for a chunky one, facing the camera, fading out over its margin
+ * past the sign's edge. Instanced from the model's own buffer, and pulled
+ * toward the camera so the wall a sign is mounted on does not cut it.
+ */
+const HALO_VS = `#version 300 es
+  uniform mat4 u_matrix;
+  uniform mat3 u_local;
+  ${GROUND}
+  layout(location = 0) in vec2 a_corner;
+  layout(location = 1) in vec3 a_centre;
+  layout(location = 2) in vec3 a_u;
+  layout(location = 3) in vec3 a_v;
+  /** sRGB colour, and the margin in model metres. */
+  layout(location = 4) in vec4 a_glow;
+  /** Strength, and 1 for a disc. */
+  layout(location = 5) in vec2 a_kind;
+  out vec2 v_at;
+  flat out vec2 v_half;
+  flat out float v_margin;
+  flat out vec4 v_glow;
+  flat out float v_disc;
+  void main() {
+    vec3 centre = u_local * drape(a_centre, 0.0);
+    mat4 m = u_matrix;
+    vec3 away = normalize(vec3(m[0][3], m[1][3], m[2][3]));
+    vec3 du = u_local * a_u, dv = u_local * a_v;
+    vec2 extent = vec2(length(du), length(dv));
+    bool disc = a_kind.y > 0.5;
+    if (disc) {
+      du = normalize(vec3(m[0][0], m[1][0], m[2][0]));
+      dv = normalize(vec3(m[0][1], m[1][1], m[2][1]));
+      extent = vec2(extent.x);
+    } else {
+      du /= max(extent.x, 1e-4);
+      dv /= max(extent.y, 1e-4);
+    }
+    float margin = a_glow.w * length(u_local[0]);
+    vec2 reach = extent + margin;
+    vec3 p = centre + du * a_corner.x * reach.x + dv * a_corner.y * reach.y - away * (disc ? extent.x : ${HALO_PULL.toFixed(1)});
+    v_at = a_corner * reach;
+    v_half = extent;
+    v_margin = margin;
+    v_glow = vec4(a_glow.rgb, a_kind.x);
+    v_disc = a_kind.y;
+    gl_Position = u_matrix * vec4(p, 1.0);
+  }`
+
+const HALO_FS = `#version 300 es
+  precision highp float;
+  uniform float u_opacity;
+  in vec2 v_at;
+  flat in vec2 v_half;
+  flat in float v_margin;
+  flat in vec4 v_glow;
+  flat in float v_disc;
+  out vec4 fragColor;
+  void main() {
+    float d = v_disc > 0.5 ? max(length(v_at) - v_half.x, 0.0) : length(max(abs(v_at) - v_half, 0.0));
+    float fall = 1.0 - clamp(d / v_margin, 0.0, 1.0);
+    fragColor = vec4(v_glow.rgb, u_opacity * v_glow.a * fall * fall);
+  }`
+
 /** Metres from a door's glow's centre to where it fades out. */
 const GLOW_RADIUS = 2.5
 
@@ -642,6 +710,8 @@ type Model = {
   height: number
   /** Where it could touch the ground, once loaded; see `groundContacts`. */
   contacts: Contact[] | null
+  /** Its signs' glows, packed by `packHalos` once loaded, and on the GPU once uploaded; see HALO_VS. */
+  halos: { data: Float32Array; vao: WebGLVertexArrayObject | null; buffer: WebGLBuffer | null } | null
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -675,6 +745,7 @@ export class LandmarkLayer {
   /** This frame's sun shadow map, handed over by the shade layer before this layer draws. */
   private sun: SunFrame | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private halo!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private quad: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer } | null = null
   private evicted = 0
   private models = new Map<string, Model>()
@@ -803,6 +874,8 @@ export class LandmarkLayer {
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
         'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
+    this.halo = program(gl, HALO_VS, HALO_FS,
+      ['u_matrix', 'u_local', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     const vao = gl.createVertexArray()!
     const buffer = gl.createBuffer()!
     gl.bindVertexArray(vao)
@@ -861,6 +934,7 @@ export class LandmarkLayer {
     gl.deleteProgram(this.sunDepth.program)
     gl.deleteProgram(this.seed.program)
     gl.deleteProgram(this.glow.program)
+    gl.deleteProgram(this.halo.program)
     if (this.quad) {
       gl.deleteVertexArray(this.quad.vao)
       gl.deleteBuffer(this.quad.buffer)
@@ -1308,7 +1382,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null,
     }
     this.models.set(file, model)
     void (async () => {
@@ -1333,6 +1407,8 @@ export class LandmarkLayer {
       model.height = glb.max[1]
       model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
       model.coverage = planCoverage(glb, poseGlb(glb, 0))
+      const halos = neonHalos(glb.primitives)
+      model.halos = halos.length ? { data: packHalos(halos), vao: null, buffer: null } : null
       // Its footprint can now be searched, which the last gather could not.
       this.invalidate()
       this.map?.triggerRepaint?.()
@@ -1421,10 +1497,30 @@ export class LandmarkLayer {
           node: p.node,
         }
       })
+      if (model.halos && this.quad) this.uploadHalos(gl, model.halos, this.quad.buffer)
       for (const image of images) image?.close()
       model.pending = null
       this.version++
     }
+  }
+
+  private uploadHalos(gl: WebGL2RenderingContext, halos: NonNullable<Model['halos']>, corners: WebGLBuffer) {
+    halos.vao = gl.createVertexArray()!
+    halos.buffer = gl.createBuffer()!
+    gl.bindVertexArray(halos.vao)
+    gl.bindBuffer(gl.ARRAY_BUFFER, corners)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, halos.buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, halos.data, gl.STATIC_DRAW)
+    const stride = HALO_FLOATS * 4
+    // centre, u, v, colour + margin, strength + disc
+    for (const [loc, size, offset] of [[1, 3, 0], [2, 3, 3], [3, 3, 6], [4, 4, 9], [5, 2, 13]]) {
+      gl.enableVertexAttribArray(loc)
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, offset * 4)
+      gl.vertexAttribDivisor(loc, 1)
+    }
+    gl.bindVertexArray(null)
   }
 
   /**
@@ -1599,7 +1695,10 @@ export class LandmarkLayer {
       if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
     }
     if (glazed.length) this.drawGlass(gl, glazed, place, now)
-    if (this.options.flavor.facade.night) this.drawEntrances(gl, matrix, placements)
+    if (this.options.flavor.facade.night) {
+      this.drawEntrances(gl, matrix, placements)
+      this.drawHalos(gl, matrix, placements)
+    }
     gl.bindVertexArray(null)
     this.restore()
     this.moving = moving
@@ -1713,6 +1812,31 @@ export class LandmarkLayer {
       this.groundUniforms(gl, u, p)
       gl.uniform3fv(u.u_points, p.doors)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, p.doors.length / 3)
+    }
+    gl.depthMask(true)
+    gl.disable(gl.BLEND)
+  }
+
+  /** Every lit sign's glow, after the models and as the doors' glow is: additive, tested against depth, never writing it. */
+  private drawHalos(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[]) {
+    const lit = placements.flatMap(p => {
+      const halos = this.drawnModel(p)?.halos
+      return halos?.vao ? [[p, halos] as const] : []
+    })
+    if (!lit.length) return
+    const { program, u } = this.halo
+    gl.useProgram(program)
+    gl.disable(gl.CULL_FACE)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+    gl.depthMask(false)
+    gl.uniform1f(u.u_opacity, NEON_HALO.opacity)
+    for (const [p, halos] of lit) {
+      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))
+      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
+      this.groundUniforms(gl, u, p)
+      gl.bindVertexArray(halos.vao)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, halos.data.length / HALO_FLOATS)
     }
     gl.depthMask(true)
     gl.disable(gl.BLEND)
@@ -1910,6 +2034,11 @@ function release(gl: WebGL2RenderingContext, model: Model) {
     if (p.texture) gl.deleteTexture(p.texture)
   }
   model.batches = null
+  if (model.halos?.vao) {
+    gl.deleteVertexArray(model.halos.vao)
+    gl.deleteBuffer(model.halos.buffer)
+    model.halos.vao = model.halos.buffer = null
+  }
   for (const image of model.pending?.images ?? []) image?.close()
   model.pending = null
 }

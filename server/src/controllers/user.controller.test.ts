@@ -617,6 +617,15 @@ describe('preferences', () => {
     expect(getOrCreateUserPreferences).toHaveBeenCalledWith(TEST_USER.id)
   })
 
+  test('422s on an unsupported language', async () => {
+    const res = await req(app).put('/users/me/preferences', {
+      body: { language: 'xx-XX' },
+    })
+
+    expect(res.status).toBe(422)
+    expect(updateUserPreferences).not.toHaveBeenCalled()
+  })
+
   test('422s on an unknown unit system', async () => {
     const res = await req(app).put('/users/me/preferences', {
       body: { unitSystem: 'furlongs' },

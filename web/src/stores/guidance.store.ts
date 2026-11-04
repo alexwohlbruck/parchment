@@ -386,7 +386,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     spokenTransit.add(key)
     const segment = segments.value[stage.segmentIndex]
     const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
-    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, stop }, puck.s)
+    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop }, puck.s)
     if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
   }
 

@@ -1795,6 +1795,7 @@
       "voice": {
         "board": "Board the {line}",
         "boardToward": "Board the {line} toward {headsign}",
+        "boardSigned": "Board the {line}, {direction}",
         "alight-next": "Get off at the next stop, {stop}",
         "alight-now": "Get off at {stop}",
         "missed-vehicle": "The {line} has left. Catch the next one or find another way",

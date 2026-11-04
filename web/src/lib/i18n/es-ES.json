@@ -1761,6 +1761,7 @@
       "voice": {
         "board": "Sube al {line}",
         "boardToward": "Sube al {line} hacia {headsign}",
+        "boardSigned": "Sube al {line}, {direction}",
         "alight-next": "Bájate en la próxima parada, {stop}",
         "alight-now": "Bájate en {stop}",
         "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",

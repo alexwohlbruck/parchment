@@ -24,7 +24,7 @@ defineEmits<{ nextRun: []; anotherWay: [] }>()
 const { t } = useI18n()
 
 const line = computed(() => props.segment?.lineName ?? '')
-const toward = computed(() => props.segment?.headsign || props.segment?.lineLongName)
+const toward = computed(() => props.segment?.directionLabel || props.segment?.headsign || props.segment?.lineLongName)
 
 const countdown = computed(() => {
   const stage = props.stage

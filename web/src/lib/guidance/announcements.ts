@@ -38,7 +38,7 @@ export type Announcement =
   | { kind: 'reroute' }
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
-  | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; stop: string }
+  | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; direction?: string; stop: string }
   /** Entering another country, state or province; `region` is its name. */
   | { kind: 'border'; region: string }
   /** `vehicle` names the mode, as in "Which train are you on?". */

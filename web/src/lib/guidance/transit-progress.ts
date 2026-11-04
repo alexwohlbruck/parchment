@@ -20,6 +20,8 @@ export interface TransitSegmentInput {
   endTime?: string | Date
   lineName?: string
   headsign?: string
+  /** What the boarding platform's signs call the direction. */
+  directionLabel?: string
   /** Stop times carry live delays. */
   realTimeData?: boolean
   departureStop?: TransitStopInput

@@ -74,7 +74,9 @@ export async function createSession(
  */
 export async function destroySession(cookie: Context['cookie']) {
   const sessionCookie = cookie['auth_session']
-  await db.delete(sessions).where(eq(sessions.id, sessionCookie.value))
+  if (typeof sessionCookie.value === 'string') {
+    await db.delete(sessions).where(eq(sessions.id, sessionCookie.value))
+  }
   sessionCookie.path = '/'
   sessionCookie.remove()
 }

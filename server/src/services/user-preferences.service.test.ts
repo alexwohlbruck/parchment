@@ -10,6 +10,7 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { createDbMock } from '../test/db-mock'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
+import type { UserPreferences } from '../schema/user-preferences.schema'
 
 const dbMock = createDbMock()
 mock.module('../db', () => ({ db: dbMock.db }))
@@ -21,10 +22,12 @@ const {
   resolveEmailLanguage,
 } = await import('./user-preferences.service')
 
-const existingRow = {
+const existingRow: UserPreferences = {
   userId: 'user-1',
   language: 'es-ES',
   unitSystem: 'imperial',
+  createdAt: null,
+  updatedAt: null,
 }
 
 beforeEach(() => {

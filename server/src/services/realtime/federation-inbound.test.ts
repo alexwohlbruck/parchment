@@ -18,11 +18,12 @@
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { createDbMock } from '../../test/db-mock'
+import type { Recipients } from './event-bus.service'
 
 const dbMock = createDbMock()
 mock.module('../../db', () => ({ db: dbMock.db }))
 
-const publish = mock((_event: string, _payload: unknown, _recipients: unknown) => ({
+const publish = mock((_event: string, _payload: unknown, _recipients: Recipients) => ({
   id: 'evt-1',
 }))
 mock.module('./event-bus.service', () => ({ publish }))

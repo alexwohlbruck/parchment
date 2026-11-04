@@ -18,7 +18,9 @@ import {
 } from './departure-board'
 import type { TransitDeparture } from '../types/place.types'
 
-function departure(over: Partial<TransitDeparture> & { at: string; route?: string; dir?: string }): TransitDeparture {
+function departure(
+  over: Omit<Partial<TransitDeparture>, 'route'> & { at: string; route?: string; dir?: string },
+): TransitDeparture {
   const { at, route = 'R1', dir = '0', ...rest } = over
   return {
     departureAt: at,

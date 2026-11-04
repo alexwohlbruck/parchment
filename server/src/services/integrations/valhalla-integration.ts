@@ -24,7 +24,6 @@ import type {
   ValhallaLeg,
   ValhallaManeuver,
 } from '../../types/valhalla.types'
-import { ValhallaAdapter } from './adapters/valhalla-adapter'
 import {
   mapManeuverType,
   mapManeuverModifier,
@@ -37,7 +36,6 @@ import { logError, logger } from '../../lib/logger'
  */
 export class ValhallaIntegration implements Integration<ValhallaConfig> {
   private initialized = false
-  private adapter = new ValhallaAdapter()
   protected config: ValhallaConfig = { host: '' }
 
   readonly integrationId = IntegrationId.VALHALLA

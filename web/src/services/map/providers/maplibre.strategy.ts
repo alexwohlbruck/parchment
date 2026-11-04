@@ -21,6 +21,7 @@ import {
   LngLat as MaplibreLngLat,
   CameraOptions,
   setWorkerUrl,
+  prewarm,
   addProtocol,
 } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
@@ -39,6 +40,12 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 setWorkerUrl(maplibreWorkerUrl)
+// Start the workers now, while the rest of the bundle is still evaluating,
+// rather than when the map is made at the end of it. Each fetches the worker
+// and then the chunk it imports, one after the other, and no tile can be laid
+// out until both are in: left to the map, that was the first second after it
+// appeared.
+if (typeof Worker !== 'undefined') prewarm()
 
 import {
   Basemap,
@@ -129,12 +136,12 @@ import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
 import { showsBasement } from '@/lib/indoor/indoor-venue'
 import { fadedPaint } from '@/lib/map-style/surface-fade'
 
-/** How solid the 3D buildings, and the rest of the surface, stay while a floor plan shows a basement under them. */
+/** How solid the 3D buildings, and the rest of the surface but the transit network, stay while a floor plan shows a basement under them. */
 const BASEMENT_BUILDING_OPACITY = 0
 const BASEMENT_SURFACE_OPACITY = 0.22
 
 type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
-import { slotBeforeId } from '@/lib/map/layer-slots'
+import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
   OBJECT_MODELS,
@@ -280,6 +287,9 @@ const OBJECT_LAYER_ID = 'map-objects'
 /** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
 const LANDMARK_LAYER_ID = 'map-landmarks'
 
+/** Longest the object models wait for the first tiles; see `firstTilesLaidOut`. */
+const FIRST_TILES_WAIT_MS = 3000
+
 /**
  * The first label layer the 3D objects have to stay behind.
  *
@@ -345,7 +355,7 @@ export class MaplibreStrategy extends MapStrategy {
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
-    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl)
+    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl, DETAIL_TILES)
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -383,6 +393,9 @@ export class MaplibreStrategy extends MapStrategy {
       // mapped straight to bearing wherever the cursor was — which is what this
       // map has always felt like, and what Mapbox does.
       aroundCenter: false,
+      // Overscale past the source maxzoom rather than re-clip deeper tiles, so
+      // a building keeps one terrain elevation across zooms.
+      zoomLevelsToOverscale: undefined,
     })
 
     // A console handle for poking the live map — camera, transform, layers —
@@ -422,11 +435,10 @@ export class MaplibreStrategy extends MapStrategy {
   /**
    * Move the 3D buildings onto Barrelman's source once it is serving them.
    *
-   * The style is built on the basemap's buildings and stays there unless this
-   * finds the other source answering — see `barrelman-buildings.ts` for why
-   * that way round. One tile request per session, and a style rebuild only on
-   * an instance that has the source, which happens once before there is much
-   * on screen to lose.
+   * The style is built on the last answer this tile server gave, or on the
+   * `detail` bundle if it has never been asked, and this checks it — see
+   * `barrelman-buildings.ts`. One tile request per session, and a style
+   * rebuild only when the answer differs from what the style was built on.
    */
   private async adoptBarrelmanBuildings() {
     if (!this.tileServerUrl) return
@@ -443,10 +455,10 @@ export class MaplibreStrategy extends MapStrategy {
     if (!barrelmanBuildingsReady())
       await probeBarrelmanBuildings((z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}`, centre, BUILDING_3D_TILES)
     rememberBarrelmanBuildings(base)
-    // Only when the answer differs from what the style was built on: usually
-    // the last session's answer (see `recallBarrelmanBuildings`), or the
-    // basemap on a first visit. Rebuilding for the same answer would throw the
-    // map's tiles away and fetch them all again, in front of the user.
+    // Only when the answer differs from what the style was built on: the last
+    // session's answer, or the bundle on a first visit (see
+    // `recallBarrelmanBuildings`). Rebuilding for the same answer would throw
+    // the map's tiles away and fetch them all again, in front of the user.
     if (barrelmanBuildingsTiles() !== builtOn) this.reloadStyle()
   }
 
@@ -554,7 +566,17 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelChecked.clear()
       this.buildingFilters.clear()
       this.fadedSurface.clear()
-      this.applyLandmarks()
+      // After the basemap rather than with it: a city's landmark models run to
+      // megabytes, and placing them reads every building in view, all of it
+      // competing with the first screen of tiles for the connection and the
+      // main thread. The style this was for may be gone by then.
+      const style = this.mapInstance.style
+      this.landmarksAfterTiles = style
+      void this.firstTilesLaidOut().then(() => {
+        if (this.landmarksAfterTiles !== style) return
+        this.landmarksAfterTiles = null
+        if (this.mapInstance.style === style) this.applyLandmarks()
+      })
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -804,7 +826,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
-      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || layer.sourceLayer === BUILDING_3D_TILES) continue
+      if (!layer || this.fadedSurface.has(id) || id.startsWith(INDOOR_LAYER_PREFIX) || isOverlay(layer) || layer.sourceLayer === BUILDING_3D_TILES) continue
       const current = (property: string) => map.getPaintProperty(id, property as PaintProperty)
       const faded: Record<string, any> = fadedPaint(layer.type, current, BASEMENT_SURFACE_OPACITY)
       const properties = Object.keys(faded) as PaintProperty[]
@@ -892,10 +914,15 @@ export class MaplibreStrategy extends MapStrategy {
    * The layer loads its own models, lazily and per landmark, so turning it on
    * costs nothing until one is in view.
    */
+  /** The style whose landmarks wait for its first tiles; see the `style.load` handler. */
+  private landmarksAfterTiles: unknown = null
+
   private applyLandmarks() {
     const map = this.mapInstance
     const want = this.map3dObjects && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    // Settings applied while the first tiles load land here too; the wait adds the layer.
+    if (want && this.landmarksAfterTiles && this.landmarksAfterTiles === map.style) return
 
     if (!want) {
       const layer = this.landmarkLayer
@@ -1017,6 +1044,36 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
+  /**
+   * Resolves once the first screen of tiles has been laid out, or after
+   * FIRST_TILES_WAIT_MS. The object models — some hundred and fifty of them —
+   * and the landmarks are decoration on top of those tiles; started alongside
+   * them, they compete with the tiles and the MapLibre worker for the
+   * connection and the main thread, and the ground arrives last.
+   */
+  private firstTilesLaidOut(): Promise<void> {
+    const map = this.mapInstance
+    return new Promise(resolve => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        map.off('data', check)
+        clearTimeout(timer)
+        resolve()
+      }
+      // On a vector tile's arrival only: before the first is asked for there
+      // is nothing in flight and `areTilesLoaded` is trivially true, and the
+      // app's own GeoJSON sources answer at once, while the basemap's tiles
+      // are still on their way.
+      const check = (e: any) => {
+        if (e?.tile && map.getSource(e.sourceId)?.type === 'vector' && map.areTilesLoaded()) finish()
+      }
+      const timer = setTimeout(finish, FIRST_TILES_WAIT_MS)
+      map.on('data', check)
+    })
+  }
+
   private async applyObjectLayer() {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
@@ -1048,9 +1105,9 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
 
-    this.objectModels ??= Promise.all(
+    this.objectModels ??= this.firstTilesLaidOut().then(() => Promise.all(
       Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
-    ).then(entries => Object.fromEntries(entries))
+    )).then(entries => Object.fromEntries(entries))
 
     let models: Record<string, GlbModel>
     try {

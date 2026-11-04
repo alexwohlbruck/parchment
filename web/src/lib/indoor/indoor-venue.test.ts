@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside, unitedIds } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -121,6 +121,14 @@ describe('replacedPlaces', () => {
     const venue = { id: 7, levels: [], defaultLevel: -1, buildings: [] }
     expect(replacedPlaces([gate], shownInside({ venue, level: -1 }))).toBe(';11;')
     expect(replacedPlaces([gate], shownInside({ venue, level: null }))).toBe('')
+  })
+})
+
+describe('unitedIds', () => {
+  it('joins two id lists into one sorted list without repeats', () => {
+    expect(unitedIds(';2;5;', ';1;5;')).toBe(';1;2;5;')
+    expect(unitedIds('', ';3;')).toBe(';3;')
+    expect(unitedIds('', '')).toBe('')
   })
 })
 

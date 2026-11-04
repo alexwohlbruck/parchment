@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { eyeOf, LandmarkLayer } from './landmark-layer'
+import { eyeOf, LandmarkLayer, rememberedFills } from './landmark-layer'
 import { LANDMARK_FLAVOR } from './landmarks'
 import { planCoverage } from './landmark-coverage'
 
@@ -52,4 +52,84 @@ it('finds the camera a perspective matrix projects from', () => {
   expect(eye[0]).toBeCloseTo(3)
   expect(eye[1]).toBeCloseTo(-4)
   expect(eye[2]).toBeCloseTo(5)
+})
+
+it('hides the buildings once for a view, not once per model that lands', () => {
+  vi.useFakeTimers()
+  try {
+    const onReplace = vi.fn()
+    const layer = new LandmarkLayer({
+      id: 'landmarks',
+      source: 'detail',
+      sourceLayer: 'landmarks',
+      modelUrl: file => file,
+      onReplace,
+      flavor: LANDMARK_FLAVOR.light,
+    }) as any
+    layer.map = {}
+    layer.invalidate = vi.fn()
+    layer.placements = [
+      { id: 'a', model: 'a', replaces: ['w1'] },
+      { id: 'b', model: 'b', replaces: ['w2'] },
+    ]
+    layer.models.set('a', { batches: [] })
+    layer.models.set('b', { batches: null, pending: null })
+
+    layer.reportReplaced()
+    expect(onReplace).not.toHaveBeenCalled()
+
+    layer.models.get('b').batches = []
+    layer.reportReplaced()
+    expect(onReplace).toHaveBeenCalledTimes(1)
+    expect(onReplace).toHaveBeenCalledWith({ refs: ['w1', 'w2'], featureIds: [] })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('stops waiting for a model that is slow or will not load', () => {
+  vi.useFakeTimers()
+  try {
+    const onReplace = vi.fn()
+    const layer = new LandmarkLayer({
+      id: 'landmarks',
+      source: 'detail',
+      sourceLayer: 'landmarks',
+      modelUrl: file => file,
+      onReplace,
+      flavor: LANDMARK_FLAVOR.light,
+    }) as any
+    layer.map = {}
+    layer.invalidate = vi.fn()
+    layer.placements = [
+      { id: 'a', model: 'a', replaces: ['w1'] },
+      { id: 'b', model: 'b', replaces: ['w2'] },
+    ]
+    layer.models.set('a', { batches: [] })
+    layer.models.set('b', { batches: null, pending: null })
+
+    layer.reportReplaced()
+    vi.advanceTimersByTime(1500)
+    expect(layer.invalidate).toHaveBeenCalled()
+    layer.reportReplaced()
+    expect(onReplace).toHaveBeenCalledWith({ refs: ['w1'], featureIds: [] })
+
+    onReplace.mockClear()
+    layer.models.get('b').failed = true
+    layer.reportReplaced()
+    expect(onReplace).not.toHaveBeenCalled() // same answer as before: nothing new to hide
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('keeps the fills of landmarks that left the view, dropping the longest gone past the cap', () => {
+  const fills = new Map(Array.from({ length: 70 }, (_, i) => [`gone${i}`, i]))
+  fills.set('drawn', -1)
+  const kept = rememberedFills(fills, new Set(['drawn']))
+  expect(kept.size).toBe(65)
+  expect(kept.has('drawn')).toBe(true)
+  expect(kept.has('gone69')).toBe(true)
+  expect(kept.has('gone5')).toBe(false)
+  expect([...kept.keys()].at(-1)).toBe('drawn')
 })

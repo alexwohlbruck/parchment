@@ -64,6 +64,12 @@ type Anchor = { x: number; y: number; z: number; perMetre: number }
 const SETTLE = 80
 
 /**
+ * Longest the buildings under a view's landmarks wait for the rest of its
+ * models before they are hidden; see `report`.
+ */
+const REPORT_HOLD_MS = 1500
+
+/**
  * Zoom levels below its minzoom that a landmark already on screen is kept
  * for, and below its detail zoom that the detail model is. Without it, a
  * pinch that wavers around the threshold swaps one for the other back and
@@ -78,6 +84,9 @@ const MINZOOM_HYSTERESIS = 0.3
  */
 const EVICT_AFTER_MS = 600_000
 const MAX_IDLE_MODELS = 48
+
+/** Fills kept carved for landmarks no longer drawn, the longest gone dropped first. */
+const REMEMBERED_FILLS = 64
 
 /** How often to look for models to evict. */
 const EVICT_EVERY_MS = 5_000
@@ -613,6 +622,8 @@ type Model = {
   coverage?: Coverage
   /** When a placement last wanted it; see EVICT_AFTER_MS. */
   used: number
+  /** It will not load; its building stays. */
+  failed?: boolean
   /** Its clip, for a model with parts that move. */
   animation: GlbAnimation | null
   /** The moving nodes' matrices, and the clip time they are for. */
@@ -698,6 +709,8 @@ export class LandmarkLayer {
   private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
   private credited = ''
+  /** When the report started waiting for models; see `report`. */
+  private holding: number | null = null
   private scheduled = 0
   private gathering = frameTask(() => this.gatherSteps())
   private listeners: Array<[string, (...args: any[]) => void]> = []
@@ -1093,18 +1106,15 @@ export class LandmarkLayer {
     return true
   }
 
-  /** Hand the fills under the landmarks drawn to the carver, and forget the rest. */
+  /**
+   * Hand the fills to the carver, keeping those of landmarks that left the view:
+   * dropping one reloads the ground under it, raw for a frame, under the buildings round it.
+   */
   private carveFills() {
     const carver = this.options.carver
     if (!carver) return
-    const kept = new Map<string, GroundFill>()
-    for (const p of [...this.placements, ...this.leaving]) {
-      const key = placementKey(p)
-      const fill = this.fills.get(key)
-      if (fill) kept.set(key, fill)
-    }
-    this.fills = kept
-    carver.set(CARVER_OWNER, new Map([...kept].map(([key, fill]) => [key, fillCarving(fill)])))
+    this.fills = rememberedFills(this.fills, new Set([...this.placements, ...this.leaving].map(placementKey)))
+    carver.set(CARVER_OWNER, new Map([...this.fills].map(([key, fill]) => [key, fillCarving(fill)])))
   }
 
   /**
@@ -1224,11 +1234,29 @@ export class LandmarkLayer {
   }
 
   /**
-   * Hand the caller the refs of every landmark that can actually be drawn,
-   * and the credits its models carry — a CC-BY model has to be credited on
-   * the map, but only while it is the one on screen.
+   * Tell the caller which buildings the landmarks now stand in for — but not
+   * while some of the view's models are still on their way. The caller hides
+   * them by filter, and each new filter has MapLibre lay out every building
+   * tile again; reporting as each model landed did that once per landmark,
+   * nine times over for midtown Manhattan. So the report waits for the last
+   * model, or for REPORT_HOLD_MS, whichever is first; meanwhile a model that
+   * has arrived stands over its building rather than in its place.
    */
-  private report() {
+  private reportReplaced() {
+    const loading = this.placements.some(p => {
+      const model = this.models.get(p.model)
+      return !!model && !model.failed && !this.ready(p.model)
+    })
+    if (loading) {
+      const now = performance.now()
+      if (this.holding === null) {
+        this.holding = now
+        // Each arriving model gathers again; this covers one that never does.
+        setTimeout(() => this.map && this.invalidate(), REPORT_HOLD_MS)
+      }
+      if (now - this.holding < REPORT_HOLD_MS) return
+    }
+    this.holding = null
     const drawn = this.placements.filter(p => this.ready(p.model))
     const refs = [...new Set([...drawn.flatMap(p => p.replaces), ...this.contained.refs])].sort()
     const featureIds = [...new Set(this.contained.featureIds)].sort((a, b) => a - b)
@@ -1237,6 +1265,16 @@ export class LandmarkLayer {
       this.replaced = key
       this.options.onReplace({ refs, featureIds })
     }
+  }
+
+  /**
+   * Hand the caller the refs of every landmark that can actually be drawn,
+   * and the credits its models carry — a CC-BY model has to be credited on
+   * the map, but only while it is the one on screen.
+   */
+  private report() {
+    this.reportReplaced()
+    const drawn = this.placements.filter(p => this.ready(p.model))
     const credits = [...new Set(drawn.flatMap(p => (p.attribution ? [p.attribution] : [])))].sort()
     const credited = credits.join('\n')
     if (credited !== this.credited) {
@@ -1294,6 +1332,8 @@ export class LandmarkLayer {
       // A model that will not load leaves its building standing, which is a
       // complete map. Not retried: the name is content-addressed, so the
       // same request would get the same answer.
+      model.failed = true
+      this.invalidate()
       console.error('[landmarks]', error)
     })
   }
@@ -1764,6 +1804,12 @@ type Reach = { p: Placement; coverage: Coverage; reach: number; k: number; id: s
 
 /** What a building piece's verdict depends on: the placement's model and where and how it stands. */
 const placementKey = (p: Pick<Landmark, 'id' | 'model' | 'lng' | 'lat' | 'bearing' | 'scale'>) => `${p.id}@${p.model},${p.lng},${p.lat},${p.bearing},${p.scale}`
+
+/** Every drawn fill, and the most recently drawn of the rest; the drawn go last, so they are the last to be dropped. */
+export function rememberedFills<T>(fills: Map<string, T>, drawn: Set<string>): Map<string, T> {
+  const gone = [...fills].filter(([key]) => !drawn.has(key)).slice(-REMEMBERED_FILLS)
+  return new Map([...gone, ...[...fills].filter(([key]) => drawn.has(key))])
+}
 
 function* groupByTile(layer: string, features: any[]): Generator<void, Map<string, any[]>> {
   const tiles = new Map<string, any[]>()

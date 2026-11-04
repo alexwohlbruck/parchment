@@ -11,6 +11,8 @@ export type Bookmark = Omit<typeof bookmarks.$inferSelect, 'geometry'> & {
   lng: number
 }
 
+export type BookmarkWithCollections = Bookmark & { collectionIds: string[] }
+
 export type NewBookmark = typeof bookmarks.$inferInsert
 export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert

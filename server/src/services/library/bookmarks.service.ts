@@ -9,6 +9,7 @@ import {
   CreateBookmarkParams,
   NewBookmark,
   Bookmark,
+  BookmarkWithCollections,
   BookmarkCollection,
   NewBookmarkCollection,
 } from '../../types/library.types'
@@ -67,7 +68,7 @@ async function createBookmarkInternal(
 export async function createBookmark(
   params: CreateBookmarkParams,
   collectionIds: string[],
-): Promise<Bookmark> {
+): Promise<BookmarkWithCollections> {
   const bookmark = await createBookmarkInternal(params)
 
   // Standalone bookmarks (e.g. frequents) carry no collection links.
@@ -150,7 +151,7 @@ export async function updateBookmark(
   userId: string,
   updates: Partial<Bookmark> & { collectionIds?: string[] },
   _collectionIdsFromController?: string[] | undefined,
-): Promise<Bookmark | null> {
+): Promise<BookmarkWithCollections | null> {
   const { collectionIds, ...bookmarkUpdates } = updates
 
   // Separate the two paths:

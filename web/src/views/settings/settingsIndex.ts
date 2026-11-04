@@ -1,11 +1,11 @@
 import {
   ActivityIcon,
   BlocksIcon,
-  CarFrontIcon,
   CodeIcon,
   CogIcon,
   Contact2Icon,
   PaintbrushIcon,
+  RouteIcon,
   UserRoundIcon,
 } from 'lucide-vue-next'
 import { PermissionId, type PermissionRule } from '@/types/auth.types'
@@ -179,11 +179,41 @@ export const settingsIndex: SettingsPageDef[] = [
         descriptionKey: 'settings.behavior.units.description',
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
       },
+    ],
+  },
+  {
+    pageId: 'navigation',
+    to: '/settings/navigation',
+    icon: RouteIcon,
+    iconColor: 'teal',
+    sections: [
       {
-        id: 'navigation',
+        id: 'modes',
+        titleKey: 'settings.navigation.modes.title',
+        descriptionKey: 'settings.navigation.modes.description',
+        keywords: ['transit', 'bike', 'bike share', 'scooter', 'rideshare', 'driving', 'car'],
+      },
+      {
+        id: 'trip-preference',
+        titleKey: 'settings.navigation.tripPreference.title',
+        keywords: ['sort', 'fastest', 'cheapest', 'transfers', 'walking', 'balanced'],
+      },
+      {
+        id: 'routing',
+        titleKey: 'settings.navigation.routing.title',
+        keywords: ['hills', 'ferries', 'highways', 'tolls', 'walking speed', 'cycling speed', 'wheelchair', 'arrive early'],
+      },
+      {
+        id: 'vehicles',
+        titleKey: 'settings.vehicles.title',
+        descriptionKey: 'settings.vehicles.description',
+        keywords: ['car', 'bike', 'scooter', 'vehicle', 'parking', 'location'],
+      },
+      {
+        id: 'guidance',
         titleKey: 'guidance.settings.title',
         descriptionKey: 'guidance.settings.cameraModeDescription',
-        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn'],
+        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn', 'voice', 'speech'],
       },
     ],
   },
@@ -250,20 +280,6 @@ export const settingsIndex: SettingsPageDef[] = [
         id: 'layers',
         titleKey: 'settings.mapSettings.layers.title',
         descriptionKey: 'settings.mapSettings.layers.description',
-      },
-    ],
-  },
-  {
-    pageId: 'vehicles',
-    to: '/settings/vehicles',
-    icon: CarFrontIcon,
-    iconColor: 'teal',
-    sections: [
-      {
-        id: 'vehicles',
-        titleKey: 'settings.vehicles.title',
-        descriptionKey: 'settings.vehicles.description',
-        keywords: ['car', 'bike', 'scooter', 'vehicle', 'parking', 'location'],
       },
     ],
   },

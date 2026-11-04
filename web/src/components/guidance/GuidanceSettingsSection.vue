@@ -19,7 +19,7 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
 </script>
 
 <template>
-  <SettingsSection id="navigation" :title="$t('guidance.settings.title')">
+  <SettingsSection id="guidance" :title="$t('guidance.settings.title')">
     <SettingsItem
       :title="$t('guidance.settings.cameraMode')"
       :description="$t('guidance.settings.cameraModeDescription')"

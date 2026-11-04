@@ -784,7 +784,24 @@
     "from": "Desde",
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
-    "addStop": "Añadir parada"
+    "addStop": "Añadir parada",
+    "tripModes": {
+      "filter": "Modos",
+      "transit": "Transporte público",
+      "biking": "Mi bicicleta",
+      "bikeshare": "Bicis y patinetes compartidos",
+      "rideshare": "VTC",
+      "driving": "Coche"
+    },
+    "sort": {
+      "balanced": "Equilibrado",
+      "shortest": "Más corto",
+      "earliest_arrival": "Llegada más temprana",
+      "cheapest": "Más barato",
+      "fewest_transfers": "Menos transbordos",
+      "least_walking": "Menos caminata",
+      "greenest": "Más ecológico"
+    }
   },
   "library": {
     "title": "Biblioteca",
@@ -2679,6 +2696,21 @@
         "title": "Capas",
         "new": "Nueva capa",
         "description": "Elige las capas para mostrar en el selector de capas"
+      }
+    },
+    "navigation": {
+      "title": "Navegación",
+      "modes": {
+        "title": "Modos que uso",
+        "description": "Las sugerencias de viaje solo usan estos. Caminar siempre se incluye."
+      },
+      "tripPreference": {
+        "title": "Preferencia de viaje predeterminada",
+        "rankBy": "Ordenar viajes por",
+        "rankByDescription": "Se usa en cada búsqueda salvo que elijas otro orden."
+      },
+      "routing": {
+        "title": "Preferencias de ruta"
       }
     },
     "vehicles": {

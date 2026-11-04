@@ -804,6 +804,23 @@
     "currentLocation": "Current Location",
     "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
+    "tripModes": {
+      "filter": "Modes",
+      "transit": "Transit",
+      "biking": "My bike",
+      "bikeshare": "Bike & scooter share",
+      "rideshare": "Rideshare",
+      "driving": "Driving"
+    },
+    "sort": {
+      "balanced": "Balanced",
+      "shortest": "Shortest",
+      "earliest_arrival": "Earliest arrival",
+      "cheapest": "Cheapest",
+      "fewest_transfers": "Fewest transfers",
+      "least_walking": "Least walking",
+      "greenest": "Greenest"
+    },
     "modes": {
       "walking": "Walking",
       "cycling": "Cycling",
@@ -2773,6 +2790,21 @@
         "title": "Layers",
         "new": "New layer",
         "description": "Choose layers to display in the layer selector"
+      }
+    },
+    "navigation": {
+      "title": "Navigation",
+      "modes": {
+        "title": "Modes I use",
+        "description": "Trip suggestions only use these. Walking is always included."
+      },
+      "tripPreference": {
+        "title": "Default trip preference",
+        "rankBy": "Rank trips by",
+        "rankByDescription": "Used for every search unless you pick another order."
+      },
+      "routing": {
+        "title": "Routing preferences"
       }
     },
     "vehicles": {

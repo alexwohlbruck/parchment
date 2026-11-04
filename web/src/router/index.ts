@@ -61,7 +61,7 @@ export enum AppRoute {
   ROLE_DETAIL = 'role-detail',
   PERMISSIONS_PAGE = 'permissions',
   PERMISSION_DETAIL = 'permission-detail',
-  VEHICLES = 'vehicles',
+  NAVIGATION_SETTINGS = 'navigation-settings',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',
@@ -419,9 +419,13 @@ const router = createRouter({
           redirect: '/settings/appearance',
         },
         {
+          path: '/settings/navigation',
+          name: AppRoute.NAVIGATION_SETTINGS,
+          component: () => import('@/views/settings/pages/NavigationPage.vue'),
+        },
+        {
           path: '/settings/vehicles',
-          name: AppRoute.VEHICLES,
-          component: () => import('@/views/settings/pages/Vehicles.vue'),
+          redirect: { path: '/settings/navigation', hash: '#vehicles' },
         },
         {
           path: '/settings/users',

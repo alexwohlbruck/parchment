@@ -131,7 +131,7 @@ async function handleActivate(vehicle: UserVehicle) {
 }
 
 function handleSetLocation(vehicle: UserVehicle) {
-  startPicking(vehicle.id, '/settings/vehicles')
+  startPicking(vehicle.id, '/settings/navigation#vehicles')
 }
 
 function formatRelativeTime(dateStr: string): string {

@@ -5,6 +5,7 @@ import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routin
 import type { DrivingSide, InstructionLanePlan, LaneGeometry } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { Place } from './place.types'
+import type { DepartureProfile, TripModeToken } from './departure-profile.types'
 
 // =============================================================================
 // CORE TYPES
@@ -59,6 +60,8 @@ export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
   selectedMode?: SelectedMode // Filter trips by mode
   sortPreference?: SortPreference
+  /** Modes the rider does not use. The explicitly selected mode is exempt. */
+  excludedModes?: TripModeToken[]
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -160,6 +163,7 @@ export interface TripResponse {
   latestEndTime: string
   hazards?: Hazard[]
   warnings?: TripWarning[]
+  departureProfile?: DepartureProfile
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string

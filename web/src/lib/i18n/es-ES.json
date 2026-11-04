@@ -724,6 +724,38 @@
     }
   },
   "directions": {
+    "advice": {
+      "short": {
+        "leave": "Sal ya",
+        "hurry": "Corre",
+        "relax": "Calma",
+        "by": "Antes {time}",
+        "tight": "Justo",
+        "missed": "Perdido",
+        "sched": "Horario"
+      },
+      "long": {
+        "leave": "Sal ya · el siguiente llega {minutes} min después",
+        "hurry": "Corre · {minutes} min para el de las {time}",
+        "hurryLine": "Corre · {minutes} min para el {line} de las {time}",
+        "relax": "Sal antes de las {time}",
+        "by": "Sal antes de las {time}",
+        "tight": "{minutes} min para transbordar en {stop}",
+        "tightAnywhere": "{minutes} min para transbordar",
+        "missed": "El siguiente es el de las {time}",
+        "missedLine": "El siguiente es el {line} de las {time}",
+        "sched": "Sin horarios en vivo",
+        "crossover": "Más rápido {mode} desde las {time}"
+      },
+      "modes": {
+        "cycling": "en bici",
+        "walking": "a pie",
+        "bikeshare": "en bici compartida",
+        "scootershare": "en patinete compartido",
+        "driving": "en coche",
+        "rideshare": "en VTC"
+      }
+    },
     "tripTypes": {
       "bikeshare": "Bici compartida",
       "scootershare": "Patinete compartido",

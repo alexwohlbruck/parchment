@@ -743,6 +743,38 @@
     }
   },
   "directions": {
+    "advice": {
+      "short": {
+        "leave": "Leave",
+        "hurry": "Hurry",
+        "relax": "Relax",
+        "by": "By {time}",
+        "tight": "Tight",
+        "missed": "Missed",
+        "sched": "Sched"
+      },
+      "long": {
+        "leave": "Leave now · next is {minutes} min later",
+        "hurry": "Hurry · {minutes} min to the {time}",
+        "hurryLine": "Hurry · {minutes} min to the {line} at {time}",
+        "relax": "Leave by {time}",
+        "by": "Leave by {time}",
+        "tight": "{minutes} min to change at {stop}",
+        "tightAnywhere": "{minutes} min to change",
+        "missed": "Next is the {time}",
+        "missedLine": "Next is the {line} at {time}",
+        "sched": "No live times",
+        "crossover": "{mode} is faster after {time}"
+      },
+      "modes": {
+        "cycling": "Bike",
+        "walking": "Walking",
+        "bikeshare": "Bike share",
+        "scootershare": "Scooter share",
+        "driving": "Driving",
+        "rideshare": "Rideshare"
+      }
+    },
     "tripTypes": {
       "bikeshare": "Bike Share",
       "scootershare": "Scooter Share",

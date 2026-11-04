@@ -895,14 +895,14 @@ function scoreAndRankChildren(
       const hasName = Boolean(p.name?.value)
       if (hasName) return true
       const addr = p.address?.value
-      if (addr?.street || addr?.housenumber || addr?.full) return true
+      if (addr?.street1 || addr?.formatted) return true
       const typeRaw = (p.placeType?.value || '').toLowerCase().replace(/\s+/g, '_')
       return !REQUIRE_NAME_TYPES.has(typeRaw)
     })
     .map((p) => {
       const hasName = Boolean(p.name?.value)
       const addr = p.address?.value
-      const hasAddress = Boolean(addr?.street || addr?.housenumber || addr?.full)
+      const hasAddress = Boolean(addr?.street1 || addr?.formatted)
       const relevance = (hasName ? 2 : 0) + (hasAddress ? 1 : 0)
 
       const presetId = p.icon?.presetId || ''

@@ -24,6 +24,7 @@ function extractTransitFields(seg: any) {
     lineTextColor: td.textColor || td.route?.textColor,
     lineLongName: td.route?.longName,
     headsign: td.headsign || td.trip?.headsign,
+    directionLabel: td.directionLabel,
     tripShortName: td.trip?.shortName,
     // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
     // (length > 1) on merged legs — render "4 or 5" and union the board.

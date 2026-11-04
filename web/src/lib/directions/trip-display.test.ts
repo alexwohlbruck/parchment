@@ -9,6 +9,7 @@ import {
   movingDuration,
   railColorAt,
   railStyleAt,
+  rideDirection,
   segmentRail,
   waitMinutes,
 } from '@/lib/directions/trip-display'
@@ -77,6 +78,30 @@ describe('entrancePhrase', () => {
   test('says nothing rather than fabricating', () => {
     expect(entrancePhrase(null)).toBe('')
     expect(entrancePhrase({})).toBe('')
+  })
+
+  test('names an entrance by OSM name, then ref, then its corner', () => {
+    const corner = 'Broadway & West 28th Street · NW corner'
+    expect(entrancePhrase({ name: 'Main St', ref: 'S2', cornerLabel: corner })).toBe('Enter at Main St')
+    expect(entrancePhrase({ ref: 'S2', cornerLabel: corner })).toBe('Enter at S2')
+    expect(entrancePhrase({ role: 'exit', cornerLabel: corner, description: '1 trains Downtown' }))
+      .toBe(`Exit at ${corner}`)
+  })
+})
+
+describe('rideDirection', () => {
+  test('leads with the signed direction, the terminal second', () => {
+    expect(rideDirection({ directionLabel: 'Uptown & The Bronx', headsign: 'Inwood-207 St' }))
+      .toEqual({ label: 'Uptown & The Bronx', toward: 'Inwood-207 St' })
+  })
+
+  test('does not repeat a terminal the label already names', () => {
+    expect(rideDirection({ directionLabel: 'Jamaica', headsign: 'jamaica' })).toEqual({ label: 'Jamaica', toward: undefined })
+  })
+
+  test('falls back to the headsign, as without labels', () => {
+    expect(rideDirection({ headsign: 'Coney Island' })).toEqual({ label: 'Coney Island' })
+    expect(rideDirection({ lineLongName: 'Broadway Local' })).toEqual({ label: 'Broadway Local' })
   })
 })
 

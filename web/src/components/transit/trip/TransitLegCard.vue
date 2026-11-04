@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
+import { computed, type HTMLAttributes } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangleIcon, ArrowRight, ChevronDownIcon } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -8,7 +8,7 @@ import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator
 import DepartureBoard, { type BoardCard } from '@/components/transit/departures/DepartureBoard.vue'
 import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
 import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
-import { TRIP_MODE_COLORS, formatClock, segmentRail } from '@/lib/directions/trip-display'
+import { TRIP_MODE_COLORS, formatClock, rideDirection, segmentRail } from '@/lib/directions/trip-display'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import { formatDurationCompact } from '@/lib/time-format'
 import type { ServiceAlert } from '@/types/transit.types'
@@ -34,6 +34,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const direction = computed(() => rideDirection(props.segment))
 
 function stopClass(index: number) {
   return props.passed != null && index < props.passed - 1 ? 'opacity-40' : ''
@@ -94,8 +96,11 @@ function stopClass(index: number) {
         :text-color="segment.lineTextColor"
       />
       <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
-      <span class="text-sm font-semibold text-foreground truncate">
-        {{ segment.headsign || segment.lineLongName }}
+      <span class="min-w-0 flex flex-col leading-tight">
+        <span class="text-sm font-semibold text-foreground truncate">{{ direction.label }}</span>
+        <span v-if="direction.toward" class="text-[11px] text-muted-foreground truncate">
+          {{ t('directions.toward', { headsign: direction.toward }) }}
+        </span>
       </span>
       <span
         v-if="segment.tripShortName"

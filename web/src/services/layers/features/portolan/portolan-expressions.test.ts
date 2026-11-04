@@ -10,12 +10,14 @@
  */
 
 import { describe, test, expect } from 'vitest'
+import { featureFilter } from '@maplibre/maplibre-gl-style-spec'
 import { cssFontFor } from './portolan-images'
 import { ribbonColorWithAlpha } from './portolan-expressions'
 import {
   ACTS_MAX_ROUTES,
   BANDS,
   HEX_BIT,
+  TILE_BAND_FILTER,
   actsFilterExpr,
   actsSlot,
   activeRouteIdx,
@@ -151,6 +153,20 @@ describe('bandForZoom', () => {
     expect(sorted[sorted.length - 1].max).toBe(24)
     for (let i = 1; i < sorted.length; i++) {
       expect(sorted[i].min).toBe(sorted[i - 1].max)
+    }
+  })
+})
+
+describe('TILE_BAND_FILTER', () => {
+  const keeps = (tileZoom: number, band_min: number) =>
+    featureFilter(TILE_BAND_FILTER, 'layers[0].filter').filter({ zoom: tileZoom }, {
+      type: 2,
+      properties: { band_min },
+    } as any)
+
+  test("a tile keeps only the band of its own zoom, whatever the map's zoom", () => {
+    for (const z of [0, 5, 12, 13, 14, 15, 16, 18]) {
+      for (const b of BANDS) expect(keeps(z, b.key)).toBe(b.key === bandForZoom(z))
     }
   })
 })

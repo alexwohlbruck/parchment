@@ -26,6 +26,24 @@ export const BANDS = [
 export const bandForZoom = (z: number) =>
   (BANDS.find(b => z >= b.min && z < b.max) ?? BANDS[BANDS.length - 1]).key
 
+/**
+ * Keeps the band that belongs to each tile's own zoom. A filter's `zoom` is
+ * the tile's, so a coarser or finer tile shown while the right one loads
+ * still draws its own copy instead of nothing.
+ */
+export const TILE_BAND_FILTER: Expr = [
+  '==',
+  ['get', 'band_min'],
+  [
+    'step',
+    ['zoom'],
+    BANDS.find(b => b.min === 0)!.key,
+    ...BANDS.filter(b => b.min > 0)
+      .sort((a, z) => a.min - z.min)
+      .flatMap(b => [b.min, b.key]),
+  ],
+]
+
 // ── ribbon offsets (MapView.vue:142-161) ───────────────────────────────
 // Offsets live in DIFFERENT properties depending on the segment kind: a
 // steady segment carries its slot offset in `offset_px` (off_from/off_to

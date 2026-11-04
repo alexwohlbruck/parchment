@@ -26,8 +26,7 @@
  *  - one vector source per feed pyramid, built from /proxy/portolan/index.json
  *    alone (bounds + maxzoom ride in the index; the tile template is fixed);
  *  - steady ribbons render straight off the vector tiles, one layer per
- *    feed per zoom band (band_min filter — exactly one band per zoom or
- *    every ribbon doubles);
+ *    feed, each tile drawing the band of its own zoom (TILE_BAND_FILTER);
  *  - transitions/bridges CANNOT render off vector tiles: their offset
  *    eases over ['line-progress'], which MapLibre only computes for
  *    GeoJSON sources with lineMetrics. Loaded tile features are
@@ -67,6 +66,7 @@ import {
   RIBBON_COLOR,
   ribbonColorWithAlpha,
   STEADY_OFFSET,
+  TILE_BAND_FILTER,
   type Expr,
   actsFilterExpr,
   activeRouteIdx,
@@ -103,10 +103,9 @@ const ISOLATED_LINE_GHOST = 'portolan-isolated-line-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const srcBuild = (band: number) => `portolan-build-${band}`
 const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
-const steadyId = (band: number, feed: string) => `portolan-ribbon-${band}-steady-${feed}`
+const steadyId = (feed: string) => `portolan-ribbon-steady-${feed}`
 /** Fork-less junction ramps: per feed, straight off the vector source. */
-const rampId = (band: number, kind: string, feed: string) =>
-  `portolan-ribbon-${band}-${kind}-${feed}`
+const rampId = (kind: string, feed: string) => `portolan-ribbon-${kind}-${feed}`
 const SYMBOL_LAYERS = [
   'portolan-station-markers',
   'portolan-cats',
@@ -1630,7 +1629,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]): boolean {
 }
 
 /**
- * Put ONE feed's pyramid on the map: its vector source and the band
+ * Put ONE feed's pyramid on the map: its vector source and the ribbon
  * layers that read it.
  *
  * Every pyramid used to be mounted at once — 89 sources and a few hundred
@@ -1645,7 +1644,6 @@ function mountFeed(r: PortolanIndexEntry) {
   if (mounted.has(r.feed) || !map?.getSource(SRC_STATIONS)) return
   if (map.getSource(srcTiles(r.feed))) return
   mounted.add(r.feed)
-  const anchor = ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : undefined
 
   const src = srcTiles(r.feed)
   addSource(src, {
@@ -1663,67 +1661,50 @@ function mountFeed(r: PortolanIndexEntry) {
   // honest choice is the midpoint, so the ramp meets each neighbour
   // half a slot out instead of leaving a hole where the junction was.
   if (!forkOffsets) {
-    for (const b of BANDS) {
-      for (const kind of ['transition', 'bridge'] as const) {
-        const id = rampId(b.key, kind, r.feed)
-        const filter: Expr = [
-          'all',
-          ['==', ['get', 'band_min'], b.key],
-          ['==', ['get', 'kind'], kind],
-        ]
-        addRibbonLayer(
-          {
-            id,
-            type: 'line',
-            source: src,
-            'source-layer': 'ribbons',
-            minzoom: b.min === 0 ? 0 : b.min,
-            maxzoom: b.max === 24 ? 24 : b.max,
-            filter,
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-color': RIBBON_COLOR,
-              'line-width': widthExpr(w),
-              'line-offset':
-                kind === 'bridge'
-                  ? STEADY_OFFSET
-                  : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
-            },
-          },
-          o,
+    for (const kind of ['transition', 'bridge'] as const) {
+      const id = rampId(kind, r.feed)
+      const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], kind]]
+      addRibbonLayer(
+        {
+          id,
+          type: 'line',
+          source: src,
+          'source-layer': 'ribbons',
           filter,
-        )
-      }
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': RIBBON_COLOR,
+            'line-width': widthExpr(w),
+            'line-offset':
+              kind === 'bridge'
+                ? STEADY_OFFSET
+                : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
+          },
+        },
+        o,
+        filter,
+      )
     }
   }
 
-  for (const b of BANDS) {
-    const id = steadyId(b.key, r.feed)
-    const filter: Expr = [
-      'all',
-      ['==', ['get', 'band_min'], b.key],
-      ['==', ['get', 'kind'], 'steady'],
-    ]
-    addRibbonLayer(
-      {
-        id,
-        type: 'line',
-        source: src,
-        'source-layer': 'ribbons',
-        minzoom: b.min === 0 ? 0 : b.min,
-        maxzoom: b.max === 24 ? 24 : b.max,
-        filter,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': RIBBON_COLOR,
-          'line-width': widthExpr(w),
-          'line-offset': STEADY_OFFSET,
-        },
-      },
-      o,
+  const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], 'steady']]
+  addRibbonLayer(
+    {
+      id: steadyId(r.feed),
+      type: 'line',
+      source: src,
+      'source-layer': 'ribbons',
       filter,
-    )
-  }
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': RIBBON_COLOR,
+        'line-width': widthExpr(w),
+        'line-offset': STEADY_OFFSET,
+      },
+    },
+    o,
+    filter,
+  )
 }
 
 /** Take a feed back off the map — its layers first, then its source. */

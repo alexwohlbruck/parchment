@@ -137,7 +137,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     try {
       // Parse the ID to extract category or gallery information
       const { type, name } = this.parseWikimediaId(id)
-      if (!name) return null
+      if (!type || !name) return null
 
       const images = await this.getImagesByTypeAndName(type, name, 10)
       if (images.length === 0) return null
@@ -206,7 +206,11 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
    * @param id The Wikimedia ID (e.g., "category:PariserPlatz" or "gallery:PariserPlatz")
    * @returns Object with type and name
    */
-  private parseWikimediaId(id: string): { type: 'category' | 'gallery' | null, name: string | null } {
+  private parseWikimediaId(
+    id: string,
+  ):
+    | { type: 'category' | 'gallery'; name: string }
+    | { type: null; name: null } {
     // Remove provider prefix if present
     let cleanId = id
     if (id.startsWith('wikimedia/')) {

@@ -6,7 +6,6 @@ import type {
   GeocodingCapability,
   IntegrationTestResult,
   SearchCapability,
-  GoogleMapsConfig,
 } from '../../types/integration.types'
 import {
   IntegrationCapabilityId,

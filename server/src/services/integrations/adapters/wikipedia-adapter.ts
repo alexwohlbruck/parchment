@@ -215,11 +215,16 @@ export class WikipediaAdapter {
    * Extract contact information from Wikipedia infobox
    */
   private extractContactInfo(pageData: WikipediaPageData): any {
-    const contactInfo = {
+    const contactInfo: {
+      phone: AttributedValue<string> | null
+      email: AttributedValue<string> | null
+      website: AttributedValue<string> | null
+      socials: Record<string, AttributedValue<string>>
+    } = {
       phone: null,
       email: null,
       website: null,
-      socials: {} as Record<string, AttributedValue<string>>,
+      socials: {},
     }
 
     if (!pageData.infobox) return contactInfo

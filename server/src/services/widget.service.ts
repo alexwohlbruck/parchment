@@ -985,7 +985,7 @@ async function fetchChildrenInArea(
  * Parent strategy: find the most specific interesting area spatially containing this place.
  * Uses Overpass is_in() as the primary source — works purely on geometry, so it finds
  * spatial parents (e.g. the park containing a playground) even without explicit OSM
- * relation membership. Falls back to Nominatim hierarchy for admin-only lookups.
+ * relation membership.
  */
 async function fetchParentPlaces(
   osmId: string,
@@ -1052,50 +1052,10 @@ async function fetchParentPlaces(
           }
         }
       } catch (error) {
-        logError('[Widget/Parent] is_in query failed, falling back to Nominatim', error)
+        logError('[Widget/Parent] is_in query failed', error)
       }
     }
   }
 
-  // Admin strategy (or is_in fallback): use Nominatim hierarchy
-  const nominatimIntegration = integrationManager.getIntegration('nominatim')
-  if (!nominatimIntegration) {
-    logger.debug('[Widget/RelatedPlaces] Nominatim integration not configured')
-    return []
-  }
-
-  try {
-    const baseUrl = nominatimIntegration.config.baseUrl || 'https://nominatim.openstreetmap.org'
-    const relations = await nominatimIntegration.adapter.lookupParentRelations(osmId, baseUrl)
-
-    if (!relations.length) return []
-
-    const filtered = relations.filter((rel) => {
-      const tags = rel.tags || {}
-      if (adminOnly) {
-        return tags.admin_level || tags.boundary === 'administrative'
-      }
-      return (
-        tags.amenity || tags.landuse || tags.leisure || tags.tourism ||
-        tags.shop || tags.type === 'site' || tags.type === 'multipolygon'
-      )
-    })
-
-    const parents: RelatedParent[] = filtered.map((rel) => ({
-      id: rel.id,
-      name: rel.name || 'Unknown',
-      placeType: rel.placeType || 'Area',
-      tags: rel.tags,
-    }))
-
-    // Admin: pick the most specific (first) admin level
-    if (adminOnly && parents.length > 1) {
-      return [parents[0]]
-    }
-
-    return parents
-  } catch (error) {
-    logError('[Widget/RelatedPlaces] Error fetching parent places', error)
-    return []
-  }
+  return []
 }

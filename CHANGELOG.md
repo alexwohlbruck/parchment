@@ -9,6 +9,7 @@
 ### Fixed
 
 * Places load again as soon as you're back online, and Reload works right away, without restarting the app.
+* Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
 
 ## [0.19.1] - 2026-11-03
 

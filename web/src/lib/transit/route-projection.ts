@@ -1,9 +1,10 @@
-/**
- * Placing a live vehicle on a route's stop list.
- *
- * Distances are compared, never reported, so the projection works in a
- * cheap equirectangular degree space rather than true metres.
- */
+/** Placing a live vehicle on a route's stop list. */
+import {
+  bearingDeg,
+  buildPolylineDistances,
+  distanceMeters,
+  snapToPolyline,
+} from '@/lib/map/movement-interpolation'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { RouteDetailStop, VehicleOnRoute } from '@/types/transit.types'
 
@@ -65,15 +66,9 @@ export function computeIsForward(
 ): boolean {
   if (vehicleBearing == null) return true // assume forward if no bearing
 
-  // Bearing from fromStop → toStop (the "forward" direction of the route)
-  const segBearing = Math.atan2(
-    toStop.lng - fromStop.lng,
-    toStop.lat - fromStop.lat,
-  ) * 180 / Math.PI
-  const normalizedSeg = ((segBearing % 360) + 360) % 360
+  const segBearing = bearingDeg(fromStop, toStop)
 
-  // Angular difference
-  let diff = Math.abs(vehicleBearing - normalizedSeg)
+  let diff = Math.abs(vehicleBearing - segBearing)
   if (diff > 180) diff = 360 - diff
 
   // < 90° means same direction as stop ordering = forward
@@ -91,55 +86,21 @@ export function projectOntoShape(
   stops: RouteDetailStop[],
 ): number {
   if (coordinates && coordinates.length >= 2) {
-    // Build cumulative distances along the shape
-    let cumDist = 0
-    let bestDist = Infinity
-    let bestAlong = 0
-
-    for (let i = 0; i < coordinates.length - 1; i++) {
-      const [aLng, aLat] = coordinates[i]
-      const [bLng, bLat] = coordinates[i + 1]
-      const segLen = haversineQuick(aLat, aLng, bLat, bLng)
-
-      // Project point onto segment
-      const dx = bLng - aLng
-      const dy = bLat - aLat
-      const lenSq = dx * dx + dy * dy
-      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((lng - aLng) * dx + (lat - aLat) * dy) / lenSq))
-
-      const projLat = aLat + dy * t
-      const projLng = aLng + dx * t
-      const d = haversineQuick(lat, lng, projLat, projLng)
-
-      if (d < bestDist) {
-        bestDist = d
-        bestAlong = cumDist + segLen * t
-      }
-      cumDist += segLen
-    }
-
-    // Convert shape distance to stop distance scale
-    // (shape coordinates and stops use the same distance metric from Barrelman)
-    const totalShapeDist = cumDist
-    const totalStopDist = stops[stops.length - 1].distanceAlongRoute - stops[0].distanceAlongRoute
-    if (totalShapeDist > 0 && totalStopDist > 0) {
-      return stops[0].distanceAlongRoute + (bestAlong / totalShapeDist) * totalStopDist
-    }
-    return bestAlong
+    const polyline = coordinates.map(([x, y]) => ({ lat: y, lng: x }))
+    const { cumulativeDistances, totalLength } = buildPolylineDistances(polyline)
+    const { fraction } = snapToPolyline(
+      { lat, lng }, polyline, cumulativeDistances, totalLength,
+    )
+    const first = stops[0].distanceAlongRoute
+    const span = stops[stops.length - 1].distanceAlongRoute - first
+    return span > 0 ? first + fraction * span : fraction * totalLength
   }
 
-  // Fallback: find nearest stop
   let bestIdx = 0
   let bestD = Infinity
   for (let i = 0; i < stops.length; i++) {
-    const d = haversineQuick(lat, lng, stops[i].lat, stops[i].lng)
+    const d = distanceMeters({ lat, lng }, stops[i])
     if (d < bestD) { bestD = d; bestIdx = i }
   }
   return stops[bestIdx].distanceAlongRoute
-}
-
-function haversineQuick(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = lat2 - lat1
-  const dLng = (lng2 - lng1) * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180)
-  return Math.sqrt(dLat * dLat + dLng * dLng)
 }

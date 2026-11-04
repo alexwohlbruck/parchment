@@ -39,7 +39,7 @@ describe('planMounts', () => {
       bounds: [-73.985 + i * 0.0005, 40.75, -73.985 + i * 0.0005, 40.75],
       maxzoom: 15,
     }))
-    const { want } = planMounts(many.toReversed(), MIDTOWN, new Set())
+    const { want } = planMounts([...many].reverse(), MIDTOWN, new Set())
     expect(want.map(r => r.feed)).toEqual(many.slice(0, MAX_MOUNTED).map(r => r.feed))
   })
 })

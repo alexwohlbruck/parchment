@@ -2,6 +2,7 @@
 // Supports: Valhalla, OSRM, GraphHopper, OpenRouteService, OpenTripPlanner, Google Maps
 
 import type { Place } from './place.types'
+import type { DepartureProfile } from './departure-profile.types'
 
 export interface Coordinate {
   lng: number
@@ -589,6 +590,8 @@ export interface TripOption {
     total?: { currency: string; amount: number }
   }
   co2Emissions?: number // kg
+
+  departureProfile?: DepartureProfile
 }
 
 export interface TripsRequest {

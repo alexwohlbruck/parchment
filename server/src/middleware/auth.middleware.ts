@@ -6,6 +6,7 @@ import { origins } from '../config'
 import { fetchUser } from '../services/user.service'
 import { getPermissions, hasPermission } from '../services/auth.service'
 import { PermissionRule } from '../types/auth.types'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /**
  * Extract session ID from either cookie or bearer token
@@ -93,7 +94,7 @@ export const optionalAuth = (app: Elysia) =>
   })
 
 export const requireAuth = (app: Elysia) =>
-  app.use(getSession).derive(async ({ user, session, status, t }) => {
+  app.use(i18nPlugin).use(getSession).derive(async ({ user, session, status, t }) => {
     if (!user || !session) {
       return status(401, { message: t('errors.auth.unauthorized') })
     }

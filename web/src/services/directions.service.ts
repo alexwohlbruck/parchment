@@ -117,8 +117,11 @@ function directionsService() {
    * request must not win the race — otherwise its late response overwrites
    * (or, worse, the early-return guard suppressed) the results for the
    * inputs the user actually wants.
+   *
+   * `quiet` re-plans the same search in place: no spinner, no plan cache, and
+   * the shown results survive a failure.
    */
-  async function getDirections() {
+  async function getDirections({ quiet = false } = {}) {
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
 
     // Need at least 2 waypoints — drop any in-flight request and clear.
@@ -140,7 +143,7 @@ function directionsService() {
 
     // Identical to the request already in flight (or the last one resolved) —
     // nothing to do.
-    if (requestKey === lastRequestKey.value) return
+    if (!quiet && requestKey === lastRequestKey.value) return
 
     // Supersede any in-flight request: its inputs are now stale.
     abortController.value?.abort()
@@ -149,7 +152,7 @@ function directionsService() {
 
     lastRequestKey.value = requestKey
     isRequesting.value = true
-    store.setLoading(true)
+    if (!quiet) store.setLoading(true)
 
     try {
       const request = buildTripRequest(validWaypoints)
@@ -158,7 +161,7 @@ function directionsService() {
       // response (same trip ids and times) instead of re-planning — a page
       // refresh on a trip detail lands back on the identical trip.
       const planKey = planCacheKey(request)
-      const cached = readPlanCache(planKey)
+      const cached = quiet ? null : readPlanCache(planKey)
       if (cached) {
         store.setTrips(cached)
         return
@@ -208,7 +211,7 @@ function directionsService() {
       // Aborted by a newer request — leave all state to that request.
       if (axios.isCancel(error)) return
       console.error('Failed to fetch directions:', error)
-      store.unsetTrips()
+      if (!quiet) store.unsetTrips()
       lastRequestKey.value = '' // Allow retry
     } finally {
       // Only the request that is still current may clear the shared loading
@@ -576,7 +579,7 @@ function directionsService() {
   // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
   watch(
     [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
-    getDirections,
+    () => getDirections(),
     { deep: true, immediate: true },
   )
 
@@ -587,6 +590,7 @@ function directionsService() {
 
   return {
     getDirections,
+    replan: () => getDirections({ quiet: true }),
     fillWaypoint,
     setWaypoint,
     setWaypoints,

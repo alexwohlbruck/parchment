@@ -87,10 +87,9 @@ export const isNeon = (material: string) => material.startsWith('neon')
 
 /**
  * A lit sign at night: its own linear colour raised, as the landmarks repo's
- * renderer draws it (`neonGlow` in tools/render.ts), dimmed to `edge` seen
- * edge-on and by up to `content` in soft patches `patch` metres across.
+ * renderer draws it (`neonGlow` in tools/render.ts), dimmed to `edge` seen edge-on.
  */
-export const NEON_GLOW = { gain: 1.3, lift: 0.04, edge: 0.7, content: 0.25, patch: 2.5 }
+export const NEON_GLOW = { gain: 1.3, lift: 0.04, edge: 0.7 }
 
 /** Whether a material is a wire (a suspender, a stay), thinned out where it is finer than a pixel. */
 export const isWire = (material: string) => material.startsWith('wire')

@@ -371,17 +371,6 @@ const DRAW_FS = `#version 300 es
   float wireCover() {
     return ${WIRE_WIDTH.toFixed(2)} / max(length(fwidth(v_model)), 1e-4);
   }
-  /** Soft patches of light across a sign's face, so a big screen shows something; flat once a patch is under a few pixels. */
-  float screenContent() {
-    vec3 mn = abs(v_modelNormal);
-    vec2 c = vec2(mn.x > mn.z ? v_model.y : v_model.x, v_model.z) / ${NEON_GLOW.patch.toFixed(1)} + u_seed * 41.0;
-    vec2 i = floor(c), f = fract(c);
-    f = f * f * (3.0 - 2.0 * f);
-    float noise = mix(mix(facadeHash(i), facadeHash(i + vec2(1.0, 0.0)), f.x),
-      mix(facadeHash(i + vec2(0.0, 1.0)), facadeHash(i + vec2(1.0)), f.x), f.y);
-    float far = smoothstep(0.08, 0.3, length(fwidth(c)));
-    return mix(noise, 0.5, far);
-  }
   void main() {
     if (v_floor < 0.0) discard;
     cut();
@@ -446,7 +435,6 @@ const DRAW_FS = `#version 300 es
     if (neon) {
       vec3 glow = pow(min(pow(own, vec3(2.2)) * ${NEON_GLOW.gain.toFixed(2)} + ${NEON_GLOW.lift.toFixed(2)}, 1.0), vec3(1.0 / 2.2));
       glow *= mix(${NEON_GLOW.edge.toFixed(2)}, 1.0, abs(dot(n, normalize(u_eye - v_anchor))));
-      glow *= mix(1.0 - ${NEON_GLOW.content.toFixed(2)}, 1.0, screenContent());
       shaded = mix(shaded, glow, u_night);
     }
     // Glass seen edge-on is nearly opaque, as real glass is: a pane's

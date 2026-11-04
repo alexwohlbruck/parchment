@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import {
   _resetConnectivityForTests,
+  checkConnectivityNow,
   configureConnectivityProbe,
   connectivityStatus,
   isOffline,
@@ -71,5 +72,40 @@ describe('connectivity', () => {
     expect(cb).toHaveBeenCalledTimes(1)
 
     stop()
+  })
+
+  it('probes immediately on a manual check, without waiting for the backoff', async () => {
+    let reachable = false
+    configureConnectivityProbe(async () => reachable)
+    reportServerUnreachable()
+
+    reachable = true
+    await expect(checkConnectivityNow()).resolves.toBe(true)
+    expect(isOffline.value).toBe(false)
+  })
+
+  it('keeps backing off when a manual check fails', async () => {
+    let reachable = false
+    configureConnectivityProbe(async () => reachable)
+    reportServerUnreachable()
+
+    await expect(checkConnectivityNow()).resolves.toBe(false)
+    expect(isOffline.value).toBe(true)
+
+    reachable = true
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(isOffline.value).toBe(false)
+  })
+
+  it('recovers from a missed online event', async () => {
+    configureConnectivityProbe(async () => true)
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    window.dispatchEvent(new Event('offline'))
+    expect(connectivityStatus.value).toBe('offline')
+
+    onLine.mockReturnValue(true)
+    await expect(checkConnectivityNow()).resolves.toBe(true)
+    expect(connectivityStatus.value).toBe('online')
+    onLine.mockRestore()
   })
 })

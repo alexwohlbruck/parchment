@@ -68,7 +68,7 @@ describe('envelope', () => {
   })
 
   test('attributes to GraphHopper via Barrelman', () => {
-    expect(adapt([path()]).metadata.attribution[0]).toContain('GraphHopper')
+    expect(adapt([path()]).metadata.attribution?.[0]).toContain('GraphHopper')
   })
 
   test('echoes the request id', () => {

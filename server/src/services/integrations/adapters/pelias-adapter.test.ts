@@ -13,6 +13,7 @@
  */
 
 import { describe, test, expect, mock } from 'bun:test'
+import type { Place } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
 
 mock.module('../../../lib/logger', () => ({
@@ -45,6 +46,9 @@ function feature(props: Partial<any> = {}, over: Partial<any> = {}): any {
 }
 
 const adapt = (f: any, id?: string) => adapter.placeInfo.adaptPlaceDetails(f, id)
+
+/** Adapters store raw strings here despite the AttributedValue type, so read them untyped. */
+const amenities = (place: Place): Record<string, unknown> => place.amenities
 
 describe('source resolution', () => {
   test('maps an OpenStreetMap result to the OSM source', () => {
@@ -231,16 +235,16 @@ describe('OSM addendum handling', () => {
       opening_hours: 'Mo-Fr 09:00-17:00',
     })
 
-    expect(place.amenities.phone).toBeUndefined()
-    expect(place.amenities.website).toBeUndefined()
-    expect(place.amenities.email).toBeUndefined()
-    expect(place.amenities.opening_hours).toBeUndefined()
+    expect(amenities(place).phone).toBeUndefined()
+    expect(amenities(place).website).toBeUndefined()
+    expect(amenities(place).email).toBeUndefined()
+    expect(amenities(place).opening_hours).toBeUndefined()
   })
 
   test('records the Pelias layer as a type amenity', () => {
     const place = adapt(feature({ layer: 'venue' }))
 
-    expect(place.amenities['type:venue']).toBe('venue')
+    expect(amenities(place)['type:venue']).toBe('venue')
   })
 })
 

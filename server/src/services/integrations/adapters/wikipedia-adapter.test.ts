@@ -234,7 +234,7 @@ describe('photos and contact info', () => {
       pageData({ infobox: { website: 'https://panthers.test' } }),
     )
 
-    expect(place.contactInfo.website.value).toBe('https://panthers.test')
+    expect(place.contactInfo.website?.value).toBe('https://panthers.test')
   })
 
   test('ignores an infobox website that is not a URL', () => {
@@ -248,13 +248,13 @@ describe('photos and contact info', () => {
       pageData({ infobox: { official_website: 'https://panthers.test' } }),
     )
 
-    expect(place.contactInfo.website.value).toBe('https://panthers.test')
+    expect(place.contactInfo.website?.value).toBe('https://panthers.test')
   })
 
   test('extracts a phone number from the infobox', () => {
     const place = adapt(pageData({ infobox: { telephone: '+1 704 555 0100' } }))
 
-    expect(place.contactInfo.phone.value).toBe('+1 704 555 0100')
+    expect(place.contactInfo.phone?.value).toBe('+1 704 555 0100')
   })
 
   test('reports empty contact info without an infobox', () => {

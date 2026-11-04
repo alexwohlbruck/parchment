@@ -1,3 +1,4 @@
+import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
 import type { TransitPriority } from '../lib/transit/transit-gate'
 import type { StopBoard } from '../lib/transit/route-options'
@@ -291,6 +292,21 @@ export interface StationEntrance {
   lat: number
   lon: number
   distanceM: number
+  /** The entrance's own OSM `ref`, where mapped. */
+  ref?: string | null
+  /** Where the entrance is, from the streets around it: "Broadway & West 28th Street · NW corner". */
+  cornerLabel?: string | null
+  /** False for an exit-only entrance; null or absent when unknown. */
+  entryAllowed?: boolean | null
+  /** False for an entry-only entrance; null or absent when unknown. */
+  exitAllowed?: boolean | null
+}
+
+export interface EntranceQuery {
+  maxDistanceM?: number
+  wheelchair?: boolean
+  purpose?: EntrancePurpose
+  limit?: number
 }
 
 export interface TransitRoutingCapability {
@@ -300,7 +316,9 @@ export interface TransitRoutingCapability {
     priority?: TransitPriority,
   ): Promise<TransitRouteResponse>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
-  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
+  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean, purpose?: EntrancePurpose): Promise<StationEntrance | null>
+  /** Every entrance near a coordinate, nearest first; null when the provider can't list them. */
+  findEntrances?(lat: number, lon: number, query: EntranceQuery): Promise<StationEntrance[] | null>
   /** Departure boards for one stop's station, from `time` for `windowMinutes`. */
   getStopDepartures?(query: StopDeparturesQuery): Promise<StopBoard[] | null>
 }

@@ -22,8 +22,11 @@ import type {
   TransitRouteResponse,
   StopRouteResult,
   StopDeparturesQuery,
+  StationEntrance,
+  EntranceQuery,
   MapBounds,
 } from '../../types/integration.types'
+import type { EntrancePurpose } from '../../lib/transit/entrance-choice'
 import {
   IntegrationCapabilityId,
   IntegrationId,
@@ -390,6 +393,7 @@ export class BarrelmanIntegration
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
       getNearestEntrance: this.getNearestEntrance.bind(this),
+      findEntrances: this.findEntrances.bind(this),
       getStopDepartures: this.getStopDepartures.bind(this),
     } as TransitRoutingCapability,
   }
@@ -1586,6 +1590,7 @@ export class BarrelmanIntegration
     lon: number,
     maxDistanceM: number = 500,
     wheelchair: boolean = false,
+    purpose?: EntrancePurpose,
   ) {
     const { host } = this.config
 
@@ -1595,6 +1600,7 @@ export class BarrelmanIntegration
         lon: String(lon),
         maxDistance: String(maxDistanceM),
         ...(wheelchair && { wheelchair: 'true' }),
+        ...(purpose && { purpose }),
       })
       const response = await transitGate.run(TransitPriority.Enrichment, () =>
         barrelmanHttp.get(
@@ -1608,6 +1614,28 @@ export class BarrelmanIntegration
       return response.data
     } catch {
       return null // Silently fail — fall back to station centroid
+    }
+  }
+
+  private async findEntrances(lat: number, lon: number, query: EntranceQuery): Promise<StationEntrance[] | null> {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lon),
+      ...(query.maxDistanceM != null && { maxDistance: String(query.maxDistanceM) }),
+      ...(query.wheelchair && { wheelchair: 'true' }),
+      ...(query.purpose && { purpose: query.purpose }),
+      ...(query.limit != null && { limit: String(query.limit) }),
+    })
+    try {
+      const response = await transitGate.run(TransitPriority.Enrichment, () =>
+        barrelmanHttp.get(`${this.config.host}/transit/entrances?${params}`, {
+          headers: this.headers,
+          timeout: 5_000,
+        }),
+      )
+      return Array.isArray(response.data) ? response.data : null
+    } catch {
+      return null
     }
   }
 }

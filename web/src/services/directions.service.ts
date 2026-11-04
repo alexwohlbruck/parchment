@@ -8,6 +8,8 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { useOrientationService } from '@/services/orientation.service'
 import { startMotion } from '@/lib/directions/start-motion'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { TRIP_SORTS, type TripSort } from '@/lib/preferences/navigation-preferences'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
@@ -30,7 +32,8 @@ const CURRENT_LOCATION_ID = 'current-location'
 
 function directionsService() {
   const store = useDirectionsStore()
-  const { waypoints, selectedMode, sortPreference, departureTime, routingPreferences } = storeToRefs(store)
+  const { waypoints, selectedMode, sortPreference, effectiveSort, departureTime, routingPreferences } = storeToRefs(store)
+  const { excludedModes } = storeToRefs(useNavigationPreferencesStore())
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
@@ -61,7 +64,7 @@ function directionsService() {
       .filter(wp => wp.lngLat)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${coords}|${mode}|${sortPreference.value || ''}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
+    return `${coords}|${mode}|${effectiveSort.value}|${excludedModes.value.join(',')}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
   }
 
   /** Active vehicles whose location the user is happy to route from. */
@@ -101,7 +104,8 @@ function directionsService() {
         ...(i === 0 && wp.place?.id === CURRENT_LOCATION_ID && currentMotion()),
       })),
       selectedMode: selectedMode.value,
-      ...(sortPreference.value && { sortPreference: sortPreference.value }),
+      ...(effectiveSort.value !== 'balanced' && { sortPreference: effectiveSort.value }),
+      excludedModes: excludedModes.value,
       availableVehicles: collectAvailableVehicles(),
       routingPreferences: routingPreferences.value,
       ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
@@ -539,7 +543,7 @@ function directionsService() {
     while (wps.length < MIN_WAYPOINTS) wps.push({ lngLat: null } as Waypoint)
 
     if (state.mode) store.selectedMode = state.mode as typeof selectedMode.value
-    if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
+    if (TRIP_SORTS.includes(state.sort as TripSort)) store.sortPreference = state.sort as TripSort
     if (state.depart) store.departureTime = state.depart
     store.setWaypoints(wps)
     return true
@@ -578,7 +582,7 @@ function directionsService() {
   // see mutations that precede them. The immediate run plans from the
   // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
   watch(
-    [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
+    [waypoints, selectedMode, effectiveSort, excludedModes, departureTime, routingPreferences],
     () => getDirections(),
     { deep: true, immediate: true },
   )

@@ -22,6 +22,7 @@ import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
 import { useStartEligibility } from '@/composables/guidance/useStartEligibility'
+import { useTripAdvice } from '@/composables/directions/useTripAdvice'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -731,6 +732,12 @@ const trip = computed(() => {
 
 const startEligibility = useStartEligibility(trip, legToStart)
 
+const { adviceFor } = useTripAdvice()
+const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value) : null))
+const adviceNotes = computed(() =>
+  [advice.value?.tight, advice.value?.sched].filter(Boolean).join(' · '),
+)
+
 watch(
   () => [tripId.value, route.query.pt],
   () => {
@@ -1140,6 +1147,17 @@ function showSegmentChart(segment: any): boolean {
           <!-- Leave – arrive -->
           <div class="mt-1 text-sm text-muted-foreground tabular-nums">
             {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
+          </div>
+
+          <div
+            v-if="advice?.line"
+            class="mt-0.5 text-sm font-medium tabular-nums"
+            :class="advice.line.tone || 'text-foreground/80'"
+          >
+            {{ advice.line.text }}
+          </div>
+          <div v-if="adviceNotes" class="mt-0.5 text-xs text-muted-foreground tabular-nums">
+            {{ adviceNotes }}
           </div>
 
           <!-- Cost / CO2 -->

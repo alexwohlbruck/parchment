@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import en from '@/lib/i18n/en-US.json'
 import DepartureBoard, { type BoardCard } from './DepartureBoard.vue'
+
+const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': en } })
 
 /**
  * These assert the board's *visual language*, not its pixels — each channel
@@ -17,7 +21,7 @@ function card(overrides: Partial<BoardCard['card']> = {}, ms = 1_000): BoardCard
 }
 
 function mountBoard(cards: BoardCard[]) {
-  return mount(DepartureBoard, { props: { cards, lineName: '4' } })
+  return mount(DepartureBoard, { props: { cards, lineName: '4' }, global: { plugins: [i18n] } })
 }
 
 /** The chip element for card `i`. */
@@ -45,20 +49,20 @@ describe('status wording', () => {
     expect(footnote(w).text()).toBe('2:24')
   })
 
-  it('labels a tight run "hurry" and a likely-missed one "may miss"', () => {
+  it('labels a tight run "Hurry" and a likely-missed one "Missed"', () => {
     const w = mountBoard([card({ hurry: true }), card({ unreachable: true }, 2_000)])
-    expect(footnote(w, 0).text()).toBe('hurry')
-    expect(footnote(w, 1).text()).toBe('may miss')
+    expect(footnote(w, 0).text()).toBe('Hurry')
+    expect(footnote(w, 1).text()).toBe('Missed')
   })
 
   it('shows only the worst news — cancelled outranks the rest', () => {
     const w = mountBoard([card({ cancelled: true, unreachable: true, hurry: true })])
-    expect(footnote(w).text()).toBe('cancelled')
+    expect(footnote(w).text()).toBe('Cancelled')
   })
 
-  it('ranks "may miss" above "hurry" when both somehow apply', () => {
+  it('ranks "Missed" above "Hurry" when both somehow apply', () => {
     const w = mountBoard([card({ unreachable: true, hurry: true })])
-    expect(footnote(w).text()).toBe('may miss')
+    expect(footnote(w).text()).toBe('Missed')
   })
 
   it('leaves a departed run wordless — "3m ago" already says it', () => {
@@ -122,7 +126,7 @@ describe('the board keeps one rhythm', () => {
 
   it('keeps the footnote to a single line — status replaces the clock', () => {
     const w = mountBoard([card({ hurry: true, sub: '2:24', scheduledSub: '2:21' })])
-    expect(footnote(w).text()).toBe('hurry')
+    expect(footnote(w).text()).toBe('Hurry')
   })
 })
 

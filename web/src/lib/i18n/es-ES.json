@@ -732,7 +732,8 @@
         "by": "Antes {time}",
         "tight": "Justo",
         "missed": "Perdido",
-        "sched": "Horario"
+        "sched": "Horario",
+        "cancelled": "Cancelado"
       },
       "long": {
         "leave": "Sal ya · el siguiente llega {minutes} min después",

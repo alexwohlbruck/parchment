@@ -751,7 +751,8 @@
         "by": "By {time}",
         "tight": "Tight",
         "missed": "Missed",
-        "sched": "Sched"
+        "sched": "Sched",
+        "cancelled": "Cancelled"
       },
       "long": {
         "leave": "Leave now · next is {minutes} min later",

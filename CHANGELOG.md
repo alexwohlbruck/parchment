@@ -16,6 +16,7 @@
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
 * With 3D terrain on, buildings no longer jump in height while you rotate the map near 3D landmarks.
+* Neon signs and screens on 3D landmarks, like Times Square's, glow in their own colours at night instead of fading into the dark buildings around them.
 
 ## [0.19.0] - 2026-11-03
 

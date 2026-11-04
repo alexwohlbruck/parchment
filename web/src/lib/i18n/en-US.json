@@ -2026,7 +2026,11 @@
     "poweredBy": "Powered by",
     "contribute": "Contribute",
     "improveThisMap": "Improve this map",
-    "madeWith": "Made with ❤️ by"
+    "madeWith": "Made with ❤️ by",
+    "contributors": "Contributors",
+    "credits": {
+      "jeremyDean": "Departure timing and commute research"
+    }
   },
   "feedback": {
     "openBoard": "Open feedback board",

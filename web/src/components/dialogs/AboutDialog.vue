@@ -15,6 +15,7 @@ import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
 import { useMapStore } from '@/stores/map.store'
 import { MapEngine } from '@/types/map.types'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
+import { CONTRIBUTORS } from '@/lib/about/contributors'
 import ParchmentLogo from '@/assets/parchment.svg'
 import parchmentMapBg from '@/assets/img/parchment-map.png'
 import { Button } from '@/components/ui/button'
@@ -148,7 +149,7 @@ const socialLinks = [
 
           <!-- Powered by section -->
           <div class="flex flex-col gap-2 bg-muted/40 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span class="text-xs font-semibold text-muted-foreground">
               {{ t('attribution.poweredBy') }}
             </span>
             <div class="flex flex-wrap gap-2">
@@ -162,6 +163,18 @@ const socialLinks = [
                 </a>
               </template>
             </div>
+          </div>
+
+          <div class="flex flex-col gap-2 bg-muted/40 backdrop-blur-sm rounded-xl p-4 border border-border/50">
+            <span class="text-xs font-semibold text-muted-foreground">
+              {{ t('attribution.contributors') }}
+            </span>
+            <ul class="flex flex-col gap-2">
+              <li v-for="contributor in CONTRIBUTORS" :key="contributor.name" class="flex flex-col">
+                <span class="text-sm font-medium">{{ contributor.name }}</span>
+                <span class="text-xs text-muted-foreground">{{ t(contributor.creditKey) }}</span>
+              </li>
+            </ul>
           </div>
 
           <!-- Action buttons -->

@@ -1992,7 +1992,11 @@
     "poweredBy": "Desarrollado por",
     "contribute": "Contribuir",
     "improveThisMap": "Mejorar este mapa",
-    "madeWith": "Hecho con ❤️ por"
+    "madeWith": "Hecho con ❤️ por",
+    "contributors": "Colaboradores",
+    "credits": {
+      "jeremyDean": "Horarios de salida e investigación de desplazamientos"
+    }
   },
   "feedback": {
     "title": "Comentarios",

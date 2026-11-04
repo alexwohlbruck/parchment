@@ -40,7 +40,7 @@ import {
   baseSink, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
-  ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
+  ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, NEON_GLOW, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
   polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
@@ -228,7 +228,7 @@ const DRAW_VS = `#version 300 es
   out vec3 v_anchor;
   flat out vec3 v_color;
   flat out vec3 v_emission;
-  /** What a material is drawn as: ${ROLE.window} window glass, ${ROLE.lamp} a lamp, else 0; see \`materialRole\`. */
+  /** What a material is drawn as: ${ROLE.window} window glass, ${ROLE.lamp} a lamp, ${ROLE.neon} a lit sign, and so on; see \`materialRole\`. */
   flat out float v_role;
   out float v_floodlight;
   /** Metres above the ground the model stands on, for contact occlusion. */
@@ -371,6 +371,17 @@ const DRAW_FS = `#version 300 es
   float wireCover() {
     return ${WIRE_WIDTH.toFixed(2)} / max(length(fwidth(v_model)), 1e-4);
   }
+  /** Soft patches of light across a sign's face, so a big screen shows something; flat once a patch is under a few pixels. */
+  float screenContent() {
+    vec3 mn = abs(v_modelNormal);
+    vec2 c = vec2(mn.x > mn.z ? v_model.y : v_model.x, v_model.z) / ${NEON_GLOW.patch.toFixed(1)} + u_seed * 41.0;
+    vec2 i = floor(c), f = fract(c);
+    f = f * f * (3.0 - 2.0 * f);
+    float noise = mix(mix(facadeHash(i), facadeHash(i + vec2(1.0, 0.0)), f.x),
+      mix(facadeHash(i + vec2(0.0, 1.0)), facadeHash(i + vec2(1.0)), f.x), f.y);
+    float far = smoothstep(0.08, 0.3, length(fwidth(c)));
+    return mix(noise, 0.5, far);
+  }
   void main() {
     if (v_floor < 0.0) discard;
     cut();
@@ -385,10 +396,12 @@ const DRAW_FS = `#version 300 es
     // mipmaps to the right tone at a distance instead of shimmering.
     vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
     vec3 base = v_color * paint.rgb;
-    // Glass keeps most of its own tint: seen through, a pale blue is what makes it read as glass.
+    vec3 own = base;
+    // Glass keeps most of its own tint: seen through, a pale blue is what makes it read as glass. A sign keeps all of its colour.
     bool glass = u_opacity < 1.0;
-    base = mix(base + (1.0 - base) * (glass ? 0.0 : u_paint_lift), u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)),
-      glass ? u_harmony * 0.3 : u_harmony);
+    bool neon = v_role == ${ROLE.neon}.0;
+    base = mix(base + (1.0 - base) * (glass || neon ? 0.0 : u_paint_lift), u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)),
+      neon ? 0.0 : glass ? u_harmony * 0.3 : u_harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -429,6 +442,13 @@ const DRAW_FS = `#version 300 es
     }
     // A lamp is its light, unshaded.
     if (v_role == ${ROLE.lamp}.0) shaded = pow(min(v_emission, 1.0), vec3(1.0 / 2.2));
+    // A lit sign is its own colour, brightest face on, so a lightbox still reads as a box.
+    if (neon) {
+      vec3 glow = pow(min(pow(own, vec3(2.2)) * ${NEON_GLOW.gain.toFixed(2)} + ${NEON_GLOW.lift.toFixed(2)}, 1.0), vec3(1.0 / 2.2));
+      glow *= mix(${NEON_GLOW.edge.toFixed(2)}, 1.0, abs(dot(n, normalize(u_eye - v_anchor))));
+      glow *= mix(1.0 - ${NEON_GLOW.content.toFixed(2)}, 1.0, screenContent());
+      shaded = mix(shaded, glow, u_night);
+    }
     // Glass seen edge-on is nearly opaque, as real glass is: a pane's
     // silhouette and its fins draw as tinted lines while a pane seen face on
     // stays clear.

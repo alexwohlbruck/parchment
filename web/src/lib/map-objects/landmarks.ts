@@ -82,6 +82,16 @@ export const isWindow = (material: string) => material.startsWith('window')
 /** Whether a material is a lamp, which glows at night: `lamp`, `lamp-2`, as windows are named. */
 export const isLamp = (material: string) => material.startsWith('lamp')
 
+/** Whether a material is a lit sign, drawn in its own colour by day and glowing in it at night: `neon-coke-red`. */
+export const isNeon = (material: string) => material.startsWith('neon')
+
+/**
+ * A lit sign at night: its own linear colour raised, as the landmarks repo's
+ * renderer draws it (`neonGlow` in tools/render.ts), dimmed to `edge` seen
+ * edge-on and by up to `content` in soft patches `patch` metres across.
+ */
+export const NEON_GLOW = { gain: 1.3, lift: 0.04, edge: 0.7, content: 0.25, patch: 2.5 }
+
 /** Whether a material is a wire (a suspender, a stay), thinned out where it is finer than a pixel. */
 export const isWire = (material: string) => material.startsWith('wire')
 
@@ -89,14 +99,15 @@ export const isWire = (material: string) => material.startsWith('wire')
 export const isFineWire = (material: string) => isWire(material) && material.endsWith('-fine')
 
 /** How the draw shader treats a material, beyond its colour and emission. */
-export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3, fineWire: 4 } as const
+export const ROLE = { plain: 0, window: 1, lamp: 2, wire: 3, fineWire: 4, neon: 5 } as const
 
 export const materialRole = (material: string): number =>
   isWindow(material) ? ROLE.window
     : isLamp(material) ? ROLE.lamp
-      : isFineWire(material) ? ROLE.fineWire
-        : isWire(material) ? ROLE.wire
-          : ROLE.plain
+      : isNeon(material) ? ROLE.neon
+        : isFineWire(material) ? ROLE.fineWire
+          : isWire(material) ? ROLE.wire
+            : ROLE.plain
 
 /** What a material emits (sRGB glow and an intensity, added in linear light), or null. */
 export function materialEmission(

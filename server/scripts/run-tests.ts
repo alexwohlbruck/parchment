@@ -53,7 +53,7 @@ interface Result {
 }
 
 async function runFile(file: string): Promise<Result> {
-  const proc = Bun.spawn(['bun', 'test', file, ...passThrough], {
+  const proc = Bun.spawn(['bun', 'test', '--isolate', file, ...passThrough], {
     stdout: 'pipe',
     stderr: 'pipe',
     // `bun test` normally defaults NODE_ENV to "test", but handing it an

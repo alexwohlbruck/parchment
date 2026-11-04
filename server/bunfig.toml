@@ -1,3 +1,4 @@
 [test]
-# Deterministic env for every test file — see src/test/setup.ts.
-preload = ["./src/test/setup.ts"]
+# isolate.ts first: it re-runs a shared-registry `bun test` in isolated mode.
+# setup.ts gives every file a deterministic env.
+preload = ["./src/test/isolate.ts", "./src/test/setup.ts"]

@@ -4,7 +4,13 @@
 
 * Transit trips say when to leave: hurry, leave now, or the latest time that still gets you there as planned. They also flag tight transfers, a missed run's replacement, and when biking becomes faster.
 
+* A new Navigation settings tab gathers the modes you use, your default trip ranking, routing preferences, vehicles and voice guidance. These settings now follow your account across devices.
+
+* On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
+
 ### Changed
+
+* Vehicles moved from their own settings page into Settings → Navigation.
 
 ### Fixed
 

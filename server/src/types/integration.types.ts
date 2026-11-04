@@ -132,8 +132,9 @@ export interface RoutingCapability {
 // Support level for each routing preference
 // 'range' = engine supports 0-1 float values (render as 5-stop slider)
 // 'boolean' = engine only supports on/off (render as toggle switch)
+// 'full' = engine takes the value as-is (enum or unbounded number)
 // false = engine does not support this preference
-export type PreferenceSupportLevel = 'range' | 'boolean' | false
+export type PreferenceSupportLevel = 'range' | 'boolean' | 'full' | false
 
 // Metadata describing routing engine capabilities
 export interface RoutingCapabilityMetadata {

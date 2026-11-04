@@ -381,14 +381,10 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
 
       if (preferences?.hills !== undefined)
         bicycle.use_hills = preferences.hills
-      else if (preferences?.avoidHills !== undefined)
-        bicycle.use_hills = preferences.avoidHills ? 0 : 0.5
 
       // Surface quality: 0=any surface, 1=paved only → maps to avoid_bad_surfaces directly
       if (preferences?.surfaceQuality !== undefined)
         bicycle.avoid_bad_surfaces = preferences.surfaceQuality
-      else if (preferences?.preferPavedPaths)
-        bicycle.avoid_bad_surfaces = 0.8
 
       // Safety vs Speed → use_roads (0=safest/prefer paths, 1=fastest/prefer roads)
       if (preferences?.safetyVsSpeed !== undefined)
@@ -426,8 +422,6 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
 
       if (preferences?.hills !== undefined)
         pedestrian.use_hills = preferences.hills
-      else if (preferences?.avoidHills !== undefined)
-        pedestrian.use_hills = preferences.avoidHills ? 0 : 0.5
 
       if (preferences?.litPaths !== undefined)
         pedestrian.use_lit = preferences.litPaths

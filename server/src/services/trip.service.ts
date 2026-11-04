@@ -2271,7 +2271,6 @@ export class TripService {
       arriveBy: arrivalTarget != null,
       numItineraries: isContinuation ? 2 : isMulti ? 3 : 5,
       searchWindow: isContinuation ? 900 : isMulti ? 1200 : 1800,
-      transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
     }

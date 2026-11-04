@@ -6,6 +6,8 @@
 
 * The map lays out each tile once as it opens, rather than two or three times over, so 3D city views finish drawing a couple of seconds sooner.
 
+* On a first visit the map's tile workers start sooner, and trees, street furniture and 3D landmarks load after the map's first tiles instead of competing with them.
+
 * Airport gate numbers on indoor maps are smaller, so they no longer crowd the floor plan.
 
 ### Fixed

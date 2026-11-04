@@ -12,6 +12,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock, axiosError } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -83,7 +84,7 @@ describe('configuration', () => {
   test('declares the map-edit capability with every operation', () => {
     const integration = new OpenStreetMapIntegration()
 
-    expect(integration.capabilityIds).toEqual(['osmMapEdit'])
+    expect(integration.capabilityIds).toEqual([IntegrationCapabilityId.OSM_MAP_EDIT])
     for (const op of [
       'createNote',
       'getNote',

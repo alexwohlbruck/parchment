@@ -2,6 +2,8 @@
 
 ### Added
 
+* Subway trips and departure boards name directions as the platform signs do, like "Uptown & The Bronx", and entrances by their street corner. Exit-only entrances are never used to enter.
+
 ### Changed
 
 ### Fixed

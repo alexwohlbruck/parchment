@@ -3,6 +3,7 @@
 
 import type { RouteEdgeSegment } from '@/types/directions.types'
 import type { DrivingSide, InstructionLanePlan, LaneGeometry } from '@server/types/unified-routing.types'
+import type { TransitDetails, TransitRouteType } from '@server/types/trip.types'
 
 export type VehicleType =
   | 'car'
@@ -257,80 +258,19 @@ export interface SharedMobilityDetails {
   }
 }
 
-export interface TransitDetails {
-  route: TransitRoute
-  trip: TransitTrip
-  stops: TransitStop[]
-  departureStop: TransitStop
-  arrivalStop: TransitStop
-  headsign?: string
-  shortName?: string
-  color?: string
-  textColor?: string
-  realTimeData?: boolean
-  delay?: number // seconds
-  alerts?: TransitAlert[]
-}
-
-export interface TransitRoute {
-  id: string
-  shortName?: string
-  longName?: string
-  type: TransitRouteType
-  color?: string
-  textColor?: string
-  agency: TransitAgency
-}
-
-export interface TransitTrip {
-  id: string
-  headsign?: string
-  shortName?: string
-  direction?: number
-  blockId?: string
-}
-
-export interface TransitStop {
-  id: string
-  name: string
-  location: Coordinate
-  code?: string
-  platformCode?: string
-  wheelchairBoarding?: boolean
-  arrivalTime?: string
-  departureTime?: string
-  stopSequence?: number
-}
-
-export interface TransitAgency {
-  id: string
-  name: string
-  url?: string
-  timezone?: string
-  phone?: string
-}
-
-export interface TransitAlert {
-  id: string
-  headerText: string
-  descriptionText?: string
-  url?: string
-  effect: TransitAlertEffect
-  cause: TransitAlertCause
-  severity: TransitAlertSeverity
-}
-
-export type TransitRouteType =
-  | 'tram'
-  | 'subway'
-  | 'rail'
-  | 'bus'
-  | 'ferry'
-  | 'cable_tram'
-  | 'aerial_lift'
-  | 'funicular'
-  | 'trolleybus'
-  | 'monorail'
+export type {
+  TransitDetails,
+  TransitRoute,
+  TransitTrip,
+  TransitStop,
+  TransitAgency,
+  TransitAlert,
+  TransitRouteType,
+  TransitAlertEffect,
+  TransitAlertCause,
+  TransitAlertSeverity,
+  StationEntranceRef,
+} from '@server/types/trip.types'
 
 /** A live GTFS-RT vehicle position enriched by Barrelman. */
 export interface TransitVehiclePosition {
@@ -354,33 +294,6 @@ export interface TransitVehiclePosition {
   /** Timestamp of the previous position snapshot. */
   previousTimestamp?: string
 }
-
-export type TransitAlertEffect =
-  | 'no_service'
-  | 'reduced_service'
-  | 'significant_delays'
-  | 'detour'
-  | 'additional_service'
-  | 'modified_service'
-  | 'other_effect'
-  | 'unknown_effect'
-  | 'stop_moved'
-
-export type TransitAlertCause =
-  | 'unknown_cause'
-  | 'other_cause'
-  | 'technical_problem'
-  | 'strike'
-  | 'demonstration'
-  | 'accident'
-  | 'holiday'
-  | 'weather'
-  | 'maintenance'
-  | 'construction'
-  | 'police_activity'
-  | 'medical_emergency'
-
-export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string

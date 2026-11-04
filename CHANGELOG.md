@@ -8,11 +8,16 @@
 
 * On a first visit the map's tile workers start sooner, and trees, street furniture and 3D landmarks load after the map's first tiles instead of competing with them.
 
+* Airport gate numbers on indoor maps are smaller, so they no longer crowd the floor plan.
+
 ### Fixed
+
+* With 3D terrain on, indoor floor plans no longer flicker as the map pans or zooms, and panning around them is smoother.
 
 * Subway lines stay fully visible when viewing an underground station's floor plan, instead of fading out with the streets above.
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
+* With 3D terrain on, buildings no longer jump in height while you rotate the map near 3D landmarks.
 
 ## [0.19.0] - 2026-11-03
 

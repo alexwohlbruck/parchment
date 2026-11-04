@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mercator } from '@/lib/map-decks/decks'
-import { standsOnGround, venueOutlines } from './venue-outline'
+import { grownOutline, standsOnGround, venueOutlines } from './venue-outline'
 
 const piece = (venue: number, ring: number[][]) => ({ properties: { venue }, geometry: { type: 'Polygon', coordinates: [ring] } })
 
@@ -20,6 +20,25 @@ describe('venueOutlines', () => {
       { properties: {}, geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [0, 1]]] } },
     ])
     expect([...outlines.keys()].sort()).toEqual([1, 2])
+  })
+})
+
+describe('grownOutline', () => {
+  const square: [number, number][] = [[0, 0], [10, 0], [10, 10], [0, 10]]
+
+  it('keeps the known outline when the pieces in view fall within it or barely past it', () => {
+    expect(grownOutline(square, [[1, 1], [9, 1], [9, 9]])).toBe(square)
+    expect(grownOutline(square, [[0, 0], [10.02, 0], [10.02, 10], [0, 10]])).toBe(square)
+  })
+
+  it('widens to take in a piece loaded beyond it', () => {
+    const grown = grownOutline(square, [[10, 0], [20, 0], [20, 10], [10, 10]])
+    expect(grown).toHaveLength(4)
+    expect(grown).toEqual(expect.arrayContaining([[20, 0], [20, 10]]))
+  })
+
+  it('takes the first outline seen as it is', () => {
+    expect(grownOutline(undefined, square)).toBe(square)
   })
 })
 

@@ -103,19 +103,18 @@ export interface PlaceInfoCapability {
   ): Promise<Place | null>
 }
 
-// TODO: Return types
 export interface GeocodingCapability {
   geocode(
     query: string,
     lat?: number,
     lng?: number,
     options?: { language?: import('../lib/i18n').Language },
-  ): Promise<any[]>
+  ): Promise<Place[]>
   reverseGeocode(
     lat: number,
     lng: number,
     options?: { language?: import('../lib/i18n').Language },
-  ): Promise<any[]>
+  ): Promise<Place[]>
 }
 
 export interface RoutingCapability {

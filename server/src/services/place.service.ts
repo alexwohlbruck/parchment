@@ -86,8 +86,9 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
       try {
         const results = await integration.capabilities.geocoding.reverseGeocode(lat, lng)
         
-        if (results?.[0]?.address?.value) {
-          const geocodedAddress = results[0].address
+        const geocoded = results?.[0]
+        const geocodedAddress = geocoded?.address
+        if (geocodedAddress?.value) {
           
           // Only use the address if it has meaningful data
           const addr = geocodedAddress.value
@@ -95,13 +96,10 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
             logger.debug(`Successfully enriched address from ${integrationRecord.integrationId}`)
             place.address = geocodedAddress
             
-            // Add to sources if not already present
-            const sourceId = geocodedAddress.sourceId
-            if (!place.sources.some(s => s.sourceId === sourceId)) {
-              place.sources.push({
-                sourceId,
-                timestamp: geocodedAddress.timestamp,
-              })
+            for (const source of geocoded.sources) {
+              if (!place.sources.some((s) => s.id === source.id)) {
+                place.sources.push(source)
+              }
             }
             
             const enrichTime = Date.now() - startTime

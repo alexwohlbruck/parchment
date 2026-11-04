@@ -17,6 +17,7 @@
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
 * With 3D terrain on, buildings no longer jump in height while you rotate the map near 3D landmarks.
 * Neon signs and screens on 3D landmarks, like Times Square's, glow in their own colours at night, with a soft halo, instead of fading into the dark buildings around them.
+* Arrows and bike symbols painted on the road no longer balloon in the distance when the map is tilted steeply.
 
 ## [0.19.0] - 2026-11-03
 

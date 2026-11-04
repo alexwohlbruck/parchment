@@ -192,6 +192,8 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     {
       id: `Road glyph${suffix}`,
       type: 'symbol',
+      // Paint on the road: our MapLibre fork leaves out the boost that keeps far labels legible.
+      metadata: { 'parchment:decal': true },
       source: DETAIL_SOURCE,
       'source-layer': ROAD_GLYPH_TILES,
       minzoom: FROM,

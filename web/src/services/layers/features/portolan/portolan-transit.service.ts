@@ -87,6 +87,7 @@ import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './p
 import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 import { firstLabelLayerId } from './portolan-anchors'
+import { planMounts } from './portolan-mounts'
 import { resolveRouteRef, routeRefFor,
   bareRouteId,
 } from './portolan-routes'
@@ -1486,67 +1487,16 @@ function ribbonAnchorOr(labels: string | undefined) {
   return ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : labels
 }
 
-// ── viewport culling (the chunking the sources never had) ──────────────
-
-/** Mount a pyramid once the viewport is within this fraction of its own
- *  span of it; keep it until the viewport is this much further away.
- *  The gap is hysteresis: a pan that skims a boundary must not thrash a
- *  source in and out on every frame. */
-const MOUNT_PAD = 0.25
-const KEEP_PAD = 1.0
-
-/** A world view intersects every pyramid on earth, and mounting all of
- *  them is the freeze this culling exists to prevent. Past this many, keep
- *  the ones nearest the middle of the screen — that is where someone is
- *  looking — and let the rest arrive as they pan. */
-const MAX_MOUNTED = 12
-
-function padded(b: any, pad: number) {
-  const w = b.getEast() - b.getWest()
-  const h = b.getNorth() - b.getSouth()
-  return {
-    w: b.getWest() - w * pad,
-    e: b.getEast() + w * pad,
-    s: b.getSouth() - h * pad,
-    n: b.getNorth() + h * pad,
-  }
-}
-
-const hits = (box: number[] | undefined, p: {w:number;e:number;s:number;n:number}) =>
-  !box || box.length !== 4
-    ? true // no bounds recorded: it could be anywhere, so never cull it
-    : box[0] <= p.e && box[2] >= p.w && box[1] <= p.n && box[3] >= p.s
-
-/** Reconcile the mounted set against the viewport. Cheap and idempotent:
- *  when the desired set already matches, this touches nothing, which is
- *  what lets it run on every moveend. */
 /** Mount the feeds the viewport wants; true when any was newly mounted. */
 async function reconcileFeeds(regions: PortolanIndexEntry[]): Promise<boolean> {
   if (!map?.getSource(SRC_STATIONS)) return false
   const b = map.getBounds()
-  const near = padded(b, MOUNT_PAD)
-  const far = padded(b, KEEP_PAD)
-  const cx = (b.getWest() + b.getEast()) / 2
-  const cy = (b.getSouth() + b.getNorth()) / 2
-
-  const want = regions
-    .filter(r => hits(r.bounds, near))
-    .map(r => {
-      const bx = r.bounds
-      const dx = !bx ? 0 : Math.max(bx[0] - cx, 0, cx - bx[2])
-      const dy = !bx ? 0 : Math.max(bx[1] - cy, 0, cy - bx[3])
-      return { r, d: dx * dx + dy * dy }
-    })
-    .sort((a, z) => a.d - z.d)
-    .slice(0, MAX_MOUNTED)
-    .map(x => x.r)
-
-  const wanted = new Set(want.map(r => r.feed))
-  for (const feed of [...mounted]) {
-    if (wanted.has(feed)) continue
-    const r = regions.find(x => x.feed === feed)
-    if (!r || !hits(r.bounds, far) || mounted.size > MAX_MOUNTED) unmountFeed(feed)
-  }
+  const { want, drop } = planMounts(
+    regions,
+    { w: b.getWest(), s: b.getSouth(), e: b.getEast(), n: b.getNorth() },
+    mounted,
+  )
+  for (const feed of drop) unmountFeed(feed)
 
   // A feed's own manifest carries its class widths; fetch it before the
   // layers read it, but only for the handful actually being mounted.

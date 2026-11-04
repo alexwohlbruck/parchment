@@ -9,9 +9,11 @@
 
 export interface StopBoard {
   departures?: Array<{
+    tripId?: string
     route?: { shortName?: string }
     directionId?: string | number | null
     departureTime?: string
+    realTime?: boolean
     cancelled?: boolean
   }>
 }

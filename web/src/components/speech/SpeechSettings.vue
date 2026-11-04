@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Volume2Icon } from 'lucide-vue-next'
-import { useSpeechStore } from '@/stores/speech.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useSpeechCatalog } from '@/composables/speech/useSpeechCatalog'
 import { storedLocale, i18n } from '@/lib/i18n'
 import { speak, releaseSpeech, unlockSpeech } from '@/services/speech/speech.service'
@@ -10,7 +10,7 @@ import { SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 
-const { preferences } = storeToRefs(useSpeechStore())
+const { speech: preferences } = storeToRefs(useNavigationPreferencesStore())
 const { catalog } = useSpeechCatalog()
 const voices = computed(() => catalog.value?.voices.filter(voice => voice.language.split('-')[0] === storedLocale.value.split('-')[0]) ?? [])
 const voice = computed({

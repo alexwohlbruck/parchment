@@ -12,6 +12,7 @@ import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import type { TripsResponse } from '@/types/directions.types'
 import type { Waypoint } from '@/types/map.types'
 
@@ -283,40 +284,40 @@ describe('useDirectionsStore', () => {
     })
   })
 
-  describe('setGeneralPreference', () => {
-    test('updates a general preference shared across all modes', () => {
+  describe('routing preferences', () => {
+    test('general preferences apply to every mode', () => {
       const store = useDirectionsStore()
 
-      store.setGeneralPreference('ferries', 0)
+      useNavigationPreferencesStore().setGeneralPreference('ferries', 0)
 
-      expect(store.generalPreferences.ferries).toBe(0)
-      // General prefs show up in the merged view regardless of mode
       store.selectedMode = 'walking'
       expect(store.routingPreferences.ferries).toBe(0)
       store.selectedMode = 'driving'
       expect(store.routingPreferences.ferries).toBe(0)
     })
+
+    test('a mode preference only reaches that mode', () => {
+      const store = useDirectionsStore()
+
+      useNavigationPreferencesStore().setModePreference('walking', 'hills', 0)
+
+      store.selectedMode = 'walking'
+      expect(store.routingPreferences.hills).toBe(0)
+      store.selectedMode = 'biking'
+      expect(store.routingPreferences.hills).toBe(0.5)
+    })
   })
 
-  describe('setModePreference', () => {
-    test('updates a mode-scoped preference only on that mode', () => {
+  describe('sort', () => {
+    test('follows the default until the search picks its own', () => {
       const store = useDirectionsStore()
+      const preferences = useNavigationPreferencesStore()
 
-      store.setModePreference('walking', 'hills', 0)
-
-      expect(store.modePreferences.walking.hills).toBe(0)
-      // Biking should NOT be affected — modes are independent
-      expect(store.modePreferences.biking.hills).toBe(0.5)
-    })
-
-    test('walking and biking hills stay independent', () => {
-      const store = useDirectionsStore()
-
-      store.setModePreference('walking', 'hills', 0.2)
-      store.setModePreference('biking', 'hills', 0.8)
-
-      expect(store.modePreferences.walking.hills).toBe(0.2)
-      expect(store.modePreferences.biking.hills).toBe(0.8)
+      expect(store.effectiveSort).toBe('balanced')
+      preferences.sortPreference = 'least_walking'
+      expect(store.effectiveSort).toBe('least_walking')
+      store.sortPreference = 'balanced'
+      expect(store.effectiveSort).toBe('balanced')
     })
   })
 
@@ -329,54 +330,6 @@ describe('useDirectionsStore', () => {
       await nextTick() // Wait for watcher to trigger
       
       expect(localStorageMock.getItem('selectedMode')).toBe('biking')
-    })
-
-    test('saves general preferences to localStorage on change', async () => {
-      const store = useDirectionsStore()
-
-      store.setGeneralPreference('ferries', 0)
-      await nextTick()
-      await nextTick() // Wait for watcher to trigger
-
-      const stored = localStorageMock.getItem('routingPreferences')
-      expect(stored).toBeTruthy()
-      const parsed = JSON.parse(stored!)
-      expect(parsed.general.ferries).toBe(0)
-    })
-
-    test('saves mode preferences to localStorage on change', async () => {
-      const store = useDirectionsStore()
-
-      store.setModePreference('biking', 'hills', 0.1)
-      await nextTick()
-      await nextTick()
-
-      const stored = localStorageMock.getItem('routingPreferences')
-      expect(stored).toBeTruthy()
-      const parsed = JSON.parse(stored!)
-      expect(parsed.mode.biking.hills).toBe(0.1)
-      // Walking slice unchanged
-      expect(parsed.mode.walking.hills).toBe(0.5)
-    })
-
-    test('migrates legacy flat format from localStorage', () => {
-      localStorageMock.setItem(
-        'routingPreferences',
-        JSON.stringify({
-          ferries: 0.25,
-          hills: 0.2,
-          highways: 0.75,
-        }),
-      )
-
-      const store = useDirectionsStore()
-
-      // General key lands in general
-      expect(store.generalPreferences.ferries).toBe(0.25)
-      // Non-general keys get applied to every mode (best-effort migration)
-      expect(store.modePreferences.walking.hills).toBe(0.2)
-      expect(store.modePreferences.biking.hills).toBe(0.2)
-      expect(store.modePreferences.driving.highways).toBe(0.75)
     })
   })
 })

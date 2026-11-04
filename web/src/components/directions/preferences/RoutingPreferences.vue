@@ -9,7 +9,6 @@ import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -30,12 +29,8 @@ import type {
   SelectedMode,
 } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
-import {
-  useDirectionsStore,
-  GENERAL_KEY_SET,
-  type ModeKey,
-} from '@/stores/directions.store'
-import { storeToRefs } from 'pinia'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { GENERAL_KEY_SET, type ModeKey } from '@/lib/preferences/navigation-preferences'
 import { useUnits } from '@/composables/useUnits'
 import PreferenceRow from '@/components/directions/preferences/PreferenceRow.vue'
 import PreferenceToggle from '@/components/directions/preferences/PreferenceToggle.vue'
@@ -45,41 +40,26 @@ import { providePreferences } from '@/components/directions/preferences/context'
 const { t } = useI18n()
 const { isMetric, convert } = useUnits()
 
-const props = defineProps<{
-  selectedMode: SelectedMode
-}>()
-
-const emit = defineEmits<{
-  close: []
-}>()
-
-// Preferences are stored as a split structure: general (shared across modes)
-// + per-mode slices. The active tab determines which slice gets written to
-// when the user adjusts a mode-specific preference.
-const directionsStore = useDirectionsStore()
-const { generalPreferences, modePreferences } = storeToRefs(directionsStore)
-
-/**
- * Merged read view for the current tab: general prefs overlaid with the
- * active mode's slice. This preserves the existing template bindings that
- * read `preferences.<key>`.
- */
-const preferences = computed<Partial<RoutingPreferences>>(() => {
-  const mode = activeTab.value as ModeKey
-  return {
-    ...generalPreferences.value,
-    ...(modePreferences.value[mode] || {}),
-  }
+const props = withDefaults(defineProps<{ selectedMode?: SelectedMode }>(), {
+  selectedMode: 'multi',
 })
+
+const navigationPreferences = useNavigationPreferencesStore()
+
+/** General preferences overlaid with the active tab's mode slice. */
+const preferences = computed<Partial<RoutingPreferences>>(() => ({
+  ...navigationPreferences.routing.general,
+  ...navigationPreferences.routing.mode[activeTab.value as ModeKey],
+}))
 
 function updatePreference<K extends keyof RoutingPreferences>(
   key: K,
   value: RoutingPreferences[K],
 ) {
   if (GENERAL_KEY_SET.has(key as string)) {
-    directionsStore.setGeneralPreference(key, value)
+    navigationPreferences.setGeneralPreference(key, value)
   } else {
-    directionsStore.setModePreference(activeTab.value as ModeKey, key, value)
+    navigationPreferences.setModePreference(activeTab.value as ModeKey, key, value)
   }
 }
 
@@ -649,11 +629,5 @@ const customModelError = computed(() => {
         </p>
       </CollapsibleContent>
     </Collapsible>
-
-    <div class="hidden md:flex justify-end px-4 py-3 border-t">
-      <Button size="sm" @click="emit('close')">
-        {{ t('general.done') }}
-      </Button>
-    </div>
   </div>
 </template>

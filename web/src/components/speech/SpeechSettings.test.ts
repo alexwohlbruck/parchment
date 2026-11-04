@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { shallowRef } from 'vue'
 import { writeFileSync } from 'node:fs'
 import SpeechSettings from './SpeechSettings.vue'
-import { useSpeechStore } from '@/stores/speech.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import type { SpeechCatalog } from '@server/types/speech.types'
 import english from '@/lib/i18n/en-US.json'
 
@@ -28,7 +28,7 @@ describe('speech settings', () => {
   })
   it('offers server voices for the app language and previews the selected rate', async () => {
     catalog.value = { model: 'kokoro:v1.0', voices: [{ id: 'af_heart', name: 'Heart', language: 'en-US' }, { id: 'ef_dora', name: 'Dora', language: 'es' }], rate: { min: .75, max: 1.5, default: 1, native: true }, inflection: false }
-    useSpeechStore().preferences = { rate: 1.25, voices: { 'en-US': 'af_heart' } }
+    useNavigationPreferencesStore().speech = { rate: 1.25, voices: { 'en-US': 'af_heart' } }
     wrapper = render()
     expect(wrapper.findAll('[role="combobox"]')).toHaveLength(2)
     await wrapper.find('button:not([role="combobox"])').trigger('click')

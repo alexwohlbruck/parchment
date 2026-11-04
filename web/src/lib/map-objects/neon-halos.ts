@@ -44,7 +44,7 @@ export const NEON_HALO = {
   smallest: 0.6,
   /** Square metres of lit card, its area times its strength, under which a glow is left out. */
   faint: 1,
-  opacity: 0.4,
+  opacity: 0.2,
 }
 
 /** More than any model has signs; the rest, smallest first, go without. */

@@ -58,8 +58,6 @@ export const useDirectionsStore = defineStore('directions', () => {
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
 
-  const modePreferences = computed(() => navigationPreferences.routing.mode)
-
   function modeKeyForSelected(m: SelectedMode): ModeKey {
     // 'multi' has no single mode — use biking's slice as the representative
     // request payload. Per-segment multi-mode prefs would need a backend change.
@@ -78,7 +76,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     const mk = modeKeyForSelected(selectedMode.value)
     return {
       ...navigationPreferences.routing.general,
-      ...modePreferences.value[mk],
+      ...navigationPreferences.routing.mode[mk],
     } as RoutingPreferences
   })
 
@@ -151,7 +149,6 @@ export const useDirectionsStore = defineStore('directions', () => {
     isLoading,
     selectedTripId,
     timezoneWarning,
-    modePreferences,
     routingPreferences,
     setDirections,
     setTrips,

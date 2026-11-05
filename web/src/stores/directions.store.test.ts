@@ -97,13 +97,14 @@ describe('useDirectionsStore', () => {
     })
 
     test('mode-scoped defaults differ per mode', () => {
-      const store = useDirectionsStore()
+      useDirectionsStore()
+      const mode = useNavigationPreferencesStore().routing.mode
 
-      expect(store.modePreferences.walking.hills).toBe(0.5)
-      expect(store.modePreferences.biking.hills).toBe(0.5)
-      expect(store.modePreferences.biking.surfaceQuality).toBe(0.25)
-      expect(store.modePreferences.driving.highways).toBe(0.5)
-      expect(store.modePreferences.transit.maxWalkingDistance).toBe(1000)
+      expect(mode.walking.hills).toBe(0.5)
+      expect(mode.biking.hills).toBe(0.5)
+      expect(mode.biking.surfaceQuality).toBe(0.25)
+      expect(mode.driving.highways).toBe(0.5)
+      expect(mode.transit.maxWalkingDistance).toBe(1000)
     })
 
     test('merged routingPreferences tracks selectedMode', () => {

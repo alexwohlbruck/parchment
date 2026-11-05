@@ -18,6 +18,7 @@ import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
@@ -85,6 +86,7 @@ import { useI18n } from 'vue-i18n'
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
+const navigationPreferences = useNavigationPreferencesStore()
 const tripFocusStore = useTripFocusStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
@@ -529,7 +531,7 @@ function remainingWalkSec(segmentIndex: number): number {
  *  directly rather than the merged `routingPreferences` — a multimodal trip
  *  resolves those against the biking slice, which carries no transit keys. */
 const graceSec = computed(
-  () => (directionsStore.modePreferences.transit?.transitBufferMinutes ?? 2) * 60,
+  () => navigationPreferences.transitBufferMinutes * 60,
 )
 
 function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {

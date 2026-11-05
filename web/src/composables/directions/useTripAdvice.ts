@@ -3,8 +3,8 @@ import { useI18n } from 'vue-i18n'
 import { useTransitClock } from '@/composables/transit/useTransitClock'
 import { useDirectionsService } from '@/services/directions.service'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import {
-  DEFAULT_TRANSIT_BUFFER_MIN,
   adviceText,
   adviceTone,
   adviceValidUntil,
@@ -39,13 +39,13 @@ const ADVICE_TICK_MS = 15_000
 /** A trip's advice as display lines, under the rider's buffer and depart-at time. */
 export function useTripAdvice() {
   const store = useDirectionsStore()
+  const navigationPreferences = useNavigationPreferencesStore()
   const { t } = useI18n()
 
   function adviceFor(trip: TripOption, nowMs: number): TripAdviceLines | null {
     const leg = boardingLeg(trip.segments)
     const advice = tripAdvice(trip.departureProfile, nowMs, {
-      transitBufferMinutes:
-        store.modePreferences.transit?.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MIN,
+      transitBufferMinutes: navigationPreferences.transitBufferMinutes,
       future: isFuturePlan(store.departureTime, nowMs),
       boardsAtMs: leg?.departMs,
     })

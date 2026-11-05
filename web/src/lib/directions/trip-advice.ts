@@ -6,8 +6,8 @@ import type { DepartureProfile, DepartureRun } from '@/types/multimodal.types'
 import { departureReachability } from '@/lib/transit/transit-reachability'
 import { formatClockCompact } from './trip-display'
 import { tripType, type TripTypeSegment } from './trip-type'
+import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-preferences'
 
-export const DEFAULT_TRANSIT_BUFFER_MIN = 2
 /** Under this much time to leave, an expensive miss is worth a nudge. */
 const LEAVE_LEAD_MIN = 5
 const LEAVE_MISS_COST_MIN = 8
@@ -92,7 +92,7 @@ function deadlineState(
   if (options.future) return { kind: 'by', leaveByMs }
 
   const departAtMs = ms(run.departAt)
-  const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MIN
+  const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES
   const reach = departureReachability(departAtMs, nowMs, (departAtMs - leaveByMs) / 1000, bufferMin * 60)
   const leadMin = minutes(leaveByMs - nowMs)
   if (reach === 'hurry') return { kind: 'hurry', leadMin: Math.max(1, Math.floor(leadMin)), departAtMs }

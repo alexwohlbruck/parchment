@@ -42,6 +42,8 @@ const ADVICE_TICK_MS = 10_000
 /** Background re-plans: fast while a card asks you to act, slow otherwise. */
 const RESCAN_URGENT_MS = 20_000
 const RESCAN_CALM_MS = 60_000
+/** A missed trip re-plans straight away, but never more often than this. */
+const MISSED_REPLAN_GAP_MS = 10_000
 const URGENT_KINDS: ReadonlySet<AdviceKind> = new Set(['hurry', 'leave', 'missed'])
 
 /** A trip's advice as display lines, under the rider's buffer and depart-at time. */
@@ -79,7 +81,8 @@ export function useTripAdvice() {
 /**
  * Card hints for a result list, by trip id, on a light clock. While the plan
  * is for now, the search is re-planned quietly: every 20 s when a card asks
- * you to act, every minute otherwise, and once its profiles run out.
+ * you to act, every minute otherwise, and once its profiles run out. Missed
+ * trips are dropped as soon as they are missed.
  */
 export function useTripListAdvice(trips: () => TripOption[]) {
   const { rawAdvice } = useTripAdvice()
@@ -110,7 +113,19 @@ export function useTripListAdvice(trips: () => TripOption[]) {
   })
 
   let lastPlanMs = Date.now()
+  let lastMissedReplanMs = -Infinity
   watch(trips, () => (lastPlanMs = Date.now()))
+
+  /** Missed trips leave the list at once and the search re-plans, unless nothing would be left. */
+  watch(raw, entries => {
+    const missed = new Set([...entries].filter(([, entry]) => entry?.advice.state?.kind === 'missed').map(([id]) => id))
+    if (!missed.size || missed.size === entries.size) return
+    store.removeTrips(missed)
+    const nowMs = Date.now()
+    if (nowMs - lastMissedReplanMs < MISSED_REPLAN_GAP_MS) return
+    lastMissedReplanMs = nowMs
+    void directionsService.replan()
+  })
 
   watch(now, current => {
     const nowMs = current.getTime()

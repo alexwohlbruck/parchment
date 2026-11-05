@@ -88,6 +88,22 @@ describe('useTripListAdvice', () => {
     wrapper.unmount()
   })
 
+  it('drops a missed trip and re-plans at once, keeping a list that would be empty', async () => {
+    const bike = { id: 'bike', rank: 2, segments: [{ mode: 'biking' }], summary: { totalDuration: 2400 } } as unknown as TripOption
+    const { wrapper } = mountAdvice([transitTrip(60), bike])
+    const removeTrips = vi.spyOn(useDirectionsStore(), 'removeTrips')
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    expect(removeTrips).toHaveBeenCalledWith(new Set(['transit']))
+    expect(replan).toHaveBeenCalled()
+    wrapper.unmount()
+
+    const alone = mountAdvice([transitTrip(60)])
+    const removeAlone = vi.spyOn(useDirectionsStore(), 'removeTrips')
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    expect(removeAlone).not.toHaveBeenCalled()
+    alone.wrapper.unmount()
+  })
+
   it('stops ticking once unmounted', async () => {
     const { wrapper } = mountAdvice([transitTrip(1)])
     wrapper.unmount()

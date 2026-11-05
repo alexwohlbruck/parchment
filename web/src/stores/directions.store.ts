@@ -104,6 +104,16 @@ export const useDirectionsStore = defineStore('directions', () => {
     }
   }
 
+  /** Drops trips that can no longer be taken, keeping a selection that survives. */
+  function removeTrips(ids: ReadonlySet<string>) {
+    if (!trips.value) return
+    const kept = trips.value.trips.filter(trip => !ids.has(trip.id))
+    trips.value = { ...trips.value, trips: kept }
+    if (selectedTripId.value && ids.has(selectedTripId.value)) {
+      setSelectedTripId((kept.find(trip => trip.isRecommended) ?? kept[0])?.id ?? null)
+    }
+  }
+
   function unsetDirections() {
     directions.value = null
   }
@@ -154,6 +164,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     setTrips,
     unsetDirections,
     unsetTrips,
+    removeTrips,
     setSelectedTripId,
     setWaypoint,
     setWaypoints,

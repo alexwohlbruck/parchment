@@ -728,11 +728,8 @@
       "short": {
         "leave": "Sal ya",
         "hurry": "Rápido",
-        "relax": "Calma",
-        "by": "Antes {time}",
         "tight": "Justo",
         "missed": "Perdido",
-        "sched": "Horario",
         "cancelled": "Cancelado",
         "tooFar": "Lejos",
         "run": "Corre"
@@ -741,7 +738,6 @@
         "leave": "Sal ya · el siguiente llega {minutes} min después",
         "hurry": "Rápido · {minutes} min para el de las {time}",
         "hurryLine": "Rápido · {minutes} min para el {line} de las {time}",
-        "relax": "Sal antes de las {time}",
         "by": "Sal antes de las {time}",
         "tight": "{minutes} min para transbordar en {stop}",
         "tightAnywhere": "{minutes} min para transbordar",

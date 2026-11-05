@@ -1,4 +1,4 @@
-import { watch, ref, readonly } from 'vue'
+import { watch, ref } from 'vue'
 import axios from 'axios'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
@@ -165,7 +165,7 @@ function directionsService() {
       // response (same trip ids and times) instead of re-planning — a page
       // refresh on a trip detail lands back on the identical trip.
       const planKey = planCacheKey(request)
-      const cached = quiet ? null : readPlanCache(planKey)
+      const cached = quiet ? null : readPlanCache(planKey, request.preferredDepartureTime ? PLAN_CACHE_TTL_MS : LEAVE_NOW_CACHE_TTL_MS)
       if (cached) {
         store.setTrips(cached)
         return
@@ -209,7 +209,7 @@ function directionsService() {
         metadata: data.metadata,
       }
 
-      store.setTrips(response)
+      store.setTrips(response, { keepSelection: quiet })
       writePlanCache(planKey, response)
     } catch (error) {
       // Aborted by a newer request — leave all state to that request.
@@ -235,6 +235,8 @@ function directionsService() {
   // through the URL → re-plan → trip-signature match path instead.
   const PLAN_CACHE_KEY = 'parchment:last-plan'
   const PLAN_CACHE_TTL_MS = 30 * 60_000
+  /** A leave-now plan goes stale as its trains leave; past this, plan afresh. */
+  const LEAVE_NOW_CACHE_TTL_MS = 2 * 60_000
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function planCacheKey(request: any): string {
@@ -243,13 +245,13 @@ function directionsService() {
     return JSON.stringify({ ...stable, waypoints })
   }
 
-  function readPlanCache(key: string): TripsResponse | null {
+  function readPlanCache(key: string, ttlMs: number): TripsResponse | null {
     try {
       const raw = sessionStorage.getItem(PLAN_CACHE_KEY)
       if (!raw) return null
       const entry = JSON.parse(raw)
       if (entry.key !== key) return null
-      if (Date.now() - entry.savedAt > PLAN_CACHE_TTL_MS) return null
+      if (Date.now() - entry.savedAt > ttlMs) return null
       return entry.response as TripsResponse
     } catch {
       return null
@@ -595,7 +597,6 @@ function directionsService() {
   return {
     getDirections,
     replan: () => getDirections({ quiet: true }),
-    isRequesting: readonly(isRequesting),
     fillWaypoint,
     setWaypoint,
     setWaypoints,

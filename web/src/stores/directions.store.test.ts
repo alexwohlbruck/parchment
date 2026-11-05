@@ -235,6 +235,28 @@ describe('useDirectionsStore', () => {
 
       expect(store.selectedTripId).toBeNull()
     })
+
+    test('a re-plan keeps the selected itinerary under its new id', () => {
+      const store = useDirectionsStore()
+      const response = (ids: [string, string]): TripsResponse => ({
+        request: { waypoints: [] },
+        trips: [
+          { id: ids[0], isRecommended: true, segments: [{ mode: 'transit', lineName: 'A' }] } as any,
+          { id: ids[1], segments: [{ mode: 'transit', lineName: '3' }] } as any,
+        ],
+        earliestStart: new Date(0),
+        latestEnd: new Date(0),
+        metadata: { providers: [], processingTime: 0 },
+      })
+      store.setTrips(response(['a-1', 'three-1']))
+      store.setSelectedTripId('three-1')
+
+      store.setTrips(response(['a-2', 'three-2']), { keepSelection: true })
+      expect(store.selectedTripId).toBe('three-2')
+
+      store.setTrips(response(['a-3', 'three-3']))
+      expect(store.selectedTripId).toBe('a-3')
+    })
   })
 
   describe('unsetTrips', () => {

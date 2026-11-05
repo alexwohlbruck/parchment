@@ -127,3 +127,13 @@ export const isOutOfReach = (state: DepartureReachability) => state === 'departe
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
 }
+
+/** Further than this from both the start and the boarding stop, a departed run is probably being ridden. */
+const RIDING_CLEAR_M = 400
+
+/** Whether the rider looks to be on the run rather than to have missed it. */
+export function seemsAboard(here: LngLat | null | undefined, stop: LngLat | undefined, start: LngLat | undefined): boolean {
+  if (!here || !stop) return false
+  const away = (p?: LngLat) => !p || distanceMeters(here, p) > RIDING_CLEAR_M
+  return away(stop) && away(start)
+}

@@ -53,13 +53,13 @@ describe('tripAdvice', () => {
     expect(tripAdvice(profile([run(10, 40), run(25, 52)]), now(6))?.state).toEqual({ kind: 'leave', nextLaterMin: 12 })
   })
 
-  test('relax to the planned run when there is time and a miss costs something', () => {
-    expect(tripAdvice(profile([run(10, 40), run(20, 46)]), now(0))?.state).toEqual({ kind: 'relax', leaveByMs: now(10) })
+  test('leave by the planned run when there is time and a miss costs something', () => {
+    expect(tripAdvice(profile([run(10, 40), run(20, 46)]), now(0))?.state).toEqual({ kind: 'by', leaveByMs: now(10) })
   })
 
-  test('relax extends to a later run with the same arrival', () => {
+  test('leave-by extends to a later run with the same arrival', () => {
     const p = profile([run(10, 40), run(14, 40.5), run(25, 55)])
-    expect(tripAdvice(p, now(0))?.state).toEqual({ kind: 'relax', leaveByMs: now(14) })
+    expect(tripAdvice(p, now(0))?.state).toEqual({ kind: 'by', leaveByMs: now(14) })
   })
 
   test('frequent service says nothing', () => {
@@ -98,7 +98,7 @@ describe('tripAdvice', () => {
 
   test('the boarding time re-finds the planned run after a rebooking', () => {
     const p = profile([run(10, 40), run(20, 52), run(30, 60)], 0)
-    expect(tripAdvice(p, now(0), { boardsAtMs: now(25) })?.state).toEqual({ kind: 'relax', leaveByMs: now(20) })
+    expect(tripAdvice(p, now(0), { boardsAtMs: now(25) })?.state).toEqual({ kind: 'by', leaveByMs: now(20) })
   })
 
   test('flags a tight transfer on the current run', () => {
@@ -183,7 +183,6 @@ describe('copy', () => {
     expect(adviceText({ kind: 'leave', nextLaterMin: 12 }, t)).toBe('Leave now · next is 12 min later')
     expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t)).toBe(`Hurry · 3 min to the ${clock(12)}`)
     expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t, 'F')).toBe(`Hurry · 3 min to the F at ${clock(12)}`)
-    expect(adviceText({ kind: 'relax', leaveByMs: now(19) }, t)).toBe(`Leave by ${clock(19)}`)
     expect(adviceText({ kind: 'by', leaveByMs: now(31) }, t)).toBe(`Leave by ${clock(31)}`)
     expect(adviceText({ kind: 'missed', departAtMs: now(24), left: true }, t, 'F')).toBe(`Missed · next is the F at ${clock(24)}`)
     expect(adviceText({ kind: 'missed', departAtMs: now(24), left: false }, t)).toBe(`Too far to make it · next is the ${clock(24)}`)

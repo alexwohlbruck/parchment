@@ -3,6 +3,7 @@ import {
   approachReach,
   departureReachability,
   remainingAccessWalkSec,
+  seemsAboard,
 } from './transit-reachability'
 
 const NOW = new Date('2026-08-14T14:00:00Z').getTime()
@@ -182,5 +183,23 @@ describe('departureReachability with running', () => {
 
   it('still reads a run out of reach even at a jog', () => {
     expect(departureReachability(NOW + 2 * MIN, NOW, 300, 0, 1.8)).toBe('unreachable')
+  })
+})
+
+describe('seemsAboard', () => {
+  const start = { lat: 40.6729, lng: -73.953 }
+  const stop = { lat: 40.6704, lng: -73.9504 }
+
+  it('reads a rider at the start or the stop as not aboard', () => {
+    expect(seemsAboard(start, stop, start)).toBe(false)
+    expect(seemsAboard(stop, stop, start)).toBe(false)
+  })
+
+  it('reads a rider far from both as aboard', () => {
+    expect(seemsAboard({ lat: 40.7, lng: -73.99 }, stop, start)).toBe(true)
+  })
+
+  it('assumes nothing without a position', () => {
+    expect(seemsAboard(null, stop, start)).toBe(false)
   })
 })

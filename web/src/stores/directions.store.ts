@@ -1,5 +1,6 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { tripSignature } from '@/lib/directions/trip-signature'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, TripView } from '@/types/multimodal.types'
@@ -93,15 +94,14 @@ export const useDirectionsStore = defineStore('directions', () => {
     directions.value = directions_
   }
 
-  function setTrips(trips_: TripsResponse) {
+  /** `keepSelection` carries the selected itinerary over to its re-planned copy. */
+  function setTrips(trips_: TripsResponse, { keepSelection = false } = {}) {
+    const previous = keepSelection ? trips.value?.trips.find(trip => trip.id === selectedTripId.value) : undefined
     trips.value = trips_
-
-    // Automatically select the first trip (recommended or first in list)
-    if (trips_.trips.length > 0) {
-      const firstTrip =
-        trips_.trips.find(trip => trip.isRecommended) || trips_.trips[0]
-      setSelectedTripId(firstTrip.id)
-    }
+    if (!trips_.trips.length) return
+    const signature = previous && tripSignature(previous.segments)
+    const kept = signature ? trips_.trips.find(trip => tripSignature(trip.segments) === signature) : undefined
+    setSelectedTripId((kept ?? trips_.trips.find(trip => trip.isRecommended) ?? trips_.trips[0]).id)
   }
 
   /** Drops trips that can no longer be taken, keeping a selection that survives. */

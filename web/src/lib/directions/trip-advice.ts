@@ -12,7 +12,7 @@ import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-pre
 const LEAVE_LEAD_MIN = 5
 const LEAVE_MISS_COST_MIN = 8
 /** Missing a run costs less than this on frequent service: say nothing. */
-const RELAX_MISS_COST_MIN = 4
+const QUIET_MISS_COST_MIN = 4
 const TIGHT_TRANSFER_SEC = 120
 /** Runs arriving this close together count as the same arrival. */
 const SAME_ARRIVAL_SEC = 60
@@ -30,7 +30,6 @@ export type AdviceState =
   | { kind: 'hurry'; leadMin: number; departAtMs: number }
   /** Too late at a walk, but a jog makes it. */
   | { kind: 'run'; leadMin: number; departAtMs: number }
-  | { kind: 'relax'; leaveByMs: number }
   | { kind: 'by'; leaveByMs: number }
   /** `left`: the planned run has gone; otherwise it is still coming but out of reach. */
   | { kind: 'missed'; departAtMs: number; left: boolean }
@@ -112,7 +111,7 @@ function deadlineState(
       ? { kind: 'leave', nextLaterMin: Math.round(missCostMin) }
       : null
   }
-  return missCostMin >= RELAX_MISS_COST_MIN ? { kind: 'relax', leaveByMs } : null
+  return missCostMin >= QUIET_MISS_COST_MIN ? { kind: 'by', leaveByMs } : null
 }
 
 /** The target run, when walking is too slow for it but a jog is not and the next run is well behind. */
@@ -251,7 +250,6 @@ export function adviceText(state: AdviceState, t: TFn, line?: string): string {
     case 'hurry':
     case 'run':
       return t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line })
-    case 'relax':
     case 'by':
       return t(key(state.kind), { time: clock(state.leaveByMs) })
     case 'missed': {
@@ -300,7 +298,6 @@ function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
       return t(key('leave'), { minutes: state.nextLaterMin })
     case 'missed':
       return t(key('missed'))
-    case 'relax':
     case 'by':
       return adviceText(state, t, line)
   }
@@ -309,7 +306,7 @@ function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
 export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | null {
   const { state, tight } = advice
   const words: HintWord[] = []
-  if (state && state.kind !== 'relax' && state.kind !== 'by') {
+  if (state && state.kind !== 'by') {
     words.push({
       word: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
       tone: state.kind === 'missed' || state.kind === 'run' ? CHIP_TONES.missed : CHIP_TONES.urgent,

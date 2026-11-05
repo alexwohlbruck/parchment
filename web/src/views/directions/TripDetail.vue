@@ -15,7 +15,7 @@ import {
 } from '@/lib/directions/trip-display'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
-import { applyDepartureChange, seemsAboard } from '@/lib/directions/trip-rebooking'
+import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { toast } from '@/lib/toast'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -25,12 +25,14 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
 import { useStartEligibility } from '@/composables/guidance/useStartEligibility'
 import { useTripAdvice } from '@/composables/directions/useTripAdvice'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   departureReachability,
   remainingAccessWalkSec,
+  seemsAboard,
   type DepartureReachability,
 } from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
@@ -136,13 +138,10 @@ const didAutoSelectDeparture = ref(false)
 // Clock driving the departed/hurry chip states (and the decaying approach
 // walk behind them); departures re-fetch keeps the
 // realtime predictions fresh as vehicles move.
-const nowMs = ref(Date.now())
-const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
+const clock = useTransitClock(10_000)
+const nowMs = computed(() => clock.value.getTime())
 const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
-onUnmounted(() => {
-  clearInterval(tickTimer)
-  clearInterval(refreshTimer)
-})
+onUnmounted(() => clearInterval(refreshTimer))
 
 // ── Service alerts per transit leg ──────────────────────────────────
 // What the agency has published about the line you're about to ride, on the
@@ -402,7 +401,7 @@ function firstCatchableDeparture(segmentIndex: number): DepartureOption | undefi
   return departuresFor(segmentIndex).find((d) => {
     if (d.cancelled) return false
     const state = depState(segmentIndex, d)
-    return state === 'ok' || state === 'hurry'
+    return state === 'ok' || state === 'hurry' || state === 'run'
   })
 }
 
@@ -415,9 +414,7 @@ function selectFirstAvailableDeparture() {
   if (!t) return
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
-  const idx = segs.findIndex(
-    (s) => s.mode === 'transit' && s.departureStop?.location,
-  )
+  const idx = boardingIndex(segs)
   if (idx < 0) return
   const firstCatchable = firstCatchableDeparture(idx)
   if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
@@ -425,27 +422,40 @@ function selectFirstAvailableDeparture() {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const boardingIndex = (segs: any[]) => segs.findIndex((s) => s.mode === 'transit' && s.departureStop?.location)
+
+/** The run the rider picked off the board; only its departure moves them off it. */
+const pickedRunMs = ref<number | null>(null)
+
+function pickDeparture(segmentIndex: number, ms: number) {
+  pickedRunMs.value = ms
+  void chooseDeparture(segmentIndex, ms)
+}
 
 /** Once the run the trip boards is missed, move it onto the next one still catchable. */
-watch([nowMs, segmentDepartures], () => {
+watch([nowMs, segmentDepartures], async () => {
   const t = trip.value
   if (!t || !didAutoSelectDeparture.value || rebooking.value) return
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
-  const idx = segs.findIndex((s) => s.mode === 'transit' && s.departureStop?.location)
+  const idx = boardingIndex(segs)
   if (idx < 0) return
   const current = departuresFor(idx).find((d) => isCurrentDeparture(segs[idx], d.ms))
   if (!current) return
   const state = depState(idx, current)
-  if (state !== 'unreachable' && (state !== 'departed' || seemsAboard(geo.lngLat.value, segs[idx].departureStop.location, directionsStore.trips?.request.waypoints[0]?.coordinate))) return
+  const start = directionsStore.trips?.request.waypoints[0]?.coordinate
+  const missed =
+    state === 'departed'
+      ? !seemsAboard(geo.lngLat.value, segs[idx].departureStop.location, start)
+      : state === 'unreachable' && current.ms !== pickedRunMs.value
+  if (!missed) return
   const next = firstCatchableDeparture(idx)
-  if (!next) return
-  void chooseDeparture(idx, next.ms).then(() => {
-    toast.info(translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
-      line: next.route?.shortName ?? segs[idx].lineName ?? '',
-      time: formatClockCompact(new Date(next.ms)),
-    }))
-  })
+  if (!next || !(await chooseDeparture(idx, next.ms))) return
+  toast.info(translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
+    line: next.route?.shortName ?? segs[idx].lineName ?? '',
+    time: formatClockCompact(new Date(next.ms)),
+  }))
 })
 
 /** Is this run the one the trip currently boards? */
@@ -491,9 +501,9 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
   return nextRunAfter(seg, minMs)
 }
 
-async function chooseDeparture(segmentIndex: number, departureMs: number) {
+async function chooseDeparture(segmentIndex: number, departureMs: number): Promise<boolean> {
   const t = trip.value
-  if (!t || rebooking.value) return
+  if (!t || rebooking.value) return false
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
 
@@ -505,7 +515,7 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
       departureMs,
       (i, minMs) => nextDepartureAfter(segs[i], i, minMs),
     )
-    if (!changed) return
+    if (!changed) return false
 
     // Trip-level rollup
     t.startTime = new Date(asMs(segs[0].startTime))
@@ -515,6 +525,7 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
     // Refresh chips in the background — the rebooking math is already
     // applied from the cached schedule, so the UI updates instantly.
     void loadDepartures()
+    return true
   } finally {
     rebooking.value = false
   }
@@ -1476,7 +1487,7 @@ function showSegmentChart(segment: any): boolean {
                   :board-key="`${trip.id}-${entry.segmentIndex}`"
                   :busy="rebooking"
                   @toggle-alert="toggleLegAlert"
-                  @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                  @choose="ms => pickDeparture(entry.segmentIndex, ms)"
                 />
 
                 <!-- Meta under the card — the rail leaves the card here and

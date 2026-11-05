@@ -80,12 +80,7 @@ export function useTripAdvice() {
   return { adviceFor, rawAdvice }
 }
 
-/**
- * Card hints for a result list, by trip id, on a light clock. While the plan
- * is for now, the search is re-planned quietly: every 20 s when a card asks
- * you to act, every minute otherwise, and once its profiles run out. Missed
- * trips are dropped as soon as they are missed.
- */
+/** Card hints for a result list, by trip id, keeping a leave-now search fresh as trains come and go. */
 export function useTripListAdvice(trips: () => TripOption[]) {
   const { rawAdvice } = useTripAdvice()
   const { t } = useI18n()
@@ -114,12 +109,16 @@ export function useTripListAdvice(trips: () => TripOption[]) {
     return out
   })
 
+  /** A depart-at search is a fixed plan, and a hidden tab needs no fresh one. */
+  const live = () => store.departureTime == null && visibility.value !== 'hidden'
+
   let lastPlanMs = Date.now()
   let lastMissedReplanMs = -Infinity
   watch(trips, () => (lastPlanMs = Date.now()))
 
   /** Missed trips leave the list at once and the search re-plans, unless nothing would be left. */
   watch(raw, entries => {
+    if (!live()) return
     const missed = new Set([...entries].filter(([, entry]) => entry?.advice.state?.kind === 'missed').map(([id]) => id))
     if (!missed.size || missed.size === entries.size) return
     store.removeTrips(missed)
@@ -131,7 +130,7 @@ export function useTripListAdvice(trips: () => TripOption[]) {
 
   watch(now, current => {
     const nowMs = current.getTime()
-    if (visibility.value === 'hidden' || isFuturePlan(store.departureTime, nowMs)) return
+    if (!live()) return
     const list = trips()
     const until = adviceValidUntil(list)
     const states = [...raw.value.values()].map(entry => entry?.advice.state?.kind)

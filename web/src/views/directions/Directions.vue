@@ -60,6 +60,17 @@ const { waypoints, trips, selectedMode, departureTime, sortPreference, effective
   storeToRefs(directionsStore)
 const navigationPreferences = useNavigationPreferencesStore()
 
+const refreshing = ref(false)
+
+async function refresh() {
+  refreshing.value = true
+  try {
+    await directionsService.replan()
+  } finally {
+    refreshing.value = false
+  }
+}
+
 function toggleTripView() {
   tripView.value = tripView.value === 'timeline' ? 'list' : 'timeline'
 }
@@ -339,10 +350,10 @@ useMapListener(
           size="sm"
           class="h-7 w-7 p-0 shrink-0"
           :title="t('directions.refresh')"
-          :disabled="directionsService.isRequesting.value"
-          @click="directionsService.replan()"
+          :disabled="refreshing"
+          @click="refresh"
         >
-          <RefreshCwIcon class="size-3.5" :class="directionsService.isRequesting.value && 'animate-spin'" />
+          <RefreshCwIcon class="size-3.5" :class="refreshing && 'animate-spin'" />
         </Button>
 
         <ResponsivePopover

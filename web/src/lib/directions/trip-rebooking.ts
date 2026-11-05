@@ -16,8 +16,6 @@
  *   data the planned run is kept when still catchable.
  */
 
-import { haversineMeters } from '@/lib/geo/geo-line'
-
 export interface RebookableStop {
   arrivalTime?: string
   departureTime?: string
@@ -142,19 +140,4 @@ export async function cascadeAfter(
     }
   }
   return held
-}
-
-interface Point {
-  lat: number
-  lng: number
-}
-
-/** Further than this from both the start and the boarding stop, a departed run is probably being ridden. */
-const RIDING_CLEAR_M = 400
-
-/** Whether the rider looks to be on the run rather than to have missed it. */
-export function seemsAboard(here: Point | null | undefined, stop: Point | undefined, start: Point | undefined): boolean {
-  if (!here || !stop) return false
-  const away = (p?: Point) => !p || haversineMeters(here.lat, here.lng, p.lat, p.lng) > RIDING_CLEAR_M
-  return away(stop) && away(start)
 }

@@ -12,7 +12,13 @@ const speech = new Elysia({ prefix: '/speech' })
     } catch {
       return status(503, { message: 'Speech synthesis unavailable' })
     }
-  }, { detail: { tags: ['Speech'], summary: 'List speech voices, languages and supported controls' } })
+  }, {
+    detail: {
+      tags: ['Speech'],
+      summary: 'List speech voices, languages and supported controls',
+      description: 'Voices carry a display name and, when known, a gender. Legacy copies of a current voice are left out.',
+    },
+  })
   .post('/', async ({ body, request, status }) => {
     try {
       const audio = await synthesizeSpeech(body, AbortSignal.any([request.signal, AbortSignal.timeout(4000)]))

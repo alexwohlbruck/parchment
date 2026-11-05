@@ -13,9 +13,11 @@ import {
   ChartNoAxesGanttIcon,
   ClockIcon,
   ListIcon,
+  ListFilterIcon,
   FootprintsIcon,
   ShuffleIcon,
   SlidersHorizontalIcon,
+  RefreshCwIcon,
   TrainFrontIcon,
   TrainIcon,
   XIcon,
@@ -26,21 +28,18 @@ import WaypointInput from '@/components/directions/WaypointInput.vue'
 import TripsList from '@/components/directions/TripsList.vue'
 import TripList from '@/components/directions/TripList.vue'
 import RoutingPreferences from '@/components/directions/preferences/RoutingPreferences.vue'
+import TripModeToggles from '@/components/directions/preferences/TripModeToggles.vue'
+import TripSortSelect from '@/components/directions/preferences/TripSortSelect.vue'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import type { TripSort } from '@/lib/preferences/navigation-preferences'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
-import { SelectedMode, SortPreference } from '@/types/multimodal.types'
+import { SelectedMode } from '@/types/multimodal.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -57,14 +56,28 @@ const startFreeRoam = useStartFreeRoam()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, departureTime, sortPreference, tripView, isLoading, timezoneWarning } =
+const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
+const navigationPreferences = useNavigationPreferencesStore()
+
+const refreshing = ref(false)
+
+async function refresh() {
+  refreshing.value = true
+  try {
+    await directionsService.replan()
+  } finally {
+    refreshing.value = false
+  }
+}
 
 function toggleTripView() {
   tripView.value = tripView.value === 'timeline' ? 'list' : 'timeline'
 }
 
 const showPreferences = ref(false)
+const showModeFilter = ref(false)
+const modesFiltered = computed(() => navigationPreferences.excludedModes.length > 0)
 
 // The waypoint/options/sort controls stay pinned while results scroll under
 // them. This element is also the dynamic-peek anchor: on mobile the sheet
@@ -91,21 +104,11 @@ onUnmounted(() => {
   if (sheetChromeBar) sheetChromeBar.value = false
 })
 
-// ── Sort preference ──────────────────────────────────────────────
-const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
-  { value: 'recommended', label: 'Balanced' },
-  { value: 'shortest', label: 'Shortest' },
-  { value: 'earliest_arrival', label: 'Earliest arrival' },
-  { value: 'cheapest', label: 'Cheapest' },
-  { value: 'fewest_transfers', label: 'Fewest transfers' },
-  { value: 'least_walking', label: 'Least walking' },
-  { value: 'greenest', label: 'Greenest' },
-]
-
 const selectedSort = computed({
-  get: () => sortPreference.value || 'recommended',
-  set: (val: string) => {
-    sortPreference.value = val === 'recommended' ? null : val as SortPreference
+  get: () => effectiveSort.value,
+  set: (sort: TripSort) => {
+    const fallback = navigationPreferences.sortPreference ?? 'balanced'
+    sortPreference.value = sort === fallback ? null : sort
   },
 })
 
@@ -293,21 +296,42 @@ useMapListener(
 
         <div class="flex-1" />
 
-        <Select v-model="selectedSort">
-          <SelectTrigger class="h-7 w-[150px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="opt in sortOptions"
-              :key="opt.value"
-              :value="opt.value"
-              class="text-xs"
+        <ResponsivePopover
+          v-if="selectedMode === 'multi'"
+          v-model:open="showModeFilter"
+          side="bottom"
+          :side-offset="6"
+          align="end"
+          desktop-content-class="w-60 p-4"
+          mobile-content-class="px-4 pb-4"
+          fit-content
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              size="sm"
+              class="relative h-7 w-7 p-0 shrink-0"
+              :class="showModeFilter && 'bg-accent'"
+              :title="t('directions.tripModes.filter')"
             >
-              {{ opt.label }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+              <ListFilterIcon class="size-3.5" />
+              <span
+                v-if="modesFiltered"
+                class="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+              />
+            </Button>
+          </template>
+
+          <template #content>
+            <TripModeToggles />
+          </template>
+        </ResponsivePopover>
+
+        <TripSortSelect
+          v-model="selectedSort"
+          trigger-class="h-7 w-[150px] text-xs"
+          item-class="text-xs"
+        />
 
         <Button
           variant="outline"
@@ -318,6 +342,18 @@ useMapListener(
         >
           <ListIcon v-if="tripView === 'timeline'" class="size-3.5" />
           <ChartNoAxesGanttIcon v-else class="size-3.5" />
+        </Button>
+
+        <Button
+          v-if="trips"
+          variant="outline"
+          size="sm"
+          class="h-7 w-7 p-0 shrink-0"
+          :title="t('directions.refresh')"
+          :disabled="refreshing"
+          @click="refresh"
+        >
+          <RefreshCwIcon class="size-3.5" :class="refreshing && 'animate-spin'" />
         </Button>
 
         <ResponsivePopover
@@ -341,10 +377,12 @@ useMapListener(
           </template>
 
           <template #content="{ close }">
-            <RoutingPreferences
-              :selected-mode="selectedMode"
-              @close="close"
-            />
+            <RoutingPreferences :selected-mode="selectedMode" />
+            <div class="hidden md:flex justify-end px-4 py-3 border-t">
+              <Button size="sm" @click="close">
+                {{ t('general.done') }}
+              </Button>
+            </div>
           </template>
         </ResponsivePopover>
       </div>

@@ -17,7 +17,9 @@ import {
   VehicleType,
   WaypointType,
   EnergyType,
+  SORT_PREFERENCES,
 } from '../types/trip.types'
+import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import { logError } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -141,19 +143,22 @@ const SelectedModeSchema = t.Union([
   t.Literal('rideshare'),
 ] as const)
 
-const SortPreferenceSchema = t.Union([
-  t.Literal('shortest'),
-  t.Literal('earliest_arrival'),
-  t.Literal('cheapest'),
-  t.Literal('fewest_transfers'),
-  t.Literal('least_walking'),
-  t.Literal('greenest'),
-] as const)
+const SortPreferenceSchema = t.UnionEnum(SORT_PREFERENCES)
+
+const TripModeTokenSchema = t.UnionEnum(TRIP_MODE_TOKENS)
 
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
   selectedMode: t.Optional(SelectedModeSchema),
   sortPreference: t.Optional(SortPreferenceSchema),
+  excludedModes: t.Optional(t.Array(TripModeTokenSchema, {
+    uniqueItems: true,
+    description:
+      'Modes the rider does not use. Trips with a segment in any of them are left out, '
+      + 'except the mode of the selected tab, which is always planned. `driving` covers '
+      + 'park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` '
+      + 'shared bikes and scooters, `transit` any trip with a transit leg.',
+  })),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -197,7 +202,8 @@ app.post(
           speed: wp.speed,
         })),
         selectedMode: body.selectedMode,
-        sortPreference: body.sortPreference as any,
+        sortPreference: body.sortPreference,
+        excludedModes: body.excludedModes,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,
@@ -263,6 +269,11 @@ app.post(
         + 'reads by its long name, and the train number moves to `trip.shortName`. A walking '
         + 'segment with `streetTransfer` leaves the paid area '
         + 'between stations the agency does not connect, so the next ride is a new fare. '
+        + 'Where the station graph knows the station, a transit leg\'s `transitDetails` carry '
+        + '`transfer` (how the change from the previous ride is made: its class, time and the walk), '
+        + '`entrance` and `exit` (the entrance used for the first ride and the exit after the last, '
+        + 'with the walk inside the station) and `boardingPosition` (where to stand on the train). '
+        + 'A station walk that is not an `estimate` carries `geometry`, a level per vertex and written `steps`. '
         + 'Street instructions carry `exitNumber` for roundabouts and, where the map signposts '
         + 'the maneuver, `exitRef` (a motorway exit\'s number) and `destination` (where the signs point). '
         + 'Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, '
@@ -278,7 +289,10 @@ app.post(
         + '`geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per '
         + 'instruction index, the approach lanes left to right and which lead on. An origin with '
         + '`heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that '
-        + 'direction; walking routes ignore it.',
+        + 'direction; walking routes ignore it. A trip with transit legs may carry '
+        + '`departureProfile`: for each catchable run of its first transit leg, when to leave, '
+        + 'when it arrives through the connections on the stop boards, and the tightest '
+        + 'transfer. Runs stop where the boards end; `validUntil` is the last leave time covered.',
       tags: ['Trip Planning'],
     },
   },

@@ -95,7 +95,9 @@ describe('resolveBarrelmanConfig', () => {
 describe('resolveLandmarksConfig', () => {
   it('follows Barrelman when no landmarks host is set', () => {
     process.env.BARRELMAN_HOST = 'http://127.0.0.1:5001'
-    expect(resolveLandmarksConfig()).toEqual(resolveBarrelmanConfig())
+    const barrelman = resolveBarrelmanConfig()
+    expect(barrelman).toBeDefined()
+    expect(resolveLandmarksConfig()).toEqual(barrelman!)
   })
 
   it('moves to its own host without taking the basemap with it', () => {

@@ -9,9 +9,11 @@
 
 export interface StopBoard {
   departures?: Array<{
+    tripId?: string
     route?: { shortName?: string }
     directionId?: string | number | null
     departureTime?: string
+    realTime?: boolean
     cancelled?: boolean
   }>
 }
@@ -22,11 +24,19 @@ export const ROUTE_SERVICE_SLACK_MINUTES = 20
 /** Events requested per board; a board this full may have been cut short. */
 export const ROUTE_SERVICE_BOARD_EVENTS = 150
 
+/** Up to when a board is complete: one holding `cap` events may have been cut short after its last run. */
+export function boardCompleteUntil(board: StopBoard, untilMs: number, cap = ROUTE_SERVICE_BOARD_EVENTS): number {
+  const departures = board.departures ?? []
+  if (departures.length < cap) return untilMs
+  const times = departures.map((d) => Date.parse(d.departureTime ?? '')).filter((t) => !Number.isNaN(t))
+  return Math.min(untilMs, Math.max(...times))
+}
+
 /**
  * Route short names departing a stop within `[fromMs, toMs]`, in the leg's
  * direction when it has one. Null when the boards prove nothing: none came
- * back, one was cut off by the event cap, or the leg's own route is missing,
- * which means the board does not describe this ride (a terminal, a stale bake).
+ * back, one was cut off by the event cap before `toMs`, or the leg's own route
+ * is missing, which means the board does not describe this ride (a terminal, a stale bake).
  */
 export function routesServingStop(
   boards: StopBoard[] | null,
@@ -38,7 +48,7 @@ export function routesServingStop(
   const seen = new Set<string>()
   for (const board of boards) {
     const departures = board.departures ?? []
-    if (departures.length >= ROUTE_SERVICE_BOARD_EVENTS) return null
+    if (boardCompleteUntil(board, window.toMs) < window.toMs) return null
     for (const d of departures) {
       const name = d.route?.shortName
       if (!name || d.cancelled) continue

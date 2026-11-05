@@ -12,7 +12,11 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
-import { TravelMode, WaypointType } from '../types/unified-routing.types'
+import {
+  TravelMode,
+  WaypointType,
+  type UnifiedRoute,
+} from '../types/unified-routing.types'
 
 let configuredIntegrations: any[] = []
 let instance: any = null
@@ -37,8 +41,10 @@ mock.module('../lib/logger', () => ({
 
 const { RoutingService } = await import('./routing.service')
 
-const unifiedRoute = { routes: [{ distance: 1000, duration: 600 }] }
-const getRoute = mock(async (_request: any) => unifiedRoute as any)
+const unifiedRoute = {
+  routes: [{ distance: 1000, duration: 600 }],
+} as unknown as UnifiedRoute
+const getRoute = mock(async (_request: any) => unifiedRoute)
 
 /** Frontend sends coordinates as [lat, lng] pairs. */
 const locations = [

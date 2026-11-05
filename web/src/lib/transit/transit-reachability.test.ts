@@ -3,6 +3,7 @@ import {
   approachReach,
   departureReachability,
   remainingAccessWalkSec,
+  seemsAboard,
 } from './transit-reachability'
 
 const NOW = new Date('2026-08-14T14:00:00Z').getTime()
@@ -161,13 +162,44 @@ describe('departureReachability', () => {
 })
 
 describe('approachReach', () => {
-  it('reads late once the walk no longer fits, or the vehicle has gone', () => {
-    expect(approachReach(NOW + MIN, NOW, 90)).toBe('late')
-    expect(approachReach(NOW - 1, NOW, 0)).toBe('late')
+  it('reads too far once the walk no longer fits, run when a jog still does, and departed once gone', () => {
+    expect(approachReach(NOW + MIN, NOW, 90)).toBe('unreachable')
+    expect(approachReach(NOW + MIN, NOW, 90, 1.8)).toBe('run')
+    expect(approachReach(NOW - 1, NOW, 0)).toBe('departed')
   })
 
   it('asks for a hurry inside two minutes of spare time', () => {
     expect(approachReach(NOW + 3 * MIN, NOW, 90)).toBe('hurry')
     expect(approachReach(NOW + 5 * MIN, NOW, 90)).toBe('ok')
+  })
+})
+
+describe('departureReachability with running', () => {
+  it('reads a run as catchable at a jog only when one is allowed', () => {
+    // 5 min walk, 4 min left: too late walking, fine at 1.8x.
+    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, 1.8)).toBe('run')
+    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+  })
+
+  it('still reads a run out of reach even at a jog', () => {
+    expect(departureReachability(NOW + 2 * MIN, NOW, 300, 0, 1.8)).toBe('unreachable')
+  })
+})
+
+describe('seemsAboard', () => {
+  const start = { lat: 40.6729, lng: -73.953 }
+  const stop = { lat: 40.6704, lng: -73.9504 }
+
+  it('reads a rider at the start or the stop as not aboard', () => {
+    expect(seemsAboard(start, stop, start)).toBe(false)
+    expect(seemsAboard(stop, stop, start)).toBe(false)
+  })
+
+  it('reads a rider far from both as aboard', () => {
+    expect(seemsAboard({ lat: 40.7, lng: -73.99 }, stop, start)).toBe(true)
+  })
+
+  it('assumes nothing without a position', () => {
+    expect(seemsAboard(null, stop, start)).toBe(false)
   })
 })

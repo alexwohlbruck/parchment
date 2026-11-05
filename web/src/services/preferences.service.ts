@@ -4,10 +4,12 @@ import { storedLocale } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
+import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 
 export interface UserPreferences {
   language: string
   unitSystem: string
+  navigation: NavigationPreferences
 }
 
 const SUPPORTED_LOCALES: Locale[] = ['en-US', 'es-ES']
@@ -23,18 +25,26 @@ function toUnitSystem(value: string): UnitSystem {
 }
 
 /**
- * Fetch preferences from backend and apply to local state (locale + unit system).
- * Call after login to sync with server. No-op if not authenticated.
+ * Fetch preferences from backend and apply locale and unit system locally.
+ * Resolves null when not authenticated or offline, keeping local values.
  */
-export async function syncPreferencesFromBackend(): Promise<void> {
+export async function syncPreferencesFromBackend(): Promise<UserPreferences | null> {
   try {
     const { data } = await api.get<UserPreferences>('/users/me/preferences')
     storedLocale.value = toLocale(data.language)
     const appStore = useAppStore()
     appStore.unitSystem = toUnitSystem(data.unitSystem)
+    return data
   } catch {
-    // Not authenticated or network error – keep current local values
+    return null
   }
+}
+
+/** Each section sent replaces the stored one; the rest are kept. */
+export async function saveNavigationPreferences(
+  navigation: Partial<NavigationPreferences>,
+): Promise<void> {
+  await api.put('/users/me/preferences', { navigation })
 }
 
 /**

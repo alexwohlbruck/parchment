@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Street instructions carry `exitNumber` for roundabouts and, where the map signposts the maneuver, `exitRef` (a motorway exit's number) and `destination` (where the signs point). Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low clearances, school zones, where a bike lane ends or starts partway along a road, and the like, placed by distance along the segment. Some depend on conditions: unlit paths after sunset, flood-prone roads when rain is forecast, bridges at 2 °C or below, and speed cameras only where warning of them is lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic calming, movable bridges, speed cameras, bike lanes starting) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it.",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to. A transit leg's `routeOptions` lists the other lines running the same stops at that time. Its `shortName` names the line; a line with no GTFS short name reads by its long name, and the train number moves to `trip.shortName`. A walking segment with `streetTransfer` leaves the paid area between stations the agency does not connect, so the next ride is a new fare. Where the station graph knows the station, a transit leg's `transitDetails` carry `transfer` (how the change from the previous ride is made: its class, time and the walk), `entrance` and `exit` (the entrance used for the first ride and the exit after the last, with the walk inside the station) and `boardingPosition` (where to stand on the train). A station walk that is not an `estimate` carries `geometry`, a level per vertex and written `steps`. Street instructions carry `exitNumber` for roundabouts and, where the map signposts the maneuver, `exitRef` (a motorway exit's number) and `destination` (where the signs point). Street segments carry `hazards`: crosswalks, traffic lights, stop and give-way signs, rail and tram crossings, tunnels, fords, steep grades, stairs, sharp curves, low clearances, school zones, where a bike lane ends or starts partway along a road, and the like, placed by distance along the segment. Some depend on conditions: unlit paths after sunset, flood-prone roads when rain is forecast, bridges at 2 °C or below, and speed cameras only where warning of them is lawful. Comfort hazards (rough surfaces, dismount sections, ferries, tolls, traffic calming, movable bridges, speed cameras, bike lanes starting) appear only for users with premium navigation. Driving and cycling segments carry `drivingSide`, and where the routing engine knows the lanes, `laneGeometry`: the route drawn in the lanes it takes (for cycling, the bike lane, or beside the traffic), with `measures` giving the distance along `geometry` each coordinate stands for. Driving segments also carry `lanePlan`: per instruction index, the approach lanes left to right and which lead on. An origin with `heading` starts driving routes, and cycling routes above 4 m/s `speed`, in that direction; walking routes ignore it. A trip with transit legs may carry `departureProfile`: for each catchable run of its first transit leg, when to leave, when it arrives through the connections on the stop boards, and the tightest transfer. Runs stop where the boards end; `validUntil` is the last leave time covered.",
         "tags": [
           "Trip Planning"
         ],
@@ -1288,32 +1288,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -1672,32 +1672,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -2056,32 +2056,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -2954,32 +2954,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -3338,32 +3338,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -3722,32 +3722,32 @@
                     ]
                   },
                   "sortPreference": {
-                    "anyOf": [
-                      {
-                        "const": "shortest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "earliest_arrival",
-                        "type": "string"
-                      },
-                      {
-                        "const": "cheapest",
-                        "type": "string"
-                      },
-                      {
-                        "const": "fewest_transfers",
-                        "type": "string"
-                      },
-                      {
-                        "const": "least_walking",
-                        "type": "string"
-                      },
-                      {
-                        "const": "greenest",
-                        "type": "string"
-                      }
+                    "default": "shortest",
+                    "type": "string",
+                    "enum": [
+                      "shortest",
+                      "earliest_arrival",
+                      "cheapest",
+                      "fewest_transfers",
+                      "least_walking",
+                      "greenest"
                     ]
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the rider does not use. Trips with a segment in any of them are left out, except the mode of the selected tab, which is always planned. `driving` covers park-and-ride, `biking` an owned bike (bike-to-station, carry-on), `bikeshare` shared bikes and scooters, `transit` any trip with a transit leg.",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   },
                   "routingPreferences": {
                     "type": "object",
@@ -8540,12 +8540,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -8613,12 +8647,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -8686,12 +8754,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -8786,12 +8888,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -8854,12 +8990,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -8922,12 +9092,46 @@
                     "type": "string"
                   },
                   "type": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      },
+                      {
+                        "const": "street-view",
+                        "type": "string"
+                      },
+                      {
+                        "const": "transit",
+                        "type": "string"
+                      },
+                      {
+                        "const": "friends",
+                        "type": "string"
+                      },
+                      {
+                        "const": "trackers",
+                        "type": "string"
+                      },
+                      {
+                        "const": "notes",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "engine": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "const": "mapbox",
+                          "type": "string"
+                        },
+                        {
+                          "const": "maplibre",
+                          "type": "string"
+                        }
+                      ]
                     }
                   },
                   "showInLayerSelector": {
@@ -14684,6 +14888,7 @@
           "Speech"
         ],
         "summary": "List speech voices, languages and supported controls",
+        "description": "Voices carry a display name and, when known, a gender. Legacy copies of a current voice are left out.",
         "responses": {
           "200": {}
         }
@@ -16551,22 +16756,661 @@
     },
     "/users/me/preferences": {
       "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "operationId": "getUsersMePreferences",
         "tags": [
           "Users"
         ],
-        "description": "Get current user preferences (language, unit system)",
-        "responses": {
-          "200": {}
-        }
+        "description": "Get current user preferences: language, unit system and navigation. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) is absent until first saved."
       },
       "put": {
         "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {
+                      "type": "string"
+                    },
+                    "unitSystem": {
+                      "type": "string"
+                    },
+                    "navigation": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "excludedModes": {
+                          "uniqueItems": true,
+                          "description": "Modes left out of trip planning. Walking is always allowed.",
+                          "type": "array",
+                          "items": {
+                            "default": "transit",
+                            "type": "string",
+                            "enum": [
+                              "transit",
+                              "biking",
+                              "bikeshare",
+                              "rideshare",
+                              "driving"
+                            ]
+                          }
+                        },
+                        "sortPreference": {
+                          "description": "Default trip ranking; null is balanced.",
+                          "nullable": true,
+                          "anyOf": [
+                            {
+                              "default": "shortest",
+                              "type": "string",
+                              "enum": [
+                                "shortest",
+                                "earliest_arrival",
+                                "cheapest",
+                                "fewest_transfers",
+                                "least_walking",
+                                "greenest"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "routing": {
+                          "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                          "type": "object",
+                          "properties": {
+                            "general": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {}
+                              }
+                            },
+                            "mode": {
+                              "maxProperties": 64,
+                              "type": "object",
+                              "patternProperties": {
+                                "^(.*)$": {
+                                  "maxProperties": 64,
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^(.*)$": {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "general",
+                            "mode"
+                          ]
+                        },
+                        "speech": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Voice guidance speech settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "guidance": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "language",
+                    "unitSystem",
+                    "navigation"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "operationId": "putUsersMePreferences",
         "tags": [
           "Users"
         ],
-        "description": "Update current user preferences (language, unit system)",
+        "description": "Update current user preferences. Each navigation section sent replaces the stored one; sections left out are kept.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16575,7 +17419,24 @@
                 "type": "object",
                 "properties": {
                   "language": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "en-US",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es-ES",
+                        "type": "string"
+                      },
+                      {
+                        "const": "en",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "unitSystem": {
                     "anyOf": [
@@ -16588,6 +17449,93 @@
                         "type": "string"
                       }
                     ]
+                  },
+                  "navigation": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "excludedModes": {
+                        "uniqueItems": true,
+                        "description": "Modes left out of trip planning. Walking is always allowed.",
+                        "type": "array",
+                        "items": {
+                          "default": "transit",
+                          "type": "string",
+                          "enum": [
+                            "transit",
+                            "biking",
+                            "bikeshare",
+                            "rideshare",
+                            "driving"
+                          ]
+                        }
+                      },
+                      "sortPreference": {
+                        "description": "Default trip ranking; null is balanced.",
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "default": "shortest",
+                            "type": "string",
+                            "enum": [
+                              "shortest",
+                              "earliest_arrival",
+                              "cheapest",
+                              "fewest_transfers",
+                              "least_walking",
+                              "greenest"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "routing": {
+                        "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                        "type": "object",
+                        "properties": {
+                          "general": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {}
+                            }
+                          },
+                          "mode": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {
+                                "maxProperties": 64,
+                                "type": "object",
+                                "patternProperties": {
+                                  "^(.*)$": {}
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "general",
+                          "mode"
+                        ]
+                      },
+                      "speech": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Voice guidance speech settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "guidance": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
                   }
                 }
               }
@@ -16597,7 +17545,24 @@
                 "type": "object",
                 "properties": {
                   "language": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "en-US",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es-ES",
+                        "type": "string"
+                      },
+                      {
+                        "const": "en",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "unitSystem": {
                     "anyOf": [
@@ -16610,6 +17575,93 @@
                         "type": "string"
                       }
                     ]
+                  },
+                  "navigation": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "excludedModes": {
+                        "uniqueItems": true,
+                        "description": "Modes left out of trip planning. Walking is always allowed.",
+                        "type": "array",
+                        "items": {
+                          "default": "transit",
+                          "type": "string",
+                          "enum": [
+                            "transit",
+                            "biking",
+                            "bikeshare",
+                            "rideshare",
+                            "driving"
+                          ]
+                        }
+                      },
+                      "sortPreference": {
+                        "description": "Default trip ranking; null is balanced.",
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "default": "shortest",
+                            "type": "string",
+                            "enum": [
+                              "shortest",
+                              "earliest_arrival",
+                              "cheapest",
+                              "fewest_transfers",
+                              "least_walking",
+                              "greenest"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "routing": {
+                        "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                        "type": "object",
+                        "properties": {
+                          "general": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {}
+                            }
+                          },
+                          "mode": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {
+                                "maxProperties": 64,
+                                "type": "object",
+                                "patternProperties": {
+                                  "^(.*)$": {}
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "general",
+                          "mode"
+                        ]
+                      },
+                      "speech": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Voice guidance speech settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "guidance": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
                   }
                 }
               }
@@ -16619,7 +17671,24 @@
                 "type": "object",
                 "properties": {
                   "language": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "const": "en-US",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es-ES",
+                        "type": "string"
+                      },
+                      {
+                        "const": "en",
+                        "type": "string"
+                      },
+                      {
+                        "const": "es",
+                        "type": "string"
+                      }
+                    ]
                   },
                   "unitSystem": {
                     "anyOf": [
@@ -16632,14 +17701,98 @@
                         "type": "string"
                       }
                     ]
+                  },
+                  "navigation": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "excludedModes": {
+                        "uniqueItems": true,
+                        "description": "Modes left out of trip planning. Walking is always allowed.",
+                        "type": "array",
+                        "items": {
+                          "default": "transit",
+                          "type": "string",
+                          "enum": [
+                            "transit",
+                            "biking",
+                            "bikeshare",
+                            "rideshare",
+                            "driving"
+                          ]
+                        }
+                      },
+                      "sortPreference": {
+                        "description": "Default trip ranking; null is balanced.",
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "default": "shortest",
+                            "type": "string",
+                            "enum": [
+                              "shortest",
+                              "earliest_arrival",
+                              "cheapest",
+                              "fewest_transfers",
+                              "least_walking",
+                              "greenest"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "routing": {
+                        "description": "Routing preferences: keys shared by every mode, plus per-mode slices; at most 64 keys each.",
+                        "type": "object",
+                        "properties": {
+                          "general": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {}
+                            }
+                          },
+                          "mode": {
+                            "maxProperties": 64,
+                            "type": "object",
+                            "patternProperties": {
+                              "^(.*)$": {
+                                "maxProperties": 64,
+                                "type": "object",
+                                "patternProperties": {
+                                  "^(.*)$": {}
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "general",
+                          "mode"
+                        ]
+                      },
+                      "speech": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Voice guidance speech settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "guidance": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Turn-by-turn guidance settings, at most 64 keys.",
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        },
-        "responses": {
-          "200": {}
         }
       }
     },

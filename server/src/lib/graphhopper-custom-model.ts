@@ -26,6 +26,7 @@
  */
 
 import { TravelMode, RoutingPreferences } from '../types/unified-routing.types'
+import type { GraphHopperRouteRequest } from '../types/graphhopper.types'
 import { logWarn } from './logger'
 
 export interface CustomModelRule {
@@ -52,7 +53,9 @@ export interface CustomModel {
  * For car/truck we add "motorway" and "trunk" so the router joins
  * highways via proper on-ramps.
  */
-export function getSnapPreventions(mode: TravelMode): string[] | undefined {
+export function getSnapPreventions(
+  mode: TravelMode,
+): GraphHopperRouteRequest['snap_preventions'] {
   switch (mode) {
     case TravelMode.DRIVING:
     case TravelMode.TRUCK:

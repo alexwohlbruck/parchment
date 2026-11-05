@@ -12,6 +12,7 @@
 
 import { describe, test, expect } from 'bun:test'
 import { BarrelmanValhallaAdapter } from './barrelman-valhalla-adapter'
+import { TravelMode } from '../../../types/unified-routing.types'
 
 const adapter = new BarrelmanValhallaAdapter()
 
@@ -238,7 +239,7 @@ describe('legs and waypoints', () => {
   test('carries the requested travel mode onto the leg', () => {
     const leg = adapt(response(), { ...request, mode: 'cycling' }).routes[0].legs[0]
 
-    expect(leg.mode).toBe('cycling')
+    expect(leg.mode).toBe(TravelMode.CYCLING)
   })
 
   test('handles a multi-leg trip', () => {
@@ -399,7 +400,7 @@ describe('metadata', () => {
     const result = adapt(response())
 
     expect(result.metadata.provider).toBe('barrelman')
-    expect(result.metadata.attribution[0]).toContain('Valhalla')
+    expect(result.metadata.attribution?.[0]).toContain('Valhalla')
     expect(result.routes[0].provider).toBe('barrelman')
   })
 

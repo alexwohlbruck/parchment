@@ -2,7 +2,7 @@
 // the timetable carries the estimate, sensed station dwells and fresh fixes correct it.
 
 import { matchToRoute } from './route-matcher'
-import { STOP_PASSED_METERS, type RideStop } from './transit-progress'
+import { STOP_PASSED_METERS, type RideStop, type TransitStage } from './transit-progress'
 import type { Fix, PuckState } from './guidance-engine'
 import type { NavRoute, NavSegment } from './nav-route'
 
@@ -21,6 +21,8 @@ export interface RideObservation {
   fix: RideFix | null
   /** From the motion sensors; null without them. */
   still: boolean | null
+  /** The ridden vehicle's realtime position, placed on the ride. */
+  vehicle?: RideFix | null
 }
 
 export interface RideEstimate {
@@ -31,10 +33,16 @@ export interface RideEstimate {
   fresh: boolean
   /** Where the puck can honestly sit: the last stop reached, or a later fix. */
   shownS: number
+  /** A fix, a sensed dwell or the vehicle's position has put the rider at the alighting stop. */
+  arrived: boolean
+  /** When the vehicle reaches the alighting stop, from the timetable ahead of `s`. */
+  arrivalMs: number | null
 }
 
 export const PRECISE_ACCURACY = 50
 const COARSE_ACCURACY = 1000
+/** A realtime vehicle position is about this good: interpolated, and seconds old. */
+export const VEHICLE_ACCURACY = 200
 const FRESH_MS = 10_000
 const STALE_MS = 30_000
 /** Standing still this long is a station dwell, not a pause in traffic. */
@@ -45,6 +53,8 @@ const DWELL_CONFIDENCE = 0.8
 const COARSE_CONFIDENCE = 0.6
 const SCHEDULE_CONFIDENCE = 0.5
 const LOW_CONFIDENCE = 0.4
+/** The estimate stops this short of the alighting stop, where the next segment begins: getting off is the rider's move. */
+const RIDE_END_MARGIN = 1
 
 interface Trust {
   /** How far a dwell may be from a stop's expected time and still be that stop. */
@@ -113,6 +123,9 @@ export class RideEstimator {
   /** Position held while the timetable can't move it: no timetable, or standing still. */
   private held: number
   private reached = 0
+  /** The last stop a fix, dwell or vehicle position placed the rider at. */
+  private confirmed: number | null = null
+  private lastVehicleT = -Infinity
   private fixS: number | null = null
   private lastFixT = -Infinity
   private preciseAt = -Infinity
@@ -135,10 +148,14 @@ export class RideEstimator {
     if (this.table) this.lag = start.t - timeAt(this.table, start.s)
   }
 
-  update({ now, fix, still }: RideObservation): RideEstimate {
+  update({ now, fix, still, vehicle }: RideObservation): RideEstimate {
     if (fix && fix.t > this.lastFixT && now - fix.t <= STALE_MS) {
       this.lastFixT = fix.t
       this.observeFix(fix, now)
+    }
+    if (vehicle && vehicle.t > this.lastVehicleT && now - vehicle.t <= STALE_MS) {
+      this.lastVehicleT = vehicle.t
+      this.observeCoarse(vehicle, now)
     }
     this.observeMotion(now, still)
     const s = this.position(now)
@@ -148,7 +165,9 @@ export class RideEstimator {
       s,
       confidence: fresh ? 1 : this.confidence(now),
       fresh,
-      shownS: Math.max(passed, Math.min(s, this.fixS ?? -Infinity)),
+      shownS: this.clamp(Math.max(passed, Math.min(s, this.fixS ?? -Infinity))),
+      arrived: this.confirmed === this.stops.length - 1,
+      arrivalMs: this.table ? now + Math.max(0, this.table.at(-1)!.arrive - timeAt(this.table, s)) : null,
     }
   }
 
@@ -173,10 +192,20 @@ export class RideEstimator {
   private observeFix(fix: RideFix, now: number): void {
     if (fix.accuracy > COARSE_ACCURACY || fix.offset > fix.accuracy + AT_STOP_METERS) return
     if (fix.accuracy <= PRECISE_ACCURACY) return this.placeAt(this.clamp(fix.s), fix.t)
+    this.observeCoarse(fix, now)
+  }
+
+  /** A rough position outranks the timetable once they disagree by more than its uncertainty. */
+  private observeCoarse(fix: RideFix, now: number): void {
     const estimate = this.position(now)
     if (Math.abs(estimate - fix.s) <= fix.accuracy) return
     const stop = this.nearestStop(fix.s, fix.accuracy)
-    if (stop != null) this.arriveAt(stop, fix.t, COARSE_CONFIDENCE)
+    if (stop != null) return this.arriveAt(stop, fix.t, COARSE_CONFIDENCE)
+    const s = this.clamp(fix.s)
+    this.held = s
+    this.reached = this.stopReachedAt(s)
+    this.anchor = { t: fix.t, confidence: COARSE_CONFIDENCE }
+    if (this.table && !this.dwell) this.lag = fix.t - timeAt(this.table, s)
   }
 
   /** A precise fix: the rider is at `s` at `t`. */
@@ -185,6 +214,7 @@ export class RideEstimator {
     this.fixS = s
     this.held = s
     this.reached = this.stopReachedAt(s)
+    this.confirmed = this.atStop(s) ?? this.confirmed
     this.anchor = { t, confidence: 1 }
     if (this.dwell) this.dwell = { stop: this.atStop(s) }
     else if (this.table) this.lag = t - timeAt(this.table, s)
@@ -193,8 +223,9 @@ export class RideEstimator {
   /** At `stop` at `t`, having just pulled in. */
   private arriveAt(stop: number, t: number, confidence: number): void {
     this.reached = stop
+    this.confirmed = stop
     this.fixS = null
-    this.held = this.stops[stop].s
+    this.held = this.clamp(this.stops[stop].s)
     this.anchor = { t, confidence }
     if (this.table) this.lag = t - this.table[stop].arrive
   }
@@ -274,7 +305,8 @@ export class RideEstimator {
   }
 
   private clamp(s: number): number {
-    return Math.min(this.stops.at(-1)?.s ?? s, Math.max(this.stops[0]?.s ?? s, s))
+    const end = (this.stops.at(-1)?.s ?? Infinity) - RIDE_END_MARGIN
+    return Math.min(end, Math.max(this.stops[0]?.s ?? s, s))
   }
 }
 
@@ -288,6 +320,19 @@ export function rideFix(route: NavRoute, ride: NavSegment, fix: Fix, clockOffset
 /** The puck transit progress should judge: the engine's while fixes are fresh, else the estimate, which can't be off the line. */
 export function estimatedPuck(puck: PuckState, estimate: RideEstimate): PuckState {
   return estimate.fresh ? puck : { ...puck, s: estimate.s, snapped: true }
+}
+
+/**
+ * The riding stage as the estimate can back it: off GPS, getting off now waits
+ * for the alighting stop to be confirmed, and arrival follows the estimate.
+ */
+export function estimatedStage(stage: TransitStage | null, estimate: RideEstimate): TransitStage | null {
+  if (stage?.kind !== 'riding') return stage
+  return {
+    ...stage,
+    alighting: stage.alighting && (estimate.fresh || estimate.arrived),
+    arrivalMs: estimate.arrivalMs ?? stage.arrivalMs,
+  }
 }
 
 export type RideCertainty = 'live' | 'estimated' | 'uncertain'

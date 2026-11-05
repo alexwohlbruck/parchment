@@ -5,6 +5,8 @@ import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routin
 import type { DrivingSide, InstructionLanePlan, LaneGeometry } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { Place } from './place.types'
+import type { DepartureProfile, TripModeToken } from './departure-profile.types'
+import type { StationGuidance } from './station-guidance.types'
 
 // =============================================================================
 // CORE TYPES
@@ -47,18 +49,23 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // REQUEST TYPES
 // =============================================================================
 
-export type SortPreference =
-  | 'shortest'
-  | 'earliest_arrival'
-  | 'cheapest'
-  | 'fewest_transfers'
-  | 'least_walking'
-  | 'greenest'
+export const SORT_PREFERENCES = [
+  'shortest',
+  'earliest_arrival',
+  'cheapest',
+  'fewest_transfers',
+  'least_walking',
+  'greenest',
+] as const
+
+export type SortPreference = (typeof SORT_PREFERENCES)[number]
 
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
   selectedMode?: SelectedMode // Filter trips by mode
   sortPreference?: SortPreference
+  /** Modes the rider does not use. The explicitly selected mode is exempt. */
+  excludedModes?: TripModeToken[]
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -160,6 +167,7 @@ export interface TripResponse {
   latestEndTime: string
   hazards?: Hazard[]
   warnings?: TripWarning[]
+  departureProfile?: DepartureProfile
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
@@ -223,7 +231,15 @@ export interface TripSegment {
 export interface StationEntranceRef {
   role: 'enter' | 'exit'
   name?: string
+  /** The entrance's own OSM `ref`. */
+  ref?: string
   description?: string
+  /** Where the entrance is, from the streets around it: "Broadway & West 28th Street · NW corner". */
+  cornerLabel?: string
+  /** False for an exit-only entrance; absent when unknown. */
+  entryAllowed?: boolean
+  /** False for an entry-only entrance; absent when unknown. */
+  exitAllowed?: boolean
   /** OSM access-point type: subway_entrance, train_station_entrance,
    *  elevator, etc. */
   accessType?: string
@@ -274,13 +290,16 @@ export interface SharedMobilityDetails {
   }
 }
 
-export interface TransitDetails {
+export interface TransitDetails extends StationGuidance {
   route: TransitRoute
   trip: TransitTrip
   stops: TransitStop[]
   departureStop: TransitStop
   arrivalStop: TransitStop
   headsign?: string
+  /** What the boarding platform's signs call this direction ("Uptown & The
+   *  Bronx"). Absent where unknown; show the headsign instead. */
+  directionLabel?: string
   shortName?: string
   color?: string
   textColor?: string

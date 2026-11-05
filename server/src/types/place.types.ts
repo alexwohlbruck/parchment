@@ -6,7 +6,7 @@ export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
 export interface SourceReference {
   id: SourceId
   name: string
-  url: string
+  url?: string
   updated?: string // ISO date string
   updatedBy?: string
 }
@@ -47,6 +47,8 @@ export interface PlacePhoto {
   isPrimary?: boolean
   isCover?: boolean
   isLogo?: boolean
+  /** Licence and attribution fields, where the source provides them */
+  metadata?: Record<string, string>
 }
 
 export interface Review {
@@ -121,6 +123,8 @@ export interface TransitDeparture {
   realTime?: boolean
   headsign?: string
   direction?: string
+  /** What the platform's signs call this direction ("Uptown & The Bronx"), where known. */
+  directionLabel?: string
   stopSequence?: number
   trip: {
     id: string

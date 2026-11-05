@@ -8,6 +8,7 @@ import type {
   RouteInstruction,
 } from '@/types/directions.types'
 import type { DrivingSide, InstructionLanePlan, LaneGeometry, LanePlan, StationEntrance } from '@server/types/unified-routing.types'
+import type { StationEntranceRef } from '@server/types/trip.types'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
@@ -26,6 +27,7 @@ export interface NavSegmentInput {
   drivingSide?: DrivingSide
   laneGeometry?: LaneGeometry
   lanePlan?: InstructionLanePlan[]
+  stationEntrance?: Pick<StationEntranceRef, 'cornerLabel'> | null
 }
 
 /** How a crosswalk is crossed, where that is worth saying. */
@@ -70,6 +72,8 @@ export interface NavSegment {
   lineColor?: string | null
   index: number
   mode: string
+  /** Where the station entrance this walk uses stands, for an entrance OSM leaves unnamed. */
+  entranceCorner?: string
   startDistance: number
   endDistance: number
 }
@@ -130,7 +134,10 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
       points.push(p)
       distances.push(offset)
     }
-    segments.push({ index: segmentIndex, mode: input.mode, lineColor: input.lineColor, startDistance, endDistance: offset })
+    segments.push({
+      index: segmentIndex, mode: input.mode, lineColor: input.lineColor, startDistance, endDistance: offset,
+      ...(input.stationEntrance?.cornerLabel && { entranceCorner: input.stationEntrance.cornerLabel }),
+    })
 
     if (laned) {
       const lane = input.laneGeometry

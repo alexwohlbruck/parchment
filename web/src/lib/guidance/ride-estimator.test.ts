@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute, pointAt, stepIndexAt } from './nav-route'
 import { rideStops, stageEvent, transitStage, type TransitEvent, type TransitSegmentInput } from './transit-progress'
-import { estimatedPuck, RideEstimator } from './ride-estimator'
+import { DWELL_MIN_MS, estimatedPuck, estimatedStage, RideEstimator, VEHICLE_ACCURACY } from './ride-estimator'
 import { polyline } from './test-routes'
 
 const walk = polyline([[0, 300]])
@@ -77,7 +77,7 @@ function replay(trip: Trip) {
       { position: pointAt(route, actual.s), bearing: 90, s: actual.s, speed: 0, snapped: !covered, stepIndex: stepIndexAt(route, actual.s), estimated: false },
       estimate,
     )
-    const stage = transitStage(route, segments, rides, puck, t)
+    const stage = estimatedStage(transitStage(route, segments, rides, puck, t), estimate)
     if (stage?.kind === 'riding' && countdown.at(-1)?.stopsLeft !== stage.stopsLeft) countdown.push({ t, stopsLeft: stage.stopsLeft })
     const event = stage && stageEvent(stage)
     if (event && !events.has(event)) events.set(event, t)
@@ -86,6 +86,8 @@ function replay(trip: Trip) {
 }
 
 const UNDERGROUND: [number, number][] = [[T0 + 20_000, arrive(5) + 120_000]]
+const puck = (s: number, snapped: boolean) =>
+  ({ position: pointAt(route, s), bearing: 90, s, speed: 0, snapped, stepIndex: stepIndexAt(route, s), estimated: false })
 const stopsLeftAt = (countdown: { t: number; stopsLeft: number }[], t: number) => countdown.filter(c => c.t <= t).at(-1)?.stopsLeft
 
 describe('RideEstimator', () => {
@@ -95,8 +97,8 @@ describe('RideEstimator', () => {
     expect(countdown.map(c => c.stopsLeft)).toEqual([5, 4, 3, 2, 1])
     countdown.slice(1).forEach((c, i) => expect(Math.abs(c.t - arrive(i + 1))).toBeLessThan(15_000))
     expect(events.get('alight-next')! - arrive(4)).toBeLessThan(15_000)
-    expect(events.get('alight-now')).toBeGreaterThan(arrive(5) - 30_000)
-    expect(events.get('alight-now')).toBeLessThanOrEqual(arrive(5))
+    expect(events.get('alight-now')).toBeGreaterThan(arrive(5))
+    expect(events.get('alight-now')).toBeLessThanOrEqual(arrive(5) + DWELL_MIN_MS + 2000)
     expect(events.has('missed-stop')).toBe(false)
   })
 
@@ -108,8 +110,8 @@ describe('RideEstimator', () => {
     countdown.slice(1).forEach((c, i) => expect(c.t).toBeGreaterThan(times[i + 1].arrive - 25_000))
     const alightNext = events.get('alight-next')!
     expect(alightNext - times[4].arrive).toBeLessThan(15_000)
-    expect(events.get('alight-now')).toBeGreaterThan(times[5].arrive - 45_000)
-    expect(events.get('alight-now')).toBeLessThanOrEqual(times[5].arrive)
+    expect(events.get('alight-now')).toBeGreaterThan(times[5].arrive)
+    expect(events.get('alight-now')).toBeLessThanOrEqual(times[5].arrive + DWELL_MIN_MS + 2000)
     expect(events.has('missed-stop')).toBe(false)
   })
 
@@ -157,6 +159,55 @@ describe('RideEstimator', () => {
     const strayed = { position: pointAt(route, at(4)), bearing: 90, s: at(4), speed: 0, snapped: false, stepIndex: 0, estimated: false }
     expect(transitStage(route, segments, rides, strayed, arrive(5) - 60_000)?.kind).toBe('missed-stop')
     expect(transitStage(route, segments, rides, estimatedPuck(strayed, estimate), arrive(5) - 60_000)?.kind).toBe('riding')
+  })
+
+  test('a train held at the stop before never says get off now from the timetable alone', () => {
+    const held = 300_000
+    const times = NAMES.map((_, k) => (k < 5 ? onTime(k) : { arrive: arrive(5) + held, depart: arrive(5) + held }))
+    times[4] = { arrive: arrive(4), depart: arrive(4) + DWELL_MS + held }
+    const estimator = new RideEstimator(stops, { s: at(0), t: T0 })
+    for (let t = T0; t < times[5].arrive; t += 1000) {
+      const actual = truth({ times, outages: [] }, t)
+      const fix = t < arrive(4) + 20_000 ? { t, s: actual.s, accuracy: 5, offset: 0 } : null
+      const estimate = estimator.update({ now: t, fix, still: false })
+      const stage = estimatedStage(transitStage(route, segments, rides, estimatedPuck(puck(actual.s, !fix), estimate), t), estimate)
+      if (stage?.kind !== 'riding') continue
+      expect(stage.alighting).toBe(false)
+      if (t > arrive(4) + DWELL_MS) expect(stage.stopsLeft).toBe(1)
+    }
+    const at5 = times[5].arrive
+    const estimate = estimator.update({ now: at5, fix: { t: at5, s: at(5), accuracy: 8, offset: 2 }, still: false })
+    const stage = estimatedStage(transitStage(route, segments, rides, estimatedPuck(puck(at(5), false), estimate), at5), estimate)
+    expect(stage).toMatchObject({ kind: 'riding', alighting: true })
+  })
+
+  test('the realtime vehicle position outranks a timetable that has run ahead', () => {
+    const estimator = new RideEstimator(stops, { s: at(0), t: T0 })
+    const now = arrive(4)
+    expect(estimator.update({ now, fix: null, still: null }).s).toBeGreaterThan(at(3))
+    const behind = at(1) + 300
+    const placed = estimator.update({ now, fix: null, still: null, vehicle: { t: now - 2000, s: behind, accuracy: VEHICLE_ACCURACY, offset: 20 } })
+    expect(placed.s).toBeLessThan(behind + 100)
+    expect(placed.fresh).toBe(false)
+    expect(placed.arrived).toBe(false)
+  })
+
+  test('arrival follows the rider, not the timetable, when the train runs late', () => {
+    const late = 240_000
+    const estimator = new RideEstimator(stops, { s: at(0), t: T0 })
+    const now = arrive(3) + late
+    const estimate = estimator.update({ now, fix: { t: now, s: at(3), accuracy: 5, offset: 0 }, still: null })
+    expect(estimate.arrivalMs! - now).toBeGreaterThanOrEqual(arrive(5) - arrive(3) - DWELL_MS)
+    expect(Math.abs(estimate.arrivalMs! - (arrive(5) + late))).toBeLessThan(DWELL_MS + 1000)
+  })
+
+  test('reaching the alighting stop leaves getting off to the rider', () => {
+    const estimator = new RideEstimator(stops, { s: at(0), t: T0 })
+    const late = arrive(5) + 600_000
+    const estimate = estimator.update({ now: late, fix: null, still: null })
+    expect(estimate.shownS).toBeLessThan(stops[5].s)
+    const stage = estimatedStage(transitStage(route, segments, rides, estimatedPuck(puck(at(2), false), estimate), late), estimate)
+    expect(stage).toMatchObject({ kind: 'riding', stopsLeft: 1, alighting: false })
   })
 
   test('the puck rests on the last stop reached rather than gliding between them', () => {

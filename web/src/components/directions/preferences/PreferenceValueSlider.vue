@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { Label } from '@/components/ui/label'
+import type { Component } from 'vue'
 import { Slider } from '@/components/ui/slider'
-import { usePreferences } from './context'
+import { usePreferences } from '@/composables/directions/useRoutingPreferenceControls'
+import PreferenceField from './PreferenceField.vue'
 
 /**
- * A preference measured in real units — speeds, distances — rather than a 0–1
- * weight. The panel owns the unit conversion and exposes the display value
- * through `v-model`, since what's stored (kph, metres) differs from what's
- * shown (mph, minutes) depending on the user's unit system.
+ * A preference in real units (speeds, distances) rather than a 0–1 weight. The
+ * caller converts units and exposes the display value through `v-model`.
  */
 defineProps<{
   /** Support key. Renders nothing when the engine doesn't take this. */
   pref: string
   label: string
-  /** Rendered to the right of the label, e.g. "18 kph". */
+  icon?: Component
+  description?: string
+  /** The value in words, e.g. "18 kph". */
   hint: string
   min: number
   max: number
@@ -25,11 +26,14 @@ const { isSupported } = usePreferences()
 </script>
 
 <template>
-  <div v-if="isSupported(pref)" class="space-y-2">
-    <div class="flex items-center justify-between">
-      <Label class="text-sm font-normal">{{ label }}</Label>
-      <span class="text-xs text-muted-foreground">{{ hint }}</span>
-    </div>
+  <PreferenceField
+    v-if="isSupported(pref)"
+    :label="label"
+    :icon="icon"
+    :description="description"
+    :hint="hint"
+    slider
+  >
     <Slider
       :model-value="[value]"
       :min="min"
@@ -37,5 +41,5 @@ const { isSupported } = usePreferences()
       :step="step ?? 1"
       @update:model-value="v => v && (value = v[0])"
     />
-  </div>
+  </PreferenceField>
 </template>

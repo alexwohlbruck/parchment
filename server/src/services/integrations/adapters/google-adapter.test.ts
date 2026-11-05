@@ -13,6 +13,7 @@
 
 import { describe, test, expect, mock } from 'bun:test'
 import { SOURCE } from '../../../lib/constants'
+import type { Place } from '../../../types/place.types'
 
 mock.module('../../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -40,6 +41,9 @@ function details(over: Partial<any> = {}): any {
 
 const adaptDetails = (data: any, id?: string) =>
   adapter().placeInfo.adaptPlaceDetails(data, id)
+
+/** Adapters store raw strings here despite the AttributedValue type, so read them untyped. */
+const amenities = (place: Place): Record<string, unknown> => place.amenities
 
 describe('place details — identity', () => {
   test('builds the id from the Google place id', () => {
@@ -230,8 +234,8 @@ describe('amenities', () => {
   test('records each place type', () => {
     const place = adaptDetails(details())
 
-    expect(place.amenities['type:cafe']).toBe('cafe')
-    expect(place.amenities['type:food']).toBe('food')
+    expect(amenities(place)['type:cafe']).toBe('cafe')
+    expect(amenities(place)['type:food']).toBe('food')
   })
 
   test('stringifies scalar attributes', () => {
@@ -243,9 +247,9 @@ describe('amenities', () => {
       }),
     )
 
-    expect(place.amenities.price_level).toBe('2')
-    expect(place.amenities.business_status).toBe('OPERATIONAL')
-    expect(place.amenities.utc_offset_minutes).toBe('-300')
+    expect(amenities(place).price_level).toBe('2')
+    expect(amenities(place).business_status).toBe('OPERATIONAL')
+    expect(amenities(place).utc_offset_minutes).toBe('-300')
   })
 
   test('stringifies boolean service flags', () => {
@@ -253,22 +257,22 @@ describe('amenities', () => {
       details({ dineIn: true, delivery: false, servesCoffee: true }),
     )
 
-    expect(place.amenities.dine_in).toBe('true')
-    expect(place.amenities.delivery).toBe('false')
-    expect(place.amenities.serves_coffee).toBe('true')
+    expect(amenities(place).dine_in).toBe('true')
+    expect(amenities(place).delivery).toBe('false')
+    expect(amenities(place).serves_coffee).toBe('true')
   })
 
   test('omits flags Google did not return', () => {
     const place = adaptDetails(details())
 
-    expect(place.amenities.dine_in).toBeUndefined()
-    expect(place.amenities.restroom).toBeUndefined()
+    expect(amenities(place).dine_in).toBeUndefined()
+    expect(amenities(place).restroom).toBeUndefined()
   })
 
   test('preserves a zero UTC offset', () => {
     const place = adaptDetails(details({ utcOffsetMinutes: 0 }))
 
-    expect(place.amenities.utc_offset_minutes).toBe('0')
+    expect(amenities(place).utc_offset_minutes).toBe('0')
   })
 })
 
@@ -352,8 +356,8 @@ describe('autocomplete predictions', () => {
   test('records types as amenities', () => {
     const place = adaptPrediction(prediction({ types: ['cafe', 'food'] }))
 
-    expect(place.amenities['type:cafe']).toBe('cafe')
-    expect(place.amenities['type:food']).toBe('food')
+    expect(amenities(place)['type:cafe']).toBe('cafe')
+    expect(amenities(place)['type:food']).toBe('food')
   })
 
   test('carries no photos, hours or contact info', () => {

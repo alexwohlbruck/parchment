@@ -14,6 +14,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 const realFetch = globalThis.fetch
 let fetchResponse: Response | null = null
@@ -43,7 +44,7 @@ describe('OpenAqIntegration', () => {
   const integration = () => new OpenAqIntegration()
 
   test('declares the map-layer capability only', () => {
-    expect(integration().capabilityIds).toEqual(['mapLayer'])
+    expect(integration().capabilityIds).toEqual([IntegrationCapabilityId.MAP_LAYER])
     expect(integration().capabilities).toEqual({})
   })
 
@@ -125,7 +126,7 @@ describe('FirmsIntegration', () => {
   const integration = () => new FirmsIntegration()
 
   test('declares the map-layer capability only', () => {
-    expect(integration().capabilityIds).toEqual(['mapLayer'])
+    expect(integration().capabilityIds).toEqual([IntegrationCapabilityId.MAP_LAYER])
   })
 
   test('validates that a MAP_KEY is present', () => {

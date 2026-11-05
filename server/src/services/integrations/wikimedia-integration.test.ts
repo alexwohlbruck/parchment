@@ -17,6 +17,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -91,7 +92,7 @@ describe('configuration', () => {
   test('declares the Wikimedia source and place-info capability', () => {
     const integration = new WikimediaIntegration()
 
-    expect(integration.capabilityIds).toEqual(['placeInfo'])
+    expect(integration.capabilityIds).toEqual([IntegrationCapabilityId.PLACE_INFO])
     expect(integration.sources).toEqual(['wikimedia'])
   })
 

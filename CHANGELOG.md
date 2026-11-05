@@ -6,6 +6,41 @@
 
 ### Fixed
 
+## [0.20.0] - 2026-11-05
+
+### Added
+
+* Transit trips say when to leave: hurry, run, leave now, or the latest time that still gets you there as planned. They also flag tight transfers and when biking becomes faster, and a trip you've missed is replaced by the next one.
+
+* A new Navigation settings tab gathers the modes you use, your default trip ranking, routing preferences, vehicles and voice guidance. These settings now follow your account across devices.
+
+* On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
+
+* Trip results refresh on their own every 20 to 60 seconds while you're planning to leave now, and a refresh button updates them on demand.
+
+* Choose a navigation voice by language, region and gender, and hear each one before you pick it.
+
+* The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
+* Subway trips and departure boards name directions as the platform signs do, like "Uptown & The Bronx", and entrances by their street corner. Exit-only entrances are never used to enter.
+* Trip details show how each transfer is made, like "In-station · 1 min 22 s" or "Exit and re-enter", with the walk inside the station as expandable steps.
+* Subway walks use the entrance and exit that make the whole trip shortest, measured through the station.
+* Transit legs suggest where to board, like "Board toward the back · saves 2 min".
+* Walks inside stations are drawn dashed on the trip map and fade off other floors when an indoor floor is picked.
+* Underground, navigation switches to station steps you advance yourself, and returns to GPS guidance once you're back on the street.
+
+### Changed
+
+* Vehicles moved from their own settings page into Settings → Navigation.
+
+### Fixed
+
+* The transit map no longer disappears while you zoom in or out, and areas you have already seen redraw instantly instead of loading again.
+* Places load again as soon as you're back online, and Reload works right away, without restarting the app.
+* Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
+* On transit, navigation no longer says "Get off now" a stop early on a late train, shows what comes after you get off, and moves on once you're off or tap "I got off".
+* Transfer walks show the time spent walking, with the rest of the gap as waiting, so a 90-second platform change no longer reads as a 5-minute walk.
+* Changes through a passageway inside the station, like 42 St–Port Authority to the 7, are no longer drawn as a walk along the street.
+
 ## [0.19.1] - 2026-11-03
 
 ### Changed
@@ -24,6 +59,8 @@
 * With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
 * With 3D terrain on, buildings on slopes stand on the lowest terrain their footprint touches instead of floating off the downhill side.
 * With 3D terrain on, buildings no longer jump in height while you rotate the map near 3D landmarks.
+* Neon signs and screens on 3D landmarks, like Times Square's, glow in their own colours at night, with a soft halo, instead of fading into the dark buildings around them.
+* Arrows and bike symbols painted on the road keep their real size when the map is tilted steeply, instead of ballooning near the camera and in the distance.
 
 ## [0.19.0] - 2026-11-03
 

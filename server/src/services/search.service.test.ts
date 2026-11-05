@@ -1,10 +1,13 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
+import type { searchBookmarks } from './library/bookmarks.service'
+import type { lookupPlacesByNameAndLocation } from './place.service'
+import type { Bookmark } from '../types/library.types'
 
 // ── Mock dependencies before imports ─────────────────────────────────────────
 //   (bun:test hoists mock.module() calls above import statements)
 
-const mockSearchBookmarks = mock(() => Promise.resolve([]))
-const mockLookupPlaces = mock(() => Promise.resolve([]))
+const mockSearchBookmarks = mock<typeof searchBookmarks>(async () => [])
+const mockLookupPlaces = mock<typeof lookupPlacesByNameAndLocation>(async () => [])
 const mockSearchCategories = mock(() => [] as any[])
 const mockSearchCategoriesWithScores = mock(() => [] as any[])
 const mockGetCategoryById = mock((_id: string) => null as any)
@@ -94,6 +97,25 @@ function makePlace(overrides: Record<string, any> = {}): any {
     },
     icon: { icon: 'coffee', iconPack: 'lucide', category: 'default' },
     tags: {},
+    ...overrides,
+  }
+}
+
+function makeBookmark(overrides: Partial<Bookmark> = {}): Bookmark {
+  return {
+    id: 'bm-1',
+    externalIds: {},
+    name: 'Bookmark',
+    address: null,
+    icon: 'star',
+    iconPack: 'lucide',
+    iconColor: '#000',
+    frequentType: null,
+    userId: 'user-1',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    lat: 0,
+    lng: 0,
     ...overrides,
   }
 }
@@ -417,10 +439,12 @@ describe('search service', () => {
 
   describe('search — bookmark results', () => {
     test('includes bookmark results with type "bookmark"', async () => {
-      mockSearchBookmarks.mockResolvedValue([{
-        id: 'bm-1', name: 'Home', frequentType: 'home',
-        lat: 37.77, lng: -122.41, icon: 'Home', iconColor: '#ff0000',
-      }])
+      mockSearchBookmarks.mockResolvedValue([
+        makeBookmark({
+          id: 'bm-1', name: 'Home', frequentType: 'home',
+          lat: 37.77, lng: -122.41, icon: 'Home', iconColor: '#ff0000',
+        }),
+      ])
       const resp = await search('user-1', { query: 'home' }) as any
       const bm = resp.results.find((r: any) => r.type === 'bookmark')
       expect(bm).toBeDefined()
@@ -428,31 +452,37 @@ describe('search service', () => {
     })
 
     test('uses preset icon for home/work/school bookmarks', async () => {
-      mockSearchBookmarks.mockResolvedValue([{
-        id: 'bm-1', name: 'My Office', frequentType: 'work',
-        lat: 0, lng: 0, icon: 'star', iconColor: '#000',
-      }])
+      mockSearchBookmarks.mockResolvedValue([
+        makeBookmark({
+          id: 'bm-1', name: 'My Office', frequentType: 'work',
+          lat: 0, lng: 0, icon: 'star', iconColor: '#000',
+        }),
+      ])
       const resp = await search('user-1', { query: 'work' }) as any
       const bm = resp.results.find((r: any) => r.type === 'bookmark')
       expect(bm.icon).toBe('Building')
     })
 
     test('sets description to capitalized preset type for preset bookmarks', async () => {
-      mockSearchBookmarks.mockResolvedValue([{
-        id: 'bm-1', name: 'Our House', frequentType: 'home',
-        lat: 0, lng: 0, icon: 'Home', iconColor: '#000',
-      }])
+      mockSearchBookmarks.mockResolvedValue([
+        makeBookmark({
+          id: 'bm-1', name: 'Our House', frequentType: 'home',
+          lat: 0, lng: 0, icon: 'Home', iconColor: '#000',
+        }),
+      ])
       const resp = await search('user-1', { query: 'home' }) as any
       const bm = resp.results.find((r: any) => r.type === 'bookmark')
       expect(bm.description).toBe('Home')
     })
 
     test('uses "Bookmarked • address" description for non-preset bookmarks', async () => {
-      mockSearchBookmarks.mockResolvedValue([{
-        id: 'bm-1', name: 'Coffee Shop', frequentType: null,
-        lat: 0, lng: 0, icon: 'star', iconColor: '#000',
-        address: '42 Oak St',
-      }])
+      mockSearchBookmarks.mockResolvedValue([
+        makeBookmark({
+          id: 'bm-1', name: 'Coffee Shop', frequentType: null,
+          lat: 0, lng: 0, icon: 'star', iconColor: '#000',
+          address: '42 Oak St',
+        }),
+      ])
       const resp = await search('user-1', { query: 'coffee' }) as any
       const bm = resp.results.find((r: any) => r.type === 'bookmark')
       expect(bm.description).toBe('Bookmarked • 42 Oak St')

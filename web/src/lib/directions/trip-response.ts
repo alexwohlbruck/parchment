@@ -24,6 +24,11 @@ function extractTransitFields(seg: any) {
     lineTextColor: td.textColor || td.route?.textColor,
     lineLongName: td.route?.longName,
     headsign: td.headsign || td.trip?.headsign,
+    directionLabel: td.directionLabel,
+    transfer: td.transfer,
+    boardingPosition: td.boardingPosition,
+    entrance: td.entrance,
+    exit: td.exit,
     tripShortName: td.trip?.shortName,
     // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
     // (length > 1) on merged legs — render "4 or 5" and union the board.
@@ -107,6 +112,7 @@ export function mapCandidate(candidate: any, idx: number, placeIds: (string | un
       ? { total: { amount: stats.totalCost.value, currency: stats.totalCost.currency } }
       : undefined,
     co2Emissions: stats.totalCo2 ?? undefined,
+    departureProfile: candidate.trip.departureProfile,
   }
 }
 

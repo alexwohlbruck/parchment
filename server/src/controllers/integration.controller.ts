@@ -52,7 +52,9 @@ function emitIntegrationUpdated(
 const publicApi = new Elysia({ prefix: '/integrations' })
 
 /** Everything that requires an authenticated session. */
-const app = new Elysia({ prefix: '/integrations' }).use(i18nPlugin)
+const app = new Elysia({ prefix: '/integrations' })
+  .use(i18nPlugin)
+  .use(requireAuth)
 
 /**
  * GET /integrations/configured
@@ -84,10 +86,14 @@ publicApi.use(getSession).get(
       )
       const instance =
         integrationManager.getCachedIntegrationInstance(integration)
-      const enhancedCapabilities = integration.capabilities.map((cap) => ({
-        ...cap,
-        metadata: instance?.capabilities[cap.id]?.metadata ?? null,
-      }))
+      const capabilities: Partial<Record<IntegrationCapabilityId, object>> =
+        instance?.capabilities ?? {}
+      const enhancedCapabilities = integration.capabilities.map((cap) => {
+        const capability = capabilities[cap.id]
+        const metadata =
+          capability && 'metadata' in capability ? capability.metadata : null
+        return { ...cap, metadata: metadata ?? null }
+      })
 
       const dto: ConfiguredIntegrationDto = {
         id: integration.id,
@@ -128,9 +134,6 @@ publicApi.use(getSession).get(
     },
   },
 )
-
-// All remaining endpoints require auth
-app.use(requireAuth)
 
 /**
  * GET /integrations/available

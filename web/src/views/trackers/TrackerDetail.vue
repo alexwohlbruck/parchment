@@ -95,7 +95,7 @@ function setLocation() {
 }
 
 function goToSettings() {
-  router.push({ name: AppRoute.VEHICLES })
+  router.push({ name: AppRoute.NAVIGATION_SETTINGS, hash: '#vehicles' })
 }
 
 onMounted(() => {

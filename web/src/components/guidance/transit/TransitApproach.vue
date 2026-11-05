@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatDurationCompact } from '@/lib/time-format'
 import { approachReach } from '@/lib/transit/transit-reachability'
+import { reachWord } from '@/lib/directions/trip-advice'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useLaterRuns } from '@/composables/guidance/useLaterRuns'
 
 const props = defineProps<{
@@ -15,13 +17,12 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 
-const REACH_STYLES = {
-  ok: 'text-forest-600 dark:text-forest-400',
-  hurry: 'text-amber-600 dark:text-amber-400',
-  late: 'text-red-600 dark:text-red-400',
-}
+const navigationPreferences = useNavigationPreferencesStore()
 
-const reach = computed(() => approachReach(props.departureMs, props.nowMs, props.walkSec))
+const reach = computed(() => {
+  const state = approachReach(props.departureMs, props.nowMs, props.walkSec, navigationPreferences.runPace)
+  return reachWord(state, t) ?? { word: t('guidance.transit.reach.ok'), tone: 'text-forest-600 dark:text-forest-400' }
+})
 const leadIn = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 const lead = computed(() => leadIn(props.departureMs))
 
@@ -44,6 +45,6 @@ const laterText = computed(() =>
       {{ t('guidance.transit.inDuration', { duration: lead })
       }}<span v-if="laterText" class="text-muted-foreground">, {{ laterText }}</span>
     </span>
-    <span class="ml-auto font-medium" :class="REACH_STYLES[reach]">{{ t(`guidance.transit.reach.${reach}`) }}</span>
+    <span class="ml-auto font-medium" :class="reach.tone">{{ reach.word }}</span>
   </div>
 </template>

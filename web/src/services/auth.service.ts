@@ -7,6 +7,7 @@ import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
@@ -90,6 +91,7 @@ function authService() {
             setAuthHeader(sessionId)
             if (subscription) authStore.setSubscription(subscription)
             getPermissions()
+            void syncPreferences()
           } else {
             clearAllUserCaches()
             authStore.unsetAuthenticatedUser()
@@ -122,6 +124,11 @@ function authService() {
     return { user }
   }
 
+  async function syncPreferences() {
+    const preferences = await syncPreferencesFromBackend()
+    if (preferences) useNavigationPreferencesStore().adopt(preferences.navigation)
+  }
+
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
     // Set auth header first so integration fetches are authenticated
     setAuthHeader(sessionId)
@@ -131,7 +138,7 @@ function authService() {
     await Promise.all([
       integrationService.fetchAvailableIntegrations(),
       integrationService.fetchConfiguredIntegrations(),
-      syncPreferencesFromBackend(),
+      syncPreferences(),
       vehiclesStore.fetchVehicles(),
     ])
 

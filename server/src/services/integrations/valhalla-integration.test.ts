@@ -20,6 +20,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 mock.module('../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -142,7 +143,7 @@ describe('configuration', () => {
   })
 
   test('declares only routing', () => {
-    expect(new ValhallaIntegration().capabilityIds).toEqual(['routing'])
+    expect(new ValhallaIntegration().capabilityIds).toEqual([IntegrationCapabilityId.ROUTING])
   })
 
   test('refuses to route before initialization', async () => {
@@ -154,7 +155,11 @@ describe('configuration', () => {
 })
 
 describe('routing metadata', () => {
-  const metadata = new ValhallaIntegration().capabilities.routing.metadata
+  const routing = new ValhallaIntegration().capabilities.routing.metadata
+  if (!routing?.features) {
+    throw new Error('routing metadata is incomplete')
+  }
+  const metadata = { ...routing, features: routing.features }
 
   test('advertises the six costing models it can reach', () => {
     expect(metadata.supportedModes).toEqual([
@@ -449,12 +454,6 @@ describe('cycling costing options', () => {
   test('maps surface quality directly onto avoid_bad_surfaces', async () => {
     expect(await cycle({ surfaceQuality: 0.9 })).toMatchObject({
       avoid_bad_surfaces: 0.9,
-    })
-  })
-
-  test('maps the legacy paved-path preference to a strong bias', async () => {
-    expect(await cycle({ preferPavedPaths: true })).toMatchObject({
-      avoid_bad_surfaces: 0.8,
     })
   })
 

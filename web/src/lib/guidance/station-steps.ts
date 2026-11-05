@@ -25,8 +25,10 @@ function visits(line: WalkLine): Added[] {
     const entrances = line.edges.filter(e => e.segmentIndex === segment.index && e.entrance)
     const exit = line.segments[segment.index - 1]?.mode === 'transit' ? entrances[0] : undefined
     const enter = line.segments[segment.index + 1]?.mode === 'transit' ? entrances.at(-1) : undefined
-    if (exit) added.push({ s: exit.startDistance, segmentIndex: segment.index, type: 'exitStation', station: { ...exit.entrance, exit: true } })
-    if (enter && enter !== exit) added.push({ s: enter.startDistance, segmentIndex: segment.index, type: 'enterStation', station: { ...enter.entrance, exit: false } })
+    const visit = (edge: typeof entrances[number], isExit: boolean): StationVisit =>
+      ({ ...edge.entrance, name: edge.entrance!.name ?? segment.entranceCorner, exit: isExit })
+    if (exit) added.push({ s: exit.startDistance, segmentIndex: segment.index, type: 'exitStation', station: visit(exit, true) })
+    if (enter && enter !== exit) added.push({ s: enter.startDistance, segmentIndex: segment.index, type: 'enterStation', station: visit(enter, false) })
   }
   return added
 }

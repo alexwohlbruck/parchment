@@ -19,6 +19,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 mock.module('../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -114,9 +115,9 @@ describe('configuration', () => {
 
   test('declares map layer, transit data and place info', () => {
     expect(new TransitlandIntegration().capabilityIds).toEqual([
-      'mapLayer',
-      'transitData',
-      'placeInfo',
+      IntegrationCapabilityId.MAP_LAYER,
+      IntegrationCapabilityId.TRANSIT_DATA,
+      IntegrationCapabilityId.PLACE_INFO,
     ])
   })
 

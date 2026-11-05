@@ -8,7 +8,7 @@ import type { Integration, IntegrationConfig } from '../types/integration.types'
  * @throws Error if validation fails or connection test fails
  */
 export async function initializeWithTest(
-  integration: Integration,
+  integration: Integration<IntegrationConfig>,
   config: IntegrationConfig,
 ): Promise<void> {
   if (!integration.validateConfig(config)) {

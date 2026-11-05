@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import type { TripResponse, TripSegment } from '../../types/trip.types'
-import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from './street-transfer'
+import { changeMovingSeconds, changeStaysInside, dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from './street-transfer'
 
 const walk = (extra: Partial<TripSegment> = {}) => ({ mode: 'walking', ...extra }) as TripSegment
 const ride = (routeId: string, from: string, to: string, type = 'subway') =>
@@ -60,5 +60,25 @@ describe('dropAvoidableStreetTransfers', () => {
     const walking = trip('20:15', [walk()])
     const parkAndRide = trip('20:15', [{ mode: 'driving' } as TripSegment, walk(), ride('5_F', 'a', 'b'), walk()])
     expect(dropAvoidableStreetTransfers([outside, walking, parkAndRide], 10 * 60_000)).toHaveLength(3)
+  })
+})
+
+describe('station guidance on a change', () => {
+  const guided = (cls: string, seconds: number | null) => {
+    const r = ride('5_7', '5_A27N', '5_725N')
+    r.details!.transitDetails!.transfer = { class: cls, seconds } as never
+    return r
+  }
+
+  test('a passage between differently placed stops still stays inside', () => {
+    expect(changeStaysInside(guided('in_system_passage', 284))).toBe(true)
+    expect(changeStaysInside(guided('out_of_system', 300))).toBe(false)
+    expect(changeStaysInside(ride('5_7', 'a', 'b'))).toBeNull()
+  })
+
+  test('a street change takes the station figure when the street route alone is shorter', () => {
+    expect(changeMovingSeconds(230, guided('out_of_system', 458))).toBe(458)
+    expect(changeMovingSeconds(300, guided('out_of_system', 120))).toBe(300)
+    expect(changeMovingSeconds(300, ride('5_7', 'a', 'b'))).toBe(300)
   })
 })

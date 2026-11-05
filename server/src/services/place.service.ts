@@ -86,8 +86,9 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
       try {
         const results = await integration.capabilities.geocoding.reverseGeocode(lat, lng)
         
-        if (results?.[0]?.address?.value) {
-          const geocodedAddress = results[0].address
+        const geocoded = results?.[0]
+        const geocodedAddress = geocoded?.address
+        if (geocodedAddress?.value) {
           
           // Only use the address if it has meaningful data
           const addr = geocodedAddress.value
@@ -95,13 +96,10 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
             logger.debug(`Successfully enriched address from ${integrationRecord.integrationId}`)
             place.address = geocodedAddress
             
-            // Add to sources if not already present
-            const sourceId = geocodedAddress.sourceId
-            if (!place.sources.some(s => s.sourceId === sourceId)) {
-              place.sources.push({
-                sourceId,
-                timestamp: geocodedAddress.timestamp,
-              })
+            for (const source of geocoded.sources) {
+              if (!place.sources.some((s) => s.id === source.id)) {
+                place.sources.push(source)
+              }
             }
             
             const enrichTime = Date.now() - startTime
@@ -121,73 +119,6 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
     logError('Error during address enrichment', error)
     return place
   }
-}
-
-/**
- * Look up parent relations for a place, particularly useful for transit stops
- * that might have their Wikidata on a parent "transit stop area" relation
- */
-async function enrichPlaceWithParentRelations(place: Place): Promise<void> {
-  if (!shouldLookupParentRelations(place)) return
-  
-  const osmId = place.externalIds[SOURCE.OSM]
-  if (!osmId) return
-  
-  const nominatimIntegration = integrationManager.getIntegration('nominatim')
-  if (!nominatimIntegration) return
-  
-  try {
-    const baseUrl = nominatimIntegration.config.baseUrl || 'https://nominatim.openstreetmap.org'
-    const relations = await nominatimIntegration.adapter.lookupParentRelations(osmId, baseUrl)
-    
-    if (!relations.length) return
-    
-    place.relations = {
-      value: relations,
-      sourceId: SOURCE.OSM,
-      timestamp: new Date().toISOString(),
-    }
-    
-    // For transit stops, check if any parent relation is a transit stop area with Wikidata
-    if (isPlaceTransitStop(place)) {
-      const transitStopArea = relations.find(rel => 
-        rel.tags?.public_transport === 'stop_area' || 
-        rel.tags?.type === 'public_transport'
-      )
-      
-      if (transitStopArea?.tags?.wikidata) {
-        place.externalIds[SOURCE.WIKIDATA] = transitStopArea.tags.wikidata
-      }
-    }
-  } catch (error) {
-    logError('Error looking up parent relations', error)
-  }
-}
-
-/**
- * Determine if we should look up parent relations for a place
- * This helps avoid unnecessary API calls for places that are unlikely to benefit
- */
-function shouldLookupParentRelations(place: Place): boolean {
-  // Always lookup for transit stops (they might have parent stop areas)
-  if (isPlaceTransitStop(place)) {
-    return true
-  }
-  
-  // Lookup for buildings that might be part of complexes
-  const placeType = place.placeType.value?.toLowerCase()
-  if (placeType?.includes('building') || placeType?.includes('office') || placeType?.includes('shop')) {
-    return true
-  }
-  
-  // Lookup for amenities that might be part of larger facilities
-  const amenityKeys = Object.keys(place.amenities || {})
-  const interestingAmenities = ['parking', 'restaurant', 'cafe', 'shop', 'atm', 'toilets']
-  if (amenityKeys.some(key => interestingAmenities.includes(key))) {
-    return true
-  }
-  
-  return false
 }
 
 /**
@@ -460,10 +391,6 @@ async function enrichPlaceWithWikiData(
   const languageCode = getLanguageCode(language)
   
   try {
-    // First, try to find Wikidata ID via parent relations (especially for transit stops)
-    await enrichPlaceWithParentRelations(place)
-    
-    // Check if we have a Wikidata ID (either original or from parent relation)
     const wikidataId = place.externalIds?.wikidata
     if (!wikidataId) {
       

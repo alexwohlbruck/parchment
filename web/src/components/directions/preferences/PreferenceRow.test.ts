@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { computed, defineComponent, h, ref } from 'vue'
 import PreferenceRow from './PreferenceRow.vue'
 import PreferenceToggle from './PreferenceToggle.vue'
-import { providePreferences } from './context'
+import { providePreferences } from '@/composables/directions/useRoutingPreferenceControls'
 import type { RoutingPreferences } from '@/types/multimodal.types'
 
 /**
@@ -32,6 +32,7 @@ function mountIn(
         isSupported: () => support !== false,
         isRange: () => support === 'range',
         getHintLabel: (_key, value) => `hint:${value}`,
+        layout: 'compact',
       })
       return () => h(Control as never, props)
     },

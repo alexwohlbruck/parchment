@@ -192,6 +192,8 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
     {
       id: `Road glyph${suffix}`,
       type: 'symbol',
+      // Paint on the road: our MapLibre fork leaves out the boost that keeps far labels legible.
+      metadata: { 'parchment:decal': true },
       source: DETAIL_SOURCE,
       'source-layer': ROAD_GLYPH_TILES,
       minzoom: FROM,
@@ -205,14 +207,19 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
         'icon-ignore-placement': true,
         // A glyph is 40 px tall in the sprite and about 6 m on the road.
         // Bike and walker symbols are drawn at a person's scale, to fit inside a 1.5 m lane.
+        // A size by zoom and feature is held at its top stop on any tile past it, and steep pitch loads
+        // tiles past the map's zoom near the camera, so the top stop sits beyond any tile we load.
         'icon-size': ['interpolate', ['exponential', 2], ['zoom'],
-          FROM, ['*', glyphScale, (6 * 2 ** FROM) / 63330 / 40], 22, ['*', glyphScale, (6 * 2 ** 22) / 63330 / 40]],
+          FROM, ['*', glyphScale, (6 * 2 ** FROM) / 63330 / 40], GLYPH_TOP_ZOOM, ['*', glyphScale, (6 * 2 ** GLYPH_TOP_ZOOM) / 63330 / 40]],
       },
       paint: { 'icon-color': c.white, 'icon-opacity': fadeIn },
     },
     ...(bridge ? [] : [signalLayer(flavor)]),
   ]
 }
+
+/** Zoom of the glyph size's top stop; its size there must stay under MapLibre's 255. */
+const GLYPH_TOP_ZOOM = 26
 
 /** Glyphs painted on the road; the rest name what stands beside it (see `map-objects/fixtures.ts`). */
 const PAINTED_GLYPH = ['==', ['slice', ['to-string', ['get', 'glyph']], 0, 5], 'road-']

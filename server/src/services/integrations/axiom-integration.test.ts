@@ -12,6 +12,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 const realFetch = globalThis.fetch
 let fetchResponse: Response | null = null
@@ -41,7 +42,7 @@ beforeEach(() => {
 
 describe('configuration', () => {
   test('declares the logging capability', () => {
-    expect(integration().capabilityIds).toEqual(['logging'])
+    expect(integration().capabilityIds).toEqual([IntegrationCapabilityId.LOGGING])
   })
 
   test('requires both a token and a dataset', () => {

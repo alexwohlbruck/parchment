@@ -9,6 +9,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 const realFetch = globalThis.fetch
 let fetchResponse: Response | null = null
@@ -48,7 +49,7 @@ beforeEach(() => {
 
 describe('configuration', () => {
   test('declares the map-engine capability', () => {
-    expect(integration().capabilityIds).toEqual(['mapEngine'])
+    expect(integration().capabilityIds).toEqual([IntegrationCapabilityId.MAP_ENGINE])
   })
 
   test('requires an access token', () => {

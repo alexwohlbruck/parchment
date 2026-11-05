@@ -9,7 +9,7 @@ const app = new Elysia({ prefix: '/data' })
 // only 1 level deep in the prod bundle (dist), breaking a fixed relative path.
 const dataDir = resolve(process.cwd(), 'data')
 
-let timezonesCache: Buffer | null = null
+let timezonesCache: Buffer<ArrayBuffer> | null = null
 
 app.get('/timezones.geojson', () => {
   if (!timezonesCache) {
@@ -23,7 +23,7 @@ app.get('/timezones.geojson', () => {
   })
 })
 
-let logoSvgCache: Buffer | null = null
+let logoSvgCache: Buffer<ArrayBuffer> | null = null
 
 app.get('/logo.svg', () => {
   if (!logoSvgCache) {
@@ -37,7 +37,7 @@ app.get('/logo.svg', () => {
   })
 })
 
-let logoPngCache: Buffer | null = null
+let logoPngCache: Buffer<ArrayBuffer> | null = null
 
 app.get('/logo.png', () => {
   if (!logoPngCache) {

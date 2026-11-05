@@ -17,6 +17,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 mock.module('../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -92,9 +93,9 @@ describe('configuration', () => {
 
   test('declares search, place info and geocoding', () => {
     expect(new GoogleMapsIntegration().capabilityIds).toEqual([
-      'search',
-      'placeInfo',
-      'geocoding',
+      IntegrationCapabilityId.SEARCH,
+      IntegrationCapabilityId.PLACE_INFO,
+      IntegrationCapabilityId.GEOCODING,
     ])
   })
 
@@ -283,7 +284,7 @@ describe('geocode', () => {
     fetchImpl = async () => ok({ status: 'OK', results: [] })
 
     await configured().capabilities.geocoding.geocode('somewhere', undefined, undefined, {
-      language: 'es-MX',
+      language: 'es-ES',
     })
 
     expect(new URL(calls[0][0]).searchParams.get('language')).toBe('es')
@@ -453,7 +454,7 @@ describe('searchPlaces', () => {
     fetchImpl = async () => ok({ places: [] })
 
     await search(configured())('bakery', undefined, undefined, {
-      language: 'es-MX',
+      language: 'es-ES',
     })
 
     expect(body().languageCode).toBe('es')

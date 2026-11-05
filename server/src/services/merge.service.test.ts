@@ -61,9 +61,9 @@ function address(street1: string, over: Partial<any> = {}) {
 }
 
 describe('getSourcePriority', () => {
-  test('ranks OSM above Overpass', () => {
+  test('ranks OSM above Yelp', () => {
     expect(getSourcePriority(SOURCE.OSM)).toBeGreaterThan(
-      getSourcePriority(SOURCE.OVERPASS),
+      getSourcePriority(SOURCE.YELP),
     )
   })
 
@@ -437,9 +437,9 @@ describe('mergePlacesCollection — merge decisions', () => {
 
 describe('mergePlacesCollection — primary selection', () => {
   test('the highest-priority source wins the merged identity', () => {
-    // Overpass (50) loses to OSM (100).
+    // Yelp (50) loses to OSM (100).
     const merged = mergePlacesCollection([
-      place({ id: 'overpass', name: 'Starbucks', sources: [{ id: SOURCE.OVERPASS }] }),
+      place({ id: 'yelp', name: 'Starbucks', sources: [{ id: SOURCE.YELP }] }),
       place({ id: 'osm', name: 'Starbucks', sources: [{ id: SOURCE.OSM }] }),
     ])
 
@@ -450,7 +450,7 @@ describe('mergePlacesCollection — primary selection', () => {
   test('order in the input does not decide the winner', () => {
     const forward = mergePlacesCollection([
       place({ id: 'osm', name: 'Starbucks', sources: [{ id: SOURCE.OSM }] }),
-      place({ id: 'overpass', name: 'Starbucks', sources: [{ id: SOURCE.OVERPASS }] }),
+      place({ id: 'yelp', name: 'Starbucks', sources: [{ id: SOURCE.YELP }] }),
     ])
 
     expect(forward[0].id).toBe('osm')

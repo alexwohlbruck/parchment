@@ -16,6 +16,9 @@ import {
   getEdgeCaseColor,
 } from '@/lib/directions/route-profile-colors'
 import type { RouteEdgeSegment } from '@/types/directions.types'
+import { replacedTransferWalks, stationWalkFeatures } from '@/lib/transit/station/station-walks'
+import { getTravelModeCaseColor, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { EXTERIOR_LEVEL, INDOOR_STATE } from '@/lib/map-style/indoor-layers'
 
 /** A collection of map layers created and torn down as one unit. */
 export class MapLayerGroup {
@@ -259,9 +262,10 @@ export class TripGroup extends MapLayerGroup {
    * Build all trip visualization layers
    */
   private build(): void {
+    const replaced = replacedTransferWalks(this.trip.segments)
     this.trip.segments.forEach((segment, segmentIndex) => {
       if (!segment.geometry) return
-      this._addSegmentLayer(segment, segmentIndex)
+      if (!replaced.has(segmentIndex)) this._addSegmentLayer(segment, segmentIndex)
 
       // Add connector between segments
       if (segmentIndex < this.trip.segments.length - 1) {
@@ -276,6 +280,47 @@ export class TripGroup extends MapLayerGroup {
 
     // Don't add origin/destination layers here since waypoint markers are managed separately
     // this._addOriginDestinationLayers()
+    this._addStationWalkLayers()
+  }
+
+  /** Walks inside stations, dashed like a path underground; faded off the floor the indoor picker shows. */
+  private _addStationWalkLayers(): void {
+    const data = stationWalkFeatures(this.trip.segments)
+    if (!data.features.length) return
+    const sourceId = `${this.id}-station-walks`
+    this.map.removeSource(sourceId)
+    this.map.addSource(sourceId, { type: 'geojson', data })
+    this.sources.add(sourceId)
+
+    const shownLevel = ['global-state', INDOOR_STATE.level]
+    const offFloor = [
+      'all',
+      ['!=', ['coalesce', ['global-state', INDOOR_STATE.venue], 0], 0],
+      ['!=', shownLevel, EXTERIOR_LEVEL],
+      ['has', 'level'],
+      ['!=', ['get', 'level'], shownLevel],
+    ]
+    const opacity = ['case', offFloor, 0.3, 1]
+    const line = (id: string, order: number, paint: Record<string, unknown>) =>
+      this.addLayer({
+        id,
+        groupId: this.id,
+        name: `Trip ${this.trip.id} ${id.endsWith('case') ? 'Station Walk Case' : 'Station Walk'}`,
+        type: LayerType.CUSTOM,
+        showInLayerSelector: true,
+        visible: true,
+        engine: [MapEngine.MAPLIBRE],
+        order,
+        configuration: {
+          id,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-join': 'round', 'line-cap': 'butt' },
+          paint: { 'line-opacity': opacity, ...paint },
+        } as any,
+      })
+    line(`${this.id}-station-walk-case`, 0, { 'line-color': getTravelModeCaseColor('walking'), 'line-width': 6, 'line-opacity': ['*', opacity, 0.35] })
+    line(`${this.id}-station-walk`, 1, { 'line-color': getTravelModeColor('walking'), 'line-width': 4, 'line-dasharray': [1.4, 1] })
   }
 
   /**

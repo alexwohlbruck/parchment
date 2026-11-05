@@ -231,7 +231,7 @@ describe('geometry', () => {
     )
 
     expect(place.geometry.value.type).toBe('polygon')
-    expect(place.geometry.value.nodes.length).toBeGreaterThan(0)
+    expect(place.geometry.value.nodes?.length).toBeGreaterThan(0)
   })
 
   test('maps a MultiPolygon to multipolygon geometry', () => {

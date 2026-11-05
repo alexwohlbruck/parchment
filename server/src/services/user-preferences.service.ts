@@ -1,7 +1,8 @@
 import { db } from '../db'
 import { userPreferences, type UserPreferences, type NewUserPreferences } from '../schema/user-preferences.schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE, LANGUAGES, type Language } from '../lib/i18n/i18n.types'
+import type { NavigationPreferencesPatch } from '../types/navigation-preferences.types'
 
 const DEFAULT_UNIT_SYSTEM = 'metric'
 
@@ -60,12 +61,18 @@ export async function getOrCreateUserPreferences(
 
 export async function updateUserPreferences(
   userId: string,
-  updates: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>>,
+  updates: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> & {
+    navigation?: NavigationPreferencesPatch
+  },
 ): Promise<UserPreferences> {
-  const allowed: Partial<NewUserPreferences> = {}
+  const allowed: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> = {}
   if (updates.language !== undefined) allowed.language = updates.language
   if (updates.unitSystem !== undefined) allowed.unitSystem = updates.unitSystem
-  if (Object.keys(allowed).length === 0) {
+  const navigation =
+    updates.navigation && Object.keys(updates.navigation).length > 0
+      ? updates.navigation
+      : undefined
+  if (Object.keys(allowed).length === 0 && !navigation) {
     const prefs = await getOrCreateUserPreferences(userId)
     return prefs
   }
@@ -74,6 +81,9 @@ export async function updateUserPreferences(
     .update(userPreferences)
     .set({
       ...allowed,
+      ...(navigation && {
+        navigation: sql`coalesce(${userPreferences.navigation}, '{}'::jsonb) || ${JSON.stringify(navigation)}::jsonb`,
+      }),
       updatedAt: new Date(),
     })
     .where(eq(userPreferences.userId, userId))
@@ -88,6 +98,7 @@ export async function updateUserPreferences(
       userId,
       language: allowed.language ?? DEFAULT_LANGUAGE,
       unitSystem: allowed.unitSystem ?? DEFAULT_UNIT_SYSTEM,
+      ...(navigation && { navigation }),
     })
     .returning()
   if (!inserted) throw new Error('Failed to create user preferences')

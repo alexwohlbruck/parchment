@@ -1,6 +1,7 @@
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.enums'
 import type { SpeechCatalog, SpeechRequest } from '../types/speech.types'
+import { presentCatalog } from '../lib/speech/voice-catalog'
 
 function providers() {
   return integrationManager.getConfiguredIntegrationsByCapability(IntegrationCapabilityId.TTS)
@@ -10,7 +11,7 @@ function providers() {
 
 export async function getSpeechCatalog(signal?: AbortSignal): Promise<SpeechCatalog> {
   for (const provider of providers()) {
-    try { return await provider.getCatalog(signal) } catch {
+    try { return presentCatalog(await provider.getCatalog(signal)) } catch {
       if (signal?.aborted) throw signal.reason
     }
   }

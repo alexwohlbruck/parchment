@@ -31,9 +31,15 @@ describe('routesServingStop', () => {
     expect(routesServingStop([{ departures: [run('N', 2)] }], window, 'R')).toBeNull()
   })
 
-  test('is no evidence when a board hit the event cap', () => {
+  test('is no evidence when a full board ends before the window does', () => {
     const full = Array.from({ length: ROUTE_SERVICE_BOARD_EVENTS }, (_, i) => run('R', i % 10))
     expect(routesServingStop([{ departures: full }], window, 'R')).toBeNull()
+  })
+
+  test('trusts a full board that runs past the window', () => {
+    const rs = Array.from({ length: ROUTE_SERVICE_BOARD_EVENTS - 2 }, (_, i) => run('R', i % 30))
+    const full = [...rs, run('N', 3), run('W', 45)]
+    expect(routesServingStop([{ departures: full }], window, 'R')).toEqual(new Set(['R', 'N']))
   })
 
   test('is no evidence without boards', () => {

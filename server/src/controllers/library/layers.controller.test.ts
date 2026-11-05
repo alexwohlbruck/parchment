@@ -230,6 +230,17 @@ describe('POST /layers', () => {
     expect(res.status).toBe(422)
   })
 
+  test('422s on an unknown layer type or engine', async () => {
+    for (const body of [
+      { ...validLayer, type: 'hologram' },
+      { ...validLayer, engine: ['cesium'] },
+    ]) {
+      const res = await req(app).post('/layers', { body })
+      expect(res.status).toBe(422)
+    }
+    expect(createLayer).not.toHaveBeenCalled()
+  })
+
   test('accepts a null groupId for a top-level layer', async () => {
     const res = await req(app).post('/layers', {
       body: { ...validLayer, groupId: null },

@@ -17,6 +17,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -94,8 +95,8 @@ describe('configuration', () => {
 
   test('declares geocoding and autocomplete', () => {
     expect(new PeliasIntegration().capabilityIds).toEqual([
-      'geocoding',
-      'autocomplete',
+      IntegrationCapabilityId.GEOCODING,
+      IntegrationCapabilityId.AUTOCOMPLETE,
     ])
   })
 

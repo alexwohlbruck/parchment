@@ -1,6 +1,6 @@
-export function capitalize(value: string): string {
+export function capitalize(value: string, locale?: string): string {
   if (!value) return ''
-  return value.charAt(0).toUpperCase() + value.slice(1)
+  return value.charAt(0).toLocaleUpperCase(locale) + value.slice(1)
 }
 
 /**

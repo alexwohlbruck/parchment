@@ -20,8 +20,9 @@ jobs:
         working-directory: server
         run: bun install --frozen-lockfile
 
-      # NOTE: `bun run typecheck` is not gated here yet — the server has ~240
-      # pre-existing type errors that need clearing first (see PAR-204 notes).
+      - name: Typecheck
+        working-directory: server
+        run: bun run typecheck
 
       # No database needed: unit tests mock the db module, and the auth guards
       # reject unauthenticated requests before touching Postgres.

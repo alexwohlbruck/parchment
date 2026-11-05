@@ -77,6 +77,7 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * How a run reads on the board:
  *   • departed     — already gone
  *   • unreachable  — still upcoming, but not on foot from where the rider is
+ *   • run          — not at a walk, but at `runFactor` times walking pace
  *   • hurry        — you'd make it, but with less than your grace period spare
  *   • ok           — comfortable
  *
@@ -87,35 +88,52 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * All four are cosmetic. Rebooking is never gated on them: the rider knows
  * things we don't (they're on the platform, they'll run, they're being driven).
  */
-export type DepartureReachability = 'departed' | 'unreachable' | 'hurry' | 'ok'
+export type DepartureReachability = 'departed' | 'unreachable' | 'run' | 'hurry' | 'ok'
 
 export function departureReachability(
   departureMs: number,
   nowMs: number,
   remainingWalkSec: number,
   graceSec = 0,
+  /** How much faster than walking the rider can run; null when they can't. */
+  runFactor: number | null = null,
 ): DepartureReachability {
   const leadMs = departureMs - nowMs
   if (leadMs < 0) return 'departed'
   const walkMs = Math.max(0, remainingWalkSec) * 1000
-  if (leadMs < walkMs) return 'unreachable'
+  if (leadMs < walkMs) return runFactor && leadMs * runFactor >= walkMs ? 'run' : 'unreachable'
   // Comfortable means the walk *plus* the rider's margin fits in the lead.
   const comfortableMs = walkMs + Math.max(0, graceSec) * 1000
   if (comfortableMs > 0 && leadMs < comfortableMs) return 'hurry'
   return 'ok'
 }
 
-export type ApproachReach = 'ok' | 'hurry' | 'late'
-
 /** Spare time on the way to a stop under which the rider is told to hurry. */
 const APPROACH_MARGIN_SEC = 120
 
 /** How a rider walking to a stop is doing against the departure, for guidance. */
-export function approachReach(departureMs: number, nowMs: number, remainingWalkSec: number): ApproachReach {
-  const state = departureReachability(departureMs, nowMs, remainingWalkSec, APPROACH_MARGIN_SEC)
-  return state === 'ok' || state === 'hurry' ? state : 'late'
+export function approachReach(
+  departureMs: number,
+  nowMs: number,
+  remainingWalkSec: number,
+  runFactor: number | null = null,
+): DepartureReachability {
+  return departureReachability(departureMs, nowMs, remainingWalkSec, APPROACH_MARGIN_SEC, runFactor)
 }
+
+/** The vehicle has gone, or can't be reached even at the rider's fastest pace. */
+export const isOutOfReach = (state: DepartureReachability) => state === 'departed' || state === 'unreachable'
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
+}
+
+/** Further than this from both the start and the boarding stop, a departed run is probably being ridden. */
+const RIDING_CLEAR_M = 400
+
+/** Whether the rider looks to be on the run rather than to have missed it. */
+export function seemsAboard(here: LngLat | null | undefined, stop: LngLat | undefined, start: LngLat | undefined): boolean {
+  if (!here || !stop) return false
+  const away = (p?: LngLat) => !p || distanceMeters(here, p) > RIDING_CLEAR_M
+  return away(stop) && away(start)
 }

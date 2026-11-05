@@ -11,10 +11,20 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 
 let emailConfigured = true
 
-const sendMailImpl = mock(async (_options: any) => ({ messageId: 'msg-1' }))
+const sentInfo: SMTPTransport.SentMessageInfo = {
+  envelope: { from: 'noreply@parchment.test', to: ['user@parchment.test'] },
+  messageId: 'msg-1',
+  accepted: ['user@parchment.test'],
+  rejected: [],
+  pending: [],
+  response: '250 OK',
+}
+
+const sendMailImpl = mock(async (_options: any) => sentInfo)
 const createTransport = mock((_config: any) => ({ sendMail: sendMailImpl }))
 
 mock.module('nodemailer', () => ({
@@ -50,7 +60,7 @@ const { sendMail } = await import('./mailer.service')
 
 beforeEach(() => {
   sendMailImpl.mockClear()
-  sendMailImpl.mockImplementation(async () => ({ messageId: 'msg-1' }))
+  sendMailImpl.mockImplementation(async () => sentInfo)
   warn.mockClear()
   readFileSync.mockClear()
 })
@@ -63,7 +73,7 @@ describe('sendMail', () => {
       data: { code: '12345678' },
     })
 
-    expect(result).toEqual({ messageId: 'msg-1' })
+    expect(result).toEqual(sentInfo)
     expect(sendMailImpl).toHaveBeenCalled()
   })
 

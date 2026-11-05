@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { applyDepartureChange, cascadeAfter, type RebookableSegment } from './trip-rebooking'
+import { applyDepartureChange, cascadeAfter, seemsAboard, type RebookableSegment } from './trip-rebooking'
 
 const T0 = new Date('2026-06-12T14:00:00Z').getTime()
 const min = (n: number) => T0 + n * 60_000
@@ -168,5 +168,23 @@ describe('cascadeAfter', () => {
     segs[1].endTime = new Date(min(26))
     expect(await cascadeAfter(segs, 1, vi.fn(async () => min(35)))).toBe(true)
     expect(ms(segs[3].startTime)).toBe(min(35))
+  })
+})
+
+describe('seemsAboard', () => {
+  const start = { lat: 40.6729, lng: -73.953 }
+  const stop = { lat: 40.6704, lng: -73.9504 }
+
+  it('reads a rider at the start or the stop as not aboard', () => {
+    expect(seemsAboard(start, stop, start)).toBe(false)
+    expect(seemsAboard(stop, stop, start)).toBe(false)
+  })
+
+  it('reads a rider far from both as aboard', () => {
+    expect(seemsAboard({ lat: 40.7, lng: -73.99 }, stop, start)).toBe(true)
+  })
+
+  it('assumes nothing without a position', () => {
+    expect(seemsAboard(null, stop, start)).toBe(false)
   })
 })

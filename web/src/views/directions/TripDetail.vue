@@ -15,7 +15,8 @@ import {
 } from '@/lib/directions/trip-display'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
-import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
+import { applyDepartureChange, seemsAboard } from '@/lib/directions/trip-rebooking'
+import { toast } from '@/lib/toast'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
@@ -397,6 +398,14 @@ async function loadDepartures() {
   }
 }
 
+function firstCatchableDeparture(segmentIndex: number): DepartureOption | undefined {
+  return departuresFor(segmentIndex).find((d) => {
+    if (d.cancelled) return false
+    const state = depState(segmentIndex, d)
+    return state === 'ok' || state === 'hurry'
+  })
+}
+
 /** Default the first transit leg to its earliest catchable run — including a
  *  "hurry" one, so the rider lands on the soonest train they can still make.
  *  Runs once per trip; a no-op when that's already the planned run. (This is
@@ -410,15 +419,34 @@ function selectFirstAvailableDeparture() {
     (s) => s.mode === 'transit' && s.departureStop?.location,
   )
   if (idx < 0) return
-  const firstCatchable = (segmentDepartures.value[idx] ?? []).find((d) => {
-    if (d.cancelled) return false
-    const state = depState(idx, d)
-    return state === 'ok' || state === 'hurry'
-  })
+  const firstCatchable = firstCatchableDeparture(idx)
   if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
     void chooseDeparture(idx, firstCatchable.ms)
   }
 }
+
+
+/** Once the run the trip boards is missed, move it onto the next one still catchable. */
+watch([nowMs, segmentDepartures], () => {
+  const t = trip.value
+  if (!t || !didAutoSelectDeparture.value || rebooking.value) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const idx = segs.findIndex((s) => s.mode === 'transit' && s.departureStop?.location)
+  if (idx < 0) return
+  const current = departuresFor(idx).find((d) => isCurrentDeparture(segs[idx], d.ms))
+  if (!current) return
+  const state = depState(idx, current)
+  if (state !== 'unreachable' && (state !== 'departed' || seemsAboard(geo.lngLat.value, segs[idx].departureStop.location, directionsStore.trips?.request.waypoints[0]?.coordinate))) return
+  const next = firstCatchableDeparture(idx)
+  if (!next) return
+  void chooseDeparture(idx, next.ms).then(() => {
+    toast.info(translate('directions.advice.switched', {
+      line: next.route?.shortName ?? segs[idx].lineName ?? '',
+      time: formatClockCompact(new Date(next.ms)),
+    }))
+  })
+})
 
 /** Is this run the one the trip currently boards? */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

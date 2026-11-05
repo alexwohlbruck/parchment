@@ -761,7 +761,8 @@
         "scootershare": "en patinete compartido",
         "driving": "en coche",
         "rideshare": "en VTC"
-      }
+      },
+      "switched": "Lo perdiste · ahora en el {line} de las {time}"
     },
     "tripTypes": {
       "bikeshare": "Bici compartida",

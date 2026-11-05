@@ -22,6 +22,8 @@ describe('duration formats', () => {
     expect(formatDurationCompact(300)).toBe('5m')
     expect(formatDurationCompact(7500)).toBe('2h 5m')
     expect(formatDurationCompact(7200)).toBe('2h 0m')
+    expect(formatDurationCompact(46)).toBe('<1m')
+    expect(formatDurationCompact(0)).toBe('0m')
   })
 
   it('long spells the units and omits a zero remainder', () => {

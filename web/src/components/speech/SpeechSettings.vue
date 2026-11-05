@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Volume2Icon } from 'lucide-vue-next'
+import { AudioLinesIcon, Volume2Icon } from 'lucide-vue-next'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useSpeechCatalog } from '@/composables/speech/useSpeechCatalog'
 import { storedLocale, i18n } from '@/lib/i18n'
@@ -37,7 +37,7 @@ onBeforeUnmount(() => { if (previewed.value) releaseSpeech() })
       </SelectGroup></SelectContent>
     </Select>
   </SettingsItem>
-  <SettingsItem :title="$t('guidance.settings.speechRate')" :description="$t('guidance.settings.speechRateDescription')">
+  <SettingsItem :title="$t('guidance.settings.speechRate')" :description="$t('guidance.settings.speechRateDescription')" :icon="AudioLinesIcon">
     <div class="flex items-center gap-2">
       <Select v-model="rate">
         <SelectTrigger class="w-fit"><SelectValue /></SelectTrigger>

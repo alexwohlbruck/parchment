@@ -201,7 +201,27 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'routing',
         titleKey: 'settings.navigation.routing.title',
-        keywords: ['hills', 'ferries', 'highways', 'tolls', 'walking speed', 'cycling speed', 'wheelchair', 'arrive early'],
+        keywords: ['routing engine', 'ferries', 'parking', 'vehicle location'],
+      },
+      {
+        id: 'routing-walking',
+        titleKey: 'settings.navigation.routing.modes.walking',
+        keywords: ['hills', 'lit paths', 'walking speed', 'wheelchair'],
+      },
+      {
+        id: 'routing-biking',
+        titleKey: 'settings.navigation.routing.modes.biking',
+        keywords: ['bike type', 'hills', 'surface', 'paved', 'cycling speed'],
+      },
+      {
+        id: 'routing-transit',
+        titleKey: 'settings.navigation.routing.modes.transit',
+        keywords: ['walking distance', 'transfers', 'arrive early', 'buffer', 'wheelchair'],
+      },
+      {
+        id: 'routing-driving',
+        titleKey: 'settings.navigation.routing.modes.driving',
+        keywords: ['highways', 'tolls', 'hov'],
       },
       {
         id: 'vehicles',
@@ -212,8 +232,18 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'guidance',
         titleKey: 'guidance.settings.title',
-        descriptionKey: 'guidance.settings.cameraModeDescription',
-        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn', 'voice', 'speech'],
+        keywords: ['camera', 'north up', 'heading up', '3d', 'look ahead', 'turn by turn', 'speed limit'],
+      },
+      {
+        id: 'voice',
+        titleKey: 'guidance.settings.voiceTitle',
+        keywords: ['voice', 'speech', 'speaking speed'],
+      },
+      {
+        id: 'location-marker',
+        titleKey: 'guidance.vehicle.title',
+        descriptionKey: 'guidance.vehicle.description',
+        keywords: ['puck', 'arrow', 'car', 'color', 'marker'],
       },
     ],
   },

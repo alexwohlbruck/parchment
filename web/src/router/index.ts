@@ -61,7 +61,7 @@ export enum AppRoute {
   ROLE_DETAIL = 'role-detail',
   PERMISSIONS_PAGE = 'permissions',
   PERMISSION_DETAIL = 'permission-detail',
-  NAVIGATION_SETTINGS = 'navigation-settings',
+  NAVIGATION_SETTINGS = 'navigation',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',

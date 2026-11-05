@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { BikeIcon, CameraIcon, GaugeIcon, NavigationIcon, ScanEyeIcon } from 'lucide-vue-next'
+import { BikeIcon, CameraIcon, FastForwardIcon, GaugeIcon, ScanEyeIcon } from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { PUCK_MODES } from '@/lib/guidance/vehicle-indicator'
-import VehiclePicker from './VehiclePicker.vue'
-import SpeechSettings from '@/components/speech/SpeechSettings.vue'
 import { SPEED_DISPLAYS } from '@/lib/guidance/speed-display'
+import SpeechSettings from '@/components/speech/SpeechSettings.vue'
+import MarkerSetting from './MarkerSetting.vue'
 
 const { preferences } = storeToRefs(useGuidanceStore())
 const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
@@ -67,10 +67,6 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
         </SelectContent>
       </Select>
     </SettingsItem>
-    <SpeechSettings />
-    <SettingsItem :title="$t('guidance.settings.adaptiveSpeech')" :description="$t('guidance.settings.adaptiveSpeechDescription')">
-      <Switch v-model="preferences.adaptiveSpeech" />
-    </SettingsItem>
     <SettingsItem
       v-if="premium"
       :title="$t('guidance.settings.autoSwitchDocks')"
@@ -79,16 +75,24 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
     >
       <Switch v-model="preferences.autoSwitchDocks" />
     </SettingsItem>
+  </SettingsSection>
+
+  <SettingsSection id="voice" :title="$t('guidance.settings.voiceTitle')">
+    <SpeechSettings />
     <SettingsItem
-      :title="$t('guidance.vehicle.title')"
-      :description="$t('guidance.vehicle.description')"
-      :icon="NavigationIcon"
-    />
-    <div class="-mt-1 space-y-4 pl-8">
-      <div v-for="mode in PUCK_MODES" :key="mode" class="space-y-1.5">
-        <div class="text-sm text-muted-foreground">{{ $t(`guidance.vehicle.modes.${mode}`) }}</div>
-        <VehiclePicker :mode="mode" />
-      </div>
-    </div>
+      :title="$t('guidance.settings.adaptiveSpeech')"
+      :description="$t('guidance.settings.adaptiveSpeechDescription')"
+      :icon="FastForwardIcon"
+    >
+      <Switch v-model="preferences.adaptiveSpeech" />
+    </SettingsItem>
+  </SettingsSection>
+
+  <SettingsSection
+    id="location-marker"
+    :title="$t('guidance.vehicle.title')"
+    :description="$t('guidance.vehicle.description')"
+  >
+    <MarkerSetting v-for="mode in PUCK_MODES" :key="mode" :mode="mode" />
   </SettingsSection>
 </template>

@@ -9,7 +9,14 @@ import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import Caption from '@/components/ui/typography/Caption.vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -28,14 +35,12 @@ import {
 } from '@/components/ui/dialog'
 import { useVehicleLocationPicker } from '@/composables/transit/useVehicleLocationPicker'
 import {
-  CarFrontIcon,
-  ZapIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  MapPinIcon,
   CheckIcon,
   CrosshairIcon,
+  EllipsisIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
 } from 'lucide-vue-next'
 import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 
@@ -49,10 +54,6 @@ const { vehicles, loading } = storeToRefs(vehiclesStore)
 function vehicleTypeLabel(type: string): string {
   const key = `settings.vehicles.types.${type}`
   return te(key) ? t(key) : VEHICLE_TYPE_LABELS[type as VehicleType] || type
-}
-
-function isElectric(type: string): boolean {
-  return type === 'e-bike' || type === 'e-scooter'
 }
 
 // ── Dialog state ───────────────────────────────────────────────────────
@@ -153,27 +154,18 @@ function getLocationLabel(vehicle: UserVehicle): string {
   })
 }
 
-function getStalenessClass(vehicle: UserVehicle): string {
-  const staleness = vehiclesStore.getLocationStaleness(vehicle)
-  switch (staleness) {
-    case 'fresh':
-    case 'aging':
-      return 'text-muted-foreground'
-    case 'stale':
-      return 'text-yellow-600 dark:text-yellow-500'
-    case 'very-stale':
-      return 'text-destructive'
-    default:
-      return 'text-muted-foreground'
-  }
+function vehicleDescription(vehicle: UserVehicle): string {
+  const location = getLocationLabel(vehicle)
+  return vehicle.name ? `${vehicleTypeLabel(vehicle.type)} · ${location}` : location
 }
 
-// Group vehicles by routing mode
-const drivingVehicles = computed(() =>
-  vehicles.value.filter((v) => getRoutingMode(v.type) === 'driving'),
-)
-const bikingVehicles = computed(() =>
-  vehicles.value.filter((v) => getRoutingMode(v.type) === 'biking'),
+const ROUTING_MODE_ORDER = ['driving', 'biking']
+
+const sortedVehicles = computed(() =>
+  [...vehicles.value].sort(
+    (a, b) =>
+      ROUTING_MODE_ORDER.indexOf(getRoutingMode(a.type)) - ROUTING_MODE_ORDER.indexOf(getRoutingMode(b.type)),
+  ),
 )
 </script>
 
@@ -183,126 +175,51 @@ const bikingVehicles = computed(() =>
     :title="t('settings.vehicles.title')"
     :description="t('settings.vehicles.description')"
   >
-    <!-- Empty state -->
-    <div v-if="!loading && vehicles.length === 0" class="py-8 text-center">
-      <CarFrontIcon class="mx-auto mb-3 size-10 text-muted-foreground/50" />
-      <p class="text-sm text-muted-foreground mb-4">
-        {{ t('settings.vehicles.empty') }}
-      </p>
+    <template #actions>
       <Button variant="outline" size="sm" @click="openAddDialog">
-        <PlusIcon class="size-4 mr-1.5" />
+        <PlusIcon class="size-4" />
         {{ t('settings.vehicles.add') }}
       </Button>
-    </div>
+    </template>
 
-    <!-- Vehicle list -->
-    <div v-else class="space-y-2">
-      <!-- Driving vehicles -->
-      <template v-if="drivingVehicles.length">
-        <div v-for="vehicle in drivingVehicles" :key="vehicle.id" class="group flex items-center gap-3 rounded-lg border p-3">
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-foreground" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium truncate">
-                {{ vehicle.name || vehicleTypeLabel(vehicle.type) }}
-              </span>
-              <Badge v-if="vehicle.isActive" variant="secondary" class="text-[10px] px-1.5 py-0">
-                {{ t('settings.vehicles.active') }}
-              </Badge>
-              <Badge v-if="isElectric(vehicle.type)" variant="outline" class="text-[10px] px-1.5 py-0">
-                <ZapIcon class="size-2.5 mr-0.5" />
-                {{ t('settings.vehicles.electric') }}
-              </Badge>
-            </div>
-            <div class="flex items-center gap-1 mt-0.5">
-              <MapPinIcon class="size-3" :class="getStalenessClass(vehicle)" />
-              <span class="text-xs" :class="getStalenessClass(vehicle)">
-                {{ getLocationLabel(vehicle) }}
-              </span>
-            </div>
-          </div>
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              v-if="!vehicle.isActive"
-              variant="ghost"
-              size="icon"
-              class="size-7"
-              :title="t('settings.vehicles.actions.setActive')"
-              @click="handleActivate(vehicle)"
-            >
-              <CheckIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.setLocation')" @click="handleSetLocation(vehicle)">
-              <CrosshairIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.edit')" @click="openEditDialog(vehicle)">
-              <PencilIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7 text-destructive" :title="t('settings.vehicles.actions.delete')" @click="handleDelete(vehicle)">
-              <TrashIcon class="size-3.5" />
-            </Button>
-          </div>
-        </div>
-      </template>
+    <Caption v-if="!loading && vehicles.length === 0">{{ t('settings.vehicles.empty') }}</Caption>
 
-      <!-- Biking vehicles -->
-      <template v-if="bikingVehicles.length">
-        <div v-for="vehicle in bikingVehicles" :key="vehicle.id" class="group flex items-center gap-3 rounded-lg border p-3">
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-foreground" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium truncate">
-                {{ vehicle.name || vehicleTypeLabel(vehicle.type) }}
-              </span>
-              <Badge v-if="vehicle.isActive" variant="secondary" class="text-[10px] px-1.5 py-0">
-                {{ t('settings.vehicles.active') }}
-              </Badge>
-              <Badge v-if="isElectric(vehicle.type)" variant="outline" class="text-[10px] px-1.5 py-0">
-                <ZapIcon class="size-2.5 mr-0.5" />
-                {{ t('settings.vehicles.electric') }}
-              </Badge>
-            </div>
-            <div class="flex items-center gap-1 mt-0.5">
-              <MapPinIcon class="size-3" :class="getStalenessClass(vehicle)" />
-              <span class="text-xs" :class="getStalenessClass(vehicle)">
-                {{ getLocationLabel(vehicle) }}
-              </span>
-            </div>
-          </div>
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              v-if="!vehicle.isActive"
-              variant="ghost"
-              size="icon"
-              class="size-7"
-              :title="t('settings.vehicles.actions.setActive')"
-              @click="handleActivate(vehicle)"
-            >
-              <CheckIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.setLocation')" @click="handleSetLocation(vehicle)">
-              <CrosshairIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.edit')" @click="openEditDialog(vehicle)">
-              <PencilIcon class="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" class="size-7 text-destructive" :title="t('settings.vehicles.actions.delete')" @click="handleDelete(vehicle)">
-              <TrashIcon class="size-3.5" />
-            </Button>
-          </div>
-        </div>
-      </template>
-
-      <!-- Add button -->
-      <Button variant="outline" size="sm" class="w-full mt-2" @click="openAddDialog">
-        <PlusIcon class="size-4 mr-1.5" />
-        {{ t('settings.vehicles.add') }}
-      </Button>
-    </div>
+    <SettingsItem
+      v-for="vehicle in sortedVehicles"
+      :key="vehicle.id"
+      :title="vehicle.name || vehicleTypeLabel(vehicle.type)"
+      :description="vehicleDescription(vehicle)"
+      :icon="getVehicleIcon(vehicle.type)"
+      :badge="vehicle.isActive ? t('settings.vehicles.active') : undefined"
+      badge-variant="secondary"
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="icon-sm" :title="t('settings.vehicles.actions.more')">
+            <EllipsisIcon class="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem v-if="!vehicle.isActive" @click="handleActivate(vehicle)">
+            <CheckIcon class="size-4" />
+            {{ t('settings.vehicles.actions.setActive') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="handleSetLocation(vehicle)">
+            <CrosshairIcon class="size-4" />
+            {{ t('settings.vehicles.actions.setLocation') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="openEditDialog(vehicle)">
+            <PencilIcon class="size-4" />
+            {{ t('settings.vehicles.actions.edit') }}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem class="text-destructive focus:text-destructive" @click="handleDelete(vehicle)">
+            <TrashIcon class="size-4" />
+            {{ t('settings.vehicles.actions.delete') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SettingsItem>
   </SettingsSection>
 
   <!-- Add/Edit dialog -->

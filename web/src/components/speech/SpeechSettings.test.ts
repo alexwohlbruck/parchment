@@ -23,7 +23,7 @@ const render = () => mount(SpeechSettings, { global: { mocks: { $t: translate } 
 describe('speech settings', () => {
   it('explains browser fallback when no server voices are available', () => {
     wrapper = render()
-    expect(wrapper.text()).toContain('Browser voice is used')
+    expect(wrapper.text()).toContain("browser's voice")
     expect(wrapper.findAll('[role="combobox"]')).toHaveLength(1)
   })
   it('offers server voices for the app language and previews the selected rate', async () => {

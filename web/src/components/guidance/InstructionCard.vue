@@ -80,7 +80,7 @@ function previewRoute() {
   <div class="nav-card overflow-hidden">
     <StationStepCard
       v-if="guidance.stationGuide"
-      class="p-5"
+      class="p-4"
       :class="stage && 'border-b'"
       :target="guidance.stationGuide.target"
       :state="guidance.stationGuide.state"
@@ -89,7 +89,8 @@ function previewRoute() {
     />
     <TransitStageCard
       v-if="stage"
-      class="p-5"
+      :class="guidance.stationGuide ? 'px-4 py-3' : 'p-5'"
+      :compact="!!guidance.stationGuide"
       :stage="stage"
       :segments="guidance.segments"
       :now-ms="guidance.clockMs"

@@ -1843,9 +1843,8 @@
       "station": {
         "next": "Siguiente",
         "done": "Listo",
-        "stepOf": "Paso {n} de {total}",
-        "advancesIn": "Avanza en unos {duration}",
-        "noGps": "Bajo tierra, sigue los pasos"
+        "stepOf": "{n}/{total}",
+        "advancesIn": "siguiente en {duration}"
       }
     },
     "ahead": {

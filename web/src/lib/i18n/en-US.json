@@ -1877,9 +1877,8 @@
       "station": {
         "next": "Next",
         "done": "Done",
-        "stepOf": "Step {n} of {total}",
-        "advancesIn": "Moves on in about {duration}",
-        "noGps": "Underground, follow the steps"
+        "stepOf": "{n}/{total}",
+        "advancesIn": "next in {duration}"
       }
     },
     "ahead": {

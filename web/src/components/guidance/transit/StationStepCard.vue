@@ -19,30 +19,30 @@ const detail = computed(() => {
   return [levels, landmark && !instruction.includes(landmark) ? landmark : null].filter(Boolean).join(' · ')
 })
 
+const meta = computed(() =>
+  [
+    detail.value,
+    t('guidance.transit.station.stepOf', { n: view.value.index + 1, total: view.value.total }),
+    view.value.advancesInMs != null
+      ? t('guidance.transit.station.advancesIn', { duration: formatDurationShort(view.value.advancesInMs / 1000) })
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · '),
+)
+
 const last = computed(() => view.value.next == null)
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <div class="text-xs text-muted-foreground tabular-nums">
-      {{ t('guidance.transit.station.stepOf', { n: view.index + 1, total: view.total }) }} · {{ t('guidance.transit.station.noGps') }}
+  <div class="flex items-center gap-3">
+    <component :is="stationStepIcon(view.step)" class="size-6 shrink-0 self-start mt-0.5" />
+    <div class="min-w-0 flex-1">
+      <div class="text-lg font-semibold leading-snug">{{ view.step.instruction }}</div>
+      <div class="mt-0.5 truncate text-sm text-muted-foreground tabular-nums">{{ meta }}</div>
     </div>
-    <div class="flex items-start gap-3">
-      <component :is="stationStepIcon(view.step)" class="mt-1 size-6 shrink-0" />
-      <div class="min-w-0">
-        <div class="text-xl font-semibold leading-snug">{{ view.step.instruction }}</div>
-        <div v-if="detail" class="mt-0.5 text-sm text-muted-foreground">{{ detail }}</div>
-      </div>
-    </div>
-    <div class="flex items-center justify-between gap-3">
-      <span class="min-w-0 truncate text-sm text-muted-foreground tabular-nums">
-        <template v-if="view.advancesInMs != null">
-          {{ t('guidance.transit.station.advancesIn', { duration: formatDurationShort(view.advancesInMs / 1000) }) }}
-        </template>
-      </span>
-      <Button variant="secondary" class="h-11 shrink-0 rounded-full px-5" @click="$emit('next')">
-        {{ last ? t('guidance.transit.station.done') : t('guidance.transit.station.next') }}
-      </Button>
-    </div>
+    <Button variant="secondary" class="h-9 shrink-0 rounded-full px-4" @click="$emit('next')">
+      {{ last ? t('guidance.transit.station.done') : t('guidance.transit.station.next') }}
+    </Button>
   </div>
 </template>

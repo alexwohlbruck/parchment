@@ -21,6 +21,8 @@ const props = defineProps<{
   noLaterRun?: boolean
   /** A recovery is being worked out or offered below, so the fallback actions stand back. */
   recovering?: boolean
+  /** Another card leads, so the wait shrinks to one line. */
+  compact?: boolean
 }>()
 defineEmits<{ nextRun: []; anotherWay: []; alight: [] }>()
 const { t } = useI18n()
@@ -71,9 +73,12 @@ const ride = computed(() => {
         <ArrowRight class="size-3.5 shrink-0 text-muted-foreground" />
         <span class="truncate text-sm font-medium">{{ toward }}</span>
       </template>
+      <span v-if="compact && countdown" class="ml-auto shrink-0 text-base font-semibold tabular-nums">
+        {{ countdown }}
+      </span>
     </div>
 
-    <template v-if="stage.kind === 'wait'">
+    <template v-if="stage.kind === 'wait' && !compact">
       <div class="font-display-heavy text-[28px] leading-none">{{ countdown }}</div>
       <div class="text-sm text-muted-foreground">
         {{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}

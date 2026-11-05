@@ -50,9 +50,18 @@ describe('withModeEnabled', () => {
 })
 
 describe('unsavedSections', () => {
-  it('lists device-owned sections the account lacks', () => {
+  it('lists sections the account lacks', () => {
     expect(unsavedSections({ excludedModes: [], sortPreference: null, speech: {} })).toEqual([
       'routing',
+      'guidance',
+    ])
+  })
+
+  it('treats a saved balanced sort as saved', () => {
+    expect(unsavedSections({ sortPreference: null })).toEqual([
+      'excludedModes',
+      'routing',
+      'speech',
       'guidance',
     ])
   })

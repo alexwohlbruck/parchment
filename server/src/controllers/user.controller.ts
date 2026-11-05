@@ -39,7 +39,7 @@ import {
 } from '../services/user-preferences.service'
 import { toPreferencesResponse } from '../lib/user-preferences'
 import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
-import { SORT_PREFERENCES } from '../types/navigation-preferences.types'
+import { SORT_PREFERENCES } from '../types/trip.types'
 import { createInitialCollection } from '../services/library/collections.service'
 import {
   listPendingRevocations,
@@ -1199,7 +1199,11 @@ app.use(requireAuth).post(
   },
 )
 
-const PreferenceBlob = t.Record(t.String(), t.Unknown())
+/** Client-owned settings are opaque here; a key cap keeps one account from storing arbitrary bulk. */
+const MAX_PREFERENCE_KEYS = 64
+const PreferenceBlob = t.Record(t.String(), t.Unknown(), { maxProperties: MAX_PREFERENCE_KEYS })
+const clientSettings = (description: string) =>
+  t.Object({}, { additionalProperties: true, maxProperties: MAX_PREFERENCE_KEYS, description })
 
 const NavigationPreferencesSchema = t.Object(
   {
@@ -1211,11 +1215,11 @@ const NavigationPreferencesSchema = t.Object(
       description: 'Default trip ranking; null is balanced.',
     }),
     routing: t.Object(
-      { general: PreferenceBlob, mode: t.Record(t.String(), PreferenceBlob) },
-      { description: 'Routing preferences: keys shared by every mode, plus per-mode slices.' },
+      { general: PreferenceBlob, mode: t.Record(t.String(), PreferenceBlob, { maxProperties: MAX_PREFERENCE_KEYS }) },
+      { description: `Routing preferences: keys shared by every mode, plus per-mode slices; at most ${MAX_PREFERENCE_KEYS} keys each.` },
     ),
-    speech: t.Object({}, { additionalProperties: true, description: 'Voice guidance speech settings.' }),
-    guidance: t.Object({}, { additionalProperties: true, description: 'Turn-by-turn guidance settings.' }),
+    speech: clientSettings(`Voice guidance speech settings, at most ${MAX_PREFERENCE_KEYS} keys.`),
+    guidance: clientSettings(`Turn-by-turn guidance settings, at most ${MAX_PREFERENCE_KEYS} keys.`),
   },
   { additionalProperties: false },
 )
@@ -1238,8 +1242,8 @@ app.use(requireAuth).get(
       tags: ['Users'],
       description:
         'Get current user preferences: language, unit system and navigation. ' +
-        'Navigation always carries excludedModes and sortPreference; routing, ' +
-        'speech and guidance are absent until first saved.',
+        'Each navigation section (excludedModes, sortPreference, routing, speech, ' +
+        'guidance) is absent until first saved.',
     },
   },
 )

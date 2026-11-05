@@ -3,8 +3,13 @@ import { normalizeNavigationPreferences, toPreferencesResponse } from './user-pr
 import type { NavigationPreferences } from '../types/navigation-preferences.types'
 
 describe('normalizeNavigationPreferences', () => {
-  test('defaults a missing blob', () => {
-    expect(normalizeNavigationPreferences(null)).toEqual({
+  test('leaves never-saved sections absent', () => {
+    expect(normalizeNavigationPreferences(null)).toEqual({})
+    expect(normalizeNavigationPreferences({ speech: { rate: 1 } })).toEqual({ speech: { rate: 1 } })
+  })
+
+  test('keeps a saved balanced sort and an empty exclusion list', () => {
+    expect(normalizeNavigationPreferences({ excludedModes: [], sortPreference: null })).toEqual({
       excludedModes: [],
       sortPreference: null,
     })
@@ -36,7 +41,7 @@ describe('normalizeNavigationPreferences', () => {
       speech: 'loud',
       guidance: [1],
     })
-    expect(prefs).toEqual({ excludedModes: [], sortPreference: null })
+    expect(prefs).toEqual({})
   })
 
   test('drops non-object routing mode slices', () => {
@@ -54,7 +59,7 @@ describe('toPreferencesResponse', () => {
     ).toEqual({
       language: 'es-ES',
       unitSystem: 'imperial',
-      navigation: { excludedModes: [], sortPreference: null },
+      navigation: {},
     })
   })
 })

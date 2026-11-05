@@ -74,16 +74,19 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   // ── Account sync ─────────────────────────────────────────────────
   const linked = ref(false)
   let adopting = false
-  let pending: Partial<NavigationPreferences> = {}
+  let pending: NavigationPreferences = {}
+  /** Bumped on sign-out so a save in flight can't requeue into the next account. */
+  let session = 0
 
   const flush = useDebounceFn(async () => {
     const patch = pending
+    const queuedIn = session
     pending = {}
     if (!Object.keys(patch).length) return
     try {
       await saveNavigationPreferences(patch)
     } catch {
-      pending = { ...patch, ...pending }
+      if (queuedIn === session) pending = { ...patch, ...pending }
     }
   }, SAVE_DEBOUNCE_MS)
 
@@ -99,7 +102,7 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   }
 
   /** Takes the account's values, and seeds the account with this device's for any it never saved. */
-  function adopt(remote: Partial<NavigationPreferences>) {
+  function adopt(remote: NavigationPreferences) {
     adopting = true
     try {
       if (remote.excludedModes) excludedModes.value = [...remote.excludedModes]
@@ -116,7 +119,10 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
 
   const authStore = useAuthStore()
   watch(() => authStore.me, me => {
-    if (!me) linked.value = false
+    if (me) return
+    linked.value = false
+    pending = {}
+    session++
   })
 
   return {

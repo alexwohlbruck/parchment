@@ -40,15 +40,13 @@ export function runPaceFactor(routing: RoutingPreferenceSlices): number | null {
 }
 
 /** Keys shared by every mode; everything else is stored per mode. */
-export const GENERAL_KEYS: ReadonlyArray<keyof RoutingPreferences> = [
+export const GENERAL_KEY_SET: ReadonlySet<string> = new Set<keyof RoutingPreferences>([
   'ferries',
   'routingEngine',
   'useKnownVehicleLocations',
   'useKnownParkingLocations',
   'customModelOverride',
-]
-
-export const GENERAL_KEY_SET = new Set<string>(GENERAL_KEYS)
+])
 
 const DEFAULT_GENERAL: Partial<RoutingPreferences> = {
   ferries: 0.5,
@@ -86,11 +84,7 @@ export function defaultRoutingPreferences(): RoutingPreferenceSlices {
   }
 }
 
-/**
- * Overlays stored routing preferences on the defaults. Accepts the split
- * `{ general, mode }` shape and the older flat one, whose per-mode keys apply
- * to every mode.
- */
+/** Overlays stored routing preferences on the defaults; a legacy flat blob applies its per-mode keys to every mode. */
 export function parseRoutingPreferences(stored: unknown): RoutingPreferenceSlices {
   const result = defaultRoutingPreferences()
   if (!isObject(stored)) return result
@@ -116,13 +110,17 @@ export function withModeEnabled(
   return TRIP_MODE_TOKENS.filter(t => (t === token ? !enabled : excluded.includes(t)))
 }
 
+const NAVIGATION_SECTIONS = [
+  'excludedModes',
+  'sortPreference',
+  'routing',
+  'speech',
+  'guidance',
+] as const satisfies ReadonlyArray<keyof NavigationPreferences>
+
 /** Sections the account has never saved, which a device should seed from its own values. */
-export const DEVICE_SEEDED_SECTIONS = ['routing', 'speech', 'guidance'] as const
-
-export type DeviceSeededSection = (typeof DEVICE_SEEDED_SECTIONS)[number]
-
-export function unsavedSections(remote: Partial<NavigationPreferences>): DeviceSeededSection[] {
-  return DEVICE_SEEDED_SECTIONS.filter(section => remote[section] === undefined)
+export function unsavedSections(remote: NavigationPreferences): Array<keyof NavigationPreferences> {
+  return NAVIGATION_SECTIONS.filter(section => remote[section] === undefined)
 }
 
 export const mergeSpeechPreferences = (stored: unknown): SpeechPreferences => ({

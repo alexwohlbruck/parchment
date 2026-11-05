@@ -5,7 +5,7 @@ import { useNavigationPreferencesStore } from './navigation-preferences.store'
 import { useAuthStore } from '@/stores/auth.store'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 
-const save = vi.hoisted(() => vi.fn(async (_patch: Partial<NavigationPreferences>) => {}))
+const save = vi.hoisted(() => vi.fn(async (_patch: NavigationPreferences) => {}))
 vi.mock('@/services/preferences.service', () => ({ saveNavigationPreferences: save }))
 
 const remote: NavigationPreferences = { excludedModes: [], sortPreference: null }
@@ -83,6 +83,17 @@ describe('navigation preferences store', () => {
     expect(patch.routing.mode.walking.hills).toBe(0)
   })
 
+  it("keeps a guest's exclusions and sort through sign-in", async () => {
+    const store = useNavigationPreferencesStore()
+    store.setModeEnabled('rideshare', false)
+    store.sortPreference = 'least_walking'
+    store.adopt({ routing: { general: {}, mode: {} }, speech: {}, guidance: {} })
+    await settle()
+    expect(store.excludedModes).toEqual(['rideshare'])
+    expect(store.sortPreference).toBe('least_walking')
+    expect(save).toHaveBeenCalledWith({ excludedModes: ['rideshare'], sortPreference: 'least_walking' })
+  })
+
   it('batches changes into one save per section', async () => {
     const store = useNavigationPreferencesStore()
     store.adopt({ ...remote, routing: { general: {}, mode: {} }, speech: {}, guidance: {} })
@@ -118,5 +129,20 @@ describe('navigation preferences store', () => {
     store.setModeEnabled('driving', false)
     await settle()
     expect(save).not.toHaveBeenCalled()
+  })
+
+  it('drops a queued save on sign-out instead of sending it to the next account', async () => {
+    const store = useNavigationPreferencesStore()
+    const auth = useAuthStore()
+    auth.me = { id: 'user-1' } as any
+    store.adopt({ ...remote, routing: { general: {}, mode: {} }, speech: {}, guidance: {} })
+    store.setModeEnabled('driving', false)
+    auth.me = null
+    await nextTick()
+    auth.me = { id: 'user-2' } as any
+    store.adopt({ ...remote, excludedModes: ['transit'], routing: { general: {}, mode: {} }, speech: {}, guidance: {} })
+    await settle()
+    expect(save).not.toHaveBeenCalled()
+    expect(store.excludedModes).toEqual(['transit'])
   })
 })

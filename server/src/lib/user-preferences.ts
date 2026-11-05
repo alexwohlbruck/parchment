@@ -1,7 +1,6 @@
 import type { UserPreferences } from '../schema/user-preferences.schema'
 import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import {
-  DEFAULT_NAVIGATION_PREFERENCES,
   SORT_PREFERENCES,
   type NavigationPreferences,
   type RoutingPreferenceSlices,
@@ -26,16 +25,18 @@ function normalizeRouting(value: unknown): RoutingPreferenceSlices | undefined {
   return { general: value.general, mode }
 }
 
-/** Fills defaults and drops anything stored that is no longer valid. */
+/** Drops anything stored that is no longer valid, leaving never-saved sections absent. */
 export function normalizeNavigationPreferences(stored: unknown): NavigationPreferences {
   const raw = isBlob(stored) ? stored : {}
-  const excluded = Array.isArray(raw.excludedModes) ? raw.excludedModes : null
+  const excluded = raw.excludedModes
   const routing = normalizeRouting(raw.routing)
   return {
-    excludedModes: excluded
-      ? TRIP_MODE_TOKENS.filter(token => excluded.includes(token))
-      : DEFAULT_NAVIGATION_PREFERENCES.excludedModes,
-    sortPreference: SORT_PREFERENCES.find(sort => sort === raw.sortPreference) ?? null,
+    ...(Array.isArray(excluded) && {
+      excludedModes: TRIP_MODE_TOKENS.filter(token => excluded.includes(token)),
+    }),
+    ...('sortPreference' in raw && {
+      sortPreference: SORT_PREFERENCES.find(sort => sort === raw.sortPreference) ?? null,
+    }),
     ...(routing && { routing }),
     ...(isBlob(raw.speech) && { speech: raw.speech }),
     ...(isBlob(raw.guidance) && { guidance: raw.guidance }),

@@ -598,7 +598,7 @@ describe('preferences', () => {
     expect(res.body).toEqual({
       language: 'en-US',
       unitSystem: 'metric',
-      navigation: { excludedModes: [], sortPreference: null },
+      navigation: {},
     })
   })
 
@@ -617,6 +617,14 @@ describe('preferences', () => {
     const res = await req(app).put('/users/me/preferences', {
       body: { navigation: { excludedModes: ['walking'] } },
     })
+
+    expect(res.status).toBe(422)
+    expect(updateUserPreferences).not.toHaveBeenCalled()
+  })
+
+  test('422s on an oversized settings blob', async () => {
+    const speech = Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`k${i}`, i]))
+    const res = await req(app).put('/users/me/preferences', { body: { navigation: { speech } } })
 
     expect(res.status).toBe(422)
     expect(updateUserPreferences).not.toHaveBeenCalled()

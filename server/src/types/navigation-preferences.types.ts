@@ -9,23 +9,14 @@ export interface RoutingPreferenceSlices {
   mode: Record<string, Record<string, unknown>>
 }
 
-/**
- * Trip planning and guidance preferences synced to the account. The client
- * owns the shape of `routing`, `speech` and `guidance`; each is absent until
- * first saved.
- */
+/** Synced trip and guidance preferences, each absent until first saved. The client owns `routing`, `speech` and `guidance`. */
 export interface NavigationPreferences {
-  excludedModes: TripModeToken[]
+  excludedModes?: TripModeToken[]
   /** Null ranks trips balanced. */
-  sortPreference: SortPreference | null
+  sortPreference?: SortPreference | null
   routing?: RoutingPreferenceSlices
   speech?: Record<string, unknown>
   guidance?: Record<string, unknown>
 }
 
 export type NavigationPreferencesPatch = Partial<NavigationPreferences>
-
-export const DEFAULT_NAVIGATION_PREFERENCES: NavigationPreferences = {
-  excludedModes: [],
-  sortPreference: null,
-}

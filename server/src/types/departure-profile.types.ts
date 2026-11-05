@@ -25,10 +25,7 @@ export interface DepartureRun {
   live: boolean
 }
 
-/**
- * How a trip's arrival changes with the moment you leave, built from the
- * departure boards of its transit legs. Runs are in departure order.
- */
+/** How a trip's arrival changes with the leave time. Runs are in departure order. */
 export interface DepartureProfile {
   runs: DepartureRun[]
   /** Index into `runs` of the run the trip itself is planned on. */

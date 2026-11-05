@@ -3,7 +3,7 @@
 import type { TransferRisk } from './departure-profile'
 
 /** Chance of missing a connection with this much slack, in seconds. */
-export function missProbability(slackSec: number): number {
+function missProbability(slackSec: number): number {
   if (slackSec < 0) return 1
   if (slackSec < 60) return 0.5
   if (slackSec < 120) return 0.25

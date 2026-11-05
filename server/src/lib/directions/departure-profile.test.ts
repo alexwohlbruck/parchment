@@ -42,8 +42,12 @@ const run = (route: string, min: number, extra: Record<string, unknown> = {}) =>
   ...extra,
 })
 
-const timingOf = (segments: TripSegment[], boards: Array<CoveredBoard | null>, notBeforeMs: number) =>
-  buildTripTiming(readTripLegs(segments)!, boards, notBeforeMs)
+const timingOf = (
+  segments: TripSegment[],
+  boards: Array<CoveredBoard | null>,
+  notBeforeMs: number,
+  arriveByMs?: number,
+) => buildTripTiming(readTripLegs(segments)!, boards, { notBeforeMs, arriveByMs })
 
 const board = (departures: CoveredBoard['departures'], fromMin: number, untilMin: number): CoveredBoard =>
   ({ departures, fromMs: ms(fromMin), untilMs: ms(untilMin) })
@@ -72,6 +76,11 @@ describe('buildTripTiming — one ride', () => {
     expect(departs).not.toContain(at(9))
     expect(departs).not.toContain(at(10))
     expect(departs).not.toContain(at(15))
+  })
+
+  test('offers no later run that arrives after the arrive-by time', () => {
+    const arriveBy = timingOf(segments, [aBoard], ms(0), ms(42))!
+    expect(arriveBy.profile.runs.map((r) => r.arriveAt)).toEqual([27, 30, 35, 42].map(at))
   })
 
   test('keeps earlier runs only while they can still be caught', () => {

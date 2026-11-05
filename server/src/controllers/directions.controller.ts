@@ -202,7 +202,7 @@ app.post(
           speed: wp.speed,
         })),
         selectedMode: body.selectedMode,
-        sortPreference: body.sortPreference as any,
+        sortPreference: body.sortPreference,
         excludedModes: body.excludedModes,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({

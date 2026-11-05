@@ -1,13 +1,8 @@
-/**
- * How a transit trip's arrival moves with the moment you leave, read off the
- * departure boards of its transit legs. Street legs are fixed offsets; each
- * transit leg boards the next matching run at its stop and rides the planned
- * ride time. Nothing is assumed past what a board covers.
- */
+/** How a transit trip's arrival moves with the leave time, read off its legs' departure boards. */
 
 import type { TripSegment } from '../../types/trip.types'
 import type { DepartureProfile, DepartureRun } from '../../types/departure-profile.types'
-import type { StopBoard } from '../transit/route-options'
+import { boardCompleteUntil, type StopBoard } from '../transit/route-options'
 
 /** A stop's departures, complete for `[fromMs, untilMs]`. */
 export interface CoveredBoard {
@@ -16,22 +11,13 @@ export interface CoveredBoard {
   untilMs: number
 }
 
-/**
- * Merges a stop's boards into one. A board holding `cap` events may have been
- * cut short, so it is complete only up to its last run.
- */
+/** Merges a stop's boards into one, complete up to where the first cut-short board ends. */
 export function coverBoards(
   boards: StopBoard[],
   window: { fromMs: number; untilMs: number },
   cap: number,
 ): CoveredBoard {
-  let untilMs = window.untilMs
-  for (const board of boards) {
-    const departures = board.departures ?? []
-    if (departures.length < cap) continue
-    const last = Math.max(...departures.map((d) => Date.parse(d.departureTime ?? '')).filter((t) => !Number.isNaN(t)))
-    untilMs = Math.min(untilMs, last)
-  }
+  const untilMs = Math.min(window.untilMs, ...boards.map((b) => boardCompleteUntil(b, window.untilMs, cap)))
   return { departures: boards.flatMap((b) => b.departures ?? []), fromMs: window.fromMs, untilMs }
 }
 
@@ -164,7 +150,7 @@ function ownRunIndex(leg: Leg, runs: Run[]): number {
 export function buildTripTiming(
   { legs, egressMs }: TripLegs,
   boards: Array<CoveredBoard | null>,
-  notBeforeMs: number,
+  { notBeforeMs, arriveByMs = Infinity }: { notBeforeMs: number; arriveByMs?: number },
 ): TripTiming | null {
   if (boards.length !== legs.length || boards.some((b) => !b)) return null
 
@@ -221,7 +207,7 @@ export function buildTripTiming(
   for (const run of others.filter((r) => r.atMs > plannedMs)) {
     if (run.atMs > plannedMs + PROFILE_SPAN_MS) break
     const chain = rideOn(0, run.atMs, run.live)
-    if (!chain) break
+    if (!chain || chain.arriveMs > arriveByMs) break
     later.push(toRun(run.atMs, chain))
   }
 

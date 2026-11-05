@@ -671,15 +671,13 @@ export class TripService {
     const bucketMs = TripService.STOP_BOARD_BUCKET_MS
     const fromMs = Math.floor((atMs - ROUTE_SERVICE_SLACK_MINUTES * 60_000) / bucketMs) * bucketMs
     const boards = await this.stopBoardCache.get(`${stop.feedId}|${stop.id}|${fromMs}`, () =>
-      Promise.resolve()
-        .then(() => transitRoutingService.getStopDepartures({
-          feedId: stop.feedId,
-          stopId: stop.id,
-          time: new Date(fromMs).toISOString(),
-          windowMinutes: TripService.STOP_BOARD_WINDOW_MS / 60_000,
-          n: ROUTE_SERVICE_BOARD_EVENTS,
-        }))
-        .catch(() => null))
+      transitRoutingService.getStopDepartures({
+        feedId: stop.feedId,
+        stopId: stop.id,
+        time: new Date(fromMs).toISOString(),
+        windowMinutes: TripService.STOP_BOARD_WINDOW_MS / 60_000,
+        n: ROUTE_SERVICE_BOARD_EVENTS,
+      }))
     return { boards, fromMs, untilMs: fromMs + TripService.STOP_BOARD_WINDOW_MS }
   }
 
@@ -693,30 +691,37 @@ export class TripService {
   /** Expected seconds lost to missed connections, set once a trip's departure profile is built. */
   private static missPenaltySec = new WeakMap<TripResponse, number>()
 
-  /**
-   * Give each transit trip its departure profile. Legs are read up front,
-   * before `nameLegsByRoute` can rename the lines the boards are matched by.
-   */
+  /** Profiles not built by then are left off rather than delaying the plan. */
+  private static readonly PROFILE_DEADLINE_MS = 1500
+
+  /** Legs are read before `nameLegsByRoute` renames the lines the boards are matched by. */
   private async attachDepartureProfiles(request: TripRequest, trips: TripResponse[]): Promise<void> {
     const notBeforeMs = Date.parse(request.preferredDepartureTime ?? '') || Date.now()
+    const arriveByMs = Date.parse(this.getArrivalTarget(request) ?? '') || undefined
     const timed = trips.flatMap((trip) => {
       const legs = readTripLegs(trip.segments)
       return legs ? [{ trip, legs }] : []
     })
-    await Promise.all(timed.map(async ({ trip, legs }) => {
+    let open = true
+    const work = Promise.all(timed.map(async ({ trip, legs }) => {
       try {
         const boards = await Promise.all(legs.legs.map(async (leg): Promise<CoveredBoard | null> => {
           const around = await this.stopBoardsAround(leg.stopId, leg.departMs)
           return around?.boards?.length ? coverBoards(around.boards, around, ROUTE_SERVICE_BOARD_EVENTS) : null
         }))
-        const timing = buildTripTiming(legs, boards, notBeforeMs)
-        if (!timing) return
+        const timing = buildTripTiming(legs, boards, { notBeforeMs, arriveByMs })
+        if (!timing || !open) return
         trip.departureProfile = timing.profile
         TripService.missPenaltySec.set(trip, expectedMissPenaltySec(timing.plannedTransfers))
       } catch (error) {
         logWarn('Departure profile failed', error)
       }
     }))
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, TripService.PROFILE_DEADLINE_MS) })
+    await Promise.race([work, deadline])
+    clearTimeout(timer)
+    open = false
   }
 
   /**

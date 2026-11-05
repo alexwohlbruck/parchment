@@ -1309,7 +1309,7 @@
       "speechSample": "In 200 feet, turn right, then keep left.",
       "adaptiveSpeech": "Faster speech for close turns",
       "adaptiveSpeechDescription": "Increase the pace when several maneuvers are close together, up to 1.5×.",
-      "title": "Navigation",
+      "title": "Turn-by-turn",
       "cameraMode": "Camera",
       "cameraModeDescription": "How the map follows you while navigating",
       "bearingMode": "Camera direction",

@@ -1275,7 +1275,7 @@
       "speechSample": "En 200 metros, gira a la derecha y luego mantente a la izquierda.",
       "adaptiveSpeech": "Voz más rápida en giros seguidos",
       "adaptiveSpeechDescription": "Aumenta el ritmo cuando hay varias maniobras seguidas, hasta 1,5×.",
-      "title": "Navegación",
+      "title": "Navegación paso a paso",
       "cameraMode": "Cámara",
       "cameraModeDescription": "Cómo te sigue el mapa durante la navegación",
       "bearingMode": "Dirección de la cámara",

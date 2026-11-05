@@ -416,8 +416,6 @@ function selectFirstAvailableDeparture() {
   const segs = t.segments as any[]
   const idx = boardingIndex(segs)
   if (idx < 0) return
-  // A board without the planned run is incomplete (overnight service, a stale bake); trust the plan.
-  if (!departuresFor(idx).some((d) => isCurrentDeparture(segs[idx], d.ms))) return
   const firstCatchable = firstCatchableDeparture(idx)
   if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
     void chooseDeparture(idx, firstCatchable.ms)

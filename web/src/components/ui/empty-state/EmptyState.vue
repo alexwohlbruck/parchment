@@ -77,8 +77,8 @@ const displayDescription = computed(() => {
     : t('offline.emptyState.description')
 })
 
-function retry() {
-  checkNow()
+async function retry() {
+  await checkNow()
   emit('retry')
 }
 </script>

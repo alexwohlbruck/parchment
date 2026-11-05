@@ -7,6 +7,7 @@ import { LngLat } from 'mapbox-gl'
 import { PLACE_AREA_ZOOM, PLACE_POINT_ZOOM } from '@/lib/place/place-camera'
 import { usePlaceService } from '@/services/place/place.service'
 import { useAbortController } from '@/composables/useAbortController'
+import { useConnectivity } from '@/composables/useConnectivity'
 import Place from '@/components/place/PlacePanel.vue'
 import OffscreenMarkerHint from '@/components/map/markers/OffscreenMarkerHint.vue'
 import { AppRoute } from '@/router'
@@ -17,6 +18,7 @@ const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetch
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
+const { onReconnected } = useConnectivity()
 const markerLngLat = shallowRef<LngLat | null>(null)
 
 async function loadPlace() {
@@ -192,6 +194,10 @@ watch(
     await loadPlace()
   },
 )
+
+onReconnected(() => {
+  if (!currentPlace.value) loadPlace()
+})
 
 onUnmounted(() => {
   removeMarker(MarkerIds.SELECTED_POI)

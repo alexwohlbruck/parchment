@@ -67,6 +67,15 @@ function stopProbing(): void {
   probeAttempts = 0
 }
 
+async function runProbe(): Promise<boolean> {
+  if (!probe) return false
+  try {
+    return await probe()
+  } catch {
+    return false
+  }
+}
+
 function scheduleProbe(): void {
   if (probeTimer || !probe) return
   // No point probing without a network interface; the browser's `online`
@@ -74,14 +83,8 @@ function scheduleProbe(): void {
   if (!navigatorOnline.value) return
   probeTimer = setTimeout(async () => {
     probeTimer = null
-    if (serverReachable.value || !probe) return
-    let reachable = false
-    try {
-      reachable = await probe()
-    } catch {
-      reachable = false
-    }
-    if (reachable) {
+    if (serverReachable.value) return
+    if (await runProbe()) {
       reportServerReachable()
     } else {
       probeAttempts += 1
@@ -99,6 +102,7 @@ export function configureConnectivityProbe(fn: () => Promise<boolean>): void {
 export function reportServerReachable(): void {
   stopProbing()
   serverReachable.value = true
+  navigatorOnline.value = true
 }
 
 export function reportServerUnreachable(): void {
@@ -107,11 +111,33 @@ export function reportServerUnreachable(): void {
   scheduleProbe()
 }
 
-/** Force a probe now (user-initiated retry, browser regained network). */
-export function checkConnectivityNow(): void {
-  if (serverReachable.value) return
-  stopProbing()
-  scheduleProbe()
+let pendingCheck: Promise<boolean> | null = null
+
+/**
+ * Probe now rather than on the backoff (user-initiated retry, app resumed,
+ * browser regained network). Resolves true once requests can go out again.
+ */
+export function checkConnectivityNow(): Promise<boolean> {
+  syncNavigatorOnline()
+  if (!isOffline.value) return Promise.resolve(true)
+  pendingCheck ??= runProbe()
+    .then(reachable => {
+      if (reachable) {
+        reportServerReachable()
+      } else if (!serverReachable.value) {
+        stopProbing()
+        scheduleProbe()
+      }
+      return reachable
+    })
+    .finally(() => {
+      pendingCheck = null
+    })
+  return pendingCheck
+}
+
+function syncNavigatorOnline(): void {
+  if (typeof navigator !== 'undefined') navigatorOnline.value = navigator.onLine
 }
 
 // ── Browser events ──────────────────────────────────────────────────────
@@ -124,6 +150,11 @@ if (typeof window !== 'undefined') {
   })
   window.addEventListener('offline', () => {
     navigatorOnline.value = false
+  })
+  // A backgrounded app or webview can miss the `online` event entirely.
+  window.addEventListener('focus', () => checkConnectivityNow())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkConnectivityNow()
   })
 }
 
@@ -147,6 +178,7 @@ export const connectivity = {
 /** Testing hook: reset state between tests. */
 export function _resetConnectivityForTests(): void {
   stopProbing()
+  pendingCheck = null
   navigatorOnline.value =
     typeof navigator === 'undefined' ? true : navigator.onLine
   serverReachable.value = true

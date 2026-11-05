@@ -1800,6 +1800,18 @@
       "getOffNext": "Bájate en la próxima parada",
       "getOffNow": "Bájate ahora",
       "nextStop": "Próxima: {stop}",
+      "after": {
+        "walk": "Luego camina {duration}",
+        "cycle": "Luego pedalea {duration}",
+        "drive": "Luego conduce {duration}",
+        "travel": "Luego {duration}",
+        "change": "Luego cambia a",
+        "walkFirst": "Camina {duration} hasta el andén",
+        "exit": "Sal por {exit}",
+        "arrive": "Luego habrás llegado",
+        "arriveAt": "Luego habrás llegado a {place}"
+      },
+      "gotOff": "Ya me bajé",
       "missedVehicle": "El {line} ya salió",
       "missedVehicleHint": "Toma el siguiente o busca otra ruta",
       "nextDeparture": "Siguiente salida",

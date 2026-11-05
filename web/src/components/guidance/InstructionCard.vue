@@ -91,7 +91,7 @@ function previewRoute() {
       v-if="stage"
       class="p-5"
       :stage="stage"
-      :segment="guidance.segments[stage.segmentIndex]"
+      :segments="guidance.segments"
       :now-ms="guidance.clockMs"
       :certainty="rideCertainty(guidance.rideEstimate)"
       :busy="guidance.rebooking"
@@ -99,6 +99,7 @@ function previewRoute() {
       :recovering="!!recovery.view.value"
       @next-run="catchNextRun"
       @another-way="findAnotherWay"
+      @alight="guidance.alight(stage.segmentIndex)"
     />
     <template v-else-if="!guidance.stationGuide">
       <ManeuverBanner

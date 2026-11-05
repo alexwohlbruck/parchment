@@ -15,6 +15,7 @@
 
 * Places load again as soon as you're back online, and Reload works right away, without restarting the app.
 * Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
+* On transit, navigation no longer says "Get off now" a stop early on a late train, shows what comes after you get off, and moves on once you're off or tap "I got off".
 
 ## [0.19.1] - 2026-11-03
 

@@ -1834,6 +1834,18 @@
       "getOffNext": "Get off at the next stop",
       "getOffNow": "Get off now",
       "nextStop": "Next: {stop}",
+      "after": {
+        "walk": "Then walk {duration}",
+        "cycle": "Then ride {duration}",
+        "drive": "Then drive {duration}",
+        "travel": "Then {duration}",
+        "change": "Then change to",
+        "walkFirst": "Walk {duration} to the platform",
+        "exit": "Leave by {exit}",
+        "arrive": "Then you've arrived",
+        "arriveAt": "Then you've arrived at {place}"
+      },
+      "gotOff": "I got off",
       "missedVehicle": "The {line} has left",
       "missedVehicleHint": "Catch the next one or find another way",
       "nextDeparture": "Next departure",

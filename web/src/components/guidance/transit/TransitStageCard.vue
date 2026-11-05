@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatClock } from '@/lib/directions/trip-display'
 import { formatDurationCompact } from '@/lib/time-format'
-import { ALIGHT_NOW_METERS, type TransitStage } from '@/lib/guidance/transit-progress'
+import { minutesUntil, type TransitStage } from '@/lib/guidance/transit-progress'
 import type { RideCertainty } from '@/lib/guidance/ride-estimator'
+import { afterRide } from '@/lib/guidance/after-ride'
+import AfterRide from './AfterRide.vue'
 
 const props = defineProps<{
   stage: TransitStage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  segment: any
+  segments: any[]
   nowMs: number
   certainty?: RideCertainty
   busy?: boolean
@@ -20,11 +22,13 @@ const props = defineProps<{
   /** A recovery is being worked out or offered below, so the fallback actions stand back. */
   recovering?: boolean
 }>()
-defineEmits<{ nextRun: []; anotherWay: [] }>()
+defineEmits<{ nextRun: []; anotherWay: []; alight: [] }>()
 const { t } = useI18n()
 
-const line = computed(() => props.segment?.lineName ?? '')
-const toward = computed(() => props.segment?.directionLabel || props.segment?.headsign || props.segment?.lineLongName)
+const segment = computed(() => props.segments[props.stage.segmentIndex])
+
+const line = computed(() => segment.value?.lineName ?? '')
+const toward = computed(() => segment.value?.directionLabel || segment.value?.headsign || segment.value?.lineLongName)
 
 const countdown = computed(() => {
   const stage = props.stage
@@ -36,19 +40,19 @@ const countdown = computed(() => {
 const ride = computed(() => {
   const stage = props.stage
   if (stage.kind !== 'riding') return null
-  const sec = stage.arrivalMs != null ? Math.max(0, (stage.arrivalMs - props.nowMs) / 1000) : null
-  const headline =
-    stage.remaining < ALIGHT_NOW_METERS
-      ? t('guidance.transit.getOffNow')
-      : stage.stopsLeft === 1
-        ? t('guidance.transit.getOffNext')
-        : t('guidance.transit.getOffAt', { stop: stage.alight })
+  const headline = stage.alighting
+    ? t('guidance.transit.getOffNow')
+    : stage.stopsLeft === 1
+      ? t('guidance.transit.getOffNext')
+      : t('guidance.transit.getOffAt', { stop: stage.alight })
   const stops = t('guidance.transit.stopsLeft', { n: stage.stopsLeft }, stage.stopsLeft)
+  const minutes = minutesUntil(stage.arrivalMs, props.nowMs)
   return {
     headline,
     urgent: stage.stopsLeft === 1,
-    detail: sec != null ? `${stops} · ${formatDurationCompact(sec)}` : stops,
+    detail: stage.alighting ? null : minutes != null ? `${stops} · ${formatDurationCompact(minutes * 60)}` : stops,
     next: stage.stopsLeft > 1 ? t('guidance.transit.nextStop', { stop: stage.nextStop }) : stage.alight,
+    after: afterRide(props.segments, stage.segmentIndex),
   }
 })
 </script>
@@ -88,7 +92,7 @@ const ride = computed(() => {
         <span class="flex shrink-0 items-center gap-1.5">
           <component
             :is="certainty === 'uncertain' ? SignalZero : SignalLow"
-            v-if="certainty && certainty !== 'live'"
+            v-if="ride.detail && certainty && certainty !== 'live'"
             class="size-3.5"
             role="img"
             :aria-label="t('guidance.transit.estimated')"
@@ -96,6 +100,7 @@ const ride = computed(() => {
           {{ ride.detail }}
         </span>
       </div>
+      <AfterRide class="border-t pt-3" :after="ride.after" @alight="$emit('alight')" />
     </template>
 
     <template v-else-if="stage.kind === 'missed-vehicle'">

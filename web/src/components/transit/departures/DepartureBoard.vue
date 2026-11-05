@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { adviceTone } from '@/lib/directions/trip-advice'
+import { adviceTone, reachWord } from '@/lib/directions/trip-advice'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import ServiceAlertBadge from '@/components/transit/alerts/ServiceAlertBadge.vue'
@@ -102,9 +102,8 @@ const DELAY_NOTICE_SEC = 60
 function status(card: Card): { word: string | null; tone: string } {
   if (card.cancelled) return { word: t('directions.advice.short.cancelled'), tone: 'text-red-600 dark:text-red-400' }
   if (card.departed) return { word: null, tone: 'text-muted-foreground/70' }
-  if (card.unreachable) return { word: t('directions.advice.short.tooFar'), tone: adviceTone('missed') }
-  if (card.run) return { word: t('directions.advice.short.run'), tone: adviceTone('run') }
-  if (card.hurry) return { word: t('directions.advice.short.hurry'), tone: adviceTone('hurry') }
+  const reach = card.unreachable ? 'unreachable' : card.run ? 'run' : card.hurry ? 'hurry' : null
+  if (reach) return reachWord(reach, t)!
   if (card.arriving) return { word: null, tone: 'text-parchment-600 dark:text-parchment-400' }
   return { word: null, tone: '' }
 }

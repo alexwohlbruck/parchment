@@ -1998,9 +1998,7 @@
       },
       "noneOfThese": "None of these",
       "reach": {
-        "ok": "On track",
-        "hurry": "Hurry",
-        "late": "You may miss it"
+        "ok": "On track"
       },
       "inDuration": "in {duration}",
       "leg": {

@@ -161,9 +161,10 @@ describe('departureReachability', () => {
 })
 
 describe('approachReach', () => {
-  it('reads late once the walk no longer fits, or the vehicle has gone', () => {
-    expect(approachReach(NOW + MIN, NOW, 90)).toBe('late')
-    expect(approachReach(NOW - 1, NOW, 0)).toBe('late')
+  it('reads too far once the walk no longer fits, run when a jog still does, and departed once gone', () => {
+    expect(approachReach(NOW + MIN, NOW, 90)).toBe('unreachable')
+    expect(approachReach(NOW + MIN, NOW, 90, 1.8)).toBe('run')
+    expect(approachReach(NOW - 1, NOW, 0)).toBe('departed')
   })
 
   it('asks for a hurry inside two minutes of spare time', () => {

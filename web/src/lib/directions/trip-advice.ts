@@ -3,7 +3,7 @@
  * hurry, leave now, or take your time, and what a missed run costs.
  */
 import type { DepartureProfile, DepartureRun } from '@/types/multimodal.types'
-import { departureReachability } from '@/lib/transit/transit-reachability'
+import { departureReachability, type DepartureReachability } from '@/lib/transit/transit-reachability'
 import { formatClockCompact } from './trip-display'
 import { tripType, type TripTypeSegment } from './trip-type'
 import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-preferences'
@@ -332,4 +332,17 @@ const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {
 /** Accent for states that ask the rider to act; calm states take none. */
 export function adviceTone(kind: AdviceKind): string {
   return ADVICE_TONES[kind] ?? ''
+}
+
+const REACH_WORDS: Partial<Record<DepartureReachability, { key: string; tone: AdviceKind }>> = {
+  departed: { key: 'missed', tone: 'missed' },
+  unreachable: { key: 'tooFar', tone: 'missed' },
+  run: { key: 'run', tone: 'run' },
+  hurry: { key: 'hurry', tone: 'hurry' },
+}
+
+/** The short word every surface uses for how reachable a run is; none when it's comfortable. */
+export function reachWord(state: DepartureReachability, t: TFn): HintWord | null {
+  const entry = REACH_WORDS[state]
+  return entry ? { word: t(`directions.advice.short.${entry.key}`), tone: adviceTone(entry.tone) } : null
 }

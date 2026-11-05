@@ -406,6 +406,39 @@ app.get(
 )
 
 /**
+ * The basemap's zoom range, from Barrelman's TileJSON. The map reads its
+ * `maxzoom` to know whether the archive goes to z14 or z15; see
+ * `web/src/lib/map-style/basemap-zoom.ts`.
+ *
+ * Only the zoom range is passed on. The rest of the document names Barrelman's
+ * own tile URLs, which the map never uses, since every tile comes through this
+ * proxy.
+ */
+app.get(
+  '/barrelman/basemap.json',
+  async () => {
+    const config = resolveBarrelmanConfig()
+    if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
+    try {
+      const response = await fetch(new URL('/tiles/basemap.json', config.host), {
+        headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+      })
+      // A Barrelman from before it served TileJSON answers 404, which the map
+      // reads as "assume z14". Passed on as it is.
+      if (!response.ok) return new Response(null, { status: response.status, headers: { 'cache-control': 'no-store' } })
+      const { minzoom, maxzoom } = (await response.json()) as { minzoom?: number; maxzoom?: number }
+      return new Response(JSON.stringify({ tilejson: '3.0.0', minzoom, maxzoom }), {
+        headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=300' },
+      })
+    } catch (error) {
+      logError('Basemap TileJSON proxy error', error)
+      return new Response('Proxy error', { status: 502 })
+    }
+  },
+  { detail: { tags: ['Proxy'], summary: "The basemap's zoom range", description: "Barrelman's basemap TileJSON reduced to its zoom range." } },
+)
+
+/**
  * Fetch one tile from Barrelman and remember it if it is cacheable. Runs once
  * per tile however many callers are waiting on it; see `martinInflight`.
  */

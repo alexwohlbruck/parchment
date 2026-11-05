@@ -71,3 +71,20 @@ export function dropAvoidableStreetTransfers(
 export function hasStreetTransfer(trip: TripResponse): boolean {
   return trip.segments.some((s) => s.streetTransfer)
 }
+
+const INSIDE_CLASSES = new Set(['same_platform', 'in_station', 'in_system_passage'])
+
+/** Whether the station guidance on a ride keeps the change into it inside fare control; null when it has none. */
+export function changeStaysInside(ride: TripSegment | undefined): boolean | null {
+  const cls = ride?.details?.transitDetails?.transfer?.class
+  return cls ? INSIDE_CLASSES.has(cls) : null
+}
+
+/**
+ * Moving time of a street walk between two rides. The station's figure for
+ * the change also counts the walks from the platform up to the street and
+ * back down, which the street route leaves out.
+ */
+export function changeMovingSeconds(streetSeconds: number, ride: TripSegment | undefined): number {
+  return Math.max(streetSeconds, ride?.details?.transitDetails?.transfer?.seconds ?? 0)
+}

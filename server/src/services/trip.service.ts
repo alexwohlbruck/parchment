@@ -39,7 +39,7 @@ import {
   servedRouteOptions,
   type StopBoard,
 } from '../lib/transit/route-options'
-import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
+import { changeMovingSeconds, changeStaysInside, dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
 import { nameLegByRoute } from '../lib/transit/line-name'
 import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
@@ -3536,7 +3536,8 @@ export class TripService {
         // and follows the in-station pathways — keep its geometry and timing,
         // stretching to the next departure so slack shows as platform wait.
         //
-        // Only when the endpoints are genuinely close, though. MOTIS also
+        // Station guidance decides where it has a say; otherwise only when
+        // the endpoints are genuinely close. MOTIS also
         // emits zero-geometry footpaths between *different* stations a few
         // hundred metres apart (e.g. Franklin Av shuttle → Nostrand Av to
         // catch the express A that skips Franklin). Those are real street
@@ -3546,7 +3547,8 @@ export class TripService {
           seg.start.location,
           seg.end.location,
         )
-        if (prevIsTransit && nextIsTransit && transferGap <= TripService.IN_STATION_TRANSFER_MAX_M) {
+        const staysInside = changeStaysInside(segments[i + 1]) ?? transferGap <= TripService.IN_STATION_TRANSFER_MAX_M
+        if (prevIsTransit && nextIsTransit && staysInside) {
           const movingSec = seg.duration
           const departureMs = new Date(segments[i + 1].startTime).getTime()
           const startMs = new Date(seg.startTime).getTime()
@@ -3662,7 +3664,7 @@ export class TripService {
             if (departureMs > startMs) {
               seg.endTime = new Date(departureMs).toISOString()
               seg.duration = (departureMs - startMs) / 1000
-              seg.waitSeconds = Math.max(0, seg.duration - leg.duration)
+              seg.waitSeconds = Math.max(0, seg.duration - changeMovingSeconds(movingSec, segments[i + 1]))
             }
           }
           // Other middle walks (e.g. to rental stations) keep MOTIS timing —

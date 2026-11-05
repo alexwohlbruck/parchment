@@ -1,4 +1,4 @@
-export interface Contributor {
+interface Contributor {
   name: string
   /** i18n key describing what they contributed. */
   creditKey: string

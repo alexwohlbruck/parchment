@@ -6,12 +6,7 @@ import type { RoutingPreferences } from '@/types/multimodal.types'
 import { usePreferences } from '@/composables/directions/useRoutingPreferenceControls'
 import PreferenceField from './PreferenceField.vue'
 
-/**
- * A weighted routing preference, rendered to match what the active engine
- * supports: a 0–1 slider where the engine takes a weight, or an on/off switch
- * where it only takes a flag. The switch has to pick a side ("Avoid hills"),
- * so it takes its own label.
- */
+/** A 0–1 slider where the engine takes a weight, or a switch with its own directional label where it only takes a flag. */
 const props = withDefaults(
   defineProps<{
     /** Preference key; also the lookup for support level and hint wording. */

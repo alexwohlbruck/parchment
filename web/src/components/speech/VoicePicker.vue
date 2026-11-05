@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useSpeechCatalog } from '@/composables/speech/useSpeechCatalog'
 import { i18n, storedLocale, type Locale } from '@/lib/i18n'
+import { capitalize } from '@/lib/string'
 import { speak, unlockSpeech } from '@/services/speech/speech.service'
 import {
   baseLanguage,
@@ -41,11 +42,13 @@ const language = computed(() => baseLanguage(targetLocale.value))
 const region = ref<string>(ALL)
 const gender = ref<string>(ALL)
 
+let hoverTimer: ReturnType<typeof setTimeout> | undefined
+
 const regions = computed(() => voiceRegions(voices.value, language.value))
 const genders = computed(() => voiceGenders(voices.value, language.value))
 
 watch(open, isOpen => {
-  if (!isOpen) return
+  if (!isOpen) return clearTimeout(hoverTimer)
   targetLocale.value = storedLocale.value
   region.value = ALL
   gender.value = ALL
@@ -70,12 +73,8 @@ function select(id: string) {
 const displayNames = (type: 'region' | 'language') =>
   new Intl.DisplayNames([uiLocale.value], { type, fallback: 'code' })
 
-function capitalize(text: string) {
-  return text.charAt(0).toLocaleUpperCase(uiLocale.value) + text.slice(1)
-}
-
 const regionName = (code: string) => displayNames('region').of(code) ?? code
-const languageName = (locale: string) => capitalize(displayNames('language').of(baseLanguage(locale)) ?? locale)
+const languageName = (locale: string) => capitalize(displayNames('language').of(baseLanguage(locale)) ?? locale, uiLocale.value)
 
 function caption(voice: SpeechVoice) {
   const code = voiceRegion(voice)
@@ -85,7 +84,6 @@ function caption(voice: SpeechVoice) {
 }
 
 const previewing = ref<string | null>(null)
-let hoverTimer: ReturnType<typeof setTimeout> | undefined
 
 function preview(id: string) {
   clearTimeout(hoverTimer)

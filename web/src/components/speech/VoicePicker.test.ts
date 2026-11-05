@@ -73,4 +73,13 @@ describe('VoicePicker', () => {
     await george.trigger('click')
     expect(useNavigationPreferencesStore().speech.voices['en-US']).toBe('bm_george')
   })
+
+  it('drops a pending hover preview when closed', async () => {
+    const wrapper = render()
+    const george = wrapper.findAll('[role="radio"]')[2]
+    george.element.parentElement!.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }))
+    await wrapper.setProps({ open: false })
+    vi.advanceTimersByTime(400)
+    expect(mocks.speak).not.toHaveBeenCalled()
+  })
 })

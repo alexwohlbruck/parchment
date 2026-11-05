@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { CarFrontIcon, BikeIcon, TrainIcon, FootprintsIcon, ChevronRightIcon } from 'lucide-vue-next'
 import type { SelectedMode } from '@/types/multimodal.types'
 import type { ModeKey } from '@/lib/preferences/navigation-preferences'
-import { useRoutingPreferenceControls } from '@/composables/directions/useRoutingPreferenceControls'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import RoutingGeneralFields from './RoutingGeneralFields.vue'
 import RoutingModeFields from './RoutingModeFields.vue'
 
@@ -43,13 +43,13 @@ function handleTabChange(value: string | number) {
   if (props.selectedMode === 'multi') localStorage.setItem(SAVED_TAB_KEY, activeTab.value)
 }
 
-const { preferences, updatePreference } = useRoutingPreferenceControls(() => activeTab.value, 'compact')
+const navigationPreferences = useNavigationPreferencesStore()
 
 const advancedOpen = ref(false)
 
 const customModelText = computed({
-  get: () => preferences.value.customModelOverride ?? '',
-  set: (value: string) => updatePreference('customModelOverride', value || undefined),
+  get: () => navigationPreferences.routing.general.customModelOverride ?? '',
+  set: (value: string) => navigationPreferences.setGeneralPreference('customModelOverride', value || undefined),
 })
 
 const customModelError = computed(() => {

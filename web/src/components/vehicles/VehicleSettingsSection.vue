@@ -49,14 +49,11 @@ const { t, te } = useI18n()
 const vehiclesStore = useVehiclesStore()
 const { vehicles, loading } = storeToRefs(vehiclesStore)
 
-// Translated display name for a vehicle type, falling back to the shared
-// label constant (then the raw type) for anything not covered by i18n.
 function vehicleTypeLabel(type: string): string {
   const key = `settings.vehicles.types.${type}`
   return te(key) ? t(key) : VEHICLE_TYPE_LABELS[type as VehicleType] || type
 }
 
-// ── Dialog state ───────────────────────────────────────────────────────
 const showDialog = ref(false)
 const editingVehicle = ref<UserVehicle | null>(null)
 const formName = ref('')
@@ -78,7 +75,6 @@ const vehicleTypeValues: VehicleType[] = [
 
 const energyTypeValues: EnergyType[] = ['gas', 'diesel', 'electric', 'hybrid']
 
-// Whether the current formType should show an energy type selector
 const showEnergyType = computed(() =>
   ['car', 'truck', 'moped'].includes(formType.value),
 )
@@ -222,7 +218,6 @@ const sortedVehicles = computed(() =>
     </SettingsItem>
   </SettingsSection>
 
-  <!-- Add/Edit dialog -->
   <Dialog v-model:open="showDialog">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>

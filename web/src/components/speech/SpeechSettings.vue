@@ -9,29 +9,37 @@ import { speak, releaseSpeech, unlockSpeech } from '@/services/speech/speech.ser
 import { SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { baseLanguage } from '@/lib/speech/voice-filters'
 import VoicePicker from './VoicePicker.vue'
 
 const { speech: preferences } = storeToRefs(useNavigationPreferencesStore())
 const { catalog } = useSpeechCatalog()
-const voices = computed(() => catalog.value?.voices.filter(voice => voice.language.split('-')[0] === storedLocale.value.split('-')[0]) ?? [])
+const voices = computed(() => catalog.value?.voices.filter(voice => baseLanguage(voice.language) === baseLanguage(storedLocale.value)) ?? [])
 const voiceName = computed(() => {
   const id = preferences.value.voices[storedLocale.value]
   return voices.value.find(voice => voice.id === id)?.name ?? (i18n.global as any).t('guidance.settings.speechAutomatic')
 })
 const pickerOpen = ref(false)
 const rate = computed({ get: () => String(preferences.value.rate), set: (value: string) => { preferences.value.rate = Number(value) } })
-const previewed = ref(false)
-function preview() {
-  previewed.value = true
+let unlocked = false
+function unlock() {
+  unlocked = true
   unlockSpeech()
+}
+function openPicker() {
+  unlock()
+  pickerOpen.value = true
+}
+function preview() {
+  unlock()
   speak((i18n.global as any).t('guidance.settings.speechSample'), { lang: storedLocale.value, voice: preferences.value.voices[storedLocale.value], rate: preferences.value.rate, urgent: true })
 }
-onBeforeUnmount(() => { if (previewed.value) releaseSpeech() })
+onBeforeUnmount(() => { if (unlocked) releaseSpeech() })
 </script>
 
 <template>
   <SettingsItem :title="$t('guidance.settings.speechVoice')" :description="voices.length ? $t('guidance.settings.speechVoiceDescription') : $t('guidance.settings.speechFallback')" :icon="Volume2Icon">
-    <Button v-if="voices.length" variant="outline" class="max-w-48 gap-1.5" @click="unlockSpeech(); pickerOpen = true">
+    <Button v-if="voices.length" variant="outline" class="max-w-48 gap-1.5" @click="openPicker">
       <span class="truncate">{{ voiceName }}</span>
       <ChevronRightIcon class="size-4 shrink-0 opacity-50" />
     </Button>

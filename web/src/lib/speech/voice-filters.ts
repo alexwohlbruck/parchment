@@ -2,7 +2,7 @@ import type { SpeechVoice } from '@server/types/speech.types'
 
 export type VoiceGender = NonNullable<SpeechVoice['gender']>
 
-export interface VoiceFilter {
+interface VoiceFilter {
   /** Base language, e.g. `en`. */
   language: string
   region: string | null

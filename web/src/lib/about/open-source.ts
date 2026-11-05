@@ -3,7 +3,7 @@ export interface OpenSourceProject {
   url: string
 }
 
-export interface OpenSourceGroup {
+interface OpenSourceGroup {
   /** Product name, or `null` for open data, whose label is translated. */
   name: string | null
   projects: readonly OpenSourceProject[]

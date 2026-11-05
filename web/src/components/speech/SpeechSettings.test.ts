@@ -36,4 +36,12 @@ describe('speech settings', () => {
     expect(mocks.speak).toHaveBeenCalledWith('In 200 feet, turn right, then keep left.', expect.objectContaining({ lang: 'en-US', voice: 'af_heart', rate: 1.25, urgent: true }))
     if (process.env.SPEECH_PREVIEW_HTML) writeFileSync(process.env.SPEECH_PREVIEW_HTML, wrapper.html())
   })
+  it('releases speech on unmount once the voice picker has been opened', async () => {
+    catalog.value = { model: 'kokoro:v1.0', voices: [{ id: 'af_heart', name: 'Heart', language: 'en-US' }], rate: { min: .75, max: 1.5, default: 1, native: true }, inflection: false }
+    wrapper = render()
+    await wrapper.findAll('button').find(b => b.text().includes('Automatic'))!.trigger('click')
+    wrapper.unmount()
+    wrapper = undefined
+    expect(mocks.releaseSpeech).toHaveBeenCalledOnce()
+  })
 })

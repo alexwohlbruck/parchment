@@ -1,4 +1,4 @@
-import { computed, inject, onMounted, provide, type ComputedRef } from 'vue'
+import { computed, inject, provide, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PreferenceSupportLevel, RoutingPreferences } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -82,14 +82,8 @@ export function useRoutingPreferenceControls(mode: () => ModeKey, layout: Prefer
   )
 
   const selectedEngine = computed({
-    get: () => preferences.value.routingEngine || null,
+    get: () => preferences.value.routingEngine || routingEngines.value[0]?.integrationId || null,
     set: (value: string | null) => updatePreference('routingEngine', value || undefined),
-  })
-
-  onMounted(() => {
-    if (!selectedEngine.value && routingEngines.value.length > 0) {
-      selectedEngine.value = routingEngines.value[0].integrationId
-    }
   })
 
   function support(preference: string): PreferenceSupportLevel {

@@ -73,7 +73,13 @@ describe('tripAdvice', () => {
 
   test('missed once the planned arrival is out of reach', () => {
     const advice = tripAdvice(profile([run(10, 40, { live: true }), run(24, 54, { live: false })]), now(11))
-    expect(advice).toMatchObject({ state: { kind: 'missed', departAtMs: now(29) }, live: false })
+    expect(advice).toMatchObject({ state: { kind: 'missed', departAtMs: now(29), left: false }, live: false })
+  })
+
+  test('tells a run that has left from one still coming but out of reach', () => {
+    const runs = profile([run(10, 40), run(24, 54)])
+    expect(tripAdvice(runs, now(11))?.state).toMatchObject({ kind: 'missed', left: false })
+    expect(tripAdvice(runs, now(16))?.state).toMatchObject({ kind: 'missed', left: true })
   })
 
   test('a passed run with a same-arrival successor is not missed', () => {
@@ -178,7 +184,8 @@ describe('copy', () => {
     expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t, 'F')).toBe(`Hurry · 3 min to the F at ${clock(12)}`)
     expect(adviceText({ kind: 'relax', leaveByMs: now(19) }, t)).toBe(`Leave by ${clock(19)}`)
     expect(adviceText({ kind: 'by', leaveByMs: now(31) }, t)).toBe(`Leave by ${clock(31)}`)
-    expect(adviceText({ kind: 'missed', departAtMs: now(24) }, t)).toBe(`Next is the ${clock(24)}`)
+    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: true }, t, 'F')).toBe(`Missed · next is the F at ${clock(24)}`)
+    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: false }, t)).toBe(`Too far to make it · next is the ${clock(24)}`)
     expect(tightText({ minutes: 2, stop: 'Jay St' }, t)).toBe('2 min to change at Jay St')
     expect(tightText({ minutes: 1 }, t)).toBe('1 min to change')
     expect(crossoverText({ mode: 'cycling', atMs: now(14) }, t)).toBe(`Bike is faster after ${clock(14)}`)

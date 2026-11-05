@@ -752,7 +752,8 @@
         "tight": "Tight",
         "missed": "Missed",
         "sched": "Sched",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "tooFar": "Too far"
       },
       "long": {
         "leave": "Leave now · next is {minutes} min later",
@@ -762,10 +763,12 @@
         "by": "Leave by {time}",
         "tight": "{minutes} min to change at {stop}",
         "tightAnywhere": "{minutes} min to change",
-        "missed": "Next is the {time}",
-        "missedLine": "Next is the {line} at {time}",
+        "missed": "Missed · next is the {time}",
+        "missedLine": "Missed · next is the {line} at {time}",
         "sched": "No live times",
-        "crossover": "{mode} is faster after {time}"
+        "crossover": "{mode} is faster after {time}",
+        "tooFar": "Too far to make it · next is the {time}",
+        "tooFarLine": "Too far to make it · next is the {line} at {time}"
       },
       "detail": {
         "hurry": "{minutes} min to the {time}",
@@ -781,7 +784,10 @@
         "driving": "Driving",
         "rideshare": "Rideshare"
       },
-      "switched": "Missed it · now on the {line} at {time}"
+      "switched": {
+        "missed": "Missed it · now on the {line} at {time}",
+        "tooFar": "Too far to make it · now on the {line} at {time}"
+      }
     },
     "tripTypes": {
       "bikeshare": "Bike Share",

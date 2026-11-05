@@ -441,7 +441,7 @@ watch([nowMs, segmentDepartures], () => {
   const next = firstCatchableDeparture(idx)
   if (!next) return
   void chooseDeparture(idx, next.ms).then(() => {
-    toast.info(translate('directions.advice.switched', {
+    toast.info(translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
       line: next.route?.shortName ?? segs[idx].lineName ?? '',
       time: formatClockCompact(new Date(next.ms)),
     }))

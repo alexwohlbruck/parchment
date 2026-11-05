@@ -733,7 +733,8 @@
         "tight": "Justo",
         "missed": "Perdido",
         "sched": "Horario",
-        "cancelled": "Cancelado"
+        "cancelled": "Cancelado",
+        "tooFar": "Lejos"
       },
       "long": {
         "leave": "Sal ya · el siguiente llega {minutes} min después",
@@ -743,10 +744,12 @@
         "by": "Sal antes de las {time}",
         "tight": "{minutes} min para transbordar en {stop}",
         "tightAnywhere": "{minutes} min para transbordar",
-        "missed": "El siguiente es el de las {time}",
-        "missedLine": "El siguiente es el {line} de las {time}",
+        "missed": "Perdido · el siguiente es el de las {time}",
+        "missedLine": "Perdido · el siguiente es el {line} de las {time}",
         "sched": "Sin horarios en vivo",
-        "crossover": "Más rápido {mode} desde las {time}"
+        "crossover": "Más rápido {mode} desde las {time}",
+        "tooFar": "No llegas a tiempo · el siguiente es el de las {time}",
+        "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}"
       },
       "detail": {
         "hurry": "{minutes} min para el de las {time}",
@@ -762,7 +765,10 @@
         "driving": "en coche",
         "rideshare": "en VTC"
       },
-      "switched": "Lo perdiste · ahora en el {line} de las {time}"
+      "switched": {
+        "missed": "Lo perdiste · ahora en el {line} de las {time}",
+        "tooFar": "No llegas a tiempo · ahora en el {line} de las {time}"
+      }
     },
     "tripTypes": {
       "bikeshare": "Bici compartida",

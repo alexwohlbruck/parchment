@@ -28,7 +28,8 @@ export type AdviceState =
   | { kind: 'hurry'; leadMin: number; departAtMs: number }
   | { kind: 'relax'; leaveByMs: number }
   | { kind: 'by'; leaveByMs: number }
-  | { kind: 'missed'; departAtMs: number }
+  /** `left`: the planned run has gone; otherwise it is still coming but out of reach. */
+  | { kind: 'missed'; departAtMs: number; left: boolean }
 
 export type AdviceKind = AdviceState['kind']
 
@@ -129,7 +130,7 @@ export function tripAdvice(
   const target = lastSameArrival(runs, planned)
   const state: AdviceState | null =
     current > target
-      ? { kind: 'missed', departAtMs: ms(run.departAt) }
+      ? { kind: 'missed', departAtMs: ms(run.departAt), left: ms(runs[target].departAt) <= nowMs }
       : deadlineState(runs, target, nowMs, options)
 
   return { state, tight: tightTransfer(run), live: run.live }
@@ -223,8 +224,10 @@ export function adviceText(state: AdviceState, t: TFn, line?: string): string {
     case 'relax':
     case 'by':
       return t(key(state.kind), { time: clock(state.leaveByMs) })
-    case 'missed':
-      return t(key(line ? 'missedLine' : 'missed'), { time: clock(state.departAtMs), line })
+    case 'missed': {
+      const base = state.left ? 'missed' : 'tooFar'
+      return t(key(line ? `${base}Line` : base), { time: clock(state.departAtMs), line })
+    }
   }
 }
 
@@ -277,7 +280,7 @@ export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | 
   const words: HintWord[] = []
   if (state && state.kind !== 'relax' && state.kind !== 'by') {
     words.push({
-      word: t(`directions.advice.short.${state.kind}`),
+      word: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
       tone: state.kind === 'missed' ? CHIP_TONES.missed : CHIP_TONES.urgent,
     })
   }

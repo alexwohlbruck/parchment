@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { normalizeNavigationPreferences, toPreferencesResponse } from './user-preferences'
+import type { NavigationPreferences } from '../types/navigation-preferences.types'
 
 describe('normalizeNavigationPreferences', () => {
   test('defaults a missing blob', () => {
@@ -10,7 +11,7 @@ describe('normalizeNavigationPreferences', () => {
   })
 
   test('keeps valid sections as stored', () => {
-    const stored = {
+    const stored: NavigationPreferences = {
       excludedModes: ['rideshare', 'driving'],
       sortPreference: 'least_walking',
       routing: { general: { ferries: 0 }, mode: { transit: { transitBufferMinutes: 4 } } },

@@ -38,7 +38,7 @@ import {
   updateUserPreferences,
 } from '../services/user-preferences.service'
 import { toPreferencesResponse } from '../lib/user-preferences'
-import { TRIP_MODE_TOKENS, type TripModeToken } from '../types/departure-profile.types'
+import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import { SORT_PREFERENCES } from '../types/navigation-preferences.types'
 import { createInitialCollection } from '../services/library/collections.service'
 import {
@@ -1204,7 +1204,7 @@ const PreferenceBlob = t.Record(t.String(), t.Unknown())
 const NavigationPreferencesSchema = t.Object(
   {
     excludedModes: t.Array(
-      t.UnionEnum(TRIP_MODE_TOKENS as [TripModeToken, ...TripModeToken[]]),
+      t.UnionEnum(TRIP_MODE_TOKENS),
       { uniqueItems: true, description: 'Modes left out of trip planning. Walking is always allowed.' },
     ),
     sortPreference: t.Nullable(t.UnionEnum(SORT_PREFERENCES), {

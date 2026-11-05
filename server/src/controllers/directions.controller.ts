@@ -17,7 +17,9 @@ import {
   VehicleType,
   WaypointType,
   EnergyType,
+  SORT_PREFERENCES,
 } from '../types/trip.types'
+import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import { logError } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -141,22 +143,9 @@ const SelectedModeSchema = t.Union([
   t.Literal('rideshare'),
 ] as const)
 
-const SortPreferenceSchema = t.Union([
-  t.Literal('shortest'),
-  t.Literal('earliest_arrival'),
-  t.Literal('cheapest'),
-  t.Literal('fewest_transfers'),
-  t.Literal('least_walking'),
-  t.Literal('greenest'),
-] as const)
+const SortPreferenceSchema = t.UnionEnum(SORT_PREFERENCES)
 
-const TripModeTokenSchema = t.Union([
-  t.Literal('transit'),
-  t.Literal('biking'),
-  t.Literal('bikeshare'),
-  t.Literal('rideshare'),
-  t.Literal('driving'),
-] as const)
+const TripModeTokenSchema = t.UnionEnum(TRIP_MODE_TOKENS)
 
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),

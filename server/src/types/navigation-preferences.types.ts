@@ -1,14 +1,7 @@
 import type { TripModeToken } from './departure-profile.types'
 import type { SortPreference } from './trip.types'
 
-export const SORT_PREFERENCES = [
-  'shortest',
-  'earliest_arrival',
-  'cheapest',
-  'fewest_transfers',
-  'least_walking',
-  'greenest',
-] as const satisfies readonly SortPreference[]
+export { SORT_PREFERENCES } from './trip.types'
 
 /** Routing preferences split into keys shared by every mode and per-mode slices. */
 export interface RoutingPreferenceSlices {

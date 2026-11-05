@@ -25,6 +25,9 @@ const existingRow = {
   userId: 'user-1',
   language: 'es-ES',
   unitSystem: 'imperial',
+  navigation: null,
+  createdAt: null,
+  updatedAt: null,
 }
 
 beforeEach(() => {

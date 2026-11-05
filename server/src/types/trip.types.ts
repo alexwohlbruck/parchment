@@ -48,13 +48,16 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // REQUEST TYPES
 // =============================================================================
 
-export type SortPreference =
-  | 'shortest'
-  | 'earliest_arrival'
-  | 'cheapest'
-  | 'fewest_transfers'
-  | 'least_walking'
-  | 'greenest'
+export const SORT_PREFERENCES = [
+  'shortest',
+  'earliest_arrival',
+  'cheapest',
+  'fewest_transfers',
+  'least_walking',
+  'greenest',
+] as const
+
+export type SortPreference = (typeof SORT_PREFERENCES)[number]
 
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2

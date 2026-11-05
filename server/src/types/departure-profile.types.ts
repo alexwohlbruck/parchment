@@ -1,18 +1,13 @@
 /** Modes a rider can rule out of trip planning. Walking is always allowed. */
-export type TripModeToken =
-  | 'biking'
-  | 'bikeshare'
-  | 'transit'
-  | 'rideshare'
-  | 'driving'
-
-export const TRIP_MODE_TOKENS: readonly TripModeToken[] = [
+export const TRIP_MODE_TOKENS = [
   'transit',
   'biking',
   'bikeshare',
   'rideshare',
   'driving',
-]
+] as const
+
+export type TripModeToken = (typeof TRIP_MODE_TOKENS)[number]
 
 /** One catchable run of a trip's first transit leg. Times are ISO strings. */
 export interface DepartureRun {

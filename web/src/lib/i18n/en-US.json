@@ -1418,7 +1418,7 @@
       "speedDisplayDescription": "Shown while driving",
       "voiceTitle": "Voice",
       "voice": {
-        "pickerDescription": "Hover or tap a voice to hear it.",
+        "pickerDescription": "Tap a voice to use it, or play it first.",
         "automaticCaption": "The best voice for this language",
         "allRegions": "All regions",
         "anyGender": "Any voice",

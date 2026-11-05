@@ -51,17 +51,21 @@ describe('VoicePicker', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('filters the voices for the language by gender', async () => {
+  it('lists the voices for the app language after Automatic', () => {
+    expect(names(render())).toEqual(['Automatic', 'Heart', 'George'])
+  })
+
+  it('plays a voice from its button without choosing it', async () => {
     const wrapper = render()
-    expect(names(wrapper)).toEqual(['Automatic', 'Heart', 'George'])
-    await wrapper.findAll('button').find(b => b.text() === 'Male')!.trigger('click')
-    expect(names(wrapper)).toEqual(['Automatic', 'George'])
+    await wrapper.findAll('button[title="Listen"]')[1].trigger('click')
+    expect(mocks.speak).toHaveBeenCalledWith('Sample', expect.objectContaining({ voice: 'af_heart' }))
+    expect(useNavigationPreferencesStore().speech.voices['en-US']).toBeFalsy()
   })
 
   it('previews a hovered voice after a pause and saves a clicked one', async () => {
     const wrapper = render()
     const george = wrapper.findAll('[role="radio"]')[2]
-    await george.trigger('pointerenter', { pointerType: 'mouse' })
+    await george.element.parentElement!.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }))
     expect(mocks.speak).not.toHaveBeenCalled()
     vi.advanceTimersByTime(400)
     expect(mocks.speak).toHaveBeenCalledWith('Sample', expect.objectContaining({ lang: 'en-US', voice: 'bm_george' }))

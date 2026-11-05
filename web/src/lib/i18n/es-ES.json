@@ -1394,7 +1394,7 @@
       "speedDisplayDescription": "Se muestra al conducir",
       "voiceTitle": "Voz",
       "voice": {
-        "pickerDescription": "Pasa el cursor o toca una voz para oírla.",
+        "pickerDescription": "Toca una voz para usarla, o escúchala antes.",
         "automaticCaption": "La mejor voz para este idioma",
         "allRegions": "Todas las regiones",
         "anyGender": "Cualquier voz",

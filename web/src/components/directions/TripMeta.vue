@@ -7,11 +7,13 @@ import { getModeIcon, getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import { formatCo2 } from '@/lib/directions/trip-display'
 import { longestTransitSegment, tripType } from '@/lib/directions/trip-type'
 import type { TripOption } from '@/types/directions.types'
+import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
 
 interface Props {
   trip: TripOption
   /** List view has no duration sidebar, so distance rides along here. */
   showDistance?: boolean
+  advice?: TripCardAdvice
 }
 
 const props = defineProps<Props>()
@@ -75,6 +77,22 @@ const headsign = computed(() => {
 
     <div v-if="headsign" class="mt-1 text-[11px] text-muted-foreground truncate">
       {{ headsign }}
+    </div>
+
+    <div v-if="advice?.hint" class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] tabular-nums">
+      <span
+        v-for="word in advice.hint.words"
+        :key="word.word"
+        class="shrink-0 rounded px-1 py-px font-semibold"
+        :class="word.tone"
+      >
+        {{ word.word }}
+      </span>
+      <span v-if="advice.hint.text" class="truncate text-muted-foreground">{{ advice.hint.text }}</span>
+    </div>
+
+    <div v-if="advice?.crossover" class="mt-1 text-[11px] text-muted-foreground tabular-nums truncate">
+      {{ advice.crossover }}
     </div>
   </div>
 </template>

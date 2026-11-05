@@ -26,6 +26,24 @@ export const BANDS = [
 export const bandForZoom = (z: number) =>
   (BANDS.find(b => z >= b.min && z < b.max) ?? BANDS[BANDS.length - 1]).key
 
+/**
+ * Keeps the band that belongs to each tile's own zoom. A filter's `zoom` is
+ * the tile's, so a coarser or finer tile shown while the right one loads
+ * still draws its own copy instead of nothing.
+ */
+export const TILE_BAND_FILTER: Expr = [
+  '==',
+  ['get', 'band_min'],
+  [
+    'step',
+    ['zoom'],
+    BANDS.find(b => b.min === 0)!.key,
+    ...BANDS.filter(b => b.min > 0)
+      .sort((a, z) => a.min - z.min)
+      .flatMap(b => [b.min, b.key]),
+  ],
+]
+
 // ── ribbon offsets (MapView.vue:142-161) ───────────────────────────────
 // Offsets live in DIFFERENT properties depending on the segment kind: a
 // steady segment carries its slot offset in `offset_px` (off_from/off_to
@@ -42,8 +60,8 @@ export const zoomScaledOffset = (e: Expr): Expr => [
   e,
 ]
 export const STEADY_OFFSET: Expr = zoomScaledOffset(['get', 'offset_px'])
-// Transitions ease over ['line-progress'], which MapLibre only computes
-// for GeoJSON sources with lineMetrics — hence the hydration pipeline.
+// Transitions ease over ['line-progress']: the tiler ships each one whole into
+// every tile it touches, so the fork reads progress straight off the tile.
 export const TRANSITION_OFFSET: Expr = zoomScaledOffset([
   'interpolate',
   ['cubic-bezier', 0.4, 0, 0.6, 1],
@@ -53,13 +71,6 @@ export const TRANSITION_OFFSET: Expr = zoomScaledOffset([
   1,
   ['get', 'off_to_px'],
 ])
-// Bridges render exactly like steady ribbons — the gap-bridge distinction
-// is pipeline bookkeeping, not something a rider sees.
-export const KINDS: [string, Expr][] = [
-  ['steady', STEADY_OFFSET],
-  ['transition', TRANSITION_OFFSET],
-  ['bridge', STEADY_OFFSET],
-]
 
 // ── ribbon width/opacity (MapView.vue:357-381) ─────────────────────────
 export const widthExpr = (w: Expr): Expr => [
@@ -93,13 +104,6 @@ export function modeExprs(st: PortolanStyleSet | null): { w: Expr; o: Expr } {
   o.push(1)
   return { w, o }
 }
-
-// Hydrated transition/bridge features carry per-feed RESOLVED
-// width/opacity (_w/_o, baked in hydration from the owning feed's style
-// set): the twin layers are shared across feeds, so a per-layer
-// expression cannot split by feed — the value rides on the feature.
-export const perFeedW = (w: Expr): Expr => ['coalesce', ['get', '_w'], w]
-export const perFeedO = (o: Expr): Expr => ['coalesce', ['get', '_o'], o]
 
 export const RIBBON_COLOR: Expr = ['concat', '#', ['get', 'route_color']]
 

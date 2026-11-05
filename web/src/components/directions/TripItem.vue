@@ -7,6 +7,7 @@ import { useUnits } from '@/composables/useUnits'
 import { getTravelModeCssClass } from '@/lib/directions/travel-mode-colors'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import TripMeta from './TripMeta.vue'
+import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
 import type {
   TripOption,
   TripsResponse,
@@ -16,6 +17,7 @@ import { formatDurationParts } from '@/lib/time-format'
 
 interface Props {
   trip: TripOption
+  advice?: TripCardAdvice
   tripRequest: TripsResponse['request']
   timelineStart: Date
   pxPerMinute: number
@@ -301,7 +303,7 @@ function handleMouseEnter() {
 
       <!-- Trip summary — travels with the bar, then pins at the panel edge -->
       <div class="sticky left-3 w-fit" :style="{ maxWidth: `${barAreaWidth}px` }">
-        <TripMeta :trip="trip" class="mt-1.5 pr-4" />
+        <TripMeta :trip="trip" :advice="advice" class="mt-1.5 pr-4" />
       </div>
     </div>
   </div>

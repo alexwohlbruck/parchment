@@ -26,6 +26,7 @@ const existingRow: UserPreferences = {
   userId: 'user-1',
   language: 'es-ES',
   unitSystem: 'imperial',
+  navigation: null,
   createdAt: null,
   updatedAt: null,
 }
@@ -162,6 +163,33 @@ describe('updateUserPreferences', () => {
       language: DEFAULT_LANGUAGE,
       unitSystem: 'imperial',
     })
+  })
+
+  test('merges a navigation patch into the stored blob', async () => {
+    dbMock.setReturningRows([existingRow])
+
+    await updateUserPreferences('user-1', { navigation: { excludedModes: ['driving'] } })
+
+    const written = dbMock.updated[0] as any
+    expect(written.navigation).toBeDefined()
+    expect(written.language).toBeUndefined()
+  })
+
+  test('an empty navigation patch is treated as empty', async () => {
+    dbMock.queueSelect([existingRow])
+
+    await updateUserPreferences('user-1', { navigation: {} })
+
+    expect(dbMock.updateCount).toBe(0)
+  })
+
+  test('the fallback insert stores the navigation patch as is', async () => {
+    dbMock.queueReturning([])
+    dbMock.queueReturning([{ userId: 'user-1' }])
+
+    await updateUserPreferences('user-1', { navigation: { sortPreference: 'cheapest' } })
+
+    expect((dbMock.inserted[0] as any).navigation).toEqual({ sortPreference: 'cheapest' })
   })
 
   test('throws when the fallback insert returns nothing', async () => {

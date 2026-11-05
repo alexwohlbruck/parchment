@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tripSignature } from './trip-signature'
+import { stableTripKeys, tripSignature } from './trip-signature'
 
 describe('tripSignature', () => {
   it('orders transit lines and skips walking', () => {
@@ -47,5 +47,17 @@ describe('tripSignature', () => {
       { mode: 'cycling', ownership: 'shared', sharedMobilityDetails: { vehicleType: 'bike' } },
     ])
     expect(a).toBe('g>share-bike')
+  })
+})
+
+describe('stableTripKeys', () => {
+  it('keys the same itineraries alike across re-plans, numbering repeats', () => {
+    const plan = (prefix: string) => [
+      { id: `${prefix}-0`, segments: [{ mode: 'transit', lineName: 'A' }] },
+      { id: `${prefix}-1`, segments: [{ mode: 'transit', lineName: 'A' }] },
+      { id: `${prefix}-2`, segments: [{ mode: 'biking' }] },
+    ]
+    expect([...stableTripKeys(plan('r1')).values()]).toEqual(['a#0', 'a#1', 'bike#0'])
+    expect([...stableTripKeys(plan('r2')).values()]).toEqual([...stableTripKeys(plan('r1')).values()])
   })
 })

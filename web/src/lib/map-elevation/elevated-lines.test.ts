@@ -5,8 +5,8 @@ import { ELEVATION_FORMAT, ELEVATION_PROFILE, STATION_ANCHOR, STATION_HEIGHT, el
 describe('elevated lines', () => {
   test('are the cycling ways and the transit ribbons, tiled or copied out', () => {
     expect(elevatesLine({ id: 'Cycling lane left bridge', type: 'line', source: 'detail', sourceLayer: 'bicycle_ways' })).toBe(true)
-    expect(elevatesLine({ id: 'portolan-ribbon-15-steady-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
-    expect(elevatesLine({ id: 'portolan-ribbon-15-transition', type: 'line', source: 'portolan-build-15' })).toBe(true)
+    expect(elevatesLine({ id: 'portolan-ribbon-steady-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
+    expect(elevatesLine({ id: 'portolan-ribbon-transition-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
   })
 
   test('leave the basemap, the route lines and anything not a line alone', () => {
@@ -16,14 +16,14 @@ describe('elevated lines', () => {
   })
 
   test('hold their width under tilt for the ribbons only', () => {
-    expect(holdsWidth({ id: 'portolan-ribbon-15-steady-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
-    expect(holdsWidth({ id: 'portolan-ribbon-15-transition', type: 'line', source: 'portolan-build-15' })).toBe(true)
+    expect(holdsWidth({ id: 'portolan-ribbon-steady-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
+    expect(holdsWidth({ id: 'portolan-ribbon-transition-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
     expect(holdsWidth({ id: 'Cycling lane left bridge', type: 'line', source: 'detail', sourceLayer: 'bicycle_ways' })).toBe(false)
   })
 
   test('see through only the dimmed ribbon copies', () => {
     expect(seesThrough({ id: 'portolan-ribbon-15-steady-nyc-ghost', type: 'line' })).toBe(true)
-    expect(seesThrough({ id: 'portolan-ribbon-15-steady-nyc', type: 'line' })).toBe(false)
+    expect(seesThrough({ id: 'portolan-ribbon-steady-nyc', type: 'line' })).toBe(false)
   })
 
   test('profile reads the tile property, empty where a line has none', () => {

@@ -1,16 +1,11 @@
 import { nextNavigableLeg } from '@/lib/guidance/leg-navigation'
 export { isLegNavigable, nextNavigableLeg } from '@/lib/guidance/leg-navigation'
-import { computed, markRaw, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, markRaw, reactive, ref, shallowRef, toRef, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { useStorage } from '@vueuse/core'
 import type { TripOption } from '@/types/directions.types'
 import { buildNavRoute, type NavRoute, type NavSegmentInput } from '@/lib/guidance/nav-route'
 import type { Fix, PuckState } from '@/lib/guidance/guidance-engine'
-import {
-  DEFAULT_CAMERA_TUNING,
-  type BearingMode,
-  type CameraMode,
-} from '@/lib/guidance/camera-framing'
+import { DEFAULT_CAMERA_TUNING } from '@/lib/guidance/camera-framing'
 import { hasArrived, roadLabel, summarizeProgress, type ProgressSummary } from '@/lib/guidance/guidance-display'
 import { segmentAt, smoothedBearingAt } from '@/lib/guidance/nav-route'
 import { cardinal, TurnAroundWatch, type Cardinal } from '@/lib/guidance/turn-around'
@@ -52,7 +47,8 @@ import { announcementText } from '@/lib/guidance/phrases'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, releaseSpeech, unlockSpeech, stopSpeech } from '@/services/speech/speech.service'
 import { navigationSpeechRate, speechDuration } from '@/lib/guidance/speech-rate'
-import { useSpeechStore } from '@/stores/speech.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { SOUND_MODES, type SoundMode } from '@/lib/guidance/guidance-preferences'
 import { hapticImpact } from '@/lib/haptics'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
@@ -74,8 +70,7 @@ import {
   straightSegment,
   type FreeMode,
 } from '@/lib/guidance/free-roam'
-import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice, type VehiclePreferences } from '@/lib/guidance/vehicle-indicator'
-import type { SpeedDisplay } from '@/lib/guidance/speed-display'
+import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice } from '@/lib/guidance/vehicle-indicator'
 import {
   advanceGuide,
   autoAdvance,
@@ -105,20 +100,6 @@ export type GuidanceStatus = 'navigating' | 'rerouting' | 'arrived' | 'away'
 
 /** A session follows a route to a destination, or roams free along whatever road is ahead. */
 export type GuidanceKind = 'route' | 'free'
-
-export type SoundMode = 'all' | 'alerts' | 'silent'
-export const SOUND_MODES: SoundMode[] = ['all', 'alerts', 'silent']
-
-export interface GuidancePreferences {
-  cameraMode: CameraMode
-  bearingMode: BearingMode
-  /** Per travel mode: walkers mostly want quiet, drivers want every turn. */
-  sound: Record<string, SoundMode>
-  autoSwitchDocks: boolean
-  vehicle: VehiclePreferences
-  speedDisplay: SpeedDisplay
-  adaptiveSpeech: boolean
-}
 
 export interface TurnAround {
   heading: Cardinal
@@ -152,6 +133,7 @@ function routeLanePlans(route: NavRoute): Map<number, LanePlan> {
 }
 
 export const useGuidanceStore = defineStore('guidance', () => {
+  const navigationPreferences = useNavigationPreferencesStore()
   const trip = shallowRef<TripOption | null>(null)
   const tripId = computed(() => trip.value?.id ?? null)
   const legIndex = ref(0)
@@ -257,7 +239,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (sound === 'silent' || (sound === 'alerts' && !isAlert(announcement))) return
     const text = speechText(announcement)
     const urgent = (announcement.kind === 'hazard' && announcement.hazard.severity === 'high') || (announcement.kind === 'maneuver' && announcement.phase === 'now')
-    const speech = useSpeechStore().preferences
+    const speech = navigationPreferences.speech
     const speed = progress.value?.puck.speed ?? 0
     const nextStep = route.value?.steps.find(step => step.startDistance > (announcement.kind === 'maneuver' ? announcement.step.startDistance : s) + 1)
     const deadline = announcement.kind === 'maneuver' && announcement.phase !== 'now' ? announcement.step.startDistance : nextStep?.startDistance
@@ -269,12 +251,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (urgent) void hapticImpact('medium')
   }
   const progress = shallowRef<GuidanceProgress | null>(null)
-  const preferences = useStorage<GuidancePreferences>(
-    'guidance-preferences',
-    { cameraMode: 'follow-3d', bearingMode: 'look-ahead', sound: { driving: 'all', cycling: 'all', walking: 'alerts' }, autoSwitchDocks: true, vehicle: DEFAULT_VEHICLE_PREFERENCES, speedDisplay: 'both', adaptiveSpeech: true },
-    undefined,
-    { mergeDefaults: true },
-  )
+  const preferences = toRef(navigationPreferences, 'guidance')
   watch(() => preferences.value.sound[travelMode.value], () => stopSpeech())
   // Mutable so the dev tuning panel can adjust framing live.
   const cameraTuning = reactive({ ...DEFAULT_CAMERA_TUNING })
@@ -825,7 +802,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     arrivalSide = destinationSide(navRoute, end ? { lat: end.lat, lng: end.lng } : null)
     announcer = new Announcer(navRoute, end ? { lat: end.lat, lng: end.lng } : null, (announcement, available) => {
       const text = speechText(announcement)
-      const rate = navigationSpeechRate(text, useSpeechStore().preferences.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
+      const rate = navigationSpeechRate(text, navigationPreferences.speech.rate, preferences.value.adaptiveSpeech && (progress.value?.puck.speed ?? 0) > 0.5 ? available : undefined)
       return speechDuration(text, rate)
     }, richGuidance.value ? { regionName: code => countryName(code, storedLocale.value) } : {})
     const initial = announcer.start()

@@ -10,7 +10,7 @@ const { openTrip } = useTripNavigation(() => props.trips.request)
 </script>
 
 <template>
-  <TripRows :trips="trips.trips" v-slot="{ trip }">
-    <TripListItem :trip="trip" @click="openTrip" />
+  <TripRows :trips="trips.trips" v-slot="{ trip, advice }">
+    <TripListItem :trip="trip" :advice="advice" @click="openTrip" />
   </TripRows>
 </template>

@@ -35,3 +35,16 @@ export function tripSignature(segments: SignatureSegment[] | undefined): string 
   }
   return tokens.length ? tokens.join('>') : 'walk'
 }
+
+/** Keys that survive a re-plan: the same itinerary keeps its key while the new ids change. */
+export function stableTripKeys(trips: readonly { id: string; segments?: SignatureSegment[] }[]): Map<string, string> {
+  const seen = new Map<string, number>()
+  return new Map(
+    trips.map(trip => {
+      const signature = tripSignature(trip.segments)
+      const n = seen.get(signature) ?? 0
+      seen.set(signature, n + 1)
+      return [trip.id, `${signature}#${n}`]
+    }),
+  )
+}

@@ -23,9 +23,8 @@ export const ELEVATION_PROFILE = ['coalesce', ['get', 'elevation'], '']
 
 /** The cycling ways barrelman states heights for. */
 const CYCLING_SOURCE_LAYER = 'bicycle_ways'
-/** The transit ribbons it does, tiled or copied out into GeoJSON, which keeps their heights. */
+/** The transit ribbons it does. */
 const RIBBON_SOURCE_LAYER = 'ribbons'
-const RIBBON_SOURCE_PREFIX = 'portolan-build-'
 
 /** The transit stations, stop marks and route bullets, which barrelman gives the height of their routes' ribbons. */
 const STATION_SOURCE = 'portolan-stations'
@@ -54,7 +53,7 @@ interface LineLayer {
   sourceLayer?: string
 }
 
-const isRibbon = (layer: LineLayer) => layer.sourceLayer === RIBBON_SOURCE_LAYER || !!layer.source?.startsWith(RIBBON_SOURCE_PREFIX)
+const isRibbon = (layer: LineLayer) => layer.sourceLayer === RIBBON_SOURCE_LAYER
 
 export function elevatesLine(layer: LineLayer): boolean {
   return layer.type === 'line' && (layer.sourceLayer === CYCLING_SOURCE_LAYER || isRibbon(layer))

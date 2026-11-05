@@ -8,6 +8,8 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { useOrientationService } from '@/services/orientation.service'
 import { startMotion } from '@/lib/directions/start-motion'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { TRIP_SORTS, type TripSort } from '@/lib/preferences/navigation-preferences'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
@@ -30,7 +32,8 @@ const CURRENT_LOCATION_ID = 'current-location'
 
 function directionsService() {
   const store = useDirectionsStore()
-  const { waypoints, selectedMode, sortPreference, departureTime, routingPreferences } = storeToRefs(store)
+  const { waypoints, selectedMode, sortPreference, effectiveSort, departureTime, routingPreferences } = storeToRefs(store)
+  const { excludedModes } = storeToRefs(useNavigationPreferencesStore())
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
@@ -61,7 +64,7 @@ function directionsService() {
       .filter(wp => wp.lngLat)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${coords}|${mode}|${sortPreference.value || ''}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
+    return `${coords}|${mode}|${effectiveSort.value}|${excludedModes.value.join(',')}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
   }
 
   /** Active vehicles whose location the user is happy to route from. */
@@ -101,7 +104,8 @@ function directionsService() {
         ...(i === 0 && wp.place?.id === CURRENT_LOCATION_ID && currentMotion()),
       })),
       selectedMode: selectedMode.value,
-      ...(sortPreference.value && { sortPreference: sortPreference.value }),
+      ...(effectiveSort.value !== 'balanced' && { sortPreference: effectiveSort.value }),
+      excludedModes: excludedModes.value,
       availableVehicles: collectAvailableVehicles(),
       routingPreferences: routingPreferences.value,
       ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
@@ -117,8 +121,11 @@ function directionsService() {
    * request must not win the race — otherwise its late response overwrites
    * (or, worse, the early-return guard suppressed) the results for the
    * inputs the user actually wants.
+   *
+   * `quiet` re-plans the same search in place: no spinner, no plan cache, and
+   * the shown results survive a failure.
    */
-  async function getDirections() {
+  async function getDirections({ quiet = false } = {}) {
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
 
     // Need at least 2 waypoints — drop any in-flight request and clear.
@@ -140,7 +147,7 @@ function directionsService() {
 
     // Identical to the request already in flight (or the last one resolved) —
     // nothing to do.
-    if (requestKey === lastRequestKey.value) return
+    if (!quiet && requestKey === lastRequestKey.value) return
 
     // Supersede any in-flight request: its inputs are now stale.
     abortController.value?.abort()
@@ -149,7 +156,7 @@ function directionsService() {
 
     lastRequestKey.value = requestKey
     isRequesting.value = true
-    store.setLoading(true)
+    if (!quiet) store.setLoading(true)
 
     try {
       const request = buildTripRequest(validWaypoints)
@@ -158,7 +165,7 @@ function directionsService() {
       // response (same trip ids and times) instead of re-planning — a page
       // refresh on a trip detail lands back on the identical trip.
       const planKey = planCacheKey(request)
-      const cached = readPlanCache(planKey)
+      const cached = quiet ? null : readPlanCache(planKey, request.preferredDepartureTime ? PLAN_CACHE_TTL_MS : LEAVE_NOW_CACHE_TTL_MS)
       if (cached) {
         store.setTrips(cached)
         return
@@ -202,13 +209,13 @@ function directionsService() {
         metadata: data.metadata,
       }
 
-      store.setTrips(response)
+      store.setTrips(response, { keepSelection: quiet })
       writePlanCache(planKey, response)
     } catch (error) {
       // Aborted by a newer request — leave all state to that request.
       if (axios.isCancel(error)) return
       console.error('Failed to fetch directions:', error)
-      store.unsetTrips()
+      if (!quiet) store.unsetTrips()
       lastRequestKey.value = '' // Allow retry
     } finally {
       // Only the request that is still current may clear the shared loading
@@ -228,6 +235,8 @@ function directionsService() {
   // through the URL → re-plan → trip-signature match path instead.
   const PLAN_CACHE_KEY = 'parchment:last-plan'
   const PLAN_CACHE_TTL_MS = 30 * 60_000
+  /** A leave-now plan goes stale as its trains leave; past this, plan afresh. */
+  const LEAVE_NOW_CACHE_TTL_MS = 2 * 60_000
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function planCacheKey(request: any): string {
@@ -236,13 +245,13 @@ function directionsService() {
     return JSON.stringify({ ...stable, waypoints })
   }
 
-  function readPlanCache(key: string): TripsResponse | null {
+  function readPlanCache(key: string, ttlMs: number): TripsResponse | null {
     try {
       const raw = sessionStorage.getItem(PLAN_CACHE_KEY)
       if (!raw) return null
       const entry = JSON.parse(raw)
       if (entry.key !== key) return null
-      if (Date.now() - entry.savedAt > PLAN_CACHE_TTL_MS) return null
+      if (Date.now() - entry.savedAt > ttlMs) return null
       return entry.response as TripsResponse
     } catch {
       return null
@@ -536,7 +545,7 @@ function directionsService() {
     while (wps.length < MIN_WAYPOINTS) wps.push({ lngLat: null } as Waypoint)
 
     if (state.mode) store.selectedMode = state.mode as typeof selectedMode.value
-    if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
+    if (TRIP_SORTS.includes(state.sort as TripSort)) store.sortPreference = state.sort as TripSort
     if (state.depart) store.departureTime = state.depart
     store.setWaypoints(wps)
     return true
@@ -575,8 +584,8 @@ function directionsService() {
   // see mutations that precede them. The immediate run plans from the
   // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
   watch(
-    [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
-    getDirections,
+    [waypoints, selectedMode, effectiveSort, excludedModes, departureTime, routingPreferences],
+    () => getDirections(),
     { deep: true, immediate: true },
   )
 
@@ -587,6 +596,7 @@ function directionsService() {
 
   return {
     getDirections,
+    replan: () => getDirections({ quiet: true }),
     fillWaypoint,
     setWaypoint,
     setWaypoints,

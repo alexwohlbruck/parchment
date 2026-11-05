@@ -2,6 +2,17 @@
 
 ### Added
 
+* Transit trips say when to leave: hurry, run, leave now, or the latest time that still gets you there as planned. They also flag tight transfers and when biking becomes faster, and a trip you've missed is replaced by the next one.
+
+* A new Navigation settings tab gathers the modes you use, your default trip ranking, routing preferences, vehicles and voice guidance. These settings now follow your account across devices.
+
+* On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
+
+* Trip results refresh on their own every 20 to 60 seconds while you're planning to leave now, and a refresh button updates them on demand.
+
+* Choose a navigation voice by language, region and gender, and hear each one before you pick it.
+
+* The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
 * Subway trips and departure boards name directions as the platform signs do, like "Uptown & The Bronx", and entrances by their street corner. Exit-only entrances are never used to enter.
 * Trip details show how each transfer is made, like "In-station · 1 min 22 s" or "Exit and re-enter", with the walk inside the station as expandable steps.
 * Subway walks use the entrance and exit that make the whole trip shortest, measured through the station.
@@ -11,8 +22,11 @@
 
 ### Changed
 
+* Vehicles moved from their own settings page into Settings → Navigation.
+
 ### Fixed
 
+* The transit map no longer disappears while you zoom in or out, and areas you have already seen redraw instantly instead of loading again.
 * Places load again as soon as you're back online, and Reload works right away, without restarting the app.
 * Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
 * On transit, navigation no longer says "Get off now" a stop early on a late train, shows what comes after you get off, and moves on once you're off or tap "I got off".

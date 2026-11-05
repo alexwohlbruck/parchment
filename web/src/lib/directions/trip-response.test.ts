@@ -39,3 +39,10 @@ test("ends each leg at its waypoint's place", () => {
   ]), 0, [undefined, 'osm/node/1', 'osm/node/2'])
   expect(trip.segments.map((s: any) => s.end.place?.id)).toEqual([undefined, 'osm/node/1', 'osm/way/9'])
 })
+
+test('carries the departure profile through', () => {
+  const departureProfile = { runs: [], plannedRunIndex: 0, validUntil: '2026-10-25T12:30:00Z' }
+  const c = candidate([segment({})])
+  const trip = mapCandidate({ ...c, trip: { ...c.trip, departureProfile } }, 0)
+  expect(trip.departureProfile).toBe(departureProfile)
+})

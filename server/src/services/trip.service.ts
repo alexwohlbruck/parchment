@@ -50,6 +50,15 @@ import { chosenEntrance, entranceRef, entranceWaypointLabel } from '../lib/trans
 import type { StationEntrance } from '../types/integration.types'
 import { haversineMeters } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
+import { activeExclusions, dropExcludedTrips } from '../lib/directions/excluded-modes'
+import {
+  PROFILE_SPAN_MS,
+  buildTripTiming,
+  coverBoards,
+  readTripLegs,
+  type CoveredBoard,
+} from '../lib/directions/departure-profile'
+import { expectedMissPenaltySec } from '../lib/directions/connection-risk'
 
 const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
@@ -76,7 +85,7 @@ export class TripService {
 
     return request.waypoints.length > 2
       ? this.planMultiStopTrip(request, startTime)
-      : this.planLegTrip(request, startTime)
+      : this.planLegTrip(request, startTime, undefined, true)
   }
 
   /**
@@ -89,12 +98,15 @@ export class TripService {
     request: TripRequest,
     startTime: number,
     continuation?: Continuation,
+    profileDepartures = false,
   ): Promise<MultimodalTripResponse> {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
 
-    // Determine which modes to generate based on selectedMode
-    const modes: Mode[] = this.getModesToGenerate(request.selectedMode)
+    const excluded = activeExclusions(request.excludedModes, request.selectedMode)
+    const tabModes = this.getModesToGenerate(request.selectedMode)
+    const modes = tabModes.filter((mode) => !(excluded as ReadonlySet<string>).has(mode))
+    const offersBikeshare = tabModes.includes('biking') && !excluded.has('bikeshare')
 
     // When useKnownParkingLocations is on, vehicle modes (driving/biking)
     // are replaced by their parking-aware variants — you can't just teleport
@@ -131,7 +143,7 @@ export class TripService {
     const wantsShared = !continuation
       || continuation.strategy.startsWith('bikeshare')
       || continuation.strategy.startsWith('scootershare')
-    if (modes.includes('biking') && wantsShared) {
+    if (offersBikeshare && wantsShared) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
           logError('Shared vehicle planning failed', error)
@@ -175,7 +187,7 @@ export class TripService {
 
     const modeResults = await Promise.all(modePromises)
     for (const trips of modeResults) {
-      candidates.push(...trips)
+      candidates.push(...dropExcludedTrips(trips, excluded))
     }
 
     // Collapse trips that differ only by an interchangeable route (the 4 vs the
@@ -186,14 +198,23 @@ export class TripService {
       candidates, request.sortPreference, arrivalTarget != null,
     )
 
-    const rankedTrips: TripCandidate[] = this.filterQualityTrips(
+    const shortlist = this.filterQualityTrips(
       this.scoreAndOrder(request, mergedCandidates, arrivalTarget),
       request.sortPreference,
       request.selectedMode === 'multi',
     )
-      .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
-    await this.pruneUnservedRouteOptions(rankedTrips.map((c) => c.trip))
-    await this.nameLegsByRoute(rankedTrips.map((c) => c.trip))
+    const trips = shortlist.map((c) => c.trip)
+    if (profileDepartures) this.prefetchBoardingBoards(trips)
+    await this.pruneUnservedRouteOptions(trips)
+    await Promise.all([
+      profileDepartures && this.attachDepartureProfiles(request, trips),
+      this.nameLegsByRoute(trips),
+    ])
+    const rankedTrips: TripCandidate[] = (
+      trips.some((t) => (TripService.missPenaltySec.get(t) ?? 0) > 0)
+        ? this.scoreAndOrder(request, trips, arrivalTarget)
+        : shortlist
+    ).map((candidate, index) => ({ ...candidate, rank: index + 1 }))
 
     return {
       request,
@@ -631,32 +652,81 @@ export class TripService {
     ownRoute: string,
     directionId?: string | number,
   ): Promise<Set<string> | null> {
-    const split = motisStopId.indexOf('_')
     const atMs = Date.parse(time ?? '')
-    if (split <= 0 || Number.isNaN(atMs)) return null
+    const around = await this.stopBoardsAround(motisStopId, atMs)
+    if (!around) return null
     const slackMs = ROUTE_SERVICE_SLACK_MINUTES * 60_000
-    const boards = await this.cachedStopBoards(
-      motisStopId.slice(0, split),
-      motisStopId.slice(split + 1),
-      atMs - slackMs,
-    )
-    return routesServingStop(boards, { fromMs: atMs - slackMs, toMs: atMs + slackMs }, ownRoute, directionId)
+    return routesServingStop(around.boards, { fromMs: atMs - slackMs, toMs: atMs + slackMs }, ownRoute, directionId)
   }
 
   /** Boards are cached briefly per five-minute bucket, so nearby legs share one fetch. */
   private stopBoardCache = new MemoCache<StopBoard[] | null>({ max: 300, ttlMs: 60_000 })
   private static readonly STOP_BOARD_BUCKET_MS = 5 * 60_000
+  /** Reaches past a departure profile's span so later connections still find their next run. */
+  private static readonly STOP_BOARD_WINDOW_MS = ROUTE_SERVICE_SLACK_MINUTES * 60_000
+    + TripService.STOP_BOARD_BUCKET_MS + PROFILE_SPAN_MS + 10 * 60_000
 
-  private cachedStopBoards(feedId: string, stopId: string, fromMs: number): Promise<StopBoard[] | null> {
-    const bucket = Math.floor(fromMs / TripService.STOP_BOARD_BUCKET_MS) * TripService.STOP_BOARD_BUCKET_MS
-    return this.stopBoardCache.get(`${feedId}|${stopId}|${bucket}`, () =>
+  /** A stop's boards from a little before `atMs`, and the span they were asked for. */
+  private async stopBoardsAround(
+    motisStopId: string | undefined,
+    atMs: number,
+  ): Promise<{ boards: StopBoard[] | null; fromMs: number; untilMs: number } | null> {
+    const stop = splitFeedScopedId(motisStopId)
+    if (!stop || Number.isNaN(atMs)) return null
+    const bucketMs = TripService.STOP_BOARD_BUCKET_MS
+    const fromMs = Math.floor((atMs - ROUTE_SERVICE_SLACK_MINUTES * 60_000) / bucketMs) * bucketMs
+    const boards = await this.stopBoardCache.get(`${stop.feedId}|${stop.id}|${fromMs}`, () =>
       transitRoutingService.getStopDepartures({
-        feedId,
-        stopId,
-        time: new Date(bucket).toISOString(),
-        windowMinutes: 2 * ROUTE_SERVICE_SLACK_MINUTES + TripService.STOP_BOARD_BUCKET_MS / 60_000,
+        feedId: stop.feedId,
+        stopId: stop.id,
+        time: new Date(fromMs).toISOString(),
+        windowMinutes: TripService.STOP_BOARD_WINDOW_MS / 60_000,
         n: ROUTE_SERVICE_BOARD_EVENTS,
       }))
+    return { boards, fromMs, untilMs: fromMs + TripService.STOP_BOARD_WINDOW_MS }
+  }
+
+  /** Starts the boarding stops' board fetches so they overlap route-option pruning. */
+  private prefetchBoardingBoards(trips: TripResponse[]): void {
+    for (const trip of trips) {
+      for (const leg of readTripLegs(trip.segments)?.legs ?? []) void this.stopBoardsAround(leg.stopId, leg.departMs)
+    }
+  }
+
+  /** Expected seconds lost to missed connections, set once a trip's departure profile is built. */
+  private static missPenaltySec = new WeakMap<TripResponse, number>()
+
+  /** Profiles not built by then are left off rather than delaying the plan. */
+  private static readonly PROFILE_DEADLINE_MS = 1500
+
+  /** Legs are read before `nameLegsByRoute` renames the lines the boards are matched by. */
+  private async attachDepartureProfiles(request: TripRequest, trips: TripResponse[]): Promise<void> {
+    const notBeforeMs = Date.parse(request.preferredDepartureTime ?? '') || Date.now()
+    const arriveByMs = Date.parse(this.getArrivalTarget(request) ?? '') || undefined
+    const timed = trips.flatMap((trip) => {
+      const legs = readTripLegs(trip.segments)
+      return legs ? [{ trip, legs }] : []
+    })
+    let open = true
+    const work = Promise.all(timed.map(async ({ trip, legs }) => {
+      try {
+        const boards = await Promise.all(legs.legs.map(async (leg): Promise<CoveredBoard | null> => {
+          const around = await this.stopBoardsAround(leg.stopId, leg.departMs)
+          return around?.boards?.length ? coverBoards(around.boards, around, ROUTE_SERVICE_BOARD_EVENTS) : null
+        }))
+        const timing = buildTripTiming(legs, boards, { notBeforeMs, arriveByMs })
+        if (!timing || !open) return
+        trip.departureProfile = timing.profile
+        TripService.missPenaltySec.set(trip, expectedMissPenaltySec(timing.plannedTransfers))
+      } catch (error) {
+        logWarn('Departure profile failed', error)
+      }
+    }))
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, TripService.PROFILE_DEADLINE_MS) })
+    await Promise.race([work, deadline])
+    clearTimeout(timer)
+    open = false
   }
 
   /**
@@ -2242,6 +2312,10 @@ export class TripService {
     continuation?: Continuation,
   ): Promise<TripResponse[]> {
     const needs = TripService.continuationNeeds(continuation)
+    const excluded = activeExclusions(request.excludedModes, request.selectedMode)
+    if (excluded.has('driving')) needs.car = false
+    if (excluded.has('biking')) needs.bikeCarry = needs.bikeAccess = false
+    if (excluded.has('rideshare')) needs.rideshare = false
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]
@@ -2318,14 +2392,16 @@ export class TripService {
     // Transit + shared-mobility egress. Its own trip type, so multi runs it
     // too — narrower, since multi wants one of each type rather than four
     // variants of this one.
-    const rentalFetch = fetchMotis('rental', {
-      ...baseRequest,
-      numItineraries: isMulti ? 2 : 4,
-      preTransitModes: ['WALK'],
-      postTransitModes: ['RENTAL'],
-      maxPreTransitTime: maxWalkSec,
-      maxPostTransitTime: maxWalkSec,
-    })
+    const rentalFetch = excluded.has('bikeshare')
+      ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
+      : fetchMotis('rental', {
+          ...baseRequest,
+          numItineraries: isMulti ? 2 : 4,
+          preTransitModes: ['WALK'],
+          postTransitModes: ['RENTAL'],
+          maxPreTransitTime: maxWalkSec,
+          maxPostTransitTime: maxWalkSec,
+        })
 
     const extraQueries: Promise<TripResponse[]>[] = []
 
@@ -4578,12 +4654,13 @@ export class TripService {
     return trip.tripStats.totalDuration + TripService.costPenaltySec(trip)
   }
 
-  /** Money, and the extra fare a street transfer implies, as equivalent seconds. */
+  /** Money, the extra fare a street transfer implies, and likely missed connections, as equivalent seconds. */
   private static costPenaltySec(trip: TripResponse): number {
     const streetTransfers = trip.segments.filter((s) => s.streetTransfer).length
     return (
       (trip.tripStats.totalCost?.value ?? 0) * TripService.VALUE_OF_TIME_SEC_PER_DOLLAR +
-      streetTransfers * TripService.STREET_TRANSFER_PENALTY_SEC
+      streetTransfers * TripService.STREET_TRANSFER_PENALTY_SEC +
+      (TripService.missPenaltySec.get(trip) ?? 0)
     )
   }
 
@@ -4818,7 +4895,7 @@ export class TripService {
       c.trip.segments.length
         ? new Date(c.trip.segments[c.trip.segments.length - 1].endTime).getTime()
         : Infinity,
-    shortest: (c) => c.trip.tripStats.totalDuration,
+    shortest: (c) => c.trip.tripStats.totalDuration + (TripService.missPenaltySec.get(c.trip) ?? 0),
     cheapest: (c) => c.trip.tripStats.totalCost?.value ?? 0,
     greenest: (c) => c.trip.tripStats.totalCo2 ?? 0,
     fewest_transfers: (c) => c.trip.tripStats.totalTransfers ?? 0,

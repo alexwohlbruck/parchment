@@ -22,7 +22,7 @@ defineProps<Props>()
 <template>
   <div class="flex justify-between gap-2 items-center">
     <div class="flex items-center gap-3">
-      <component v-if="icon" :is="icon" class="size-5" />
+      <component v-if="icon" :is="icon" class="size-5 shrink-0" />
       <div :class="{ 'self-start mt-2.5': block }">
         <div class="flex items-center gap-2">
           <H6>{{ title }}</H6>

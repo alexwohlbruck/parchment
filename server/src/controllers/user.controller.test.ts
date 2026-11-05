@@ -595,7 +595,49 @@ describe('preferences', () => {
     const res = await req(app).get('/users/me/preferences')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ language: 'en-US', unitSystem: 'metric' })
+    expect(res.body).toEqual({
+      language: 'en-US',
+      unitSystem: 'metric',
+      navigation: {},
+    })
+  })
+
+  test('passes a navigation patch through', async () => {
+    const navigation = {
+      excludedModes: ['driving'],
+      routing: { general: { ferries: 0 }, mode: { transit: { maxTransfers: 1 } } },
+    }
+    const res = await req(app).put('/users/me/preferences', { body: { navigation } })
+
+    expect(res.status).toBe(200)
+    expect(updateUserPreferences).toHaveBeenCalledWith(TEST_USER.id, { navigation })
+  })
+
+  test('422s on an unknown excluded mode', async () => {
+    const res = await req(app).put('/users/me/preferences', {
+      body: { navigation: { excludedModes: ['walking'] } },
+    })
+
+    expect(res.status).toBe(422)
+    expect(updateUserPreferences).not.toHaveBeenCalled()
+  })
+
+  test('422s on an oversized settings blob', async () => {
+    const speech = Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`k${i}`, i]))
+    const res = await req(app).put('/users/me/preferences', { body: { navigation: { speech } } })
+
+    expect(res.status).toBe(422)
+    expect(updateUserPreferences).not.toHaveBeenCalled()
+  })
+
+  test('strips unknown navigation sections', async () => {
+    await req(app).put('/users/me/preferences', {
+      body: { navigation: { theme: 'dark', sortPreference: null } },
+    })
+
+    expect(updateUserPreferences).toHaveBeenCalledWith(TEST_USER.id, {
+      navigation: { sortPreference: null },
+    })
   })
 
   test('updates only the supplied fields', async () => {

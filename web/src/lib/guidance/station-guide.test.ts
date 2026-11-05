@@ -36,7 +36,7 @@ const trip: GuidedSegment[] = [
   { mode: 'transit', transfer: transfer(changeWalk), exit: access(walk([step('Take exit 2', 20)])) },
   { mode: 'walking' },
 ]
-const waiting = (segmentIndex: number, kind: 'to-stop' | 'wait'): TransitStage => ({ segmentIndex, kind, stop: 'Times Sq', departureMs: 0 })
+const waiting = (segmentIndex: number, kind: 'to-stop' | 'wait', departureMs = 600_000): TransitStage => ({ segmentIndex, kind, stop: 'Times Sq', departureMs })
 
 describe('stationGuideTarget', () => {
   it('guides a change between rides as soon as the rider heads for the next one', () => {
@@ -78,5 +78,12 @@ describe('stepping through a station', () => {
     const held = autoAdvance(state, guide, 600_000)
     expect(held.step).toBe(2)
     expect(guideView(held, guide, 600_000).advancesInMs).toBeNull()
+  })
+
+  it('tightens the slack so the steps are done by the departure, never below the expected pace', () => {
+    const tight = stationGuideTarget(trip, waiting(3, 'wait', 100_000), null)!
+    expect(guideView(startGuide(tight, 0), tight, 0).advancesInMs).toBe(30_000 * (100 / 82))
+    const missed = stationGuideTarget(trip, waiting(3, 'wait', 10_000), null)!
+    expect(guideView(startGuide(missed, 0), missed, 0).advancesInMs).toBe(30_000)
   })
 })

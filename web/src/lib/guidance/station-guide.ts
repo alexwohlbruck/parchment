@@ -11,12 +11,16 @@ export interface StationGuideTarget {
   kind: StationWalkKind
   ride: number
   walk: StationWalk & { steps: GuidanceStep[] }
+  /** When the ride walked to leaves; null leaving the station. */
+  departureMs: number | null
 }
 
 export interface StationGuideState {
   key: string
   step: number
   stepStartedMs: number
+  /** Times its expected time a step is given before moving on. */
+  slack: number
 }
 
 export interface StationGuideView {
@@ -37,8 +41,8 @@ const MIN_STEP_MS = 8000
 const guidable = (walk: StationWalk | null | undefined): walk is StationGuideTarget['walk'] =>
   isWalked(walk) && !!walk.steps?.length
 
-function target(kind: StationWalkKind, ride: number, walk: StationWalk | null | undefined): StationGuideTarget | null {
-  return guidable(walk) ? { key: `${kind}:${ride}`, kind, ride, walk } : null
+function target(kind: StationWalkKind, ride: number, walk: StationWalk | null | undefined, departureMs: number | null = null): StationGuideTarget | null {
+  return guidable(walk) ? { key: `${kind}:${ride}`, kind, ride, walk, departureMs } : null
 }
 
 /** The ride before `index`, when nothing but a walk inside the station lies between. */
@@ -60,19 +64,26 @@ export function stationGuideTarget(
 ): StationGuideTarget | null {
   if (stage?.kind === 'to-stop' || stage?.kind === 'wait') {
     const ride = segments[stage.segmentIndex]
-    if (changesFrom(segments, stage.segmentIndex)) return target('transfer', stage.segmentIndex, ride?.transfer?.walk)
-    return stage.kind === 'wait' ? target('access', stage.segmentIndex, ride?.entrance?.walk) : null
+    if (changesFrom(segments, stage.segmentIndex)) return target('transfer', stage.segmentIndex, ride?.transfer?.walk, stage.departureMs)
+    return stage.kind === 'wait' ? target('access', stage.segmentIndex, ride?.entrance?.walk, stage.departureMs) : null
   }
   if (stage || !current || segments[current.index]?.mode !== 'walking' || current.into >= STREET_RESUME_METERS) return null
   const ride = current.index - 1
   return segments[ride]?.mode === 'transit' ? target('egress', ride, segments[ride].exit?.walk) : null
 }
 
-export function startGuide(guide: StationGuideTarget, nowMs: number): StationGuideState {
-  return { key: guide.key, step: 0, stepStartedMs: nowMs }
+/** Slack that still has the steps done by the departure, for a rider walking at the expected pace. */
+function slackFor(guide: StationGuideTarget, nowMs: number): number {
+  const walkMs = guide.walk.seconds * 1000
+  if (guide.departureMs == null || walkMs <= 0) return AUTO_ADVANCE_SLACK
+  return Math.min(AUTO_ADVANCE_SLACK, Math.max(1, (guide.departureMs - nowMs) / walkMs))
 }
 
-const dueMs = (step: GuidanceStep) => Math.max(MIN_STEP_MS, step.duration * 1000 * AUTO_ADVANCE_SLACK)
+export function startGuide(guide: StationGuideTarget, nowMs: number): StationGuideState {
+  return { key: guide.key, step: 0, stepStartedMs: nowMs, slack: slackFor(guide, nowMs) }
+}
+
+const dueMs = (step: GuidanceStep, slack: number) => Math.max(MIN_STEP_MS, step.duration * 1000 * slack)
 
 /** The next step, or null once the last one is done. */
 export function advanceGuide(state: StationGuideState, guide: StationGuideTarget, nowMs: number): StationGuideState | null {
@@ -83,8 +94,8 @@ export function advanceGuide(state: StationGuideState, guide: StationGuideTarget
 export function autoAdvance(state: StationGuideState, guide: StationGuideTarget, nowMs: number): StationGuideState {
   let next = state
   const last = guide.walk.steps.length - 1
-  while (next.step < last && nowMs - next.stepStartedMs >= dueMs(guide.walk.steps[next.step])) {
-    next = { ...next, step: next.step + 1, stepStartedMs: next.stepStartedMs + dueMs(guide.walk.steps[next.step]) }
+  while (next.step < last && nowMs - next.stepStartedMs >= dueMs(guide.walk.steps[next.step], next.slack)) {
+    next = { ...next, step: next.step + 1, stepStartedMs: next.stepStartedMs + dueMs(guide.walk.steps[next.step], next.slack) }
   }
   return next
 }
@@ -98,6 +109,6 @@ export function guideView(state: StationGuideState, guide: StationGuideTarget, n
     index: state.step,
     total: steps.length,
     next: steps[state.step + 1] ?? null,
-    advancesInMs: last ? null : Math.max(0, state.stepStartedMs + dueMs(step) - nowMs),
+    advancesInMs: last ? null : Math.max(0, state.stepStartedMs + dueMs(step, state.slack) - nowMs),
   }
 }

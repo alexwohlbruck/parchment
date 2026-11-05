@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { AudioLinesIcon, Volume2Icon } from 'lucide-vue-next'
+import { AudioLinesIcon, ChevronRightIcon, Volume2Icon } from 'lucide-vue-next'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useSpeechCatalog } from '@/composables/speech/useSpeechCatalog'
 import { storedLocale, i18n } from '@/lib/i18n'
@@ -9,14 +9,16 @@ import { speak, releaseSpeech, unlockSpeech } from '@/services/speech/speech.ser
 import { SettingsItem } from '@/components/settings'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import VoicePicker from './VoicePicker.vue'
 
 const { speech: preferences } = storeToRefs(useNavigationPreferencesStore())
 const { catalog } = useSpeechCatalog()
 const voices = computed(() => catalog.value?.voices.filter(voice => voice.language.split('-')[0] === storedLocale.value.split('-')[0]) ?? [])
-const voice = computed({
-  get: () => preferences.value.voices[storedLocale.value] || 'automatic',
-  set: (value: string) => { preferences.value.voices = { ...preferences.value.voices, [storedLocale.value]: value === 'automatic' ? '' : value } },
+const voiceName = computed(() => {
+  const id = preferences.value.voices[storedLocale.value]
+  return voices.value.find(voice => voice.id === id)?.name ?? (i18n.global as any).t('guidance.settings.speechAutomatic')
 })
+const pickerOpen = ref(false)
 const rate = computed({ get: () => String(preferences.value.rate), set: (value: string) => { preferences.value.rate = Number(value) } })
 const previewed = ref(false)
 function preview() {
@@ -29,14 +31,12 @@ onBeforeUnmount(() => { if (previewed.value) releaseSpeech() })
 
 <template>
   <SettingsItem :title="$t('guidance.settings.speechVoice')" :description="voices.length ? $t('guidance.settings.speechVoiceDescription') : $t('guidance.settings.speechFallback')" :icon="Volume2Icon">
-    <Select v-if="voices.length" v-model="voice">
-      <SelectTrigger class="w-fit max-w-48"><SelectValue /></SelectTrigger>
-      <SelectContent><SelectGroup>
-        <SelectItem value="automatic">{{ $t('guidance.settings.speechAutomatic') }}</SelectItem>
-        <SelectItem v-for="item in voices" :key="item.id" :value="item.id">{{ item.name }} · {{ item.language }}</SelectItem>
-      </SelectGroup></SelectContent>
-    </Select>
+    <Button v-if="voices.length" variant="outline" class="max-w-48 gap-1.5" @click="unlockSpeech(); pickerOpen = true">
+      <span class="truncate">{{ voiceName }}</span>
+      <ChevronRightIcon class="size-4 shrink-0 opacity-50" />
+    </Button>
   </SettingsItem>
+  <VoicePicker v-model:open="pickerOpen" />
   <SettingsItem :title="$t('guidance.settings.speechRate')" :description="$t('guidance.settings.speechRateDescription')" :icon="AudioLinesIcon">
     <div class="flex items-center gap-2">
       <Select v-model="rate">

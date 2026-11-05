@@ -10,6 +10,8 @@
 
 * Trip results refresh on their own every 20 to 60 seconds while you're planning to leave now, and a refresh button updates them on demand.
 
+* Choose a navigation voice by language, region and gender, and hear each one before you pick it.
+
 * The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
 
 ### Changed

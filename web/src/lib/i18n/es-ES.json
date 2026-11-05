@@ -1392,7 +1392,18 @@
       "autoSwitchDocksDescription": "Si la tuya está llena o sin bicis",
       "speedDisplay": "Indicador de velocidad",
       "speedDisplayDescription": "Se muestra al conducir",
-      "voiceTitle": "Voz"
+      "voiceTitle": "Voz",
+      "voice": {
+        "pickerDescription": "Pasa el cursor o toca una voz para oírla.",
+        "automaticCaption": "La mejor voz para este idioma",
+        "allRegions": "Todas las regiones",
+        "anyGender": "Cualquier voz",
+        "noMatches": "Ninguna voz coincide con estos filtros.",
+        "genders": {
+          "female": "Femenina",
+          "male": "Masculina"
+        }
+      }
     },
     "exitShort": "Terminar",
     "banner": {

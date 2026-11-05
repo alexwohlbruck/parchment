@@ -1416,7 +1416,18 @@
       "autoSwitchDocksDescription": "When yours is full or out of bikes",
       "speedDisplay": "Speed display",
       "speedDisplayDescription": "Shown while driving",
-      "voiceTitle": "Voice"
+      "voiceTitle": "Voice",
+      "voice": {
+        "pickerDescription": "Hover or tap a voice to hear it.",
+        "automaticCaption": "The best voice for this language",
+        "allRegions": "All regions",
+        "anyGender": "Any voice",
+        "noMatches": "No voices match these filters.",
+        "genders": {
+          "female": "Female",
+          "male": "Male"
+        }
+      }
     },
     "exitShort": "End",
     "banner": {

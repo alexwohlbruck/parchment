@@ -18,7 +18,7 @@ const translate = (key: string) => key.split('.').reduce((value: any, part) => v
 let wrapper: ReturnType<typeof mount> | undefined
 beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()); catalog.value = null; vi.clearAllMocks() })
 afterEach(() => wrapper?.unmount())
-const render = () => mount(SpeechSettings, { global: { mocks: { $t: translate } } })
+const render = () => mount(SpeechSettings, { global: { mocks: { $t: translate }, stubs: { VoicePicker: true } } })
 
 describe('speech settings', () => {
   it('explains browser fallback when no server voices are available', () => {
@@ -26,12 +26,12 @@ describe('speech settings', () => {
     expect(wrapper.text()).toContain("browser's voice")
     expect(wrapper.findAll('[role="combobox"]')).toHaveLength(1)
   })
-  it('offers server voices for the app language and previews the selected rate', async () => {
+  it('shows the chosen voice by name and previews the selected rate', async () => {
     catalog.value = { model: 'kokoro:v1.0', voices: [{ id: 'af_heart', name: 'Heart', language: 'en-US' }, { id: 'ef_dora', name: 'Dora', language: 'es' }], rate: { min: .75, max: 1.5, default: 1, native: true }, inflection: false }
     useNavigationPreferencesStore().speech = { rate: 1.25, voices: { 'en-US': 'af_heart' } }
     wrapper = render()
-    expect(wrapper.findAll('[role="combobox"]')).toHaveLength(2)
-    await wrapper.find('button:not([role="combobox"])').trigger('click')
+    expect(wrapper.text()).toContain('Heart')
+    await wrapper.findAll('button').find(b => b.text() === 'Listen')!.trigger('click')
     expect(mocks.unlockSpeech).toHaveBeenCalledOnce()
     expect(mocks.speak).toHaveBeenCalledWith('In 200 feet, turn right, then keep left.', expect.objectContaining({ lang: 'en-US', voice: 'af_heart', rate: 1.25, urgent: true }))
     if (process.env.SPEECH_PREVIEW_HTML) writeFileSync(process.env.SPEECH_PREVIEW_HTML, wrapper.html())

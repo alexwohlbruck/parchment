@@ -75,6 +75,15 @@ import {
 } from '@/lib/guidance/free-roam'
 import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice, type VehiclePreferences } from '@/lib/guidance/vehicle-indicator'
 import type { SpeedDisplay } from '@/lib/guidance/speed-display'
+import {
+  advanceGuide,
+  autoAdvance,
+  startGuide,
+  stationGuideTarget,
+  type StationGuideState,
+  type StationGuideTarget,
+} from '@/lib/guidance/station-guide'
+import type { GuidedSegment } from '@/lib/transit/station/station-walks'
 
 // The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
 const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
@@ -120,7 +129,7 @@ export interface GuidanceProgress extends ProgressSummary {
   turnAround: TurnAround | null
 }
 
-type LegSegment = NavSegmentInput & TransitSegmentInput & {
+type LegSegment = NavSegmentInput & TransitSegmentInput & GuidedSegment & {
   legIndex?: number
   tripId?: string
   routeType?: number
@@ -161,6 +170,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let settledHandoffs = new Set<number>()
   let slowSec = 0
   const transit = shallowRef<TransitStage | null>(null)
+  /** Step-by-step through a station, where GPS can't follow. */
+  const stationGuide = shallowRef<{ target: StationGuideTarget; state: StationGuideState } | null>(null)
+  let finishedGuides = new Set<string>()
   let rides: (RideStop[] | null)[] = []
   /** Transit events already spoken, keyed by segment and event. */
   let spokenTransit = new Set<string>()
@@ -297,11 +309,12 @@ export const useGuidanceStore = defineStore('guidance', () => {
     updateCadence(navRoute, puck, summary.distanceToNext)
     if (status.value === 'away') return
     updateTransit(navRoute, puck)
+    updateStationGuide(navRoute, puck)
     if (puck.snapped) updateHandoff(navRoute, puck)
-    const turnsMuted = transit.value != null && transit.value.kind !== 'to-stop'
+    const turnsMuted = (transit.value != null && transit.value.kind !== 'to-stop') || stationGuide.value != null
     if (puck.snapped && !turnsMuted) for (const announcement of announcer?.update(puck) ?? []) announce(announcement, puck.s)
     if (hasArrived(navRoute, puck, guidanceEngine.diagnostics?.lastFix ?? null, Date.now() / 1000)) arrive()
-    else if (!puck.snapped && transit.value?.kind !== 'missed-stop') void reroute()
+    else if (!puck.snapped && transit.value?.kind !== 'missed-stop' && !stationGuide.value) void reroute()
   }
 
   function updateTurnAround(navRoute: NavRoute, puck: PuckState): TurnAround | null {
@@ -388,6 +401,31 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
     announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop }, puck.s)
     if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
+  }
+
+  function updateStationGuide(navRoute: NavRoute, puck: PuckState) {
+    const span = segmentAt(navRoute, puck.s)
+    const target = stationGuideTarget(segments.value, transit.value, span ? { index: span.index, into: puck.s - span.startDistance } : null)
+    const shown = stationGuide.value
+    if (!target || finishedGuides.has(target.key)) {
+      if (shown) stationGuide.value = null
+      return
+    }
+    const nowMs = guidanceClock.now()
+    const state = shown?.target.key === target.key ? autoAdvance(shown.state, target, nowMs) : startGuide(target, nowMs)
+    if (state !== shown?.state) stationGuide.value = { target, state }
+  }
+
+  /** The rider has done the station step shown. */
+  function nextStationStep() {
+    const shown = stationGuide.value
+    if (!shown) return
+    const state = advanceGuide(shown.state, shown.target, guidanceClock.now())
+    if (state) stationGuide.value = { ...shown, state }
+    else {
+      finishedGuides.add(shown.target.key)
+      stationGuide.value = null
+    }
   }
 
   /** Aboard and out of sight, the ride estimate stands in for the puck. */
@@ -739,6 +777,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     slowSec = 0
     transit.value = null
     spokenTransit = new Set()
+    stationGuide.value = null
+    finishedGuides = new Set()
     furthestS = 0
     leaveRide()
     turnAroundWatch = new TurnAroundWatch()
@@ -859,6 +899,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     settleHandoff,
     segments,
     transit,
+    stationGuide,
+    nextStationStep,
     rideEstimate,
     rebooking,
     catchNextRun,

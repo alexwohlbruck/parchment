@@ -13,6 +13,7 @@ import { useRoutePreviewStore } from '@/stores/route-preview.store'
 import { Button } from '@/components/ui/button'
 import ManeuverBanner from './ManeuverBanner.vue'
 import TransitStageCard from './transit/TransitStageCard.vue'
+import StationStepCard from './transit/StationStepCard.vue'
 import TransitApproach from './transit/TransitApproach.vue'
 import MissedRecovery from './transit/MissedRecovery.vue'
 import { useGuidanceContext } from './context'
@@ -77,6 +78,15 @@ function previewRoute() {
 
 <template>
   <div class="nav-card overflow-hidden">
+    <StationStepCard
+      v-if="guidance.stationGuide"
+      class="p-5"
+      :class="stage && 'border-b'"
+      :target="guidance.stationGuide.target"
+      :state="guidance.stationGuide.state"
+      :now-ms="guidance.clockMs"
+      @next="guidance.nextStationStep"
+    />
     <TransitStageCard
       v-if="stage"
       class="p-5"
@@ -90,7 +100,7 @@ function previewRoute() {
       @next-run="catchNextRun"
       @another-way="findAnotherWay"
     />
-    <template v-else>
+    <template v-else-if="!guidance.stationGuide">
       <ManeuverBanner
         :progress="guidance.progress"
         :status="guidance.status"
@@ -101,20 +111,20 @@ function previewRoute() {
         :cue="cue"
         :dash="dash"
       />
-      <TransitApproach
-        v-if="approach"
-        class="border-t px-5 py-3"
-        :departure-ms="approach.stage.departureMs"
-        :segment="guidance.segments[approach.stage.segmentIndex]"
-        :now-ms="guidance.clockMs"
-        :walk-sec="approach.walkSec"
-      />
       <div v-if="guidance.status === 'away'" class="px-5 pb-4">
         <Button variant="secondary" class="h-12 rounded-full px-5" @click="previewRoute">
           {{ t('guidance.preview.previewRoute') }}
         </Button>
       </div>
     </template>
+    <TransitApproach
+      v-if="approach"
+      class="border-t px-5 py-3"
+      :departure-ms="approach.stage.departureMs"
+      :segment="guidance.segments[approach.stage.segmentIndex]"
+      :now-ms="guidance.clockMs"
+      :walk-sec="approach.walkSec"
+    />
     <MissedRecovery
       v-if="recovery.view.value"
       class="border-t px-5 py-3"

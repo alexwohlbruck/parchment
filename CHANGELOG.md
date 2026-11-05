@@ -3,6 +3,11 @@
 ### Added
 
 * Subway trips and departure boards name directions as the platform signs do, like "Uptown & The Bronx", and entrances by their street corner. Exit-only entrances are never used to enter.
+* Trip details show how each transfer is made, like "In-station · 1 min 22 s" or "Exit and re-enter", with the walk inside the station as expandable steps.
+* Subway walks use the entrance and exit that make the whole trip shortest, measured through the station.
+* Transit legs suggest where to board, like "Board toward the back · saves 2 min".
+* Walks inside stations are drawn dashed on the trip map and fade off other floors when an indoor floor is picked.
+* Underground, navigation switches to station steps you advance yourself, and returns to GPS guidance once you're back on the street.
 
 ### Changed
 

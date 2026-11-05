@@ -192,6 +192,18 @@ describe('GuidanceEngine when the GPS signal degrades', () => {
     expect(engine.sample(40)!.s).toBeGreaterThan(900)
   })
 
+  test('a relocation moves the puck at once, held or not, and later fixes carry on from there', () => {
+    const route = walkingRoute()
+    const engine = new GuidanceEngine(route)
+    walkTo(engine, route, 30)
+    engine.hold(20)
+    engine.relocate(600, 31)
+    expect(engine.holding).toBe(false)
+    expect(engine.sample(31)!.s).toBeCloseTo(600, 0)
+    for (let t = 32; t <= 40; t++) engine.pushFix({ t, position: pointAt(route, 600 + WALK * (t - 31)), accuracy: 8, speed: WALK, heading: null })
+    expect(Math.abs(engine.sample(40)!.s - (600 + WALK * 9))).toBeLessThan(10)
+  })
+
   test('marks the puck estimated while lost, with uncertainty that grows', () => {
     const route = buildNavRoute([cityDrive()])
     const engine = new GuidanceEngine(route)

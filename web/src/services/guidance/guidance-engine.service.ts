@@ -57,6 +57,11 @@ export const guidanceEngine = {
     return engine?.holding ?? false
   },
 
+  relocate(s: number): void {
+    engine?.relocate(s, nowSec())
+    lastSample = null
+  },
+
   /**
    * Whether the frame at `nowMs` should render. The puck and the camera both
    * ask, so on calm stretches they drop the same frames and never drift apart.

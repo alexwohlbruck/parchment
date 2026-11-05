@@ -40,7 +40,8 @@ import {
   type TransitSegmentInput,
   type TransitStage,
 } from '@/lib/guidance/transit-progress'
-import { estimatedPuck, RideEstimator, rideFix, type RideEstimate } from '@/lib/guidance/ride-estimator'
+import { estimatedPuck, estimatedStage, RideEstimator, rideFix, VEHICLE_ACCURACY, type RideEstimate } from '@/lib/guidance/ride-estimator'
+import { AlightWatch, offLineNear } from '@/lib/guidance/alight-watch'
 import { applyDepartureChange, cascadeAfter, type RebookableSegment } from '@/lib/directions/trip-rebooking'
 import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { earliestItinerary } from '@/lib/guidance/better-itinerary'
@@ -181,6 +182,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   /** Where on the ride the rider is reckoned to be, for when fixes can't say. */
   const rideEstimate = shallowRef<RideEstimate | null>(null)
   let ride: { segment: number; estimator: RideEstimator } | null = null
+  const alightWatch = new AlightWatch()
+  /** The ridden vehicle's latest realtime position, by segment. */
+  let rideVehicle: { segment: number; position: LngLat; t: number } | null = null
   const rebooking = ref(false)
   /** Lanes for each step whose approach has tagged or painted arrows; per route. */
   const lanePlans = shallowRef(new Map<number, LanePlan>())
@@ -442,14 +446,44 @@ export const useGuidanceStore = defineStore('guidance', () => {
     }
     const diagnostics = guidanceEngine.diagnostics
     const raw = diagnostics?.rawFix
-    const estimate = ride.estimator.update({
-      now: nowMs,
-      fix: raw ? rideFix(navRoute, navRoute.segments[index], raw, nowMs - Date.now()) : null,
-      still: diagnostics?.sensorStill ?? null,
-    })
+    const clockOffset = nowMs - Date.now()
+    const span = navRoute.segments[index]
+    const fix = raw ? rideFix(navRoute, span, raw, clockOffset) : null
+    const vehicle = rideVehicle?.segment === index
+      ? rideFix(navRoute, span, { t: rideVehicle.t / 1000, position: rideVehicle.position, accuracy: VEHICLE_ACCURACY, speed: null, heading: null }, 0)
+      : null
+    const estimate = ride.estimator.update({ now: nowMs, fix, vehicle, still: diagnostics?.sensorStill ?? null })
     rideEstimate.value = estimate
     guidanceEngine.hold(estimate.fresh ? null : estimate.shownS)
-    return estimate.fresh ? stage : transitStage(navRoute, segments.value, rides, estimatedPuck(puck, estimate), nowMs)
+    const judged = estimatedStage(
+      estimate.fresh ? stage : transitStage(navRoute, segments.value, rides, estimatedPuck(puck, estimate), nowMs),
+      estimate,
+    )
+    const off = alightWatch.update({
+      nowMs,
+      alighting: judged?.kind === 'riding' && judged.alighting,
+      offLine: offLineNear(fix, raw?.speed ?? null, stops.at(-1)!.s, nowMs),
+      walking: diagnostics?.cadence != null,
+    })
+    if (!off) return judged
+    alight(index)
+    return transitStage(navRoute, segments.value, rides, { ...puck, s: furthestS }, nowMs)
+  }
+
+  /** The rider is off ride `index`: guidance moves on to what follows it. */
+  function alight(index: number) {
+    const navRoute = route.value
+    const next = navRoute?.segments[index + 1]
+    if (!navRoute || !next || segments.value[index]?.mode !== 'transit') return
+    furthestS = Math.max(furthestS, next.startDistance)
+    leaveRide()
+    guidanceEngine.relocate(furthestS)
+    if (transit.value?.segmentIndex === index) transit.value = null
+  }
+
+  /** The ridden vehicle was seen at `position` at `t` (epoch ms). */
+  function observeRideVehicle(segment: number, position: LngLat, t: number) {
+    rideVehicle = { segment, position, t }
   }
 
   /** The ride the traveller is on: riding, or gone with a vehicle that left while they were out of sight. */
@@ -469,6 +503,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   function leaveRide() {
+    alightWatch.reset()
     if (!ride) return
     ride = null
     rideEstimate.value = null
@@ -902,6 +937,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     stationGuide,
     nextStationStep,
     rideEstimate,
+    alight,
+    observeRideVehicle,
     rebooking,
     catchNextRun,
     retargetRide,

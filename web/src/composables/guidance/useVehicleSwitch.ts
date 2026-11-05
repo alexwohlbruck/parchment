@@ -100,9 +100,11 @@ export function useVehicleSwitch() {
       current = watchFor(stage.segmentIndex)
     }
     const watched = current
-    if (!watched || watched.done) return
+    if (!watched) return
     const nowMs = guidanceClock.now()
     const riding = stage.kind === 'riding'
+    if (riding) followVehicle(watched)
+    if (watched.done) return
     // An estimated puck follows the plan's timetable, so it says nothing about which run this is.
     const estimated = guidance.rideEstimate != null && !guidance.rideEstimate.fresh
     if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
@@ -129,6 +131,14 @@ export function useVehicleSwitch() {
     const next = { segmentIndex: watched.segmentIndex, options: verdict.options, routeType: best.routeType ?? guidance.segments[watched.segmentIndex]?.routeType }
     if (ids(asked) !== ids(next)) question.value = next
     if (!asked) guidance.askWhichVehicle(watched.segmentIndex)
+  }
+
+  /** Keeps the ride estimate told where the rider's own run is, for as long as the feed places it. */
+  function followVehicle(watched: Watch) {
+    if (watched.done && Date.now() - watched.fetchedAt > RIDING_REFRESH_MS && !watched.fetching) void refresh(watched)
+    const tripId = guidance.segments[watched.segmentIndex]?.tripId
+    const position = watched.set?.candidates.find(c => c.tripId === tripId)?.position
+    if (position) guidance.observeRideVehicle(watched.segmentIndex, position, position.atMs)
   }
 
   /** The rider's answer; null is "none of these", which keeps the current guess. */

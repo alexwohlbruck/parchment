@@ -55,6 +55,8 @@ export type TransitStage = StageBase &
         alight: string
         arrivalMs: number | null
         remaining: number
+        /** At or pulling into the alighting stop: get off now. */
+        alighting: boolean
       }
     | { kind: 'missed-stop'; alight: string }
   )
@@ -112,7 +114,9 @@ export function transitStage(
     const boarded = puck.s > board.s + BOARDED_METERS
     if (!boarded) return waiting(span.index, segment, puck.s >= span.startDistance - AT_STOP_METERS, nowMs)
     const passed = stops.filter(stop => stop.s <= puck.s + STOP_PASSED_METERS).length
-    if (!puck.snapped && alight.s - puck.s < MISSED_STOP_SEARCH) return { segmentIndex: span.index, kind: 'missed-stop', alight: alight.name }
+    const remaining = Math.max(0, alight.s - puck.s)
+    const offAtStop = remaining < ALIGHT_NOW_METERS && puck.speed < VEHICLE_SPEED
+    if (!puck.snapped && remaining < MISSED_STOP_SEARCH && !offAtStop) return { segmentIndex: span.index, kind: 'missed-stop', alight: alight.name }
     return {
       segmentIndex: span.index,
       kind: 'riding',
@@ -121,7 +125,8 @@ export function transitStage(
       nextStop: stops[Math.min(passed, stops.length - 1)].name,
       alight: alight.name,
       arrivalMs: alight.timeMs,
-      remaining: Math.max(0, alight.s - puck.s),
+      remaining,
+      alighting: remaining < ALIGHT_NOW_METERS,
     }
   }
 
@@ -155,11 +160,18 @@ export function stageEvent(stage: TransitStage): TransitEvent | null {
     case 'missed-stop':
       return stage.kind
     case 'riding':
-      if (stage.remaining < ALIGHT_NOW_METERS) return 'alight-now'
+      if (stage.alighting) return 'alight-now'
       return stage.stopsLeft === 1 ? 'alight-next' : null
     default:
       return null
   }
+}
+
+/** Whole minutes until `arrivalMs`, rounded up; null once it is under half a minute away or unknown. */
+export function minutesUntil(arrivalMs: number | null, nowMs: number): number | null {
+  if (arrivalMs == null) return null
+  const sec = (arrivalMs - nowMs) / 1000
+  return sec < 30 ? null : Math.ceil(sec / 60)
 }
 
 /**

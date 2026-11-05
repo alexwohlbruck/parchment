@@ -63,7 +63,7 @@ const DEFAULT_MODE: Record<ModeKey, Partial<RoutingPreferences>> = {
   },
 }
 
-const MODE_KEYS = Object.keys(DEFAULT_MODE) as ModeKey[]
+export const ROUTING_MODES: readonly ModeKey[] = ['walking', 'biking', 'transit', 'driving']
 
 const isObject = (value: unknown): value is Record<string, any> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -71,7 +71,7 @@ const isObject = (value: unknown): value is Record<string, any> =>
 export function defaultRoutingPreferences(): RoutingPreferenceSlices {
   return {
     general: { ...DEFAULT_GENERAL },
-    mode: Object.fromEntries(MODE_KEYS.map(k => [k, { ...DEFAULT_MODE[k] }])) as RoutingPreferenceSlices['mode'],
+    mode: Object.fromEntries(ROUTING_MODES.map(k => [k, { ...DEFAULT_MODE[k] }])) as RoutingPreferenceSlices['mode'],
   }
 }
 
@@ -86,13 +86,13 @@ export function parseRoutingPreferences(stored: unknown): RoutingPreferenceSlice
 
   if (isObject(stored.general) && isObject(stored.mode)) {
     Object.assign(result.general, stored.general)
-    for (const k of MODE_KEYS) Object.assign(result.mode[k], isObject(stored.mode[k]) ? stored.mode[k] : {})
+    for (const k of ROUTING_MODES) Object.assign(result.mode[k], isObject(stored.mode[k]) ? stored.mode[k] : {})
     return result
   }
 
   for (const [key, value] of Object.entries(stored)) {
     if (GENERAL_KEY_SET.has(key)) (result.general as any)[key] = value
-    else for (const k of MODE_KEYS) (result.mode[k] as any)[key] = value
+    else for (const k of ROUTING_MODES) (result.mode[k] as any)[key] = value
   }
   return result
 }

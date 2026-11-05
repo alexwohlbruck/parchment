@@ -75,6 +75,21 @@ describe('useTripListAdvice', () => {
     wrapper.unmount()
   })
 
+  it('re-plans a missed run instead of showing it, at most every two minutes', async () => {
+    const { advice, list, wrapper } = mountAdvice([transitTrip(60)])
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    expect(advice().transit.line).toBeNull()
+    expect(replan).toHaveBeenCalledTimes(1)
+
+    list.value = [transitTrip(60)]
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(replan).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(replan).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('stops ticking once unmounted', async () => {
     const { wrapper } = mountAdvice([transitTrip(1)])
     wrapper.unmount()

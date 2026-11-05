@@ -14,6 +14,7 @@ import {
   isFuturePlan,
   tightText,
   tripAdvice,
+  type AdviceKind,
 } from '@/lib/directions/trip-advice'
 import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
@@ -24,6 +25,7 @@ export interface AdviceLine {
 }
 
 export interface TripAdviceLines {
+  kind: AdviceKind | null
   line: AdviceLine | null
   tight: string | null
   sched: string | null
@@ -35,6 +37,8 @@ export interface TripCardAdvice {
 }
 
 const ADVICE_TICK_MS = 15_000
+/** A result that is already missed when it lands must not re-plan in a loop. */
+const MIN_REPLAN_GAP_MS = 120_000
 
 /** A trip's advice as display lines, under the rider's buffer and depart-at time. */
 export function useTripAdvice() {
@@ -51,6 +55,7 @@ export function useTripAdvice() {
     })
     if (!advice) return null
     return {
+      kind: advice.state?.kind ?? null,
       line: advice.state
         ? { text: adviceText(advice.state, t, leg?.line), tone: adviceTone(advice.state.kind) }
         : null,
@@ -63,8 +68,9 @@ export function useTripAdvice() {
 }
 
 /**
- * Card advice for a result list, by trip id, recomputed on a light clock. Once
- * the clock passes the shown profiles, the search is re-planned once, quietly.
+ * Card advice for a result list, by trip id, recomputed on a light clock. A
+ * card draws its planned run, so once that run is missed or the profiles run
+ * out, the search is re-planned quietly instead of describing a trip that is gone.
  */
 export function useTripListAdvice(trips: () => TripOption[]) {
   const { adviceFor } = useTripAdvice()
@@ -72,15 +78,20 @@ export function useTripListAdvice(trips: () => TripOption[]) {
   const directionsService = useDirectionsService()
   const now = useTransitClock(ADVICE_TICK_MS)
 
-  const advice = computed(() => {
+  const lines = computed(() => {
     const nowMs = now.value.getTime()
+    return new Map(trips().map(trip => [trip.id, adviceFor(trip, nowMs)]))
+  })
+
+  const advice = computed(() => {
     const list = trips()
     const best = byRank(list)[0]
-    const cross = crossover(list, nowMs)
+    const cross = crossover(list, now.value.getTime())
     const out: Record<string, TripCardAdvice> = {}
     for (const trip of list) {
+      const tripLines = lines.value.get(trip.id)
       out[trip.id] = {
-        line: adviceFor(trip, nowMs)?.line ?? null,
+        line: tripLines?.kind === 'missed' ? null : (tripLines?.line ?? null),
         crossover: cross && trip === best ? crossoverText(cross, t) : null,
       }
     }
@@ -88,11 +99,17 @@ export function useTripListAdvice(trips: () => TripOption[]) {
   })
 
   let replannedFor: TripOption[] | null = null
+  let replannedAtMs = -Infinity
   watch(now, current => {
     const list = trips()
+    const nowMs = current.getTime()
     const until = adviceValidUntil(list)
-    if (until == null || current.getTime() < until || replannedFor === list) return
+    const expired = until != null && nowMs >= until
+    const missed = [...lines.value.values()].some(l => l?.kind === 'missed')
+    if (!(expired || missed) || replannedFor === list) return
+    if (nowMs - replannedAtMs < MIN_REPLAN_GAP_MS) return
     replannedFor = list
+    replannedAtMs = nowMs
     void directionsService.replan()
   })
 

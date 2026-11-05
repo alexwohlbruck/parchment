@@ -24,7 +24,7 @@ import {
   useRoutingPreferenceControls,
   type PreferenceLayout,
 } from '@/composables/directions/useRoutingPreferenceControls'
-import { DEFAULT_TRANSIT_BUFFER_MINUTES, type ModeKey } from '@/lib/preferences/navigation-preferences'
+import { DEFAULT_TRANSIT_BUFFER_MINUTES, DEFAULT_WALKING_SPEED_KPH, type ModeKey } from '@/lib/preferences/navigation-preferences'
 import PreferenceField from './PreferenceField.vue'
 import PreferenceRow from './PreferenceRow.vue'
 import PreferenceToggle from './PreferenceToggle.vue'
@@ -56,7 +56,7 @@ const cyclingSpeed = computed({
 
 const walkingSpeed = computed({
   get: () => {
-    const kph = preferences.value.walkingSpeed ?? 5.1
+    const kph = preferences.value.walkingSpeed ?? DEFAULT_WALKING_SPEED_KPH
     return isMetric.value ? kph : Math.round(kph * KPH_TO_MPH * 10) / 10
   },
   set: (value: number) =>

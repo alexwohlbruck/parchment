@@ -753,7 +753,8 @@
         "missed": "Missed",
         "sched": "Sched",
         "cancelled": "Cancelled",
-        "tooFar": "Too far"
+        "tooFar": "Too far",
+        "run": "Run"
       },
       "long": {
         "leave": "Leave now · next is {minutes} min later",
@@ -768,13 +769,17 @@
         "sched": "No live times",
         "crossover": "{mode} is faster after {time}",
         "tooFar": "Too far to make it · next is the {time}",
-        "tooFarLine": "Too far to make it · next is the {line} at {time}"
+        "tooFarLine": "Too far to make it · next is the {line} at {time}",
+        "run": "Run · {minutes} min to the {time}",
+        "runLine": "Run · {minutes} min to the {line} at {time}"
       },
       "detail": {
         "hurry": "{minutes} min to the {time}",
         "hurryLine": "{minutes} min to the {line} at {time}",
         "leave": "Next is {minutes} min later",
-        "missed": "Finding the next one"
+        "missed": "Finding the next one",
+        "run": "{minutes} min to the {time}",
+        "runLine": "{minutes} min to the {line} at {time}"
       },
       "modes": {
         "cycling": "Bike",

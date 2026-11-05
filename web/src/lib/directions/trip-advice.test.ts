@@ -12,6 +12,7 @@ import {
   isFuturePlan,
   tightText,
   tripAdvice,
+  walksToFirstStop,
   type AdviceTrip,
 } from './trip-advice'
 import { formatClockCompact } from './trip-display'
@@ -217,5 +218,25 @@ describe('cardHint', () => {
       words: [],
       text: `Leave by ${clock(10)}`,
     })
+  })
+})
+
+describe('run', () => {
+  // Leave the door at 10, board at 15: a 5 min walk.
+  test('says run when a jog still makes a run that walking misses', () => {
+    const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
+    expect(advice?.state).toEqual({ kind: 'run', leadMin: 4, departAtMs: now(15) })
+  })
+
+  test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {
+    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(11))?.state?.kind).toBe('missed')
+    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(13), { runFactor: 1.8 })?.state?.kind).toBe('missed')
+    expect(tripAdvice(profile([run(10, 40), run(12, 42)]), now(11), { runFactor: 1.8 })?.state?.kind).not.toBe('run')
+  })
+
+  test('only a trip that reaches its first stop on foot can be run for', () => {
+    expect(walksToFirstStop([{ mode: 'walking' }, { mode: 'transit' }])).toBe(true)
+    expect(walksToFirstStop([{ mode: 'biking' }, { mode: 'transit' }])).toBe(false)
+    expect(walksToFirstStop([{ mode: 'transit' }])).toBe(false)
   })
 })

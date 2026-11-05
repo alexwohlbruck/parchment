@@ -20,12 +20,16 @@ const SAME_ARRIVAL_SEC = 60
 const FUTURE_PLAN_MIN = 20
 /** How much sooner another mode must arrive to be called faster. */
 const CROSSOVER_MARGIN_SEC = 60
+/** A run worth running for: the next one arrives at least this much later. */
+const RUN_WORTH_MIN = 4
 /** A run departing this close to the trip's boarding time is that run. */
 const RUN_MATCH_SEC = 60
 
 export type AdviceState =
   | { kind: 'leave'; nextLaterMin: number }
   | { kind: 'hurry'; leadMin: number; departAtMs: number }
+  /** Too late at a walk, but a jog makes it. */
+  | { kind: 'run'; leadMin: number; departAtMs: number }
   | { kind: 'relax'; leaveByMs: number }
   | { kind: 'by'; leaveByMs: number }
   /** `left`: the planned run has gone; otherwise it is still coming but out of reach. */
@@ -50,6 +54,8 @@ export interface AdviceOptions {
   future?: boolean
   /** When the trip boards its first transit leg; re-finds the planned run after a rebooking. */
   boardsAtMs?: number
+  /** How much faster than walking the rider can run to the first stop; omit when they can't. */
+  runFactor?: number | null
 }
 
 const ms = (iso: string) => Date.parse(iso)
@@ -109,6 +115,18 @@ function deadlineState(
   return missCostMin >= RELAX_MISS_COST_MIN ? { kind: 'relax', leaveByMs } : null
 }
 
+/** The target run, when walking is too slow for it but a jog is not and the next run is well behind. */
+function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor: number): AdviceState | null {
+  const run = runs[target]
+  const departAtMs = ms(run.departAt)
+  const leadMs = departAtMs - nowMs
+  const walkMs = departAtMs - ms(run.leaveBy)
+  if (ms(run.leaveBy) >= nowMs || leadMs <= 0 || leadMs * runFactor < walkMs) return null
+  const next = runs[target + 1]
+  if (next && minutes(ms(next.arriveAt) - ms(run.arriveAt)) < RUN_WORTH_MIN) return null
+  return { kind: 'run', leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs }
+}
+
 /**
  * The current run is the planned one, or the next still catchable. The headline
  * reads against the latest run with the planned arrival, so a later train that
@@ -123,11 +141,16 @@ export function tripAdvice(
   if (!profile || !runs.length) return null
 
   const planned = plannedIndex(profile, options.boardsAtMs)
+  const target = lastSameArrival(runs, planned)
+  if (options.runFactor && !options.future) {
+    const run = runState(runs, target, nowMs, options.runFactor)
+    if (run) return { state: run, tight: tightTransfer(runs[target]), live: runs[target].live }
+  }
+
   const current = runs.findIndex((r, i) => i >= planned && ms(r.leaveBy) >= nowMs)
   if (current < 0) return null
 
   const run = runs[current]
-  const target = lastSameArrival(runs, planned)
   const state: AdviceState | null =
     current > target
       ? { kind: 'missed', departAtMs: ms(run.departAt), left: ms(runs[target].departAt) <= nowMs }
@@ -198,6 +221,12 @@ export interface BoardingLeg {
   line?: string
 }
 
+/** The trip reaches its first stop on foot, so running would actually get there sooner. */
+export function walksToFirstStop(segments: readonly { mode: string }[]): boolean {
+  const first = segments.findIndex(s => s.mode === 'transit')
+  return first > 0 && segments.slice(0, first).every(s => s.mode === 'walking')
+}
+
 export function boardingLeg(
   segments: readonly { mode: string; startTime: Date | string; lineName?: string; routeOptions?: unknown[] }[],
 ): BoardingLeg | null {
@@ -220,7 +249,8 @@ export function adviceText(state: AdviceState, t: TFn, line?: string): string {
     case 'leave':
       return t(key('leave'), { minutes: state.nextLaterMin })
     case 'hurry':
-      return t(key(line ? 'hurryLine' : 'hurry'), { minutes: state.leadMin, time: clock(state.departAtMs), line })
+    case 'run':
+      return t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line })
     case 'relax':
     case 'by':
       return t(key(state.kind), { time: clock(state.leaveByMs) })
@@ -264,7 +294,8 @@ function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
   const key = (k: string) => `directions.advice.detail.${k}`
   switch (state.kind) {
     case 'hurry':
-      return t(key(line ? 'hurryLine' : 'hurry'), { minutes: state.leadMin, time: clock(state.departAtMs), line })
+    case 'run':
+      return t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line })
     case 'leave':
       return t(key('leave'), { minutes: state.nextLaterMin })
     case 'missed':
@@ -281,7 +312,7 @@ export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | 
   if (state && state.kind !== 'relax' && state.kind !== 'by') {
     words.push({
       word: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
-      tone: state.kind === 'missed' ? CHIP_TONES.missed : CHIP_TONES.urgent,
+      tone: state.kind === 'missed' || state.kind === 'run' ? CHIP_TONES.missed : CHIP_TONES.urgent,
     })
   }
   if (tight && state?.kind !== 'missed') {
@@ -294,6 +325,7 @@ export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | 
 const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {
   hurry: 'text-amber-600 dark:text-amber-400',
   leave: 'text-amber-600 dark:text-amber-400',
+  run: 'text-orange-600 dark:text-orange-400',
   missed: 'text-orange-600 dark:text-orange-400',
 }
 

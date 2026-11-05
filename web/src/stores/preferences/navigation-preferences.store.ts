@@ -9,6 +9,7 @@ import {
   mergeGuidancePreferences,
   mergeSpeechPreferences,
   parseRoutingPreferences,
+  runPaceFactor,
   unsavedSections,
   withModeEnabled,
   type ModeKey,
@@ -48,6 +49,8 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   const transitBufferMinutes = computed(
     () => routing.value.mode.transit.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES,
   )
+
+  const runPace = computed(() => runPaceFactor(routing.value))
 
   const isModeEnabled = (token: TripModeToken) => !excludedModes.value.includes(token)
 
@@ -123,6 +126,7 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
     speech,
     guidance,
     transitBufferMinutes,
+    runPace,
     isModeEnabled,
     setModeEnabled,
     setGeneralPreference,

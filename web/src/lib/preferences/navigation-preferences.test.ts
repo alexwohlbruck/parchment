@@ -3,6 +3,8 @@ import {
   defaultRoutingPreferences,
   mergeGuidancePreferences,
   parseRoutingPreferences,
+  RUN_PACE_FACTOR,
+  runPaceFactor,
   unsavedSections,
   withModeEnabled,
 } from './navigation-preferences'
@@ -61,5 +63,21 @@ describe('mergeGuidancePreferences', () => {
     const prefs = mergeGuidancePreferences({ cameraMode: 'north-up' })
     expect(prefs.cameraMode).toBe('north-up')
     expect(prefs.adaptiveSpeech).toBe(true)
+  })
+})
+
+describe('runPaceFactor', () => {
+  it('lets a rider at a normal walking pace run', () => {
+    expect(runPaceFactor(defaultRoutingPreferences())).toBe(RUN_PACE_FACTOR)
+  })
+
+  it('never asks a wheelchair user or a slow walker to run', () => {
+    const wheelchair = defaultRoutingPreferences()
+    wheelchair.mode.transit.wheelchairAccessible = true
+    expect(runPaceFactor(wheelchair)).toBeNull()
+
+    const slow = defaultRoutingPreferences()
+    slow.mode.walking.walkingSpeed = 3.5
+    expect(runPaceFactor(slow)).toBeNull()
   })
 })

@@ -171,3 +171,15 @@ describe('approachReach', () => {
     expect(approachReach(NOW + 5 * MIN, NOW, 90)).toBe('ok')
   })
 })
+
+describe('departureReachability with running', () => {
+  it('reads a run as catchable at a jog only when one is allowed', () => {
+    // 5 min walk, 4 min left: too late walking, fine at 1.8x.
+    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, 1.8)).toBe('run')
+    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+  })
+
+  it('still reads a run out of reach even at a jog', () => {
+    expect(departureReachability(NOW + 2 * MIN, NOW, 300, 0, 1.8)).toBe('unreachable')
+  })
+})

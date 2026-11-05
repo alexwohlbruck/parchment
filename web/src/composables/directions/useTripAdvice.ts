@@ -16,6 +16,7 @@ import {
   isFuturePlan,
   tightText,
   tripAdvice,
+  walksToFirstStop,
   type AdviceKind,
   type CardHint,
 } from '@/lib/directions/trip-advice'
@@ -44,7 +45,7 @@ const RESCAN_URGENT_MS = 20_000
 const RESCAN_CALM_MS = 60_000
 /** A missed trip re-plans straight away, but never more often than this. */
 const MISSED_REPLAN_GAP_MS = 10_000
-const URGENT_KINDS: ReadonlySet<AdviceKind> = new Set(['hurry', 'leave', 'missed'])
+const URGENT_KINDS: ReadonlySet<AdviceKind> = new Set(['hurry', 'run', 'leave', 'missed'])
 
 /** A trip's advice as display lines, under the rider's buffer and depart-at time. */
 export function useTripAdvice() {
@@ -58,6 +59,7 @@ export function useTripAdvice() {
       transitBufferMinutes: navigationPreferences.transitBufferMinutes,
       future: isFuturePlan(store.departureTime, nowMs),
       boardsAtMs: leg?.departMs,
+      runFactor: walksToFirstStop(trip.segments) ? navigationPreferences.runPace : null,
     })
     return advice && { advice, line: leg?.line }
   }

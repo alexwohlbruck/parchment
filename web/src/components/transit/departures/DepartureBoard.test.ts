@@ -55,6 +55,11 @@ describe('status wording', () => {
     expect(footnote(w, 1).text()).toBe('Too far')
   })
 
+  it('labels a run you can still make at a jog "Run"', () => {
+    const w = mountBoard([card({ run: true })])
+    expect(footnote(w).text()).toBe('Run')
+  })
+
   it('shows only the worst news — cancelled outranks the rest', () => {
     const w = mountBoard([card({ cancelled: true, unreachable: true, hurry: true })])
     expect(footnote(w).text()).toBe('Cancelled')

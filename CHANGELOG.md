@@ -2,7 +2,7 @@
 
 ### Added
 
-* Transit trips say when to leave: hurry, leave now, or the latest time that still gets you there as planned. They also flag tight transfers and when biking becomes faster, and a trip you've missed is replaced by the next one.
+* Transit trips say when to leave: hurry, run, leave now, or the latest time that still gets you there as planned. They also flag tight transfers and when biking becomes faster, and a trip you've missed is replaced by the next one.
 
 * A new Navigation settings tab gathers the modes you use, your default trip ranking, routing preferences, vehicles and voice guidance. These settings now follow your account across devices.
 

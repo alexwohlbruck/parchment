@@ -29,6 +29,7 @@ export interface BoardCard {
     planned?: boolean
     departed?: boolean
     unreachable?: boolean
+    run?: boolean
     hurry?: boolean
     cancelled?: boolean
     live?: boolean
@@ -102,6 +103,7 @@ function status(card: Card): { word: string | null; tone: string } {
   if (card.cancelled) return { word: t('directions.advice.short.cancelled'), tone: 'text-red-600 dark:text-red-400' }
   if (card.departed) return { word: null, tone: 'text-muted-foreground/70' }
   if (card.unreachable) return { word: t('directions.advice.short.tooFar'), tone: adviceTone('missed') }
+  if (card.run) return { word: t('directions.advice.short.run'), tone: adviceTone('run') }
   if (card.hurry) return { word: t('directions.advice.short.hurry'), tone: adviceTone('hurry') }
   if (card.arriving) return { word: null, tone: 'text-parchment-600 dark:text-parchment-400' }
   return { word: null, tone: '' }

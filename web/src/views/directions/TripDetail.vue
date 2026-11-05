@@ -562,12 +562,21 @@ const graceSec = computed(
   () => navigationPreferences.transitBufferMinutes * 60,
 )
 
+/** A fix this coarse can't tell a jog that makes it from one that doesn't. */
+const RUN_MAX_ACCURACY_M = 100
+
+const runFactor = computed(() => {
+  const accuracy = geo.accuracy.value
+  return accuracy != null && accuracy > RUN_MAX_ACCURACY_M ? null : navigationPreferences.runPace
+})
+
 function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {
   return departureReachability(
     dep.ms,
     nowMs.value,
     remainingWalkSec(segmentIndex),
     graceSec.value,
+    runFactor.value,
   )
 }
 
@@ -591,6 +600,7 @@ interface DepCard {
   planned: boolean
   departed: boolean
   unreachable: boolean
+  run: boolean
   hurry: boolean
   arriving: boolean
   cancelled: boolean
@@ -615,6 +625,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   // The reachability hints stand even on the selected card — you still have to
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.
   const unreachable = state === 'unreachable'
+  const run = state === 'run'
   const hurry = state === 'hurry'
   const cancelled = dep.cancelled === true
   const { lead, sub } = depCountdown(dep.ms, nowMs.value)
@@ -652,6 +663,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
     planned,
     departed,
     unreachable,
+    run,
     hurry,
     arriving,
     cancelled,
@@ -674,7 +686,9 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
           ? `Departed at ${dep.label}`
           : unreachable
             ? `You may miss this one — the ${name} leaves at ${dep.label}, sooner than you can reach the stop. Pick it anyway if you're closer than we think`
-            : hurry
+            : run
+              ? `Catchable if you run — the ${name} leaves at ${dep.label}`
+              : hurry
               ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
               : joinStatus(switchTo, delayPhrase),
   }

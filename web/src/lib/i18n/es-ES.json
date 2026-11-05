@@ -727,19 +727,20 @@
     "advice": {
       "short": {
         "leave": "Sal ya",
-        "hurry": "Corre",
+        "hurry": "Rápido",
         "relax": "Calma",
         "by": "Antes {time}",
         "tight": "Justo",
         "missed": "Perdido",
         "sched": "Horario",
         "cancelled": "Cancelado",
-        "tooFar": "Lejos"
+        "tooFar": "Lejos",
+        "run": "Corre"
       },
       "long": {
         "leave": "Sal ya · el siguiente llega {minutes} min después",
-        "hurry": "Corre · {minutes} min para el de las {time}",
-        "hurryLine": "Corre · {minutes} min para el {line} de las {time}",
+        "hurry": "Rápido · {minutes} min para el de las {time}",
+        "hurryLine": "Rápido · {minutes} min para el {line} de las {time}",
         "relax": "Sal antes de las {time}",
         "by": "Sal antes de las {time}",
         "tight": "{minutes} min para transbordar en {stop}",
@@ -749,13 +750,17 @@
         "sched": "Sin horarios en vivo",
         "crossover": "Más rápido {mode} desde las {time}",
         "tooFar": "No llegas a tiempo · el siguiente es el de las {time}",
-        "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}"
+        "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}",
+        "run": "Corre · {minutes} min para el de las {time}",
+        "runLine": "Corre · {minutes} min para el {line} de las {time}"
       },
       "detail": {
         "hurry": "{minutes} min para el de las {time}",
         "hurryLine": "{minutes} min para el {line} de las {time}",
         "leave": "El siguiente llega {minutes} min después",
-        "missed": "Buscando el siguiente"
+        "missed": "Buscando el siguiente",
+        "run": "{minutes} min para el de las {time}",
+        "runLine": "{minutes} min para el {line} de las {time}"
       },
       "modes": {
         "cycling": "en bici",

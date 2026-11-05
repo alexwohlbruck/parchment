@@ -77,6 +77,7 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * How a run reads on the board:
  *   • departed     — already gone
  *   • unreachable  — still upcoming, but not on foot from where the rider is
+ *   • run          — not at a walk, but at `runFactor` times walking pace
  *   • hurry        — you'd make it, but with less than your grace period spare
  *   • ok           — comfortable
  *
@@ -87,18 +88,20 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * All four are cosmetic. Rebooking is never gated on them: the rider knows
  * things we don't (they're on the platform, they'll run, they're being driven).
  */
-export type DepartureReachability = 'departed' | 'unreachable' | 'hurry' | 'ok'
+export type DepartureReachability = 'departed' | 'unreachable' | 'run' | 'hurry' | 'ok'
 
 export function departureReachability(
   departureMs: number,
   nowMs: number,
   remainingWalkSec: number,
   graceSec = 0,
+  /** How much faster than walking the rider can run; null when they can't. */
+  runFactor: number | null = null,
 ): DepartureReachability {
   const leadMs = departureMs - nowMs
   if (leadMs < 0) return 'departed'
   const walkMs = Math.max(0, remainingWalkSec) * 1000
-  if (leadMs < walkMs) return 'unreachable'
+  if (leadMs < walkMs) return runFactor && leadMs * runFactor >= walkMs ? 'run' : 'unreachable'
   // Comfortable means the walk *plus* the rider's margin fits in the lead.
   const comfortableMs = walkMs + Math.max(0, graceSec) * 1000
   if (comfortableMs > 0 && leadMs < comfortableMs) return 'hurry'

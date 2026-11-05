@@ -27,6 +27,17 @@ export const TRIP_SORTS: readonly TripSort[] = ['balanced', ...SORT_PREFERENCES]
 export const DEFAULT_SPEECH_PREFERENCES: SpeechPreferences = { rate: 1, voices: {} }
 
 export const DEFAULT_TRANSIT_BUFFER_MINUTES = 2
+export const DEFAULT_WALKING_SPEED_KPH = 5.1
+/** A jog, relative to the rider's own walking pace. */
+export const RUN_PACE_FACTOR = 1.8
+
+/** How much faster than walking the rider can run, or null when we shouldn't ask them to. */
+export function runPaceFactor(routing: RoutingPreferenceSlices): number | null {
+  const { walking, transit } = routing.mode
+  if (walking.wheelchairAccessible || transit.wheelchairAccessible) return null
+  if ((walking.walkingSpeed ?? DEFAULT_WALKING_SPEED_KPH) < DEFAULT_WALKING_SPEED_KPH) return null
+  return RUN_PACE_FACTOR
+}
 
 /** Keys shared by every mode; everything else is stored per mode. */
 export const GENERAL_KEYS: ReadonlyArray<keyof RoutingPreferences> = [

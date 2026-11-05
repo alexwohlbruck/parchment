@@ -787,6 +787,30 @@
       "routingEngine": "Routing Engine",
       "useKnownVehicleLocations": "Use known vehicle locations",
       "useKnownParkingLocations": "Use known parking locations"
+    },
+    "station": {
+      "transfer": {
+        "crossPlatform": "Cross-platform",
+        "inStation": "In-station",
+        "passageway": "Passageway",
+        "reenter": "Exit and re-enter"
+      },
+      "viaStreet": "via street",
+      "reentryFree": "free re-entry",
+      "reentryPaid": "pay again to re-enter",
+      "reentryUnknown": "tap out and back in",
+      "boardToward": "Board toward the {section}",
+      "section": {
+        "front": "front",
+        "middle": "middle",
+        "back": "back"
+      },
+      "saves": "saves {duration}",
+      "insideStation": "Inside the station",
+      "steps": "{n} step | {n} steps",
+      "levelUp": "Up {n} level | Up {n} levels",
+      "levelDown": "Down {n} level | Down {n} levels",
+      "estimated": "Estimated"
     }
   },
   "library": {
@@ -1837,7 +1861,14 @@
         "cycling": "Ride {duration}",
         "driving": "Drive {duration}"
       },
-      "toPlace": "to {place}"
+      "toPlace": "to {place}",
+      "station": {
+        "next": "Next",
+        "done": "Done",
+        "stepOf": "Step {n} of {total}",
+        "advancesIn": "Moves on in about {duration}",
+        "noGps": "Underground, follow the steps"
+      }
     },
     "ahead": {
       "title": "Along the route",

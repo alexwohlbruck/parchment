@@ -751,7 +751,31 @@
     "from": "Desde",
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
-    "addStop": "Añadir parada"
+    "addStop": "Añadir parada",
+    "station": {
+      "transfer": {
+        "crossPlatform": "Mismo andén",
+        "inStation": "En la estación",
+        "passageway": "Pasillo",
+        "reenter": "Salir y volver a entrar"
+      },
+      "viaStreet": "por la calle",
+      "reentryFree": "reentrada gratis",
+      "reentryPaid": "se paga de nuevo al entrar",
+      "reentryUnknown": "validar al salir y al entrar",
+      "boardToward": "Sube hacia la parte {section}",
+      "section": {
+        "front": "delantera",
+        "middle": "central",
+        "back": "trasera"
+      },
+      "saves": "ahorra {duration}",
+      "insideStation": "Dentro de la estación",
+      "steps": "{n} paso | {n} pasos",
+      "levelUp": "Sube {n} nivel | Sube {n} niveles",
+      "levelDown": "Baja {n} nivel | Baja {n} niveles",
+      "estimated": "Estimado"
+    }
   },
   "library": {
     "title": "Biblioteca",
@@ -1803,7 +1827,14 @@
         "cycling": "Pedalea {duration}",
         "driving": "Conduce {duration}"
       },
-      "toPlace": "hasta {place}"
+      "toPlace": "hasta {place}",
+      "station": {
+        "next": "Siguiente",
+        "done": "Listo",
+        "stepOf": "Paso {n} de {total}",
+        "advancesIn": "Avanza en unos {duration}",
+        "noGps": "Bajo tierra, sigue los pasos"
+      }
     },
     "ahead": {
       "title": "En la ruta",

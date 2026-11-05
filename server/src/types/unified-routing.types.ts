@@ -2,6 +2,7 @@
 // Supports: Valhalla, OSRM, GraphHopper, OpenRouteService, OpenTripPlanner, Google Maps
 
 import type { Place } from './place.types'
+import type { StationGuidance } from './station-guidance.types'
 
 export interface Coordinate {
   lng: number
@@ -509,7 +510,7 @@ export interface RoutingCapabilities {
 }
 
 // Timeline and Trip Planning Types
-export interface TimelineSegment {
+export interface TimelineSegment extends StationGuidance {
   id: string
   type: 'route' | 'waiting' | 'transfer'
   legIndex?: number

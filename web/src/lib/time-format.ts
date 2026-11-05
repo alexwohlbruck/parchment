@@ -30,6 +30,15 @@ export function formatDurationLong(seconds: number): string {
   return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`
 }
 
+/** `1 min 22 s` / `45 s`. For short walks where the seconds matter. */
+export function formatDurationShort(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const minutes = Math.floor(total / 60)
+  const secs = total % 60
+  if (!minutes) return `${secs} s`
+  return secs ? `${minutes} min ${secs} s` : `${minutes} min`
+}
+
 export interface DurationPart {
   value: number
   unit: string

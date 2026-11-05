@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   formatDurationCompact,
   formatDurationLong,
+  formatDurationShort,
   formatDurationParts,
   formatStopwatch,
   formatClockTime,
@@ -27,6 +28,12 @@ describe('duration formats', () => {
     expect(formatDurationLong(300)).toBe('5 min')
     expect(formatDurationLong(7500)).toBe('2 hr 5 min')
     expect(formatDurationLong(7200)).toBe('2 hr')
+  })
+
+  it('short keeps the seconds of a short walk', () => {
+    expect(formatDurationShort(82)).toBe('1 min 22 s')
+    expect(formatDurationShort(45.4)).toBe('45 s')
+    expect(formatDurationShort(120)).toBe('2 min')
   })
 
   it('parts splits value from unit for styled rendering', () => {

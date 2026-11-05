@@ -8,6 +8,8 @@
 
 * On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
 
+* The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
+
 ### Changed
 
 * Vehicles moved from their own settings page into Settings → Navigation.

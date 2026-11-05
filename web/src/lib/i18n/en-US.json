@@ -2122,7 +2122,10 @@
     "contributors": "Contributors",
     "credits": {
       "jeremyDean": "Departure timing and commute research"
-    }
+    },
+    "openSource": "Open source",
+    "openSourceCount": "{count} projects",
+    "openData": "Open data"
   },
   "feedback": {
     "openBoard": "Open feedback board",

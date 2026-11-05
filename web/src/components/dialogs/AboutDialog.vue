@@ -16,6 +16,8 @@ import { useMapStore } from '@/stores/map.store'
 import { MapEngine } from '@/types/map.types'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
 import { CONTRIBUTORS } from '@/lib/about/contributors'
+import { OPEN_SOURCE, openSourceCount } from '@/lib/about/open-source'
+import AboutDisclosure from '@/components/about/AboutDisclosure.vue'
 import ParchmentLogo from '@/assets/parchment.svg'
 import parchmentMapBg from '@/assets/img/parchment-map.png'
 import { Button } from '@/components/ui/button'
@@ -32,6 +34,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const mapStore = useMapStore()
 const { camera } = useMapCamera()
+
+const contributorNames = CONTRIBUTORS.map(c => c.name).join(', ')
 
 const internalOpen = computed({
   get: () => props.open ?? false,
@@ -165,16 +169,38 @@ const socialLinks = [
             </div>
           </div>
 
-          <div class="flex flex-col gap-2 bg-muted/40 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-            <span class="text-xs font-semibold text-muted-foreground">
-              {{ t('attribution.contributors') }}
-            </span>
-            <ul class="flex flex-col gap-2">
-              <li v-for="contributor in CONTRIBUTORS" :key="contributor.name" class="flex flex-col">
-                <span class="text-sm font-medium">{{ contributor.name }}</span>
-                <span class="text-xs text-muted-foreground">{{ t(contributor.creditKey) }}</span>
-              </li>
-            </ul>
+          <div class="flex flex-col gap-2">
+            <AboutDisclosure :title="t('attribution.contributors')" :summary="contributorNames">
+              <ul class="flex flex-col gap-2">
+                <li v-for="contributor in CONTRIBUTORS" :key="contributor.name" class="flex flex-col">
+                  <span class="text-sm font-medium">{{ contributor.name }}</span>
+                  <span class="text-xs text-muted-foreground">{{ t(contributor.creditKey) }}</span>
+                </li>
+              </ul>
+            </AboutDisclosure>
+
+            <AboutDisclosure
+              :title="t('attribution.openSource')"
+              :summary="t('attribution.openSourceCount', { count: openSourceCount() })"
+            >
+              <div class="flex flex-col gap-3">
+                <section v-for="group in OPEN_SOURCE" :key="group.name ?? 'data'" class="flex flex-col gap-1">
+                  <span class="text-xs font-medium text-foreground/80">{{ group.name ?? t('attribution.openData') }}</span>
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <a
+                      v-for="project in group.projects"
+                      :key="project.url"
+                      :href="project.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                    >
+                      {{ project.name }}
+                    </a>
+                  </div>
+                </section>
+              </div>
+            </AboutDisclosure>
           </div>
 
           <!-- Action buttons -->

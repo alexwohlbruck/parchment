@@ -2098,7 +2098,10 @@
     "contributors": "Colaboradores",
     "credits": {
       "jeremyDean": "Horarios de salida e investigación de desplazamientos"
-    }
+    },
+    "openSource": "Código abierto",
+    "openSourceCount": "{count} proyectos",
+    "openData": "Datos abiertos"
   },
   "feedback": {
     "title": "Comentarios",

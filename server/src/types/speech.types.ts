@@ -2,6 +2,7 @@ export interface SpeechVoice {
   id: string
   name: string
   language: string
+  gender?: 'female' | 'male'
 }
 
 export interface SpeechCatalog {

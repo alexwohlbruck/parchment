@@ -3,6 +3,10 @@
 
 import type { RouteEdgeSegment } from '@/types/directions.types'
 import type { DrivingSide, InstructionLanePlan, LaneGeometry } from '@server/types/unified-routing.types'
+import type { DepartureProfile, TripModeToken } from '@server/types/departure-profile.types'
+
+export type { DepartureProfile, DepartureRun, TripModeToken } from '@server/types/departure-profile.types'
+export { TRIP_MODE_TOKENS } from '@server/types/departure-profile.types'
 
 export type VehicleType =
   | 'car'
@@ -56,6 +60,7 @@ export interface Coordinate {
 export interface TripRequest {
   waypoints: Waypoint[]
   selectedMode?: SelectedMode // Filter trips by mode
+  excludedModes?: TripModeToken[]
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -184,6 +189,7 @@ export interface TripResponse {
   earliestStartTime: string
   latestEndTime: string
   hazards?: Hazard[]
+  departureProfile?: DepartureProfile
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string

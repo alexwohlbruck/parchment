@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import type { NavigationPreferencesPatch } from '../types/navigation-preferences.types'
 import { users } from './users.schema'
 
 export const userPreferences = pgTable('user_preferences', {
@@ -8,6 +9,7 @@ export const userPreferences = pgTable('user_preferences', {
     .references(() => users.id, { onDelete: 'cascade' }),
   language: text('language').default('en-US').notNull(),
   unitSystem: text('unit_system').default('metric').notNull(),
+  navigation: jsonb('navigation').$type<NavigationPreferencesPatch>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

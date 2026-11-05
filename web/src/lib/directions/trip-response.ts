@@ -107,6 +107,7 @@ export function mapCandidate(candidate: any, idx: number, placeIds: (string | un
       ? { total: { amount: stats.totalCost.value, currency: stats.totalCost.currency } }
       : undefined,
     co2Emissions: stats.totalCo2 ?? undefined,
+    departureProfile: candidate.trip.departureProfile,
   }
 }
 

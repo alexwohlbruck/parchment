@@ -4,7 +4,8 @@ import { segmentAt } from '@/lib/guidance/nav-route'
 import { walkToStopSec, type TransitStage } from '@/lib/guidance/transit-progress'
 import { isTransitOnly } from '@/lib/guidance/better-itinerary'
 import { classifyRecovery, type MissedRide, type RecoveryPlan, type RecoverySegment } from '@/lib/guidance/missed-recovery'
-import { approachReach } from '@/lib/transit/transit-reachability'
+import { approachReach, isOutOfReach } from '@/lib/transit/transit-reachability'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { requestTransitItineraries } from '@/services/guidance/reroute.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import type { TripOption } from '@/types/directions.types'
@@ -46,6 +47,7 @@ const endOf = (segments: RecoverySegment[]) => new Date(segments.at(-1)?.endTime
  */
 export function useMissedRecovery() {
   const guidance = useGuidanceStore()
+  const navigationPreferences = useNavigationPreferencesStore()
   const lookup = shallowRef<Lookup | null>(null)
   const retimed = shallowRef<Retimed | null>(null)
   const fetching = ref<string | null>(null)
@@ -57,7 +59,7 @@ export function useMissedRecovery() {
     const route = guidance.route
     const puck = guidance.progress?.puck
     if (stage?.kind !== 'to-stop' || !route || !puck) return null
-    const late = approachReach(stage.departureMs, guidance.clockMs, walkToStopSec(route, stage, puck.s)) === 'late'
+    const late = isOutOfReach(approachReach(stage.departureMs, guidance.clockMs, walkToStopSec(route, stage, puck.s), navigationPreferences.runPace))
     return late ? { stage, missed: false } : null
   })
 

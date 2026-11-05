@@ -46,12 +46,14 @@ const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
 }))
 const mockGetNearestEntrance = mock<AnyAsync>(async () => null)
 const mockGetRoutesForStop = mock<AnyAsync>(async () => [])
+const mockGetStopDepartures = mock<AnyAsync>(async () => null)
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
     getIntermodalRoute: mockGetIntermodalRoute,
     getNearestEntrance: mockGetNearestEntrance,
     getRoutesForStop: mockGetRoutesForStop,
+    getStopDepartures: mockGetStopDepartures,
   },
 }))
 
@@ -227,6 +229,8 @@ beforeEach(() => {
   mockSearchByCategory.mockReset()
   mockGetRoutesForStop.mockReset()
   mockGetRoutesForStop.mockImplementation(async () => [])
+  mockGetStopDepartures.mockReset()
+  mockGetStopDepartures.mockImplementation(async () => null)
   mockForwardGeocode.mockReset()
   mockForwardGeocode.mockImplementation(async () => ({ results: [], integrationId: null }))
   tripService = new TripService()
@@ -1369,6 +1373,46 @@ describe('TripService — scoring', () => {
       const modes = bikeTransit!.trip.segments.map((s) => s.mode)
       expect(modes).toContain('biking')
       expect(modes).toContain('transit')
+    })
+
+    test('excluded modes never query their access variants', async () => {
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        excludedModes: ['driving', 'biking', 'bikeshare', 'transit'],
+        availableVehicles: [bikeVehicle, carVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const queried = mockGetIntermodalRoute.mock.calls.flatMap(([req]: any[]) => [
+        ...(req.preTransitModes ?? []), ...(req.postTransitModes ?? []),
+      ])
+      expect(queried).not.toContain('CAR_PARKING')
+      expect(queried).not.toContain('BIKE')
+      expect(queried).not.toContain('RENTAL')
+      expect(response.trips.length).toBeGreaterThan(0)
+      for (const { trip } of response.trips) {
+        expect(trip.segments.every((s) => s.mode === 'walking' || s.mode === 'transit')).toBe(true)
+      }
+    })
+
+    test('excluding transit in multi skips the transit planner', async () => {
+      mockIntermodalByAccessMode()
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3000, 900))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        excludedModes: ['transit', 'bikeshare'],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(mockGetIntermodalRoute).not.toHaveBeenCalled()
+      expect(response.trips.some((t) => t.trip.segments.some((s) => s.mode === 'transit'))).toBe(false)
+      expect(response.trips.some((t) => t.trip.segments.some((s) => s.mode === 'driving'))).toBe(true)
     })
 
     test('generates car+transit candidates when car is available', async () => {
@@ -3790,5 +3834,67 @@ describe('TripService — multi-stop journeys', () => {
     })
 
     expect(response.trips[0].trip.segments.every((s) => (s.legIndex ?? 0) === 0)).toBe(true)
+  })
+})
+
+describe('TripService — departure profiles', () => {
+  const at = (min: number) => new Date(Date.parse('2026-01-15T08:00:00Z') + min * 60_000).toISOString()
+  const place = (name: string, stopId?: string) => ({ name, lat: 35.21, lng: -80.85, stopId })
+  const walk = (from: number, to: number) => ({
+    mode: 'WALK', transitLeg: false, from: place('w'), to: place('w'),
+    startTime: at(from), endTime: at(to), duration: (to - from) * 60, distance: 200,
+  })
+  const bus = (route: string, stop: string, from: number, to: number) => ({
+    mode: 'BUS', transitLeg: true, from: place(stop, `1_${stop}`), to: place(`${stop} end`, `1_${stop}-end`),
+    startTime: at(from), endTime: at(to), duration: (to - from) * 60, distance: 3000,
+    routeShortName: route, routeId: `1_${route}`, tripId: `${route}-${from}`, agencyName: 'CATS',
+  })
+  const itinerary = (legs: Record<string, any>[]) => ({
+    duration: 0, startTime: at(0), endTime: legs[legs.length - 1].endTime, transfers: 0, legs,
+  })
+  const oneSeat = itinerary([walk(0, 5), bus('9X', 'a', 5, 25), walk(25, 30)])
+  const tightTransfer = itinerary([walk(0, 3), bus('7', 'c', 3, 10), walk(10, 12), bus('8', 'd', 12, 24), walk(24, 28)])
+  const boards: Record<string, Array<[string, number]>> = {
+    a: [['9X', 5], ['9X', 20], ['9X', 35]],
+    c: [['7', 3], ['7', 18]],
+    d: [['8', 12], ['8', 42]],
+  }
+
+  const serveBoards = async ({ stopId }: { stopId: string }) => [{
+    departures: (boards[stopId] ?? []).map(([route, min]) => ({
+      tripId: `${route}-${min}`, route: { shortName: route }, departureTime: at(min),
+    })),
+  }]
+
+  const plan = () => tripService.planTrip({
+    waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+    selectedMode: 'transit',
+    sortPreference: 'shortest',
+    preferredDepartureTime: at(0),
+  })
+  const firstRoute = (response: Awaited<ReturnType<typeof plan>>) =>
+    response.trips[0].trip.segments.find((s) => s.mode === 'transit')?.details?.transitDetails?.route.shortName
+
+  beforeEach(() => {
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [oneSeat, tightTransfer], metadata: { searchWindow: 3600 },
+    }))
+  })
+
+  test('profiles each transit trip from its stop boards', async () => {
+    mockGetStopDepartures.mockImplementation(serveBoards)
+    const response = await plan()
+    const trip = response.trips.find((c) => c.trip.segments.some((s) =>
+      s.details?.transitDetails?.route.shortName === '9X'))!.trip
+    const profile = trip.departureProfile!
+    expect(profile.runs.map((r) => r.departAt)).toEqual([at(5), at(20), at(35)])
+    expect(profile.runs[profile.plannedRunIndex].arriveAt).toBe(trip.segments[trip.segments.length - 1].endTime)
+  })
+
+  test('ranks a trip with a likely missed connection below a slower one-seat ride', async () => {
+    expect(firstRoute(await plan())).toBe('7')
+    mockGetStopDepartures.mockImplementation(serveBoards)
+    tripService = new TripService()
+    expect(firstRoute(await plan())).toBe('9X')
   })
 })

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useTripListAdvice } from '@/composables/directions/useTripAdvice'
 import { byRank } from '@/lib/directions/trip-display'
+import { stableTripKeys } from '@/lib/directions/trip-signature'
 import type { TripOption } from '@/types/directions.types'
 
 const props = defineProps<{ trips: TripOption[] }>()
 
 const ranked = computed(() => byRank(props.trips))
+const advice = useTripListAdvice(() => props.trips)
+const keys = computed(() => stableTripKeys(props.trips))
 </script>
 
 <template>
@@ -13,10 +17,10 @@ const ranked = computed(() => byRank(props.trips))
   <TransitionGroup name="trip" tag="div" class="flex flex-col" appear>
     <div
       v-for="(trip, index) in ranked"
-      :key="trip.id || index"
+      :key="keys.get(trip.id) ?? index"
       :style="{ '--trip-delay': `${Math.min(index, 8) * 45}ms` }"
     >
-      <slot :trip="trip" :index="index" />
+      <slot :trip="trip" :index="index" :advice="advice[trip.id]" />
       <div
         v-if="index < ranked.length - 1"
         class="border-b border-border/50 mx-4"

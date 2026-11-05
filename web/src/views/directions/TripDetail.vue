@@ -16,18 +16,23 @@ import {
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
+import { toast } from '@/lib/toast'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
 import { useStartEligibility } from '@/composables/guidance/useStartEligibility'
+import { useTripAdvice } from '@/composables/directions/useTripAdvice'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   departureReachability,
   remainingAccessWalkSec,
+  seemsAboard,
   type DepartureReachability,
 } from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
@@ -84,6 +89,7 @@ import { useI18n } from 'vue-i18n'
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
+const navigationPreferences = useNavigationPreferencesStore()
 const tripFocusStore = useTripFocusStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
@@ -132,13 +138,10 @@ const didAutoSelectDeparture = ref(false)
 // Clock driving the departed/hurry chip states (and the decaying approach
 // walk behind them); departures re-fetch keeps the
 // realtime predictions fresh as vehicles move.
-const nowMs = ref(Date.now())
-const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
+const clock = useTransitClock(10_000)
+const nowMs = computed(() => clock.value.getTime())
 const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
-onUnmounted(() => {
-  clearInterval(tickTimer)
-  clearInterval(refreshTimer)
-})
+onUnmounted(() => clearInterval(refreshTimer))
 
 // ── Service alerts per transit leg ──────────────────────────────────
 // What the agency has published about the line you're about to ride, on the
@@ -394,6 +397,14 @@ async function loadDepartures() {
   }
 }
 
+function firstCatchableDeparture(segmentIndex: number): DepartureOption | undefined {
+  return departuresFor(segmentIndex).find((d) => {
+    if (d.cancelled) return false
+    const state = depState(segmentIndex, d)
+    return state === 'ok' || state === 'hurry' || state === 'run'
+  })
+}
+
 /** Default the first transit leg to its earliest catchable run — including a
  *  "hurry" one, so the rider lands on the soonest train they can still make.
  *  Runs once per trip; a no-op when that's already the planned run. (This is
@@ -403,19 +414,49 @@ function selectFirstAvailableDeparture() {
   if (!t) return
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
-  const idx = segs.findIndex(
-    (s) => s.mode === 'transit' && s.departureStop?.location,
-  )
+  const idx = boardingIndex(segs)
   if (idx < 0) return
-  const firstCatchable = (segmentDepartures.value[idx] ?? []).find((d) => {
-    if (d.cancelled) return false
-    const state = depState(idx, d)
-    return state === 'ok' || state === 'hurry'
-  })
+  const firstCatchable = firstCatchableDeparture(idx)
   if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
     void chooseDeparture(idx, firstCatchable.ms)
   }
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const boardingIndex = (segs: any[]) => segs.findIndex((s) => s.mode === 'transit' && s.departureStop?.location)
+
+/** The run the rider picked off the board; only its departure moves them off it. */
+const pickedRunMs = ref<number | null>(null)
+
+function pickDeparture(segmentIndex: number, ms: number) {
+  pickedRunMs.value = ms
+  void chooseDeparture(segmentIndex, ms)
+}
+
+/** Once the run the trip boards is missed, move it onto the next one still catchable. */
+watch([nowMs, segmentDepartures], async () => {
+  const t = trip.value
+  if (!t || !didAutoSelectDeparture.value || rebooking.value) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const idx = boardingIndex(segs)
+  if (idx < 0) return
+  const current = departuresFor(idx).find((d) => isCurrentDeparture(segs[idx], d.ms))
+  if (!current) return
+  const state = depState(idx, current)
+  const start = directionsStore.trips?.request.waypoints[0]?.coordinate
+  const missed =
+    state === 'departed'
+      ? !seemsAboard(geo.lngLat.value, segs[idx].departureStop.location, start)
+      : state === 'unreachable' && current.ms !== pickedRunMs.value
+  if (!missed) return
+  const next = firstCatchableDeparture(idx)
+  if (!next || !(await chooseDeparture(idx, next.ms))) return
+  toast.info(translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
+    line: next.route?.shortName ?? segs[idx].lineName ?? '',
+    time: formatClockCompact(new Date(next.ms)),
+  }))
+})
 
 /** Is this run the one the trip currently boards? */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -460,9 +501,9 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
   return nextRunAfter(seg, minMs)
 }
 
-async function chooseDeparture(segmentIndex: number, departureMs: number) {
+async function chooseDeparture(segmentIndex: number, departureMs: number): Promise<boolean> {
   const t = trip.value
-  if (!t || rebooking.value) return
+  if (!t || rebooking.value) return false
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
 
@@ -474,7 +515,7 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
       departureMs,
       (i, minMs) => nextDepartureAfter(segs[i], i, minMs),
     )
-    if (!changed) return
+    if (!changed) return false
 
     // Trip-level rollup
     t.startTime = new Date(asMs(segs[0].startTime))
@@ -484,6 +525,7 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
     // Refresh chips in the background — the rebooking math is already
     // applied from the cached schedule, so the UI updates instantly.
     void loadDepartures()
+    return true
   } finally {
     rebooking.value = false
   }
@@ -528,8 +570,16 @@ function remainingWalkSec(segmentIndex: number): number {
  *  directly rather than the merged `routingPreferences` — a multimodal trip
  *  resolves those against the biking slice, which carries no transit keys. */
 const graceSec = computed(
-  () => (directionsStore.modePreferences.transit?.transitBufferMinutes ?? 2) * 60,
+  () => navigationPreferences.transitBufferMinutes * 60,
 )
+
+/** A fix this coarse can't tell a jog that makes it from one that doesn't. */
+const RUN_MAX_ACCURACY_M = 100
+
+const runFactor = computed(() => {
+  const accuracy = geo.accuracy.value
+  return accuracy != null && accuracy > RUN_MAX_ACCURACY_M ? null : navigationPreferences.runPace
+})
 
 function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {
   return departureReachability(
@@ -537,6 +587,7 @@ function depState(segmentIndex: number, dep: DepartureOption): DepartureReachabi
     nowMs.value,
     remainingWalkSec(segmentIndex),
     graceSec.value,
+    runFactor.value,
   )
 }
 
@@ -560,6 +611,7 @@ interface DepCard {
   planned: boolean
   departed: boolean
   unreachable: boolean
+  run: boolean
   hurry: boolean
   arriving: boolean
   cancelled: boolean
@@ -584,6 +636,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   // The reachability hints stand even on the selected card — you still have to
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.
   const unreachable = state === 'unreachable'
+  const run = state === 'run'
   const hurry = state === 'hurry'
   const cancelled = dep.cancelled === true
   const { lead, sub } = depCountdown(dep.ms, nowMs.value)
@@ -621,6 +674,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
     planned,
     departed,
     unreachable,
+    run,
     hurry,
     arriving,
     cancelled,
@@ -643,7 +697,9 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
           ? `Departed at ${dep.label}`
           : unreachable
             ? `You may miss this one — the ${name} leaves at ${dep.label}, sooner than you can reach the stop. Pick it anyway if you're closer than we think`
-            : hurry
+            : run
+              ? `Catchable if you run — the ${name} leaves at ${dep.label}`
+              : hurry
               ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
               : joinStatus(switchTo, delayPhrase),
   }
@@ -730,6 +786,12 @@ const trip = computed(() => {
 })
 
 const startEligibility = useStartEligibility(trip, legToStart)
+
+const { adviceFor } = useTripAdvice()
+const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value) : null))
+const adviceNotes = computed(() =>
+  [advice.value?.tight, advice.value?.sched].filter(Boolean).join(' · '),
+)
 
 watch(
   () => [tripId.value, route.query.pt],
@@ -1142,6 +1204,17 @@ function showSegmentChart(segment: any): boolean {
             {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
           </div>
 
+          <div
+            v-if="advice?.line"
+            class="mt-0.5 text-sm font-medium tabular-nums"
+            :class="advice.line.tone || 'text-foreground/80'"
+          >
+            {{ advice.line.text }}
+          </div>
+          <div v-if="adviceNotes" class="mt-0.5 text-xs text-muted-foreground tabular-nums">
+            {{ adviceNotes }}
+          </div>
+
           <!-- Cost / CO2 -->
           <div
             v-if="trip.cost?.total || trip.co2Emissions"
@@ -1414,7 +1487,7 @@ function showSegmentChart(segment: any): boolean {
                   :board-key="`${trip.id}-${entry.segmentIndex}`"
                   :busy="rebooking"
                   @toggle-alert="toggleLegAlert"
-                  @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                  @choose="ms => pickDeparture(entry.segmentIndex, ms)"
                 />
 
                 <!-- Meta under the card — the rail leaves the card here and

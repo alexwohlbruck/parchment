@@ -20,12 +20,17 @@ interface Props
   noPadding?: boolean
   contentClass?: string
   fitContent?: boolean
+  /** Mobile only: lifts the sheet above an overlay it opens from, such as settings. */
+  zIndexOffset?: number
+  modal?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showDragHandle: true,
   showCloseButton: true,
   noPadding: false,
+  zIndexOffset: 0,
+  modal: false,
 })
 
 const emit = defineEmits<{
@@ -55,6 +60,8 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"
+      :modal="props.modal"
+      :z-index-offset="props.zIndexOffset"
       obstructing-key="responsive-dialog"
     >
       <div :class="props.noPadding ? 'p-0' : 'pt-5 pb-4 px-4'">

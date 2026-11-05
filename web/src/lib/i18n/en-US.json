@@ -743,6 +743,53 @@
     }
   },
   "directions": {
+    "advice": {
+      "short": {
+        "leave": "Leave",
+        "hurry": "Hurry",
+        "tight": "Tight",
+        "missed": "Missed",
+        "cancelled": "Cancelled",
+        "tooFar": "Too far",
+        "run": "Run"
+      },
+      "long": {
+        "leave": "Leave now · next is {minutes} min later",
+        "hurry": "Hurry · {minutes} min to the {time}",
+        "hurryLine": "Hurry · {minutes} min to the {line} at {time}",
+        "by": "Leave by {time}",
+        "tight": "{minutes} min to change at {stop}",
+        "tightAnywhere": "{minutes} min to change",
+        "missed": "Missed · next is the {time}",
+        "missedLine": "Missed · next is the {line} at {time}",
+        "sched": "No live times",
+        "crossover": "{mode} is faster after {time}",
+        "tooFar": "Too far to make it · next is the {time}",
+        "tooFarLine": "Too far to make it · next is the {line} at {time}",
+        "run": "Run · {minutes} min to the {time}",
+        "runLine": "Run · {minutes} min to the {line} at {time}"
+      },
+      "detail": {
+        "hurry": "{minutes} min to the {time}",
+        "hurryLine": "{minutes} min to the {line} at {time}",
+        "leave": "Next is {minutes} min later",
+        "missed": "Finding the next one",
+        "run": "{minutes} min to the {time}",
+        "runLine": "{minutes} min to the {line} at {time}"
+      },
+      "modes": {
+        "cycling": "Bike",
+        "walking": "Walking",
+        "bikeshare": "Bike share",
+        "scootershare": "Scooter share",
+        "driving": "Driving",
+        "rideshare": "Rideshare"
+      },
+      "switched": {
+        "missed": "Missed it · now on the {line} at {time}",
+        "tooFar": "Too far to make it · now on the {line} at {time}"
+      }
+    },
     "tripTypes": {
       "bikeshare": "Bike Share",
       "scootershare": "Scooter Share",
@@ -771,6 +818,23 @@
     "currentLocation": "Current Location",
     "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
+    "tripModes": {
+      "filter": "Modes",
+      "transit": "Transit",
+      "biking": "My bike",
+      "bikeshare": "Bike & scooter share",
+      "rideshare": "Rideshare",
+      "driving": "Driving"
+    },
+    "sort": {
+      "balanced": "Balanced",
+      "shortest": "Shortest",
+      "earliest_arrival": "Earliest arrival",
+      "cheapest": "Cheapest",
+      "fewest_transfers": "Fewest transfers",
+      "least_walking": "Least walking",
+      "greenest": "Greenest"
+    },
     "modes": {
       "walking": "Walking",
       "cycling": "Cycling",
@@ -779,15 +843,107 @@
       "rideshare": "Rideshare"
     },
     "preferences": {
-      "general": "General Options",
-      "walking": "Walking Options",
-      "cycling": "Cycling Options",
-      "transit": "Transit Options",
-      "driving": "Driving Options",
-      "routingEngine": "Routing Engine",
-      "useKnownVehicleLocations": "Use known vehicle locations",
-      "useKnownParkingLocations": "Use known parking locations"
-    }
+      "general": "General",
+      "modes": {
+        "walking": "Walking",
+        "biking": "Cycling",
+        "transit": "Transit",
+        "driving": "Driving"
+      },
+      "advanced": "Advanced",
+      "customModel": "Custom model JSON. Leave empty to build it from the settings above.",
+      "customModelObject": "Must be a JSON object",
+      "customModelInvalid": "Invalid JSON",
+      "fields": {
+        "routingEngine": "Routing engine",
+        "knownVehicles": "Start from my vehicles",
+        "knownVehiclesDescription": "Plan car and bike trips from where you parked",
+        "knownParking": "Park before arriving",
+        "knownParkingDescription": "Add the walk from parking to car and bike trips",
+        "ferries": "Ferries",
+        "hills": "Hills",
+        "avoidHills": "Avoid hills",
+        "litPaths": "Lit paths",
+        "preferLitPaths": "Prefer lit paths",
+        "walkingSpeed": "Walking speed",
+        "wheelchair": "Wheelchair accessible",
+        "bicycleType": "Bike type",
+        "bicycleTypes": {
+          "Road": "Road",
+          "City": "City",
+          "Mountain": "Mountain"
+        },
+        "safetyVsSpeed": "Route priority",
+        "safest": "Safest",
+        "fastest": "Fastest",
+        "surfaceQuality": "Surface",
+        "preferPaved": "Prefer paved paths",
+        "cyclingSpeed": "Cycling speed",
+        "maxWalking": "Max walking distance",
+        "maxTransfers": "Max transfers",
+        "arriveEarly": "Arrive early",
+        "arriveEarlyDescription": "Spare time at the stop before it leaves",
+        "cutItFine": "Cut it fine",
+        "minutes": "{count} min",
+        "highways": "Highways",
+        "avoidHighways": "Avoid highways",
+        "tolls": "Tolls",
+        "avoidTolls": "Avoid tolls",
+        "hov": "Prefer HOV lanes"
+      },
+      "hints": {
+        "safetyVsSpeed": {
+          "0": "Safest",
+          "1": "Safer",
+          "2": "Balanced",
+          "3": "Faster",
+          "4": "Fastest"
+        },
+        "hills": {
+          "0": "Avoid",
+          "1": "Prefer flat",
+          "2": "Neutral",
+          "3": "Some OK",
+          "4": "Don't mind"
+        },
+        "ferries": {
+          "0": "Avoid",
+          "1": "Prefer not",
+          "2": "Neutral",
+          "3": "OK",
+          "4": "Prefer"
+        },
+        "surfaceQuality": {
+          "0": "Any surface",
+          "1": "Mostly paved",
+          "2": "Balanced",
+          "3": "Prefer paved",
+          "4": "Paved only"
+        },
+        "litPaths": {
+          "0": "No preference",
+          "1": "Slight",
+          "2": "Moderate",
+          "3": "Strong",
+          "4": "Lit only"
+        },
+        "highways": {
+          "0": "Avoid",
+          "1": "Prefer not",
+          "2": "Neutral",
+          "3": "OK",
+          "4": "Prefer"
+        },
+        "tolls": {
+          "0": "Avoid",
+          "1": "Prefer not",
+          "2": "Neutral",
+          "3": "OK",
+          "4": "Prefer"
+        }
+      }
+    },
+    "refresh": "Refresh"
   },
   "library": {
     "title": "Library",
@@ -1250,24 +1406,36 @@
     },
     "settings": {
       "speechVoice": "Navigation voice",
-      "speechVoiceDescription": "Uses voices for your app language when server speech is available.",
-      "speechFallback": "Browser voice is used when server speech is unavailable.",
+      "speechVoiceDescription": "Spoken directions in your app language",
+      "speechFallback": "Uses your browser's voice",
       "speechAutomatic": "Automatic",
       "speechRate": "Speaking speed",
-      "speechRateDescription": "Choose a comfortable pace for spoken instructions.",
+      "speechRateDescription": "How fast directions are read",
       "speechPreview": "Listen",
       "speechSample": "In 200 feet, turn right, then keep left.",
-      "adaptiveSpeech": "Faster speech for close turns",
-      "adaptiveSpeechDescription": "Increase the pace when several maneuvers are close together, up to 1.5×.",
-      "title": "Navigation",
+      "adaptiveSpeech": "Speed up for close turns",
+      "adaptiveSpeechDescription": "Up to 1.5× when turns come quickly",
+      "title": "Turn-by-turn",
       "cameraMode": "Camera",
-      "cameraModeDescription": "How the map follows you while navigating",
+      "cameraModeDescription": "How the map follows you",
       "bearingMode": "Camera direction",
-      "bearingModeDescription": "Look ahead turns the map toward upcoming bends; straight ahead keeps it on your heading",
+      "bearingModeDescription": "Which way the map faces",
       "autoSwitchDocks": "Switch bike share stations",
-      "autoSwitchDocksDescription": "Head for another station automatically when yours fills up or runs out of bikes",
+      "autoSwitchDocksDescription": "When yours is full or out of bikes",
       "speedDisplay": "Speed display",
-      "speedDisplayDescription": "Show the posted limit, your current speed, or both while driving"
+      "speedDisplayDescription": "Shown while driving",
+      "voiceTitle": "Voice",
+      "voice": {
+        "pickerDescription": "Tap a voice to use it, or play it first.",
+        "automaticCaption": "The best voice for this language",
+        "allRegions": "All regions",
+        "anyGender": "Any voice",
+        "noMatches": "No voices match these filters.",
+        "genders": {
+          "female": "Female",
+          "male": "Male"
+        }
+      }
     },
     "exitShort": "End",
     "banner": {
@@ -1826,9 +1994,7 @@
       },
       "noneOfThese": "None of these",
       "reach": {
-        "ok": "On track",
-        "hurry": "Hurry",
-        "late": "You may miss it"
+        "ok": "On track"
       },
       "inDuration": "in {duration}",
       "leg": {
@@ -1956,7 +2122,7 @@
     },
     "vehicle": {
       "title": "Location marker",
-      "description": "How you appear on the map while navigating",
+      "description": "How you appear while navigating",
       "color": "Color",
       "modes": {
         "driving": "Driving",
@@ -1976,7 +2142,14 @@
     "poweredBy": "Powered by",
     "contribute": "Contribute",
     "improveThisMap": "Improve this map",
-    "madeWith": "Made with ❤️ by"
+    "madeWith": "Made with ❤️ by",
+    "contributors": "Contributors",
+    "credits": {
+      "jeremyDean": "Departure timing and commute research"
+    },
+    "openSource": "Open source",
+    "openSourceCount": "{count} projects",
+    "openData": "Open data"
   },
   "feedback": {
     "openBoard": "Open feedback board",
@@ -2742,18 +2915,39 @@
         "description": "Choose layers to display in the layer selector"
       }
     },
+    "navigation": {
+      "title": "Navigation",
+      "modes": {
+        "title": "Modes I use",
+        "description": "Trips only use these. Walking is always on."
+      },
+      "tripPreference": {
+        "title": "Trip order",
+        "rankBy": "Sort trips by",
+        "rankByDescription": "Unless you pick another in the planner"
+      },
+      "routing": {
+        "title": "Routing",
+        "modes": {
+          "walking": "Walking routes",
+          "biking": "Cycling routes",
+          "transit": "Transit routes",
+          "driving": "Driving routes"
+        }
+      }
+    },
     "vehicles": {
-      "title": "My Vehicles",
-      "description": "Manage your vehicles for trip planning. Active vehicles are used when planning routes with known vehicle locations.",
-      "empty": "No vehicles added yet. Add your car or bike to get personalized routes that start from your vehicle's location.",
+      "title": "Vehicles",
+      "description": "Trips can start where you left them.",
+      "empty": "No vehicles yet.",
       "add": "Add vehicle",
-      "active": "active",
-      "electric": "electric",
+      "active": "Active",
       "actions": {
         "setActive": "Set as active",
         "setLocation": "Set location on map",
         "edit": "Edit",
-        "delete": "Delete"
+        "delete": "Delete",
+        "more": "More"
       },
       "location": {
         "notSet": "Location not set",

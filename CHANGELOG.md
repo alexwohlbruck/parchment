@@ -2,7 +2,21 @@
 
 ### Added
 
+* Transit trips say when to leave: hurry, run, leave now, or the latest time that still gets you there as planned. They also flag tight transfers and when biking becomes faster, and a trip you've missed is replaced by the next one.
+
+* A new Navigation settings tab gathers the modes you use, your default trip ranking, routing preferences, vehicles and voice guidance. These settings now follow your account across devices.
+
+* On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
+
+* Trip results refresh on their own every 20 to 60 seconds while you're planning to leave now, and a refresh button updates them on demand.
+
+* Choose a navigation voice by language, region and gender, and hear each one before you pick it.
+
+* The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
+
 ### Changed
+
+* Vehicles moved from their own settings page into Settings → Navigation.
 
 ### Fixed
 

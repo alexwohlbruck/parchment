@@ -767,6 +767,12 @@
         "sched": "No live times",
         "crossover": "{mode} is faster after {time}"
       },
+      "detail": {
+        "hurry": "{minutes} min to the {time}",
+        "hurryLine": "{minutes} min to the {line} at {time}",
+        "leave": "Next is {minutes} min later",
+        "missed": "Finding the next one"
+      },
       "modes": {
         "cycling": "Bike",
         "walking": "Walking",
@@ -928,7 +934,8 @@
           "4": "Prefer"
         }
       }
-    }
+    },
+    "refresh": "Refresh"
   },
   "library": {
     "title": "Library",

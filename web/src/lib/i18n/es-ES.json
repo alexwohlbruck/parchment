@@ -748,6 +748,12 @@
         "sched": "Sin horarios en vivo",
         "crossover": "Más rápido {mode} desde las {time}"
       },
+      "detail": {
+        "hurry": "{minutes} min para el de las {time}",
+        "hurryLine": "{minutes} min para el {line} de las {time}",
+        "leave": "El siguiente llega {minutes} min después",
+        "missed": "Buscando el siguiente"
+      },
       "modes": {
         "cycling": "en bici",
         "walking": "a pie",
@@ -902,7 +908,8 @@
           "4": "Preferir"
         }
       }
-    }
+    },
+    "refresh": "Actualizar"
   },
   "library": {
     "title": "Biblioteca",

@@ -17,6 +17,7 @@ import {
   FootprintsIcon,
   ShuffleIcon,
   SlidersHorizontalIcon,
+  RefreshCwIcon,
   TrainFrontIcon,
   TrainIcon,
   XIcon,
@@ -330,6 +331,18 @@ useMapListener(
         >
           <ListIcon v-if="tripView === 'timeline'" class="size-3.5" />
           <ChartNoAxesGanttIcon v-else class="size-3.5" />
+        </Button>
+
+        <Button
+          v-if="trips"
+          variant="outline"
+          size="sm"
+          class="h-7 w-7 p-0 shrink-0"
+          :title="t('directions.refresh')"
+          :disabled="directionsService.isRequesting.value"
+          @click="directionsService.replan()"
+        >
+          <RefreshCwIcon class="size-3.5" :class="directionsService.isRequesting.value && 'animate-spin'" />
         </Button>
 
         <ResponsivePopover

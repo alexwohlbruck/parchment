@@ -6,6 +6,7 @@ import {
   adviceText,
   adviceValidUntil,
   boardingLeg,
+  cardHint,
   crossover,
   crossoverText,
   isFuturePlan,
@@ -181,5 +182,33 @@ describe('copy', () => {
     expect(tightText({ minutes: 2, stop: 'Jay St' }, t)).toBe('2 min to change at Jay St')
     expect(tightText({ minutes: 1 }, t)).toBe('1 min to change')
     expect(crossoverText({ mode: 'cycling', atMs: now(14) }, t)).toBe(`Bike is faster after ${clock(14)}`)
+  })
+})
+
+describe('cardHint', () => {
+  test('pairs the short words with the one fact that matters', () => {
+    const hint = cardHint(
+      { state: { kind: 'hurry', leadMin: 2, departAtMs: now(24) }, tight: { minutes: 1, stop: 'Jay St' }, live: true },
+      t,
+      'F',
+    )
+    expect(hint).toEqual({
+      words: [expect.objectContaining({ word: 'Hurry' }), expect.objectContaining({ word: 'Tight' })],
+      text: `2 min to the F at ${clock(24)}`,
+    })
+  })
+
+  test('a tight transfer alone names the stop', () => {
+    expect(cardHint({ state: null, tight: { minutes: 1, stop: 'Jay St' }, live: true }, t)).toEqual({
+      words: [expect.objectContaining({ word: 'Tight' })],
+      text: '1 min to change at Jay St',
+    })
+  })
+
+  test('calm deadlines stay plain text', () => {
+    expect(cardHint({ state: { kind: 'by', leaveByMs: now(10) }, tight: null, live: true }, t)).toEqual({
+      words: [],
+      text: `Leave by ${clock(10)}`,
+    })
   })
 })

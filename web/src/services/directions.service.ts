@@ -1,4 +1,4 @@
-import { watch, ref } from 'vue'
+import { watch, ref, readonly } from 'vue'
 import axios from 'axios'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
@@ -595,6 +595,7 @@ function directionsService() {
   return {
     getDirections,
     replan: () => getDirections({ quiet: true }),
+    isRequesting: readonly(isRequesting),
     fillWaypoint,
     setWaypoint,
     setWaypoints,

@@ -241,6 +241,53 @@ export function crossoverText(c: Crossover, t: TFn): string {
   })
 }
 
+export interface HintWord {
+  word: string
+  tone: string
+}
+
+/** A result card's hint: short words to act on, then one muted fact. */
+export interface CardHint {
+  words: HintWord[]
+  text: string | null
+}
+
+const CHIP_TONES: Record<'urgent' | 'missed', string> = {
+  urgent: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  missed: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+}
+
+function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
+  const key = (k: string) => `directions.advice.detail.${k}`
+  switch (state.kind) {
+    case 'hurry':
+      return t(key(line ? 'hurryLine' : 'hurry'), { minutes: state.leadMin, time: clock(state.departAtMs), line })
+    case 'leave':
+      return t(key('leave'), { minutes: state.nextLaterMin })
+    case 'missed':
+      return t(key('missed'))
+    case 'relax':
+    case 'by':
+      return adviceText(state, t, line)
+  }
+}
+
+export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | null {
+  const { state, tight } = advice
+  const words: HintWord[] = []
+  if (state && state.kind !== 'relax' && state.kind !== 'by') {
+    words.push({
+      word: t(`directions.advice.short.${state.kind}`),
+      tone: state.kind === 'missed' ? CHIP_TONES.missed : CHIP_TONES.urgent,
+    })
+  }
+  if (tight && state?.kind !== 'missed') {
+    words.push({ word: t('directions.advice.short.tight'), tone: CHIP_TONES.urgent })
+  }
+  const text = state ? cardDetail(state, t, line) : tight ? tightText(tight, t) : null
+  return words.length || text ? { words, text } : null
+}
+
 const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {
   hurry: 'text-amber-600 dark:text-amber-400',
   leave: 'text-amber-600 dark:text-amber-400',

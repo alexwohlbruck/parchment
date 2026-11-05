@@ -5,6 +5,7 @@ import { createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import en from '@/lib/i18n/en-US.json'
 import type { TripOption } from '@/types/directions.types'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { useTripListAdvice, type TripCardAdvice } from './useTripAdvice'
 
 const replan = vi.fn()
@@ -54,39 +55,36 @@ describe('useTripListAdvice', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('recomputes advice as the clock moves, without a fetch', async () => {
+  it('turns the hint into a short word as the deadline nears', async () => {
     const { advice, wrapper } = mountAdvice([transitTrip(60)])
-    expect(advice().transit.line?.text).toMatch(/^Leave by /)
+    expect(advice().transit.hint).toMatchObject({ words: [], text: expect.stringMatching(/^Leave by /) })
     await vi.advanceTimersByTimeAsync(6 * 60_000)
-    expect(advice().transit.line?.text).toBe('Leave now · next is 20 min later')
+    expect(advice().transit.hint).toMatchObject({
+      words: [{ word: 'Leave' }],
+      text: 'Next is 20 min later',
+    })
+    wrapper.unmount()
+  })
+
+  it('re-plans every minute while calm, every 20 s once a card asks you to act', async () => {
+    const { wrapper } = mountAdvice([transitTrip(60)])
+    await vi.advanceTimersByTimeAsync(50_000)
     expect(replan).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(replan).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    replan.mockClear()
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(replan).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
-  it('re-plans once when the profiles run out, and again for a fresh set', async () => {
-    const { list, wrapper } = mountAdvice([transitTrip(1)])
-    await vi.advanceTimersByTimeAsync(2 * 60_000)
-    expect(replan).toHaveBeenCalledTimes(1)
-
-    list.value = [transitTrip(3)]
-    await nextTick()
-    await vi.advanceTimersByTimeAsync(2 * 60_000)
-    expect(replan).toHaveBeenCalledTimes(2)
-    wrapper.unmount()
-  })
-
-  it('re-plans a missed run instead of showing it, at most every two minutes', async () => {
-    const { advice, list, wrapper } = mountAdvice([transitTrip(60)])
-    await vi.advanceTimersByTimeAsync(11 * 60_000)
-    expect(advice().transit.line).toBeNull()
-    expect(replan).toHaveBeenCalledTimes(1)
-
-    list.value = [transitTrip(60)]
-    await nextTick()
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(replan).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(replan).toHaveBeenCalledTimes(2)
+  it('does not re-plan a search set well ahead', async () => {
+    const { wrapper } = mountAdvice([transitTrip(60)])
+    useDirectionsStore().departureTime = at(90)
+    await vi.advanceTimersByTimeAsync(3 * 60_000)
+    expect(replan).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

@@ -8,6 +8,8 @@
 
 * On the All modes tab, a mode filter next to the sort menu leaves out modes you don't use, such as driving or bike share.
 
+* Trip results refresh on their own every 20 to 60 seconds while you're planning to leave now, and a refresh button updates them on demand.
+
 * The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
 
 ### Changed

@@ -18,6 +18,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -84,7 +85,7 @@ describe('configuration', () => {
   test('declares category search and place info over the OSM source', () => {
     const integration = new OverpassIntegration()
 
-    expect(integration.capabilityIds).toEqual(['searchCategory', 'placeInfo'])
+    expect(integration.capabilityIds).toEqual([IntegrationCapabilityId.SEARCH_CATEGORY, IntegrationCapabilityId.PLACE_INFO])
     expect(integration.sources).toEqual(['osm'])
   })
 

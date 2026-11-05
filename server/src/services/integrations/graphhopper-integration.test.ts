@@ -22,6 +22,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 
 mock.module('../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -130,7 +131,7 @@ describe('configuration', () => {
   })
 
   test('declares only routing', () => {
-    expect(new GraphHopperIntegration().capabilityIds).toEqual(['routing'])
+    expect(new GraphHopperIntegration().capabilityIds).toEqual([IntegrationCapabilityId.ROUTING])
   })
 
   test('refuses to route before initialization', async () => {
@@ -142,7 +143,11 @@ describe('configuration', () => {
 })
 
 describe('routing metadata', () => {
-  const metadata = new GraphHopperIntegration().capabilities.routing.metadata
+  const routing = new GraphHopperIntegration().capabilities.routing.metadata
+  if (!routing?.features) {
+    throw new Error('routing metadata is incomplete')
+  }
+  const metadata = { ...routing, features: routing.features }
 
   test('advertises the six profiles it can map', () => {
     expect(metadata.supportedModes).toEqual([

@@ -3,6 +3,7 @@
 
 import type { Place } from './place.types'
 import type { DepartureProfile } from './departure-profile.types'
+import type { StationGuidance } from './station-guidance.types'
 
 export interface Coordinate {
   lng: number
@@ -94,7 +95,7 @@ export interface RoutingPreferences {
   // ── Numeric/enum preferences ──
   cyclingSpeed?: number   // kph (5-60)
   walkingSpeed?: number   // kph (0.5-10)
-  bicycleType?: 'Road' | 'City' | 'Mountain'
+  bicycleType?: string    // Road, City, Mountain
 
   // ── Transit ──
   maxWalkDistance?: number  // meters
@@ -379,9 +380,10 @@ export interface RouteSummary {
   totalDuration: number // seconds
   totalDurationInTraffic?: number
 
-  hasTolls: boolean
-  hasHighways: boolean
-  hasFerries: boolean
+  // Absent when the engine does not report them
+  hasTolls?: boolean
+  hasHighways?: boolean
+  hasFerries?: boolean
 
   // Elevation data (for bike/pedestrian modes)
   totalElevationGain?: number // total meters climbed
@@ -509,7 +511,7 @@ export interface RoutingCapabilities {
 }
 
 // Timeline and Trip Planning Types
-export interface TimelineSegment {
+export interface TimelineSegment extends StationGuidance {
   id: string
   type: 'route' | 'waiting' | 'transfer'
   legIndex?: number

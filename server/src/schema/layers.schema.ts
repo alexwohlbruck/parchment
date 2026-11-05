@@ -30,13 +30,16 @@ export const MapEngine = {
 export type LayerType = (typeof LayerType)[keyof typeof LayerType]
 export type MapEngine = (typeof MapEngine)[keyof typeof MapEngine]
 
+export const LAYER_TYPES = Object.values(LayerType) as [LayerType, ...LayerType[]]
+export const MAP_ENGINES = Object.values(MapEngine) as [MapEngine, ...MapEngine[]]
+
 export const layers = pgTable('layers', {
   id: text('id').primaryKey().notNull(),
   name: text('name').notNull(),
-  type: text('type', { enum: Object.values(LayerType) })
+  type: text('type', { enum: LAYER_TYPES })
     .notNull()
     .default(LayerType.CUSTOM),
-  engine: text('engine', { enum: Object.values(MapEngine) })
+  engine: text('engine', { enum: MAP_ENGINES })
     .array()
     .notNull()
     .default([MapEngine.MAPBOX, MapEngine.MAPLIBRE]),

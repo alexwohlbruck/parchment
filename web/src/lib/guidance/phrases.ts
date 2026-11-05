@@ -88,8 +88,9 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
     case 'handoff':
       return handoffText(announcement.handoff, t)
     case 'transit': {
-      const { event, line, headsign, stop } = announcement
+      const { event, line, headsign, direction, stop } = announcement
       if (event === 'wait') {
+        if (direction) return t('guidance.transit.voice.boardSigned', { line, direction })
         return headsign ? t('guidance.transit.voice.boardToward', { line, headsign }) : t('guidance.transit.voice.board', { line })
       }
       return t(`guidance.transit.voice.${event}`, { line, stop })

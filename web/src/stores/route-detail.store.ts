@@ -543,7 +543,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       const vehicleData = await fetchVehiclesOnRoutes(
         activeRoute.value.feedId,
         routeIds,
-        routeBounds,
       )
 
       const updated = new Map<string, TransitVehiclePosition>()
@@ -558,30 +557,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     } catch {
       // Will retry on next poll
     }
-  }
-
-  function routeBounds() {
-    const route = activeRoute.value
-    if (!route) return null
-    let north = -90, south = 90, east = -180, west = 180
-    if (route.coordinates) {
-      for (const [lng, lat] of route.coordinates) {
-        if (lat > north) north = lat
-        if (lat < south) south = lat
-        if (lng > east) east = lng
-        if (lng < west) west = lng
-      }
-    }
-    for (const stop of route.stops) {
-      if (stop.lat > north) north = stop.lat
-      if (stop.lat < south) south = stop.lat
-      if (stop.lng > east) east = stop.lng
-      if (stop.lng < west) west = stop.lng
-    }
-    if (north === -90) return null
-    const latPad = (north - south) * 0.3
-    const lngPad = (east - west) * 0.3
-    return { north: north + latPad, south: south - latPad, east: east + lngPad, west: west - lngPad }
   }
 
   return {

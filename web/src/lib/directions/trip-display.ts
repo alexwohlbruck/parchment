@@ -94,24 +94,43 @@ export function waitMinutes(segment: { waitSeconds?: number }): number {
 }
 
 /**
- * A real entrance name reads "Enter at <name>". A train-direction description
- * says which platform a stair serves — useful entering, noise exiting, since
- * you are heading for the street. Empty when the entrance carries nothing
- * usable; never fabricated.
+ * "Enter at <place>": OSM name or ref, else the corner. A direction description
+ * helps entering and is noise exiting. Empty when nothing names the entrance.
  */
 export function entrancePhrase(
   entrance:
-    | { role?: string; name?: string | null; description?: string | null }
+    | {
+        role?: string
+        name?: string | null
+        ref?: string | null
+        cornerLabel?: string | null
+        description?: string | null
+      }
     | null
     | undefined,
 ): string {
   if (!entrance) return ''
   const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
-  if (entrance.name) return `${verb} at ${entrance.name}`
+  const place = entrance.name || entrance.ref || entrance.cornerLabel
+  if (place) return `${verb} at ${place}`
   if (entrance.role !== 'exit' && entrance.description) {
     return `${verb} · ${entrance.description}`
   }
   return ''
+}
+
+/** The direction as signed ("Uptown & The Bronx") with its terminal second, else the headsign alone. */
+export function rideDirection(segment: {
+  directionLabel?: string
+  headsign?: string
+  lineLongName?: string
+}): { label?: string; toward?: string } {
+  const { directionLabel, headsign } = segment
+  if (!directionLabel) return { label: headsign || segment.lineLongName }
+  return {
+    label: directionLabel,
+    toward: headsign && headsign.toLowerCase() !== directionLabel.toLowerCase() ? headsign : undefined,
+  }
 }
 
 /** Paint for the rail inside a transit card: the line's own colour, full strength. */

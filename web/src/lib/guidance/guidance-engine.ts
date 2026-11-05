@@ -413,6 +413,22 @@ export class GuidanceEngine {
     return this.heldS != null
   }
 
+  /** Puts the puck at `s` at `t`, as when the traveller says where they are; fixes refine it from there. */
+  relocate(s: number, t: number): void {
+    const sigma = TRUSTED_ACCURACY
+    this.heldS = null
+    this.offRoute.reset()
+    this.offRoutePosition = null
+    this.relocation.reset()
+    this.filter = new AlongRouteFilter({ s, v: 0, t, sigma }, this.options.filter)
+    this.anchor = { t, s, sigma }
+    this.trustedFix = null
+    this.lastGood = { t, s, v: 0 }
+    this.correction = 0
+    this.renderedS = s
+    this.renderedAt = null
+  }
+
   /** The puck for the frame rendered at `t`. */
   sample(t: number): PuckState | null {
     this.advance(t)

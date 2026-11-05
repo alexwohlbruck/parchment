@@ -53,6 +53,7 @@ import { billing } from '../config'
 import { logger } from '../lib/logger'
 import { getAdminUserSubscriptionInfo } from '../services/subscription.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { LANGUAGES, type Language } from '../lib/i18n/i18n.types'
 
 const app = new Elysia({ prefix: '/users' }).use(i18nPlugin)
 
@@ -1265,7 +1266,7 @@ app.use(requireAuth).put(
   },
   {
     body: t.Object({
-      language: t.Optional(t.String()),
+      language: t.Optional(t.Union(LANGUAGES.map((language) => t.Literal(language)))),
       unitSystem: t.Optional(
         t.Union([t.Literal('metric'), t.Literal('imperial')]),
       ),

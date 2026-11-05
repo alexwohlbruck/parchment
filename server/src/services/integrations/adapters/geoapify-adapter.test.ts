@@ -20,6 +20,8 @@
  */
 
 import { describe, test, expect, mock } from 'bun:test'
+import { TravelMode } from '../../../types/unified-routing.types'
+import type { Place } from '../../../types/place.types'
 
 mock.module('../../../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
@@ -29,6 +31,9 @@ mock.module('../../../lib/logger', () => ({
 
 const { GeoapifyAdapter } = await import('./geoapify-adapter')
 const adapter = new GeoapifyAdapter()
+
+/** Adapters store raw strings here despite the AttributedValue type, so read them untyped. */
+const amenities = (place: Place): Record<string, unknown> => place.amenities
 
 const feature = (props: Record<string, unknown> = {}, coords = [-80.8431, 35.2271]) => ({
   type: 'Feature',
@@ -222,7 +227,7 @@ describe('address extraction', () => {
       feature({ housenumber: '2424', street: 'N Davidson St', city: 'Charlotte' }) as any,
     )
 
-    expect(place.address.value.street1).toBe('2424 N Davidson St')
+    expect(place.address?.value.street1).toBe('2424 N Davidson St')
   })
 
   test('keeps the street alone when there is no house number', () => {
@@ -230,7 +235,7 @@ describe('address extraction', () => {
       feature({ street: 'N Davidson St' }) as any,
     )
 
-    expect(place.address.value.street1).toBe('N Davidson St')
+    expect(place.address?.value.street1).toBe('N Davidson St')
   })
 
   test('upper-cases the country code', () => {
@@ -238,7 +243,7 @@ describe('address extraction', () => {
       feature({ city: 'Charlotte', country_code: 'us' }) as any,
     )
 
-    expect(place.address.value.countryCode).toBe('US')
+    expect(place.address?.value.countryCode).toBe('US')
   })
 
   test('maps the remaining components onto the unified address', () => {
@@ -253,7 +258,7 @@ describe('address extraction', () => {
       }) as any,
     )
 
-    expect(place.address.value).toMatchObject({
+    expect(place.address?.value).toMatchObject({
       locality: 'Charlotte',
       region: 'North Carolina',
       postalCode: '28205',
@@ -273,7 +278,7 @@ describe('amenities', () => {
       feature({ categories: ['catering', 'catering.cafe'] }) as any,
     )
 
-    expect(place.amenities).toEqual({
+    expect(amenities(place)).toEqual({
       category_0: 'catering',
       category_1: 'catering.cafe',
     })
@@ -449,7 +454,7 @@ describe('leg adaptation', () => {
   test('carries the request’s travel mode onto the leg', () => {
     const leg = firstLeg(routeResponse([step()]), request({ mode: 'cycling' }))
 
-    expect(leg.mode).toBe('cycling')
+    expect(leg.mode).toBe(TravelMode.CYCLING)
   })
 })
 

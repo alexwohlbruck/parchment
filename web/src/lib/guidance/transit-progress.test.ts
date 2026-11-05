@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute, pointAt, stepIndexAt, type NavSegmentInput } from './nav-route'
-import { MISSED_GRACE_MS, rideStops, stageEvent, timetabledRemaining, transitStage, withBoardingStep, type TransitSegmentInput } from './transit-progress'
+import { MISSED_GRACE_MS, minutesUntil, rideStops, stageEvent, timetabledRemaining, transitStage, withBoardingStep, type TransitSegmentInput } from './transit-progress'
 import { polyline } from './test-routes'
 import type { PuckState } from './guidance-engine'
 
@@ -72,6 +72,12 @@ describe('transitStage', () => {
     expect(stage(2450, 9, departure, false)).toMatchObject({ kind: 'missed-stop', segmentIndex: 1, alight: 'Carson' })
   })
 
+  test('off the line at walking pace by the alighting stop is getting off, not a missed stop', () => {
+    expect(stage(2200, 1.2, departure, false)).toMatchObject({ kind: 'riding', alighting: true })
+    expect(stage(2200, 9, departure, false)?.kind).toBe('missed-stop')
+    expect(stage(1600, 1.2, departure, false)?.kind).toBe('missed-stop')
+  })
+
   test('arriving at the stop on a bike is not boarding', () => {
     expect(stage(295, 5.5)).toMatchObject({ kind: 'wait' })
   })
@@ -107,5 +113,18 @@ describe('withBoardingStep', () => {
     expect(boarded.instructions).toMatchObject([{ type: 'board', streetName: 'Tryon', coordinate: ride[0] }])
     const routeWithStep = buildNavRoute([{ mode: 'walking', geometry: walk }, boarded])
     expect(routeWithStep.steps.map(step => Math.round(step.startDistance))).toEqual([300])
+  })
+})
+
+describe('minutesUntil', () => {
+  test('rounds up, so a stop still ahead never reads as zero minutes', () => {
+    expect(minutesUntil(departure + 61_000, departure)).toBe(2)
+    expect(minutesUntil(departure + 45_000, departure)).toBe(1)
+  })
+
+  test('says nothing once arrival is imminent, overdue or unknown', () => {
+    expect(minutesUntil(departure + 20_000, departure)).toBeNull()
+    expect(minutesUntil(departure - 60_000, departure)).toBeNull()
+    expect(minutesUntil(null, departure)).toBeNull()
   })
 })

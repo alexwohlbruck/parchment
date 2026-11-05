@@ -48,9 +48,9 @@ if (billing.enabled) {
         headers[key] = value
       })
 
-      let event: { type: string; data: Record<string, unknown> }
+      let event: ReturnType<typeof validateEvent>
       try {
-        event = validateEvent(rawBody, headers, billing.webhookSecret) as typeof event
+        event = validateEvent(rawBody, headers, billing.webhookSecret)
       } catch (err) {
         if (err instanceof WebhookVerificationError) {
           logger.warn('Webhook signature verification failed')

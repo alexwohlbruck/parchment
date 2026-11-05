@@ -39,10 +39,15 @@ import {
   servedRouteOptions,
   type StopBoard,
 } from '../lib/transit/route-options'
-import { dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
+import { changeMovingSeconds, changeStaysInside, dropAvoidableStreetTransfers, splitFeedScopedId, transferChecks } from '../lib/transit/street-transfer'
 import { nameLegByRoute } from '../lib/transit/line-name'
 import { startHeading } from '../lib/start-heading'
 import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entrance-direction'
+import {
+  cheapestWalk, rankByCrowFlies, usableFor, ROUTED_CANDIDATES, type EntrancePurpose,
+} from '../lib/transit/entrance-choice'
+import { chosenEntrance, entranceRef, entranceWaypointLabel } from '../lib/transit/entrance-ref'
+import type { StationEntrance } from '../types/integration.types'
 import { haversineMeters } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
 import { activeExclusions, dropExcludedTrips } from '../lib/directions/excluded-modes'
@@ -2345,7 +2350,6 @@ export class TripService {
       arriveBy: arrivalTarget != null,
       numItineraries: isContinuation ? 2 : isMulti ? 3 : 5,
       searchWindow: isContinuation ? 900 : isMulti ? 1200 : 1800,
-      transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
     }
@@ -3342,11 +3346,19 @@ export class TripService {
 
   private static readonly ENTRANCE_CACHE_MAX = 500
 
+  /** The entrance or exit barrelman chose from the station graph for a ride, under the trip's walking profile. */
+  private chosenAccess(ride: TripSegment, end: 'entrance' | 'exit'): StationEntrance | null {
+    const choice = ride.details?.transitDetails?.[end]
+    if (!choice) return null
+    const subway = ride.details?.transitDetails?.route?.type === 'subway'
+    return chosenEntrance(choice, subway ? 'subway_entrance' : 'train_station_entrance')
+  }
+
   /**
    * Station-entrance lookups; entrances are static OSM data. A failed lookup
    * also comes back null, so only a found entrance is remembered.
    */
-  private entranceCache = new MemoCache<import('../types/integration.types').StationEntrance | null>({
+  private entranceCache = new MemoCache<StationEntrance | null>({
     max: TripService.ENTRANCE_CACHE_MAX,
     keep: (entrance) => entrance != null,
   })
@@ -3389,7 +3401,7 @@ export class TripService {
     lng: number,
     radiusM: number,
     wheelchair = false,
-  ): Promise<import('../types/integration.types').StationEntrance | null> {
+  ): Promise<StationEntrance | null> {
     return this.entranceCache.get(
       `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`,
       () => transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair),
@@ -3411,33 +3423,66 @@ export class TripService {
       .filter((name): name is string => !!name)
   }
 
-  /**
-   * The nearest entrance to a platform that reaches it. An entrance signed
-   * for the opposite direction leads to the other platform, so the next
-   * nearest one that is not is used instead.
-   */
+  /** Of the entrances open for the purpose that reach this platform, the one with the shortest whole walk. */
   private async entranceFor(
     platform: Coordinate,
+    street: Coordinate,
     leg: TripSegment,
     end: 'board' | 'alight',
     wheelchair: boolean,
-  ): Promise<import('../types/integration.types').StationEntrance | null> {
-    const radius = TripService.ENTRANCE_SNAP_RADIUS_M
+    preferences?: any,
+  ): Promise<StationEntrance | null> {
+    const purpose: EntrancePurpose = end === 'board' ? 'enter' : 'exit'
     const travelBearing = TripService.platformBearing(leg, end)
     const routes = TripService.legRoutes(leg)
-    const facesAway = async (e: { name: string | null; description: string | null }) => {
+    const facesAway = async (e: StationEntrance) => {
+      if (travelBearing == null) return false
       const sign = entranceSign(routes, e.name, e.description)
       const heading = sign && 'toward' in sign
         ? await this.headingToward(sign.toward, platform)
         : sign?.heading ?? null
       return entranceFacesAway(heading, travelBearing)
     }
-    const nearest = await this.cachedNearestEntrance(platform.lat, platform.lng, radius, wheelchair)
-    if (!nearest || travelBearing == null || !(await facesAway(nearest))) return nearest
-    const nearby = await this.cachedEntrancesAround(platform, nearest.accessType, radius, wheelchair)
-    const away = await Promise.all(nearby.map(facesAway))
-    return nearby.find((_, i) => !away[i]) ?? null
+
+    const usable = (await this.entranceCandidates(platform, wheelchair, purpose))
+      .filter((e) => usableFor(e, purpose))
+    const away = await Promise.all(usable.map(facesAway))
+    const reaching = usable.filter((_, i) => !away[i])
+    if (reaching.length <= 1) return reaching[0] ?? null
+
+    const guesses = rankByCrowFlies(reaching, street, platform).slice(0, ROUTED_CANDIDATES)
+    const meters = await Promise.all(guesses.map((e) => {
+      const door = { lat: e.lat, lng: e.lon }
+      const [from, to] = end === 'board' ? [street, door] : [door, street]
+      return this.cachedWalkRoute(from, to, preferences)
+        .then((r) => r.routes[0]?.legs[0]?.distance ?? null)
+        .catch(() => null)
+    }))
+    return cheapestWalk(guesses, meters, platform)
   }
+
+  /** The best kind of entrance near a platform, nearest first; else the nearest plus a place search. */
+  private async entranceCandidates(
+    platform: Coordinate,
+    wheelchair: boolean,
+    purpose: EntrancePurpose,
+  ): Promise<StationEntrance[]> {
+    const radius = TripService.ENTRANCE_SNAP_RADIUS_M
+    const listed = await this.entranceListCache.get(
+      `${platform.lat.toFixed(5)},${platform.lng.toFixed(5)},${radius},${wheelchair ? 'w' : ''},${purpose}`,
+      () => transitRoutingService.findEntrances(platform.lat, platform.lng, {
+        maxDistanceM: radius, wheelchair, purpose, limit: 20,
+      }),
+    ).catch(() => null)
+    if (listed) return listed
+
+    const nearest = await this.cachedNearestEntrance(platform.lat, platform.lng, radius, wheelchair)
+    if (!nearest) return []
+    const nearby = await this.cachedEntrancesAround(platform, nearest.accessType, radius, wheelchair)
+    return [nearest, ...nearby.filter((e) => e.osmId !== nearest.osmId)]
+  }
+
+  private entranceListCache = new MemoCache<StationEntrance[] | null>({ max: TripService.ENTRANCE_CACHE_MAX })
 
   /** A signed destination nearer than this is where the station already is. */
   private static readonly SIGN_DESTINATION_MIN_M = 1000
@@ -3455,7 +3500,7 @@ export class TripService {
     return bearingDeg(station, target)
   }
 
-  private entrancesAroundCache = new MemoCache<import('../types/integration.types').StationEntrance[]>({
+  private entrancesAroundCache = new MemoCache<StationEntrance[]>({
     max: TripService.ENTRANCE_CACHE_MAX,
   })
 
@@ -3465,7 +3510,7 @@ export class TripService {
     accessType: string,
     radiusM: number,
     wheelchair: boolean,
-  ): Promise<import('../types/integration.types').StationEntrance[]> {
+  ): Promise<StationEntrance[]> {
     if (!TripService.LISTABLE_ENTRANCE_TYPES.has(accessType)) return Promise.resolve([])
     const key = `${platform.lat.toFixed(5)},${platform.lng.toFixed(5)},${accessType},${radiusM},${wheelchair ? 'w' : ''}`
     return this.entrancesAroundCache.get(key, () => {
@@ -3491,6 +3536,8 @@ export class TripService {
               description: p.tags?.description ?? null,
               wheelchair: p.tags?.wheelchair ?? null,
               level: p.tags?.level ?? null,
+              entryAllowed: p.tags?.entrance === 'exit' ? false : null,
+              exitAllowed: p.tags?.entrance === 'entry' ? false : null,
               accessType,
               lat: center.lat,
               lon: center.lng,
@@ -3565,7 +3612,8 @@ export class TripService {
         // and follows the in-station pathways — keep its geometry and timing,
         // stretching to the next departure so slack shows as platform wait.
         //
-        // Only when the endpoints are genuinely close, though. MOTIS also
+        // Station guidance decides where it has a say; otherwise only when
+        // the endpoints are genuinely close. MOTIS also
         // emits zero-geometry footpaths between *different* stations a few
         // hundred metres apart (e.g. Franklin Av shuttle → Nostrand Av to
         // catch the express A that skips Franklin). Those are real street
@@ -3575,7 +3623,8 @@ export class TripService {
           seg.start.location,
           seg.end.location,
         )
-        if (prevIsTransit && nextIsTransit && transferGap <= TripService.IN_STATION_TRANSFER_MAX_M) {
+        const staysInside = changeStaysInside(segments[i + 1]) ?? transferGap <= TripService.IN_STATION_TRANSFER_MAX_M
+        if (prevIsTransit && nextIsTransit && staysInside) {
           const movingSec = seg.duration
           const departureMs = new Date(segments[i + 1].startTime).getTime()
           const startMs = new Date(seg.startTime).getTime()
@@ -3587,44 +3636,30 @@ export class TripService {
           return
         }
 
+        const chosenBoard = nextIsTransit ? this.chosenAccess(segments[i + 1], 'entrance') : null
+        const chosenAlight = prevIsTransit ? this.chosenAccess(segments[i - 1], 'exit') : null
         const [boardEntrance, alightEntrance] = await Promise.all([
-          nextIsTransit
-            ? this.entranceFor(seg.end.location, segments[i + 1], 'board', wheelchair)
-            : Promise.resolve(null),
-          prevIsTransit
-            ? this.entranceFor(seg.start.location, segments[i - 1], 'alight', wheelchair)
-            : Promise.resolve(null),
+          !nextIsTransit ? Promise.resolve(null)
+            : chosenBoard ?? this.entranceFor(seg.end.location, seg.start.location, segments[i + 1], 'board', wheelchair, preferences),
+          !prevIsTransit ? Promise.resolve(null)
+            : chosenAlight ?? this.entranceFor(seg.start.location, seg.end.location, segments[i - 1], 'alight', wheelchair, preferences),
         ])
 
         if (boardEntrance) {
           seg.end = {
             location: { lat: boardEntrance.lat, lng: boardEntrance.lon },
             type: 'via',
-            label: boardEntrance.name || boardEntrance.description || seg.end.label,
+            label: entranceWaypointLabel(boardEntrance) ?? seg.end.label,
           }
-          if (boardEntrance.name || boardEntrance.description) {
-            seg.stationEntrance = {
-              role: 'enter',
-              name: boardEntrance.name || undefined,
-              description: boardEntrance.description || undefined,
-              accessType: boardEntrance.accessType,
-            }
-          }
+          seg.stationEntrance = entranceRef(boardEntrance, 'enter') ?? seg.stationEntrance
         }
         if (alightEntrance) {
           seg.start = {
             location: { lat: alightEntrance.lat, lng: alightEntrance.lon },
             type: 'via',
-            label: alightEntrance.name || alightEntrance.description || seg.start.label,
+            label: entranceWaypointLabel(alightEntrance) ?? seg.start.label,
           }
-          if (alightEntrance.name || alightEntrance.description) {
-            seg.stationEntrance = {
-              role: 'exit',
-              name: alightEntrance.name || undefined,
-              description: alightEntrance.description || undefined,
-              accessType: alightEntrance.accessType,
-            }
-          }
+          seg.stationEntrance = entranceRef(alightEntrance, 'exit') ?? seg.stationEntrance
         }
 
         // 3. GraphHopper re-route between the (possibly moved) endpoints
@@ -3705,7 +3740,7 @@ export class TripService {
             if (departureMs > startMs) {
               seg.endTime = new Date(departureMs).toISOString()
               seg.duration = (departureMs - startMs) / 1000
-              seg.waitSeconds = Math.max(0, seg.duration - leg.duration)
+              seg.waitSeconds = Math.max(0, seg.duration - changeMovingSeconds(movingSec, segments[i + 1]))
             }
           }
           // Other middle walks (e.g. to rental stations) keep MOTIS timing —
@@ -4167,6 +4202,11 @@ export class TripService {
       departureStop,
       arrivalStop,
       headsign: leg.headsign,
+      ...(leg.directionLabel && { directionLabel: leg.directionLabel }),
+      ...(leg.entrance && { entrance: leg.entrance }),
+      ...(leg.exit && { exit: leg.exit }),
+      ...(leg.transfer && { transfer: leg.transfer }),
+      ...(leg.boardingPosition && { boardingPosition: leg.boardingPosition }),
       shortName: leg.routeShortName,
       color: leg.routeColor,
       textColor: leg.routeTextColor,

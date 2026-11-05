@@ -11,6 +11,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import type { Place } from '../types/place.types'
 
 let configuredIntegrations: any[] = []
 let instance: any = null
@@ -314,6 +315,6 @@ describe('searchByBrand — results', () => {
   test('returns the catalog results on success', async () => {
     const { results } = await searchByBrand('Q38076')
 
-    expect(results).toEqual([{ id: 'osm/node/1' }])
+    expect(results).toEqual([{ id: 'osm/node/1' } as Place])
   })
 })

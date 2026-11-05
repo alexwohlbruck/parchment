@@ -405,7 +405,7 @@ export class OverpassAdapter {
     const tags = data.tags || {}
     return createTransitInfo(
       tags,
-      this.extractName(tags),
+      this.extractName(tags) ?? undefined,
       tags.description
     )
   }

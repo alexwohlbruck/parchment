@@ -27,7 +27,7 @@ class MalformedSignatureInputError extends Error {}
 let signatureValid = true
 let signatureThrows: Error | null = null
 
-const verifySignature = mock(() => {
+const verifySignature = mock((_message: string, _signature: string, _publicKey: string) => {
   if (signatureThrows) throw signatureThrows
   return signatureValid
 })

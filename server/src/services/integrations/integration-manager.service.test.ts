@@ -16,7 +16,10 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
-import { IntegrationId } from '../../types/integration.enums'
+import {
+  IntegrationCapabilityId,
+  IntegrationId,
+} from '../../types/integration.enums'
 
 /** Integrations the registry knows about, keyed by id. */
 let registered: Record<string, any> = {}
@@ -411,7 +414,7 @@ describe('capability and instance lookup', () => {
   test('getIntegrationCapabilities reads the registry', () => {
     expect(
       manager.getIntegrationCapabilities(IntegrationId.BARRELMAN as any),
-    ).toEqual(['search'])
+    ).toEqual([IntegrationCapabilityId.SEARCH])
   })
 
   test('getIntegrationCapabilities is empty for an unknown integration', () => {

@@ -1,46 +1,59 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { hasPermission } from './auth.service'
+import { PermissionId } from '../types/auth.types'
 
 // hasPermission is a pure function — no DB needed, test directly.
 
 describe('hasPermission', () => {
-  const userPerms = ['places:read', 'places:write', 'premium:data_providers']
+  const userPerms: string[] = [
+    PermissionId.LIBRARY_READ,
+    PermissionId.LIBRARY_WRITE,
+    PermissionId.PREMIUM_DATA_PROVIDERS,
+  ]
 
   test('string rule — returns true when user has the permission', () => {
-    expect(hasPermission(userPerms, 'places:read')).toBe(true)
+    expect(hasPermission(userPerms, PermissionId.LIBRARY_READ)).toBe(true)
   })
 
   test('string rule — returns false when user lacks the permission', () => {
-    expect(hasPermission(userPerms, 'admin:settings')).toBe(false)
+    expect(hasPermission(userPerms, PermissionId.ROLES_WRITE)).toBe(false)
   })
 
   test('{ all } rule — true when user has every listed permission', () => {
     expect(
-      hasPermission(userPerms, { all: ['places:read', 'places:write'] }),
+      hasPermission(userPerms, {
+        all: [PermissionId.LIBRARY_READ, PermissionId.LIBRARY_WRITE],
+      }),
     ).toBe(true)
   })
 
   test('{ all } rule — false when user is missing one', () => {
     expect(
-      hasPermission(userPerms, { all: ['places:read', 'admin:settings'] }),
+      hasPermission(userPerms, {
+        all: [PermissionId.LIBRARY_READ, PermissionId.ROLES_WRITE],
+      }),
     ).toBe(false)
   })
 
   test('{ any } rule — true when user has at least one', () => {
     expect(
-      hasPermission(userPerms, { any: ['admin:settings', 'places:read'] }),
+      hasPermission(userPerms, {
+        any: [PermissionId.ROLES_WRITE, PermissionId.LIBRARY_READ],
+      }),
     ).toBe(true)
   })
 
   test('{ any } rule — false when user has none', () => {
     expect(
-      hasPermission(userPerms, { any: ['admin:settings', 'system:read'] }),
+      hasPermission(userPerms, {
+        any: [PermissionId.ROLES_WRITE, PermissionId.SYSTEM_READ],
+      }),
     ).toBe(false)
   })
 
   test('empty permissions array always returns false', () => {
-    expect(hasPermission([], 'places:read')).toBe(false)
-    expect(hasPermission([], { any: ['places:read'] })).toBe(false)
+    expect(hasPermission([], PermissionId.LIBRARY_READ)).toBe(false)
+    expect(hasPermission([], { any: [PermissionId.LIBRARY_READ] })).toBe(false)
   })
 })
 

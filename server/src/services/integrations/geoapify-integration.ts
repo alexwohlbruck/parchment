@@ -25,7 +25,7 @@ import {
   GeoapifyRoutingResponse,
 } from './adapters/geoapify-adapter'
 import { getGeoapifyCategory } from './mappings/geoapify-preset-mapping'
-import { SOURCE } from '../../lib/constants'
+import { SOURCE, type Source } from '../../lib/constants'
 import { getLanguageCode, type Language } from '../../lib/i18n'
 
 export interface GeoapifyConfig extends IntegrationConfig {

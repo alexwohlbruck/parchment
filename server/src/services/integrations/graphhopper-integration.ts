@@ -30,7 +30,6 @@ import type {
   GraphHopperRouteResponse,
   GraphHopperErrorResponse,
 } from '../../types/graphhopper.types'
-import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
 import { logError, logWarn, logger } from '../../lib/logger'
 import { graphHopperSigns } from '../../lib/graphhopper-signs'
 
@@ -59,7 +58,6 @@ import { graphHopperSigns } from '../../lib/graphhopper-signs'
  */
 export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
   private initialized = false
-  private adapter = new GraphHopperAdapter()
   protected config: GraphHopperConfig = {}
 
   readonly integrationId = IntegrationId.GRAPHHOPPER

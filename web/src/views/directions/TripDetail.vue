@@ -74,6 +74,7 @@ import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
 import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
+import StationGuidanceRows from '@/components/transit/trip/StationGuidanceRows.vue'
 import HazardSummary from '@/components/directions/trip/HazardSummary.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -1473,6 +1474,11 @@ function showSegmentChart(segment: any): boolean {
                 corner runs concentric with the icon.
               -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
+                <StationGuidanceRows
+                  class="mb-2 pl-[46px]"
+                  :segments="trip.segments"
+                  :index="entry.segmentIndex"
+                />
                 <!-- The outline is a ring, not a border: a border would push the card's
                      content — and so the rail running through it — 1px right of
                      the rail on every other entry. The ring sits outside the box,
@@ -1586,6 +1592,11 @@ function showSegmentChart(segment: any): boolean {
                   />
                   <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>
                 </div>
+                <StationGuidanceRows
+                  class="mt-1.5"
+                  :segments="trip.segments"
+                  :index="entry.segmentIndex"
+                />
                 <!-- Walk times are implied by the surrounding stops; show the
                      clock only for vehicle modes -->
                 <div

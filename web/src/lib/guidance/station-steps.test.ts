@@ -41,6 +41,25 @@ const speak = (route: NavRoute, index: number, translate = t) =>
 const words = (route: NavRoute) => route.steps.map((_, i) => speak(route, i))
 
 describe('station entrances', () => {
+  test('an entrance OSM leaves unnamed is named by its corner', () => {
+    const walkIn = polyline([[0, 300]])
+    const ride = polyline([[0, 1000]], walkIn.at(-1)!)
+    const route = buildNavRoute([
+      {
+        mode: 'walking',
+        geometry: walkIn,
+        instructions: [{ type: 'depart', text: '', coordinate: walkIn[0], distance: 300, duration: 220 }],
+        edgeSegments: [
+          { startDistance: 0, endDistance: 300, roadClass: 'footway' },
+          { startDistance: 260, endDistance: 300, roadClass: 'footway', entrance: { ref: 'B' } },
+        ] as RouteEdgeSegment[],
+        stationEntrance: { cornerLabel: 'Broadway & West 28th Street · NW corner' },
+      },
+      { mode: 'transit', geometry: ride, instructions: [{ type: 'board', text: '', coordinate: ride[0], distance: 0, duration: 0, streetName: '28 St' }] },
+    ])
+    expect(words(route)).toContain('Enter the station at entrance B, Broadway & West 28th Street · NW corner')
+  })
+
   test('the walk in ends at the entrance and the walk out leaves by the exit', () => {
     const route = trip(
       [{ startDistance: 260, endDistance: 300, roadClass: 'footway', entrance: { ref: 'B', name: 'Bedford Av & Sterling Pl' } }],

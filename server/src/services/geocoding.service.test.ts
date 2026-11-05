@@ -8,6 +8,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import type { Place } from '../types/place.types'
 
 let configuredIntegrations: any[] = []
 const instances = new Map<string, any>()
@@ -33,7 +34,8 @@ function provider(integrationId: string, geocoding: any) {
   instances.set(integrationId, { capabilities: { geocoding } })
 }
 
-const place = (name: string) => ({ name }) as any
+const place = (name: string) =>
+  ({ name: { value: name, sourceId: 'test' } }) as unknown as Place
 
 /** A provider that answers both directions with the same fixed result. */
 function answering(name: string) {
@@ -70,7 +72,7 @@ describe('provider priority', () => {
     const { results, integrationId } = await reverseGeocode(35.2, -80.8)
 
     expect(integrationId).toBe('barrelman')
-    expect(results[0].name).toBe('from barrelman')
+    expect(results[0].name.value).toBe('from barrelman')
   })
 
   test('does not call lower-priority providers once one answers', async () => {
@@ -92,7 +94,7 @@ describe('fallback', () => {
     const { results, integrationId } = await reverseGeocode(48.85, 2.29)
 
     expect(integrationId).toBe('nominatim')
-    expect(results[0].name).toBe('from nominatim')
+    expect(results[0].name.value).toBe('from nominatim')
   })
 
   test('falls through to the next provider when the first throws', async () => {

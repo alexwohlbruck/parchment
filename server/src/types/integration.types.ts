@@ -1,4 +1,6 @@
+import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
+import type { StationGuidance } from './station-guidance.types'
 import type { TransitPriority } from '../lib/transit/transit-gate'
 import type { StopBoard } from '../lib/transit/route-options'
 import { Place, TransitDeparture } from './place.types'
@@ -103,19 +105,18 @@ export interface PlaceInfoCapability {
   ): Promise<Place | null>
 }
 
-// TODO: Return types
 export interface GeocodingCapability {
   geocode(
     query: string,
     lat?: number,
     lng?: number,
     options?: { language?: import('../lib/i18n').Language },
-  ): Promise<any[]>
+  ): Promise<Place[]>
   reverseGeocode(
     lat: number,
     lng: number,
     options?: { language?: import('../lib/i18n').Language },
-  ): Promise<any[]>
+  ): Promise<Place[]>
 }
 
 export interface RoutingCapability {
@@ -133,8 +134,9 @@ export interface RoutingCapability {
 // Support level for each routing preference
 // 'range' = engine supports 0-1 float values (render as 5-stop slider)
 // 'boolean' = engine only supports on/off (render as toggle switch)
+// 'full' = engine takes the value as-is (enum or unbounded number)
 // false = engine does not support this preference
-export type PreferenceSupportLevel = 'range' | 'boolean' | false
+export type PreferenceSupportLevel = 'range' | 'boolean' | 'full' | false
 
 // Metadata describing routing engine capabilities
 export interface RoutingCapabilityMetadata {
@@ -291,6 +293,21 @@ export interface StationEntrance {
   lat: number
   lon: number
   distanceM: number
+  /** The entrance's own OSM `ref`, where mapped. */
+  ref?: string | null
+  /** Where the entrance is, from the streets around it: "Broadway & West 28th Street · NW corner". */
+  cornerLabel?: string | null
+  /** False for an exit-only entrance; null or absent when unknown. */
+  entryAllowed?: boolean | null
+  /** False for an entry-only entrance; null or absent when unknown. */
+  exitAllowed?: boolean | null
+}
+
+export interface EntranceQuery {
+  maxDistanceM?: number
+  wheelchair?: boolean
+  purpose?: EntrancePurpose
+  limit?: number
 }
 
 export interface TransitRoutingCapability {
@@ -300,7 +317,9 @@ export interface TransitRoutingCapability {
     priority?: TransitPriority,
   ): Promise<TransitRouteResponse>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
-  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
+  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean, purpose?: EntrancePurpose): Promise<StationEntrance | null>
+  /** Every entrance near a coordinate, nearest first; null when the provider can't list them. */
+  findEntrances?(lat: number, lon: number, query: EntranceQuery): Promise<StationEntrance[] | null>
   /** Departure boards for one stop's station, from `time` for `windowMinutes`. */
   getStopDepartures?(query: StopDeparturesQuery): Promise<StopBoard[] | null>
 }
@@ -383,7 +402,7 @@ export interface TransitItinerary {
   }
 }
 
-export interface TransitLeg {
+export interface TransitLeg extends StationGuidance {
   mode: string
   from: TransitLegPlace
   to: TransitLegPlace

@@ -11,8 +11,9 @@ import {
   TravelMode,
   WaypointType,
   RouteWaypoint,
-  RoutingPreferences,
 } from '../types/unified-routing.types'
+import type { RoutingPreferences } from '../types/trip.types'
+import type { Language } from '../lib/i18n'
 import { logError, logWarn } from '../lib/logger'
 
 export class RoutingService {
@@ -26,7 +27,7 @@ export class RoutingService {
   async getRoute(
     locations: Location[],
     costing: string = 'auto',
-    preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
+    preferences?: RoutingPreferences & { language?: Language },
     options: { startHeading?: number; alternatives?: number } = {},
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
@@ -89,8 +90,7 @@ export class RoutingService {
       includeInstructions: true,
       includeGeometry: true,
       startHeading: options.startHeading,
-      language: (preferences as { language?: import('../lib/i18n').Language })
-        ?.language,
+      language: preferences?.language,
       preferences: preferences
         ? {
             optimize: preferences.shortest ? 'distance' : 'time',

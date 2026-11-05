@@ -669,7 +669,7 @@ export function parseIntegrationData(
 
   let capabilities: IntegrationCapability[]
   try {
-    capabilities = JSON.parse(row.capabilities as any)
+    capabilities = JSON.parse(row.capabilities)
   } catch (error) {
     logger.error(
       { integrationId: row.integrationId, id: row.id, err: error },

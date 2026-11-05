@@ -16,6 +16,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { createAxiosMock } from '../../test/axios-mock'
 
 const http = createAxiosMock()
@@ -81,9 +82,9 @@ describe('configuration', () => {
 
   test('declares search, geocoding and place info', () => {
     expect(new NominatimIntegration().capabilityIds).toEqual([
-      'search',
-      'geocoding',
-      'placeInfo',
+      IntegrationCapabilityId.SEARCH,
+      IntegrationCapabilityId.GEOCODING,
+      IntegrationCapabilityId.PLACE_INFO,
     ])
   })
 

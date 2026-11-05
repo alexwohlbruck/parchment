@@ -1,10 +1,7 @@
 import { pgTable, text, timestamp, integer, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { users } from './users.schema'
-import {
-  IntegrationId,
-  IntegrationCapabilityId,
-} from '../types/integration.enums'
+import { IntegrationId } from '../types/integration.enums'
 
 export type IntegrationScheme = 'server-key' | 'user-e2ee'
 
@@ -32,14 +29,7 @@ export const integrations = pgTable(
     configCiphertext: text('config_ciphertext'), // base64 (ciphertext || gcm tag)
     configNonce: text('config_nonce'), // base64 (12B AES-GCM nonce)
     configKeyVersion: integer('config_key_version').notNull().default(1),
-    capabilities: text('capabilities')
-      .$type<
-        {
-          id: IntegrationCapabilityId
-          active: boolean
-        }[]
-      >()
-      .notNull(), // JSON string
+    capabilities: text('capabilities').notNull(), // JSON string
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

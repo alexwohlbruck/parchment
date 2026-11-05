@@ -4,8 +4,10 @@ import {
   type TransitRouteResponse,
   type StopRouteResult,
   type StationEntrance,
+  type EntranceQuery,
   type StopDeparturesQuery,
 } from '../types/integration.types'
+import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { StopBoard } from '../lib/transit/route-options'
 import { integrationManager } from './integrations'
 import type { TransitPriority } from '../lib/transit/transit-gate'
@@ -58,14 +60,24 @@ export class TransitRoutingService {
     lon: number,
     maxDistanceM?: number,
     wheelchair?: boolean,
+    purpose?: EntrancePurpose,
   ): Promise<StationEntrance | null> {
     try {
       const capability = this.getTransitRoutingCapability()
       if (capability.getNearestEntrance) {
         // await so a rejected promise is caught here, not surfaced to callers
-        return await capability.getNearestEntrance(lat, lon, maxDistanceM, wheelchair)
+        return await capability.getNearestEntrance(lat, lon, maxDistanceM, wheelchair, purpose)
       }
       return null
+    } catch {
+      return null
+    }
+  }
+
+  /** Every entrance near a coordinate, or null when the provider can't list them. */
+  async findEntrances(lat: number, lon: number, query: EntranceQuery): Promise<StationEntrance[] | null> {
+    try {
+      return (await this.getTransitRoutingCapability().findEntrances?.(lat, lon, query)) ?? null
     } catch {
       return null
     }

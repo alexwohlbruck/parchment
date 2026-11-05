@@ -13,6 +13,12 @@
 * Choose a navigation voice by language, region and gender, and hear each one before you pick it.
 
 * The About dialog credits contributors and lists the open source projects behind Parchment, Barrelman and Portolan.
+* Subway trips and departure boards name directions as the platform signs do, like "Uptown & The Bronx", and entrances by their street corner. Exit-only entrances are never used to enter.
+* Trip details show how each transfer is made, like "In-station · 1 min 22 s" or "Exit and re-enter", with the walk inside the station as expandable steps.
+* Subway walks use the entrance and exit that make the whole trip shortest, measured through the station.
+* Transit legs suggest where to board, like "Board toward the back · saves 2 min".
+* Walks inside stations are drawn dashed on the trip map and fade off other floors when an indoor floor is picked.
+* Underground, navigation switches to station steps you advance yourself, and returns to GPS guidance once you're back on the street.
 
 ### Changed
 
@@ -22,6 +28,10 @@
 
 * The transit map no longer disappears while you zoom in or out, and areas you have already seen redraw instantly instead of loading again.
 * Places load again as soon as you're back online, and Reload works right away, without restarting the app.
+* Live buses and trains glide more steadily between updates and no longer slide backwards when a new position arrives.
+* On transit, navigation no longer says "Get off now" a stop early on a late train, shows what comes after you get off, and moves on once you're off or tap "I got off".
+* Transfer walks show the time spent walking, with the rest of the gap as waiting, so a 90-second platform change no longer reads as a 5-minute walk.
+* Changes through a passageway inside the station, like 42 St–Port Authority to the 7, are no longer drawn as a walk along the street.
 
 ## [0.19.1] - 2026-11-03
 

@@ -5,6 +5,7 @@ import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routin
 import type { DrivingSide, InstructionLanePlan, LaneGeometry } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { Place } from './place.types'
+import type { StationGuidance } from './station-guidance.types'
 
 // =============================================================================
 // CORE TYPES
@@ -282,7 +283,7 @@ export interface SharedMobilityDetails {
   }
 }
 
-export interface TransitDetails {
+export interface TransitDetails extends StationGuidance {
   route: TransitRoute
   trip: TransitTrip
   stops: TransitStop[]

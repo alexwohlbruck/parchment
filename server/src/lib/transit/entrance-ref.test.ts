@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { entranceRef, entranceWaypointLabel } from './entrance-ref'
+import { chosenEntrance, entranceRef, entranceWaypointLabel } from './entrance-ref'
 import type { StationEntrance } from '../../types/integration.types'
 
 const entrance = (over: Partial<StationEntrance>): StationEntrance => ({
@@ -28,5 +28,23 @@ describe('entranceRef', () => {
 
   test('is null when nothing names the entrance', () => {
     expect(entranceRef(entrance({}), 'enter')).toBeNull()
+  })
+})
+
+describe('chosenEntrance', () => {
+  test('labels a chosen entrance by its corner', () => {
+    const chosen = chosenEntrance({
+      id: 'node/9', name: null, ref: null, cornerLabel: 'East 15th Street & Union Square East · SW corner',
+      lat: 40.735, lng: -73.989, streetSeconds: 60, stationSeconds: 90, totalSeconds: 150,
+      walk: {
+        source: 'graph', estimate: false, seconds: 90, uncertaintyS: 10, metres: 80, levels: 1,
+        from: { id: 'node/9', kind: 'entrance', name: null, lat: 40.735, lng: -73.989, level: 0 },
+        to: { id: 'p1', kind: 'platform', name: null, lat: 40.7352, lng: -73.9892, level: -1 },
+      },
+    }, 'subway_entrance')
+    expect([chosen.lat, chosen.lon]).toEqual([40.735, -73.989])
+    expect(entranceRef(chosen, 'enter')).toMatchObject({
+      role: 'enter', cornerLabel: 'East 15th Street & Union Square East · SW corner', accessType: 'subway_entrance',
+    })
   })
 })

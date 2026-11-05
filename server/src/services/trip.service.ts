@@ -46,7 +46,7 @@ import { bearingDeg, entranceFacesAway, entranceSign } from '../lib/transit/entr
 import {
   cheapestWalk, rankByCrowFlies, usableFor, ROUTED_CANDIDATES, type EntrancePurpose,
 } from '../lib/transit/entrance-choice'
-import { entranceRef, entranceWaypointLabel } from '../lib/transit/entrance-ref'
+import { chosenEntrance, entranceRef, entranceWaypointLabel } from '../lib/transit/entrance-ref'
 import type { StationEntrance } from '../types/integration.types'
 import { haversineMeters } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
@@ -3270,6 +3270,14 @@ export class TripService {
 
   private static readonly ENTRANCE_CACHE_MAX = 500
 
+  /** The entrance or exit barrelman chose from the station graph for a ride, under the trip's walking profile. */
+  private chosenAccess(ride: TripSegment, end: 'entrance' | 'exit'): StationEntrance | null {
+    const choice = ride.details?.transitDetails?.[end]
+    if (!choice) return null
+    const subway = ride.details?.transitDetails?.route?.type === 'subway'
+    return chosenEntrance(choice, subway ? 'subway_entrance' : 'train_station_entrance')
+  }
+
   /**
    * Station-entrance lookups; entrances are static OSM data. A failed lookup
    * also comes back null, so only a found entrance is remembered.
@@ -3550,13 +3558,13 @@ export class TripService {
           return
         }
 
+        const chosenBoard = nextIsTransit ? this.chosenAccess(segments[i + 1], 'entrance') : null
+        const chosenAlight = prevIsTransit ? this.chosenAccess(segments[i - 1], 'exit') : null
         const [boardEntrance, alightEntrance] = await Promise.all([
-          nextIsTransit
-            ? this.entranceFor(seg.end.location, seg.start.location, segments[i + 1], 'board', wheelchair, preferences)
-            : Promise.resolve(null),
-          prevIsTransit
-            ? this.entranceFor(seg.start.location, seg.end.location, segments[i - 1], 'alight', wheelchair, preferences)
-            : Promise.resolve(null),
+          !nextIsTransit ? Promise.resolve(null)
+            : chosenBoard ?? this.entranceFor(seg.end.location, seg.start.location, segments[i + 1], 'board', wheelchair, preferences),
+          !prevIsTransit ? Promise.resolve(null)
+            : chosenAlight ?? this.entranceFor(seg.start.location, seg.end.location, segments[i - 1], 'alight', wheelchair, preferences),
         ])
 
         if (boardEntrance) {
@@ -4117,6 +4125,10 @@ export class TripService {
       arrivalStop,
       headsign: leg.headsign,
       ...(leg.directionLabel && { directionLabel: leg.directionLabel }),
+      ...(leg.entrance && { entrance: leg.entrance }),
+      ...(leg.exit && { exit: leg.exit }),
+      ...(leg.transfer && { transfer: leg.transfer }),
+      ...(leg.boardingPosition && { boardingPosition: leg.boardingPosition }),
       shortName: leg.routeShortName,
       color: leg.routeColor,
       textColor: leg.routeTextColor,

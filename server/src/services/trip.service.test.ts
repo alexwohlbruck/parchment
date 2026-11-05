@@ -2925,6 +2925,59 @@ describe('TripService — entry- and exit-only entrances', () => {
   })
 })
 
+describe('TripService — station guidance from barrelman', () => {
+  const walk = {
+    source: 'graph', estimate: false, seconds: 70, uncertaintyS: 10, metres: 60, levels: 1,
+    from: { id: 'p1', kind: 'platform', name: null, lat: 35.225, lng: -80.845, level: -1 },
+    to: { id: 'node/7', kind: 'entrance', name: null, lat: 35.2262, lng: -80.8446, level: 0 },
+  }
+  const exit = {
+    id: 'node/7', name: null, ref: null, cornerLabel: 'Trade Street & Tryon Street · SW corner',
+    lat: 35.2262, lng: -80.8446, streetSeconds: 120, stationSeconds: 70, totalSeconds: 190, walk,
+  }
+  const boardingPosition = { section: 'back', fraction: 0.1, savesSeconds: 90, toward: 'exit', landmark: exit.cornerLabel }
+
+  test('leaves by the exit barrelman chose and carries its guidance', async () => {
+    mockFindEntrances.mockClear()
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'stop-a' },
+            to: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:20:00Z',
+            duration: 1200, distance: 5000, routeShortName: '1', headsign: 'Northlake',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+            exit, boardingPosition,
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            to: { name: 'Destination', lat: 35.2304, lng: -80.8433 },
+            startTime: '2026-01-15T08:20:00Z', endTime: '2026-01-15T08:25:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+    const response = await tripService.planTrip({
+      waypoints: [{ location: { lat: 35.21, lng: -80.85 }, type: 'origin' }, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T07:55:00Z',
+    })
+    const segments = response.trips.find((t: any) => t.trip.segments.some((x: any) => x.mode === 'transit'))!.trip.segments
+    const egress = segments.at(-1)!
+    expect(egress.start.location).toEqual({ lat: 35.2262, lng: -80.8446 })
+    expect(egress.stationEntrance).toMatchObject({ role: 'exit', cornerLabel: exit.cornerLabel })
+    const details = segments.find((x: any) => x.mode === 'transit')?.details?.transitDetails
+    expect(details?.exit).toEqual(exit as any)
+    expect(details?.boardingPosition).toEqual(boardingPosition as any)
+    expect(mockFindEntrances).not.toHaveBeenCalled()
+  })
+})
+
 describe('TripService — in-station transfers', () => {
   test('transfer walk between two subway legs keeps MOTIS path: no entrance snap, wait stretched', async () => {
     mockGetNearestEntrance.mockClear()

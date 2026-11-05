@@ -1,5 +1,6 @@
 import type { StationEntrance } from '../../types/integration.types'
 import type { StationEntranceRef } from '../../types/trip.types'
+import type { StationAccessChoice } from '../../types/station-guidance.types'
 
 const present = (v: string | null | undefined) => (v ? v : undefined)
 
@@ -20,5 +21,22 @@ export function entranceRef(e: StationEntrance, role: StationEntranceRef['role']
     ...(e.entryAllowed === false && { entryAllowed: false }),
     ...(e.exitAllowed === false && { exitAllowed: false }),
     accessType: e.accessType,
+  }
+}
+
+/** The entrance barrelman chose for a ride, as an entrance lookup would have returned it. */
+export function chosenEntrance(choice: StationAccessChoice, accessType: string): StationEntrance {
+  return {
+    osmId: choice.id,
+    name: choice.name,
+    ref: choice.ref,
+    cornerLabel: choice.cornerLabel,
+    description: null,
+    wheelchair: null,
+    level: null,
+    accessType,
+    lat: choice.lat,
+    lon: choice.lng,
+    distanceM: 0,
   }
 }

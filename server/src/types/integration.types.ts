@@ -1,5 +1,6 @@
 import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
+import type { StationGuidance } from './station-guidance.types'
 import type { TransitPriority } from '../lib/transit/transit-gate'
 import type { StopBoard } from '../lib/transit/route-options'
 import { Place, TransitDeparture } from './place.types'
@@ -401,7 +402,7 @@ export interface TransitItinerary {
   }
 }
 
-export interface TransitLeg {
+export interface TransitLeg extends StationGuidance {
   mode: string
   from: TransitLegPlace
   to: TransitLegPlace

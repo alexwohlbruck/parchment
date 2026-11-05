@@ -3,6 +3,8 @@ import type { StationAccessChoice, StationWalk, TransitTransfer } from '@server/
 
 export interface GuidedSegment {
   mode: string
+  /** Named ('subway') or a GTFS route_type number. */
+  routeType?: string | number
   transfer?: TransitTransfer | null
   entrance?: StationAccessChoice | null
   exit?: StationAccessChoice | null
@@ -25,15 +27,18 @@ export interface StationWalkProps {
 
 const isRide = (segment?: GuidedSegment) => segment?.mode === 'transit'
 
+/** Rides boarded inside a station; a change to or from a bus or tram has no station to walk through. */
+const STATION_ROUTE_TYPES = new Set<string | number>(['subway', 'rail', 'monorail', 'funicular', 1, 2, 7, 12])
+const inStation = (segment?: GuidedSegment) => isRide(segment) && (segment!.routeType == null || STATION_ROUTE_TYPES.has(segment!.routeType))
+
 /** An estimate is a time between two ends only; nothing to draw or narrate. */
 export const isWalked = (walk: StationWalk | null | undefined): walk is StationWalk =>
   !!walk && !walk.estimate && (walk.geometry?.coordinates.length ?? 0) >= 2
 
 /** How the rider changes onto the ride at `index`, or onto the ride after the walk at `index`. */
 export function transferAt(segments: GuidedSegment[], index: number): TransitTransfer | null {
-  const segment = segments[index]
-  if (isRide(segment)) return isRide(segments[index - 1]) ? segment.transfer ?? null : null
-  return isRide(segments[index - 1]) && isRide(segments[index + 1]) ? segments[index + 1].transfer ?? null : null
+  const [from, to] = isRide(segments[index]) ? [segments[index - 1], segments[index]] : [segments[index - 1], segments[index + 1]]
+  return inStation(from) && inStation(to) ? to!.transfer ?? null : null
 }
 
 /** Every walk inside a station along the trip, in order. */

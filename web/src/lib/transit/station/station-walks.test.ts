@@ -57,6 +57,11 @@ describe('stationWalksAt', () => {
     expect(transferAt(direct, 1)?.class).toBe('in_station')
     expect(transferAt(direct, 0)).toBeNull()
   })
+
+  it('says nothing about a change to or from a bus', () => {
+    const bus: GuidedSegment[] = [{ mode: 'transit', routeType: 'bus' }, { mode: 'walking' }, { mode: 'transit', routeType: 'subway', transfer: transfer(null) }]
+    expect(transferAt(bus, 1)).toBeNull()
+  })
 })
 
 describe('station walk drawing', () => {

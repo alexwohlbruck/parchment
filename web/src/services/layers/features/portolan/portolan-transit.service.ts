@@ -26,16 +26,14 @@
  *  - one vector source per feed pyramid, built from /proxy/portolan/index.json
  *    alone (bounds + maxzoom ride in the index; the tile template is fixed);
  *  - steady ribbons render straight off the vector tiles, one layer per
- *    feed per zoom band (band_min filter — exactly one band per zoom or
- *    every ribbon doubles);
- *  - transitions/bridges CANNOT render off vector tiles: their offset
- *    eases over ['line-progress'], which MapLibre only computes for
- *    GeoJSON sources with lineMetrics. Loaded tile features are
- *    HYDRATED into per-band GeoJSON sources drawn by twin layers;
+ *    feed, each tile drawing the band of its own zoom (TILE_BAND_FILTER);
+ *  - transitions/bridges render off the vector tiles too: the tiler ships
+ *    each one whole into every tile it touches, so the fork can ease its
+ *    offset over ['line-progress'] without GeoJSON lineMetrics;
  *  - symbols (stations/markers/cat) hydrate into one GeoJSON source too:
  *    cats carry JSON-encoded anchor vectors and stations need
  *    client-computed icon/brow/nrows props;
- *  - layer order bottom→top: steady clones < transition/bridge twins <
+ *  - layer order bottom→top: steady ribbons < transition/bridge ramps <
  *    symbols;
  *  - the service-time filter and class toggles ride layer filters on the
  *    ribbons (acts bit test, scalar mode) and a JS gate on the hydrated
@@ -58,8 +56,6 @@ import { useMapStore } from '@/stores/map.store'
 import { layerGroups } from '@/lib/map-style'
 import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.types'
 import {
-  BANDS,
-  KINDS,
   darkFromLightPreset,
   LABEL_TEXT_DARK_MAP,
   labelFontFor,
@@ -67,6 +63,8 @@ import {
   RIBBON_COLOR,
   ribbonColorWithAlpha,
   STEADY_OFFSET,
+  TILE_BAND_FILTER,
+  TRANSITION_OFFSET,
   type Expr,
   actsFilterExpr,
   activeRouteIdx,
@@ -74,8 +72,6 @@ import {
   classFilterExpr,
   composeFilter,
   modeExprs,
-  perFeedO,
-  perFeedW,
   routeFilterExpr,
   pickRouteToken,
   routesOf,
@@ -87,6 +83,7 @@ import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './p
 import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 import { firstLabelLayerId } from './portolan-anchors'
+import { planMounts } from './portolan-mounts'
 import { resolveRouteRef, routeRefFor,
   bareRouteId,
 } from './portolan-routes'
@@ -101,12 +98,8 @@ const SRC_ISOLATED_LINE = 'portolan-isolated-line'
 const ISOLATED_LINE = 'portolan-isolated-line'
 const ISOLATED_LINE_GHOST = 'portolan-isolated-line-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
-const srcBuild = (band: number) => `portolan-build-${band}`
-const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
-const steadyId = (band: number, feed: string) => `portolan-ribbon-${band}-steady-${feed}`
-/** Fork-less junction ramps: per feed, straight off the vector source. */
-const rampId = (band: number, kind: string, feed: string) =>
-  `portolan-ribbon-${band}-${kind}-${feed}`
+const steadyId = (feed: string) => `portolan-ribbon-steady-${feed}`
+const rampId = (kind: string, feed: string) => `portolan-ribbon-${kind}-${feed}`
 const SYMBOL_LAYERS = [
   'portolan-station-markers',
   'portolan-cats',
@@ -292,22 +285,14 @@ const ribbonPaint = new Map<
   { color: Expr; opacity: Expr; width: Expr; offset: Expr; ghost: boolean }
 >()
 
-// ── hydration state (MapView.vue:1588-1613) ────────────────────────────
-// querySourceFeatures only sees the tiles renderable at this instant, and
-// a zoom churns that set — so hydrated transitions are HELD until they
-// scroll a viewport away. A sweep can fail to refresh one, never erase it.
-type HeldFeat = { feat: any; box: [number, number, number, number]; fp: string }
-const heldTransitions = new Map<number, Map<string, HeldFeat>>(
-  BANDS.map(b => [b.key, new Map<string, HeldFeat>()]),
-)
-const hydratedSig = new Map<number, string>()
+// ── symbol hydration state ─────────────────────────────────────────────
 let stationsRaw: any | null = null
 let hydratedKeys = new Set<string>()
 let hydrateQueued = 0
 
 function clearMounts() {
   mounted.clear()
-  ribbonAnchor = undefined
+  rampLayers.clear()
   if (syncQueued) {
     clearTimeout(syncQueued)
     syncQueued = 0
@@ -315,8 +300,6 @@ function clearMounts() {
 }
 
 function clearHydration() {
-  for (const m of heldTransitions.values()) m.clear()
-  hydratedSig.clear()
   hydratedKeys = new Set()
   stationsRaw = null
 }
@@ -1071,8 +1054,7 @@ function bindListeners() {
       const image = drawPortolanImage(e.id)
       if (image) map.addImage(e.id, image, { pixelRatio: 2 })
     },
-    // symbols and junction transitions re-materialize as tiles come and
-    // go; both hydrators dedupe (MapView.vue:1967-1975)
+    // symbols re-materialize as tiles come and go; the hydrator dedupes
     moveend: () => {
       requestSync()
       requestHydrate()
@@ -1259,9 +1241,16 @@ const stylePending = new Map<string, Promise<void>>()
 /** Feeds currently mounted on the map: source + its band layers. */
 const mounted = new Set<string>()
 
-/** Where a feed's ribbon layers are inserted: below the bottom-most twin,
- *  so a hydrated junction ramp still draws over the steady ink it crosses. */
-let ribbonAnchor: string | undefined
+/** Junction ramp layers, bottom-most first. Steady ribbons insert below them,
+ *  so a ramp draws over the steady ink it crosses, whichever feed it is. */
+const rampLayers = new Set<string>()
+
+function lowestRamp(ghost: boolean): string | undefined {
+  for (const id of rampLayers) {
+    const layer = ghost ? ghostId(id) : id
+    if (map.getLayer(layer)) return layer
+  }
+}
 
 /**
  * The basemap's first label layer. Ribbons go UNDER it: a route drawn over
@@ -1369,7 +1358,6 @@ async function sync() {
   // Runs on every moveend; the re-applies are for what was just added, and
   // each costs a setData or a style edit, so a pan that added nothing skips them.
   if (built) {
-    restoreHeldTransitions()
     refreshLabelPaint()
     applyStations()
   }
@@ -1396,7 +1384,7 @@ async function sync() {
  * which approximates the same reading, at the price of the ghost showing
  * through everywhere rather than only where something stands in the way.
  */
-function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
+function addRibbonLayer(spec: any, opacity: Expr, structural: Expr, ramp = false) {
   const labels = firstLabelLayer()
   const buildings = buildingLayer()
   structuralFilter.set(spec.id, structural)
@@ -1436,6 +1424,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
         ...emissive('line'),
       },
     })
+    if (ramp) rampLayers.add(spec.id)
     return
   }
 
@@ -1448,8 +1437,9 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
         ...emissive('line'),
       },
     },
-    buildings ?? ribbonAnchorOr(labels),
+    (!ramp && lowestRamp(false)) || buildings || labels,
   )
+  if (ramp) rampLayers.add(spec.id)
   if (!buildings) return
   const gid = ghostId(spec.id)
   structuralFilter.set(gid, structural)
@@ -1469,85 +1459,20 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
         'line-opacity': isolationOpacity(opacity, true),
       },
     },
-    ghostAnchorOr(firstLabelLayer(buildings)),
+    (!ramp && lowestRamp(true)) || firstLabelLayer(buildings),
   )
 }
 
-/** The ghost stack mirrors the solid one: a ghost steady goes under the
- *  ghost twins, so a junction ramp still reads over the ink it crosses
- *  even in the dimmed copy. */
-function ghostAnchorOr(labels: string | undefined) {
-  const twin = ribbonAnchor && ghostId(ribbonAnchor)
-  return twin && map.getLayer(twin) ? twin : labels
-}
-
-/** Ribbons sit below the twins when there are twins, and below the
- *  basemap's labels either way. */
-function ribbonAnchorOr(labels: string | undefined) {
-  return ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : labels
-}
-
-// ── viewport culling (the chunking the sources never had) ──────────────
-
-/** Mount a pyramid once the viewport is within this fraction of its own
- *  span of it; keep it until the viewport is this much further away.
- *  The gap is hysteresis: a pan that skims a boundary must not thrash a
- *  source in and out on every frame. */
-const MOUNT_PAD = 0.25
-const KEEP_PAD = 1.0
-
-/** A world view intersects every pyramid on earth, and mounting all of
- *  them is the freeze this culling exists to prevent. Past this many, keep
- *  the ones nearest the middle of the screen — that is where someone is
- *  looking — and let the rest arrive as they pan. */
-const MAX_MOUNTED = 12
-
-function padded(b: any, pad: number) {
-  const w = b.getEast() - b.getWest()
-  const h = b.getNorth() - b.getSouth()
-  return {
-    w: b.getWest() - w * pad,
-    e: b.getEast() + w * pad,
-    s: b.getSouth() - h * pad,
-    n: b.getNorth() + h * pad,
-  }
-}
-
-const hits = (box: number[] | undefined, p: {w:number;e:number;s:number;n:number}) =>
-  !box || box.length !== 4
-    ? true // no bounds recorded: it could be anywhere, so never cull it
-    : box[0] <= p.e && box[2] >= p.w && box[1] <= p.n && box[3] >= p.s
-
-/** Reconcile the mounted set against the viewport. Cheap and idempotent:
- *  when the desired set already matches, this touches nothing, which is
- *  what lets it run on every moveend. */
 /** Mount the feeds the viewport wants; true when any was newly mounted. */
 async function reconcileFeeds(regions: PortolanIndexEntry[]): Promise<boolean> {
   if (!map?.getSource(SRC_STATIONS)) return false
   const b = map.getBounds()
-  const near = padded(b, MOUNT_PAD)
-  const far = padded(b, KEEP_PAD)
-  const cx = (b.getWest() + b.getEast()) / 2
-  const cy = (b.getSouth() + b.getNorth()) / 2
-
-  const want = regions
-    .filter(r => hits(r.bounds, near))
-    .map(r => {
-      const bx = r.bounds
-      const dx = !bx ? 0 : Math.max(bx[0] - cx, 0, cx - bx[2])
-      const dy = !bx ? 0 : Math.max(bx[1] - cy, 0, cy - bx[3])
-      return { r, d: dx * dx + dy * dy }
-    })
-    .sort((a, z) => a.d - z.d)
-    .slice(0, MAX_MOUNTED)
-    .map(x => x.r)
-
-  const wanted = new Set(want.map(r => r.feed))
-  for (const feed of [...mounted]) {
-    if (wanted.has(feed)) continue
-    const r = regions.find(x => x.feed === feed)
-    if (!r || !hits(r.bounds, far) || mounted.size > MAX_MOUNTED) unmountFeed(feed)
-  }
+  const { want, drop } = planMounts(
+    regions,
+    { w: b.getWest(), s: b.getSouth(), e: b.getEast(), n: b.getNorth() },
+    mounted,
+  )
+  for (const feed of drop) unmountFeed(feed)
 
   // A feed's own manifest carries its class widths; fetch it before the
   // layers read it, but only for the handful actually being mounted.
@@ -1574,54 +1499,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]): boolean {
   structuralFilter.clear()
   ribbonPaint.clear()
 
-  // one GeoJSON source per band for the hydrated transitions/bridges —
-  // lineMetrics is the whole point: without it there is no line-progress.
-  // Without the fork there is nothing to ease, so the whole hydration
-  // path is skipped and the ramps ride the vector tiles directly.
-  if (forkOffsets) {
-    for (const b of BANDS) {
-      addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
-    }
-  }
   addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
-
-  // transition/bridge twins. Steady is skipped: steady ribbons render
-  // straight off the vector tiles below. The twins' width/opacity
-  // coalesce the per-feature _w/_o baked at hydration (perFeedW/O).
-  const twin = modeExprs(null)
-  let anchor: string | undefined
-  for (const b of BANDS) {
-    for (const [kind, off] of KINDS) {
-      if (kind === 'steady') continue
-      if (!forkOffsets) continue
-      const id = twinId(b.key, kind)
-      const filter: Expr = ['all', ['==', ['get', 'band_min'], b.key], ['==', ['get', 'kind'], kind]]
-      addRibbonLayer(
-        {
-          id,
-          type: 'line',
-          source: srcBuild(b.key),
-          minzoom: b.min === 0 ? 0 : b.min,
-          maxzoom: b.max === 24 ? 24 : b.max,
-          filter,
-          // round caps: at a transition/steady seam the eased line arrives
-          // with lateral slope while the steady leaves flat — butt caps
-          // leave a wedge notch at every seam (MapView.vue:1000-1003)
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': RIBBON_COLOR,
-            'line-width': widthExpr(perFeedW(twin.w)),
-            'line-offset': off,
-          },
-        },
-        perFeedO(twin.o),
-        filter,
-      )
-      anchor ??= id // bottom-most twin: steady clones insert below it
-    }
-  }
-
-  ribbonAnchor = anchor
   addSymbolLayers()
   // Freshly mounted layers know nothing of a dim or a hide already in force.
   if (networkDimmed) applyStationDim()
@@ -1630,7 +1508,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]): boolean {
 }
 
 /**
- * Put ONE feed's pyramid on the map: its vector source and the band
+ * Put ONE feed's pyramid on the map: its vector source and the ribbon
  * layers that read it.
  *
  * Every pyramid used to be mounted at once — 89 sources and a few hundred
@@ -1645,7 +1523,6 @@ function mountFeed(r: PortolanIndexEntry) {
   if (mounted.has(r.feed) || !map?.getSource(SRC_STATIONS)) return
   if (map.getSource(srcTiles(r.feed))) return
   mounted.add(r.feed)
-  const anchor = ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : undefined
 
   const src = srcTiles(r.feed)
   addSource(src, {
@@ -1657,71 +1534,53 @@ function mountFeed(r: PortolanIndexEntry) {
   })
   const { w, o } = modeExprs(styleForFeed(r.feed))
 
-  // No fork: draw the junction ramps from the vector tiles beside the
-  // steady ribbons. A transition eases from off_from_px to off_to_px
-  // along its length, which needs line-progress; at a fixed offset the
-  // honest choice is the midpoint, so the ramp meets each neighbour
-  // half a slot out instead of leaving a hole where the junction was.
-  if (!forkOffsets) {
-    for (const b of BANDS) {
-      for (const kind of ['transition', 'bridge'] as const) {
-        const id = rampId(b.key, kind, r.feed)
-        const filter: Expr = [
-          'all',
-          ['==', ['get', 'band_min'], b.key],
-          ['==', ['get', 'kind'], kind],
-        ]
-        addRibbonLayer(
-          {
-            id,
-            type: 'line',
-            source: src,
-            'source-layer': 'ribbons',
-            minzoom: b.min === 0 ? 0 : b.min,
-            maxzoom: b.max === 24 ? 24 : b.max,
-            filter,
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-color': RIBBON_COLOR,
-              'line-width': widthExpr(w),
-              'line-offset':
-                kind === 'bridge'
-                  ? STEADY_OFFSET
-                  : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
-            },
-          },
-          o,
-          filter,
-        )
-      }
-    }
-  }
+  const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], 'steady']]
+  addRibbonLayer(
+    {
+      id: steadyId(r.feed),
+      type: 'line',
+      source: src,
+      'source-layer': 'ribbons',
+      filter,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': RIBBON_COLOR,
+        'line-width': widthExpr(w),
+        'line-offset': STEADY_OFFSET,
+      },
+    },
+    o,
+    filter,
+  )
 
-  for (const b of BANDS) {
-    const id = steadyId(b.key, r.feed)
-    const filter: Expr = [
-      'all',
-      ['==', ['get', 'band_min'], b.key],
-      ['==', ['get', 'kind'], 'steady'],
-    ]
+  // Without the fork a transition cannot ease along its length; at a fixed
+  // offset the midpoint meets each neighbour half a slot out.
+  for (const kind of ['transition', 'bridge'] as const) {
+    const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], kind]]
     addRibbonLayer(
       {
-        id,
+        id: rampId(kind, r.feed),
         type: 'line',
         source: src,
         'source-layer': 'ribbons',
-        minzoom: b.min === 0 ? 0 : b.min,
-        maxzoom: b.max === 24 ? 24 : b.max,
         filter,
+        // round caps: at a transition/steady seam the eased line arrives with
+        // lateral slope while the steady leaves flat, and butt caps notch it
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': RIBBON_COLOR,
           'line-width': widthExpr(w),
-          'line-offset': STEADY_OFFSET,
+          'line-offset':
+            kind === 'bridge'
+              ? STEADY_OFFSET
+              : forkOffsets
+                ? TRANSITION_OFFSET
+                : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
         },
       },
       o,
       filter,
+      true,
     )
   }
 }
@@ -1737,6 +1596,7 @@ function unmountFeed(feed: string) {
       if (map.getLayer(id)) map.removeLayer(id)
       structuralFilter.delete(id)
       ribbonPaint.delete(id)
+      rampLayers.delete(id)
     }
   }
   if (map.getSource(srcTiles(feed))) map.removeSource(srcTiles(feed))
@@ -2334,122 +2194,6 @@ function applyStationDim() {
   }
 }
 
-// ── transition hydration (MapView.vue:1616-1713) ───────────────────────
-
-/** lon/lat bounds of a hydrated line, and a cheap fingerprint standing in
- *  for its geometry: vertex count plus the two endpoints. Two copies of
- *  one transition off different zoom levels differ in both. */
-function heldShape(g: any): { box: [number, number, number, number]; fp: string } {
-  const parts: any[] = g?.type === 'MultiLineString' ? g.coordinates : [g?.coordinates ?? []]
-  let w = Infinity,
-    s = Infinity,
-    e = -Infinity,
-    n = -Infinity
-  let count = 0
-  let first: any = null
-  let last: any = null
-  for (const part of parts) {
-    for (const c of part) {
-      count++
-      if (!first) first = c
-      last = c
-      if (c[0] < w) w = c[0]
-      if (c[0] > e) e = c[0]
-      if (c[1] < s) s = c[1]
-      if (c[1] > n) n = c[1]
-    }
-  }
-  const at = (c: any) => (c ? `${c[0].toFixed(6)},${c[1].toFixed(6)}` : '')
-  return { box: [w, s, e, n], fp: `${count}:${at(first)}:${at(last)}` }
-}
-
-/** Materialize loaded transition/bridge tile features into the per-band
- *  GeoJSON sources, where the twin layers draw them with full easing.
- *  The tiler ships each transition WHOLE into every tile it touches (so
- *  line-progress spans the true segment) — duplicates are a fact of
- *  life, folded by segment identity. */
-function hydrateTransitions() {
-  if (!forkOffsets || !hydrationReady()) return
-  const fresh = new Set<string>()
-  for (const sid of tileSourceIds()) {
-    if (!map.getSource(sid)) continue
-    const modes = styleForFeed(sid.slice('portolan-tiles-'.length))?.modes
-    for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
-      const p = f.properties
-      if (p.kind !== 'transition' && p.kind !== 'bridge') continue
-      // seg is only unique within one feed's pyramid, so the source id
-      // keys regions apart; band_min + routes guard against seg reuse
-      const key = `${sid}|${p.seg}|${p.band_min}|${p.routes}`
-      if (fresh.has(key)) continue
-      fresh.add(key)
-      const held = heldTransitions.get(+p.band_min)
-      if (!held) continue
-      const props: any = { ...p }
-      // the twins are shared across feeds, so the owning feed's resolved
-      // class width/opacity rides ON the feature (perFeedW/O coalesce)
-      const m = modes?.[p.mode]
-      if (m) {
-        props._w = m.width
-        props._o = m.opacity
-      }
-      // last write wins: a later sweep carries the current zoom level's
-      // vertex density
-      const { box, fp } = heldShape(f.geometry)
-      held.set(key, {
-        feat: { type: 'Feature', properties: props, geometry: f.geometry },
-        box,
-        fp,
-      })
-    }
-  }
-  // Eviction is by POSITION, not by absence from this sweep: one viewport
-  // of slack in every direction, so a transition just off screen survives
-  // the pan that is about to bring it back.
-  const b = map.getBounds()
-  const w = b.getWest(),
-    e = b.getEast(),
-    s = b.getSouth(),
-    n = b.getNorth()
-  const dx = e - w,
-    dy = n - s
-  // a wrapped or world-wide viewport has no meaningful outside; keep all
-  const bounded = dx > 0 && dx < 120 && dy > 0
-  for (const [band, held] of heldTransitions) {
-    if (bounded) {
-      for (const [key, h] of held) {
-        if (fresh.has(key)) continue
-        if (h.box[2] < w - dx || h.box[0] > e + dx || h.box[3] < s - dy || h.box[1] > n + dy) {
-          held.delete(key)
-        }
-      }
-    }
-    const keys = [...held.keys()].sort()
-    const sig = keys.map(k => `${k}@${held.get(k)!.fp}`).join(';')
-    if (hydratedSig.get(band) === sig) continue
-    hydratedSig.set(band, sig)
-    map.getSource(srcBuild(band))?.setData({
-      type: 'FeatureCollection',
-      features: keys.map(k => held.get(k)!.feat),
-    })
-  }
-}
-
-/** After a style reload the held features survive in memory but the fresh
- *  sources start empty — push them back without waiting for a sweep. */
-function restoreHeldTransitions() {
-  if (!forkOffsets) return
-  hydratedSig.clear()
-  for (const [band, held] of heldTransitions) {
-    if (!held.size) continue
-    const keys = [...held.keys()].sort()
-    hydratedSig.set(band, keys.map(k => `${k}@${held.get(k)!.fp}`).join(';'))
-    map.getSource(srcBuild(band))?.setData({
-      type: 'FeatureCollection',
-      features: keys.map(k => held.get(k)!.feat),
-    })
-  }
-}
-
 function tileSourceIds(): string[] {
   // The live source registry where the engine exposes one: getStyle() would
   // serialize every layer just to list the source ids.
@@ -2500,7 +2244,6 @@ function requestHydrate() {
     // so waiting the gesture out loses nothing.
     if (map.isMoving?.()) return
     hydrateSymbols()
-    hydrateTransitions()
   })
 }
 

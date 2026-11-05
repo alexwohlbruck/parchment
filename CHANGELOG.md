@@ -6,6 +6,7 @@
 
 ### Fixed
 
+* The transit map no longer disappears while you zoom in or out, and areas you have already seen redraw instantly instead of loading again.
 * Places load again as soon as you're back online, and Reload works right away, without restarting the app.
 
 ## [0.19.1] - 2026-11-03

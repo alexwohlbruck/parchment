@@ -8,9 +8,10 @@ import { formatClockCompact } from './trip-display'
 import { tripType, type TripTypeSegment } from './trip-type'
 import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-preferences'
 
-/** Under this much time to leave, an expensive miss is worth a nudge. */
+/** Under this much time to leave, a costly miss is worth a nudge. */
 const LEAVE_LEAD_MIN = 5
-const LEAVE_MISS_COST_MIN = 8
+/** Missing a run costs at least this much: worth leaving now, or running for. */
+const COSTLY_MISS_COST_MIN = 8
 /** Missing a run costs less than this on frequent service: no rushing, no deadline. */
 const QUIET_MISS_COST_MIN = 4
 const TIGHT_TRANSFER_SEC = 120
@@ -110,7 +111,7 @@ function deadlineState(
   if (reach === 'hurry') return { kind: 'hurry', leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
 
   if (!Number.isFinite(missCostMin)) return null
-  if (minutes(leaveByMs - nowMs) < LEAVE_LEAD_MIN && missCostMin >= LEAVE_MISS_COST_MIN) {
+  if (minutes(leaveByMs - nowMs) < LEAVE_LEAD_MIN && missCostMin >= COSTLY_MISS_COST_MIN) {
     return { kind: 'leave', nextLaterMin: Math.round(missCostMin) }
   }
   return { kind: 'by', leaveByMs }
@@ -130,16 +131,12 @@ function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
   return { next: { departAtMs: ms(next.departAt), laterMin: Math.max(1, Math.round(missCost(runs, target))) } }
 }
 
-/** The target run, when walking is too slow for it but a jog is not and the next run is well behind. */
-function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor: number): AdviceState | null {
-  const run = runs[target]
+/** Walking is too slow for the run, but a jog is not. */
+function jogOnly(run: DepartureRun, nowMs: number, runFactor: number): boolean {
   const departAtMs = ms(run.departAt)
   const leadMs = departAtMs - nowMs
-  const walkMs = departAtMs - ms(run.leaveBy)
-  if (ms(run.leaveBy) >= nowMs || leadMs <= 0) return null
-  if (leadMs * runFactor < walkMs) return null
-  if (missCost(runs, target) < QUIET_MISS_COST_MIN) return null
-  return { kind: 'run', leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
+  if (ms(run.leaveBy) >= nowMs || leadMs <= 0) return false
+  return leadMs * runFactor >= departAtMs - ms(run.leaveBy)
 }
 
 /**
@@ -157,19 +154,24 @@ export function tripAdvice(
 
   const planned = plannedIndex(profile, options.boardsAtMs)
   const target = lastSameArrival(runs, planned)
-  if (options.runFactor && !options.future) {
-    const run = runState(runs, target, nowMs, options.runFactor)
-    if (run) return { state: run, tight: tightTransfer(runs[target]), live: runs[target].live }
+  const jog = !!options.runFactor && !options.future && jogOnly(runs[target], nowMs, options.runFactor)
+  if (jog && missCost(runs, target) >= COSTLY_MISS_COST_MIN) {
+    const departAtMs = ms(runs[target].departAt)
+    const state: AdviceState = { kind: 'run', leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
+    return { state, tight: tightTransfer(runs[target]), live: runs[target].live }
   }
 
   const current = runs.findIndex((r, i) => i >= planned && ms(r.leaveBy) >= nowMs)
   if (current < 0) return null
 
   const run = runs[current]
+  // Not worth running for when the next one is close behind: plan around it without calling a miss.
   const state: AdviceState | null =
-    current > target
-      ? { kind: 'missed', departAtMs: ms(run.departAt), left: ms(runs[target].departAt) <= nowMs }
-      : deadlineState(runs, target, nowMs, options)
+    current <= target
+      ? deadlineState(runs, target, nowMs, options)
+      : jog
+        ? deadlineState(runs, lastSameArrival(runs, current), nowMs, options)
+        : { kind: 'missed', departAtMs: ms(run.departAt), left: ms(runs[target].departAt) <= nowMs }
 
   return { state, tight: tightTransfer(run), live: run.live }
 }

@@ -245,10 +245,20 @@ describe('run', () => {
     expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 4, departAtMs: now(15) })
   })
 
-  test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {
+  test('misses it instead without a run factor or too late for a jog', () => {
     expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(12))?.state?.kind).toBe('missed')
     expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(13), { runFactor: 1.8 })?.state?.kind).toBe('missed')
-    expect(tripAdvice(profile([run(10, 40), run(12, 42)]), now(11), { runFactor: 1.8 })?.state?.kind).not.toBe('run')
+  })
+
+  test('lets a run go quietly when the next one is close behind', () => {
+    expect(tripAdvice(profile([run(10, 40), run(16, 46), run(30, 60)]), now(11), { runFactor: 1.8 })?.state)
+      .toEqual({ kind: 'by', leaveByMs: now(16) })
+    expect(tripAdvice(profile([run(10, 40), run(13, 43), run(16, 46)]), now(11), { runFactor: 1.8 })?.state).toBeNull()
+  })
+
+  test('runs once the next one is well behind', () => {
+    const advice = tripAdvice(profile([run(10, 40), run(18, 48)]), now(11), { runFactor: 1.8 })
+    expect(advice?.state).toMatchObject({ kind: 'run', next: { departAtMs: now(23), laterMin: 8 } })
   })
 
   test('only a trip that reaches its first stop on foot can be run for', () => {

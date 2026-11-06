@@ -6,7 +6,7 @@
 
 ### Changed
 
-* "Hurry" and "Run" show the next departure, so you can decide to wait for it instead, and no longer appear when the next train is only a few minutes behind.
+* "Hurry" and "Run" show the next departure, so you can decide to wait for it instead. "Run" only appears when the next train is well behind; otherwise the trip quietly plans around it.
 
 ### Fixed
 

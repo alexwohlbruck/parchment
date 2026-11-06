@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronDownIcon } from 'lucide-vue-next'
+import { ChevronDownIcon, SignpostIcon } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { stationStepIcon } from '@/lib/transit/station/step-icons'
 import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
+import type { StationSign } from '@/lib/transit/station/station-signs'
 
-const props = withDefaults(defineProps<{ walk: StationWalk; timed?: boolean }>(), { timed: true })
+const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; timed?: boolean }>(), { timed: true })
 const { t } = useI18n()
 
 const steps = computed(() => (props.walk.estimate ? [] : props.walk.steps ?? []))
 const time = computed(() => `${props.walk.estimate ? '≈ ' : ''}${formatDurationShort(props.walk.seconds)}`)
+
+const signText = computed(() => {
+  const sign = props.sign
+  if (!sign) return null
+  if (sign.kind === 'exit') return t('directions.station.signs.exit')
+  return sign.toward
+    ? t('directions.station.signs.platform', { line: sign.line, toward: sign.toward })
+    : t('directions.station.signs.line', { line: sign.line })
+})
 
 function note(step: { levelChange: number | null; landmark: string | null; instruction: string }) {
   const landmark = step.landmark && !step.instruction.includes(step.landmark) ? step.landmark : null
@@ -26,7 +36,11 @@ function levels(change: number | null) {
 </script>
 
 <template>
-  <div v-if="!steps.length" class="text-xs text-muted-foreground tabular-nums">
+  <div v-if="!steps.length && signText" class="flex items-start gap-1.5 text-xs tabular-nums">
+    <SignpostIcon class="mt-px size-3.5 shrink-0 text-muted-foreground" />
+    <span class="text-foreground">{{ signText }}<span v-if="timed" class="text-muted-foreground"> · {{ time }}</span></span>
+  </div>
+  <div v-else-if="!steps.length" class="text-xs text-muted-foreground tabular-nums">
     {{ t('directions.station.insideStation') }} · {{ time }}
   </div>
   <Collapsible v-else v-slot="{ open }">

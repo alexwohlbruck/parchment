@@ -941,7 +941,12 @@
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
       "levelDown": "Baja {n} nivel | Baja {n} niveles",
-      "estimated": "Estimado"
+      "estimated": "Estimado",
+      "signs": {
+        "platform": "Sigue las señales del {line} · {toward}",
+        "line": "Sigue las señales del {line}",
+        "exit": "Sigue las señales de salida"
+      }
     }
   },
   "library": {

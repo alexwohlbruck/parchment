@@ -2,6 +2,8 @@
 
 ### Added
 
+* Where a station has no mapped route to the platform, trip details say which signs to follow, like "Follow signs for the 3 · Manhattan" or "Follow exit signs".
+
 ### Changed
 
 * A train you can catch with a brisk walk now says "Hurry", and "Run" is kept for ones that need a jog. Both show the next departure, so you can decide to wait for it instead.

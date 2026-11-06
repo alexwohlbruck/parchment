@@ -967,7 +967,12 @@
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
       "levelDown": "Down {n} level | Down {n} levels",
-      "estimated": "Estimated"
+      "estimated": "Estimated",
+      "signs": {
+        "platform": "Follow signs for the {line} · {toward}",
+        "line": "Follow signs for the {line}",
+        "exit": "Follow exit signs"
+      }
     }
   },
   "library": {

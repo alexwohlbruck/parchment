@@ -635,7 +635,9 @@ interface DepCard {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
   const planned = isCurrentDeparture(segment, dep.ms)
-  const state = depState(segmentIndex, dep)
+  const state = planned && advice.value && boarding.value?.index === segmentIndex
+    ? advice.value.reach
+    : depState(segmentIndex, dep)
   const departed = state === 'departed'
   // The reachability hints stand even on the selected card — you still have to
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.
@@ -792,7 +794,16 @@ const trip = computed(() => {
 const startEligibility = useStartEligibility(trip, legToStart)
 
 const { adviceFor } = useTripAdvice()
-const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value) : null))
+/** The first ride as the board sees it, so the header and the board read the same numbers. */
+const boarding = computed(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = (trip.value?.segments ?? []) as any[]
+  const i = segs.findIndex((s) => s.mode === 'transit')
+  if (i < 1 || segs[i - 1].mode !== 'walking') return undefined
+  const current = departuresFor(i).find((d) => isCurrentDeparture(segs[i], d.ms))
+  return current ? { index: i, departAtMs: current.ms, walkSec: remainingWalkSec(i) } : undefined
+})
+const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value, boarding.value) : null))
 /** What the closing step of a walk into a ride says: the station's signs, or the stop's name. */
 function walkArrival(index: number) {
   const segments = trip.value?.segments ?? []

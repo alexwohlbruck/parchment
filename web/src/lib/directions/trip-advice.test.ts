@@ -4,6 +4,7 @@ import { translator } from '@/lib/guidance/test-routes'
 import en from '@/lib/i18n/en-US.json'
 import {
   adviceBadges,
+  adviceReach,
   adviceValidUntil,
   boardsAtMs,
   crossover,
@@ -247,6 +248,21 @@ describe('run', () => {
   test('runs once the next one is well behind', () => {
     const advice = tripAdvice(profile([run(10, 40), run(18, 48)]), now(11), { runFactor: 1.8 })
     expect(advice?.state).toMatchObject({ kind: 'run', next: { departAtMs: now(23), laterMin: 8 } })
+  })
+
+  test('reads the live departure and the walk still ahead, as the board does', () => {
+    const p = profile([run(10, 40), run(30, 60)])
+    const at = now(9.5)
+    expect(tripAdvice(p, at, { runFactor: 1.8 })?.state?.kind).toBe('hurry')
+    const boarding = { departAtMs: now(14), walkSec: 5 * 60 }
+    expect(tripAdvice(p, at, { runFactor: 1.8, boarding })?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(14) } })
+  })
+
+  test('the board word for the planned run follows the advice', () => {
+    expect(adviceReach({ kind: 'run', race: { departAtMs: 0, walkMs: 0, spareMs: -1 } })).toBe('run')
+    expect(adviceReach({ kind: 'missed', departAtMs: 0, left: false })).toBe('unreachable')
+    expect(adviceReach({ kind: 'by', leaveByMs: 0 })).toBe('ok')
+    expect(adviceReach(null)).toBe('ok')
   })
 
   test('only a trip that reaches its first stop on foot can be run for', () => {

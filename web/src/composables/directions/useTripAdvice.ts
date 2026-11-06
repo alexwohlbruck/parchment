@@ -7,6 +7,7 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import {
   adviceBadges,
+  adviceReach,
   adviceTone,
   adviceValidUntil,
   boardsAtMs,
@@ -17,8 +18,10 @@ import {
   walksToFirstStop,
   type AdviceKind,
   type Badge,
+  type Boarding,
   type Race,
 } from '@/lib/directions/trip-advice'
+import type { DepartureReachability } from '@/lib/transit/transit-reachability'
 import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
 
@@ -27,6 +30,8 @@ export interface TripPageAdvice {
   /** Present while the walk is racing the train; `tone` colours the walk. */
   race?: Race
   tone: string
+  /** What the board says about the planned run, so the two agree. */
+  reach: DepartureReachability
 }
 
 export interface TripCardAdvice {
@@ -48,23 +53,25 @@ export function useTripAdvice() {
   const navigationPreferences = useNavigationPreferencesStore()
   const { t } = useI18n()
 
-  function rawAdvice(trip: TripOption, nowMs: number) {
+  function rawAdvice(trip: TripOption, nowMs: number, boarding?: Boarding) {
     return tripAdvice(trip.departureProfile, nowMs, {
       transitBufferMinutes: navigationPreferences.transitBufferMinutes,
       future: isFuturePlan(store.departureTime, nowMs),
       boardsAtMs: boardsAtMs(trip.segments),
       runFactor: walksToFirstStop(trip.segments) ? navigationPreferences.runPace : null,
+      boarding,
     })
   }
 
-  function adviceFor(trip: TripOption, nowMs: number): TripPageAdvice | null {
-    const advice = rawAdvice(trip, nowMs)
+  function adviceFor(trip: TripOption, nowMs: number, boarding?: Boarding): TripPageAdvice | null {
+    const advice = rawAdvice(trip, nowMs, boarding)
     if (!advice) return null
     const state = advice.state
     return {
       badges: adviceBadges(advice, t, 'header'),
       ...(state && 'race' in state && { race: state.race }),
       tone: state ? adviceTone(state.kind) : '',
+      reach: adviceReach(state),
     }
   }
 

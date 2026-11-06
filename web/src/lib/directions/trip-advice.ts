@@ -67,6 +67,21 @@ export interface AdviceOptions {
   boardsAtMs?: number
   /** How much faster than walking the rider can run to the first stop; omit when they can't. */
   runFactor?: number | null
+  /** The planned run as the rider sees it now: its live departure and the walk still ahead. */
+  boarding?: Boarding
+}
+
+export interface Boarding {
+  departAtMs: number
+  walkSec: number
+}
+
+const iso = (msValue: number) => new Date(msValue).toISOString()
+
+function withBoarding(runs: DepartureRun[], planned: number, boarding?: Boarding): DepartureRun[] {
+  if (!boarding) return runs
+  const run = { ...runs[planned], departAt: iso(boarding.departAtMs), leaveBy: iso(boarding.departAtMs - boarding.walkSec * 1000) }
+  return runs.map((r, i) => (i === planned ? run : r))
 }
 
 const ms = (iso: string) => Date.parse(iso)
@@ -159,10 +174,10 @@ export function tripAdvice(
   nowMs: number,
   options: AdviceOptions = {},
 ): TripAdvice | null {
-  const runs = profile?.runs ?? []
-  if (!profile || !runs.length) return null
+  if (!profile?.runs.length) return null
 
   const planned = plannedIndex(profile, options.boardsAtMs)
+  const runs = withBoarding(profile.runs, planned, options.boarding)
   const target = lastSameArrival(runs, planned)
   const jog = !!options.runFactor && !options.future && jogOnly(runs[target], nowMs, options.runFactor)
   if (jog && missCost(runs, target) >= COSTLY_MISS_COST_MIN) {
@@ -339,6 +354,13 @@ const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {
   leave: 'text-amber-600 dark:text-amber-400',
   run: 'text-orange-600 dark:text-orange-400',
   missed: 'text-orange-600 dark:text-orange-400',
+}
+
+/** The board's word for the planned run, matching the advice. */
+export function adviceReach(state: AdviceState | null): DepartureReachability {
+  if (state?.kind === 'hurry' || state?.kind === 'run') return state.kind
+  if (state?.kind === 'missed') return state.left ? 'departed' : 'unreachable'
+  return 'ok'
 }
 
 /** Accent for states that ask the rider to act; calm states take none. */

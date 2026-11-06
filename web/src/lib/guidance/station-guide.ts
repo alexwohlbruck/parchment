@@ -3,7 +3,7 @@
 // the platform up to the street.
 
 import type { GuidanceStep, StationWalk } from '@server/types/station-guidance.types'
-import { isWalked, type GuidedSegment, type StationWalkKind } from '@/lib/transit/station/station-walks'
+import { isWalked, platformSpot, type GuidedSegment, type PlatformSpot, type StationWalkKind } from '@/lib/transit/station/station-walks'
 import type { TransitStage } from './transit-progress'
 
 export interface StationGuideTarget {
@@ -13,6 +13,7 @@ export interface StationGuideTarget {
   walk: StationWalk & { steps: GuidanceStep[] }
   /** When the ride walked to leaves; null leaving the station. */
   departureMs: number | null
+  spot: PlatformSpot | null
 }
 
 export interface StationGuideState {
@@ -41,8 +42,15 @@ const MIN_STEP_MS = 8000
 const guidable = (walk: StationWalk | null | undefined): walk is StationGuideTarget['walk'] =>
   isWalked(walk) && !!walk.steps?.length
 
-function target(kind: StationWalkKind, ride: number, walk: StationWalk | null | undefined, departureMs: number | null = null): StationGuideTarget | null {
-  return guidable(walk) ? { key: `${kind}:${ride}`, kind, ride, walk, departureMs } : null
+function target(
+  segments: GuidedSegment[],
+  kind: StationWalkKind,
+  ride: number,
+  walk: StationWalk | null | undefined,
+  departureMs: number | null = null,
+): StationGuideTarget | null {
+  if (!guidable(walk)) return null
+  return { key: `${kind}:${ride}`, kind, ride, walk, departureMs, spot: platformSpot(segments, kind, ride) }
 }
 
 /** The ride before `index`, when nothing but a walk inside the station lies between. */
@@ -64,12 +72,12 @@ export function stationGuideTarget(
 ): StationGuideTarget | null {
   if (stage?.kind === 'to-stop' || stage?.kind === 'wait') {
     const ride = segments[stage.segmentIndex]
-    if (changesFrom(segments, stage.segmentIndex)) return target('transfer', stage.segmentIndex, ride?.transfer?.walk, stage.departureMs)
-    return stage.kind === 'wait' ? target('access', stage.segmentIndex, ride?.entrance?.walk, stage.departureMs) : null
+    if (changesFrom(segments, stage.segmentIndex)) return target(segments, 'transfer', stage.segmentIndex, ride?.transfer?.walk, stage.departureMs)
+    return stage.kind === 'wait' ? target(segments, 'access', stage.segmentIndex, ride?.entrance?.walk, stage.departureMs) : null
   }
   if (stage || !current || segments[current.index]?.mode !== 'walking' || current.into >= STREET_RESUME_METERS) return null
   const ride = current.index - 1
-  return segments[ride]?.mode === 'transit' ? target('egress', ride, segments[ride].exit?.walk) : null
+  return segments[ride]?.mode === 'transit' ? target(segments, 'egress', ride, segments[ride].exit?.walk) : null
 }
 
 /** Slack that still has the steps done by the departure, for a rider walking at the expected pace. */

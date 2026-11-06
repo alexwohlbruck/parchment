@@ -1,4 +1,4 @@
-import { stationWalksAt, type GuidedSegment, type PlacedWalk } from './station-walks'
+import { stationWalksAt, type GuidedSegment, type PlacedWalk, type TFn } from './station-walks'
 
 export interface SignedSegment extends GuidedSegment {
   lineName?: string
@@ -26,8 +26,6 @@ export function boardingSign(segments: SignedSegment[], index: number): StationS
   const access = stationWalksAt(segments, index).find(w => w.kind === 'access')
   return access ? stationSign(segments, access) : null
 }
-
-type TFn = (key: string, named?: Record<string, unknown>) => string
 
 export function stationSignText(sign: StationSign, t: TFn): string {
   if (sign.kind === 'exit') return t('directions.station.signs.exit')

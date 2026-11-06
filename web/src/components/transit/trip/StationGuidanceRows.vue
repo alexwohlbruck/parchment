@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import TransferChip from './TransferChip.vue'
 import StationWalkSteps from './StationWalkSteps.vue'
-import { stationWalksAt, transferAt } from '@/lib/transit/station/station-walks'
+import { platformSpot, stationWalksAt, transferAt } from '@/lib/transit/station/station-walks'
 import { stationSign, type SignedSegment } from '@/lib/transit/station/station-signs'
 
 const props = defineProps<{ segments: SignedSegment[]; index: number }>()
@@ -10,7 +10,11 @@ const props = defineProps<{ segments: SignedSegment[]; index: number }>()
 const transfer = computed(() => transferAt(props.segments, props.index))
 const walks = computed(() =>
   stationWalksAt(props.segments, props.index)
-    .map(placed => ({ ...placed, sign: stationSign(props.segments, placed) }))
+    .map(placed => ({
+      ...placed,
+      sign: stationSign(props.segments, placed),
+      spot: platformSpot(props.segments, placed.kind, placed.ride),
+    }))
     .filter(w => w.kind !== 'transfer' || w.sign || (!w.walk.estimate && w.walk.steps?.length)),
 )
 </script>
@@ -23,6 +27,7 @@ const walks = computed(() =>
       :key="`${placed.kind}-${placed.ride}`"
       :walk="placed.walk"
       :sign="placed.sign"
+      :spot="placed.spot"
       :timed="placed.kind !== 'transfer'"
     />
   </div>

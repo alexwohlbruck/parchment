@@ -8,6 +8,7 @@
 
 * Trip advice reads as short badges, like "Leave now · Next +20 min", and "Run" only appears when the next train is well behind.
 * Trip details draw your walk to the stop on one bar, coloured by when you'd need to leave, hurry or run, with the train's departure marked on it.
+* Station directions end with where to wait on the platform, like "Walk to the front of the platform", matching where to board.
 
 ### Fixed
 

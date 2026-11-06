@@ -7,8 +7,9 @@ import { stationStepIcon } from '@/lib/transit/station/step-icons'
 import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
 import { stationSignText, type StationSign } from '@/lib/transit/station/station-signs'
+import { stationStepText, type PlatformSpot } from '@/lib/transit/station/station-walks'
 
-const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; timed?: boolean }>(), { timed: true })
+const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; spot?: PlatformSpot | null; timed?: boolean }>(), { timed: true })
 const { t } = useI18n()
 
 const steps = computed(() => (props.walk.estimate ? [] : props.walk.steps ?? []))
@@ -48,7 +49,7 @@ function levels(change: number | null) {
         <li v-for="(step, i) in steps" :key="i" class="flex gap-2.5">
           <component :is="stationStepIcon(step)" class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           <div class="min-w-0 flex-1">
-            <div class="text-xs text-foreground leading-snug">{{ step.instruction }}</div>
+            <div class="text-xs text-foreground leading-snug">{{ stationStepText(steps, i, spot ?? null, t) }}</div>
             <div v-if="note(step)" class="text-[11px] text-muted-foreground">{{ note(step) }}</div>
           </div>
           <span v-if="step.duration >= 1" class="text-[11px] text-muted-foreground tabular-nums shrink-0">

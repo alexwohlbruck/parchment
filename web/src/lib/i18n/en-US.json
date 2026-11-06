@@ -953,6 +953,11 @@
         "middle": "middle",
         "back": "back"
       },
+      "platformWalk": {
+        "front": "Walk to the front of the platform",
+        "middle": "Walk to the middle of the platform",
+        "back": "Walk to the back of the platform"
+      },
       "saves": "saves {duration}",
       "insideStation": "Inside the station",
       "steps": "{n} step | {n} steps",

@@ -927,6 +927,11 @@
         "middle": "central",
         "back": "trasera"
       },
+      "platformWalk": {
+        "front": "Camina hasta la parte delantera del andén",
+        "middle": "Camina hasta la parte central del andén",
+        "back": "Camina hasta la parte trasera del andén"
+      },
       "saves": "ahorra {duration}",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",

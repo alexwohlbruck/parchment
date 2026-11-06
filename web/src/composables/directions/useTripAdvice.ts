@@ -19,6 +19,7 @@ import {
   walksToFirstStop,
   type AdviceKind,
   type CardHint,
+  type Race,
 } from '@/lib/directions/trip-advice'
 import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
@@ -26,6 +27,7 @@ import type { TripOption } from '@/types/directions.types'
 export interface AdviceLine {
   text: string
   tone: string
+  race?: Race
 }
 
 export interface TripAdviceLines {
@@ -70,7 +72,11 @@ export function useTripAdvice() {
     const { advice, line } = raw
     return {
       line: advice.state
-        ? { text: adviceText(advice.state, t, line), tone: adviceTone(advice.state.kind) }
+        ? {
+            text: adviceText(advice.state, t, line),
+            tone: adviceTone(advice.state.kind),
+            ...('race' in advice.state && { race: advice.state.race }),
+          }
         : null,
       tight: advice.tight ? tightText(advice.tight, t) : null,
       sched: advice.live ? null : t('directions.advice.long.sched'),

@@ -40,17 +40,21 @@ describe('tripAdvice', () => {
 
   test('hurry when the lead is inside the transit buffer', () => {
     const advice = tripAdvice(profile([run(10, 40), run(20, 50)]), now(9))
-    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 6, departAtMs: now(15), next: { departAtMs: now(25), laterMin: 10 } })
+    expect(advice?.state).toEqual({
+      kind: 'hurry',
+      race: { departAtMs: now(15), walkMs: 5 * 60_000, spareMs: 60_000 },
+      next: { departAtMs: now(25), laterMin: 10 },
+    })
   })
 
   test('the buffer comes from the rider', () => {
     const p = profile([run(10, 40), run(20, 50)])
-    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', leadMin: 9 })
+    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', race: { spareMs: 4 * 60_000 } })
     expect(tripAdvice(p, now(6), { transitBufferMinutes: 2 })?.state?.kind).toBe('leave')
   })
 
   test('leave when the lead is short and missing it is expensive', () => {
-    expect(tripAdvice(profile([run(10, 40), run(25, 52)]), now(6))?.state).toEqual({ kind: 'leave', nextLaterMin: 12 })
+    expect(tripAdvice(profile([run(10, 40), run(25, 52)]), now(6))?.state).toMatchObject({ kind: 'leave', nextLaterMin: 12 })
   })
 
   test('leave by the planned run when there is time and a miss costs something', () => {
@@ -94,7 +98,7 @@ describe('tripAdvice', () => {
 
   test('a passed run with a same-arrival successor is not missed', () => {
     const p = profile([run(10, 40), run(14, 40), run(25, 55)])
-    expect(tripAdvice(p, now(11))?.state).toEqual({ kind: 'leave', nextLaterMin: 15 })
+    expect(tripAdvice(p, now(11))?.state).toMatchObject({ kind: 'leave', nextLaterMin: 15 })
   })
 
   test('nothing to say when every run has gone', () => {
@@ -189,9 +193,12 @@ describe('boardingLeg', () => {
 
 describe('copy', () => {
   test('long variants', () => {
-    expect(adviceText({ kind: 'leave', nextLaterMin: 12 }, t)).toBe('Leave now · next is 12 min later')
-    expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t)).toBe(`Hurry · 3 min to the ${clock(12)}`)
-    expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t, 'F')).toBe(`Hurry · 3 min to the F at ${clock(12)}`)
+    const race = (spareMin: number) => ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000 })
+    expect(adviceText({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, t)).toBe('Leave now · 3 min to spare')
+    expect(adviceText({ kind: 'leave', nextLaterMin: 12, race: race(0.5) }, t)).toBe('Leave now')
+    expect(adviceText({ kind: 'hurry', race: race(1.2) }, t, 'F')).toBe('Hurry · 1 min to spare')
+    expect(adviceText({ kind: 'hurry', race: race(0.4) }, t)).toBe('Hurry · under a minute to spare')
+    expect(adviceText({ kind: 'run', race: race(-1.5) }, t)).toBe('Run · 2 min short')
     expect(adviceText({ kind: 'by', leaveByMs: now(31) }, t)).toBe(`Leave by ${clock(31)}`)
     expect(adviceText({ kind: 'missed', departAtMs: now(24), left: true }, t, 'F')).toBe(`Missed · next is the F at ${clock(24)}`)
     expect(adviceText({ kind: 'missed', departAtMs: now(24), left: false }, t)).toBe(`Too far to make it · next is the ${clock(24)}`)
@@ -205,7 +212,7 @@ describe('cardHint', () => {
   test('pairs the short words with the one fact that matters', () => {
     const hint = cardHint(
       {
-        state: { kind: 'hurry', leadMin: 2, departAtMs: now(24), next: { departAtMs: now(30), laterMin: 6 } },
+        state: { kind: 'hurry', race: { departAtMs: now(24), walkMs: 0, spareMs: 0 }, next: { departAtMs: now(30), laterMin: 6 } },
         tight: { minutes: 1, stop: 'Jay St' },
         live: true,
       },
@@ -237,12 +244,12 @@ describe('run', () => {
   // Leave the door at 10, board at 15: a 5 min walk.
   test('says run when a jog still makes a run that walking misses', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(12), { runFactor: 1.8 })
-    expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 3, departAtMs: now(15) })
+    expect(advice?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(15), spareMs: -2 * 60_000 } })
   })
 
   test('says run as soon as the leave time has passed', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
-    expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 4, departAtMs: now(15) })
+    expect(advice?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(15), spareMs: -60_000 } })
   })
 
   test('misses it instead without a run factor or too late for a jog', () => {

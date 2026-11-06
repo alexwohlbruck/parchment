@@ -754,9 +754,10 @@
         "run": "Run"
       },
       "long": {
-        "leave": "Leave now · next is {minutes} min later",
-        "hurry": "Hurry · {minutes} min to the {time}",
-        "hurryLine": "Hurry · {minutes} min to the {line} at {time}",
+        "leave": "Leave now · {minutes} min to spare",
+        "leaveNow": "Leave now",
+        "hurry": "Hurry · {minutes} min to spare",
+        "hurryNow": "Hurry · under a minute to spare",
         "by": "Leave by {time}",
         "tight": "{minutes} min to change at {stop}",
         "tightAnywhere": "{minutes} min to change",
@@ -766,8 +767,7 @@
         "crossover": "{mode} is faster after {time}",
         "tooFar": "Too far to make it · next is the {time}",
         "tooFarLine": "Too far to make it · next is the {line} at {time}",
-        "run": "Run · {minutes} min to the {time}",
-        "runLine": "Run · {minutes} min to the {line} at {time}"
+        "run": "Run · {minutes} min short"
       },
       "detail": {
         "hurry": "The {time}",
@@ -789,7 +789,8 @@
         "missed": "Missed it · now on the {line} at {time}",
         "tooFar": "Too far to make it · now on the {line} at {time}"
       },
-      "next": "next {time}, {minutes} min later"
+      "next": "next {time}, {minutes} min later",
+      "race": "{walk} min walk, {line} train in {train} min"
     },
     "tripTypes": {
       "bikeshare": "Bike Share",
@@ -807,6 +808,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "toward {headsign}",
+    "arriveAtStop": "Arrive at {stop}",
     "trainNumber": "Train {number}",
     "or": "or",
     "title": "Directions",

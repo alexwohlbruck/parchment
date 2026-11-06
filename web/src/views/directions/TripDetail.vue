@@ -73,6 +73,8 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import TripRace from '@/components/directions/trip/TripRace.vue'
+import { boardingSign, stationSignText } from '@/lib/transit/station/station-signs'
 import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
 import StationGuidanceRows from '@/components/transit/trip/StationGuidanceRows.vue'
 import HazardSummary from '@/components/directions/trip/HazardSummary.vue'
@@ -790,6 +792,17 @@ const startEligibility = useStartEligibility(trip, legToStart)
 
 const { adviceFor } = useTripAdvice()
 const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value) : null))
+/** What the closing step of a walk into a ride says: the station's signs, or the stop's name. */
+function walkArrival(index: number) {
+  const segments = trip.value?.segments ?? []
+  const next = segments[index + 1]
+  if (next?.mode !== 'transit') return null
+  const sign = boardingSign(segments, index)
+  if (sign) return { text: stationSignText(sign, translate), sign: true }
+  return next.departureStop?.name ? { text: translate('directions.arriveAtStop', { stop: next.departureStop.name }), sign: false } : null
+}
+
+const firstRide = computed(() => trip.value?.segments.find(s => s.mode === 'transit'))
 const adviceNotes = computed(() =>
   [advice.value?.tight, advice.value?.sched].filter(Boolean).join(' · '),
 )
@@ -1212,6 +1225,13 @@ function showSegmentChart(segment: any): boolean {
           >
             {{ advice.line.text }}
           </div>
+          <TripRace
+            v-if="advice?.line?.race"
+            :race="advice.line.race"
+            :now-ms="nowMs"
+            :tone="advice.line.tone"
+            :ride="firstRide"
+          />
           <div v-if="adviceNotes" class="mt-0.5 text-xs text-muted-foreground tabular-nums">
             {{ adviceNotes }}
           </div>
@@ -1674,6 +1694,7 @@ function showSegmentChart(segment: any): boolean {
                 :segment="entry.segment"
                 :segment-index="entry.segmentIndex"
                 :hovered-key="hoveredInstructionKey"
+                :arrival="walkArrival(entry.segmentIndex)"
                 @hover-instruction="onInstructionHover"
                 @leave-instruction="onInstructionLeave"
                 @update:route-profile="onRouteProfileChange"

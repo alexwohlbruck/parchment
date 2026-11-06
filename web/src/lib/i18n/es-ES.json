@@ -735,9 +735,10 @@
         "run": "Corre"
       },
       "long": {
-        "leave": "Sal ya · el siguiente llega {minutes} min después",
-        "hurry": "Rápido · {minutes} min para el de las {time}",
-        "hurryLine": "Rápido · {minutes} min para el {line} de las {time}",
+        "leave": "Sal ya · te sobran {minutes} min",
+        "leaveNow": "Sal ya",
+        "hurry": "Date prisa · te sobran {minutes} min",
+        "hurryNow": "Date prisa · te sobra menos de un minuto",
         "by": "Sal antes de las {time}",
         "tight": "{minutes} min para transbordar en {stop}",
         "tightAnywhere": "{minutes} min para transbordar",
@@ -747,8 +748,7 @@
         "crossover": "Más rápido {mode} desde las {time}",
         "tooFar": "No llegas a tiempo · el siguiente es el de las {time}",
         "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}",
-        "run": "Corre · {minutes} min para el de las {time}",
-        "runLine": "Corre · {minutes} min para el {line} de las {time}"
+        "run": "Corre · te faltan {minutes} min"
       },
       "detail": {
         "hurry": "El de las {time}",
@@ -770,7 +770,8 @@
         "missed": "Lo perdiste · ahora en el {line} de las {time}",
         "tooFar": "No llegas a tiempo · ahora en el {line} de las {time}"
       },
-      "next": "siguiente {time}, {minutes} min después"
+      "next": "siguiente {time}, {minutes} min después",
+      "race": "{walk} min a pie, el {line} sale en {train} min"
     },
     "tripTypes": {
       "bikeshare": "Bici compartida",
@@ -788,6 +789,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "arriveAtStop": "Llega a {stop}",
     "trainNumber": "Tren {number}",
     "or": "o",
     "title": "Direcciones",

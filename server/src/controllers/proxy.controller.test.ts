@@ -700,3 +700,26 @@ describe('bridge deck index proxy', () => {
   })
 })
 
+
+describe('GET /proxy/barrelman/basemap.json', () => {
+  test("passes on only the basemap's zoom range, never Barrelman's tile URLs", async () => {
+    fetchResponses = [Response.json({ tilejson: '3.0.0', tiles: ['https://barrelman.test/tiles/basemap/{z}/{x}/{y}'], minzoom: 0, maxzoom: 15, vector_layers: [] })]
+
+    const res = await req(app).get('/proxy/barrelman/basemap.json')
+
+    expect(res.status).toBe(200)
+    expect(fetchCalls[0]).toBe('https://barrelman.test/tiles/basemap.json')
+    expect(fetchHeaders[0].Authorization).toBe('Bearer barrelman-key')
+    expect(res.body).toEqual({ tilejson: '3.0.0', minzoom: 0, maxzoom: 15 })
+    expect(res.headers.get('cache-control')).toContain('max-age=300')
+  })
+
+  test('passes a 404 on uncached, so the map falls back to z14 and asks again later', async () => {
+    fetchResponses = [new Response('NOT_FOUND', { status: 404 })]
+
+    const res = await req(app).get('/proxy/barrelman/basemap.json')
+
+    expect(res.status).toBe(404)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+  })
+})

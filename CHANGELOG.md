@@ -12,6 +12,7 @@
 ### Fixed
 
 * A walk into a station now ends with the signs to follow, or the stop's name, instead of "Arrive at destination".
+* Picking a different departure on a trip no longer freezes the page; the departure boards stopped redrawing themselves nonstop.
 
 ## [0.20.0] - 2026-11-05
 

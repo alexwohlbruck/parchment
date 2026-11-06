@@ -6,9 +6,12 @@
 
 ### Changed
 
-* "Hurry" and "Run" show the next departure, so you can decide to wait for it instead. "Run" only appears when the next train is well behind; otherwise the trip quietly plans around it.
+* "Hurry" and "Run" show the next departure on trip results, and "Run" only appears when the next train is well behind.
+* Trip details compare your walk to the stop with the train's countdown, side by side, and say how much time you have to spare or how far short you are.
 
 ### Fixed
+
+* A walk into a station now ends with the signs to follow, or the stop's name, instead of "Arrive at destination".
 
 ## [0.20.0] - 2026-11-05
 

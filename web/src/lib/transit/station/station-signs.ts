@@ -1,4 +1,4 @@
-import type { GuidedSegment, PlacedWalk } from './station-walks'
+import { stationWalksAt, type GuidedSegment, type PlacedWalk } from './station-walks'
 
 export interface SignedSegment extends GuidedSegment {
   lineName?: string
@@ -19,4 +19,19 @@ export function stationSign(segments: SignedSegment[], placed: PlacedWalk): Stat
   if (placed.kind === 'transfer' && ride.transfer?.class === 'same_platform') return null
   if (!ride.lineName) return null
   return { kind: 'platform', line: ride.lineName, toward: ride.directionLabel || ride.headsign || undefined }
+}
+
+/** The signs to follow at the end of the street walk at `index`, into the station it boards at. */
+export function boardingSign(segments: SignedSegment[], index: number): StationSign | null {
+  const access = stationWalksAt(segments, index).find(w => w.kind === 'access')
+  return access ? stationSign(segments, access) : null
+}
+
+type TFn = (key: string, named?: Record<string, unknown>) => string
+
+export function stationSignText(sign: StationSign, t: TFn): string {
+  if (sign.kind === 'exit') return t('directions.station.signs.exit')
+  return sign.toward
+    ? t('directions.station.signs.platform', { line: sign.line, toward: sign.toward })
+    : t('directions.station.signs.line', { line: sign.line })
 }

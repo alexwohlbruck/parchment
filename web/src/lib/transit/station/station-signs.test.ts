@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stationSign, type SignedSegment } from './station-signs'
+import { boardingSign, stationSign, type SignedSegment } from './station-signs'
 import type { StationWalk } from '@server/types/station-guidance.types'
 
 const walk = { seconds: 90, estimate: true } as StationWalk
@@ -22,5 +22,12 @@ describe('stationSign', () => {
   it('has nothing to follow across the platform', () => {
     const segments = [ride(), ride({ lineName: '2', transfer: { class: 'same_platform' } as SignedSegment['transfer'] })]
     expect(stationSign(segments, { kind: 'transfer', walk, ride: 1 })).toBeNull()
+  })
+
+  it('gives the street walk into a station the entrance signs', () => {
+    const entrance = { walk } as SignedSegment['entrance']
+    const segments = [{ mode: 'walking' }, ride({ entrance, directionLabel: 'Manhattan' })]
+    expect(boardingSign(segments, 0)).toEqual({ kind: 'platform', line: '3', toward: 'Manhattan' })
+    expect(boardingSign([{ mode: 'walking' }, ride()], 0)).toBeNull()
   })
 })

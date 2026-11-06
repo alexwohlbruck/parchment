@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDownIcon } from 'lucide-vue-next'
+import { ChevronDownIcon, SignpostIcon } from 'lucide-vue-next'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import {
@@ -24,6 +24,8 @@ const props = defineProps<{
   segmentIndex: number
   /** Key of the step currently highlighted on the map, if any. */
   hoveredKey: string | null
+  /** Replaces the closing "arrive" step when the walk ends at a stop, not the destination. */
+  arrival?: { text: string; sign: boolean } | null
 }>()
 
 const emit = defineEmits<{
@@ -68,6 +70,11 @@ function instructionKind(instruction: string | RouteInstruction) {
 }
 
 const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
+
+const arrivalAt = (instruction: string | RouteInstruction, index: number) =>
+  props.arrival && index === props.segment.instructions.length - 1 && instructionKind(instruction) === 'arrive'
+    ? props.arrival
+    : null
 </script>
 
 <template>
@@ -147,11 +154,12 @@ const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
         >
           <span class="step-num">{{ Number(index) + 1 }}</span>
           <span class="step-icon">
-            <ManeuverIcon :kind="instructionKind(instruction)" class="size-3.5" />
+            <SignpostIcon v-if="arrivalAt(instruction, Number(index))?.sign" class="size-3.5" />
+            <ManeuverIcon v-else :kind="instructionKind(instruction)" class="size-3.5" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium text-foreground leading-snug">
-              {{ typeof instruction === 'string' ? instruction : instruction.text }}
+              {{ arrivalAt(instruction, Number(index))?.text ?? (typeof instruction === 'string' ? instruction : instruction.text) }}
             </div>
             <div
               v-if="typeof instruction === 'object' && instruction.streetName"

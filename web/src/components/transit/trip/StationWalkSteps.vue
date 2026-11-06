@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { stationStepIcon } from '@/lib/transit/station/step-icons'
 import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
-import type { StationSign } from '@/lib/transit/station/station-signs'
+import { stationSignText, type StationSign } from '@/lib/transit/station/station-signs'
 
 const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; timed?: boolean }>(), { timed: true })
 const { t } = useI18n()
@@ -14,14 +14,7 @@ const { t } = useI18n()
 const steps = computed(() => (props.walk.estimate ? [] : props.walk.steps ?? []))
 const time = computed(() => `${props.walk.estimate ? '≈ ' : ''}${formatDurationShort(props.walk.seconds)}`)
 
-const signText = computed(() => {
-  const sign = props.sign
-  if (!sign) return null
-  if (sign.kind === 'exit') return t('directions.station.signs.exit')
-  return sign.toward
-    ? t('directions.station.signs.platform', { line: sign.line, toward: sign.toward })
-    : t('directions.station.signs.line', { line: sign.line })
-})
+const signText = computed(() => (props.sign ? stationSignText(props.sign, t) : null))
 
 function note(step: { levelChange: number | null; landmark: string | null; instruction: string }) {
   const landmark = step.landmark && !step.instruction.includes(step.landmark) ? step.landmark : null

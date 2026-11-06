@@ -4,6 +4,8 @@
 
 ### Changed
 
+* At steep 3D angles, labels, place pins and transit lines fade out toward the horizon instead of crowding the skyline.
+
 ### Fixed
 
 ## [0.20.0] - 2026-11-05

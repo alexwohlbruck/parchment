@@ -176,9 +176,15 @@ describe('approachReach', () => {
 
 describe('departureReachability with running', () => {
   it('reads a run as catchable at a jog only when one is allowed', () => {
-    // 5 min walk, 4 min left: too late walking, fine at 1.8x.
-    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, 1.8)).toBe('run')
-    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+    // 5 min walk, 3 min left: too late walking or walking briskly, fine at 1.8x.
+    expect(departureReachability(NOW + 3 * MIN, NOW, 300, 0, 1.8)).toBe('run')
+    expect(departureReachability(NOW + 3 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+  })
+
+  it('asks for a hurry, not a run, when a brisk walk makes it', () => {
+    // 8.5 min walk: the train in 7 min is a brisk walk, the one in 5 min a run.
+    expect(departureReachability(NOW + 7 * MIN, NOW, 510, 0, 1.8)).toBe('hurry')
+    expect(departureReachability(NOW + 5 * MIN, NOW, 510, 0, 1.8)).toBe('run')
   })
 
   it('still reads a run out of reach even at a jog', () => {

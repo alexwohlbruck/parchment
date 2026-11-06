@@ -223,12 +223,17 @@ describe('cardHint', () => {
 describe('run', () => {
   // Leave the door at 10, board at 15: a 5 min walk.
   test('says run when a jog still makes a run that walking misses', () => {
+    const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(12), { runFactor: 1.8 })
+    expect(advice?.state).toEqual({ kind: 'run', leadMin: 3, departAtMs: now(15) })
+  })
+
+  test('says hurry when a brisk walk is enough', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
-    expect(advice?.state).toEqual({ kind: 'run', leadMin: 4, departAtMs: now(15) })
+    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 4, departAtMs: now(15) })
   })
 
   test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {
-    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(11))?.state?.kind).toBe('missed')
+    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(12))?.state?.kind).toBe('missed')
     expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(13), { runFactor: 1.8 })?.state?.kind).toBe('missed')
     expect(tripAdvice(profile([run(10, 40), run(12, 42)]), now(11), { runFactor: 1.8 })?.state?.kind).not.toBe('run')
   })

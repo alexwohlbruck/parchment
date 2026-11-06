@@ -77,8 +77,9 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * How a run reads on the board:
  *   • departed     — already gone
  *   • unreachable  — still upcoming, but not on foot from where the rider is
- *   • run          — not at a walk, but at `runFactor` times walking pace
- *   • hurry        — you'd make it, but with less than your grace period spare
+ *   • run          — beyond a brisk walk, but within `runFactor` times walking pace
+ *   • hurry        — a brisk walk makes it, or a walk does with less than your
+ *                    grace period spare
  *   • ok           — comfortable
  *
  * `graceSec` is the rider's own margin (the "arrive early" preference): how
@@ -89,6 +90,9 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * things we don't (they're on the platform, they'll run, they're being driven).
  */
 export type DepartureReachability = 'departed' | 'unreachable' | 'run' | 'hurry' | 'ok'
+
+/** A brisk walk against an ordinary one: a hurry, not a run. */
+export const BRISK_PACE_FACTOR = 1.25
 
 export function departureReachability(
   departureMs: number,
@@ -101,7 +105,10 @@ export function departureReachability(
   const leadMs = departureMs - nowMs
   if (leadMs < 0) return 'departed'
   const walkMs = Math.max(0, remainingWalkSec) * 1000
-  if (leadMs < walkMs) return runFactor && leadMs * runFactor >= walkMs ? 'run' : 'unreachable'
+  if (leadMs < walkMs) {
+    if (!runFactor || leadMs * runFactor < walkMs) return 'unreachable'
+    return leadMs * Math.min(BRISK_PACE_FACTOR, runFactor) >= walkMs ? 'hurry' : 'run'
+  }
   // Comfortable means the walk *plus* the rider's margin fits in the lead.
   const comfortableMs = walkMs + Math.max(0, graceSec) * 1000
   if (comfortableMs > 0 && leadMs < comfortableMs) return 'hurry'

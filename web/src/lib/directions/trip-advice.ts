@@ -114,16 +114,18 @@ function deadlineState(
   return missCostMin >= QUIET_MISS_COST_MIN ? { kind: 'by', leaveByMs } : null
 }
 
-/** The target run, when walking is too slow for it but a jog is not and the next run is well behind. */
+/** The target run, when walking is too slow for it but a brisk walk or a jog is not and the next run is well behind. */
 function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor: number): AdviceState | null {
   const run = runs[target]
   const departAtMs = ms(run.departAt)
   const leadMs = departAtMs - nowMs
   const walkMs = departAtMs - ms(run.leaveBy)
-  if (ms(run.leaveBy) >= nowMs || leadMs <= 0 || leadMs * runFactor < walkMs) return null
+  if (ms(run.leaveBy) >= nowMs || leadMs <= 0) return null
+  const reach = departureReachability(departAtMs, nowMs, walkMs / 1000, 0, runFactor)
+  if (reach !== 'run' && reach !== 'hurry') return null
   const next = runs[target + 1]
   if (next && minutes(ms(next.arriveAt) - ms(run.arriveAt)) < RUN_WORTH_MIN) return null
-  return { kind: 'run', leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs }
+  return { kind: reach, leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs }
 }
 
 /**

@@ -4,6 +4,8 @@
 
 ### Changed
 
+* A train you can catch with a brisk walk now says "Hurry"; "Run" is kept for ones that need a jog.
+
 ### Fixed
 
 ## [0.20.0] - 2026-11-05

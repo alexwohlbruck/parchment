@@ -40,12 +40,12 @@ describe('tripAdvice', () => {
 
   test('hurry when the lead is inside the transit buffer', () => {
     const advice = tripAdvice(profile([run(10, 40), run(20, 50)]), now(9))
-    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 1, departAtMs: now(15), next: { departAtMs: now(25), laterMin: 10 } })
+    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 6, departAtMs: now(15), next: { departAtMs: now(25), laterMin: 10 } })
   })
 
   test('the buffer comes from the rider', () => {
     const p = profile([run(10, 40), run(20, 50)])
-    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', leadMin: 4 })
+    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', leadMin: 9 })
     expect(tripAdvice(p, now(6), { transitBufferMinutes: 2 })?.state?.kind).toBe('leave')
   })
 
@@ -62,10 +62,19 @@ describe('tripAdvice', () => {
     expect(tripAdvice(p, now(0))?.state).toEqual({ kind: 'by', leaveByMs: now(14) })
   })
 
-  test('frequent service says nothing', () => {
+  test('frequent service says nothing, not even hurry', () => {
     const p = profile([run(10, 40), run(13, 43)])
     expect(tripAdvice(p, now(0))?.state).toBeNull()
     expect(tripAdvice(p, now(6))?.state).toBeNull()
+    expect(tripAdvice(p, now(9))?.state).toBeNull()
+  })
+
+  test('keeps the leave-by time once leaving is close but a miss is only moderately costly', () => {
+    expect(tripAdvice(profile([run(10, 40), run(16, 46)]), now(7))?.state).toEqual({ kind: 'by', leaveByMs: now(10) })
+  })
+
+  test('still says hurry for the last run in the window', () => {
+    expect(tripAdvice(profile([run(10, 40)]), now(9))?.state).toMatchObject({ kind: 'hurry' })
   })
 
   test('no next run in the window leaves the miss cost unknown', () => {

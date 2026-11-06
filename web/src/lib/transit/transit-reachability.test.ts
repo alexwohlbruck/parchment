@@ -107,7 +107,7 @@ describe('remainingAccessWalkSec', () => {
 })
 
 describe('departureReachability', () => {
-  const GRACE = 180 // the default 3-minute margin, in seconds
+  const GRACE = 180 // a 3-minute margin, in seconds
 
   it('marks past runs departed', () => {
     expect(departureReachability(NOW - MIN, NOW, 0, GRACE)).toBe('departed')

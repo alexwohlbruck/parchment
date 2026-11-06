@@ -11,7 +11,7 @@ import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-pre
 /** Under this much time to leave, an expensive miss is worth a nudge. */
 const LEAVE_LEAD_MIN = 5
 const LEAVE_MISS_COST_MIN = 8
-/** Missing a run costs less than this on frequent service: say nothing. */
+/** Missing a run costs less than this on frequent service: no rushing, no deadline. */
 const QUIET_MISS_COST_MIN = 4
 const TIGHT_TRANSFER_SEC = 120
 /** Runs arriving this close together count as the same arrival. */
@@ -20,8 +20,6 @@ const SAME_ARRIVAL_SEC = 60
 const FUTURE_PLAN_MIN = 20
 /** How much sooner another mode must arrive to be called faster. */
 const CROSSOVER_MARGIN_SEC = 60
-/** A run worth running for: the next one arrives at least this much later. */
-const RUN_WORTH_MIN = 4
 /** A run departing this close to the trip's boarding time is that run. */
 const RUN_MATCH_SEC = 60
 
@@ -104,32 +102,32 @@ function deadlineState(
   if (options.future) return { kind: 'by', leaveByMs }
 
   const departAtMs = ms(run.departAt)
+  const missCostMin = missCost(runs, target)
+  if (missCostMin < QUIET_MISS_COST_MIN) return null
+
   const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES
   const reach = departureReachability(departAtMs, nowMs, (departAtMs - leaveByMs) / 1000, bufferMin * 60)
-  const leadMin = minutes(leaveByMs - nowMs)
-  if (reach === 'hurry') return { kind: 'hurry', leadMin: Math.max(1, Math.floor(leadMin)), departAtMs, ...nextRun(runs, target) }
+  if (reach === 'hurry') return { kind: 'hurry', leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
 
-  const next = runs[target + 1]
-  if (!next) return null
-  const missCostMin = minutes(ms(next.arriveAt) - ms(run.arriveAt))
-  if (leadMin < LEAVE_LEAD_MIN) {
-    return missCostMin >= LEAVE_MISS_COST_MIN
-      ? { kind: 'leave', nextLaterMin: Math.round(missCostMin) }
-      : null
+  if (!Number.isFinite(missCostMin)) return null
+  if (minutes(leaveByMs - nowMs) < LEAVE_LEAD_MIN && missCostMin >= LEAVE_MISS_COST_MIN) {
+    return { kind: 'leave', nextLaterMin: Math.round(missCostMin) }
   }
-  return missCostMin >= QUIET_MISS_COST_MIN ? { kind: 'by', leaveByMs } : null
+  return { kind: 'by', leaveByMs }
 }
 
+/** How much later the rider arrives on the next run; unknown past the profile's last run. */
+function missCost(runs: DepartureRun[], target: number): number {
+  const next = runs[target + 1]
+  return next ? minutes(ms(next.arriveAt) - ms(runs[target].arriveAt)) : Infinity
+}
+
+const leadMinutes = (departAtMs: number, nowMs: number) => Math.max(1, Math.floor(minutes(departAtMs - nowMs)))
+
 function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
-  const run = runs[target]
   const next = runs[target + 1]
   if (!next) return {}
-  return {
-    next: {
-      departAtMs: ms(next.departAt),
-      laterMin: Math.max(1, Math.round(minutes(ms(next.arriveAt) - ms(run.arriveAt)))),
-    },
-  }
+  return { next: { departAtMs: ms(next.departAt), laterMin: Math.max(1, Math.round(missCost(runs, target))) } }
 }
 
 /** The target run, when walking is too slow for it but a brisk walk or a jog is not and the next run is well behind. */
@@ -141,9 +139,8 @@ function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor
   if (ms(run.leaveBy) >= nowMs || leadMs <= 0) return null
   const reach = departureReachability(departAtMs, nowMs, walkMs / 1000, 0, runFactor)
   if (reach !== 'run' && reach !== 'hurry') return null
-  const next = runs[target + 1]
-  if (next && minutes(ms(next.arriveAt) - ms(run.arriveAt)) < RUN_WORTH_MIN) return null
-  return { kind: reach, leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs, ...nextRun(runs, target) }
+  if (missCost(runs, target) < QUIET_MISS_COST_MIN) return null
+  return { kind: reach, leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
 }
 
 /**

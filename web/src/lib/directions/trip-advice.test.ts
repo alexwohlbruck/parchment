@@ -40,7 +40,7 @@ describe('tripAdvice', () => {
 
   test('hurry when the lead is inside the transit buffer', () => {
     const advice = tripAdvice(profile([run(10, 40), run(20, 50)]), now(9))
-    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 1, departAtMs: now(15) })
+    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 1, departAtMs: now(15), next: { departAtMs: now(25), laterMin: 10 } })
   })
 
   test('the buffer comes from the rider', () => {
@@ -195,13 +195,17 @@ describe('copy', () => {
 describe('cardHint', () => {
   test('pairs the short words with the one fact that matters', () => {
     const hint = cardHint(
-      { state: { kind: 'hurry', leadMin: 2, departAtMs: now(24) }, tight: { minutes: 1, stop: 'Jay St' }, live: true },
+      {
+        state: { kind: 'hurry', leadMin: 2, departAtMs: now(24), next: { departAtMs: now(30), laterMin: 6 } },
+        tight: { minutes: 1, stop: 'Jay St' },
+        live: true,
+      },
       t,
       'F',
     )
     expect(hint).toEqual({
       words: [expect.objectContaining({ word: 'Hurry' }), expect.objectContaining({ word: 'Tight' })],
-      text: `2 min to the F at ${clock(24)}`,
+      text: `The F at ${clock(24)} · next ${clock(30)}, 6 min later`,
     })
   })
 
@@ -224,12 +228,12 @@ describe('run', () => {
   // Leave the door at 10, board at 15: a 5 min walk.
   test('says run when a jog still makes a run that walking misses', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(12), { runFactor: 1.8 })
-    expect(advice?.state).toEqual({ kind: 'run', leadMin: 3, departAtMs: now(15) })
+    expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 3, departAtMs: now(15) })
   })
 
   test('says hurry when a brisk walk is enough', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
-    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 4, departAtMs: now(15) })
+    expect(advice?.state).toMatchObject({ kind: 'hurry', leadMin: 4, departAtMs: now(15) })
   })
 
   test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {

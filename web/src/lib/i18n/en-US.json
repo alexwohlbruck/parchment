@@ -770,12 +770,12 @@
         "runLine": "Run · {minutes} min to the {line} at {time}"
       },
       "detail": {
-        "hurry": "{minutes} min to the {time}",
-        "hurryLine": "{minutes} min to the {line} at {time}",
+        "hurry": "The {time}",
+        "hurryLine": "The {line} at {time}",
         "leave": "Next is {minutes} min later",
         "missed": "Finding the next one",
-        "run": "{minutes} min to the {time}",
-        "runLine": "{minutes} min to the {line} at {time}"
+        "run": "The {time}",
+        "runLine": "The {line} at {time}"
       },
       "modes": {
         "cycling": "Bike",
@@ -788,7 +788,8 @@
       "switched": {
         "missed": "Missed it · now on the {line} at {time}",
         "tooFar": "Too far to make it · now on the {line} at {time}"
-      }
+      },
+      "next": "next {time}, {minutes} min later"
     },
     "tripTypes": {
       "bikeshare": "Bike Share",

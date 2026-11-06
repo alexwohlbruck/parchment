@@ -27,14 +27,20 @@ const RUN_MATCH_SEC = 60
 
 export type AdviceState =
   | { kind: 'leave'; nextLaterMin: number }
-  | { kind: 'hurry'; leadMin: number; departAtMs: number }
+  | { kind: 'hurry'; leadMin: number; departAtMs: number; next?: NextRun }
   /** Too late at a walk, but a jog makes it. */
-  | { kind: 'run'; leadMin: number; departAtMs: number }
+  | { kind: 'run'; leadMin: number; departAtMs: number; next?: NextRun }
   | { kind: 'by'; leaveByMs: number }
   /** `left`: the planned run has gone; otherwise it is still coming but out of reach. */
   | { kind: 'missed'; departAtMs: number; left: boolean }
 
 export type AdviceKind = AdviceState['kind']
+
+/** The run after a rushed one, so the rider can weigh just waiting for it. */
+export interface NextRun {
+  departAtMs: number
+  laterMin: number
+}
 
 export interface TightTransfer {
   minutes: number
@@ -101,7 +107,7 @@ function deadlineState(
   const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES
   const reach = departureReachability(departAtMs, nowMs, (departAtMs - leaveByMs) / 1000, bufferMin * 60)
   const leadMin = minutes(leaveByMs - nowMs)
-  if (reach === 'hurry') return { kind: 'hurry', leadMin: Math.max(1, Math.floor(leadMin)), departAtMs }
+  if (reach === 'hurry') return { kind: 'hurry', leadMin: Math.max(1, Math.floor(leadMin)), departAtMs, ...nextRun(runs, target) }
 
   const next = runs[target + 1]
   if (!next) return null
@@ -112,6 +118,18 @@ function deadlineState(
       : null
   }
   return missCostMin >= QUIET_MISS_COST_MIN ? { kind: 'by', leaveByMs } : null
+}
+
+function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
+  const run = runs[target]
+  const next = runs[target + 1]
+  if (!next) return {}
+  return {
+    next: {
+      departAtMs: ms(next.departAt),
+      laterMin: Math.max(1, Math.round(minutes(ms(next.arriveAt) - ms(run.arriveAt)))),
+    },
+  }
 }
 
 /** The target run, when walking is too slow for it but a brisk walk or a jog is not and the next run is well behind. */
@@ -125,7 +143,7 @@ function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor
   if (reach !== 'run' && reach !== 'hurry') return null
   const next = runs[target + 1]
   if (next && minutes(ms(next.arriveAt) - ms(run.arriveAt)) < RUN_WORTH_MIN) return null
-  return { kind: reach, leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs }
+  return { kind: reach, leadMin: Math.max(1, Math.floor(minutes(leadMs))), departAtMs, ...nextRun(runs, target) }
 }
 
 /**
@@ -244,6 +262,11 @@ type TFn = (key: string, named?: Record<string, unknown>) => string
 
 const clock = (msValue: number) => formatClockCompact(new Date(msValue))
 
+function withNext(text: string, next: NextRun | undefined, t: TFn): string {
+  if (!next) return text
+  return `${text} · ${t('directions.advice.next', { time: clock(next.departAtMs), minutes: next.laterMin })}`
+}
+
 export function adviceText(state: AdviceState, t: TFn, line?: string): string {
   const key = (k: string) => `directions.advice.long.${k}`
   switch (state.kind) {
@@ -251,7 +274,7 @@ export function adviceText(state: AdviceState, t: TFn, line?: string): string {
       return t(key('leave'), { minutes: state.nextLaterMin })
     case 'hurry':
     case 'run':
-      return t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line })
+      return withNext(t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line }), state.next, t)
     case 'by':
       return t(key(state.kind), { time: clock(state.leaveByMs) })
     case 'missed': {
@@ -295,7 +318,7 @@ function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
   switch (state.kind) {
     case 'hurry':
     case 'run':
-      return t(key(line ? `${state.kind}Line` : state.kind), { minutes: state.leadMin, time: clock(state.departAtMs), line })
+      return withNext(t(key(line ? `${state.kind}Line` : state.kind), { time: clock(state.departAtMs), line }), state.next, t)
     case 'leave':
       return t(key('leave'), { minutes: state.nextLaterMin })
     case 'missed':

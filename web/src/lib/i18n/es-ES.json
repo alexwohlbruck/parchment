@@ -751,12 +751,12 @@
         "runLine": "Corre · {minutes} min para el {line} de las {time}"
       },
       "detail": {
-        "hurry": "{minutes} min para el de las {time}",
-        "hurryLine": "{minutes} min para el {line} de las {time}",
+        "hurry": "El de las {time}",
+        "hurryLine": "El {line} de las {time}",
         "leave": "El siguiente llega {minutes} min después",
         "missed": "Buscando el siguiente",
-        "run": "{minutes} min para el de las {time}",
-        "runLine": "{minutes} min para el {line} de las {time}"
+        "run": "El de las {time}",
+        "runLine": "El {line} de las {time}"
       },
       "modes": {
         "cycling": "en bici",
@@ -769,7 +769,8 @@
       "switched": {
         "missed": "Lo perdiste · ahora en el {line} de las {time}",
         "tooFar": "No llegas a tiempo · ahora en el {line} de las {time}"
-      }
+      },
+      "next": "siguiente {time}, {minutes} min después"
     },
     "tripTypes": {
       "bikeshare": "Bici compartida",

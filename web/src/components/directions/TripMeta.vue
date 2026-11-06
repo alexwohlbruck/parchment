@@ -4,17 +4,16 @@ import { useI18n } from 'vue-i18n'
 import { useUnits } from '@/composables/useUnits'
 import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import { getModeIcon, getSegmentIcon } from '@/lib/directions/travel-mode-icons'
-import { formatCo2 } from '@/lib/directions/trip-display'
 import { longestTransitSegment, tripType } from '@/lib/directions/trip-type'
 import type { TripOption } from '@/types/directions.types'
-import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
-import AdviceBadges from './AdviceBadges.vue'
+import type { AdviceStatus } from '@/lib/directions/trip-advice'
+import AdviceStatusLine from './AdviceStatusLine.vue'
 
 interface Props {
   trip: TripOption
   /** List view has no duration sidebar, so distance rides along here. */
   showDistance?: boolean
-  advice?: TripCardAdvice
+  status?: AdviceStatus | null
 }
 
 const props = defineProps<Props>()
@@ -69,21 +68,12 @@ const headsign = computed(() => {
         <span class="size-0.5 rounded-full bg-muted-foreground/50" />
         <span class="tabular-nums">${{ trip.cost.total.amount.toFixed(2) }}</span>
       </template>
-
-      <template v-if="trip.co2Emissions != null && trip.co2Emissions > 0">
-        <span class="size-0.5 rounded-full bg-muted-foreground/50" />
-        <span class="tabular-nums">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
-      </template>
     </div>
 
     <div v-if="headsign" class="mt-1 text-[11px] text-muted-foreground truncate">
       {{ headsign }}
     </div>
 
-    <AdviceBadges v-if="advice" :badges="advice.badges" class="mt-1 text-[11px]" />
-
-    <div v-if="advice?.crossover" class="mt-1 text-[11px] text-muted-foreground tabular-nums truncate">
-      {{ advice.crossover }}
-    </div>
+    <AdviceStatusLine v-if="status" :status="status" class="mt-1 text-xs" />
   </div>
 </template>

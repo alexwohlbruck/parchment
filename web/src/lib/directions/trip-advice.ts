@@ -23,15 +23,24 @@ const FUTURE_PLAN_MIN = 20
 const CROSSOVER_MARGIN_SEC = 60
 /** A run departing this close to the trip's boarding time is that run. */
 const RUN_MATCH_SEC = 60
+/** Gaps between runs this close together count as a steady frequency. */
+const STEADY_HEADWAY_SPREAD_SEC = 90
+/** How many gaps after the planned run a frequency is read from. */
+const HEADWAY_SAMPLE = 3
 
 export type AdviceState =
   | { kind: 'leave'; nextLaterMin: number; race: Race }
   | { kind: 'hurry'; race: Race; next?: NextRun }
   /** Too late at a walk, but a jog makes it. */
   | { kind: 'run'; race: Race; next?: NextRun }
-  | { kind: 'by'; leaveByMs: number }
+  /** Time in hand: `future` when the rider planned well ahead. */
+  | { kind: 'by'; leaveByMs: number; future?: boolean }
+  /** Missing a run costs next to nothing: runs come this often. */
+  | { kind: 'frequent'; everyMin: number }
   /** `left`: the planned run has gone; otherwise it is still coming but out of reach. */
   | { kind: 'missed'; departAtMs: number; left: boolean }
+  /** No run left in the profile that the rider can reach. */
+  | { kind: 'gone' }
 
 export type AdviceKind = AdviceState['kind']
 
@@ -100,6 +109,16 @@ function plannedIndex(profile: DepartureProfile, boardsAtMs?: number): number {
   return Math.min(Math.max(0, profile.plannedRunIndex), profile.runs.length - 1)
 }
 
+/**
+ * The latest run that arrives with the one departing at `departMs`: the trip
+ * should board it, so its times and its advice describe the same train.
+ */
+export function sameArrivalDepartAt(profile: DepartureProfile | undefined, departMs: number): number | null {
+  const runs = profile?.runs ?? []
+  const i = runs.findIndex(r => Math.abs(ms(r.departAt) - departMs) <= RUN_MATCH_SEC * 1000)
+  return i < 0 ? null : ms(runs[lastSameArrival(runs, i)].departAt)
+}
+
 /** Index of the last run from `i` on that still arrives with run `i`. */
 function lastSameArrival(runs: DepartureRun[], i: number): number {
   const arrive = ms(runs[i].arriveAt)
@@ -117,6 +136,37 @@ function tightTransfer(run: DepartureRun): TightTransfer | null {
   }
 }
 
+export interface ChangeSegment {
+  mode: string
+  startTime: Date | string
+  endTime: Date | string
+  duration: number
+  waitSeconds?: number
+  departureStop?: { name?: string }
+}
+
+/** Changes with little time to make them, keyed by the ride they board: the platform wait left after the walk across. */
+export function tightChanges(segments: readonly ChangeSegment[]): Map<number, TightTransfer> {
+  const tight = new Map<number, TightTransfer>()
+  let from = -1
+  segments.forEach((segment, i) => {
+    if (segment.mode !== 'transit') return
+    const between = segments.slice(from + 1, i)
+    if (from >= 0 && between.every(s => s.mode === 'walking')) {
+      const movingMs = between.reduce((sum, s) => sum + (s.duration - (s.waitSeconds ?? 0)) * 1000, 0)
+      const slackMs = new Date(segment.startTime).getTime() - new Date(segments[from].endTime).getTime() - movingMs
+      if (slackMs < TIGHT_TRANSFER_SEC * 1000) {
+        tight.set(i, {
+          minutes: Math.max(1, Math.round(slackMs / 60_000)),
+          ...(segment.departureStop?.name && { stop: segment.departureStop.name }),
+        })
+      }
+    }
+    from = i
+  })
+  return tight
+}
+
 function deadlineState(
   runs: DepartureRun[],
   target: number,
@@ -125,11 +175,11 @@ function deadlineState(
 ): AdviceState | null {
   const run = runs[target]
   const leaveByMs = ms(run.leaveBy)
-  if (options.future) return { kind: 'by', leaveByMs }
+  if (options.future) return { kind: 'by', leaveByMs, future: true }
 
   const departAtMs = ms(run.departAt)
   const missCostMin = missCost(runs, target)
-  if (missCostMin < QUIET_MISS_COST_MIN) return null
+  if (missCostMin < QUIET_MISS_COST_MIN) return frequency(runs, target)
 
   const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES
   const reach = departureReachability(departAtMs, nowMs, (departAtMs - leaveByMs) / 1000, bufferMin * 60)
@@ -146,6 +196,17 @@ function deadlineState(
 function missCost(runs: DepartureRun[], target: number): number {
   const next = runs[target + 1]
   return next ? minutes(ms(next.arriveAt) - ms(runs[target].arriveAt)) : Infinity
+}
+
+/** How often runs leave, when they keep a steady gap; irregular service gets no figure. */
+function frequency(runs: DepartureRun[], target: number): AdviceState | null {
+  const gaps = runs
+    .slice(target, target + HEADWAY_SAMPLE + 1)
+    .map(r => ms(r.departAt))
+    .flatMap((at, i, all) => (i ? [at - all[i - 1]] : []))
+  if (gaps.length < 2 || Math.max(...gaps) - Math.min(...gaps) > STEADY_HEADWAY_SPREAD_SEC * 1000) return null
+  const everyMin = Math.max(1, Math.round(minutes(gaps.reduce((a, b) => a + b, 0) / gaps.length)))
+  return { kind: 'frequent', everyMin }
 }
 
 function race(run: DepartureRun, nowMs: number, options: AdviceOptions): Race {
@@ -218,7 +279,7 @@ export function tripAdvice(
   }
 
   const current = runs.findIndex((r, i) => i >= planned && ms(r.leaveBy) >= nowMs)
-  if (current < 0) return null
+  if (current < 0) return { state: { kind: 'gone' }, tight: null, live: runs[planned].live }
 
   const run = runs[current]
   // Not worth running for when the next one is close behind: plan around it without calling a miss.
@@ -246,6 +307,7 @@ export interface AdviceTrip {
 export interface Crossover {
   /** `tripType` key of the faster trip. */
   mode: string
+  iconMode: string
   atMs: number
 }
 
@@ -274,7 +336,8 @@ export function crossover(trips: readonly AdviceTrip[], nowMs: number): Crossove
       const atMs = ms(runs[i - 1].leaveBy)
       if (atMs > validUntilMs || (found && atMs >= found.atMs)) break
       if (atMs + durMs + marginMs <= ms(runs[i].arriveAt)) {
-        found = { mode: tripType(alt.segments).key, atMs }
+        const { key, iconMode } = tripType(alt.segments)
+        found = { mode: key, iconMode, atMs }
         break
       }
     }
@@ -316,99 +379,113 @@ export interface HintWord {
   tone: string
 }
 
-/** A short label: toned ones ask the rider to act, plain ones carry a fact. */
-export interface Badge {
-  text: string
-  tone: string
-}
-
 /** The trip page has the walk-vs-train race and the departure board; a result card has neither. */
 export type AdviceSurface = 'header' | 'card'
 
-const BADGE_TONES = {
-  urgent: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  missed: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
-  fact: 'bg-muted text-muted-foreground',
+/** One line of advice: a word to act on, if any, then the plain facts behind it. */
+export interface AdviceStatus {
+  kind: AdviceKind | null
+  word: string | null
+  tone: string
+  details: string[]
 }
 
-function stateWord(state: AdviceState, t: TFn): Badge | null {
-  if (state.kind === 'by') return null
-  return {
-    text: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
-    tone: state.kind === 'missed' || state.kind === 'run' ? BADGE_TONES.missed : BADGE_TONES.urgent,
+const spareText = (r: Race, t: TFn, surface: AdviceSurface) => {
+  const s = (k: string, named?: Record<string, unknown>) => t(`directions.advice.status.${k}`, named)
+  if (r.spareMs < 0) {
+    const short = Math.max(1, Math.ceil(minutes(-r.spareMs)))
+    return surface === 'header' && r.runFactor ? s('shortWalking', { minutes: short }) : s('short', { minutes: short })
+  }
+  const spare = Math.floor(minutes(r.spareMs))
+  return spare < 1 ? s('spareNone') : s('spare', { minutes: spare })
+}
+
+function stateWord(state: AdviceState, nowMs: number, t: TFn): string | null {
+  const s = (k: string, named?: Record<string, unknown>) => t(`directions.advice.status.${k}`, named)
+  switch (state.kind) {
+    case 'by': {
+      if (state.future) return s('leaveAt', { time: clock(state.leaveByMs) })
+      const inMin = Math.floor(minutes(state.leaveByMs - nowMs))
+      return inMin < 1 ? t('directions.advice.short.leave') : s('leaveIn', { minutes: inMin })
+    }
+    case 'frequent':
+      return s('every', { minutes: state.everyMin })
+    case 'missed':
+      return t(`directions.advice.short.${state.left ? 'missed' : 'tooFar'}`)
+    case 'gone':
+      return s('gone')
+    default:
+      return t(`directions.advice.short.${state.kind}`)
   }
 }
 
-function stateFacts(state: AdviceState, t: TFn, surface: AdviceSurface): string[] {
-  const badge = (k: string, named?: Record<string, unknown>) => t(`directions.advice.badge.${k}`, named)
-  const next = (minutes?: number) => (minutes ? [badge('next', { minutes })] : [])
-  const race = (r: Race) => {
-    if (r.spareMs < 0) return badge('short', { minutes: Math.max(1, Math.ceil(minutes(-r.spareMs))) })
-    const spare = Math.floor(minutes(r.spareMs))
-    return spare < 1 ? badge('spareNone') : badge('spare', { minutes: spare })
-  }
+function stateDetails(state: AdviceState, t: TFn, surface: AdviceSurface): string[] {
+  const s = (k: string, named?: Record<string, unknown>) => t(`directions.advice.status.${k}`, named)
+  const next = (laterMin?: number) => (laterMin ? [s('next', { minutes: laterMin })] : [])
   const header = surface === 'header'
   switch (state.kind) {
-    case 'by':
-      return [badge('by', { time: clock(state.leaveByMs) })]
     case 'leave':
-      return header ? [race(state.race)] : next(state.nextLaterMin)
+      return [...(header ? [spareText(state.race, t, surface)] : []), ...next(state.nextLaterMin)]
     case 'hurry':
     case 'run':
-      return header ? [race(state.race)] : [badge('departs', { time: clock(state.race.departAtMs) }), ...next(state.next?.laterMin)]
+      return [header ? spareText(state.race, t, surface) : clock(state.race.departAtMs), ...next(state.next?.laterMin)]
     case 'missed':
-      return header ? [badge('nextAt', { time: clock(state.departAtMs) })] : [badge('finding')]
+      return header ? [s('nextAt', { time: clock(state.departAtMs) })] : [s('finding')]
+    case 'gone':
+      return [s('finding')]
+    default:
+      return []
   }
 }
 
-function tightFact(tight: TightTransfer, t: TFn): string {
-  return tight.stop
-    ? t('directions.advice.badge.tight', { minutes: tight.minutes, stop: tight.stop })
-    : t('directions.advice.badge.tightAnywhere', { minutes: tight.minutes })
-}
-
-/** What to do, then the few facts behind it, as short badges. */
-export function adviceBadges(advice: TripAdvice, t: TFn, surface: AdviceSurface): Badge[] {
+/**
+ * What to do, as one line. Calm states read as a plain countdown; only the
+ * states that ask the rider to act take a colour. A result card also carries
+ * a tight change, which the trip page shows on the change itself.
+ */
+export function adviceStatus(advice: TripAdvice, nowMs: number, t: TFn, surface: AdviceSurface): AdviceStatus | null {
   const { state, tight } = advice
-  const badges: Badge[] = []
-  const word = state && stateWord(state, t)
-  if (word) badges.push(word)
-  const showTight = tight && state?.kind !== 'missed'
-  if (showTight) badges.push({ text: t('directions.advice.short.tight'), tone: BADGE_TONES.urgent })
-  const facts = state ? stateFacts(state, t, surface) : []
-  if (showTight && (surface === 'header' || !state)) facts.push(tightFact(tight, t))
-  if (surface === 'header' && !advice.live) facts.push(t('directions.advice.badge.sched'))
-  return [...badges, ...facts.map(text => ({ text, tone: BADGE_TONES.fact }))]
+  const details = state ? stateDetails(state, t, surface) : []
+  const word = state && stateWord(state, nowMs, t)
+  if (surface === 'card' && tight && state?.kind !== 'missed' && state?.kind !== 'gone') {
+    details.push(t('directions.advice.status.change', { minutes: tight.minutes }))
+  }
+  if (!word && !details.length) return null
+  return { kind: state?.kind ?? null, word, tone: state ? adviceTone(state.kind) : '', details }
 }
 
 const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {
   hurry: 'text-amber-600 dark:text-amber-400',
-  leave: 'text-amber-600 dark:text-amber-400',
   run: 'text-orange-600 dark:text-orange-400',
-  missed: 'text-orange-600 dark:text-orange-400',
+  missed: 'text-muted-foreground',
+  gone: 'text-muted-foreground',
 }
 
 /** The board's word for the planned run, matching the advice. */
 export function adviceReach(state: AdviceState | null): DepartureReachability {
   if (state?.kind === 'hurry' || state?.kind === 'run') return state.kind
   if (state?.kind === 'missed') return state.left ? 'departed' : 'unreachable'
+  if (state?.kind === 'gone') return 'unreachable'
   return 'ok'
 }
 
-/** Accent for states that ask the rider to act; calm states take none. */
+/** Accent for states that ask the rider to act; calm states and "leave now" read in plain ink. */
 export function adviceTone(kind: AdviceKind): string {
   return ADVICE_TONES[kind] ?? ''
 }
 
-const REACH_WORDS: Partial<Record<DepartureReachability, { key: string; tone: AdviceKind }>> = {
-  departed: { key: 'missed', tone: 'missed' },
-  unreachable: { key: 'tooFar', tone: 'missed' },
-  run: { key: 'run', tone: 'run' },
-  hurry: { key: 'hurry', tone: 'hurry' },
+/** The board never mutes a run we only estimate you'll miss: the rider is often closer than we think. */
+const MISS_TONE = 'text-orange-600 dark:text-orange-400'
+
+const REACH_WORDS: Partial<Record<DepartureReachability, { key: string; tone: string }>> = {
+  departed: { key: 'missed', tone: MISS_TONE },
+  unreachable: { key: 'tooFar', tone: MISS_TONE },
+  run: { key: 'run', tone: adviceTone('run') },
+  hurry: { key: 'hurry', tone: adviceTone('hurry') },
 }
 
 /** The short word every surface uses for how reachable a run is; none when it's comfortable. */
 export function reachWord(state: DepartureReachability, t: TFn): HintWord | null {
   const entry = REACH_WORDS[state]
-  return entry ? { word: t(`directions.advice.short.${entry.key}`), tone: adviceTone(entry.tone) } : null
+  return entry ? { word: t(`directions.advice.short.${entry.key}`), tone: entry.tone } : null
 }

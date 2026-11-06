@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FootprintsIcon } from 'lucide-vue-next'
-import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { raceZones, type Race, type RaceZoneKind } from '@/lib/directions/trip-advice'
 
-/** The walk to the first stop on one bar, with the train's departure marked where it falls. */
+/** You and the train, each racing from now to the stop: whoever gets there first decides the trip. */
 const props = defineProps<{
   race: Race
   nowMs: number
-  ride?: { routeType?: string; lineColor?: string; lineName?: string }
+  ride?: { lineColor?: string; lineTextColor?: string; lineName?: string; departureStop?: { name?: string } }
 }>()
 
 const { t } = useI18n()
@@ -17,99 +16,125 @@ const { t } = useI18n()
 const leadMs = computed(() => Math.max(0, props.race.departAtMs - props.nowMs))
 const scale = computed(() => Math.max(props.race.walkMs, leadMs.value, 1))
 const share = (ms: number) => Math.min(100, (ms / scale.value) * 100)
+const pct = (ms: number) => `${share(ms)}%`
 
-/** Below this share of the bar the gap's label would crowd the walk's; the badges above still say it. */
-const GAP_LABEL_MIN_SHARE = 30
-
-const ZONE_COLORS: Record<RaceZoneKind, string> = {
-  calm: 'bg-forest-500',
-  leave: 'bg-yellow-400',
-  hurry: 'bg-amber-400',
-  run: 'bg-orange-600',
-  tooFar: 'bg-red-600',
+const WALK_COLORS: Record<RaceZoneKind, { bar: string; hatch: string }> = {
+  calm: { bar: 'bg-forest-600', hatch: 'text-forest-600' },
+  leave: { bar: 'bg-forest-600', hatch: 'text-forest-600' },
+  hurry: { bar: 'bg-amber-500', hatch: 'text-amber-500' },
+  run: { bar: 'bg-orange-600', hatch: 'text-orange-600' },
+  tooFar: { bar: 'bg-red-600', hatch: 'text-red-600' },
 }
-const zones = computed(() =>
-  raceZones(props.race, leadMs.value).map(z => ({
-    kind: z.kind,
-    color: ZONE_COLORS[z.kind],
-    style: { left: `${share(z.fromMs)}%`, width: `${share(z.toMs) - share(z.fromMs)}%` },
-  })),
-)
-const walkClip = computed(() => ({ clipPath: `inset(0 ${100 - share(props.race.walkMs)}% 0 0 round 9999px)` }))
-/** Pins a label to a point on the bar, sliding it inward so it never leaves the bar's span. */
-const at = (ms: number) => ({ left: `${share(ms)}%`, transform: `translateX(-${share(ms)}%)` })
+/** How the walk ends: the zone the rider reaches the stop in. */
+const walkColor = computed(() => {
+  const zone = raceZones(props.race, leadMs.value).find(z => props.race.walkMs <= z.toMs)
+  return WALK_COLORS[zone?.kind ?? 'tooFar']
+})
 
-const minutes = (ms: number, round: (n: number) => number) => {
-  const n = round(ms / 60_000)
-  return n < 1 ? '<1' : String(n)
-}
-const walk = computed(() => minutes(props.race.walkMs, Math.round))
+const lineColor = computed(() => (props.ride?.lineColor ? `#${props.ride.lineColor}` : 'hsl(var(--primary))'))
 
-/** Between reaching the stop and the doors closing: slack when early, the shortfall when late. */
+const minutes = (ms: number, round: (n: number) => number) => Math.max(0, round(ms / 60_000))
+const walkMin = computed(() => minutes(props.race.walkMs, Math.round))
+const trainMin = computed(() => minutes(leadMs.value, Math.floor))
+
+const late = computed(() => props.race.walkMs > leadMs.value)
+/** Between the two finishes: slack when you get there first, the shortfall when the train does. */
 const gap = computed(() => {
   const from = Math.min(props.race.walkMs, leadMs.value)
   const to = Math.max(props.race.walkMs, leadMs.value)
-  const spareMs = leadMs.value - props.race.walkMs
-  const n = Math.floor(Math.abs(spareMs) / 60_000)
-  const text =
-    spareMs < 0
-      ? t('directions.advice.badge.short', { minutes: Math.max(1, Math.ceil(-spareMs / 60_000)) })
-      : n < 1
-        ? t('directions.advice.badge.spareNone')
-        : t('directions.advice.badge.spare', { minutes: n })
+  const off = Math.abs(leadMs.value - props.race.walkMs) / 60_000
+  const text = late.value
+    ? t('directions.advice.status.short', { minutes: Math.max(1, Math.ceil(off)) })
+    : off < 1
+      ? t('directions.advice.status.spareNone')
+      : t('directions.advice.status.spare', { minutes: Math.floor(off) })
+  const mid = (share(from) + share(to)) / 2
   return {
-    late: spareMs < 0,
     text,
-    style: { left: `${share(from)}%`, width: `${share(to) - share(from)}%` },
-    label: at((from + to) / 2),
-    roomy: share(to) - share(from) >= GAP_LABEL_MIN_SHARE,
+    band: { left: pct(from), width: `${share(to) - share(from)}%` },
+    label: { left: `${mid}%`, transform: `translateX(-${mid}%)` },
   }
 })
-const train = computed(() => minutes(leadMs.value, Math.floor))
 
-const rideIcon = computed(() => getSegmentIcon('transit', props.ride?.routeType))
-const rideColor = computed(() => (props.ride?.lineColor ? `#${props.ride.lineColor}` : 'currentColor'))
+const hatch = 'repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4.5px)'
+
 const label = computed(() =>
-  t('directions.advice.race', { walk: walk.value, train: train.value, line: props.ride?.lineName ?? '' }),
+  t('directions.advice.race.label', { walk: walkMin.value, train: trainMin.value, line: props.ride?.lineName ?? '' }),
 )
 </script>
 
 <template>
-  <div role="img" :aria-label="label" class="mt-2 w-52 text-xs tabular-nums text-muted-foreground">
-    <div class="relative h-4">
-      <span class="absolute inline-flex items-center gap-1 whitespace-nowrap" :style="at(leadMs)">
-        <component :is="rideIcon" class="size-3.5" :style="{ color: rideColor }" />{{ train }} min
-      </span>
+  <div role="img" :aria-label="label" class="mt-3 max-w-80 text-xs tabular-nums text-muted-foreground">
+    <div v-if="ride?.departureStop?.name" class="mb-1.5 ml-8 truncate">
+      {{ t('directions.advice.race.to') }} <span class="font-medium text-foreground">{{ ride.departureStop.name }}</span>
     </div>
-    <div class="relative my-1.5 h-1.5">
-      <div class="absolute inset-0 overflow-hidden rounded-full opacity-25">
-        <div v-for="zone in zones" :key="zone.kind" class="absolute inset-y-0" :class="zone.color" :style="zone.style" />
-      </div>
-      <div class="absolute inset-0 overflow-hidden rounded-full transition-[clip-path] duration-700" :style="walkClip">
-        <div v-for="zone in zones" :key="zone.kind" class="absolute inset-y-0" :class="zone.color" :style="zone.style" />
-      </div>
-      <div
-        v-if="!gap.late"
-        class="absolute inset-y-0 text-foreground/40 transition-all duration-700"
-        :style="{ ...gap.style, backgroundImage: 'repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4px)' }"
-      />
-      <div
-        class="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full transition-[left] duration-700"
-        :style="{ left: `${share(leadMs)}%`, background: rideColor }"
-      />
-    </div>
-    <div class="relative h-4">
-      <span class="absolute inline-flex items-center gap-1 whitespace-nowrap" :style="at(gap.roomy ? Math.min(race.walkMs, leadMs) / 2 : race.walkMs)">
-        <FootprintsIcon class="size-3.5" />{{ walk }} min
+
+    <div class="relative grid grid-cols-[22px_1fr_auto] items-center gap-x-2.5 gap-y-1.5">
+      <!-- You -->
+      <span class="grid size-[22px] place-items-center">
+        <span class="size-3.5 rounded-full border-2 border-white bg-primary shadow-sm ring-[3px] ring-primary/25" />
       </span>
-      <span
-        v-if="gap.roomy"
-        class="absolute whitespace-nowrap"
-        :class="gap.late ? 'text-orange-600 dark:text-orange-400' : 'text-foreground/70'"
-        :style="gap.label"
-      >
-        {{ gap.text }}
-      </span>
+      <div class="relative h-[22px]">
+        <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border/60" />
+        <div
+          class="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full transition-all duration-700"
+          :class="walkColor.bar"
+          :style="{ width: pct(Math.min(race.walkMs, leadMs)) }"
+        />
+        <div
+          v-if="late"
+          class="absolute top-1/2 h-1.5 -translate-y-1/2 transition-all duration-700"
+          :class="walkColor.hatch"
+          :style="{ left: pct(leadMs), width: `${share(race.walkMs) - share(leadMs)}%`, backgroundImage: hatch }"
+        />
+        <div
+          class="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background shadow-sm transition-[left] duration-700"
+          :class="walkColor.bar"
+          :style="{ left: pct(race.walkMs) }"
+        />
+      </div>
+      <span class="whitespace-nowrap">{{ t('directions.advice.race.walk', { minutes: walkMin }) }}</span>
+
+      <!-- The train -->
+      <RouteBullet
+        v-if="ride?.lineName"
+        :label="ride.lineName"
+        :color="ride.lineColor"
+        :text-color="ride.lineTextColor"
+        class="justify-self-center"
+      />
+      <span v-else class="size-3 justify-self-center rounded-full" :style="{ background: lineColor }" />
+      <div class="relative h-[22px]">
+        <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border/60" />
+        <div
+          class="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full opacity-70 transition-all duration-700"
+          :style="{ width: pct(leadMs), background: lineColor }"
+        />
+      </div>
+      <span class="whitespace-nowrap">{{ t('directions.advice.race.leaves', { minutes: trainMin }) }}</span>
+
+      <!-- Now, the gap between the finishes, and the train's departure across both lanes -->
+      <span />
+      <div class="relative h-4">
+        <span class="absolute left-0">{{ t('directions.advice.race.now') }}</span>
+        <div
+          v-if="!late"
+          class="absolute bottom-4 h-14 text-forest-600/40 transition-all duration-700"
+          :style="{ ...gap.band, backgroundImage: hatch }"
+        />
+        <div
+          class="absolute bottom-4 h-14 -translate-x-1/2 border-l-2 border-dashed transition-[left] duration-700"
+          :style="{ left: pct(leadMs), borderColor: lineColor }"
+        />
+        <span
+          class="absolute whitespace-nowrap font-semibold"
+          :class="late ? 'text-orange-600 dark:text-orange-400' : 'text-forest-700 dark:text-forest-400'"
+          :style="gap.label"
+        >
+          {{ gap.text }}
+        </span>
+      </div>
+      <span />
     </div>
   </div>
 </template>

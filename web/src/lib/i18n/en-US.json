@@ -747,28 +747,14 @@
       "short": {
         "leave": "Leave now",
         "hurry": "Hurry",
-        "tight": "Tight",
         "missed": "Missed",
         "cancelled": "Cancelled",
         "tooFar": "Too far",
         "run": "Run"
       },
-      "badge": {
-        "spare": "{minutes} min spare",
-        "spareNone": "<1 min spare",
-        "short": "{minutes} min short",
-        "next": "Next +{minutes} min",
-        "departs": "Departs {time}",
-        "nextAt": "Next {time}",
-        "by": "Leave by {time}",
-        "finding": "Finding next",
-        "tight": "{minutes} min at {stop}",
-        "tightAnywhere": "{minutes} min change",
-        "sched": "No live times"
-      },
-      "crossover": "{mode} faster after {time}",
+      "crossover": "{mode} is faster if you leave after {time}",
       "modes": {
-        "cycling": "Bike",
+        "cycling": "Biking",
         "walking": "Walking",
         "bikeshare": "Bike share",
         "scootershare": "Scooter share",
@@ -776,10 +762,34 @@
         "rideshare": "Rideshare"
       },
       "switched": {
-        "missed": "Missed it · now on the {line} at {time}",
-        "tooFar": "Too far to make it · now on the {line} at {time}"
+        "missed": "Moved to the {line} at {time}; the {from} has left",
+        "tooFar": "Moved to the {line} at {time}; the {from} is out of reach"
       },
-      "race": "{walk} min walk, {line} train in {train} min"
+      "race": {
+        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
+        "you": "You",
+        "walk": "{minutes} min to the stop",
+        "leaves": "leaves in {minutes} min",
+        "now": "Now",
+        "to": "to"
+      },
+      "status": {
+        "leaveIn": "Leave in {minutes} min",
+        "leaveAt": "Leave at {time}",
+        "every": "Every {minutes} min",
+        "gone": "No departure you can make",
+        "spare": "{minutes} min spare",
+        "spareNone": "under 1 min spare",
+        "short": "{minutes} min short",
+        "shortWalking": "{minutes} min short at a walk",
+        "next": "next {minutes} min later",
+        "nextAt": "next at {time}",
+        "finding": "checking later departures",
+        "change": "{minutes} min change",
+        "scheduled": "scheduled"
+      },
+      "tightChange": "{minutes} min to change at {stop}",
+      "tightChangeHere": "Only {minutes} min to make this change"
     },
     "tripTypes": {
       "bikeshare": "Bike Share",
@@ -969,6 +979,13 @@
         "line": "Follow signs for the {line}",
         "exit": "Follow exit signs"
       }
+    },
+    "tripPage": {
+      "loadFailed": "Couldn't load this trip",
+      "gone": "This trip is no longer available",
+      "goneBody": "Departures have moved on since it was planned.",
+      "planAgain": "Plan again",
+      "retry": "Try again"
     }
   },
   "library": {

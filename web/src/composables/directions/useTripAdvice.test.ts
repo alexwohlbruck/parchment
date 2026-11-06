@@ -6,7 +6,7 @@ import { createI18n } from 'vue-i18n'
 import en from '@/lib/i18n/en-US.json'
 import type { TripOption } from '@/types/directions.types'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { useTripListAdvice, type TripCardAdvice } from './useTripAdvice'
+import { useTripListAdvice, type TripListAdvice } from './useTripAdvice'
 
 const replan = vi.fn()
 vi.mock('@/services/directions.service', () => ({
@@ -35,7 +35,7 @@ function transitTrip(validUntilMin: number): TripOption {
 
 function mountAdvice(trips: TripOption[]) {
   const list = shallowRef(trips)
-  let advice!: { value: Record<string, TripCardAdvice> }
+  let advice!: { value: TripListAdvice }
   const Host = defineComponent({
     setup() {
       advice = useTripListAdvice(() => list.value)
@@ -55,11 +55,11 @@ describe('useTripListAdvice', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('turns the hint into a short word as the deadline nears', async () => {
+  it('counts down calmly, then asks the rider to go as the deadline nears', async () => {
     const { advice, wrapper } = mountAdvice([transitTrip(60)])
-    expect(advice().transit.badges).toMatchObject([{ text: expect.stringMatching(/^Leave by /) }])
+    expect(advice().status.transit).toMatchObject({ word: 'Leave in 10 min', details: [] })
     await vi.advanceTimersByTimeAsync(6 * 60_000)
-    expect(advice().transit.badges).toMatchObject([{ text: 'Leave now' }, { text: 'Next +20 min' }])
+    expect(advice().status.transit).toMatchObject({ word: 'Leave now', details: ['next 20 min later'] })
     wrapper.unmount()
   })
 

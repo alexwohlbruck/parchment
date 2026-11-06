@@ -6,8 +6,8 @@ import { useDirectionsService } from '@/services/directions.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import {
-  adviceBadges,
   adviceReach,
+  adviceStatus,
   adviceValidUntil,
   boardsAtMs,
   crossover,
@@ -16,25 +16,28 @@ import {
   tripAdvice,
   walksToFirstStop,
   type AdviceKind,
-  type Badge,
+  type AdviceStatus,
   type Boarding,
   type Race,
 } from '@/lib/directions/trip-advice'
 import type { DepartureReachability } from '@/lib/transit/transit-reachability'
-import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
 
 export interface TripPageAdvice {
-  badges: Badge[]
+  status: AdviceStatus | null
   /** Present while the walk is racing the train. */
   race?: Race
   /** What the board says about the planned run, so the two agree. */
   reach: DepartureReachability
+  /** Whether the planned run's time is a live prediction. */
+  live: boolean
 }
 
-export interface TripCardAdvice {
-  badges: Badge[]
-  crossover: string | null
+export interface TripListAdvice {
+  /** Each trip's status line, by trip id. */
+  status: Record<string, AdviceStatus | null>
+  /** When another mode overtakes the best transit trip; it applies to the whole list. */
+  crossover: { text: string; iconMode: string } | null
 }
 
 const ADVICE_TICK_MS = 10_000
@@ -43,7 +46,8 @@ const RESCAN_URGENT_MS = 20_000
 const RESCAN_CALM_MS = 60_000
 /** A missed trip re-plans straight away, but never more often than this. */
 const MISSED_REPLAN_GAP_MS = 10_000
-const URGENT_KINDS: ReadonlySet<AdviceKind> = new Set(['hurry', 'run', 'leave', 'missed'])
+const URGENT_KINDS: ReadonlySet<AdviceKind> = new Set(['hurry', 'run', 'leave', 'missed', 'gone'])
+const isMissed = (kind?: AdviceKind) => kind === 'missed' || kind === 'gone'
 
 /** A trip's advice as display lines, under the rider's buffer and depart-at time. */
 export function useTripAdvice() {
@@ -66,9 +70,10 @@ export function useTripAdvice() {
     if (!advice) return null
     const state = advice.state
     return {
-      badges: adviceBadges(advice, t, 'header'),
+      status: adviceStatus(advice, nowMs, t, 'header'),
       ...(state && 'race' in state && { race: state.race }),
       reach: adviceReach(state),
+      live: advice.live,
     }
   }
 
@@ -89,19 +94,14 @@ export function useTripListAdvice(trips: () => TripOption[]) {
     return new Map(trips().map(trip => [trip.id, rawAdvice(trip, nowMs)]))
   })
 
-  const advice = computed(() => {
-    const list = trips()
-    const best = byRank(list)[0]
-    const cross = crossover(list, now.value.getTime())
-    const out: Record<string, TripCardAdvice> = {}
-    for (const trip of list) {
-      const tripAdviceNow = raw.value.get(trip.id)
-      out[trip.id] = {
-        badges: tripAdviceNow ? adviceBadges(tripAdviceNow, t, 'card') : [],
-        crossover: cross && trip === best ? crossoverText(cross, t) : null,
-      }
+  const advice = computed<TripListAdvice>(() => {
+    const nowMs = now.value.getTime()
+    const status: Record<string, AdviceStatus | null> = {}
+    for (const [id, tripAdviceNow] of raw.value) {
+      status[id] = tripAdviceNow ? adviceStatus(tripAdviceNow, nowMs, t, 'card') : null
     }
-    return out
+    const cross = crossover(trips(), nowMs)
+    return { status, crossover: cross && { text: crossoverText(cross, t), iconMode: cross.iconMode } }
   })
 
   /** A depart-at search is a fixed plan, and a hidden tab needs no fresh one. */
@@ -114,7 +114,7 @@ export function useTripListAdvice(trips: () => TripOption[]) {
   /** Missed trips leave the list at once and the search re-plans, unless nothing would be left. */
   watch(raw, entries => {
     if (!live()) return
-    const missed = new Set([...entries].filter(([, advice]) => advice?.state?.kind === 'missed').map(([id]) => id))
+    const missed = new Set([...entries].filter(([, advice]) => isMissed(advice?.state?.kind)).map(([id]) => id))
     if (!missed.size || missed.size === entries.size) return
     store.removeTrips(missed)
     const nowMs = Date.now()

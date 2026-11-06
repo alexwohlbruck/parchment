@@ -7,7 +7,7 @@
 ### Changed
 
 * Trip advice reads as short badges, like "Leave now · Next +20 min", and "Run" only appears when the next train is well behind.
-* Trip details compare your walk to the stop with the train's countdown, side by side, and say how much time you have to spare or how far short you are.
+* Trip details draw your walk to the stop on one bar, coloured by when you'd need to leave, hurry or run, with the train's departure marked on it.
 
 ### Fixed
 

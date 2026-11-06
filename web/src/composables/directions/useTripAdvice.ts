@@ -8,7 +8,6 @@ import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-p
 import {
   adviceBadges,
   adviceReach,
-  adviceTone,
   adviceValidUntil,
   boardsAtMs,
   crossover,
@@ -27,9 +26,8 @@ import type { TripOption } from '@/types/directions.types'
 
 export interface TripPageAdvice {
   badges: Badge[]
-  /** Present while the walk is racing the train; `tone` colours the walk. */
+  /** Present while the walk is racing the train. */
   race?: Race
-  tone: string
   /** What the board says about the planned run, so the two agree. */
   reach: DepartureReachability
 }
@@ -70,7 +68,6 @@ export function useTripAdvice() {
     return {
       badges: adviceBadges(advice, t, 'header'),
       ...(state && 'race' in state && { race: state.race }),
-      tone: state ? adviceTone(state.kind) : '',
       reach: adviceReach(state),
     }
   }

@@ -40,6 +40,9 @@ export interface Race {
   departAtMs: number
   walkMs: number
   spareMs: number
+  /** The rider's arrive-early margin. */
+  bufferMs: number
+  runFactor: number | null
 }
 
 /** The run after a rushed one, so the rider can weigh just waiting for it. */
@@ -130,11 +133,11 @@ function deadlineState(
 
   const bufferMin = options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES
   const reach = departureReachability(departAtMs, nowMs, (departAtMs - leaveByMs) / 1000, bufferMin * 60)
-  if (reach === 'hurry') return { kind: 'hurry', race: race(run, nowMs), ...nextRun(runs, target) }
+  if (reach === 'hurry') return { kind: 'hurry', race: race(run, nowMs, options), ...nextRun(runs, target) }
 
   if (!Number.isFinite(missCostMin)) return null
   if (minutes(leaveByMs - nowMs) < LEAVE_LEAD_MIN && missCostMin >= COSTLY_MISS_COST_MIN) {
-    return { kind: 'leave', nextLaterMin: Math.round(missCostMin), race: race(run, nowMs) }
+    return { kind: 'leave', nextLaterMin: Math.round(missCostMin), race: race(run, nowMs, options) }
   }
   return { kind: 'by', leaveByMs }
 }
@@ -145,9 +148,38 @@ function missCost(runs: DepartureRun[], target: number): number {
   return next ? minutes(ms(next.arriveAt) - ms(runs[target].arriveAt)) : Infinity
 }
 
-function race(run: DepartureRun, nowMs: number): Race {
+function race(run: DepartureRun, nowMs: number, options: AdviceOptions): Race {
   const departAtMs = ms(run.departAt)
-  return { departAtMs, walkMs: departAtMs - ms(run.leaveBy), spareMs: ms(run.leaveBy) - nowMs }
+  return {
+    departAtMs,
+    walkMs: departAtMs - ms(run.leaveBy),
+    spareMs: ms(run.leaveBy) - nowMs,
+    bufferMs: (options.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES) * 60_000,
+    runFactor: options.runFactor ?? null,
+  }
+}
+
+export type RaceZoneKind = 'calm' | 'leave' | 'hurry' | 'run' | 'tooFar'
+
+export interface RaceZone {
+  kind: RaceZoneKind
+  fromMs: number
+  toMs: number
+}
+
+/** What arriving at each point along the walk would mean, given `leadMs` until the train leaves. */
+export function raceZones(race: Race, leadMs: number): RaceZone[] {
+  const leaveFrom = Math.max(0, leadMs - LEAVE_LEAD_MIN * 60_000)
+  const hurryFrom = Math.max(leaveFrom, leadMs - race.bufferMs)
+  const runTo = race.runFactor ? leadMs * race.runFactor : leadMs
+  const edges: [RaceZoneKind, number, number][] = [
+    ['calm', 0, leaveFrom],
+    ['leave', leaveFrom, hurryFrom],
+    ['hurry', hurryFrom, leadMs],
+    ['run', leadMs, runTo],
+    ['tooFar', runTo, Infinity],
+  ]
+  return edges.filter(([, from, to]) => to > from).map(([kind, fromMs, toMs]) => ({ kind, fromMs, toMs }))
 }
 
 function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
@@ -181,7 +213,7 @@ export function tripAdvice(
   const target = lastSameArrival(runs, planned)
   const jog = !!options.runFactor && !options.future && jogOnly(runs[target], nowMs, options.runFactor)
   if (jog && missCost(runs, target) >= COSTLY_MISS_COST_MIN) {
-    const state: AdviceState = { kind: 'run', race: race(runs[target], nowMs), ...nextRun(runs, target) }
+    const state: AdviceState = { kind: 'run', race: race(runs[target], nowMs, options), ...nextRun(runs, target) }
     return { state, tight: tightTransfer(runs[target]), live: runs[target].live }
   }
 

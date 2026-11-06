@@ -1232,7 +1232,6 @@ function showSegmentChart(segment: any): boolean {
             v-if="advice?.race"
             :race="advice.race"
             :now-ms="nowMs"
-            :tone="advice.tone"
             :ride="firstRide"
           />
 

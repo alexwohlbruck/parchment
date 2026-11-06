@@ -5,6 +5,7 @@ import en from '@/lib/i18n/en-US.json'
 import {
   adviceBadges,
   adviceReach,
+  raceZones,
   adviceValidUntil,
   boardsAtMs,
   crossover,
@@ -15,6 +16,7 @@ import {
   type AdviceState,
   type AdviceSurface,
   type AdviceTrip,
+  type Race,
   type TripAdvice,
 } from './trip-advice'
 import { formatClockCompact } from './trip-display'
@@ -44,7 +46,7 @@ describe('tripAdvice', () => {
     const advice = tripAdvice(profile([run(10, 40), run(20, 50)]), now(9))
     expect(advice?.state).toEqual({
       kind: 'hurry',
-      race: { departAtMs: now(15), walkMs: 5 * 60_000, spareMs: 60_000 },
+      race: { departAtMs: now(15), walkMs: 5 * 60_000, spareMs: 60_000, bufferMs: 2 * 60_000, runFactor: null },
       next: { departAtMs: now(25), laterMin: 10 },
     })
   })
@@ -193,7 +195,7 @@ describe('boardsAtMs', () => {
 })
 
 describe('adviceBadges', () => {
-  const race = (spareMin: number) => ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000 })
+  const race = (spareMin: number): Race => ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000, bufferMs: 2 * 60_000, runFactor: null })
   const texts = (state: AdviceState | null, surface: AdviceSurface, extra: Partial<TripAdvice> = {}) =>
     adviceBadges({ state, tight: null, live: true, ...extra }, t, surface).map(b => b.text)
 
@@ -258,8 +260,18 @@ describe('run', () => {
     expect(tripAdvice(p, at, { runFactor: 1.8, boarding })?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(14) } })
   })
 
+  test('marks where along the walk each piece of advice begins', () => {
+    const min = 60_000
+    const zones = raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: 1.5 }, 10 * min)
+    expect(zones.map(z => [z.kind, z.fromMs / min, z.toMs / min])).toEqual([
+      ['calm', 0, 5], ['leave', 5, 8], ['hurry', 8, 10], ['run', 10, 15], ['tooFar', 15, Infinity],
+    ])
+    expect(raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: null }, min).map(z => z.kind))
+      .toEqual(['hurry', 'tooFar'])
+  })
+
   test('the board word for the planned run follows the advice', () => {
-    expect(adviceReach({ kind: 'run', race: { departAtMs: 0, walkMs: 0, spareMs: -1 } })).toBe('run')
+    expect(adviceReach({ kind: 'run', race: { departAtMs: 0, walkMs: 0, spareMs: -1, bufferMs: 0, runFactor: null } })).toBe('run')
     expect(adviceReach({ kind: 'missed', departAtMs: 0, left: false })).toBe('unreachable')
     expect(adviceReach({ kind: 'by', leaveByMs: 0 })).toBe('ok')
     expect(adviceReach(null)).toBe('ok')

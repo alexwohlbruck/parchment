@@ -240,9 +240,9 @@ describe('run', () => {
     expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 3, departAtMs: now(15) })
   })
 
-  test('says hurry when a brisk walk is enough', () => {
+  test('says run as soon as the leave time has passed', () => {
     const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
-    expect(advice?.state).toMatchObject({ kind: 'hurry', leadMin: 4, departAtMs: now(15) })
+    expect(advice?.state).toMatchObject({ kind: 'run', leadMin: 4, departAtMs: now(15) })
   })
 
   test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {

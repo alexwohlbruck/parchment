@@ -130,17 +130,16 @@ function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
   return { next: { departAtMs: ms(next.departAt), laterMin: Math.max(1, Math.round(missCost(runs, target))) } }
 }
 
-/** The target run, when walking is too slow for it but a brisk walk or a jog is not and the next run is well behind. */
+/** The target run, when walking is too slow for it but a jog is not and the next run is well behind. */
 function runState(runs: DepartureRun[], target: number, nowMs: number, runFactor: number): AdviceState | null {
   const run = runs[target]
   const departAtMs = ms(run.departAt)
   const leadMs = departAtMs - nowMs
   const walkMs = departAtMs - ms(run.leaveBy)
   if (ms(run.leaveBy) >= nowMs || leadMs <= 0) return null
-  const reach = departureReachability(departAtMs, nowMs, walkMs / 1000, 0, runFactor)
-  if (reach !== 'run' && reach !== 'hurry') return null
+  if (leadMs * runFactor < walkMs) return null
   if (missCost(runs, target) < QUIET_MISS_COST_MIN) return null
-  return { kind: reach, leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
+  return { kind: 'run', leadMin: leadMinutes(departAtMs, nowMs), departAtMs, ...nextRun(runs, target) }
 }
 
 /**

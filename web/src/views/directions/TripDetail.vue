@@ -652,9 +652,9 @@ interface DepCard {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
   const planned = isCurrentDeparture(segment, dep.ms)
-  const state = planned && advice.value && boarding.value?.index === segmentIndex
-    ? advice.value.reach
-    : depState(segmentIndex, dep)
+  // The advice can stay quiet about the planned run (frequent service); the chip still says what it would to any other.
+  const adviceReach = planned && boarding.value?.index === segmentIndex ? advice.value?.reach : undefined
+  const state = adviceReach && adviceReach !== 'ok' ? adviceReach : depState(segmentIndex, dep)
   const departed = state === 'departed'
   // The reachability hints stand even on the selected card — you still have to
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.

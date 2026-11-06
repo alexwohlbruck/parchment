@@ -4,7 +4,7 @@
 
 ### Changed
 
-* A train you can catch with a brisk walk now says "Hurry"; "Run" is kept for ones that need a jog.
+* A train you can catch with a brisk walk now says "Hurry", and "Run" is kept for ones that need a jog. Both show the next departure, so you can decide to wait for it instead.
 
 ### Fixed
 

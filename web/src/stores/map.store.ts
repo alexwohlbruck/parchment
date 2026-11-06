@@ -33,7 +33,7 @@ const defaultSettings: MapSettings = {
   basemap: 'standard',
   mapStyle: 'parchment',
   poiStyle: 'badge',
-  terrain3d: false,
+  terrain3d: true,
   buildings3d: true,
   objects3d: true,
   shadows: ShadowMode.ALWAYS,

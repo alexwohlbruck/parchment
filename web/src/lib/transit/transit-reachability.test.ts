@@ -73,6 +73,13 @@ describe('remainingAccessWalkSec', () => {
     expect(remaining).toBeLessThanOrEqual(400)
   })
 
+  it('keeps a ride to the stop at its own pace rather than a walking one', () => {
+    // 2.4 km by bike in 480 s is 5 m/s: ~800 m out is under a minute and a half away.
+    const ride = { plannedSec: 480, distanceM: 2400, stop: STOP, position: BLOCKS_AWAY, accuracyM: 10 }
+    expect(remainingAccessWalkSec({ ...ride, ridden: true }, NOW)).toBeLessThan(250)
+    expect(remainingAccessWalkSec(ride, NOW)).toBeGreaterThan(450)
+  })
+
   it('ignores a fix too coarse to place the rider', () => {
     const remaining = remainingAccessWalkSec(
       {

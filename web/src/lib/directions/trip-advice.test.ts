@@ -3,17 +3,18 @@ import type { DepartureProfile, DepartureRun } from '@/types/multimodal.types'
 import { translator } from '@/lib/guidance/test-routes'
 import en from '@/lib/i18n/en-US.json'
 import {
-  adviceText,
+  adviceBadges,
   adviceValidUntil,
-  boardingLeg,
-  cardHint,
+  boardsAtMs,
   crossover,
   crossoverText,
   isFuturePlan,
-  tightText,
   tripAdvice,
   walksToFirstStop,
+  type AdviceState,
+  type AdviceSurface,
   type AdviceTrip,
+  type TripAdvice,
 } from './trip-advice'
 import { formatClockCompact } from './trip-display'
 
@@ -182,61 +183,41 @@ describe('adviceValidUntil', () => {
   })
 })
 
-describe('boardingLeg', () => {
-  test('the first transit leg, with its line unless merged', () => {
+describe('boardsAtMs', () => {
+  test('the first transit leg', () => {
     const start = new Date(now(5))
-    expect(boardingLeg([{ mode: 'walking', startTime: start }, { mode: 'transit', startTime: start, lineName: 'F' }])).toEqual({ departMs: now(5), line: 'F' })
-    expect(boardingLeg([{ mode: 'transit', startTime: start, lineName: '4', routeOptions: [{}, {}] }])).toEqual({ departMs: now(5) })
-    expect(boardingLeg([{ mode: 'walking', startTime: start }])).toBeNull()
+    expect(boardsAtMs([{ mode: 'walking', startTime: new Date(now(0)) }, { mode: 'transit', startTime: start }])).toBe(now(5))
+    expect(boardsAtMs([{ mode: 'walking', startTime: start }])).toBeUndefined()
   })
 })
 
-describe('copy', () => {
-  test('long variants', () => {
-    const race = (spareMin: number) => ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000 })
-    expect(adviceText({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, t)).toBe('Leave now · 3 min to spare')
-    expect(adviceText({ kind: 'leave', nextLaterMin: 12, race: race(0.5) }, t)).toBe('Leave now')
-    expect(adviceText({ kind: 'hurry', race: race(1.2) }, t, 'F')).toBe('Hurry · 1 min to spare')
-    expect(adviceText({ kind: 'hurry', race: race(0.4) }, t)).toBe('Hurry · under a minute to spare')
-    expect(adviceText({ kind: 'run', race: race(-1.5) }, t)).toBe('Run · 2 min short')
-    expect(adviceText({ kind: 'by', leaveByMs: now(31) }, t)).toBe(`Leave by ${clock(31)}`)
-    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: true }, t, 'F')).toBe(`Missed · next is the F at ${clock(24)}`)
-    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: false }, t)).toBe(`Too far to make it · next is the ${clock(24)}`)
-    expect(tightText({ minutes: 2, stop: 'Jay St' }, t)).toBe('2 min to change at Jay St')
-    expect(tightText({ minutes: 1 }, t)).toBe('1 min to change')
-    expect(crossoverText({ mode: 'cycling', atMs: now(14) }, t)).toBe(`Bike is faster after ${clock(14)}`)
-  })
-})
+describe('adviceBadges', () => {
+  const race = (spareMin: number) => ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000 })
+  const texts = (state: AdviceState | null, surface: AdviceSurface, extra: Partial<TripAdvice> = {}) =>
+    adviceBadges({ state, tight: null, live: true, ...extra }, t, surface).map(b => b.text)
 
-describe('cardHint', () => {
-  test('pairs the short words with the one fact that matters', () => {
-    const hint = cardHint(
-      {
-        state: { kind: 'hurry', race: { departAtMs: now(24), walkMs: 0, spareMs: 0 }, next: { departAtMs: now(30), laterMin: 6 } },
-        tight: { minutes: 1, stop: 'Jay St' },
-        live: true,
-      },
-      t,
-      'F',
-    )
-    expect(hint).toEqual({
-      words: [expect.objectContaining({ word: 'Hurry' }), expect.objectContaining({ word: 'Tight' })],
-      text: `The F at ${clock(24)} · next ${clock(30)}, 6 min later`,
-    })
+  test('the trip page weighs the walk against the train', () => {
+    expect(texts({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, 'header')).toEqual(['Leave now', '3 min spare'])
+    expect(texts({ kind: 'hurry', race: race(0.4) }, 'header')).toEqual(['Hurry', '<1 min spare'])
+    expect(texts({ kind: 'run', race: race(-1.5) }, 'header')).toEqual(['Run', '2 min short'])
+    expect(texts({ kind: 'missed', departAtMs: now(24), left: false }, 'header')).toEqual(['Too far', `Next ${clock(24)}`])
+    expect(texts({ kind: 'by', leaveByMs: now(31) }, 'header', { live: false })).toEqual([`Leave by ${clock(31)}`, 'No live times'])
+  })
+
+  test('a result card names the run and what waiting costs', () => {
+    const next = { departAtMs: now(30), laterMin: 6 }
+    expect(texts({ kind: 'hurry', race: race(1), next }, 'card', { tight: { minutes: 1, stop: 'Jay St' } }))
+      .toEqual(['Hurry', 'Tight', `Departs ${clock(12)}`, 'Next +6 min'])
+    expect(texts({ kind: 'leave', nextLaterMin: 20, race: race(2) }, 'card')).toEqual(['Leave now', 'Next +20 min'])
+    expect(texts({ kind: 'missed', departAtMs: now(24), left: true }, 'card')).toEqual(['Missed', 'Finding next'])
   })
 
   test('a tight transfer alone names the stop', () => {
-    expect(cardHint({ state: null, tight: { minutes: 1, stop: 'Jay St' }, live: true }, t)).toEqual({
-      words: [expect.objectContaining({ word: 'Tight' })],
-      text: '1 min to change at Jay St',
-    })
+    expect(texts(null, 'card', { tight: { minutes: 1, stop: 'Jay St' } })).toEqual(['Tight', '1 min at Jay St'])
   })
 
-  test('calm deadlines stay plain text', () => {
-    expect(cardHint({ state: { kind: 'by', leaveByMs: now(10) }, tight: null, live: true }, t)).toEqual({
-      words: [],
-      text: `Leave by ${clock(10)}`,
-    })
+  test('crossover', () => {
+    expect(crossoverText({ mode: 'cycling', atMs: now(14) }, t)).toBe(`Bike faster after ${clock(14)}`)
   })
 })
 

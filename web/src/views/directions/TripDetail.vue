@@ -74,6 +74,7 @@ import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
 import TripRace from '@/components/directions/trip/TripRace.vue'
+import AdviceBadges from '@/components/directions/AdviceBadges.vue'
 import { boardingSign, stationSignText } from '@/lib/transit/station/station-signs'
 import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
 import StationGuidanceRows from '@/components/transit/trip/StationGuidanceRows.vue'
@@ -803,9 +804,6 @@ function walkArrival(index: number) {
 }
 
 const firstRide = computed(() => trip.value?.segments.find(s => s.mode === 'transit'))
-const adviceNotes = computed(() =>
-  [advice.value?.tight, advice.value?.sched].filter(Boolean).join(' · '),
-)
 
 watch(
   () => [tripId.value, route.query.pt],
@@ -1218,23 +1216,14 @@ function showSegmentChart(segment: any): boolean {
             {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
           </div>
 
-          <div
-            v-if="advice?.line"
-            class="mt-0.5 text-sm font-medium tabular-nums"
-            :class="advice.line.tone || 'text-foreground/80'"
-          >
-            {{ advice.line.text }}
-          </div>
+          <AdviceBadges v-if="advice" :badges="advice.badges" class="mt-1.5 text-xs" />
           <TripRace
-            v-if="advice?.line?.race"
-            :race="advice.line.race"
+            v-if="advice?.race"
+            :race="advice.race"
             :now-ms="nowMs"
-            :tone="advice.line.tone"
+            :tone="advice.tone"
             :ride="firstRide"
           />
-          <div v-if="adviceNotes" class="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            {{ adviceNotes }}
-          </div>
 
           <!-- Cost / CO2 -->
           <div

@@ -8,6 +8,7 @@ import { formatCo2 } from '@/lib/directions/trip-display'
 import { longestTransitSegment, tripType } from '@/lib/directions/trip-type'
 import type { TripOption } from '@/types/directions.types'
 import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
+import AdviceBadges from './AdviceBadges.vue'
 
 interface Props {
   trip: TripOption
@@ -79,17 +80,7 @@ const headsign = computed(() => {
       {{ headsign }}
     </div>
 
-    <div v-if="advice?.hint" class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] tabular-nums">
-      <span
-        v-for="word in advice.hint.words"
-        :key="word.word"
-        class="shrink-0 rounded px-1 py-px font-semibold"
-        :class="word.tone"
-      >
-        {{ word.word }}
-      </span>
-      <span v-if="advice.hint.text" class="truncate text-muted-foreground">{{ advice.hint.text }}</span>
-    </div>
+    <AdviceBadges v-if="advice" :badges="advice.badges" class="mt-1 text-[11px]" />
 
     <div v-if="advice?.crossover" class="mt-1 text-[11px] text-muted-foreground tabular-nums truncate">
       {{ advice.crossover }}

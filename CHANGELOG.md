@@ -6,7 +6,7 @@
 
 ### Changed
 
-* "Hurry" and "Run" show the next departure on trip results, and "Run" only appears when the next train is well behind.
+* Trip advice reads as short badges, like "Leave now · Next +20 min", and "Run" only appears when the next train is well behind.
 * Trip details compare your walk to the stop with the train's countdown, side by side, and say how much time you have to spare or how far short you are.
 
 ### Fixed

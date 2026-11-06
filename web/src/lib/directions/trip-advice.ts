@@ -241,66 +241,24 @@ export function adviceValidUntil(trips: readonly { departureProfile?: DepartureP
   return times.length ? Math.min(...times) : null
 }
 
-export interface BoardingLeg {
-  departMs: number
-  /** Short name, absent when the leg merges interchangeable lines. */
-  line?: string
-}
-
 /** The trip reaches its first stop on foot, so running would actually get there sooner. */
 export function walksToFirstStop(segments: readonly { mode: string }[]): boolean {
   const first = segments.findIndex(s => s.mode === 'transit')
   return first > 0 && segments.slice(0, first).every(s => s.mode === 'walking')
 }
 
-export function boardingLeg(
-  segments: readonly { mode: string; startTime: Date | string; lineName?: string; routeOptions?: unknown[] }[],
-): BoardingLeg | null {
+/** When the trip boards its first ride. */
+export function boardsAtMs(segments: readonly { mode: string; startTime: Date | string }[]): number | undefined {
   const seg = segments.find(s => s.mode === 'transit')
-  if (!seg) return null
-  const merged = (seg.routeOptions?.length ?? 0) > 1
-  return {
-    departMs: new Date(seg.startTime).getTime(),
-    ...(!merged && seg.lineName && { line: seg.lineName }),
-  }
+  return seg && new Date(seg.startTime).getTime()
 }
 
 type TFn = (key: string, named?: Record<string, unknown>) => string
 
 const clock = (msValue: number) => formatClockCompact(new Date(msValue))
 
-function withNext(text: string, next: NextRun | undefined, t: TFn): string {
-  if (!next) return text
-  return `${text} · ${t('directions.advice.next', { time: clock(next.departAtMs), minutes: next.laterMin })}`
-}
-
-export function adviceText(state: AdviceState, t: TFn, line?: string): string {
-  const key = (k: string) => `directions.advice.long.${k}`
-  switch (state.kind) {
-    case 'leave':
-    case 'hurry': {
-      const spare = Math.floor(minutes(state.race.spareMs))
-      return spare < 1 ? t(key(`${state.kind}Now`)) : t(key(state.kind), { minutes: spare })
-    }
-    case 'run':
-      return t(key('run'), { minutes: Math.max(1, Math.ceil(minutes(-state.race.spareMs))) })
-    case 'by':
-      return t(key(state.kind), { time: clock(state.leaveByMs) })
-    case 'missed': {
-      const base = state.left ? 'missed' : 'tooFar'
-      return t(key(line ? `${base}Line` : base), { time: clock(state.departAtMs), line })
-    }
-  }
-}
-
-export function tightText(tight: TightTransfer, t: TFn): string {
-  return tight.stop
-    ? t('directions.advice.long.tight', { minutes: tight.minutes, stop: tight.stop })
-    : t('directions.advice.long.tightAnywhere', { minutes: tight.minutes })
-}
-
 export function crossoverText(c: Crossover, t: TFn): string {
-  return t('directions.advice.long.crossover', {
+  return t('directions.advice.crossover', {
     mode: t(`directions.advice.modes.${c.mode}`),
     time: clock(c.atMs),
   })
@@ -311,46 +269,69 @@ export interface HintWord {
   tone: string
 }
 
-/** A result card's hint: short words to act on, then one muted fact. */
-export interface CardHint {
-  words: HintWord[]
-  text: string | null
+/** A short label: toned ones ask the rider to act, plain ones carry a fact. */
+export interface Badge {
+  text: string
+  tone: string
 }
 
-const CHIP_TONES: Record<'urgent' | 'missed', string> = {
+/** The trip page has the walk-vs-train race and the departure board; a result card has neither. */
+export type AdviceSurface = 'header' | 'card'
+
+const BADGE_TONES = {
   urgent: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   missed: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+  fact: 'bg-muted text-muted-foreground',
 }
 
-function cardDetail(state: AdviceState, t: TFn, line?: string): string | null {
-  const key = (k: string) => `directions.advice.detail.${k}`
+function stateWord(state: AdviceState, t: TFn): Badge | null {
+  if (state.kind === 'by') return null
+  return {
+    text: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
+    tone: state.kind === 'missed' || state.kind === 'run' ? BADGE_TONES.missed : BADGE_TONES.urgent,
+  }
+}
+
+function stateFacts(state: AdviceState, t: TFn, surface: AdviceSurface): string[] {
+  const badge = (k: string, named?: Record<string, unknown>) => t(`directions.advice.badge.${k}`, named)
+  const next = (minutes?: number) => (minutes ? [badge('next', { minutes })] : [])
+  const race = (r: Race) => {
+    if (r.spareMs < 0) return badge('short', { minutes: Math.max(1, Math.ceil(minutes(-r.spareMs))) })
+    const spare = Math.floor(minutes(r.spareMs))
+    return spare < 1 ? badge('spareNone') : badge('spare', { minutes: spare })
+  }
+  const header = surface === 'header'
   switch (state.kind) {
+    case 'by':
+      return [badge('by', { time: clock(state.leaveByMs) })]
+    case 'leave':
+      return header ? [race(state.race)] : next(state.nextLaterMin)
     case 'hurry':
     case 'run':
-      return withNext(t(key(line ? `${state.kind}Line` : state.kind), { time: clock(state.race.departAtMs), line }), state.next, t)
-    case 'leave':
-      return t(key('leave'), { minutes: state.nextLaterMin })
+      return header ? [race(state.race)] : [badge('departs', { time: clock(state.race.departAtMs) }), ...next(state.next?.laterMin)]
     case 'missed':
-      return t(key('missed'))
-    case 'by':
-      return adviceText(state, t, line)
+      return header ? [badge('nextAt', { time: clock(state.departAtMs) })] : [badge('finding')]
   }
 }
 
-export function cardHint(advice: TripAdvice, t: TFn, line?: string): CardHint | null {
+function tightFact(tight: TightTransfer, t: TFn): string {
+  return tight.stop
+    ? t('directions.advice.badge.tight', { minutes: tight.minutes, stop: tight.stop })
+    : t('directions.advice.badge.tightAnywhere', { minutes: tight.minutes })
+}
+
+/** What to do, then the few facts behind it, as short badges. */
+export function adviceBadges(advice: TripAdvice, t: TFn, surface: AdviceSurface): Badge[] {
   const { state, tight } = advice
-  const words: HintWord[] = []
-  if (state && state.kind !== 'by') {
-    words.push({
-      word: t(`directions.advice.short.${state.kind === 'missed' && !state.left ? 'tooFar' : state.kind}`),
-      tone: state.kind === 'missed' || state.kind === 'run' ? CHIP_TONES.missed : CHIP_TONES.urgent,
-    })
-  }
-  if (tight && state?.kind !== 'missed') {
-    words.push({ word: t('directions.advice.short.tight'), tone: CHIP_TONES.urgent })
-  }
-  const text = state ? cardDetail(state, t, line) : tight ? tightText(tight, t) : null
-  return words.length || text ? { words, text } : null
+  const badges: Badge[] = []
+  const word = state && stateWord(state, t)
+  if (word) badges.push(word)
+  const showTight = tight && state?.kind !== 'missed'
+  if (showTight) badges.push({ text: t('directions.advice.short.tight'), tone: BADGE_TONES.urgent })
+  const facts = state ? stateFacts(state, t, surface) : []
+  if (showTight && (surface === 'header' || !state)) facts.push(tightFact(tight, t))
+  if (surface === 'header' && !advice.live) facts.push(t('directions.advice.badge.sched'))
+  return [...badges, ...facts.map(text => ({ text, tone: BADGE_TONES.fact }))]
 }
 
 const ADVICE_TONES: Partial<Record<AdviceKind, string>> = {

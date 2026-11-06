@@ -745,7 +745,7 @@
   "directions": {
     "advice": {
       "short": {
-        "leave": "Leave",
+        "leave": "Leave now",
         "hurry": "Hurry",
         "tight": "Tight",
         "missed": "Missed",
@@ -753,30 +753,20 @@
         "tooFar": "Too far",
         "run": "Run"
       },
-      "long": {
-        "leave": "Leave now · {minutes} min to spare",
-        "leaveNow": "Leave now",
-        "hurry": "Hurry · {minutes} min to spare",
-        "hurryNow": "Hurry · under a minute to spare",
+      "badge": {
+        "spare": "{minutes} min spare",
+        "spareNone": "<1 min spare",
+        "short": "{minutes} min short",
+        "next": "Next +{minutes} min",
+        "departs": "Departs {time}",
+        "nextAt": "Next {time}",
         "by": "Leave by {time}",
-        "tight": "{minutes} min to change at {stop}",
-        "tightAnywhere": "{minutes} min to change",
-        "missed": "Missed · next is the {time}",
-        "missedLine": "Missed · next is the {line} at {time}",
-        "sched": "No live times",
-        "crossover": "{mode} is faster after {time}",
-        "tooFar": "Too far to make it · next is the {time}",
-        "tooFarLine": "Too far to make it · next is the {line} at {time}",
-        "run": "Run · {minutes} min short"
+        "finding": "Finding next",
+        "tight": "{minutes} min at {stop}",
+        "tightAnywhere": "{minutes} min change",
+        "sched": "No live times"
       },
-      "detail": {
-        "hurry": "The {time}",
-        "hurryLine": "The {line} at {time}",
-        "leave": "Next is {minutes} min later",
-        "missed": "Finding the next one",
-        "run": "The {time}",
-        "runLine": "The {line} at {time}"
-      },
+      "crossover": "{mode} faster after {time}",
       "modes": {
         "cycling": "Bike",
         "walking": "Walking",
@@ -789,7 +779,6 @@
         "missed": "Missed it · now on the {line} at {time}",
         "tooFar": "Too far to make it · now on the {line} at {time}"
       },
-      "next": "next {time}, {minutes} min later",
       "race": "{walk} min walk, {line} train in {train} min"
     },
     "tripTypes": {

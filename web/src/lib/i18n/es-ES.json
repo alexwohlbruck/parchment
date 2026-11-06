@@ -734,30 +734,20 @@
         "tooFar": "Lejos",
         "run": "Corre"
       },
-      "long": {
-        "leave": "Sal ya · te sobran {minutes} min",
-        "leaveNow": "Sal ya",
-        "hurry": "Date prisa · te sobran {minutes} min",
-        "hurryNow": "Date prisa · te sobra menos de un minuto",
+      "badge": {
+        "spare": "Sobran {minutes} min",
+        "spareNone": "Sobra <1 min",
+        "short": "Faltan {minutes} min",
+        "next": "Siguiente +{minutes} min",
+        "departs": "Sale a las {time}",
+        "nextAt": "Siguiente {time}",
         "by": "Sal antes de las {time}",
-        "tight": "{minutes} min para transbordar en {stop}",
+        "finding": "Buscando el siguiente",
+        "tight": "{minutes} min en {stop}",
         "tightAnywhere": "{minutes} min para transbordar",
-        "missed": "Perdido · el siguiente es el de las {time}",
-        "missedLine": "Perdido · el siguiente es el {line} de las {time}",
-        "sched": "Sin horarios en vivo",
-        "crossover": "Más rápido {mode} desde las {time}",
-        "tooFar": "No llegas a tiempo · el siguiente es el de las {time}",
-        "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}",
-        "run": "Corre · te faltan {minutes} min"
+        "sched": "Sin horarios en vivo"
       },
-      "detail": {
-        "hurry": "El de las {time}",
-        "hurryLine": "El {line} de las {time}",
-        "leave": "El siguiente llega {minutes} min después",
-        "missed": "Buscando el siguiente",
-        "run": "El de las {time}",
-        "runLine": "El {line} de las {time}"
-      },
+      "crossover": "Más rápido {mode} desde las {time}",
       "modes": {
         "cycling": "en bici",
         "walking": "a pie",
@@ -770,7 +760,6 @@
         "missed": "Lo perdiste · ahora en el {line} de las {time}",
         "tooFar": "No llegas a tiempo · ahora en el {line} de las {time}"
       },
-      "next": "siguiente {time}, {minutes} min después",
       "race": "{walk} min a pie, el {line} sale en {train} min"
     },
     "tripTypes": {

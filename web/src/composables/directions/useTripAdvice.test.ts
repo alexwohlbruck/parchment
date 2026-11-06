@@ -57,12 +57,9 @@ describe('useTripListAdvice', () => {
 
   it('turns the hint into a short word as the deadline nears', async () => {
     const { advice, wrapper } = mountAdvice([transitTrip(60)])
-    expect(advice().transit.hint).toMatchObject({ words: [], text: expect.stringMatching(/^Leave by /) })
+    expect(advice().transit.badges).toMatchObject([{ text: expect.stringMatching(/^Leave by /) }])
     await vi.advanceTimersByTimeAsync(6 * 60_000)
-    expect(advice().transit.hint).toMatchObject({
-      words: [{ word: 'Leave' }],
-      text: 'Next is 20 min later',
-    })
+    expect(advice().transit.badges).toMatchObject([{ text: 'Leave now' }, { text: 'Next +20 min' }])
     wrapper.unmount()
   })
 

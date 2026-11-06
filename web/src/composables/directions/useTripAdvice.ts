@@ -6,38 +6,31 @@ import { useDirectionsService } from '@/services/directions.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import {
-  adviceText,
+  adviceBadges,
   adviceTone,
   adviceValidUntil,
-  cardHint,
-  boardingLeg,
+  boardsAtMs,
   crossover,
   crossoverText,
   isFuturePlan,
-  tightText,
   tripAdvice,
   walksToFirstStop,
   type AdviceKind,
-  type CardHint,
+  type Badge,
   type Race,
 } from '@/lib/directions/trip-advice'
 import { byRank } from '@/lib/directions/trip-display'
 import type { TripOption } from '@/types/directions.types'
 
-export interface AdviceLine {
-  text: string
-  tone: string
+export interface TripPageAdvice {
+  badges: Badge[]
+  /** Present while the walk is racing the train; `tone` colours the walk. */
   race?: Race
-}
-
-export interface TripAdviceLines {
-  line: AdviceLine | null
-  tight: string | null
-  sched: string | null
+  tone: string
 }
 
 export interface TripCardAdvice {
-  hint: CardHint | null
+  badges: Badge[]
   crossover: string | null
 }
 
@@ -56,30 +49,22 @@ export function useTripAdvice() {
   const { t } = useI18n()
 
   function rawAdvice(trip: TripOption, nowMs: number) {
-    const leg = boardingLeg(trip.segments)
-    const advice = tripAdvice(trip.departureProfile, nowMs, {
+    return tripAdvice(trip.departureProfile, nowMs, {
       transitBufferMinutes: navigationPreferences.transitBufferMinutes,
       future: isFuturePlan(store.departureTime, nowMs),
-      boardsAtMs: leg?.departMs,
+      boardsAtMs: boardsAtMs(trip.segments),
       runFactor: walksToFirstStop(trip.segments) ? navigationPreferences.runPace : null,
     })
-    return advice && { advice, line: leg?.line }
   }
 
-  function adviceFor(trip: TripOption, nowMs: number): TripAdviceLines | null {
-    const raw = rawAdvice(trip, nowMs)
-    if (!raw) return null
-    const { advice, line } = raw
+  function adviceFor(trip: TripOption, nowMs: number): TripPageAdvice | null {
+    const advice = rawAdvice(trip, nowMs)
+    if (!advice) return null
+    const state = advice.state
     return {
-      line: advice.state
-        ? {
-            text: adviceText(advice.state, t, line),
-            tone: adviceTone(advice.state.kind),
-            ...('race' in advice.state && { race: advice.state.race }),
-          }
-        : null,
-      tight: advice.tight ? tightText(advice.tight, t) : null,
-      sched: advice.live ? null : t('directions.advice.long.sched'),
+      badges: adviceBadges(advice, t, 'header'),
+      ...(state && 'race' in state && { race: state.race }),
+      tone: state ? adviceTone(state.kind) : '',
     }
   }
 
@@ -106,9 +91,9 @@ export function useTripListAdvice(trips: () => TripOption[]) {
     const cross = crossover(list, now.value.getTime())
     const out: Record<string, TripCardAdvice> = {}
     for (const trip of list) {
-      const entry = raw.value.get(trip.id)
+      const tripAdviceNow = raw.value.get(trip.id)
       out[trip.id] = {
-        hint: entry ? cardHint(entry.advice, t, entry.line) : null,
+        badges: tripAdviceNow ? adviceBadges(tripAdviceNow, t, 'card') : [],
         crossover: cross && trip === best ? crossoverText(cross, t) : null,
       }
     }
@@ -125,7 +110,7 @@ export function useTripListAdvice(trips: () => TripOption[]) {
   /** Missed trips leave the list at once and the search re-plans, unless nothing would be left. */
   watch(raw, entries => {
     if (!live()) return
-    const missed = new Set([...entries].filter(([, entry]) => entry?.advice.state?.kind === 'missed').map(([id]) => id))
+    const missed = new Set([...entries].filter(([, advice]) => advice?.state?.kind === 'missed').map(([id]) => id))
     if (!missed.size || missed.size === entries.size) return
     store.removeTrips(missed)
     const nowMs = Date.now()
@@ -139,7 +124,7 @@ export function useTripListAdvice(trips: () => TripOption[]) {
     if (!live()) return
     const list = trips()
     const until = adviceValidUntil(list)
-    const states = [...raw.value.values()].map(entry => entry?.advice.state?.kind)
+    const states = [...raw.value.values()].map(advice => advice?.state?.kind)
     const urgent = (until != null && nowMs >= until) || states.some(kind => kind && URGENT_KINDS.has(kind))
     if (nowMs - lastPlanMs < (urgent ? RESCAN_URGENT_MS : RESCAN_CALM_MS)) return
     lastPlanMs = nowMs

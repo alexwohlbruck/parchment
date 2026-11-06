@@ -6,6 +6,8 @@
 
 * At steep 3D angles, labels, place pins and transit lines fade out toward the horizon instead of crowding the skyline.
 
+* 3D terrain is now on by default for new users.
+
 ### Fixed
 
 ## [0.20.0] - 2026-11-05

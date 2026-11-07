@@ -745,40 +745,16 @@
   "directions": {
     "advice": {
       "short": {
-        "leave": "Leave",
+        "leave": "Leave now",
         "hurry": "Hurry",
-        "tight": "Tight",
         "missed": "Missed",
         "cancelled": "Cancelled",
         "tooFar": "Too far",
         "run": "Run"
       },
-      "long": {
-        "leave": "Leave now · next is {minutes} min later",
-        "hurry": "Hurry · {minutes} min to the {time}",
-        "hurryLine": "Hurry · {minutes} min to the {line} at {time}",
-        "by": "Leave by {time}",
-        "tight": "{minutes} min to change at {stop}",
-        "tightAnywhere": "{minutes} min to change",
-        "missed": "Missed · next is the {time}",
-        "missedLine": "Missed · next is the {line} at {time}",
-        "sched": "No live times",
-        "crossover": "{mode} is faster after {time}",
-        "tooFar": "Too far to make it · next is the {time}",
-        "tooFarLine": "Too far to make it · next is the {line} at {time}",
-        "run": "Run · {minutes} min to the {time}",
-        "runLine": "Run · {minutes} min to the {line} at {time}"
-      },
-      "detail": {
-        "hurry": "{minutes} min to the {time}",
-        "hurryLine": "{minutes} min to the {line} at {time}",
-        "leave": "Next is {minutes} min later",
-        "missed": "Finding the next one",
-        "run": "{minutes} min to the {time}",
-        "runLine": "{minutes} min to the {line} at {time}"
-      },
+      "crossover": "{mode} is faster if you leave after {time}",
       "modes": {
-        "cycling": "Bike",
+        "cycling": "Biking",
         "walking": "Walking",
         "bikeshare": "Bike share",
         "scootershare": "Scooter share",
@@ -786,9 +762,34 @@
         "rideshare": "Rideshare"
       },
       "switched": {
-        "missed": "Missed it · now on the {line} at {time}",
-        "tooFar": "Too far to make it · now on the {line} at {time}"
-      }
+        "missed": "Moved to the {line} at {time}; the {from} has left",
+        "tooFar": "Moved to the {line} at {time}; the {from} is out of reach"
+      },
+      "race": {
+        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
+        "you": "You",
+        "walk": "{minutes} min to the stop",
+        "leaves": "leaves in {minutes} min",
+        "now": "Now",
+        "to": "to"
+      },
+      "status": {
+        "leaveIn": "Leave in {minutes} min",
+        "leaveAt": "Leave at {time}",
+        "every": "Every {minutes} min",
+        "gone": "No departure you can make",
+        "spare": "{minutes} min spare",
+        "spareNone": "under 1 min spare",
+        "short": "{minutes} min short",
+        "shortWalking": "{minutes} min short at a walk",
+        "next": "next {minutes} min later",
+        "nextAt": "next at {time}",
+        "finding": "checking later departures",
+        "change": "{minutes} min change",
+        "scheduled": "scheduled"
+      },
+      "tightChange": "{minutes} min to change at {stop}",
+      "tightChangeHere": "Only {minutes} min to make this change"
     },
     "tripTypes": {
       "bikeshare": "Bike Share",
@@ -806,6 +807,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "toward {headsign}",
+    "arriveAtStop": "Arrive at {stop}",
     "trainNumber": "Train {number}",
     "or": "or",
     "title": "Directions",
@@ -961,12 +963,29 @@
         "middle": "middle",
         "back": "back"
       },
+      "platformWalk": {
+        "front": "Walk to the front of the platform",
+        "middle": "Walk to the middle of the platform",
+        "back": "Walk to the back of the platform"
+      },
       "saves": "saves {duration}",
       "insideStation": "Inside the station",
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
       "levelDown": "Down {n} level | Down {n} levels",
-      "estimated": "Estimated"
+      "estimated": "Estimated",
+      "signs": {
+        "platform": "Follow signs for the {line} · {toward}",
+        "line": "Follow signs for the {line}",
+        "exit": "Follow exit signs"
+      }
+    },
+    "tripPage": {
+      "loadFailed": "Couldn't load this trip",
+      "gone": "This trip is no longer available",
+      "goneBody": "Departures have moved on since it was planned.",
+      "planAgain": "Plan again",
+      "retry": "Try again"
     }
   },
   "library": {

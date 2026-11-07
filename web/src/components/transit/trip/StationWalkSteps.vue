@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronDownIcon } from 'lucide-vue-next'
+import { ChevronDownIcon, SignpostIcon } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { stationStepIcon } from '@/lib/transit/station/step-icons'
 import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
+import { stationSignText, type StationSign } from '@/lib/transit/station/station-signs'
+import { stationStepText, type PlatformSpot } from '@/lib/transit/station/station-walks'
 
-const props = withDefaults(defineProps<{ walk: StationWalk; timed?: boolean }>(), { timed: true })
+const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; spot?: PlatformSpot | null; timed?: boolean }>(), { timed: true })
 const { t } = useI18n()
 
 const steps = computed(() => (props.walk.estimate ? [] : props.walk.steps ?? []))
 const time = computed(() => `${props.walk.estimate ? '≈ ' : ''}${formatDurationShort(props.walk.seconds)}`)
+
+const signText = computed(() => (props.sign ? stationSignText(props.sign, t) : null))
 
 function note(step: { levelChange: number | null; landmark: string | null; instruction: string }) {
   const landmark = step.landmark && !step.instruction.includes(step.landmark) ? step.landmark : null
@@ -26,7 +30,11 @@ function levels(change: number | null) {
 </script>
 
 <template>
-  <div v-if="!steps.length" class="text-xs text-muted-foreground tabular-nums">
+  <div v-if="!steps.length && signText" class="flex items-start gap-1.5 text-xs tabular-nums">
+    <SignpostIcon class="mt-px size-3.5 shrink-0 text-muted-foreground" />
+    <span class="text-foreground">{{ signText }}<span v-if="timed" class="text-muted-foreground"> · {{ time }}</span></span>
+  </div>
+  <div v-else-if="!steps.length" class="text-xs text-muted-foreground tabular-nums">
     {{ t('directions.station.insideStation') }} · {{ time }}
   </div>
   <Collapsible v-else v-slot="{ open }">
@@ -41,7 +49,7 @@ function levels(change: number | null) {
         <li v-for="(step, i) in steps" :key="i" class="flex gap-2.5">
           <component :is="stationStepIcon(step)" class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           <div class="min-w-0 flex-1">
-            <div class="text-xs text-foreground leading-snug">{{ step.instruction }}</div>
+            <div class="text-xs text-foreground leading-snug">{{ stationStepText(steps, i, spot ?? null, t) }}</div>
             <div v-if="note(step)" class="text-[11px] text-muted-foreground">{{ note(step) }}</div>
           </div>
           <span v-if="step.duration >= 1" class="text-[11px] text-muted-foreground tabular-nums shrink-0">

@@ -73,6 +73,13 @@ describe('remainingAccessWalkSec', () => {
     expect(remaining).toBeLessThanOrEqual(400)
   })
 
+  it('keeps a ride to the stop at its own pace rather than a walking one', () => {
+    // 2.4 km by bike in 480 s is 5 m/s: ~800 m out is under a minute and a half away.
+    const ride = { plannedSec: 480, distanceM: 2400, stop: STOP, position: BLOCKS_AWAY, accuracyM: 10 }
+    expect(remainingAccessWalkSec({ ...ride, ridden: true }, NOW)).toBeLessThan(250)
+    expect(remainingAccessWalkSec(ride, NOW)).toBeGreaterThan(450)
+  })
+
   it('ignores a fix too coarse to place the rider', () => {
     const remaining = remainingAccessWalkSec(
       {
@@ -107,7 +114,7 @@ describe('remainingAccessWalkSec', () => {
 })
 
 describe('departureReachability', () => {
-  const GRACE = 180 // the default 3-minute margin, in seconds
+  const GRACE = 180 // a 3-minute margin, in seconds
 
   it('marks past runs departed', () => {
     expect(departureReachability(NOW - MIN, NOW, 0, GRACE)).toBe('departed')
@@ -176,9 +183,13 @@ describe('approachReach', () => {
 
 describe('departureReachability with running', () => {
   it('reads a run as catchable at a jog only when one is allowed', () => {
-    // 5 min walk, 4 min left: too late walking, fine at 1.8x.
-    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, 1.8)).toBe('run')
-    expect(departureReachability(NOW + 4 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+    // 5 min walk, 3 min left: too late walking, fine at 1.8x.
+    expect(departureReachability(NOW + 3 * MIN, NOW, 300, 0, 1.8)).toBe('run')
+    expect(departureReachability(NOW + 3 * MIN, NOW, 300, 0, null)).toBe('unreachable')
+  })
+
+  it('reads a train due as the walk ends as a run, not a hurry', () => {
+    expect(departureReachability(NOW + 7 * MIN, NOW, 510, 120, 1.8)).toBe('run')
   })
 
   it('still reads a run out of reach even at a jog', () => {

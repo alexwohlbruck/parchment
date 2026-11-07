@@ -56,18 +56,17 @@ function mountTrip(segments: Record<string, unknown>[]) {
 }
 
 describe('TripItem timeline rendering', () => {
-  it('renders transit legs as pills and walking as the dotted track (no pill)', () => {
+  it('renders transit legs as rides and walking as the dotted track (no pill)', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking' }),
       seg({ mode: 'transit', lineName: 'Q', lineColor: 'FCCC0A', lineTextColor: '000000', routeType: 'subway', headsign: 'Coney Island' }),
       seg({ mode: 'walking' }),
     ])
-    // Two walk segments + one transit ⇒ exactly one pill rendered
-    const pills = wrapper.findAll('[title]').filter(n => n.attributes('title')?.length)
-    expect(pills.length).toBe(1)
+    // Two walk segments + one transit ⇒ exactly one ride bar rendered
+    expect(wrapper.findAll('[data-bar]').length).toBe(1)
     // The single pill shows the line name
     expect(wrapper.text()).toContain('Q')
-    // Walking is not labelled as a pill anywhere
+    // Walking is not drawn as a ride anywhere
     const walkLabels = wrapper.findAll('.mode-walking')
     expect(walkLabels.length).toBe(0)
   })
@@ -122,7 +121,7 @@ describe('TripItem timeline rendering', () => {
     expect(spans.some((s) => s.type === 'walk')).toBe(true)
   })
 
-  it('renders a walking-only trip as a single pill, not the dotted track', () => {
+  it('renders a walking-only trip as a single ride, not the dotted track', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking', duration: 600, distance: 800 }),
     ])
@@ -133,11 +132,10 @@ describe('TripItem timeline rendering', () => {
     // No dotted ticks — the walk is a solid pill instead.
     expect(vm.isWalkingOnly).toBe(true)
     expect(vm.trackSpans.length).toBe(0)
-    const pills = wrapper.findAll('[title]').filter((n) => n.attributes('title')?.length)
-    expect(pills.length).toBe(1)
-    // Walking-mode pill (mocked getTravelModeCssClass → "mode-walking";
-    // real class is bg-cobalt-400 — the blue pill)
-    expect(pills[0].classes()).toContain('mode-walking')
+    const bars = wrapper.findAll('[data-bar]')
+    expect(bars.length).toBe(1)
+    // Walking-mode bar (mocked getTravelModeCssClass → "mode-walking")
+    expect(bars[0].classes()).toContain('mode-walking')
   })
 
   it('labels trips by combination type, not longest mode', () => {
@@ -183,7 +181,7 @@ describe('TripItem timeline rendering', () => {
     expect(directShare.text()).toContain('directions.tripTypes.bikeshare')
   })
 
-  it('renders a pill per vehicle leg for multi-transfer trips', () => {
+  it('renders a ride per vehicle leg for multi-transfer trips', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking' }),
       seg({ mode: 'transit', lineName: 'B49', routeType: 'bus' }),
@@ -191,8 +189,7 @@ describe('TripItem timeline rendering', () => {
       seg({ mode: 'transit', lineName: 'A', routeType: 'subway' }),
       seg({ mode: 'walking' }),
     ])
-    const pills = wrapper.findAll('[title]').filter(n => n.attributes('title')?.length)
-    expect(pills.length).toBe(2)
+    expect(wrapper.findAll('[data-bar]').length).toBe(2)
     expect(wrapper.text()).toContain('B49')
     expect(wrapper.text()).toContain('A')
   })

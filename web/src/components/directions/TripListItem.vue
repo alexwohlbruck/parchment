@@ -4,13 +4,13 @@ import { useMapService } from '@/services/map/map.service'
 import { formatTimeRange } from '@/lib/directions/trip-display'
 import { formatDurationParts } from '@/lib/time-format'
 import type { TripOption } from '@/types/directions.types'
-import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
+import type { AdviceStatus } from '@/lib/directions/trip-advice'
 import TripLegChips from './TripLegChips.vue'
 import TripMeta from './TripMeta.vue'
 
 interface Props {
   trip: TripOption
-  advice?: TripCardAdvice
+  status?: AdviceStatus | null
   isClickable?: boolean
 }
 
@@ -60,6 +60,6 @@ function handleClick() {
 
     <TripLegChips :segments="trip.segments" />
 
-    <TripMeta :trip="trip" :advice="advice" show-distance />
+    <TripMeta :trip="trip" :status="status" show-distance />
   </div>
 </template>

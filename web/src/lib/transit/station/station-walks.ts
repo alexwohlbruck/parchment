@@ -1,5 +1,11 @@
 import type { Feature, FeatureCollection, LineString } from 'geojson'
-import type { StationAccessChoice, StationWalk, TransitTransfer } from '@server/types/station-guidance.types'
+import type {
+  BoardingPosition,
+  GuidanceStep,
+  StationAccessChoice,
+  StationWalk,
+  TransitTransfer,
+} from '@server/types/station-guidance.types'
 
 export interface GuidedSegment {
   mode: string
@@ -8,6 +14,7 @@ export interface GuidedSegment {
   transfer?: TransitTransfer | null
   entrance?: StationAccessChoice | null
   exit?: StationAccessChoice | null
+  boardingPosition?: BoardingPosition | null
 }
 
 export type StationWalkKind = 'access' | 'transfer' | 'egress'
@@ -64,6 +71,23 @@ export function stationWalksAt(segments: GuidedSegment[], index: number): Placed
     if (previous && next) return false
     return (kind === 'egress' && ride === index - 1) || (kind === 'access' && ride === index + 1)
   })
+}
+
+export type PlatformSpot = BoardingPosition['section']
+
+/** Where a walk into a ride should end up on the platform: where to board, else the middle its time runs to. */
+export function platformSpot(segments: GuidedSegment[], kind: StationWalkKind, ride: number): PlatformSpot | null {
+  return kind === 'egress' ? null : (segments[ride]?.boardingPosition?.section ?? 'middle')
+}
+
+export type TFn = (key: string, named?: Record<string, unknown>) => string
+
+/** A step's text, with the closing walk along the boarding platform aimed at the spot to board. */
+export function stationStepText(steps: GuidanceStep[], i: number, spot: PlatformSpot | null, t: TFn): string {
+  let closing = steps.length - 1
+  while (closing > 0 && steps[closing].type === 'board') closing--
+  const aimed = spot && i === closing && i > 0 && steps[i].type === 'platform'
+  return aimed ? t(`directions.station.platformWalk.${spot}`) : steps[i].instruction
 }
 
 /** Walking segments between two rides whose line the station walk draws instead. */

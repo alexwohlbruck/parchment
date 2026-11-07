@@ -3,17 +3,24 @@ import type { DepartureProfile, DepartureRun } from '@/types/multimodal.types'
 import { translator } from '@/lib/guidance/test-routes'
 import en from '@/lib/i18n/en-US.json'
 import {
-  adviceText,
+  adviceReach,
+  adviceStatus,
+  raceZones,
   adviceValidUntil,
-  boardingLeg,
-  cardHint,
+  boardsAtMs,
   crossover,
   crossoverText,
   isFuturePlan,
-  tightText,
+  sameArrivalDepartAt,
+  tightChanges,
   tripAdvice,
   walksToFirstStop,
+  type AdviceState,
+  type AdviceSurface,
+  type ChangeSegment,
   type AdviceTrip,
+  type Race,
+  type TripAdvice,
 } from './trip-advice'
 import { formatClockCompact } from './trip-display'
 
@@ -40,17 +47,21 @@ describe('tripAdvice', () => {
 
   test('hurry when the lead is inside the transit buffer', () => {
     const advice = tripAdvice(profile([run(10, 40), run(20, 50)]), now(9))
-    expect(advice?.state).toEqual({ kind: 'hurry', leadMin: 1, departAtMs: now(15) })
+    expect(advice?.state).toEqual({
+      kind: 'hurry',
+      race: { departAtMs: now(15), walkMs: 5 * 60_000, spareMs: 60_000, bufferMs: 2 * 60_000, runFactor: null },
+      next: { departAtMs: now(25), laterMin: 10 },
+    })
   })
 
   test('the buffer comes from the rider', () => {
     const p = profile([run(10, 40), run(20, 50)])
-    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', leadMin: 4 })
+    expect(tripAdvice(p, now(6), { transitBufferMinutes: 5 })?.state).toMatchObject({ kind: 'hurry', race: { spareMs: 4 * 60_000 } })
     expect(tripAdvice(p, now(6), { transitBufferMinutes: 2 })?.state?.kind).toBe('leave')
   })
 
   test('leave when the lead is short and missing it is expensive', () => {
-    expect(tripAdvice(profile([run(10, 40), run(25, 52)]), now(6))?.state).toEqual({ kind: 'leave', nextLaterMin: 12 })
+    expect(tripAdvice(profile([run(10, 40), run(25, 52)]), now(6))?.state).toMatchObject({ kind: 'leave', nextLaterMin: 12 })
   })
 
   test('leave by the planned run when there is time and a miss costs something', () => {
@@ -62,10 +73,25 @@ describe('tripAdvice', () => {
     expect(tripAdvice(p, now(0))?.state).toEqual({ kind: 'by', leaveByMs: now(14) })
   })
 
-  test('frequent service says nothing', () => {
+  test('frequent service says nothing, not even hurry', () => {
     const p = profile([run(10, 40), run(13, 43)])
     expect(tripAdvice(p, now(0))?.state).toBeNull()
     expect(tripAdvice(p, now(6))?.state).toBeNull()
+    expect(tripAdvice(p, now(9))?.state).toBeNull()
+  })
+
+  test('steady frequent service says how often it runs', () => {
+    expect(tripAdvice(profile([run(10, 40), run(13, 43), run(16, 46), run(19, 49)]), now(0))?.state)
+      .toEqual({ kind: 'frequent', everyMin: 3 })
+    expect(tripAdvice(profile([run(10, 40), run(13, 43), run(20, 46)]), now(0))?.state).toBeNull()
+  })
+
+  test('keeps the leave-by time once leaving is close but a miss is only moderately costly', () => {
+    expect(tripAdvice(profile([run(10, 40), run(16, 46)]), now(7))?.state).toEqual({ kind: 'by', leaveByMs: now(10) })
+  })
+
+  test('still says hurry for the last run in the window', () => {
+    expect(tripAdvice(profile([run(10, 40)]), now(9))?.state).toMatchObject({ kind: 'hurry' })
   })
 
   test('no next run in the window leaves the miss cost unknown', () => {
@@ -85,15 +111,15 @@ describe('tripAdvice', () => {
 
   test('a passed run with a same-arrival successor is not missed', () => {
     const p = profile([run(10, 40), run(14, 40), run(25, 55)])
-    expect(tripAdvice(p, now(11))?.state).toEqual({ kind: 'leave', nextLaterMin: 15 })
+    expect(tripAdvice(p, now(11))?.state).toMatchObject({ kind: 'leave', nextLaterMin: 15 })
   })
 
-  test('nothing to say when every run has gone', () => {
-    expect(tripAdvice(profile([run(10, 40), run(20, 50)]), now(21))).toBeNull()
+  test('says so when every run has gone', () => {
+    expect(tripAdvice(profile([run(10, 40), run(20, 50)]), now(21))?.state).toEqual({ kind: 'gone' })
   })
 
   test('a future plan just names the leave time', () => {
-    expect(tripAdvice(profile([run(70, 100), run(80, 110)]), now(0), { future: true })?.state).toEqual({ kind: 'by', leaveByMs: now(70) })
+    expect(tripAdvice(profile([run(70, 100), run(80, 110)]), now(0), { future: true })?.state).toEqual({ kind: 'by', leaveByMs: now(70), future: true })
   })
 
   test('the boarding time re-finds the planned run after a rebooking', () => {
@@ -105,6 +131,13 @@ describe('tripAdvice', () => {
     const p = profile([run(10, 40, { minTransferSlackSec: 100, tightestTransferAt: 'Jay St' }), run(20, 50, { minTransferSlackSec: 300 })])
     expect(tripAdvice(p, now(0))?.tight).toEqual({ minutes: 2, stop: 'Jay St' })
     expect(tripAdvice(p, now(12))?.tight).toBeNull()
+  })
+
+  test('the trip boards the latest run that arrives with the one it would catch', () => {
+    const p = profile([run(10, 40), run(14, 40.5), run(25, 55)])
+    expect(sameArrivalDepartAt(p, now(15))).toBe(now(19))
+    expect(sameArrivalDepartAt(p, now(30))).toBe(now(30))
+    expect(sameArrivalDepartAt(p, now(50))).toBeNull()
   })
 
   test('reports whether the current run is live', () => {
@@ -132,7 +165,7 @@ describe('crossover', () => {
 
   test('bike wins once waiting for the next run costs more than riding', () => {
     const p = profile([run(10, 40), run(30, 60)])
-    expect(crossover([transit(p), bike(45)], now(0))).toEqual({ mode: 'cycling', atMs: now(10) })
+    expect(crossover([transit(p), bike(45)], now(0))).toEqual({ mode: 'cycling', iconMode: 'cycling', atMs: now(10) })
   })
 
   test('never when the transit trip stays ahead', () => {
@@ -158,7 +191,7 @@ describe('crossover', () => {
   test('takes the earliest crossover among modes', () => {
     const p = profile([run(10, 40), run(20, 60), run(30, 70), run(40, 100)])
     const walk: AdviceTrip = { rank: 3, segments: [seg('walking')], summary: { totalDuration: 55 * 60 } }
-    expect(crossover([transit(p), walk, bike(45)], now(0))).toEqual({ mode: 'cycling', atMs: now(10) })
+    expect(crossover([transit(p), walk, bike(45)], now(0))).toEqual({ mode: 'cycling', iconMode: 'cycling', atMs: now(10) })
   })
 })
 
@@ -169,68 +202,125 @@ describe('adviceValidUntil', () => {
   })
 })
 
-describe('boardingLeg', () => {
-  test('the first transit leg, with its line unless merged', () => {
+describe('boardsAtMs', () => {
+  test('the first transit leg', () => {
     const start = new Date(now(5))
-    expect(boardingLeg([{ mode: 'walking', startTime: start }, { mode: 'transit', startTime: start, lineName: 'F' }])).toEqual({ departMs: now(5), line: 'F' })
-    expect(boardingLeg([{ mode: 'transit', startTime: start, lineName: '4', routeOptions: [{}, {}] }])).toEqual({ departMs: now(5) })
-    expect(boardingLeg([{ mode: 'walking', startTime: start }])).toBeNull()
+    expect(boardsAtMs([{ mode: 'walking', startTime: new Date(now(0)) }, { mode: 'transit', startTime: start }])).toBe(now(5))
+    expect(boardsAtMs([{ mode: 'walking', startTime: start }])).toBeUndefined()
   })
 })
 
-describe('copy', () => {
-  test('long variants', () => {
-    expect(adviceText({ kind: 'leave', nextLaterMin: 12 }, t)).toBe('Leave now · next is 12 min later')
-    expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t)).toBe(`Hurry · 3 min to the ${clock(12)}`)
-    expect(adviceText({ kind: 'hurry', leadMin: 3, departAtMs: now(12) }, t, 'F')).toBe(`Hurry · 3 min to the F at ${clock(12)}`)
-    expect(adviceText({ kind: 'by', leaveByMs: now(31) }, t)).toBe(`Leave by ${clock(31)}`)
-    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: true }, t, 'F')).toBe(`Missed · next is the F at ${clock(24)}`)
-    expect(adviceText({ kind: 'missed', departAtMs: now(24), left: false }, t)).toBe(`Too far to make it · next is the ${clock(24)}`)
-    expect(tightText({ minutes: 2, stop: 'Jay St' }, t)).toBe('2 min to change at Jay St')
-    expect(tightText({ minutes: 1 }, t)).toBe('1 min to change')
-    expect(crossoverText({ mode: 'cycling', atMs: now(14) }, t)).toBe(`Bike is faster after ${clock(14)}`)
+describe('adviceStatus', () => {
+  const race = (spareMin: number, runFactor: number | null = null): Race =>
+    ({ departAtMs: now(12), walkMs: 5 * 60_000, spareMs: spareMin * 60_000, bufferMs: 2 * 60_000, runFactor })
+  const line = (state: AdviceState | null, surface: AdviceSurface, extra: Partial<TripAdvice> = {}, at = now(0)) => {
+    const status = adviceStatus({ state, tight: null, live: true, ...extra }, at, t, surface)
+    return status && [status.word, ...status.details].filter(Boolean).join(' · ')
+  }
+
+  test('the trip page weighs the walk against the train, and what waiting costs', () => {
+    const next = { departAtMs: now(30), laterMin: 6 }
+    expect(line({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, 'header')).toBe('Leave now · 3 min spare · next 12 min later')
+    expect(line({ kind: 'hurry', race: race(0.4), next }, 'header')).toBe('Hurry · under 1 min spare · next 6 min later')
+    expect(line({ kind: 'run', race: race(-1.5, 1.8), next }, 'header')).toBe('Run · 2 min short at a walk · next 6 min later')
+    expect(line({ kind: 'missed', departAtMs: now(24), left: false }, 'header')).toBe(`Too far · next at ${clock(24)}`)
+  })
+
+  test('time in hand is a calm countdown, or the clock for a plan well ahead', () => {
+    expect(line({ kind: 'by', leaveByMs: now(9.5) }, 'header')).toBe('Leave in 9 min')
+    expect(line({ kind: 'by', leaveByMs: now(0.5) }, 'card')).toBe('Leave now')
+    expect(line({ kind: 'by', leaveByMs: now(90), future: true }, 'card')).toBe(`Leave at ${clock(90)}`)
+    expect(line({ kind: 'frequent', everyMin: 4 }, 'card')).toBe('Every 4 min')
+    expect(adviceStatus({ state: { kind: 'leave', nextLaterMin: 9, race: race(3) }, tight: null, live: true }, now(0), t, 'header')?.tone).toBe('')
+  })
+
+  test('a result card names the run, and carries a tight change the trip page shows on the step', () => {
+    const next = { departAtMs: now(30), laterMin: 6 }
+    const tight = { minutes: 1, stop: 'Jay St' }
+    expect(line({ kind: 'hurry', race: race(1), next }, 'card', { tight })).toBe(`Hurry · ${clock(12)} · next 6 min later · 1 min change`)
+    expect(line({ kind: 'hurry', race: race(1), next }, 'header', { tight })).toBe('Hurry · 1 min spare · next 6 min later')
+    expect(line(null, 'card', { tight })).toBe('1 min change')
+    expect(line({ kind: 'gone' }, 'card', { tight })).toBe('No departure you can make · checking later departures')
+  })
+
+  test('crossover', () => {
+    expect(crossoverText({ mode: 'cycling', iconMode: 'cycling', atMs: now(14) }, t)).toBe(`Biking is faster if you leave after ${clock(14)}`)
   })
 })
 
-describe('cardHint', () => {
-  test('pairs the short words with the one fact that matters', () => {
-    const hint = cardHint(
-      { state: { kind: 'hurry', leadMin: 2, departAtMs: now(24) }, tight: { minutes: 1, stop: 'Jay St' }, live: true },
-      t,
-      'F',
-    )
-    expect(hint).toEqual({
-      words: [expect.objectContaining({ word: 'Hurry' }), expect.objectContaining({ word: 'Tight' })],
-      text: `2 min to the F at ${clock(24)}`,
-    })
+describe('tightChanges', () => {
+  const seg = (mode: string, from: number, to: number, extra: Partial<ChangeSegment> = {}): ChangeSegment =>
+    ({ mode, startTime: at(from), endTime: at(to), duration: (to - from) * 60, ...extra })
+
+  test('the wait left after walking across, keyed by the ride boarded', () => {
+    const segments = [
+      seg('walking', 0, 5),
+      seg('transit', 5, 20),
+      seg('walking', 20, 24, { waitSeconds: 60 }),
+      seg('transit', 24, 30, { departureStop: { name: 'Jay St' } }),
+      seg('walking', 30, 36, { waitSeconds: 300 }),
+      seg('transit', 36, 50),
+    ]
+    expect([...tightChanges(segments)]).toEqual([[3, { minutes: 1, stop: 'Jay St' }]])
   })
 
-  test('a tight transfer alone names the stop', () => {
-    expect(cardHint({ state: null, tight: { minutes: 1, stop: 'Jay St' }, live: true }, t)).toEqual({
-      words: [expect.objectContaining({ word: 'Tight' })],
-      text: '1 min to change at Jay St',
-    })
-  })
-
-  test('calm deadlines stay plain text', () => {
-    expect(cardHint({ state: { kind: 'by', leaveByMs: now(10) }, tight: null, live: true }, t)).toEqual({
-      words: [],
-      text: `Leave by ${clock(10)}`,
-    })
+  test('a change across the same platform counts the gap between rides', () => {
+    expect([...tightChanges([seg('transit', 0, 10), seg('transit', 11, 20)])]).toEqual([[1, { minutes: 1 }]])
+    expect(tightChanges([seg('transit', 0, 10), seg('transit', 15, 20)]).size).toBe(0)
   })
 })
 
 describe('run', () => {
   // Leave the door at 10, board at 15: a 5 min walk.
   test('says run when a jog still makes a run that walking misses', () => {
-    const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
-    expect(advice?.state).toEqual({ kind: 'run', leadMin: 4, departAtMs: now(15) })
+    const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(12), { runFactor: 1.8 })
+    expect(advice?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(15), spareMs: -2 * 60_000 } })
   })
 
-  test('misses it instead without a run factor, too late for a jog, or with a close next run', () => {
-    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(11))?.state?.kind).toBe('missed')
+  test('says run as soon as the leave time has passed', () => {
+    const advice = tripAdvice(profile([run(10, 40), run(24, 54)]), now(11), { runFactor: 1.8 })
+    expect(advice?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(15), spareMs: -60_000 } })
+  })
+
+  test('misses it instead without a run factor or too late for a jog', () => {
+    expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(12))?.state?.kind).toBe('missed')
     expect(tripAdvice(profile([run(10, 40), run(24, 54)]), now(13), { runFactor: 1.8 })?.state?.kind).toBe('missed')
-    expect(tripAdvice(profile([run(10, 40), run(12, 42)]), now(11), { runFactor: 1.8 })?.state?.kind).not.toBe('run')
+  })
+
+  test('lets a run go quietly when the next one is close behind', () => {
+    expect(tripAdvice(profile([run(10, 40), run(16, 46), run(30, 60)]), now(11), { runFactor: 1.8 })?.state)
+      .toEqual({ kind: 'by', leaveByMs: now(16) })
+    expect(tripAdvice(profile([run(10, 40), run(13, 43), run(16, 46)]), now(11), { runFactor: 1.8 })?.state).toBeNull()
+  })
+
+  test('runs once the next one is well behind', () => {
+    const advice = tripAdvice(profile([run(10, 40), run(18, 48)]), now(11), { runFactor: 1.8 })
+    expect(advice?.state).toMatchObject({ kind: 'run', next: { departAtMs: now(23), laterMin: 8 } })
+  })
+
+  test('reads the live departure and the walk still ahead, as the board does', () => {
+    const p = profile([run(10, 40), run(30, 60)])
+    const at = now(9.5)
+    expect(tripAdvice(p, at, { runFactor: 1.8 })?.state?.kind).toBe('hurry')
+    const boarding = { departAtMs: now(14), walkSec: 5 * 60 }
+    expect(tripAdvice(p, at, { runFactor: 1.8, boarding })?.state).toMatchObject({ kind: 'run', race: { departAtMs: now(14) } })
+  })
+
+  test('marks where along the walk each piece of advice begins', () => {
+    const min = 60_000
+    const zones = raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: 1.5 }, 10 * min)
+    expect(zones.map(z => [z.kind, z.fromMs / min, z.toMs / min])).toEqual([
+      ['calm', 0, 5], ['leave', 5, 8], ['hurry', 8, 10], ['run', 10, 15], ['tooFar', 15, Infinity],
+    ])
+    expect(raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: null }, min).map(z => z.kind))
+      .toEqual(['hurry', 'tooFar'])
+  })
+
+  test('the board word for the planned run follows the advice', () => {
+    expect(adviceReach({ kind: 'run', race: { departAtMs: 0, walkMs: 0, spareMs: -1, bufferMs: 0, runFactor: null } })).toBe('run')
+    expect(adviceReach({ kind: 'missed', departAtMs: 0, left: false })).toBe('unreachable')
+    expect(adviceReach({ kind: 'by', leaveByMs: 0 })).toBe('ok')
+    expect(adviceReach(null)).toBe('ok')
   })
 
   test('only a trip that reaches its first stop on foot can be run for', () => {

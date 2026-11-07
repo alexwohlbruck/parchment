@@ -4,13 +4,31 @@
 
 ### Changed
 
-* At steep 3D angles, labels, place pins and transit lines fade out toward the horizon instead of crowding the skyline.
+### Fixed
 
+## [0.20.1] - 2026-11-06
+
+### Added
+
+* Where a station has no mapped route to the platform, trip details say which signs to follow, like "Follow signs for the 3 · Manhattan" or "Follow exit signs".
+
+### Changed
+
+* Trip advice is one plain line, like "Hurry · 1 min spare · next 12 min later", or a calm "Leave in 9 min" when there's time. Frequent service says how often it runs.
+* When timing is tight, trip details race you against the train to the stop, showing who gets there first and by how much.
+* A trip is planned on the train its advice is about: when a later train arrives just as soon, the trip boards that one.
+* A tight change is flagged on the transfer itself, and a trip moved to a later train says why.
+* Trip results draw each ride as its route bullet on a thin line, and a "bike is faster" tip sits above the list.
+* Station directions end with where to wait on the platform, like "Walk to the front of the platform", matching where to board.
+* At steep 3D angles, labels, place pins and transit lines fade out toward the horizon instead of crowding the skyline.
 * 3D terrain is now on by default for new users.
 
 ### Fixed
 
 * Single-floor buildings with indoor maps, like the Ferry Building, now show the floor picker, so you can switch to the outside view.
+* A walk into a station now ends with the signs to follow, or the stop's name, instead of "Arrive at destination".
+* Picking a different departure on a trip no longer freezes the page; the departure boards stopped redrawing themselves nonstop.
+* Trips that start by bike now judge which trains you can still make, and move to the next one when you can't.
 
 ## [0.20.0] - 2026-11-05
 

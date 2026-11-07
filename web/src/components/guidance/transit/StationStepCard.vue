@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { guideView, type StationGuideState, type StationGuideTarget } from '@/lib/guidance/station-guide'
 import { stationStepIcon } from '@/lib/transit/station/step-icons'
+import { stationStepText } from '@/lib/transit/station/station-walks'
 import { formatDurationShort } from '@/lib/time-format'
 
 const props = defineProps<{ target: StationGuideTarget; state: StationGuideState; nowMs: number }>()
@@ -11,6 +12,7 @@ defineEmits<{ next: [] }>()
 const { t } = useI18n()
 
 const view = computed(() => guideView(props.state, props.target, props.nowMs))
+const text = computed(() => stationStepText(props.target.walk.steps, view.value.index, props.target.spot, t))
 
 const detail = computed(() => {
   const { levelChange, landmark, instruction } = view.value.step
@@ -38,7 +40,7 @@ const last = computed(() => view.value.next == null)
   <div class="flex items-center gap-3">
     <component :is="stationStepIcon(view.step)" class="size-6 shrink-0 self-start mt-0.5" />
     <div class="min-w-0 flex-1">
-      <div class="text-lg font-semibold leading-snug">{{ view.step.instruction }}</div>
+      <div class="text-lg font-semibold leading-snug">{{ text }}</div>
       <div class="mt-0.5 truncate text-sm text-muted-foreground tabular-nums">{{ meta }}</div>
     </div>
     <Button variant="secondary" class="h-9 shrink-0 rounded-full px-4" @click="$emit('next')">

@@ -728,36 +728,12 @@
       "short": {
         "leave": "Sal ya",
         "hurry": "Rápido",
-        "tight": "Justo",
         "missed": "Perdido",
         "cancelled": "Cancelado",
         "tooFar": "Lejos",
         "run": "Corre"
       },
-      "long": {
-        "leave": "Sal ya · el siguiente llega {minutes} min después",
-        "hurry": "Rápido · {minutes} min para el de las {time}",
-        "hurryLine": "Rápido · {minutes} min para el {line} de las {time}",
-        "by": "Sal antes de las {time}",
-        "tight": "{minutes} min para transbordar en {stop}",
-        "tightAnywhere": "{minutes} min para transbordar",
-        "missed": "Perdido · el siguiente es el de las {time}",
-        "missedLine": "Perdido · el siguiente es el {line} de las {time}",
-        "sched": "Sin horarios en vivo",
-        "crossover": "Más rápido {mode} desde las {time}",
-        "tooFar": "No llegas a tiempo · el siguiente es el de las {time}",
-        "tooFarLine": "No llegas a tiempo · el siguiente es el {line} de las {time}",
-        "run": "Corre · {minutes} min para el de las {time}",
-        "runLine": "Corre · {minutes} min para el {line} de las {time}"
-      },
-      "detail": {
-        "hurry": "{minutes} min para el de las {time}",
-        "hurryLine": "{minutes} min para el {line} de las {time}",
-        "leave": "El siguiente llega {minutes} min después",
-        "missed": "Buscando el siguiente",
-        "run": "{minutes} min para el de las {time}",
-        "runLine": "{minutes} min para el {line} de las {time}"
-      },
+      "crossover": "Si sales después de las {time}, es más rápido ir {mode}",
       "modes": {
         "cycling": "en bici",
         "walking": "a pie",
@@ -767,9 +743,34 @@
         "rideshare": "en VTC"
       },
       "switched": {
-        "missed": "Lo perdiste · ahora en el {line} de las {time}",
-        "tooFar": "No llegas a tiempo · ahora en el {line} de las {time}"
-      }
+        "missed": "Cambiado al {line} de las {time}; el de las {from} ya salió",
+        "tooFar": "Cambiado al {line} de las {time}; no llegas al de las {from}"
+      },
+      "race": {
+        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
+        "you": "Tú",
+        "walk": "{minutes} min hasta la parada",
+        "leaves": "sale en {minutes} min",
+        "now": "Ahora",
+        "to": "hacia"
+      },
+      "status": {
+        "leaveIn": "Sal en {minutes} min",
+        "leaveAt": "Sal a las {time}",
+        "every": "Cada {minutes} min",
+        "gone": "No llegas a ninguna salida",
+        "spare": "sobran {minutes} min",
+        "spareNone": "sobra menos de 1 min",
+        "short": "faltan {minutes} min",
+        "shortWalking": "faltan {minutes} min a pie",
+        "next": "el siguiente {minutes} min después",
+        "nextAt": "siguiente a las {time}",
+        "finding": "buscando salidas más tarde",
+        "change": "{minutes} min para transbordar",
+        "scheduled": "horario previsto"
+      },
+      "tightChange": "{minutes} min para transbordar en {stop}",
+      "tightChangeHere": "Solo {minutes} min para este transbordo"
     },
     "tripTypes": {
       "bikeshare": "Bici compartida",
@@ -787,6 +788,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "arriveAtStop": "Llega a {stop}",
     "trainNumber": "Tren {number}",
     "or": "o",
     "title": "Direcciones",
@@ -935,12 +937,29 @@
         "middle": "central",
         "back": "trasera"
       },
+      "platformWalk": {
+        "front": "Camina hasta la parte delantera del andén",
+        "middle": "Camina hasta la parte central del andén",
+        "back": "Camina hasta la parte trasera del andén"
+      },
       "saves": "ahorra {duration}",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
       "levelDown": "Baja {n} nivel | Baja {n} niveles",
-      "estimated": "Estimado"
+      "estimated": "Estimado",
+      "signs": {
+        "platform": "Sigue las señales del {line} · {toward}",
+        "line": "Sigue las señales del {line}",
+        "exit": "Sigue las señales de salida"
+      }
+    },
+    "tripPage": {
+      "loadFailed": "No se pudo cargar este viaje",
+      "gone": "Este viaje ya no está disponible",
+      "goneBody": "Las salidas han cambiado desde que se planificó.",
+      "planAgain": "Planificar de nuevo",
+      "retry": "Reintentar"
     }
   },
   "library": {

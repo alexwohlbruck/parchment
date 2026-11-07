@@ -7,7 +7,8 @@ import { useUnits } from '@/composables/useUnits'
 import { getTravelModeCssClass } from '@/lib/directions/travel-mode-colors'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import TripMeta from './TripMeta.vue'
-import type { TripCardAdvice } from '@/composables/directions/useTripAdvice'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import type { AdviceStatus } from '@/lib/directions/trip-advice'
 import type {
   TripOption,
   TripsResponse,
@@ -17,7 +18,7 @@ import { formatDurationParts } from '@/lib/time-format'
 
 interface Props {
   trip: TripOption
-  advice?: TripCardAdvice
+  status?: AdviceStatus | null
   tripRequest: TripsResponse['request']
   timelineStart: Date
   pxPerMinute: number
@@ -159,40 +160,11 @@ const waypointCapPositions = computed(() => {
   return positions
 })
 
-// Whether a segment is part of a multimodal leg (different modes within same leg)
-function isMultimodal(segment: typeof props.trip.segments[0]): boolean {
-  const li = (segment as any).legIndex ?? 0
-  const leg = legs.value.find(l => l.legIndex === li)
-  if (!leg || leg.segments.length < 2) return false
-  return new Set(leg.segments.map(s => s.mode)).size > 1
-}
-
-function segLegIndex(segment: typeof props.trip.segments[0]): number {
-  return (segment as any).legIndex ?? 0
-}
-
-// Walking segments don't render as pills — the dotted track shows through,
-// Transit-app style. Pills join only to an adjacent visible (non-walk) pill.
-// Exception: a walking-only trip renders its single walk as a solid pill
-// (matching driving/cycling), so it isn't a lone dotted track.
-function isPill(segment: typeof props.trip.segments[0]): boolean {
+// Walking segments don't render as rides — the dotted track shows through,
+// Transit-app style. A walking-only trip draws its walk as a ride instead, so
+// it isn't a lone dotted track.
+function isRide(segment: typeof props.trip.segments[0]): boolean {
   return segment.mode !== 'walking' || isWalkingOnly.value
-}
-
-function joinsNext(index: number): boolean {
-  if (index >= props.trip.segments.length - 1) return false
-  const current = props.trip.segments[index]
-  const next = props.trip.segments[index + 1]
-  return (
-    isPill(current) &&
-    isPill(next) &&
-    segLegIndex(current) === segLegIndex(next) &&
-    isMultimodal(current)
-  )
-}
-
-function joinsPrev(index: number): boolean {
-  return index > 0 && joinsNext(index - 1)
 }
 
 function handleClick() {
@@ -251,38 +223,36 @@ function handleMouseEnter() {
           :style="{ left: `${segLeft(trip.segments[0])}px` }"
         />
 
-        <!-- Vehicle pills — walking stays as the dotted track underneath -->
+        <!-- Rides: the line's bullet where it boards, then a thin bar in its
+             colour for as long as it runs. Walking stays as the dotted track. -->
         <template v-for="(segment, i) in trip.segments" :key="segment.id">
           <div
-            v-if="isPill(segment)"
-            class="absolute h-full flex items-center justify-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs"
-            :class="[
-              joinsNext(i) && !joinsPrev(i) ? 'rounded-l-[10px] rounded-r-none'
-                : joinsPrev(i) && !joinsNext(i) ? 'rounded-r-[10px] rounded-l-none'
-                : joinsPrev(i) && joinsNext(i) ? 'rounded-none'
-                : 'rounded-[10px]',
-              !segment.lineColor && getTravelModeCssClass(segment.mode),
-              segW(segment) > 28 ? 'px-2 gap-1.5' : 'px-0.5',
-            ]"
-            :style="{
-              left: `${segLeft(segment) - (joinsPrev(i) ? 6 : 0)}px`,
-              width: `${segW(segment) + (joinsPrev(i) ? 6 : 0)}px`,
-              zIndex: i + 1,
-              ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
-            }"
+            v-if="isRide(segment)"
+            class="absolute top-1/2 -translate-y-1/2 h-full flex items-center"
+            :style="{ left: `${segLeft(segment)}px`, width: `${segW(segment)}px`, zIndex: i + 1 }"
             :title="getSegmentTooltip(segment)"
           >
-            <span
-              v-if="segment.lineName && segW(segment) > 28"
-              class="text-[12px] font-bold truncate"
-            >
-              {{ segment.lineName }}
-            </span>
-            <component
-              v-else-if="segW(segment) > 20"
-              :is="getSegmentIcon(segment.mode, segment.routeType)"
-              class="size-3.5 shrink-0"
+            <div
+              data-bar
+              class="absolute inset-x-0 h-2 rounded-full"
+              :class="!segment.lineColor && getTravelModeCssClass(segment.mode)"
+              :style="segment.lineColor ? { background: `#${segment.lineColor}` } : {}"
             />
+            <RouteBullet
+              v-if="segment.mode === 'transit' && segment.lineName"
+              class="relative shrink-0"
+              :label="segment.lineName"
+              :color="segment.lineColor"
+              :text-color="segment.lineTextColor"
+            />
+            <div
+              v-else
+              class="relative size-[22px] shrink-0 grid place-items-center rounded-full text-white depth-raised"
+              :class="!segment.lineColor && getTravelModeCssClass(segment.mode)"
+              :style="segment.lineColor ? { background: `#${segment.lineColor}` } : {}"
+            >
+              <component :is="getSegmentIcon(segment.mode, segment.routeType)" class="size-3" />
+            </div>
           </div>
         </template>
 
@@ -303,7 +273,7 @@ function handleMouseEnter() {
 
       <!-- Trip summary — travels with the bar, then pins at the panel edge -->
       <div class="sticky left-3 w-fit" :style="{ maxWidth: `${barAreaWidth}px` }">
-        <TripMeta :trip="trip" :advice="advice" class="mt-1.5 pr-4" />
+        <TripMeta :trip="trip" :status="status" class="mt-1.5 pr-4" />
       </div>
     </div>
   </div>

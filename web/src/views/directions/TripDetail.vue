@@ -16,7 +16,7 @@ import {
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
-import { toast } from '@/lib/toast'
+import { sameArrivalDepartAt, tightChanges, walksToFirstStop } from '@/lib/directions/trip-advice'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
@@ -37,8 +37,8 @@ import {
 } from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
 import { Caption } from '@/components/ui/typography'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
-  ArrowLeft,
   BikeIcon,
   CarTaxiFrontIcon,
   ArrowRight,
@@ -50,7 +50,9 @@ import {
   LogOutIcon,
   NavigationIcon,
   MapIcon,
+  RefreshCwIcon,
   ShareIcon,
+  TriangleAlertIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { tripSignature } from '@/lib/directions/trip-signature'
@@ -73,6 +75,9 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import TripRace from '@/components/directions/trip/TripRace.vue'
+import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
+import { boardingSign, stationSignText } from '@/lib/transit/station/station-signs'
 import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
 import StationGuidanceRows from '@/components/transit/trip/StationGuidanceRows.vue'
 import HazardSummary from '@/components/directions/trip/HazardSummary.vue'
@@ -417,10 +422,18 @@ function selectFirstAvailableDeparture() {
   const segs = t.segments as any[]
   const idx = boardingIndex(segs)
   if (idx < 0) return
-  const firstCatchable = firstCatchableDeparture(idx)
-  if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
-    void chooseDeparture(idx, firstCatchable.ms)
+  const best = bestDeparture(idx)
+  if (best && !isCurrentDeparture(segs[idx], best.ms)) {
+    void chooseDeparture(idx, best.ms)
   }
+}
+
+/** The first catchable run, moved on to the latest one that arrives with it, so the trip boards the train its advice is about. */
+function bestDeparture(segmentIndex: number): DepartureOption | undefined {
+  const first = firstCatchableDeparture(segmentIndex)
+  const targetMs = first && sameArrivalDepartAt(trip.value?.departureProfile, first.ms)
+  if (!first || targetMs == null) return first
+  return departuresFor(segmentIndex).find(d => !d.cancelled && Math.abs(d.ms - targetMs) < 60_000) ?? first
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -429,8 +442,12 @@ const boardingIndex = (segs: any[]) => segs.findIndex((s) => s.mode === 'transit
 /** The run the rider picked off the board; only its departure moves them off it. */
 const pickedRunMs = ref<number | null>(null)
 
+/** Why the trip is no longer on the run it was planned on, after moving it for the rider. */
+const switchedNote = ref<string | null>(null)
+
 function pickDeparture(segmentIndex: number, ms: number) {
   pickedRunMs.value = ms
+  switchedNote.value = null
   void chooseDeparture(segmentIndex, ms)
 }
 
@@ -444,19 +461,20 @@ watch([nowMs, segmentDepartures], async () => {
   if (idx < 0) return
   const current = departuresFor(idx).find((d) => isCurrentDeparture(segs[idx], d.ms))
   if (!current) return
-  const state = depState(idx, current)
+  const state = advice.value ? advice.value.reach : depState(idx, current)
   const start = directionsStore.trips?.request.waypoints[0]?.coordinate
   const missed =
     state === 'departed'
       ? !seemsAboard(geo.lngLat.value, segs[idx].departureStop.location, start)
       : state === 'unreachable' && current.ms !== pickedRunMs.value
   if (!missed) return
-  const next = firstCatchableDeparture(idx)
+  const next = bestDeparture(idx)
   if (!next || !(await chooseDeparture(idx, next.ms))) return
-  toast.info(translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
+  switchedNote.value = translate(`directions.advice.switched.${state === 'departed' ? 'missed' : 'tooFar'}`, {
     line: next.route?.shortName ?? segs[idx].lineName ?? '',
     time: formatClockCompact(new Date(next.ms)),
-  }))
+    from: formatClockCompact(new Date(current.ms)),
+  })
 })
 
 /** Is this run the one the trip currently boards? */
@@ -550,7 +568,7 @@ function remainingWalkSec(segmentIndex: number): number {
   const isFirst = !segs.slice(0, segmentIndex).some((s) => s.mode === 'transit')
   if (!isFirst) return 0
   const prev = segs[segmentIndex - 1]
-  if (prev?.mode !== 'walking') return 0
+  if (!prev || prev.mode === 'transit') return 0
   const planned = movingDuration(prev)
   // Arrival at the stop excludes the platform wait folded into the walk leg.
   const arrivalMs = asMs(prev.endTime) - (prev.waitSeconds ?? 0) * 1000
@@ -562,6 +580,7 @@ function remainingWalkSec(segmentIndex: number): number {
       stop: segs[segmentIndex]?.departureStop?.location ?? null,
       position: geo.lngLat.value,
       accuracyM: geo.accuracy.value,
+      ridden: prev.mode !== 'walking',
     },
     nowMs.value,
   )
@@ -578,6 +597,7 @@ const graceSec = computed(
 const RUN_MAX_ACCURACY_M = 100
 
 const runFactor = computed(() => {
+  if (!trip.value || !walksToFirstStop(trip.value.segments)) return null
   const accuracy = geo.accuracy.value
   return accuracy != null && accuracy > RUN_MAX_ACCURACY_M ? null : navigationPreferences.runPace
 })
@@ -632,7 +652,9 @@ interface DepCard {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
   const planned = isCurrentDeparture(segment, dep.ms)
-  const state = depState(segmentIndex, dep)
+  // The advice can stay quiet about the planned run (frequent service); the chip still says what it would to any other.
+  const adviceReach = planned && boarding.value?.index === segmentIndex ? advice.value?.reach : undefined
+  const state = adviceReach && adviceReach !== 'ok' ? adviceReach : depState(segmentIndex, dep)
   const departed = state === 'departed'
   // The reachability hints stand even on the selected card — you still have to
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.
@@ -747,8 +769,6 @@ function previewRoute() {
 }
 
 const tripId = computed(() => route.params.id as string)
-const isLoading = ref(false)
-const error = ref<string | null>(null)
 
 // Server-persisted snapshot (the `pt` capability token in the URL): the
 // exact trip as originally planned, immune to schedule drift. Fetched when
@@ -789,10 +809,46 @@ const trip = computed(() => {
 const startEligibility = useStartEligibility(trip, legToStart)
 
 const { adviceFor } = useTripAdvice()
-const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value) : null))
-const adviceNotes = computed(() =>
-  [advice.value?.tight, advice.value?.sched].filter(Boolean).join(' · '),
-)
+/** The first ride as the board sees it, so the header and the board read the same numbers. */
+const boarding = computed(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = (trip.value?.segments ?? []) as any[]
+  const i = segs.findIndex((s) => s.mode === 'transit')
+  if (i < 1 || segs[i - 1].mode === 'transit') return undefined
+  const current = departuresFor(i).find((d) => isCurrentDeparture(segs[i], d.ms))
+  return current ? { index: i, departAtMs: current.ms, walkSec: remainingWalkSec(i) } : undefined
+})
+const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value, boarding.value) : null))
+/** What the closing step of a walk into a ride says: the station's signs, or the stop's name. */
+function walkArrival(index: number) {
+  const segments = trip.value?.segments ?? []
+  const next = segments[index + 1]
+  if (next?.mode !== 'transit') return null
+  const sign = boardingSign(segments, index)
+  if (sign) return { text: stationSignText(sign, translate), sign: true }
+  return next.departureStop?.name ? { text: translate('directions.arriveAtStop', { stop: next.departureStop.name }), sign: false } : null
+}
+
+const firstRide = computed(() => trip.value?.segments.find(s => s.mode === 'transit'))
+
+const tight = computed(() => tightChanges(trip.value?.segments ?? []))
+/** The tightest change, named once in the header; each one is also flagged where it happens. */
+const tightNote = computed(() => {
+  const [first] = [...tight.value.values()].sort((a, b) => a.minutes - b.minutes)
+  if (!first) return null
+  return first.stop
+    ? translate('directions.advice.tightChange', { minutes: first.minutes, stop: first.stop })
+    : translate('directions.advice.status.change', { minutes: first.minutes })
+})
+/** No live prediction for the run the trip boards: its times are the timetable's. */
+const scheduledOnly = computed(() => {
+  if (!advice.value) return false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = (trip.value?.segments ?? []) as any[]
+  const i = boardingIndex(segs)
+  const current = i >= 0 ? departuresFor(i).find(d => isCurrentDeparture(segs[i], d.ms)) : undefined
+  return !(current?.realTime ?? advice.value.live)
+})
 
 watch(
   () => [tripId.value, route.query.pt],
@@ -808,6 +864,7 @@ watch(
   () => {
     // A new trip gets its own first-entry default selection + board scroll.
     didAutoSelectDeparture.value = false
+    switchedNote.value = null
     void loadDepartures()
   },
   { immediate: true },
@@ -1155,13 +1212,22 @@ function showSegmentChart(segment: any): boolean {
   <PanelLayout>
     <!-- Loading (own state, the snapshot fetch, or the shared planner
          re-creating the trip from a refreshed/shared URL) -->
-    <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">
-      <Caption>Loading trip details...</Caption>
-    </div>
-
-    <!-- Error -->
-    <div v-else-if="error" class="py-4">
-      <Caption class="text-destructive">{{ error }}</Caption>
+    <div v-if="!trip && (recovering || directionsStore.isLoading)" class="pt-4" aria-busy="true">
+      <div class="flex items-baseline gap-2">
+        <Skeleton class="h-9 w-20" />
+        <Skeleton class="h-4 w-12" />
+      </div>
+      <Skeleton class="mt-2 h-4 w-28" />
+      <Skeleton class="mt-2 h-4 w-48" />
+      <div class="mt-8 space-y-5">
+        <div v-for="n in 3" :key="n" class="flex items-center gap-3">
+          <Skeleton class="size-7 rounded-full" />
+          <div class="flex-1 space-y-1.5">
+            <Skeleton class="h-3.5 w-2/5" />
+            <Skeleton class="h-3 w-3/5" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Trip content -->
@@ -1180,11 +1246,7 @@ function showSegmentChart(segment: any): boolean {
         class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
         :class="stuck ? 'border-border/60' : 'border-transparent'"
       >
-      <!-- Actions sit at the BOTTOM of the block (items-end) so they clear the
-           sheet's back/close nav, which occupies the top-right chrome zone;
-           the stats stay at the top. -->
-      <div class="flex items-end justify-between gap-4">
-        <div>
+      <div>
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
               {{ heroDuration.main }}
@@ -1202,36 +1264,37 @@ function showSegmentChart(segment: any): boolean {
 
           <!-- Leave – arrive -->
           <div class="mt-1 text-sm text-muted-foreground tabular-nums">
-            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template>
           </div>
 
-          <div
-            v-if="advice?.line"
-            class="mt-0.5 text-sm font-medium tabular-nums"
-            :class="advice.line.tone || 'text-foreground/80'"
-          >
-            {{ advice.line.text }}
-          </div>
-          <div v-if="adviceNotes" class="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            {{ adviceNotes }}
-          </div>
+          <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
+          <TripRace
+            v-if="advice?.race"
+            :race="advice.race"
+            :now-ms="nowMs"
+            :ride="firstRide"
+          />
+      </div>
 
-          <!-- Cost / CO2 -->
-          <div
-            v-if="trip.cost?.total || trip.co2Emissions"
-            class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"
-          >
-            <span v-if="trip.cost?.total">
-              {{ formatCurrency(trip.cost.total) }}
-            </span>
-            <span v-if="trip.co2Emissions">
-              {{ formatCo2(trip.co2Emissions) }} CO₂
-            </span>
-          </div>
+      <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">
+        <p v-if="switchedNote" class="flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-muted-foreground">
+          <RefreshCwIcon class="size-3.5 shrink-0" />{{ switchedNote }}
+        </p>
+        <p v-if="tightNote" class="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-amber-800 dark:text-amber-200">
+          <TriangleAlertIcon class="size-3.5 shrink-0" />{{ tightNote }}
+        </p>
+      </div>
+
+      <!-- Actions sit on the bottom row, clear of the sheet's back/close nav in the top-right corner. -->
+      <div class="mt-3 flex items-center justify-between gap-4">
+        <!-- Cost / CO2 -->
+        <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground tabular-nums">
+          <span v-if="trip.cost?.total">{{ formatCurrency(trip.cost.total) }}</span>
+          <span v-if="trip.co2Emissions">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
         </div>
 
         <!-- Start + Share + Save -->
-        <div class="flex items-center gap-0.5 shrink-0 -mr-2 -mb-1">
+        <div class="flex items-center gap-0.5 shrink-0 -mr-2">
           <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1.5" @click="previewRoute">
             <MapIcon class="size-4" />
             {{ translate('guidance.preview.action') }}
@@ -1474,6 +1537,13 @@ function showSegmentChart(segment: any): boolean {
                 corner runs concentric with the icon.
               -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
+                <p
+                  v-if="tight.has(entry.segmentIndex)"
+                  class="mb-2 pl-[46px] flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300"
+                >
+                  <TriangleAlertIcon class="size-3.5 shrink-0" />
+                  {{ translate('directions.advice.tightChangeHere', { minutes: tight.get(entry.segmentIndex)!.minutes }) }}
+                </p>
                 <StationGuidanceRows
                   class="mb-2 pl-[46px]"
                   :segments="trip.segments"
@@ -1674,6 +1744,7 @@ function showSegmentChart(segment: any): boolean {
                 :segment="entry.segment"
                 :segment-index="entry.segmentIndex"
                 :hovered-key="hoveredInstructionKey"
+                :arrival="walkArrival(entry.segmentIndex)"
                 @hover-instruction="onInstructionHover"
                 @leave-instruction="onInstructionLeave"
                 @update:route-profile="onRouteProfileChange"
@@ -1687,11 +1758,12 @@ function showSegmentChart(segment: any): boolean {
     <!-- No trip found — and no way to recreate it (the URL carries no
          planning inputs). Recoverable URLs never land here: the shared
          service re-plans from the query and the signature re-finds the trip. -->
-    <div v-else class="py-6 flex flex-col items-start gap-3">
-      <Caption>This trip is no longer available.</Caption>
-      <Button variant="outline" size="sm" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
-        <ArrowLeft class="size-4 mr-1" />
-        Back to the planner
+    <div v-else class="py-6 flex flex-col items-start gap-1">
+      <p class="text-sm font-semibold">{{ translate('directions.tripPage.gone') }}</p>
+      <Caption>{{ translate('directions.tripPage.goneBody') }}</Caption>
+      <Button variant="outline" size="sm" class="mt-2" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
+        <RefreshCwIcon class="size-4" />
+        {{ translate('directions.tripPage.planAgain') }}
       </Button>
     </div>
   </PanelLayout>

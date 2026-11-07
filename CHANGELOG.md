@@ -25,6 +25,7 @@
 
 ### Fixed
 
+* Single-floor buildings with indoor maps, like the Ferry Building, now show the floor picker, so you can switch to the outside view.
 * A walk into a station now ends with the signs to follow, or the stop's name, instead of "Arrive at destination".
 * Picking a different departure on a trip no longer freezes the page; the departure boards stopped redrawing themselves nonstop.
 * Trips that start by bike now judge which trains you can still make, and move to the next one when you can't.

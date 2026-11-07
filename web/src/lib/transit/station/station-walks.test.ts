@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { StationAccessChoice, StationWalk, TransitTransfer } from '@server/types/station-guidance.types'
+import type { GuidanceStep, StationAccessChoice, StationWalk, TransitTransfer } from '@server/types/station-guidance.types'
 import {
   levelRuns,
+  platformSpot,
   replacedTransferWalks,
   stationWalkFeatures,
+  stationStepText,
   stationWalksAt,
   transferAt,
   type GuidedSegment,
@@ -84,5 +86,37 @@ describe('station walk drawing', () => {
       'access', 'access', 'transfer', 'transfer', 'egress', 'egress',
     ])
     expect([...replacedTransferWalks(trip)]).toEqual([2])
+  })
+})
+
+describe('the walk along the boarding platform', () => {
+  const step = (type: GuidanceStep['type'], instruction: string): GuidanceStep => ({
+    type, instruction, distance: 40, duration: 30, fromLevel: -1, toLevel: -1, levelChange: 0,
+    landmark: null, bridged: false, fromVertex: 0, toVertex: 0,
+  })
+  const steps = [
+    step('stairs', 'Take the stairs down to the platform'),
+    step('platform', 'Walk 40 m along the platform'),
+    step('board', 'Board the A · Downtown'),
+  ]
+  const t = (key: string) => key
+  const board = (section: 'front' | 'back'): GuidedSegment[] => [
+    { mode: 'walking' },
+    { mode: 'transit', boardingPosition: { section, fraction: 0.9, savesSeconds: 60, toward: 'exit', landmark: null } },
+  ]
+
+  it('heads for where to board, or the middle when it makes no difference', () => {
+    expect(platformSpot(board('front'), 'access', 1)).toBe('front')
+    expect(platformSpot(trip, 'transfer', 3)).toBe('middle')
+    expect(platformSpot(board('back'), 'egress', 1)).toBeNull()
+  })
+
+  it('names the spot on the closing platform walk only', () => {
+    expect(steps.map((_, i) => stationStepText(steps, i, 'front', t))).toEqual([
+      'Take the stairs down to the platform',
+      'directions.station.platformWalk.front',
+      'Board the A · Downtown',
+    ])
+    expect(stationStepText(steps, 1, null, t)).toBe('Walk 40 m along the platform')
   })
 })

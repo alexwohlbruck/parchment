@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useResizeObserver } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { adviceTone, reachWord } from '@/lib/directions/trip-advice'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -74,7 +75,7 @@ export interface BoardCard {
  * past already-departed runs), and the view was carrying a map of element
  * refs keyed by segment index to manage it from the outside.
  */
-defineProps<{
+const props = defineProps<{
   cards: BoardCard[]
   /** Line colour, used to tint the planned run. Hex without the leading '#'. */
   lineColor?: string
@@ -135,13 +136,14 @@ function clockClass(card: Card): string {
 const scroller = ref<HTMLElement | null>(null)
 const edges = ref({ start: false, end: false })
 /** The scroll-past-departed nudge is one-shot; refreshes must not re-yank. */
-const didInitialScroll = ref(false)
+let didInitialScroll = false
 
-function updateEdges(el: HTMLElement) {
-  edges.value = {
-    start: el.scrollLeft > 4,
-    end: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
-  }
+function updateEdges() {
+  const el = scroller.value
+  if (!el) return
+  const start = el.scrollLeft > 4
+  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+  if (start !== edges.value.start || end !== edges.value.end) edges.value = { start, end }
 }
 
 /**
@@ -162,37 +164,27 @@ function scrollToFirstAvailable(el: HTMLElement, cards: BoardCard[]) {
   el.scrollLeft += delta - 16
 }
 
-function onScrollerMount(el: unknown, cards: BoardCard[]) {
-  if (!(el instanceof HTMLElement)) {
-    scroller.value = null
-    return
-  }
-  scroller.value = el
-  requestAnimationFrame(() => {
-    if (!didInitialScroll.value) {
-      didInitialScroll.value = true
+watch(
+  [scroller, () => props.cards],
+  ([el, cards]) => {
+    if (!el) return
+    if (!didInitialScroll && cards.length) {
+      didInitialScroll = true
       scrollToFirstAvailable(el, cards)
     }
-    updateEdges(el)
-  })
-}
-
-function onScroll(e: Event) {
-  if (e.target instanceof HTMLElement) updateEdges(e.target)
-}
-
-defineExpose({
-  /** Re-measure after a resize; the view owns the window listener. */
-  remeasure: () => scroller.value && updateEdges(scroller.value),
-})
+    updateEdges()
+  },
+  { flush: 'post' },
+)
+useResizeObserver(scroller, updateEdges)
 </script>
 
 <template>
   <div class="relative -mx-3">
     <div
-      :ref="el => onScrollerMount(el, cards)"
+      ref="scroller"
       class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
-      @scroll="onScroll"
+      @scroll="updateEdges"
     >
       <!-- Every chip is the same fixed width and the same three rows —
            identity, time, footnote — so the board reads as a rhythm and the

@@ -38,6 +38,8 @@ export interface AccessWalk {
   /** Live position; ignored when absent or too coarse to be meaningful. */
   position?: LngLat | null
   accuracyM?: number | null
+  /** Reached by bike or car rather than on foot: the plan's own pace stands, unclamped. */
+  ridden?: boolean
 }
 
 /**
@@ -56,9 +58,8 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
     walk.position &&
     (walk.accuracyM == null || walk.accuracyM <= MAX_USABLE_ACCURACY_M)
   ) {
-    const pace = walk.distanceM
-      ? clamp(walk.distanceM / planned, MIN_WALK_SPEED_MPS, MAX_WALK_SPEED_MPS)
-      : DEFAULT_WALK_SPEED_MPS
+    const planPace = walk.distanceM ? walk.distanceM / planned : DEFAULT_WALK_SPEED_MPS
+    const pace = walk.ridden ? planPace : clamp(planPace, MIN_WALK_SPEED_MPS, MAX_WALK_SPEED_MPS)
     const remaining =
       (distanceMeters(walk.position, walk.stop) * DETOUR_FACTOR) / pace
     return clamp(remaining, 0, planned)

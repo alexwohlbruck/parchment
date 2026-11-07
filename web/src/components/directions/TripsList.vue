@@ -5,6 +5,8 @@ import type { TripsResponse } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
 import TripRows from './TripRows.vue'
 import { useTripNavigation } from '@/composables/directions/useTripNavigation'
+import { useTripListAdvice } from '@/composables/directions/useTripAdvice'
+import CrossoverTip from './CrossoverTip.vue'
 import { byRank } from '@/lib/directions/trip-display'
 
 interface Props {
@@ -173,10 +175,12 @@ const timeTicks = computed(() => {
 })
 
 const { openTrip } = useTripNavigation(() => props.trips.request)
+const advice = useTripListAdvice(() => props.trips.trips)
 </script>
 
 <template>
   <div ref="containerRef" class="min-w-0">
+    <CrossoverTip v-if="advice.crossover" :tip="advice.crossover" class="mt-2" />
     <!-- Time axis — opaque so suggestions are fully hidden as they scroll
          under it, docked just below the pinned controls. It sits outside the
          horizontal scroller (which would capture its vertical stickiness) and
@@ -229,10 +233,10 @@ const { openTrip } = useTripNavigation(() => props.trips.request)
             : undefined,
         }"
       >
-        <TripRows :trips="trips.trips" v-slot="{ trip, advice }">
+        <TripRows :trips="trips.trips" :advice="advice" v-slot="{ trip, status }">
           <TripItem
             :trip="trip"
-            :advice="advice"
+            :status="status"
             :trip-request="trips.request"
             :timeline-start="timelineStart.toDate()"
             :px-per-minute="pxPerMinute"

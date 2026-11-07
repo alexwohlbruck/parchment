@@ -12,6 +12,8 @@
 * A tight change is flagged on the transfer itself, and a trip moved to a later train says why.
 * Trip results draw each ride as its route bullet on a thin line, and a "bike is faster" tip sits above the list.
 * Station directions end with where to wait on the platform, like "Walk to the front of the platform", matching where to board.
+* At steep 3D angles, labels, place pins and transit lines fade out toward the horizon instead of crowding the skyline.
+* 3D terrain is now on by default for new users.
 
 ### Fixed
 

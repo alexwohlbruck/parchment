@@ -61,7 +61,7 @@ function levelNumber(level: number): string {
 export const openingLevel = (venue: IndoorVenue) => (venue.defaultLevel >= 0 ? venue.defaultLevel : null)
 
 /**
- * The multi-level venue under the centre of the view, else the nearest one
+ * The venue under the centre of the view, else the nearest one
  * reaching into `focusArea`, the middle of the screen as a ring of [lng, lat].
  */
 export function focusedVenue(
@@ -73,7 +73,7 @@ export function focusedVenue(
   const seen = new Map<number, number>()
   for (const f of features) {
     const venue = parseVenue(f)
-    if (!venue || venue.levels.length < 2 || !reaches(f.geometry, focusArea)) continue
+    if (!venue || !venue.levels.length || !reaches(f.geometry, focusArea)) continue
     const distance = distanceToShape(f.geometry, center)
     if ((seen.get(venue.id) ?? Infinity) <= distance) continue
     seen.set(venue.id, distance)

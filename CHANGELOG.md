@@ -10,6 +10,8 @@
 
 ### Fixed
 
+* Single-floor buildings with indoor maps, like the Ferry Building, now show the floor picker, so you can switch to the outside view.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added

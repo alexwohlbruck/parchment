@@ -14,12 +14,29 @@ import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace, seedPlaceFromLocal } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
 const { onReconnected } = useConnectivity()
 const markerLngLat = shallowRef<LngLat | null>(null)
+
+/**
+ * Shows what the device knows about the place straight away, then keeps it
+ * if the details fetch fails, so a saved, recent or coordinate place still
+ * opens offline. The fetch's own failure path clears `currentPlace`.
+ */
+async function loadWithLocalFallback(
+  placeId: string,
+  fetchDetails: () => Promise<unknown>,
+) {
+  const seeded = seedPlaceFromLocal(placeId)
+  if (seeded) handlePlaceResult(seeded)
+  const place = await fetchDetails()
+  if (!place && seeded) currentPlace.value = seeded
+  // Re-frame only for new data; the seeded place is already on the map.
+  if (currentPlace.value !== seeded) handlePlaceResult(currentPlace.value)
+}
 
 async function loadPlace() {
   // Don't clear place - keep partial data visible during loading
@@ -68,8 +85,9 @@ async function loadPlace() {
     typeof id === 'string' &&
     !['provider', 'location'].includes(type)
   ) {
-    const place = await fetchPlaceDetails(`${type}/${id}`, 'osm', undefined, nextSignal())
-    handlePlaceResult(place)
+    await loadWithLocalFallback(`osm/${type}/${id}`, () =>
+      fetchPlaceDetails(`${type}/${id}`, 'osm', undefined, nextSignal()),
+    )
     return
   }
 
@@ -87,8 +105,9 @@ async function loadPlace() {
       handlePlaceResult(currentPlace.value)
       return
     }
-    const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
-    handlePlaceResult(place)
+    await loadWithLocalFallback(`${provider}/${placeId}`, () =>
+      fetchPlaceDetails(placeId, provider, undefined, nextSignal()),
+    )
     return
   }
 
@@ -117,19 +136,14 @@ async function loadPlace() {
       lng: parseFloat(lng),
     }
 
-    // Immediately add marker and move camera for partial place data
-    if (currentPlace.value?.geometry?.value?.center) {
-      handlePlaceResult(currentPlace.value)
-    }
-
-    // Load full enriched place details
-    const place = await fetchPlaceDetailsByCoordinates(
-      coordinates.lat,
-      coordinates.lng,
-      undefined,
-      nextSignal(),
+    await loadWithLocalFallback(`coords/${lat}/${lng}`, () =>
+      fetchPlaceDetailsByCoordinates(
+        coordinates.lat,
+        coordinates.lng,
+        undefined,
+        nextSignal(),
+      ),
     )
-    handlePlaceResult(place)
     return
   }
 

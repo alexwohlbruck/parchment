@@ -127,6 +127,7 @@ function stopClass(index: number) {
       <div v-if="segment.departureStop" class="relative flex transition-opacity" :class="stopClass(0)">
         <div class="flex flex-col items-center w-7 shrink-0">
           <div
+            data-stop="0"
             class="mt-[5px] size-2.5 rounded-full shrink-0"
             v-bind="segmentRail(segment)"
           />
@@ -191,7 +192,7 @@ function stopClass(index: number) {
         :default-open="passed != null"
         class="relative"
       >
-        <CollapsibleTrigger class="group/stops flex w-full transition-colors cursor-pointer select-none">
+        <CollapsibleTrigger data-stop-fold class="group/stops flex w-full transition-colors cursor-pointer select-none">
           <div class="w-7 shrink-0" />
           <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
             <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
@@ -208,6 +209,7 @@ function stopClass(index: number) {
             >
               <div class="flex flex-col items-center w-7 shrink-0">
                 <div
+                  :data-stop="si + 1"
                   class="mt-[5px] size-1.5 rounded-full shrink-0"
                   v-bind="segmentRail(segment)"
                 />
@@ -228,6 +230,7 @@ function stopClass(index: number) {
       <div v-if="segment.arrivalStop" class="relative flex">
         <div class="flex flex-col items-center w-7 shrink-0">
           <div
+            :data-stop="(segment.intermediateStops?.length ?? 0) + 1"
             class="mt-[5px] size-2.5 rounded-full shrink-0"
             v-bind="segmentRail(segment)"
           />

@@ -3,6 +3,7 @@
 ### Added
 
 * Transit lines you open now show up in your search recents, wearing their route bullet.
+* During transit navigation, your location marker rides along the trip timeline in step with the map, including while it estimates your position underground.
 
 ### Changed
 

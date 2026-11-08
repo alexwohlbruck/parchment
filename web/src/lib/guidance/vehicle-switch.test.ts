@@ -5,6 +5,7 @@ import { polyline } from './test-routes'
 import {
   rankCandidates,
   liveRun,
+  earlierRun,
   retargetedRide,
   RideObserver,
   vehicleVerdict,
@@ -189,5 +190,34 @@ describe('liveRun', () => {
   test('retiming carries the feed\'s delay', () => {
     const late = { ...run('planned', '3', 6), realTime: true, scheduledMs: min(0) }
     expect(retargetedRide(segment, late, KNOWN)).toMatchObject({ realTimeData: true, delay: 360 })
+  })
+})
+
+describe('earlierRun', () => {
+  const set = (candidates: VehicleCandidate[]): CandidateSet => ({ candidates, known: KNOWN })
+
+  test('a rider early for the booked run takes the soonest one still catchable', () => {
+    const board = set([run('gone', '3', -6), run('sooner', '3', -4), run('soon', '3', -2), run('planned', '3', 0)])
+    expect(earlierRun(segment, board, min(-5), 'S4')?.tripId).toBe('sooner')
+  })
+
+  test('an earlier run that skips the alighting stop, or gets there no sooner, is not taken', () => {
+    const skips = { ...run('skips', '3', -4), calls: [{ stop: 'S2', timeMs: min(-1) }] }
+    const slow = { ...run('slow', '3', -4), calls: [{ stop: 'S4', timeMs: min(8) }] }
+    expect(earlierRun(segment, set([skips, slow, run('planned', '3', 0)]), min(-5), 'S4')).toBeNull()
+  })
+
+  test('another line calling at the alighting stop sooner is taken', () => {
+    expect(earlierRun(segment, set([run('other', '2', -3), run('planned', '3', 0)]), min(-5), 'S4')?.tripId).toBe('other')
+  })
+
+  test('without the alighting stop on the board, only the same line counts', () => {
+    const board: CandidateSet = { candidates: [run('other', '2', -3), run('same', '3', -2)], known: [] }
+    expect(earlierRun(segment, board, min(-5), 'S4')?.tripId).toBe('same')
+  })
+
+  test('the booked run running late lets an earlier-departing run win', () => {
+    const late = { ...run('planned', '3', 6) }
+    expect(earlierRun(segment, set([run('next', '3', 3), late]), min(1), 'S4')?.tripId).toBe('next')
   })
 })

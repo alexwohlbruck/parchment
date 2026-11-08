@@ -281,3 +281,22 @@ export function liveRun(segment: RideSegment, set: CandidateSet, nowMs: number):
   if (!run || run.departureMs <= nowMs) return null
   return Math.abs(run.departureMs - toMs(segment.startTime)) >= RETIME_MS ? run : null
 }
+
+/** A run reaching `alightStop` sooner than the booked one and leaving no earlier than `readyMs`, the soonest there first. */
+export function earlierRun(segment: RideSegment, set: CandidateSet, readyMs: number, alightStop: string | null): VehicleCandidate | null {
+  const booked = set.candidates.find(c => c.tripId === segment.tripId)
+  const bookedDeparture = booked?.departureMs ?? toMs(segment.startTime)
+  const alightKnown = alightStop != null && set.known.includes(alightStop)
+  const arrival = (run: VehicleCandidate) => (alightKnown ? run.calls.find(c => c.stop === alightStop)?.timeMs : undefined)
+  const bookedArrival = (booked && arrival(booked)) ?? toMs(segment.endTime)
+  const reaches = (run: VehicleCandidate) => {
+    if (!alightKnown) return run.line === segment.lineName
+    const at = arrival(run)
+    return at != null && at < bookedArrival
+  }
+  const catchable = set.candidates.filter(
+    c => c.tripId !== segment.tripId && c.departureMs >= readyMs && c.departureMs <= bookedDeparture - RETIME_MS && reaches(c),
+  )
+  const soonest = (run: VehicleCandidate) => arrival(run) ?? run.departureMs
+  return catchable.sort((a, b) => soonest(a) - soonest(b))[0] ?? null
+}

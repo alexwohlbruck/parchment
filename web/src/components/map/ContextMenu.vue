@@ -518,7 +518,31 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     const coords = clickedLngLat.value
     const plusCode = encode({ latitude: coords.lat, longitude: coords.lng })
 
-    const copyItems: MenuItemDefinition[] = [
+    // The readable name and address first, then the codes.
+    const copyItems: MenuItemDefinition[] = []
+
+    if (geocodedPlaceName.value) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-place-name',
+        label: geocodedPlaceName.value,
+        onSelect: copyPlaceName,
+      })
+    }
+
+    if (
+      geocodedAddress.value &&
+      geocodedAddress.value !== geocodedPlaceName.value
+    ) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-address',
+        label: geocodedAddress.value,
+        onSelect: copyAddress,
+      })
+    }
+
+    copyItems.push(
       {
         type: 'item',
         id: 'copy-coords',
@@ -531,7 +555,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         label: plusCode || '',
         onSelect: () => copyPlusCode(coords),
       },
-    ]
+    )
 
     const words = what3words.value
     if (words) {
@@ -540,29 +564,6 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         id: 'copy-what3words',
         label: `///${words}`,
         onSelect: () => copyWhat3words(words),
-      })
-    }
-
-    // Add place name copy option if available
-    if (geocodedPlaceName.value) {
-      copyItems.push({
-        type: 'item',
-        id: 'copy-place-name',
-        label: geocodedPlaceName.value,
-        onSelect: copyPlaceName,
-      })
-    }
-
-    // Add address copy option if available (and different from place name)
-    if (
-      geocodedAddress.value &&
-      geocodedAddress.value !== geocodedPlaceName.value
-    ) {
-      copyItems.push({
-        type: 'item',
-        id: 'copy-address',
-        label: geocodedAddress.value,
-        onSelect: copyAddress,
       })
     }
 

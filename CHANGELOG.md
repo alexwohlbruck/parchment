@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Opening a bus route in a city without the detailed transit map draws its line and stops on the map again.
+
 ## [0.20.1] - 2026-11-06
 
 ### Added

@@ -34,6 +34,14 @@ const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
 const STOPS = stopOverlayIds('route-detail-stops')
 
+/** How long the reconciler may go undecided before it settles on whatever
+ *  is knowable. Idle is not a heartbeat: a map that has finished its fit
+ *  and has nothing left to draw fires it once and then never again, so a
+ *  budget counted only in idles could wait forever — a Charlotte bus, with
+ *  no pyramid under it, opened on an empty map. Long enough to cover the
+ *  fit's 800ms ease and the drawer settling. */
+const RECONCILE_DEADLINE_MS = 2500
+
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
   const portolan = usePortolanTransitService()
@@ -53,6 +61,8 @@ export function useRouteIsolationService() {
   /** The idle-driven reconciler for the current isolation, so teardown can
    *  unhook it. */
   let reconciler: (() => void) | null = null
+  /** The reconciler's deadline (see RECONCILE_DEADLINE_MS). */
+  let reconcileDeadline: ReturnType<typeof setTimeout> | null = null
 
   function initialize(map: any, fitBounds?: FitBoundsFn) {
     mapInstance = map
@@ -350,11 +360,25 @@ export function useRouteIsolationService() {
     }
     reconciler = reconcile
     mapInstance.on('idle', reconcile)
+
+    // Out of time: take portolan's answer if it has one, else the overlay.
+    reconcileDeadline = setTimeout(() => {
+      reconcileDeadline = null
+      if (generation !== isolationGeneration || renderer) return
+      const token = portolan.portolanTransitActive()
+        ? portolan.portolanRouteToken(route.routeId!, along)
+        : null
+      if (token) renderViaPortolan(token)
+      else renderViaOverlay()
+      detachReconciler()
+    }, RECONCILE_DEADLINE_MS)
   }
 
   function detachReconciler() {
     if (reconciler && mapInstance) mapInstance.off('idle', reconciler)
     reconciler = null
+    if (reconcileDeadline) clearTimeout(reconcileDeadline)
+    reconcileDeadline = null
   }
 
   function removeIsolation() {

@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* An opened transit line looks the same as on the transit map, with a bold line, stop names and transfer bullets, including buses in cities the detailed transit map does not cover.
+
 ## [0.20.1-1] - 2026-11-08
 
 ### Added

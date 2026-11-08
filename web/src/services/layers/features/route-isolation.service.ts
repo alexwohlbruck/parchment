@@ -1,22 +1,33 @@
 /**
  * Route Isolation Service
  *
- * When a route detail is active, this service:
- *   1. Dims the rest of the transit network (it stays on the map)
- *   2. Adds a highlighted route shape to the map (bold, route-colored)
- *   3. Adds station markers along the route
- *   4. Cleans up when the route is deactivated
+ * When a route detail is active, this service lifts the route out of the
+ * transit network: the rest of the network dims behind it, and the route
+ * keeps its line, its stations and their names and bullets at full
+ * strength. It looks the same whoever draws it:
  *
- * Designed to work with any MapStrategy that has a mapInstance (Mapbox/MapLibre).
+ *   - portolan, where a pyramid covers the route — its own ribbon,
+ *     stations and lettering (and the hours: which spans run now);
+ *   - portolan drawing the route's OWN shape and stops, where no pyramid
+ *     does — a bus in a city with none — through the same station layers,
+ *     bullet strips and line style (see setDrawnRoutes);
+ *   - a plain shape-and-circles overlay, only when the transit layer is
+ *     off and portolan is not on the map at all.
  */
 
-import { watch, type WatchStopHandle } from 'vue'
-import type { RouteDetailStop } from '@/types/transit.types'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { computed, watch, type WatchStopHandle } from 'vue'
+import type { RouteDetail, RouteDetailStop } from '@/types/transit.types'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
 import { densifyLine } from '@/lib/geo/geo-densify'
 import { projectAlong, sliceAlong } from '@/lib/geo/geo-line'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
-import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import {
+  usePortolanTransitService,
+  type PortolanDrawnRoute,
+} from '@/services/layers/features/portolan/portolan-transit.service'
+import { stopBulletsFor } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   fadeTransitNetwork,
   networkDimOpacity,
@@ -34,141 +45,111 @@ const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
 const STOPS = stopOverlayIds('route-detail-stops')
 
-/** How long the reconciler may go undecided before it settles on whatever
- *  is knowable. Idle is not a heartbeat: a map that has finished its fit
- *  and has nothing left to draw fires it once and then never again, so a
+/** How long the reconciler may go undecided before it settles on a
+ *  fallback. Idle is not a heartbeat: a map that has finished its fit and
+ *  has nothing left to draw fires it once and then never again, so a
  *  budget counted only in idles could wait forever — a Charlotte bus, with
  *  no pyramid under it, opened on an empty map. Long enough to cover the
  *  fit's 800ms ease and the drawer settling. */
 const RECONCILE_DEADLINE_MS = 2500
+
+/** Idles to wait for portolan to hydrate, and idles to keep asking once it
+ *  has, before settling on a fallback. */
+const HYDRATION_IDLES = 6
+const MISS_IDLES = 3
+
+/** Settling on a fallback is not the last word: a pyramid whose tiles land
+ *  late — a slow phone, a cold cache — still takes the route back. This
+ *  many idles after settling, it stops asking. */
+const UPGRADE_IDLES = 20
+
+/** Points spread along a route pin portolan's token to THIS route's
+ *  geometry (see portolanRouteToken). */
+const TOKEN_PROBES = 8
+
+type Renderer = 'portolan' | 'drawn' | 'overlay'
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
   const portolan = usePortolanTransitService()
   let mapInstance: any = null
   let fitBoundsFn: FitBoundsFn | null = null
-  let watchStop: WatchStopHandle | null = null
-  let stopsWatchStop: WatchStopHandle | null = null
-  let serviceWatchStop: WatchStopHandle | null = null
+  const watchStops: WatchStopHandle[] = []
   let isIsolated = false
-  /** True while portolan's own layers are carrying the isolation, so the
-   *  teardown knows to widen them again rather than un-fade them. */
-  let portolanIsolated = false
-  /** Bumps on every isolate/restore, so a deferred confirmation that
-   *  belongs to a route the rider has already navigated away from does
-   *  nothing at all. */
+  /** Bumps on every isolate/restore, so a deferred answer that belongs to
+   *  a route the rider has already navigated away from does nothing. */
   let isolationGeneration = 0
-  /** The idle-driven reconciler for the current isolation, so teardown can
-   *  unhook it. */
-  let reconciler: (() => void) | null = null
-  /** The reconciler's deadline (see RECONCILE_DEADLINE_MS). */
+  /** The reconciler for the current isolation: its map listeners and its
+   *  deadline, so teardown can unhook both. */
+  let reconciler: Array<[string, (e?: any) => void]> | null = null
   let reconcileDeadline: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * Who is drawing this isolation.
+   *
+   * Portolan, once it claims the route, keeps it: the test for "does
+   * portolan draw this route" reads the tiles loaded right now, so it
+   * answers no whenever the map has panned off the route, and re-asking
+   * let a pan tear portolan's ribbon down mid-view. A fallback is only
+   * ever UPGRADED — to portolan when its tiles answer late, from the plain
+   * overlay to the drawn route once portolan comes up.
+   */
+  let renderer: Renderer | null = null
+  /** Whether the network dim was asked of portolan here, so teardown knows
+   *  to give it back. */
+  let networkDimmed = false
 
   function initialize(map: any, fitBounds?: FitBoundsFn) {
     mapInstance = map
     fitBoundsFn = fitBounds ?? null
 
-    watchStop = watch(
-      () => routeDetailStore.activeRoute,
-      (route) => {
-        if (route) {
-          applyIsolation(route)
-        } else {
-          removeIsolation()
-        }
-      },
-      { immediate: true },
-    )
-
-    // What the boards said, so the map's bullets fade the lines that are
-    // not running exactly where the stop list fades them.
-    serviceWatchStop = watch(
-      () => routeDetailStore.runningAtStops,
-      (running) => portolan.setStopService('route', running.size ? running : null),
-      { immediate: true },
-    )
-
-    // The running path, pushed as it settles (boards answering, alerts
-    // landing) so the map's stations track the panel's timeline. Portolan
-    // holds it and applies it only while a route is isolated — and when the
-    // path turns out to end short of the line, the whole render is redone,
-    // because which renderer draws the line depends on it.
-    stopsWatchStop = watch(
-      () => routeDetailStore.servedStops,
-      (stops) => {
-        portolan.setIsolatedRouteStops(
-          stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
-        )
-        const route = routeDetailStore.activeRoute
-        if (isIsolated && route) render(route, isolationGeneration)
-      },
-      { immediate: true },
+    watchStops.push(
+      watch(
+        () => routeDetailStore.activeRoute,
+        (route) => (route ? applyIsolation(route) : removeIsolation()),
+        { immediate: true },
+      ),
+      // What the boards said, so the map's bullets fade the lines that are
+      // not running exactly where the stop list fades them.
+      watch(
+        () => routeDetailStore.runningAtStops,
+        (running) => portolan.setStopService('route', running.size ? running : null),
+        { immediate: true },
+      ),
+      // The running path, pushed as it settles (boards answering, alerts
+      // landing) so the map's stations track the panel's timeline. Portolan
+      // holds it and applies it only while a route is isolated.
+      watch(
+        () => routeDetailStore.servedStops,
+        (stops) =>
+          portolan.setIsolatedRouteStops(
+            stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
+          ),
+        { immediate: true },
+      ),
+      // Whatever the panel's data says now, the map says too: the running
+      // span, the stops the line calls at and their bullets — which resolve
+      // as the curated styles land.
+      watch(
+        () => [drawnRoute.value, runningGeometry.value] as const,
+        () => redraw(),
+      ),
     )
   }
 
-  /**
-   * Isolate by LIFTING the route out of portolan rather than drawing over
-   * it.
-   *
-   * Where portolan draws the route, its own ribbons already have the
-   * geometry, the colour, the stations and the labels — and, uniquely,
-   * the hours: a per-route mask on every segment, which is the only thing
-   * on this map that knows the 5 runs a fraction of its route at night or
-   * that the B stops running at all. So the route keeps full strength
-   * exactly where it runs at this hour, and the rest of the network dims
-   * behind it instead of disappearing: a line is followed through a city,
-   * and the ribbons it crosses are what make the next transfer visible.
-   *
-   * Where portolan does not draw it — a bus in a city with no pyramid —
-   * the shape-and-circles view is still the only view there is.
-   */
-  /**
-   * Tear down the shape-and-circles overlay.
-   *
-   * It and portolan's ribbon are two renderings of the same line, and they
-   * can never agree on screen: portolan draws bundled routes at parallel
-   * slot offsets (`line-offset`), so its ribbon sits beside the centreline
-   * this overlay is drawn on, with its own station dots and labels beside
-   * ours. Only one of them may be on the map at a time.
-   */
-  function removeRouteOverlay() {
-    removeStopOverlay(mapInstance, STOPS)
-    removeLayerIfExists(mapInstance, ROUTE_LAYER_ID)
-    removeSourceIfExists(mapInstance, ROUTE_SOURCE_ID)
+  /** The stops the line calls at now, else every stop it has. */
+  function stopsOf(route: RouteDetail): RouteDetailStop[] {
+    const served = routeDetailStore.servedStops
+    return served.length ? served : route.stops
   }
-
-  type IsolatableRoute = {
-    routeId?: string
-    routeColor: string | null
-    coordinates: [number, number][] | null
-    stops: RouteDetailStop[]
-  }
-
-  /** Signature of the last render, so the served-stops watcher can re-ask
-   *  for the same picture repeatedly without redrawing it. */
-  let renderedSig = ''
-
-  /**
-   * Who is drawing this isolation — decided ONCE, and never revisited.
-   *
-   * The test for "does portolan draw this route" reads the tiles loaded
-   * right now, so it answers no whenever the map has panned off the route.
-   * Re-running it on every settle (boards answering, alerts landing) let a
-   * pan tear portolan's ribbon, stations and bullets down and replace them
-   * mid-view with the plain shape-and-circles overlay. A later render may
-   * change WHAT is drawn; it may not change WHO draws it.
-   */
-  let renderer: 'portolan' | 'overlay' | null = null
 
   /**
    * The route's shape cut down to the span between the running path's two
    * end stops, or null when there is nothing to cut with. The ends are
    * found by the stops' own distance-along metric, then projected onto the
-   * shape so cut and stop land in the same place; a path spanning the full
-   * shape slices to the whole thing, which is what a mere branch-break
-   * (canonical shape already right, ribbon wrong) needs.
+   * shape so cut and stop land in the same place.
    */
-  function runningSlice(route: IsolatableRoute): [number, number][] | null {
+  function runningSlice(route: RouteDetail): [number, number][] | null {
     const coords = route.coordinates
     if (!coords || coords.length < 2) return null
     const served = routeDetailStore.servedStops
@@ -185,220 +166,261 @@ export function useRouteIsolationService() {
     return sliced.length >= 2 ? sliced : null
   }
 
-  function applyIsolation(route: IsolatableRoute) {
-    if (!mapInstance) return
-
-    // A previous pass may have left the overlay or its reconciler up —
-    // switching direction or reopening re-runs this, and portolan may answer
-    // differently the second time now that its tiles have arrived.
-    detachReconciler()
-    removeRouteOverlay()
-
-    // Fit map to route bounds
-    fitToRoute(route)
-
-    const generation = ++isolationGeneration
-    isIsolated = true
-    renderedSig = ''
-    renderer = null
-    render(route, generation)
+  /** The line the fallbacks draw: the running span, else the whole shape. */
+  function lineOf(route: RouteDetail): [number, number][] | null {
+    return runningSlice(route) ?? route.coordinates
   }
 
   /**
-   * Draw the isolated route from what is knowable right now. Re-entrant:
-   * the served-stops watcher re-runs it as the boards and alerts land,
-   * because their answer can change WHICH renderer draws the line.
+   * The route as portolan draws one it has no pyramid for.
+   *
+   * Each stop carries the bullets its station label would: the line's own
+   * and every connection, resolved and ordered by the same code as the stop
+   * list beside the map, so a bullet means the same thing on both.
    */
-  function render(route: IsolatableRoute, generation: number) {
-    if (!mapInstance || generation !== isolationGeneration) return
-    const broken = routeDetailStore.pathLeavesTrack
-    const sig =
-      (broken ? 'break' : 'full') +
-      '|' + routeDetailStore.servedStops.map(s => s.stopId).join(',')
-    if (sig === renderedSig) return
-    renderedSig = sig
-    detachReconciler()
-
-    /** Portolan draws the route: dim everything else and stand the overlay
-     *  down. Idempotent — the reconciler may land here repeatedly. */
-    const renderViaPortolan = (token: string) => {
-      renderer = 'portolan'
-      portolan.setIsolatedRoute(token)
-      if (!portolanIsolated) {
-        portolanIsolated = true
-        // re-derive: the overlay pass faded portolan's layers flat
-        fadeTransitNetwork(mapInstance, null)
-        fadeTransitNetwork(mapInstance, networkDimOpacity(), { skipPortolan: true })
-      }
-      removeRouteOverlay()
+  const drawnRoute = computed((): PortolanDrawnRoute | null => {
+    const route = routeDetailStore.activeRoute
+    if (!route) return null
+    const self = {
+      routeId: route.routeId,
+      routeShortName: route.routeShortName,
+      routeLongName: route.routeLongName,
+      routeType: route.routeType,
+      routeColor: route.routeColor,
+      routeTextColor: route.routeTextColor,
     }
-
-    /** No pyramid draws this route: the shape-and-circles overlay is the
-     *  only view there is. It too draws the running span, not the full
-     *  timetable line. */
-    const renderViaOverlay = () => {
-      renderer = 'overlay'
-      if (portolanIsolated) {
-        portolan.setIsolatedRoute(null)
-        portolanIsolated = false
-        fadeTransitNetwork(mapInstance, null)
-      }
-      fadeTransitNetwork(mapInstance, networkDimOpacity())
-      const coords = runningSlice(route) ?? route.coordinates
-      if (coords && coords.length >= 2) {
-        addRouteShape(coords, route.routeColor)
-      }
-      const stops = routeDetailStore.servedStops.length
-        ? routeDetailStore.servedStops
-        : route.stops
-      addStopOverlay(
-        mapInstance,
-        STOPS,
-        stops.map(s => ({ name: s.stopName, lng: s.lng, lat: s.lat })),
-        route.routeColor,
-      )
+    return {
+      color: route.routeColor,
+      coordinates: lineOf(route),
+      stops: stopsOf(route).map(stop => ({
+        name: stop.stopName,
+        lng: stop.lng,
+        lat: stop.lat,
+        bullets: stopBulletsFor(
+          [self, ...(stop.routes ?? []).filter(r => r.routeId !== route.routeId)],
+          stop,
+        ).map(b => ({ label: b.label, color: b.color, shape: b.shape })),
+      })),
     }
+  })
 
-    // A confirmed break does not change WHO renders — portolan keeps the
-    // stations, bullets and labels — only what the line's geometry is.
-    // The tiles can only draw the timetable's line, and the timetable is
-    // what the break disproves, so portolan is handed the running span
-    // and draws that as the isolated ribbon instead.
-    portolan.setIsolatedRouteGeometry(
-      broken ? runningSlice(route) : null,
+  /** What portolan's own ribbon should draw: the running span when the
+   *  path has left the timetable's line, else the line as tiled. */
+  const runningGeometry = computed(() => {
+    const route = routeDetailStore.activeRoute
+    if (!route) return null
+    return routeDetailStore.pathLeavesTrack ? runningSlice(route) : null
+  })
+
+  /** Probes spread along the route, to pin portolan's token to it. */
+  function probesAlong(route: RouteDetail): [number, number][] {
+    const stops = route.stops
+    if (!stops.length) return []
+    const want = Math.min(TOKEN_PROBES, stops.length)
+    const step = (stops.length - 1) / Math.max(1, want - 1)
+    const out: [number, number][] = []
+    for (let i = 0; i < want; i++) {
+      const s = stops[Math.round(i * step)]
+      if (s) out.push([s.lng, s.lat])
+    }
+    return out
+  }
+
+  /**
+   * Portolan's token for this route, or null.
+   *
+   * ONLY a resolved token may be isolated. The bare GTFS id is not a
+   * portolan token: tokens are prefixed per feed (`f3:2`) for every feed
+   * after the first, so an UNPREFIXED id addresses the first feed's route
+   * of that number — isolating Metro-North's 2 on the bare `2` lit up the
+   * LIRR.
+   */
+  function tokenFor(route: RouteDetail): string | null {
+    if (!route.routeId || !portolan.portolanTransitActive()) return null
+    return portolan.portolanRouteToken(route.routeId, probesAlong(route))
+  }
+
+  // ── the three renderers ─────────────────────────────────────────────
+
+  function dimNetwork() {
+    if (!networkDimmed) {
+      networkDimmed = true
+      portolan.setNetworkDim(true)
+    }
+    // the retired transitland layers have no renderer of their own to ask
+    fadeTransitNetwork(mapInstance, networkDimOpacity(), { skipPortolan: true })
+  }
+
+  function undimNetwork() {
+    if (networkDimmed) {
+      networkDimmed = false
+      portolan.setNetworkDim(false)
+    }
+    fadeTransitNetwork(mapInstance, null)
+  }
+
+  /** Portolan's own ribbon carries the isolation, and dims the rest
+   *  itself. */
+  function renderViaPortolan(route: RouteDetail, token: string) {
+    renderer = 'portolan'
+    portolan.setDrawnRoutes(null)
+    removeRouteOverlay()
+    if (networkDimmed) {
+      networkDimmed = false
+      portolan.setNetworkDim(false)
+    }
+    portolan.setIsolatedRoute(token)
+    portolan.setIsolatedRouteGeometry(runningGeometry.value, route.routeColor)
+    fadeTransitNetwork(mapInstance, null)
+    fadeTransitNetwork(mapInstance, networkDimOpacity(), { skipPortolan: true })
+  }
+
+  /** No pyramid draws this route: portolan draws its own shape and stops. */
+  function renderViaDrawn() {
+    renderer = 'drawn'
+    removeRouteOverlay()
+    dimNetwork()
+    portolan.setDrawnRoutes(drawnRoute.value ? [drawnRoute.value] : null)
+  }
+
+  /** Portolan is not on the map at all: the plain overlay is all there is. */
+  function renderViaOverlay(route: RouteDetail) {
+    renderer = 'overlay'
+    fadeTransitNetwork(mapInstance, networkDimOpacity())
+    const coords = lineOf(route)
+    if (coords && coords.length >= 2) addRouteShape(coords, route.routeColor)
+    addStopOverlay(
+      mapInstance,
+      STOPS,
+      stopsOf(route).map(s => ({ name: s.stopName, lng: s.lng, lat: s.lat })),
       route.routeColor,
     )
+  }
 
-    // Settled already: the renderer stands, and the geometry above is the
-    // only thing this pass had to say.
-    if (renderer === 'portolan') return
-    if (renderer === 'overlay') {
-      renderViaOverlay()
+  /** The best fallback available right now. */
+  function settle(route: RouteDetail) {
+    if (portolan.portolanTransitActive()) renderViaDrawn()
+    else renderViaOverlay(route)
+  }
+
+  /** The panel's data moved on (the running path settled, bullets
+   *  resolved): say it again in whichever renderer has the route. */
+  function redraw() {
+    const route = routeDetailStore.activeRoute
+    if (!isIsolated || !route) return
+    if (renderer === 'drawn') {
+      portolan.setDrawnRoutes(drawnRoute.value ? [drawnRoute.value] : null)
+    } else if (renderer === 'overlay') {
+      renderViaOverlay(route)
+    } else if (renderer === 'portolan') {
+      // The tiles can only draw the timetable's line; when the path has
+      // left it, portolan is handed the running span instead.
+      portolan.setIsolatedRouteGeometry(runningGeometry.value, route.routeColor)
+    }
+  }
+
+  function removeRouteOverlay() {
+    removeStopOverlay(mapInstance, STOPS)
+    removeLayerIfExists(mapInstance, ROUTE_LAYER_ID)
+    removeSourceIfExists(mapInstance, ROUTE_SOURCE_ID)
+  }
+
+  // ── deciding who draws ──────────────────────────────────────────────
+
+  function applyIsolation(route: RouteDetail) {
+    if (!mapInstance) return
+    teardown()
+    fitToRoute(route)
+    const generation = ++isolationGeneration
+    isIsolated = true
+
+    if (!portolan.isPortolanTransitEnabled()) {
+      renderViaOverlay(route)
       return
     }
 
     // First paint, from what is knowable right now. Optimistic about
-    // portolan: asking for the token this instant would answer "no" for a
-    // route it draws perfectly well, because the tiles that answer are
-    // still arriving with the fit. Narrowing the ribbons to a route that
-    // turns out to be nothing shows nothing for a moment; drawing the
-    // overlay over ribbons that turn out to draw the route shows the line
-    // twice, in two styles — so lean portolan whenever it is on at all.
-    // Points spread along THIS route pin the answer to its geometry: several
-    // feeds can share a bare id, and a shared terminal (LIRR and Metro-North
-    // both reach Grand Central) means one stop cannot tell them apart. Ends
-    // and middles can.
-    const along: [number, number][] = (() => {
-      const stops = route.stops
-      if (!stops.length) return []
-      const want = Math.min(8, stops.length)
-      const step = (stops.length - 1) / Math.max(1, want - 1)
-      const out: [number, number][] = []
-      for (let i = 0; i < want; i++) {
-        const s = stops[Math.round(i * step)]
-        if (s) out.push([s.lng, s.lat])
-      }
-      return out
-    })()
-
-    // The question is whether portolan is TURNED ON, not whether it has
-    // finished hydrating: on a cold load it is enabled but not ready for a
-    // second or so, and drawing the overlay in that gap put the plain
-    // shape-and-circles labels on screen only to replace them with
-    // portolan's bulleted ones a moment later. Nothing at all is the better
-    // first frame — the reconciler fills it in as soon as the tiles can
-    // answer, and the overlay is still there for feeds portolan does not
-    // draw.
-    if (route.routeId && portolan.isPortolanTransitEnabled()) {
-      // ONLY a resolved token may be isolated. The bare GTFS id is not a
-      // portolan token: tokens are prefixed per feed (`f3:2`) for every feed
-      // after the first, so an UNPREFIXED id addresses the first feed's
-      // route of that number — isolating Metro-North's 2 on the bare `2`
-      // lit up the LIRR. There is no safe guess here; when the token cannot
-      // be verified the reconciler asks again, and until it can, nothing is
-      // isolated at all.
-      const token = portolan.portolanTransitActive()
-        ? portolan.portolanRouteToken(route.routeId, along)
-        : null
-      if (token) renderViaPortolan(token)
-    } else {
-      renderViaOverlay()
+    // portolan: the tiles that answer are still arriving with the fit, and
+    // a fallback drawn in that gap only to be replaced a moment later shows
+    // the line twice, in two styles. Nothing at all is the better first
+    // frame — the reconciler fills it in.
+    const token = tokenFor(route)
+    if (token) {
+      renderViaPortolan(route, token)
+      return
     }
 
-    // Then reconcile on every idle until the answer is definitive. One
-    // idle was never enough: the first can fire before the route's tiles
-    // arrive (the fit is an 800ms ease), and portolan's own hydration can
-    // finish long after the panel opened — the decide-once version of this
-    // is exactly how a route ended up drawn twice.
-    if (!route.routeId) return
-    let missesWhileReady = 0
+    // Then reconcile until the answer is definitive, and past it: a
+    // fallback is upgraded if portolan claims the route late.
     let waitsForHydration = 0
-    const reconcile = () => {
+    let missesWhileReady = 0
+    let idlesSinceSettled = 0
+    const tryPortolan = (): boolean => {
+      const t = tokenFor(route)
+      if (!t) return false
+      renderViaPortolan(route, t)
+      detachReconciler()
+      return true
+    }
+    const onIdle = () => {
       if (generation !== isolationGeneration) return detachReconciler()
-      if (!portolan.portolanTransitActive()) {
-        // Hydration still coming. It normally lands within a couple of
-        // idles; if it never does, fall back rather than leave the route
-        // undrawn entirely.
-        if (++waitsForHydration >= 6) {
-          renderViaOverlay()
-          detachReconciler()
-        }
+      if (tryPortolan()) return
+      if (renderer) {
+        // the overlay steps up to the drawn route once portolan is up
+        if (renderer === 'overlay' && portolan.portolanTransitActive()) renderViaDrawn()
+        if (++idlesSinceSettled >= UPGRADE_IDLES) detachReconciler()
         return
       }
-      const token = portolan.portolanRouteToken(route.routeId!, along)
-      if (token) {
-        renderViaPortolan(token)
-        return detachReconciler()
+      if (!portolan.portolanTransitActive()) {
+        if (++waitsForHydration >= HYDRATION_IDLES) settle(route)
+        return
       }
       // Ready, tiles idle, still unknown. Once the fit has landed and the
       // tiles under it have answered a few times, that IS the answer: no
       // pyramid draws this route here.
-      if (++missesWhileReady >= 3) {
-        renderViaOverlay()
-        detachReconciler()
-      }
+      if (++missesWhileReady >= MISS_IDLES) settle(route)
     }
-    reconciler = reconcile
-    mapInstance.on('idle', reconcile)
+    // A portolan tile source finishing is the earliest instant its token
+    // can be resolved; it only ever answers, never counts toward a miss.
+    const onSourceData = (e: any) => {
+      if (generation !== isolationGeneration) return detachReconciler()
+      if (!String(e?.sourceId ?? '').startsWith('portolan-tiles-')) return
+      if (e.isSourceLoaded) tryPortolan()
+    }
+    reconciler = [
+      ['idle', onIdle],
+      ['sourcedata', onSourceData],
+    ]
+    for (const [ev, fn] of reconciler) mapInstance.on(ev, fn)
 
-    // Out of time: take portolan's answer if it has one, else the overlay.
     reconcileDeadline = setTimeout(() => {
       reconcileDeadline = null
-      if (generation !== isolationGeneration || renderer) return
-      const token = portolan.portolanTransitActive()
-        ? portolan.portolanRouteToken(route.routeId!, along)
-        : null
-      if (token) renderViaPortolan(token)
-      else renderViaOverlay()
-      detachReconciler()
+      if (generation === isolationGeneration && !renderer) settle(route)
     }, RECONCILE_DEADLINE_MS)
   }
 
   function detachReconciler() {
-    if (reconciler && mapInstance) mapInstance.off('idle', reconciler)
+    for (const [ev, fn] of reconciler ?? []) mapInstance?.off(ev, fn)
     reconciler = null
     if (reconcileDeadline) clearTimeout(reconcileDeadline)
     reconcileDeadline = null
   }
 
+  /** Take down whatever is drawing the current isolation. */
+  function teardown() {
+    detachReconciler()
+    if (renderer === 'portolan') portolan.setIsolatedRoute(null)
+    portolan.setIsolatedRouteGeometry(null)
+    portolan.setDrawnRoutes(null)
+    removeRouteOverlay()
+    undimNetwork()
+    renderer = null
+  }
+
   function removeIsolation() {
     if (!mapInstance || !isIsolated) return
     isolationGeneration++
-    renderedSig = ''
-    renderer = null
-    detachReconciler()
-
-    if (portolanIsolated) {
-      portolan.setIsolatedRoute(null)
-      portolanIsolated = false
-    }
-    portolan.setIsolatedRouteGeometry(null)
-
-    // Restore transit layer opacity
-    fadeTransitNetwork(mapInstance, null)
-
-    removeRouteOverlay()
-
+    teardown()
     isIsolated = false
   }
 
@@ -497,12 +519,7 @@ export function useRouteIsolationService() {
 
   function destroy() {
     removeIsolation()
-    watchStop?.()
-    watchStop = null
-    stopsWatchStop?.()
-    stopsWatchStop = null
-    serviceWatchStop?.()
-    serviceWatchStop = null
+    for (const stop of watchStops.splice(0)) stop()
     mapInstance = null
     fitBoundsFn = null
   }

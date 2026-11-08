@@ -3,10 +3,10 @@ import { computed, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import type { DepartureContext, VehicleOnRoute, RouteDetailStop, StopTransferRoute } from '@/types/transit.types'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
-import { orderBullets } from '@/lib/transit/transit-bullets'
 import {
   bulletFor,
   ensureBulletsAt,
+  stopBulletsFor,
 } from '@/services/layers/features/portolan/portolan-bullets'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import {
@@ -294,34 +294,9 @@ function isStopInPast(stop: { stopId: string }): boolean {
   return new Date(time).getTime() < Date.now()
 }
 
-/**
- * Portolan's curated bullet for a line at a stop, or null.
- *
- * The map is usually open beside this panel drawing the same lines, so the
- * glyphs have to agree — a notched square here and a plain circle there for
- * the same route reads as two different routes. Passing the stop's own point
- * picks the pyramid covering it, and the route type keeps a metro 4 from
- * matching a commuter-rail one.
- */
-const stopBullet = (route: StopTransferRoute, stop: RouteDetailStop) =>
-  bulletFor(route.routeId, stop.lat, stop.lng, route.routeType, route.routeShortName || route.routeLongName)
-
-/**
- * A stop's connections in the same order the station header puts them.
- *
- * The server returns them by its own SQL sort (station-before-transfer,
- * then route type and short name), which reads as a different system from
- * the one the header shows for the same station. `orderBullets` is that
- * shared rule — it sorts by the bullet's own glyph and colour, which is
- * what a rider is actually scanning.
- */
-const stopRoutes = (stop: RouteDetailStop): StopTransferRoute[] =>
-  orderBullets(stop.routes ?? [], r => ({
-    label:
-      stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || '',
-    color: stopBullet(r, stop)?.color || r.routeColor,
-    id: r.routeId,
-  }))
+/** A stop's connections as bullets, resolved and ordered by the same code
+ *  the map's station labels use, so the two agree glyph for glyph. */
+const stopRoutes = (stop: RouteDetailStop) => stopBulletsFor(stop.routes ?? [], stop)
 
 // Curated styles are fetched per feed and per session. Ask once the stops
 // land, using the first one as the point — a route stays inside one city.
@@ -702,19 +677,19 @@ onUnmounted(() => {
                    same mistake; the two now agree. -->
               <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
                 <button
-                  v-for="r in stopRoutes(stop)"
-                  :key="r.routeId"
+                  v-for="b in stopRoutes(stop)"
+                  :key="b.route.routeId"
                   type="button"
                   class="cursor-pointer transition-transform hover:scale-110"
-                  :title="bulletTitle(stop, r)"
-                  @click="openRouteDetail(r)"
+                  :title="bulletTitle(stop, b.route)"
+                  @click="openRouteDetail(b.route)"
                 >
                   <RouteBullet
-                    :label="stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || ''"
-                    :color="stopBullet(r, stop)?.color || r.routeColor"
-                    :shape="stopBullet(r, stop)?.shape"
-                    :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
-                    :class="!isRouteRunningAt(stop, r) && 'opacity-40 saturate-50'"
+                    :label="b.label"
+                    :color="b.color"
+                    :shape="b.shape"
+                    :text-color="b.textColor"
+                    :class="!isRouteRunningAt(stop, b.route) && 'opacity-40 saturate-50'"
                   />
                 </button>
               </div>

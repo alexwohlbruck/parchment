@@ -34,6 +34,9 @@ export interface FocusedLeg {
   /** The line's own colour, as the trip's polyline draws it (`#rrggbb`), or
    *  null for a feed that publishes none. */
   color: string | null
+  /** The line's own names, for its bullet where nothing curated one. */
+  shortName: string | null
+  longName: string | null
 }
 
 /** Feed-local id, or null when there is nothing to strip. */
@@ -87,6 +90,8 @@ export function focusedLegs(trip: { segments?: unknown[] } | null | undefined): 
       tripId: local(td?.trip?.id),
       stops,
       color: color ? (color.startsWith('#') ? color : `#${color}`) : null,
+      shortName: td?.route?.shortName ?? td?.shortName ?? null,
+      longName: td?.route?.longName ?? null,
     })
   })
 

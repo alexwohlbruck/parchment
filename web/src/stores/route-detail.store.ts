@@ -8,6 +8,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
+import { useRecentsStore } from '@/stores/recents.store'
 import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import { projectVehicleOnRoute } from '@/lib/transit/route-projection'
@@ -403,6 +404,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       // Guard: if another openRoute was called while we awaited, bail
       if (gen !== openGeneration) return
       activeRoute.value = data
+      useRecentsStore().recordTransitRoute(data)
       startVehiclePolling()
     } catch (err) {
       if (gen !== openGeneration) return

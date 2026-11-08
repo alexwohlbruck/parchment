@@ -2,6 +2,8 @@
 
 ### Added
 
+* Transit lines you open now show up in your search recents, wearing their route bullet.
+
 ### Changed
 
 ### Fixed

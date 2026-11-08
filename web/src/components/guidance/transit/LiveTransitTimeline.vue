@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useResizeObserver } from '@vueuse/core'
-import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
-import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
-import { formatDurationCompact } from '@/lib/time-format'
+import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
+import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { rideStops, type TransitStage } from '@/lib/guidance/transit-progress'
 import { timelineY, type TimelineAnchor } from '@/lib/guidance/timeline-position'
 import { register as registerTick, type Tick } from '@/lib/map/animation-scheduler'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import VehicleThumbnail from '../VehicleThumbnail.vue'
 
@@ -19,10 +18,19 @@ const props = defineProps<{
   current: number
   stage: TransitStage | null
 }>()
-const { t } = useI18n()
 const guidance = useGuidanceStore()
+const directionsStore = useDirectionsStore()
 
-const modeKey = (mode: string) => (mode === 'biking' ? 'cycling' : mode)
+const waypoints = useRouteWaypoints(() => {
+  const planned = directionsStore.trips
+  const ours = planned?.trips.some(trip => trip.id === guidance.tripId)
+  const leg = guidance.legIndex
+  return {
+    waypoints: ours ? planned?.request?.waypoints?.slice(leg, leg + 2) : undefined,
+    startTime: props.segments[0]?.startTime,
+    endTime: props.segments.at(-1)?.endTime,
+  }
+})
 
 const root = ref<HTMLElement | null>(null)
 const puck = ref<HTMLElement | null>(null)
@@ -40,30 +48,24 @@ const centerY = (el: Element, top: number) => {
   return rect.top - top + rect.height / 2
 }
 
-/** Pins each stop, and each leg's start and end, to its height in the timeline. */
+/** Pins every node on the rail to the point of the route it stands for. */
 function measure() {
   const route = guidance.route
   const container = root.value
   if (!route || !container) return
   const top = container.getBoundingClientRect().top
   const next: TimelineAnchor[] = []
-  for (const el of container.querySelectorAll<HTMLElement>('[data-segment]')) {
-    const i = Number(el.dataset.segment)
-    const span = route.segments[i]
-    if (!span) continue
-    const stops = rides.value[i]
-    if (stops && el.querySelector('[data-stop]')) {
+  for (const el of container.querySelectorAll<HTMLElement>('[data-node-segment], [data-segment-card]')) {
+    if (el.dataset.segmentCard != null) {
       const fold = el.querySelector('[data-stop-fold]')
-      stops.forEach((stop, k) => {
+      rides.value[Number(el.dataset.segmentCard)]?.forEach((stop, k) => {
         const dot = el.querySelector(`[data-stop="${k}"]`) ?? fold
         if (dot) next.push({ s: stop.s, y: centerY(dot, top) })
       })
       continue
     }
-    const icon = el.querySelector('[data-leg-icon]') ?? el
-    const following = el.nextElementSibling
-    const end = following?.matches('[data-segment]') ? following.getBoundingClientRect().top - top : el.getBoundingClientRect().bottom - top
-    next.push({ s: span.startDistance, y: centerY(icon, top) }, { s: span.endDistance, y: end })
+    const span = route.segments[Number(el.dataset.nodeSegment)]
+    if (span) next.push({ s: el.dataset.nodeAt === 'end' ? span.endDistance : span.startDistance, y: centerY(el, top) })
   }
   anchors = next
   shownY = null
@@ -95,32 +97,7 @@ onBeforeUnmount(() => unregisterTick?.())
 
 <template>
   <div ref="root" class="relative">
-    <div class="space-y-2">
-      <template v-for="(segment, i) in segments" :key="segment.id ?? i">
-        <TransitLegCard
-          v-if="segment.mode === 'transit' && segment.lineName"
-          :data-segment="i"
-          :segment="segment"
-          :rail-above="{ class: 'bg-transparent' }"
-          :passed="stage?.kind === 'riding' && stage.segmentIndex === i ? stage.passed : i < current ? Infinity : undefined"
-          :class="i < current && 'opacity-50'"
-        />
-        <div
-          v-else
-          :data-segment="i"
-          class="flex items-center py-1.5 pl-2 pr-2 text-sm"
-          :class="i < current ? 'opacity-50' : i === current ? 'font-medium' : 'text-muted-foreground'"
-        >
-          <span class="flex w-7 shrink-0 justify-center">
-            <component :is="getSegmentIcon(segment.mode)" data-leg-icon class="size-4" />
-          </span>
-          <span class="truncate pl-2.5">
-            {{ t(`guidance.transit.leg.${modeKey(segment.mode)}`, { duration: formatDurationCompact(segment.duration ?? 0) }) }}
-            <template v-if="segment.end?.label"> {{ t('guidance.transit.toPlace', { place: segment.end.label }) }}</template>
-          </span>
-        </div>
-      </template>
-    </div>
+    <TripTimeline :segments="segments" :waypoints="waypoints" :current="current" :stage="stage" />
     <div ref="puck" class="pointer-events-none invisible absolute left-[22px] top-0 z-20 w-12 will-change-transform">
       <VehicleThumbnail
         :indicator="guidance.vehicle.indicator"

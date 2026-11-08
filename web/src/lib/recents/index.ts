@@ -7,6 +7,8 @@
  */
 
 import type { PlaceCategory } from '@/types/place.types'
+import type { RouteBulletStyle, RouteDetail } from '@/types/transit.types'
+import { getRouteTypeKey } from '@/lib/transit/transit'
 import { createRecentsStore } from './recents-store'
 
 export { createRecentsStore } from './recents-store'
@@ -49,6 +51,8 @@ export interface RecentPlaceEntry {
   category?: PlaceCategory
   lat?: number
   lng?: number
+  /** Set for a transit line, which renders its route bullet instead of an icon. */
+  bullet?: RouteBulletStyle
   at: number // epoch ms
 }
 
@@ -62,6 +66,27 @@ export function recentSearchIdentity(e: RecentSearchEntry): string {
   if (e.kind === 'category' && e.categoryId) return `category:${e.categoryId}`
   if (e.kind === 'brand' && e.brandKey) return `brand:${e.brandKey}`
   return `text:${e.query.trim().toLowerCase()}`
+}
+
+const ROUTE_MODE_ICONS: Record<string, string> = { bus: 'Bus', ferry: 'Ship' }
+
+/**
+ * A transit line as a recent place. Its id is the search hit's
+ * `transit-route/<feedId>:<routeId>`, so it dedupes with that hit and routes
+ * back to the line through `getPlaceRoute`.
+ */
+export function transitRouteToRecentPlace(route: RouteDetail): RecentPlaceEntry {
+  const shortName = route.routeShortName?.trim()
+  return {
+    id: `transit-route/${route.feedId}:${route.routeId}`,
+    title: route.routeLongName?.trim() || shortName || route.routeId,
+    subtitle: route.agencyName || undefined,
+    icon: ROUTE_MODE_ICONS[getRouteTypeKey(route.routeType ?? undefined)] ?? 'TrainFront',
+    bullet: shortName
+      ? { label: shortName, color: route.routeColor, textColor: route.routeTextColor }
+      : undefined,
+    at: Date.now(),
+  }
 }
 
 /** Stable identity for a recently-viewed place — the same key space as above. */

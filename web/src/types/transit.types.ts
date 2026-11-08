@@ -45,6 +45,13 @@ export interface RouteDetailStop {
   routes?: StopTransferRoute[]
 }
 
+/** A route bullet: the line's short name on its GTFS colours. */
+export interface RouteBulletStyle {
+  label: string
+  color?: string | null
+  textColor?: string | null
+}
+
 export interface RouteDetail {
   feedId: string
   routeId: string

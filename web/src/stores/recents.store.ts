@@ -10,11 +10,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Place } from '@/types/place.types'
+import type { RouteDetail } from '@/types/transit.types'
 import { formatAddress } from '@/lib/place/place-details'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   recentSearches,
   recentPlaces,
+  transitRouteToRecentPlace,
   type RecentSearchEntry,
   type RecentPlaceEntry,
 } from '@/lib/recents'
@@ -177,6 +179,13 @@ export const useRecentsStore = defineStore('recents', () => {
     places.value = recentPlaces.list()
   }
 
+  function recordTransitRoute(route: RouteDetail) {
+    const userId = currentUserId()
+    if (!userId) return
+    recentPlaces.record(transitRouteToRecentPlace(route), userId)
+    places.value = recentPlaces.list()
+  }
+
   async function clearSearches() {
     const userId = currentUserId()
     if (!userId) return
@@ -200,6 +209,7 @@ export const useRecentsStore = defineStore('recents', () => {
     recordCategorySearch,
     recordBrandSearch,
     recordPlace,
+    recordTransitRoute,
     clearSearches,
     clearPlaces,
   }

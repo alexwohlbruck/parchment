@@ -108,6 +108,7 @@ export async function buildSearchSuggestions(
         (e.category || 'default') as PlaceCategory,
         isDark.value,
       ),
+      bullet: e.bullet,
       group: 'recents',
     },
   })

@@ -12,6 +12,7 @@ import {
 import { usePlaceService } from '@/services/place/place.service'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { ItemRow, ITEM_ROW_SIZES } from '@/components/ui/item-row'
 
 /**
@@ -101,6 +102,14 @@ const item = computed<PlaceDisplay>(() => {
 
 const scale = computed(() => ITEM_ROW_SIZES[props.size])
 
+/** A bullet sits in the icon's column at roughly the icon's height. */
+const BULLET_SLOT = {
+  xs: { size: 'sm', width: 'min-w-5' },
+  sm: { size: 'md', width: 'min-w-8' },
+  md: { size: 'lg', width: 'min-w-10' },
+  lg: { size: 'lg', width: 'min-w-12' },
+} as const
+
 // ── Which lines render ────────────────────────────────────────────────────
 
 const isChip = computed(() => props.variant === 'chip')
@@ -188,8 +197,20 @@ function onClick() {
     @click="onClick"
   >
     <template #icon="{ size: iconScale }">
+      <span
+        v-if="showIcon && item.bullet"
+        class="flex items-center justify-center shrink-0"
+        :class="[BULLET_SLOT[iconScale].width, isMultiline ? 'mt-0.5' : '']"
+      >
+        <RouteBullet
+          :label="item.bullet.label"
+          :color="item.bullet.color"
+          :text-color="item.bullet.textColor"
+          :size="BULLET_SLOT[iconScale].size"
+        />
+      </span>
       <ItemIcon
-        v-if="showIcon"
+        v-else-if="showIcon"
         :icon="item.icon"
         :icon-pack="item.iconPack"
         :color="item.color"

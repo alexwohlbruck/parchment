@@ -3,6 +3,7 @@
 ### Added
 
 * Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
+* Search works offline. Without a connection it finds your saved places, places you viewed recently and typed coordinates on the device, in the search box, the full results list and the directions fields. Opening one of those places offline shows what is saved about it instead of an empty page.
 
 ### Changed
 

@@ -18,6 +18,7 @@ import FilterChips from '@/components/map/FilterChips.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute } from '@/lib/place/place-route'
+import { localResultAsPlace } from '@/lib/search/local-search'
 import { usePlaceService } from '@/services/place/place.service'
 import { useRecentsStore } from '@/stores/recents.store'
 import { useCategoryStore } from '@/stores/category.store'
@@ -397,13 +398,15 @@ async function performSearch(opts: { refit?: boolean } = {}) {
       if (textQuery.trim()) useRecentsStore().recordSearch(textQuery)
 
       searchStore.setCategoryFields([])
-      const searchResults = await searchService.search({
+      const options = {
         query: route.query.q as string,
         lat: center.lat,
         lng: center.lng,
-        autocomplete: false,
         maxResults,
-      })
+      }
+      const searchResults = isOffline.value
+        ? []
+        : await searchService.search({ ...options, autocomplete: false })
       // Transit lines and GTFS-only stops ride along as pseudo-places; their
       // cards route to the transit views via placeToDisplay.
       places = (searchResults as SearchResult[])
@@ -412,6 +415,13 @@ async function performSearch(opts: { refit?: boolean } = {}) {
           result.type === 'transit_route' ||
           result.type === 'transit_stop')
         .map(result => result.metadata.place as unknown as Place)
+
+      // No server: list what matches on the device instead.
+      if (isOffline.value || searchService.error.value) {
+        places = (await searchService.searchLocally(options))
+          .map(localResultAsPlace)
+          .filter((p): p is Place => p !== null)
+      }
     }
 
     // Update the search store with results - this will automatically update the map layer

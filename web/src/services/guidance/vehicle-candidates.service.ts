@@ -51,6 +51,8 @@ export async function fetchVehicleCandidates(ride: CandidateRide): Promise<Candi
         routeType: c.route.type,
         headsign: c.headsign,
         departureMs: Date.parse(c.departureTime),
+        scheduledMs: c.scheduledDepartureTime ? Date.parse(c.scheduledDepartureTime) : undefined,
+        realTime: c.realTime,
         calls: c.calls.map(call => ({ stop: call.stopId, timeMs: Date.parse(call.time) })),
         position: c.position && { lat: c.position.lat, lng: c.position.lng, atMs: Date.parse(c.position.at) },
       })),

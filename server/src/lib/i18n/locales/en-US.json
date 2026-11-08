@@ -85,7 +85,9 @@
       "coordinatesRequired": "Both lat and lng parameters are required",
       "serviceUnavailable": "No geocoding service is currently available",
       "forwardFailed": "Failed to perform geocoding",
-      "reverseFailed": "Failed to perform reverse geocoding"
+      "reverseFailed": "Failed to perform reverse geocoding",
+      "what3wordsUnavailable": "what3words is not configured",
+      "what3wordsFailed": "Could not look up the what3words address"
     },
     "directions": {
       "noRoute": "No route found",

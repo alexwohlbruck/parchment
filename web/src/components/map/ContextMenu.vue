@@ -15,6 +15,9 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { isOffline } from '@/lib/connectivity'
+import { IntegrationId } from '@server/types/integration.types'
 import { mapEventBus } from '@/lib/event-bus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -96,6 +99,8 @@ const geocodedRoute = ref<RouteLocationRaw | null>(null)
 /** The reverse-geocoded place itself — kept for its resolved POI icon. */
 const geocodedPlace = ref<Place | null>(null)
 const isGeocoding = ref(false)
+/** The point's what3words address, when the integration is configured. */
+const what3words = ref<string | null>(null)
 
 /**
  * The place's own POI icon, styled exactly as it is on the place detail
@@ -131,6 +136,29 @@ function copyPlusCode(lngLat: LngLat) {
   if (plusCode) {
     navigator.clipboard.writeText(plusCode)
     appService.toast.info(t('messages.plusCodeCopied'))
+  }
+}
+
+function copyWhat3words(words: string) {
+  navigator.clipboard.writeText(`///${words}`)
+  appService.toast.info(t('messages.what3wordsCopied'))
+}
+
+/**
+ * Looks up the point's what3words address alongside the reverse geocode.
+ * It needs their API, so it is skipped offline and when no key is set up.
+ */
+async function loadWhat3words(lngLat: LngLat) {
+  what3words.value = null
+  const configured =
+    useIntegrationsStore().getConfigurationsForIntegration(IntegrationId.WHAT3WORDS).length > 0
+  if (!configured || isOffline.value) return
+  try {
+    const { words } = await useGeocodingService().what3wordsAt(lngLat.lat, lngLat.lng)
+    // The menu may have moved on to another point while this was in flight.
+    if (clickedLngLat.value === lngLat) what3words.value = words
+  } catch {
+    // Leave the row out; the other copy formats still work.
   }
 }
 
@@ -192,6 +220,7 @@ function openCoordinateDetail() {
 // Reverse geocode when context menu opens
 watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
   if (isOpen && lngLat) {
+    void loadWhat3words(lngLat)
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
@@ -228,6 +257,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
       isGeocoding.value = false
     }
   } else {
+    what3words.value = null
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
@@ -506,6 +536,16 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         onSelect: () => copyPlusCode(coords),
       },
     ]
+
+    const words = what3words.value
+    if (words) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-what3words',
+        label: `///${words}`,
+        onSelect: () => copyWhat3words(words),
+      })
+    }
 
     // Add place name copy option if available
     if (geocodedPlaceName.value) {

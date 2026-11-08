@@ -25,9 +25,12 @@ const reverseGeocode = mock(async (_lat: number, _lng: number) => [
 
 let configuredIntegrations: any[] = [{ integrationId: 'pelias' }]
 let cachedInstance: unknown = { capabilities: { geocoding: { geocode, reverseGeocode } } }
+let what3wordsKey: string | null = null
 
 mock.module('../services/integrations', () => ({
   integrationManager: {
+    getConfiguredIntegrations: () =>
+      what3wordsKey ? [{ integrationId: 'what3words', config: { apiKey: what3wordsKey } }] : [],
     getConfiguredIntegrationsByCapability: () => configuredIntegrations,
     getCachedIntegrationInstance: () => cachedInstance,
   },
@@ -46,6 +49,7 @@ const app = createTestApp(geocoding)
 
 beforeEach(() => {
   resetAuth()
+  what3wordsKey = null
   configuredIntegrations = [{ integrationId: 'pelias' }]
   cachedInstance = { capabilities: { geocoding: { geocode, reverseGeocode } } }
   geocode.mockClear()
@@ -262,5 +266,38 @@ describe('GET /geocoding/reverse', () => {
 
     expect(res.status).toBe(500)
     expect(res.body.message).toBe('nominatim 429')
+  })
+})
+
+describe('GET /geocoding/what3words', () => {
+  test('is 503 while the integration is not configured', async () => {
+    const res = await req(app).get('/geocoding/what3words', { query: { lat: '51.5', lng: '-0.19' } })
+    expect(res.status).toBe(503)
+  })
+
+  test('rejects out-of-range coordinates before calling what3words', async () => {
+    what3wordsKey = 'k'
+    const res = await req(app).get('/geocoding/what3words', { query: { lat: '91', lng: '0' } })
+    expect(res.status).toBe(400)
+  })
+
+  test('returns the words for the point in the request language', async () => {
+    what3wordsKey = 'k'
+    const realFetch = globalThis.fetch
+    let requested = ''
+    globalThis.fetch = (async (url: string) => {
+      requested = url
+      return Response.json({ words: 'filled.count.soap', nearestPlace: 'Bayswater, London' })
+    }) as any
+    try {
+      const res = await req(app).get('/geocoding/what3words', {
+        query: { lat: '51.520847', lng: '-0.195521' },
+      })
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ words: 'filled.count.soap', nearestPlace: 'Bayswater, London' })
+      expect(new URL(requested).searchParams.get('language')).toBe('en')
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 })

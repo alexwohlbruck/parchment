@@ -2,6 +2,10 @@ import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { forwardGeocode, reverseGeocode } from '../services/geocoding.service'
 import { logError } from '../lib/logger'
+import {
+  coordinatesToWhat3words,
+  isWhat3wordsAvailable,
+} from '../services/what3words.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
 const geocodingRouter = new Elysia({ prefix: '/geocoding' })
@@ -148,6 +152,38 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
         summary: 'Reverse geocode coordinates to an address',
         description:
           'Convert geographic coordinates (latitude and longitude) into a human-readable address. Served by the highest-priority configured geocoding integration, falling back to the next when one is unavailable or has no coverage.',
+      },
+    },
+  )
+
+  /**
+   * The what3words address of a point.
+   * GET /geocoding/what3words?lat=<lat>&lng=<lng>
+   */
+  .get(
+    '/what3words',
+    async ({ query, status, t, language }) => {
+      if (!isWhat3wordsAvailable()) {
+        return status(503, { message: t('errors.geocoding.what3wordsUnavailable') })
+      }
+      const lat = parseFloat(query.lat)
+      const lng = parseFloat(query.lng)
+      if (!(Math.abs(lat) <= 90) || !(Math.abs(lng) <= 180)) {
+        return status(400, { message: t('errors.validation.invalidCoordinates') })
+      }
+      const location = await coordinatesToWhat3words(lat, lng, language.slice(0, 2))
+      if (!location) {
+        return status(502, { message: t('errors.geocoding.what3wordsFailed') })
+      }
+      return { words: location.words, nearestPlace: location.nearestPlace ?? null }
+    },
+    {
+      query: t.Object({ lat: t.String(), lng: t.String() }),
+      detail: {
+        tags: ['Geocoding'],
+        summary: 'what3words address of a point',
+        description:
+          'The three-word address of the 3 m square containing the point, in the request language where what3words supports it. Responds 503 when the what3words integration is not configured.',
       },
     },
   )

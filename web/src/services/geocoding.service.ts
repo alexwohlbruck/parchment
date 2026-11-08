@@ -64,6 +64,24 @@ export async function reverseGeocode(
   return response.data
 }
 
+export interface What3wordsResponse {
+  words: string
+  nearestPlace: string | null
+}
+
+/** The what3words address of a point; needs the What3words integration. */
+export async function what3wordsAt(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<What3wordsResponse> {
+  const response = await api.get<What3wordsResponse>('/geocoding/what3words', {
+    params: { lat, lng },
+    signal,
+  })
+  return response.data
+}
+
 /**
  * Composable for geocoding functionality
  */
@@ -71,5 +89,6 @@ export function useGeocodingService() {
   return {
     forwardGeocode,
     reverseGeocode,
+    what3wordsAt,
   }
 }

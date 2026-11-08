@@ -504,6 +504,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
       const next = departureMs ?? (await nextRunAfter(all[index], Math.max(stage.departureMs + 60_000, guidanceClock.now())))
       if (next == null) return false
       await applyDepartureChange(all, index, next, (i, minMs) => nextRunAfter(all[i], minMs))
+      // The timetable lookup gives a time, not a run: the old id would name the bus that left.
+      segments.value[stage.segmentIndex].tripId = undefined
       segments.value = [...segments.value]
       if (route.value) placeRides(route.value)
       spokenTransit = new Set([...spokenTransit].filter(key => !key.startsWith(`${stage.segmentIndex}:`)))
@@ -517,6 +519,18 @@ export const useGuidanceStore = defineStore('guidance', () => {
   async function retargetRide(index: number, candidate: VehicleCandidate, known: string[]) {
     const segment = segments.value[index]
     if (!segment || segment.tripId === candidate.tripId) return
+    await rideRun(index, segment, candidate, known)
+  }
+
+  /** Moves the booked run on segment `index` to the times the feed now predicts for it. */
+  async function retimeRide(index: number, candidate: VehicleCandidate, known: string[]) {
+    const segment = segments.value[index]
+    if (!segment || segment.tripId !== candidate.tripId) return
+    spokenTransit.delete(`${index}:missed-vehicle`)
+    await rideRun(index, segment, candidate, known)
+  }
+
+  async function rideRun(index: number, segment: LegSegment, candidate: VehicleCandidate, known: string[]) {
     Object.assign(segment, retargetedRide(segment, candidate, known))
     const all = (trip.value?.segments ?? []) as unknown as (RebookableSegment & LineRun)[]
     const at = all.indexOf(segment as unknown as RebookableSegment & LineRun)
@@ -919,6 +933,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     rebooking,
     catchNextRun,
     retargetRide,
+    retimeRide,
     askWhichVehicle,
     clockMs,
     addStop,

@@ -13,6 +13,9 @@ export interface VehicleCandidate {
   routeType?: number
   headsign?: string
   departureMs: number
+  /** The timetable's departure, where the feed predicts its own. */
+  scheduledMs?: number
+  realTime?: boolean
   /** The leg's later stops this run calls at, by stop key. */
   calls: { stop: string; timeMs: number }[]
   position?: LngLat & { atMs: number }
@@ -225,10 +228,16 @@ export interface RideSegment {
   lineTextColor?: string
   routeType?: number
   headsign?: string
+  realTimeData?: boolean
+  /** Seconds behind the timetable at departure. */
+  delay?: number
   departureStop?: TransitStopInput
   arrivalStop?: TransitStopInput
   intermediateStops?: TransitStopInput[]
 }
+
+/** A departure moved by less than this has not moved. */
+const RETIME_MS = 30_000
 
 const toMs = (v?: string | Date) => (v ? new Date(v).getTime() : NaN)
 const shifted = (v: string | Date | undefined, deltaMs: number) => (v ? new Date(toMs(v) + deltaMs).toISOString() : undefined)
@@ -253,6 +262,10 @@ export function retargetedRide(segment: RideSegment, candidate: VehicleCandidate
     lineTextColor: candidate.textColor,
     routeType: candidate.routeType ?? segment.routeType,
     headsign: candidate.headsign ?? segment.headsign,
+    ...(candidate.realTime != null && {
+      realTimeData: candidate.realTime,
+      delay: candidate.scheduledMs != null ? Math.round((candidate.departureMs - candidate.scheduledMs) / 1000) : undefined,
+    }),
     startTime: new Date(candidate.departureMs),
     endTime: new Date(endMs),
     duration: Math.max(0, (endMs - candidate.departureMs) / 1000),
@@ -260,4 +273,11 @@ export function retargetedRide(segment: RideSegment, candidate: VehicleCandidate
     arrivalStop: arrival && { ...arrival, arrivalTime: new Date(endMs).toISOString() },
     intermediateStops,
   }
+}
+
+/** The booked run as the feed now times it, when that moves its departure and it is still to come. */
+export function liveRun(segment: RideSegment, set: CandidateSet, nowMs: number): VehicleCandidate | null {
+  const run = set.candidates.find(c => c.tripId === segment.tripId)
+  if (!run || run.departureMs <= nowMs) return null
+  return Math.abs(run.departureMs - toMs(segment.startTime)) >= RETIME_MS ? run : null
 }

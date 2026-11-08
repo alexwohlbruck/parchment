@@ -4,6 +4,7 @@ import { rideStops, type TransitSegmentInput } from './transit-progress'
 import { polyline } from './test-routes'
 import {
   rankCandidates,
+  liveRun,
   retargetedRide,
   RideObserver,
   vehicleVerdict,
@@ -169,5 +170,24 @@ describe('retargetedRide', () => {
     const next = retargetedRide(segment, { tripId: 'later', line: '3', departureMs: min(5), calls: [] }, [])
     expect(next.intermediateStops?.map(s => s.arrivalTime)).toEqual([min(7), min(9), min(11)].map(t => new Date(t).toISOString()))
     expect(new Date(next.endTime!).getTime()).toBe(min(13))
+  })
+})
+
+describe('liveRun', () => {
+  const set = (candidates: VehicleCandidate[]): CandidateSet => ({ candidates, known: KNOWN })
+
+  test('the booked run running late moves the wait', () => {
+    expect(liveRun(segment, set([run('planned', '3', 6), run('other', '3', 0)]), min(1))?.departureMs).toBe(min(6))
+  })
+
+  test('a run within half a minute of its time, gone already, or not on the board stays put', () => {
+    expect(liveRun(segment, set([{ ...run('planned', '3', 0), departureMs: min(0) + 20_000 }]), min(-5))).toBeNull()
+    expect(liveRun(segment, set([run('planned', '3', 2)]), min(3))).toBeNull()
+    expect(liveRun(segment, set([run('other', '3', 6)]), min(1))).toBeNull()
+  })
+
+  test('retiming carries the feed\'s delay', () => {
+    const late = { ...run('planned', '3', 6), realTime: true, scheduledMs: min(0) }
+    expect(retargetedRide(segment, late, KNOWN)).toMatchObject({ realTimeData: true, delay: 360 })
   })
 })

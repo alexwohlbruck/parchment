@@ -1,9 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
-
-let configured: any[] = []
-mock.module('./integrations', () => ({
-  integrationManager: { getConfiguredIntegrations: () => configured },
-}))
+import { describe, test, expect, mock, beforeEach } from 'bun:test'
 
 let geocoded: any[] = []
 const geocodeCalls: string[] = []
@@ -20,52 +15,10 @@ mock.module('../lib/logger', () => ({
 }))
 
 const { resolveCoordinateQuery } = await import('./coordinate-search.service')
-const { parseWhat3words } = await import('./what3words.service')
-
-const realFetch = globalThis.fetch
-const fetched: string[] = []
 
 beforeEach(() => {
-  configured = [{ integrationId: 'what3words', config: { apiKey: 'k' } }]
   geocoded = []
   geocodeCalls.length = 0
-  fetched.length = 0
-  globalThis.fetch = (async (url: string) => {
-    fetched.push(url)
-    const words = new URL(url).searchParams.get('words')
-    if (words !== 'filled.count.soap') return new Response('{}', { status: 400 })
-    return Response.json({
-      words,
-      nearestPlace: 'Bayswater, London',
-      coordinates: { lat: 51.520847, lng: -0.195521 },
-    })
-  }) as any
-})
-
-afterEach(() => {
-  globalThis.fetch = realFetch
-})
-
-describe('parseWhat3words', () => {
-  test('reads the shapes a three-word address is shared in', () => {
-    for (const query of [
-      '///filled.count.soap',
-      'filled.count.soap',
-      ' ///Filled.Count.Soap ',
-      'https://w3w.co/filled.count.soap',
-      'https://what3words.com/filled.count.soap',
-    ]) {
-      expect(parseWhat3words(query)).toBe('filled.count.soap')
-    }
-    expect(parseWhat3words('///indice.casa.balsa')).toBe('indice.casa.balsa')
-    expect(parseWhat3words('///ссылка.отвар.доска')).toBe('ссылка.отвар.доска')
-  })
-
-  test('ignores anything that is not three words', () => {
-    for (const query of ['filled.count', 'filled count soap', '///filled.count.soap.x', '1.2.3', '40.7, -73.9']) {
-      expect(parseWhat3words(query)).toBeNull()
-    }
-  })
 })
 
 describe('resolveCoordinateQuery', () => {
@@ -99,23 +52,21 @@ describe('resolveCoordinateQuery', () => {
     expect(match).toMatchObject({ lat: 40.722188, lng: -73.987437 })
   })
 
-  test('looks up a what3words address, once', async () => {
-    const first = await resolveCoordinateQuery('///filled.count.soap')
-    expect(first).toEqual({
+  test('finds a what3words address locally', async () => {
+    expect(await resolveCoordinateQuery('///filled.count.soap')).toEqual({
       lat: 51.520847,
       lng: -0.195521,
       title: '///filled.count.soap',
       kind: 'what3words',
-      description: 'Bayswater, London',
+      description: 'what3words',
     })
-    await resolveCoordinateQuery('filled.count.soap')
-    expect(fetched).toHaveLength(1)
+    expect(await resolveCoordinateQuery('https://w3w.co/index.home.raft')).toMatchObject({
+      lat: 51.521251,
+      lng: -0.203586,
+    })
   })
 
-  test('returns nothing for an unknown address or without a key', async () => {
-    expect(await resolveCoordinateQuery('///no.such.place')).toBeNull()
-    configured = []
-    expect(await resolveCoordinateQuery('///other.three.words')).toBeNull()
-    expect(fetched.filter(u => u.includes('other.three.words'))).toHaveLength(0)
+  test('returns nothing for three words that are not an address', async () => {
+    expect(await resolveCoordinateQuery('maps.google.com')).toBeNull()
   })
 })

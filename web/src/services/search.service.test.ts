@@ -45,6 +45,16 @@ vi.mock('@/stores/recents.store', () => ({
   }),
 }))
 
+// The word data is fetched from a file URL the test DOM can't load.
+vi.mock('@server/lib/whatfreewords', async importOriginal => ({
+  ...(await importOriginal<typeof import('@server/lib/whatfreewords')>()),
+  loadWhatFreeWords: async () => ({
+    wordsToLatLng: (words: string) =>
+      words === 'filled.count.soap' ? { lat: 51.520847, lng: -0.195521 } : null,
+    latLngToWords: () => null,
+  }),
+}))
+
 // Import after mocks
 import { useSearchService } from '@/services/search.service'
 import { OfflineRequestError } from '@/lib/network-errors'
@@ -282,6 +292,19 @@ describe('useSearchService', () => {
         lat: 40.7148341,
         lng: -73.9915242,
       })
+    })
+
+    test('finds a what3words address offline', async () => {
+      reportServerUnreachable()
+      const service = useSearchService()
+      expect(await service.getAutocompleteSuggestions({ query: '///filled.count.soap' })).toEqual([
+        expect.objectContaining({
+          id: 'coords/51.520847/-0.195521',
+          title: '///filled.count.soap',
+          description: 'what3words',
+        }),
+      ])
+      expect(await service.getAutocompleteSuggestions({ query: '///no.such.place' })).toEqual([])
     })
   })
 })

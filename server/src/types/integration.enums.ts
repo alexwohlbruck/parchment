@@ -33,8 +33,6 @@ export enum IntegrationId {
   FIRMS = 'firms',
   /** Quackback — backend for the in-app feedback form. System-only, config-only. */
   QUACKBACK = 'quackback',
-  /** what3words — three-word addresses in search and the copy-location menu. */
-  WHAT3WORDS = 'what3words',
 }
 
 export enum IntegrationCapabilityId {

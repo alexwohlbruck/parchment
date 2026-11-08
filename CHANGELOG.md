@@ -5,7 +5,7 @@
 * Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
 * Search works offline. Without a connection it finds your saved places, places you viewed recently and typed coordinates on the device, in the search box, the full results list and the directions fields. Opening one of those places offline shows what is saved about it instead of an empty page.
 * Search reads plus codes, full or short. A short code like `P2C7+V2` is placed near the map, or near the town written after it (`P2C7+V2 New York, NY`). Full codes and short codes without a town also work offline.
-* With the new what3words integration configured, search finds three-word addresses like `///filled.count.soap` or a w3w.co link, and the map's Copy location menu offers the point's three-word address. what3words needs their API and a key, so neither works offline.
+* Search finds what3words addresses like `///filled.count.soap` or a w3w.co link, and the map's Copy location menu offers the point's three-word address. Both are worked out on the device with no account or key and also work offline. English words only.
 
 ### Changed
 

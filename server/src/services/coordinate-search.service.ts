@@ -2,7 +2,7 @@
  * Turns a query that names a point rather than a place into that point:
  * coordinates in any format `parseCoordinateQuery` reads, plus codes (short
  * ones recovered near the map centre or a named town), and what3words
- * addresses.
+ * addresses (computed locally; see lib/whatfreewords).
  */
 import {
   parseCoordinateQuery,
@@ -11,20 +11,19 @@ import {
   type LatLng,
 } from '../lib/coordinate-query'
 import { forwardGeocode } from './geocoding.service'
-import { parseWhat3words, what3wordsToCoordinates } from './what3words.service'
+import { loadWhatFreeWords, parseWhat3words } from '../lib/whatfreewords'
 import { logWarn } from '../lib/logger'
 
 export interface CoordinateMatch extends LatLng {
   title: string
   kind: 'Coordinates' | 'Plus code' | 'what3words'
-  /** Shown under the title: the kind, or for what3words the nearest town. */
+  /** Shown under the title. */
   description: string
 }
 
 export async function resolveCoordinateQuery(
   query: string,
   reference?: LatLng,
-  signal?: AbortSignal,
 ): Promise<CoordinateMatch | null> {
   const plusCode = parsePlusCode(query)
   if (plusCode) {
@@ -48,15 +47,9 @@ export async function resolveCoordinateQuery(
 
   const words = parseWhat3words(query)
   if (words) {
-    const location = await what3wordsToCoordinates(words, signal)
-    if (!location) return null
-    return {
-      lat: location.lat,
-      lng: location.lng,
-      title: `///${location.words}`,
-      kind: 'what3words',
-      description: location.nearestPlace ?? 'what3words',
-    }
+    const point = await what3wordsToLatLng(words)
+    if (!point) return null
+    return { ...point, title: `///${words}`, kind: 'what3words', description: 'what3words' }
   }
 
   return null
@@ -85,6 +78,17 @@ async function recoverNearLocality(
     return center ? recoverShortPlusCode(code, center) : null
   } catch (err) {
     logWarn('Could not geocode a plus code locality', err)
+    return null
+  }
+}
+
+async function what3wordsToLatLng(words: string): Promise<LatLng | null> {
+  try {
+    return (await loadWhatFreeWords()).wordsToLatLng(words)
+  } catch (err) {
+    // The data ships beside the bundle (see the build script); without it,
+    // three-word queries just fall through to ordinary search.
+    logWarn('Could not load the what3words data', err)
     return null
   }
 }

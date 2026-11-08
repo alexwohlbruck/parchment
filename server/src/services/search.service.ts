@@ -314,7 +314,7 @@ export async function search(
   // gets a synthetic result for that point, ahead of everything else.
   if (query) {
     const reference = lat != null && lng != null ? { lat, lng } : undefined
-    const coords = await resolveCoordinateQuery(query, reference, signal)
+    const coords = await resolveCoordinateQuery(query, reference)
     if (coords) {
       const coordId = `coords/${coords.lat}/${coords.lng}`
       const timestamp = new Date().toISOString()

@@ -15,7 +15,7 @@ import { IntegrationId } from '@server/types/integration.types'
 import { MapBounds } from '@/types/map.types'
 import { isOffline } from '@/lib/connectivity'
 import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-errors'
-import { localAutocomplete, coordinateResult } from '@/lib/search/local-search'
+import { localAutocomplete, coordinateResult, what3wordsResult } from '@/lib/search/local-search'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useRecentsStore } from '@/stores/recents.store'
@@ -159,7 +159,7 @@ function searchService() {
       options.lat != null && options.lng != null
         ? { lat: options.lat, lng: options.lng }
         : undefined
-    const coords = coordinateResult(options.query, center)
+    const coords = coordinateResult(options.query, center) ?? (await what3wordsResult(options.query))
     if (coords) return [coords]
 
     const recentsStore = useRecentsStore()

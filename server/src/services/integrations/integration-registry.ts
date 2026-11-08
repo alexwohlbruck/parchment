@@ -24,7 +24,6 @@ import { UberIntegration } from './uber-integration'
 import { LyftIntegration } from './lyft-integration'
 import { OpenAqIntegration } from './openaq-integration'
 import { FirmsIntegration } from './firms-integration'
-import { What3wordsIntegration } from './what3words-integration'
 import { QuackbackIntegration } from './quackback-integration'
 
 /**
@@ -65,7 +64,6 @@ export class IntegrationRegistry {
     this.registerIntegration(new LyftIntegration())
     this.registerIntegration(new OpenAqIntegration())
     this.registerIntegration(new FirmsIntegration())
-    this.registerIntegration(new What3wordsIntegration())
     this.registerIntegration(new QuackbackIntegration())
   }
 

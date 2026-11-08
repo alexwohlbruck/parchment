@@ -3167,7 +3167,6 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
-        "what3words": "Three-word addresses in search and the copy-location menu",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
       },
       "scheme": {

@@ -15,9 +15,7 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
-import { useIntegrationsStore } from '@/stores/integrations.store'
-import { isOffline } from '@/lib/connectivity'
-import { IntegrationId } from '@server/types/integration.types'
+import { loadWhatFreeWords } from '@server/lib/whatfreewords'
 import { mapEventBus } from '@/lib/event-bus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -99,7 +97,7 @@ const geocodedRoute = ref<RouteLocationRaw | null>(null)
 /** The reverse-geocoded place itself — kept for its resolved POI icon. */
 const geocodedPlace = ref<Place | null>(null)
 const isGeocoding = ref(false)
-/** The point's what3words address, when the integration is configured. */
+/** The point's what3words address, once the word data has loaded. */
 const what3words = ref<string | null>(null)
 
 /**
@@ -145,17 +143,15 @@ function copyWhat3words(words: string) {
 }
 
 /**
- * Looks up the point's what3words address alongside the reverse geocode.
- * It needs their API, so it is skipped offline and when no key is set up.
+ * Works out the point's what3words address on the device. The word data
+ * loads on the first menu open (and is precached for offline use), so the
+ * row can appear a moment after the rest of the menu.
  */
 async function loadWhat3words(lngLat: LngLat) {
   what3words.value = null
-  const configured =
-    useIntegrationsStore().getConfigurationsForIntegration(IntegrationId.WHAT3WORDS).length > 0
-  if (!configured || isOffline.value) return
   try {
-    const { words } = await useGeocodingService().what3wordsAt(lngLat.lat, lngLat.lng)
-    // The menu may have moved on to another point while this was in flight.
+    const words = (await loadWhatFreeWords()).latLngToWords(lngLat.lat, lngLat.lng)
+    // The menu may have moved on to another point while the data loaded.
     if (clickedLngLat.value === lngLat) what3words.value = words
   } catch {
     // Leave the row out; the other copy formats still work.

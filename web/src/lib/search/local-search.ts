@@ -1,9 +1,11 @@
 /**
- * Search over what is already on the device: coordinates and plus codes
- * typed into the box, saved places and recently viewed places. It answers when the server can't,
+ * Search over what is already on the device: coordinates, plus codes and
+ * what3words addresses typed into the box, saved places and recently viewed
+ * places. It answers when the server can't,
  * so search still finds something offline.
  */
 import { parseCoordinateQuery, parsePlusCode, type LatLng } from '@server/lib/coordinate-query'
+import { loadWhatFreeWords, parseWhat3words } from '@server/lib/whatfreewords'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import type { AutocompleteResult } from '@/types/search.types'
@@ -41,7 +43,7 @@ export function coordinatePlaceId(lat: number, lng: number): string {
 /**
  * The point a query names, labelled like the server's result. `reference`
  * recovers a short plus code; one naming a town ("P2C7+V2 New York") needs
- * the server to geocode the town, as do what3words addresses.
+ * the server to geocode the town.
  */
 export function coordinateResult(query: string, reference?: LatLng): AutocompleteResult | null {
   const coords = parseCoordinateQuery(query, reference)
@@ -56,6 +58,25 @@ export function coordinateResult(query: string, reference?: LatLng): Autocomplet
     iconPack: 'lucide',
     lat: coords.lat,
     lng: coords.lng,
+  }
+}
+
+/** A what3words address, worked out on the device from the word data. */
+export async function what3wordsResult(query: string): Promise<AutocompleteResult | null> {
+  const words = parseWhat3words(query)
+  if (!words) return null
+  const point = await loadWhatFreeWords()
+    .then(w3w => w3w.wordsToLatLng(words))
+    .catch(() => null)
+  if (!point) return null
+  return {
+    id: coordinatePlaceId(point.lat, point.lng),
+    type: 'place',
+    title: `///${words}`,
+    description: 'what3words',
+    icon: 'MapPin',
+    iconPack: 'lucide',
+    ...point,
   }
 }
 

@@ -85,9 +85,7 @@
       "coordinatesRequired": "Se requieren los parámetros lat y lng",
       "serviceUnavailable": "No hay servicio de geocodificación disponible",
       "forwardFailed": "Error al realizar la geocodificación",
-      "reverseFailed": "Error al realizar la geocodificación inversa",
-      "what3wordsUnavailable": "what3words no está configurado",
-      "what3wordsFailed": "No se pudo obtener la dirección de what3words"
+      "reverseFailed": "Error al realizar la geocodificación inversa"
     },
     "directions": {
       "noRoute": "No se encontró ruta",

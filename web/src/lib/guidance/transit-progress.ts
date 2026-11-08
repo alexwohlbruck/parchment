@@ -68,6 +68,8 @@ export const MISSED_GRACE_MS = 90_000
 /** Closer than this to the alighting stop: get off now. */
 export const ALIGHT_NOW_METERS = 150
 const BOARDED_METERS = 60
+/** Further along than the longest platform: no rider waiting on it reaches this. */
+const PAST_PLATFORM_METERS = 250
 const VEHICLE_SPEED = 4
 export const STOP_PASSED_METERS = 25
 const MISSED_STOP_SEARCH = 1500
@@ -111,7 +113,8 @@ export function transitStage(
     const board = stops[0]
     const alight = stops.at(-1)
     if (!board || !alight) return null
-    const boarded = puck.s > board.s + BOARDED_METERS
+    const along = puck.s - board.s
+    const boarded = along > PAST_PLATFORM_METERS || (along > BOARDED_METERS && puck.speed >= VEHICLE_SPEED)
     if (!boarded) return waiting(span.index, segment, puck.s >= span.startDistance - AT_STOP_METERS, nowMs)
     const passed = stops.filter(stop => stop.s <= puck.s + STOP_PASSED_METERS).length
     const remaining = Math.max(0, alight.s - puck.s)

@@ -50,6 +50,13 @@ describe('transitStage', () => {
     expect(stage(305, 0)).toMatchObject({ kind: 'wait' })
   })
 
+  test('standing along the platform is still waiting', () => {
+    expect(stage(400, 0)).toMatchObject({ kind: 'wait' })
+    expect(stage(500, 0.8)).toMatchObject({ kind: 'wait' })
+    expect(stage(400, 9)).toMatchObject({ kind: 'riding' })
+    expect(stage(600, 0)).toMatchObject({ kind: 'riding' })
+  })
+
   test('still at the stop well after departure means the vehicle was missed', () => {
     expect(stage(300, 0, departure + MISSED_GRACE_MS + 1000)?.kind).toBe('missed-vehicle')
     expect(stage(300, 0, departure + 30_000)?.kind).toBe('wait')

@@ -2,9 +2,15 @@
 
 ### Added
 
-* Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
-
 ### Changed
+
+### Fixed
+
+## [0.20.1-1] - 2026-11-08
+
+### Added
+
+* Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
 
 ### Fixed
 

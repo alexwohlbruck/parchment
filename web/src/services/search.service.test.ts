@@ -28,8 +28,27 @@ vi.mock('@/stores/integrations.store', () => ({
   }),
 }))
 
+const localData = vi.hoisted(() => ({
+  bookmarks: [] as any[],
+  recentPlaces: [] as any[],
+}))
+vi.mock('@/stores/library/bookmarks.store', () => ({
+  useBookmarksStore: () => ({ bookmarks: localData.bookmarks }),
+}))
+vi.mock('@/stores/library/encrypted-points.store', () => ({
+  useEncryptedPointsStore: () => ({ pointsByCollection: {} }),
+}))
+vi.mock('@/stores/recents.store', () => ({
+  useRecentsStore: () => ({
+    places: localData.recentPlaces,
+    ensurePlacesHydrated: () => Promise.resolve(),
+  }),
+}))
+
 // Import after mocks
 import { useSearchService } from '@/services/search.service'
+import { OfflineRequestError } from '@/lib/network-errors'
+import { _resetConnectivityForTests, reportServerUnreachable } from '@/lib/connectivity'
 
 describe('useSearchService', () => {
   beforeEach(() => {
@@ -214,6 +233,55 @@ describe('useSearchService', () => {
         }),
       })
       expect(results).toEqual(mockResults)
+    })
+  })
+
+  describe('getAutocompleteSuggestions() without a server', () => {
+    beforeEach(() => {
+      _resetConnectivityForTests()
+      localData.bookmarks = [
+        {
+          id: 'b1',
+          name: 'Joe’s Pizza',
+          address: '7 Carmine St',
+          lat: 40.7305,
+          lng: -74.0021,
+          icon: 'Pizza',
+          iconColor: '#f00',
+          externalIds: { osm: 'node/1' },
+        },
+      ]
+      localData.recentPlaces = [
+        { id: 'osm/way/2', title: 'Pizza Suprema', lat: 40.75, lng: -73.99, at: 1 },
+        { id: 'osm/node/3', title: 'Katz’s Delicatessen', lat: 40.72, lng: -73.98, at: 2 },
+      ]
+    })
+
+    test('answers from saved and recent places while offline, without a request', async () => {
+      reportServerUnreachable()
+      const results = await useSearchService().getAutocompleteSuggestions({ query: 'pizza' })
+
+      expect(api.get).not.toHaveBeenCalled()
+      expect(results.map(r => r.id)).toEqual(['osm/way/2', 'osm/node/1'])
+      expect(results[1]).toMatchObject({ type: 'bookmark', title: 'Joe’s Pizza', lat: 40.7305 })
+    })
+
+    test('falls back to local matches when the request fails for lack of a connection', async () => {
+      ;(api.get as any).mockRejectedValue(new OfflineRequestError({ method: 'get', url: '/search' } as any))
+      const results = await useSearchService().getAutocompleteSuggestions({ query: 'katz' })
+      expect(results.map(r => r.id)).toEqual(['osm/node/3'])
+    })
+
+    test('reads a coordinate query offline', async () => {
+      reportServerUnreachable()
+      const [result] = await useSearchService().getAutocompleteSuggestions({
+        query: '(40.7148341, -73.9915242)',
+      })
+      expect(result).toMatchObject({
+        id: 'coords/40.7148341/-73.9915242',
+        lat: 40.7148341,
+        lng: -73.9915242,
+      })
     })
   })
 })

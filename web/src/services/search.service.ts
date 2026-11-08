@@ -13,6 +13,12 @@ import type { Place } from '@/types/place.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
 import { MapBounds } from '@/types/map.types'
+import { isOffline } from '@/lib/connectivity'
+import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-errors'
+import { localAutocomplete, coordinateResult } from '@/lib/search/local-search'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import { useRecentsStore } from '@/stores/recents.store'
 
 interface AdvancedSearchResponse {
   query: string
@@ -81,7 +87,8 @@ function searchService() {
   const error = ref<string | null>(null)
   const lastAdvancedResults = ref<Place[]>([])
 
-  async function search(
+  /** One `/search` round trip; throws on failure, unlike `search`. */
+  async function requestSearch(
     options: SearchOptions,
     signal?: AbortSignal,
   ): Promise<SearchResult[] | AutocompleteResult[]> {
@@ -94,37 +101,44 @@ function searchService() {
       autocomplete = true,
     } = options
 
+    const params: Record<string, string | number> = {}
+
+    if (query.trim()) {
+      params.q = query
+    }
+
+    if (lat !== undefined && lng !== undefined) {
+      params.lat = lat.toString()
+      params.lng = lng.toString()
+    }
+
+    if (radius) {
+      params.radius = radius.toString()
+    }
+
+    if (maxResults) {
+      params.maxResults = maxResults.toString()
+    }
+
+    params.autocomplete = autocomplete.toString()
+
+    const response = autocomplete
+      ? await api.get<AutocompleteResponse>('/search', { params, signal })
+      : await api.get<SearchResponse>('/search', { params, signal })
+
+    suggestions.value = response.data.results
+    return response.data.results
+  }
+
+  async function search(
+    options: SearchOptions,
+    signal?: AbortSignal,
+  ): Promise<SearchResult[] | AutocompleteResult[]> {
     loading.value = true
     error.value = null
 
     try {
-      const params: Record<string, string | number> = {}
-
-      if (query.trim()) {
-        params.q = query
-      }
-
-      if (lat !== undefined && lng !== undefined) {
-        params.lat = lat.toString()
-        params.lng = lng.toString()
-      }
-
-      if (radius) {
-        params.radius = radius.toString()
-      }
-
-      if (maxResults) {
-        params.maxResults = maxResults.toString()
-      }
-
-      params.autocomplete = autocomplete.toString()
-
-      const response = autocomplete
-        ? await api.get<AutocompleteResponse>('/search', { params, signal })
-        : await api.get<SearchResponse>('/search', { params, signal })
-
-      suggestions.value = response.data.results
-      return response.data.results
+      return await requestSearch(options, signal)
     } catch (err) {
       if (axios.isCancel(err)) return []
       console.error('Error in search:', err)
@@ -136,12 +150,55 @@ function searchService() {
     }
   }
 
+  /**
+   * Matches from data already on the device: a typed coordinate, saved
+   * places (including e2ee points decrypted this session) and recent places.
+   */
+  async function searchLocally(options: SearchOptions): Promise<AutocompleteResult[]> {
+    const coords = coordinateResult(options.query)
+    if (coords) return [coords]
+
+    const recentsStore = useRecentsStore()
+    await recentsStore.ensurePlacesHydrated().catch(() => {})
+    const encryptedPoints = Object.values(useEncryptedPointsStore().pointsByCollection).flat()
+    const center =
+      options.lat != null && options.lng != null
+        ? { lat: options.lat, lng: options.lng }
+        : undefined
+
+    return localAutocomplete(
+      options.query,
+      {
+        savedPlaces: [...useBookmarksStore().bookmarks, ...encryptedPoints],
+        recentPlaces: recentsStore.places,
+      },
+      { center, limit: options.maxResults },
+    )
+  }
+
+  /**
+   * Server autocomplete, answered from local data instead when the device is
+   * offline or the server can't be reached, so search keeps working.
+   */
   async function getAutocompleteSuggestions(
     options: SearchOptions,
     signal?: AbortSignal,
   ): Promise<AutocompleteResult[]> {
-    const results = await search({ ...options, autocomplete: true }, signal)
-    return results as AutocompleteResult[]
+    if (isOffline.value) return searchLocally(options)
+
+    loading.value = true
+    error.value = null
+    try {
+      return (await requestSearch({ ...options, autocomplete: true }, signal)) as AutocompleteResult[]
+    } catch (err) {
+      if (axios.isCancel(err)) return []
+      error.value = err instanceof Error ? err.message : 'Unknown error occurred'
+      if (isRetriableNetworkError(getNetworkErrorKind(err))) return searchLocally(options)
+      console.error('Error in search:', err)
+      return []
+    } finally {
+      loading.value = false
+    }
   }
 
   async function searchByCategory(
@@ -271,6 +328,7 @@ function searchService() {
     lastAdvancedResults,
     getAutocompleteSuggestions,
     search,
+    searchLocally,
     searchByCategory,
     searchByBrand,
     isAdvancedSearchAvailable,

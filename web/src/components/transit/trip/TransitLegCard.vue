@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type HTMLAttributes } from 'vue'
+import { computed, ref, watch, type HTMLAttributes } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangleIcon, ArrowRight, ChevronDownIcon } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -37,6 +37,11 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const direction = computed(() => rideDirection(props.segment))
+
+const stopsOpen = ref(props.passed != null)
+watch(() => props.passed != null, live => {
+  if (live) stopsOpen.value = true
+})
 
 function stopClass(index: number) {
   return props.passed != null && index < props.passed - 1 ? 'opacity-40' : ''
@@ -188,14 +193,13 @@ function stopClass(index: number) {
       </div>
       <Collapsible
         v-if="segment.intermediateStops?.length"
-        v-slot="{ open }"
-        :default-open="passed != null"
+        v-model:open="stopsOpen"
         class="relative"
       >
         <CollapsibleTrigger data-stop-fold class="group/stops flex w-full transition-colors cursor-pointer select-none">
           <div class="w-7 shrink-0" />
           <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
-            <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
+            <ChevronDownIcon class="size-3.5 transition-transform" :class="stopsOpen && 'rotate-180'" />
             <span>{{ segment.intermediateStops.length }} stops · {{ formatDurationCompact(segment.duration) }}</span>
           </span>
         </CollapsibleTrigger>

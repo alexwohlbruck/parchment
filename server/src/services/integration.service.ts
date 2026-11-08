@@ -300,6 +300,20 @@ const availableIntegrations: IntegrationDefinition[] = [
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(IntegrationId.OPENAQ)
     },
+    paid: true,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    publicFields: [],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.WHAT3WORDS,
+    name: 'what3words',
+    description: 'Three-word addresses in search and the copy-location menu',
+    color: '#E11F26',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.WHAT3WORDS)
+    },
     paid: false,
     cloud: true,
     configSchema: 'apiKeySchema',

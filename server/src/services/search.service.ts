@@ -22,7 +22,7 @@ import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
 import { resolvePresetIcon } from '../lib/place-categories'
 import { isPlacePermanentlyClosed } from '../lib/place-tags'
-import { parseCoordinateQuery } from '../lib/coordinate-query'
+import { resolveCoordinateQuery } from './coordinate-search.service'
 
 /**
  * Relevance subtracted from a permanently closed place, large enough to drop it
@@ -310,9 +310,11 @@ export async function search(
   // Collect all results with normalized relevance scores (0-1) for interleaving
   const scoredResults: Array<{ result: SearchResult; relevance: number }> = []
 
-  // Coordinate detection — inject synthetic result if query looks like coordinates
+  // A query naming a point (coordinates, a plus code, a what3words address)
+  // gets a synthetic result for that point, ahead of everything else.
   if (query) {
-    const coords = parseCoordinateQuery(query)
+    const reference = lat != null && lng != null ? { lat, lng } : undefined
+    const coords = await resolveCoordinateQuery(query, reference, signal)
     if (coords) {
       const coordId = `coords/${coords.lat}/${coords.lng}`
       const timestamp = new Date().toISOString()
@@ -320,17 +322,17 @@ export async function search(
         result: {
           id: coordId,
           type: 'place',
-          title: `${coords.lat}, ${coords.lng}`,
-          description: 'Coordinates',
+          title: coords.title,
+          description: coords.description,
           icon: 'MapPin',
           iconPack: 'lucide',
           metadata: {
             place: {
               id: coordId,
               externalIds: {},
-              name: { value: `${coords.lat}, ${coords.lng}`, sourceId: 'input', timestamp },
+              name: { value: coords.title, sourceId: 'input', timestamp },
               description: null,
-              placeType: { value: 'Coordinates', sourceId: 'input', timestamp },
+              placeType: { value: coords.kind, sourceId: 'input', timestamp },
               icon: { icon: 'MapPin', iconPack: 'lucide' as const },
               geometry: {
                 value: {

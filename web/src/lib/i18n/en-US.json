@@ -409,6 +409,7 @@
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
+    "what3wordsCopied": "what3words address copied to clipboard",
     "plusCodeError": "Error generating Plus Code"
   },
   "map": {
@@ -3166,6 +3167,7 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "what3words": "Three-word addresses in search and the copy-location menu",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
       },
       "scheme": {

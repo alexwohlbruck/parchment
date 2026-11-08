@@ -155,16 +155,16 @@ function searchService() {
    * places (including e2ee points decrypted this session) and recent places.
    */
   async function searchLocally(options: SearchOptions): Promise<AutocompleteResult[]> {
-    const coords = coordinateResult(options.query)
+    const center =
+      options.lat != null && options.lng != null
+        ? { lat: options.lat, lng: options.lng }
+        : undefined
+    const coords = coordinateResult(options.query, center)
     if (coords) return [coords]
 
     const recentsStore = useRecentsStore()
     await recentsStore.ensurePlacesHydrated().catch(() => {})
     const encryptedPoints = Object.values(useEncryptedPointsStore().pointsByCollection).flat()
-    const center =
-      options.lat != null && options.lng != null
-        ? { lat: options.lat, lng: options.lng }
-        : undefined
 
     return localAutocomplete(
       options.query,

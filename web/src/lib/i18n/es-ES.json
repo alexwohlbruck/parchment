@@ -2283,6 +2283,7 @@
       "address": "Dirección",
       "coordinates": "Coordenadas",
       "plusCode": "Código Plus",
+      "what3words": "what3words",
       "phoneNumber": "Número de teléfono",
       "website": "Sitio web",
       "emailAddress": "Correo electrónico",

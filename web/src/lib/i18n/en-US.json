@@ -2323,6 +2323,7 @@
       "address": "Address",
       "coordinates": "Coordinates",
       "plusCode": "Plus code",
+      "what3words": "what3words",
       "phoneNumber": "Phone number",
       "website": "Website",
       "emailAddress": "Email address",

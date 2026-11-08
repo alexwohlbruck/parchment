@@ -13,11 +13,12 @@ describe('neighbourhood labels', () => {
     expect([12, 12.9, 13].map(z => shown(z, 2))).toEqual([false, false, true])
   })
 
-  test('sit just under the basemap place labels and hand over to them at z14', () => {
+  test('win placement over stations and hand over to the basemap at z14', () => {
     const layers = buildLayers({ flavor: 'light' }) as any[]
-    const at = layers.findIndex(l => l.id === NEIGHBOURHOOD_LAYER)
-    expect(layers[at + 1].id).toBe('Place labels')
-    expect(layers[at]).toMatchObject({ source: NEIGHBOURHOOD_SOURCE, maxzoom: 14 })
-    expect(layers[at].paint).toEqual(layers[at + 1].paint)
+    const index = (id: string) => layers.findIndex(l => l.id === id)
+    const labels = layers[index(NEIGHBOURHOOD_LAYER)]
+    expect(index(NEIGHBOURHOOD_LAYER)).toBe(index('Station') + 1)
+    expect(labels).toMatchObject({ source: NEIGHBOURHOOD_SOURCE, maxzoom: 14 })
+    expect(labels.paint).toEqual(layers[index('Place labels')].paint)
   })
 })

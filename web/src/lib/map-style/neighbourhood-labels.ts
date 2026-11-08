@@ -11,10 +11,15 @@ export const NEIGHBOURHOOD_LAYER = 'Neighbourhood labels'
 /** The basemap's own place labels take over here. */
 const BASEMAP_ZOOM = 14
 
+/** Collision spacing, wide while zoomed out so names thin to Google's and Apple's density. */
+const SPACING = ['interpolate', ['linear'], ['zoom'], 11, 8, 12, 40, 13, 16, 14, 4]
+
 /** Zoom each tier enters at: quarters, then neighbourhoods with a Wikidata item, then the rest. */
 export const TIER_MINZOOM = [11, 12, 13] as const
 
 const PLACE_LABELS = 'Place labels'
+/** Placed over the stations, so a name wins the space from a subway icon as on Google and Apple. */
+const ABOVE = 'Station'
 
 export function neighbourhoodSource(tileUrl: string) {
   return {
@@ -34,11 +39,11 @@ export function tierFilter(): any {
   ]
 }
 
-/** The neighbourhood layer, styled as the basemap's place labels and placed just under them. */
+/** The neighbourhood layer, styled as the basemap's place labels. */
 export function withNeighbourhoodLabels(layers: any[]): any[] {
-  const at = layers.findIndex(l => l.id === PLACE_LABELS)
-  if (at < 0) return layers
-  const place = layers[at]
+  const place = layers.find(l => l.id === PLACE_LABELS)
+  if (!place) return layers
+  const at = layers.findIndex(l => l.id === ABOVE) + 1 || layers.indexOf(place)
   const labels = {
     ...place,
     id: NEIGHBOURHOOD_LAYER,
@@ -50,6 +55,7 @@ export function withNeighbourhoodLabels(layers: any[]): any[] {
     layout: {
       ...place.layout,
       'symbol-sort-key': ['to-number', ['get', 'tier']],
+      'text-padding': SPACING,
     },
   }
   return [...layers.slice(0, at), labels, ...layers.slice(at)]

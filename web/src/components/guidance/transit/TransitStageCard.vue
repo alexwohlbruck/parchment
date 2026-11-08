@@ -10,6 +10,7 @@ import { minutesUntil, type TransitStage } from '@/lib/guidance/transit-progress
 import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 import { afterRide } from '@/lib/guidance/after-ride'
 import AfterRide from './AfterRide.vue'
+import BoardingHint from '@/components/transit/trip/BoardingHint.vue'
 
 const props = defineProps<{
   stage: TransitStage
@@ -83,6 +84,7 @@ const ride = computed(() => {
       <div class="text-sm text-muted-foreground">
         {{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}
       </div>
+      <BoardingHint v-if="segment?.boardingPosition" :position="segment.boardingPosition" :color="segment.lineColor" />
     </template>
 
     <template v-else-if="ride">

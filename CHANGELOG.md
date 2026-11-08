@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Waiting along a subway platform no longer makes guidance think you've boarded, and the wait card now shows where on the platform to stand.
+
 ## [0.20.1-1] - 2026-11-08
 
 ### Added

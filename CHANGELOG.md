@@ -6,6 +6,16 @@
 
 ### Fixed
 
+## [0.20.1-1] - 2026-11-08
+
+### Added
+
+* Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
+
+### Fixed
+
+* Opening a bus route in a city without the detailed transit map draws its line and stops on the map again.
+
 ## [0.20.1] - 2026-11-06
 
 ### Added
@@ -25,6 +35,7 @@
 
 ### Fixed
 
+* Single-floor buildings with indoor maps, like the Ferry Building, now show the floor picker, so you can switch to the outside view.
 * A walk into a station now ends with the signs to follow, or the stop's name, instead of "Arrive at destination".
 * Picking a different departure on a trip no longer freezes the page; the departure boards stopped redrawing themselves nonstop.
 * Trips that start by bike now judge which trains you can still make, and move to the next one when you can't.

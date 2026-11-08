@@ -22,6 +22,7 @@ import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
 import { resolvePresetIcon } from '../lib/place-categories'
 import { isPlacePermanentlyClosed } from '../lib/place-tags'
+import { parseCoordinateQuery } from '../lib/coordinate-query'
 
 /**
  * Relevance subtracted from a permanently closed place, large enough to drop it
@@ -29,49 +30,6 @@ import { isPlacePermanentlyClosed } from '../lib/place-tags'
  */
 const PERMANENTLY_CLOSED_PENALTY = 1
 
-
-function parseCoordinateQuery(query: string): { lat: number; lng: number } | null {
-  const trimmed = query.trim()
-
-  // "35.2271, -80.8431" or "35.2271,-80.8431"
-  const commaMatch = trimmed.match(/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/)
-  if (commaMatch) {
-    return validateAndNormalizeCoords(parseFloat(commaMatch[1]), parseFloat(commaMatch[2]))
-  }
-
-  // "35.2271 -80.8431" (both must have decimals to avoid "123 Main" false positives)
-  const spaceMatch = trimmed.match(/^(-?\d{1,3}\.\d+)\s+(-?\d{1,3}\.\d+)$/)
-  if (spaceMatch) {
-    return validateAndNormalizeCoords(parseFloat(spaceMatch[1]), parseFloat(spaceMatch[2]))
-  }
-
-  // "35.2271N 80.8431W" or "35.2271N, 80.8431W"
-  const nsewMatch = trimmed.match(/^(\d{1,3}(?:\.\d+)?)\s*([NSns])\s*,?\s*(\d{1,3}(?:\.\d+)?)\s*([EWew])$/)
-  if (nsewMatch) {
-    let lat = parseFloat(nsewMatch[1])
-    let lng = parseFloat(nsewMatch[3])
-    if (/[Ss]/.test(nsewMatch[2])) lat = -lat
-    if (/[Ww]/.test(nsewMatch[4])) lng = -lng
-    return validateAndNormalizeCoords(lat, lng)
-  }
-
-  return null
-}
-
-function validateAndNormalizeCoords(a: number, b: number): { lat: number; lng: number } | null {
-  if (!isFinite(a) || !isFinite(b)) return null
-
-  if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
-    return { lat: a, lng: b }
-  }
-
-  // Auto-swap if user entered lng,lat order
-  if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
-    return { lat: b, lng: a }
-  }
-
-  return null
-}
 
 /**
  * Convert a CategoryResult/preset to a SearchResult

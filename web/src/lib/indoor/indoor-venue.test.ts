@@ -54,8 +54,12 @@ describe('focusedVenue', () => {
     expect(focusedVenue([venue(1, square(6, 0))], [0, 0], middle)).toBeNull()
   })
 
-  it('offers no picker for a single-level venue', () => {
-    expect(focusedVenue([venue(1, square(0, 0), { levels: '0' })], [0, 0], everywhere)).toBeNull()
+  it('offers a picker for a single-level venue, to switch to its outside', () => {
+    expect(focusedVenue([venue(1, square(0, 0), { levels: '0' })], [0, 0], everywhere)?.levels).toEqual([{ level: 0, name: 'G' }])
+  })
+
+  it('offers no picker for a venue without levels', () => {
+    expect(focusedVenue([venue(1, square(0, 0), { levels: '' })], [0, 0], everywhere)).toBeNull()
   })
 })
 

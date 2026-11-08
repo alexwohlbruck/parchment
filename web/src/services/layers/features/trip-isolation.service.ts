@@ -65,6 +65,10 @@ const TOKEN_PROBES = 8
  *  over the fit's ease, so one answer is never the answer. */
 const HYDRATION_IDLES = 6
 const MISS_IDLES = 3
+/** ...and a deadline on both, because idle is not a heartbeat: a map with
+ *  nothing left to draw fires it once and stops, so a budget counted only
+ *  in idles can wait forever in a city with no pyramid. */
+const RECONCILE_DEADLINE_MS = 2500
 
 const overlayIds = (segmentIndex: number): StopOverlayIds =>
   stopOverlayIds(`trip-leg-stops-${segmentIndex}`)
@@ -95,6 +99,7 @@ export function useTripIsolationService() {
    *  rider has already left does nothing at all. */
   let generation = 0
   let reconciler: Array<[string, (e?: any) => void]> | null = null
+  let reconcileDeadline: ReturnType<typeof setTimeout> | null = null
   /** Segment indices whose stops are currently drawn as the overlay. */
   let overlaid = new Set<number>()
 
@@ -241,11 +246,22 @@ export function useTripIsolationService() {
       ['sourcedata', onSourceData],
     ]
     for (const [ev, fn] of reconciler) mapInstance.on(ev, fn)
+
+    reconcileDeadline = setTimeout(() => {
+      reconcileDeadline = null
+      if (mine !== generation) return
+      if (!(portolan.portolanTransitActive() && drawLegs(legs, false))) {
+        drawLegs(legs, true)
+      }
+      detachReconciler()
+    }, RECONCILE_DEADLINE_MS)
   }
 
   function detachReconciler() {
     for (const [ev, fn] of reconciler ?? []) mapInstance?.off(ev, fn)
     reconciler = null
+    if (reconcileDeadline) clearTimeout(reconcileDeadline)
+    reconcileDeadline = null
   }
 
   function initialize(map: any) {

@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@server/*": ["../server/src/*"],
+      "pluscodes": ["./node_modules/pluscodes"],
     },
 
     "target": "ES2020",

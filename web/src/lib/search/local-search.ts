@@ -1,9 +1,9 @@
 /**
- * Search over what is already on the device: coordinates typed into the box,
- * saved places and recently viewed places. It answers when the server can't,
+ * Search over what is already on the device: coordinates and plus codes
+ * typed into the box, saved places and recently viewed places. It answers when the server can't,
  * so search still finds something offline.
  */
-import { parseCoordinateQuery } from '@server/lib/coordinate-query'
+import { parseCoordinateQuery, parsePlusCode, type LatLng } from '@server/lib/coordinate-query'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import type { AutocompleteResult } from '@/types/search.types'
@@ -38,14 +38,20 @@ export function coordinatePlaceId(lat: number, lng: number): string {
   return `coords/${lat}/${lng}`
 }
 
-export function coordinateResult(query: string): AutocompleteResult | null {
-  const coords = parseCoordinateQuery(query)
+/**
+ * The point a query names, labelled like the server's result. `reference`
+ * recovers a short plus code; one naming a town ("P2C7+V2 New York") needs
+ * the server to geocode the town, as do what3words addresses.
+ */
+export function coordinateResult(query: string, reference?: LatLng): AutocompleteResult | null {
+  const coords = parseCoordinateQuery(query, reference)
   if (!coords) return null
+  const plusCode = parsePlusCode(query)
   return {
     id: coordinatePlaceId(coords.lat, coords.lng),
     type: 'place',
-    title: `${coords.lat}, ${coords.lng}`,
-    description: 'Coordinates',
+    title: plusCode ? plusCode.code : `${coords.lat}, ${coords.lng}`,
+    description: plusCode ? 'Plus code' : 'Coordinates',
     icon: 'MapPin',
     iconPack: 'lucide',
     lat: coords.lat,
@@ -58,7 +64,7 @@ export function localAutocomplete(
   sources: LocalSearchSources,
   { center, limit = 20 }: LocalSearchOptions = {},
 ): AutocompleteResult[] {
-  const coords = coordinateResult(query)
+  const coords = coordinateResult(query, center)
   if (coords) return [coords]
 
   const tokens = tokenize(query)
@@ -197,7 +203,7 @@ export function localResultAsPlace(result: AutocompleteResult): Place | null {
     lng: result.lng,
     // A recent's subtitle may be a category, not an address.
     address: result.type === 'bookmark' ? result.description : null,
-    placeType: result.id.startsWith('coords/') ? 'Coordinates' : undefined,
+    placeType: result.id.startsWith('coords/') ? result.description : undefined,
     icon: result.icon,
     iconPack: result.iconPack,
     externalIds: placeIdExternalIds(result.id),

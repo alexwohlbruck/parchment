@@ -212,6 +212,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@server': path.resolve(__dirname, '../server/src'),
+      // Server code shared with the client (coordinate-query) imports it; the
+      // web image and CI install only web/node_modules, so resolve it here.
+      pluscodes: path.resolve(__dirname, 'node_modules/pluscodes'),
     },
   },
   optimizeDeps: {

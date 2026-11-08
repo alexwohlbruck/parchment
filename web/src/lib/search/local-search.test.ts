@@ -20,6 +20,17 @@ describe('localAutocomplete', () => {
     ])
   })
 
+  it('reads plus codes offline, recovering short ones near the map centre', () => {
+    const none = { savedPlaces: [], recentPlaces: [] }
+    expect(localAutocomplete('87G8P2C7+V2', none)).toEqual([
+      expect.objectContaining({ id: 'coords/40.722188/-73.987437', title: '87G8P2C7+V2', description: 'Plus code' }),
+    ])
+    const center = { lat: 40.75, lng: -73.98 }
+    expect(localAutocomplete('P2C7+V2', none, { center })[0]).toMatchObject({ lat: 40.722188, lng: -73.987437 })
+    // The town needs geocoding, which is the server's job.
+    expect(localAutocomplete('P2C7+V2 New York', none, { center })).toEqual([])
+  })
+
   it('matches word prefixes in any order, ignoring case and accents', () => {
     const sources = { savedPlaces: [saved('Café de Flore', 'node/1')], recentPlaces: [] }
     for (const query of ['cafe', 'FLORE caf', 'de fl']) {

@@ -11,6 +11,7 @@ import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 import { afterRide } from '@/lib/guidance/after-ride'
 import AfterRide from './AfterRide.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import BoardingHint from '@/components/transit/trip/BoardingHint.vue'
 
 const props = defineProps<{
   stage: TransitStage
@@ -93,6 +94,7 @@ const ride = computed(() => {
         <RealtimeIndicator :real-time="!!segment?.realTimeData" :delay="segment?.delay" class="shrink-0" />
         <ChevronDown class="ml-auto size-4 shrink-0 transition-transform" :class="picking && 'rotate-180'" />
       </button>
+      <BoardingHint v-if="segment?.boardingPosition" :position="segment.boardingPosition" :color="segment.lineColor" />
     </template>
 
     <template v-else-if="ride">

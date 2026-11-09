@@ -18,6 +18,7 @@
 * Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.
 * Trips from your current location now name the address you set out from, instead of "Current Location".
 * Returning to directions or refreshing trip suggestions now plans from where you are now, not where you were when you first searched.
+* Waiting along a subway platform no longer makes guidance think you've boarded, and the wait card now shows where on the platform to stand.
 
 ## [0.20.1-1] - 2026-11-08
 

@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
-import { rideStops } from '@/lib/guidance/transit-progress'
+import { rideStops, walksToStop } from '@/lib/guidance/transit-progress'
 import { runChoices } from '@/lib/guidance/run-choices'
 import type { CandidateSet } from '@/lib/guidance/vehicle-switch'
 import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.service'
@@ -15,7 +15,7 @@ const AHEAD_MS = 60 * 60_000
  * The runs the rider could take on ride `segmentIndex` instead of the booked one.
  * Fetched as soon as the ride is pickable and kept fresh while it is; `open` refetches a stale list at once.
  */
-export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<number>, open: Ref<boolean>) {
+export function useRunChoices(segmentIndex: Ref<number | null>, toStopSec: Ref<number>, open: Ref<boolean>) {
   const guidance = useGuidanceStore()
   const navigationPreferences = useNavigationPreferencesStore()
   const set = shallowRef<CandidateSet | null>(null)
@@ -72,15 +72,17 @@ export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<num
 
   const choices = computed(() => {
     const segment = ride()
-    if (!set.value || !segment) return []
+    const index = segmentIndex.value
+    if (!set.value || !segment || index == null) return []
+    const onFoot = !!guidance.route && walksToStop(guidance.route, index)
     return runChoices({
       set: set.value,
       bookedTripId: segment.tripId,
       bookedMs: new Date(segment.startTime ?? 0).getTime(),
       alightStop: alightStop.value,
       nowMs: guidance.clockMs,
-      walkSec: walkSec.value,
-      runFactor: navigationPreferences.runPace,
+      toStopSec: toStopSec.value,
+      runFactor: onFoot ? navigationPreferences.runPace : null,
     })
   })
 

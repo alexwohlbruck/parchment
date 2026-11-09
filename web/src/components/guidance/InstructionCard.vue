@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AppRoute } from '@/router'
 import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
-import { walkToStopSec } from '@/lib/guidance/transit-progress'
+import { secondsToStop, walksToStop } from '@/lib/guidance/transit-progress'
 import { rideCertainty } from '@/lib/guidance/ride-estimator'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import type { VehicleCandidate } from '@/lib/guidance/vehicle-switch'
@@ -35,19 +35,19 @@ const approach = computed(() => {
   const route = guidance.route
   const puck = guidance.progress?.puck
   if (current?.kind !== 'to-stop' || !route || !puck) return null
-  return { stage: current, walkSec: walkToStopSec(route, current, puck.s) }
+  return { stage: current, toStopSec: secondsToStop(route, current, puck.s), onFoot: walksToStop(route, current.segmentIndex) }
 })
 
 /** The ride whose runs are listed, while the rider can still pick one. */
 const picking = ref(false)
 const pickable = computed(() => {
-  if (approach.value) return { segmentIndex: approach.value.stage.segmentIndex, walkSec: approach.value.walkSec }
-  return stage.value?.kind === 'wait' ? { segmentIndex: stage.value.segmentIndex, walkSec: 0 } : null
+  if (approach.value) return { segmentIndex: approach.value.stage.segmentIndex, toStopSec: approach.value.toStopSec }
+  return stage.value?.kind === 'wait' ? { segmentIndex: stage.value.segmentIndex, toStopSec: 0 } : null
 })
 watch(() => pickable.value?.segmentIndex, () => (picking.value = false))
 const runs = useRunChoices(
   computed(() => pickable.value?.segmentIndex ?? null),
-  computed(() => pickable.value?.walkSec ?? 0),
+  computed(() => pickable.value?.toStopSec ?? 0),
   picking,
 )
 
@@ -151,7 +151,8 @@ function previewRoute() {
         :departure-ms="approach.stage.departureMs"
         :segment="guidance.segments[approach.stage.segmentIndex]"
         :now-ms="guidance.clockMs"
-        :walk-sec="approach.walkSec"
+        :to-stop-sec="approach.toStopSec"
+        :on-foot="approach.onFoot"
         :later="followingRuns(runs.choices.value, approach.stage.departureMs)"
         :open="picking"
         @toggle="picking = !picking"

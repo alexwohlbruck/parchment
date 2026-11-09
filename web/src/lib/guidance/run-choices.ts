@@ -17,7 +17,7 @@ export interface RunChoiceInput {
   bookedMs: number
   alightStop: string | null
   nowMs: number
-  walkSec: number
+  toStopSec: number
   runFactor?: number | null
 }
 
@@ -25,13 +25,13 @@ const MAX_CHOICES = 8
 
 /** The runs the rider can still make that get them off where planned, soonest first, the booked one marked. */
 export function runChoices(input: RunChoiceInput): RunChoice[] {
-  const { set, alightStop, nowMs, walkSec } = input
+  const { set, alightStop, nowMs, toStopSec } = input
   const alightKnown = alightStop != null && set.known.includes(alightStop)
   const bookedId = input.bookedTripId ?? closestRun(set.candidates, input.bookedMs)?.tripId
   return set.candidates
     .flatMap(candidate => {
       const booked = candidate.tripId === bookedId
-      const reach = approachReach(candidate.departureMs, nowMs, walkSec, input.runFactor ?? null)
+      const reach = approachReach(candidate.departureMs, nowMs, toStopSec, input.runFactor ?? null)
       const arrivalMs = alightKnown ? candidate.calls.find(c => c.stop === alightStop)?.timeMs : undefined
       if (alightKnown && arrivalMs == null) return []
       if (isOutOfReach(reach) && !(booked && reach !== 'departed')) return []

@@ -18,7 +18,7 @@ const input = (candidates: VehicleCandidate[], over: Partial<RunChoiceInput> = {
   bookedMs: min(9),
   alightStop: 'alight',
   nowMs: T,
-  walkSec: 8 * 60,
+  toStopSec: 8 * 60,
   runFactor: 1.6,
   ...over,
 })
@@ -66,7 +66,7 @@ describe('followingRuns', () => {
   })
 
   test('leaves out an earlier run the rider could switch to', () => {
-    const choices = runChoices(input([run('sooner', 9), run('booked', 14), run('later', 19)], { walkSec: 4 * 60 }))
+    const choices = runChoices(input([run('sooner', 9), run('booked', 14), run('later', 19)], { toStopSec: 4 * 60 }))
     expect(ids(followingRuns(choices, min(14)))).toEqual(['later'])
   })
 })

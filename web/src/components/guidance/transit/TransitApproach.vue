@@ -14,7 +14,9 @@ const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   segment: any
   nowMs: number
-  walkSec: number
+  toStopSec: number
+  /** Walking to the stop, so running for it is an option. */
+  onFoot: boolean
   /** The runs after this one, as the departure list has them. */
   later: RunChoice[]
   open?: boolean
@@ -25,7 +27,7 @@ const { t } = useI18n()
 const navigationPreferences = useNavigationPreferencesStore()
 
 const reach = computed(() => {
-  const state = approachReach(props.departureMs, props.nowMs, props.walkSec, navigationPreferences.runPace)
+  const state = approachReach(props.departureMs, props.nowMs, props.toStopSec, props.onFoot ? navigationPreferences.runPace : null)
   return reachWord(state, t) ?? { word: t('guidance.transit.reach.ok'), tone: 'text-forest-600 dark:text-forest-400' }
 })
 const leadIn = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))

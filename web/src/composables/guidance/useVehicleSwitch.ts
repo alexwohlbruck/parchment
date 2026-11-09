@@ -1,6 +1,6 @@
 import { onScopeDispose, shallowRef, watch } from 'vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
-import { rideStops, walkToStopSec } from '@/lib/guidance/transit-progress'
+import { rideStops, secondsToStop } from '@/lib/guidance/transit-progress'
 import { earlierRun, liveRun, rankCandidates, RideObserver, vehicleVerdict, type CandidateSet, type RankedCandidate, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
@@ -97,7 +97,7 @@ export function useVehicleSwitch() {
     const puck = guidance.progress?.puck
     if (!stage || !route || !puck || stage.segmentIndex !== watched.segmentIndex) return null
     if (stage.kind !== 'to-stop' && stage.kind !== 'wait') return null
-    return nowMs + walkToStopSec(route, stage, puck.s) * 1000 + CATCH_MARGIN_MS
+    return nowMs + secondsToStop(route, stage, puck.s) * 1000 + CATCH_MARGIN_MS
   }
 
   async function retarget(watched: Watch, candidate: VehicleCandidate) {
@@ -142,7 +142,7 @@ export function useVehicleSwitch() {
     const estimated = guidance.rideEstimate != null && !guidance.rideEstimate.fresh
     if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
 
-    const near = stage.kind !== 'to-stop' || walkToStopSec(route, stage, puck.s) < LOOKUP_WALK_SEC
+    const near = stage.kind !== 'to-stop' || secondsToStop(route, stage, puck.s) < LOOKUP_WALK_SEC
     const due = Date.now() - watched.fetchedAt > (riding ? RIDING_REFRESH_MS : stage.kind === 'missed-vehicle' ? MISSED_REFRESH_MS : WAITING_REFRESH_MS)
     if (near && due && !watched.fetching) void refresh(watched)
 

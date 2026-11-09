@@ -1,46 +1,76 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, RouteIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
-import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import PlacePanel from '@/components/place/PlacePanel.vue'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { FREE_MODE_ICONS } from '@/components/guidance/free-mode-icons'
 import { useStartFreeRoam } from '@/composables/guidance/useStartFreeRoam'
+import { useAbortController } from '@/composables/useAbortController'
 import { useGeolocationService } from '@/services/geolocation.service'
-import { useGeocodingService } from '@/services/geocoding.service'
+import { usePlaceService } from '@/services/place/place.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { formatAddress } from '@/lib/place/place-details'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
+import { FREE_MODES } from '@/lib/guidance/free-roam'
 import { useAppStore } from '@/stores/app.store'
+import { useGuidanceStore } from '@/stores/guidance.store'
 import { UnitSystem } from '@/types/map.types'
+import type { Place } from '@/types/place.types'
 
 const { t } = useI18n()
 const router = useRouter()
 const geolocation = useGeolocationService()
-const { reverseGeocode } = useGeocodingService()
+const { fetchPlaceDetailsByCoordinates } = usePlaceService()
 const directionsService = useDirectionsService()
 const appStore = useAppStore()
+const guidance = useGuidanceStore()
 const startFreeRoam = useStartFreeRoam()
+const { nextSignal } = useAbortController()
 
-const address = ref<string | null>(null)
-let geocodedOnce = false
+const resolved = shallowRef<Place | null>(null)
+const loading = shallowRef(false)
+
+async function resolvePlace() {
+  const position = geolocation.lngLat.value
+  if (!position) return
+  loading.value = true
+  try {
+    resolved.value = await fetchPlaceDetailsByCoordinates(position.lat, position.lng, undefined, nextSignal())
+  } finally {
+    loading.value = false
+  }
+}
+
+let requested = false
 watch(
   geolocation.lngLat,
-  async position => {
-    if (!position || geocodedOnce) return
-    geocodedOnce = true
-    try {
-      const { results } = await reverseGeocode({ lat: position.lat, lng: position.lng, limit: 1 })
-      address.value = (results[0] && formatAddress(results[0])) || null
-    } catch {
-      address.value = null
-    }
+  position => {
+    if (!position || requested) return
+    requested = true
+    void resolvePlace()
   },
   { immediate: true },
 )
+
+/** Without a resolved place the panel still shows the coordinates themselves. */
+const place = computed<Partial<Place>>(() => {
+  if (resolved.value) return resolved.value
+  const position = geolocation.lngLat.value
+  if (!position) return {}
+  return {
+    geometry: {
+      value: { type: 'point', center: { lat: position.lat, lng: position.lng } },
+      sourceId: 'local',
+      timestamp: new Date().toISOString(),
+    },
+  }
+})
+
+const located = computed(() => !!geolocation.lngLat.value)
 
 const accuracy = computed(() => {
   const meters = geolocation.accuracy.value
@@ -49,48 +79,57 @@ const accuracy = computed(() => {
   return t('myLocation.accuracy', { distance: `${value} ${t(`guidance.units.${unit}`)}` })
 })
 
-const coordinates = computed(() => {
+const label = computed(() => {
   const position = geolocation.lngLat.value
-  return position ? `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}` : null
+  if (!position) return null
+  return (
+    resolved.value?.name?.value ||
+    (resolved.value && formatAddress(resolved.value)) ||
+    `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`
+  )
 })
+
+const otherModes = computed(() => FREE_MODES.filter(mode => mode !== guidance.freeMode))
 
 function directions() {
   directionsService.populateOriginWithCurrentLocation()
   router.push({ name: AppRoute.DIRECTIONS })
 }
-
-const OTHER_MODES = ['walking', 'cycling'] as const
 </script>
 
 <template>
-  <PanelLayout>
-    <div class="space-y-4">
+  <PlacePanel :place="place" :loading="loading || !located">
+    <template #header>
       <div class="space-y-1">
-        <h1 class="text-2xl font-semibold">{{ t('myLocation.title') }}</h1>
-        <p v-if="coordinates" class="text-sm text-muted-foreground">
-          {{ address ?? coordinates }}<template v-if="accuracy"> · {{ accuracy }}</template>
+        <h1 class="text-[28px] leading-[1.05] pb-[0.2em] -mb-[0.2em]">{{ t('myLocation.title') }}</h1>
+        <p class="text-sm text-muted-foreground">
+          <template v-if="label">
+            {{ label }}<template v-if="accuracy"> · {{ accuracy }}</template>
+          </template>
+          <template v-else>{{ t('guidance.waitingForLocation') }}</template>
         </p>
-        <p v-else class="text-sm text-muted-foreground">{{ t('guidance.waitingForLocation') }}</p>
       </div>
+    </template>
 
+    <template #actions>
       <div class="flex gap-2">
         <div class="flex flex-1">
-          <Button class="flex-1 rounded-r-none" :disabled="!coordinates" @click="startFreeRoam('driving')">
-            <component :is="FREE_MODE_ICONS.driving" class="mr-2 size-4" />
-            {{ t('guidance.free.start.driving') }}
+          <Button class="flex-1 rounded-r-none" :disabled="!located" @click="startFreeRoam(guidance.freeMode)">
+            <component :is="FREE_MODE_ICONS[guidance.freeMode]" class="mr-2 size-4" />
+            {{ t(`guidance.free.start.${guidance.freeMode}`) }}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
                 class="rounded-l-none border-l border-primary-foreground/20 px-2.5"
-                :disabled="!coordinates"
+                :disabled="!located"
                 :aria-label="t('guidance.free.otherModes')"
               >
                 <ChevronDownIcon class="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem v-for="mode in OTHER_MODES" :key="mode" @select="startFreeRoam(mode)">
+              <DropdownMenuItem v-for="mode in otherModes" :key="mode" @select="startFreeRoam(mode)">
                 <component :is="FREE_MODE_ICONS[mode]" class="mr-2 size-4" />
                 {{ t(`guidance.free.start.${mode}`) }}
               </DropdownMenuItem>
@@ -102,6 +141,6 @@ const OTHER_MODES = ['walking', 'cycling'] as const
           {{ t('directions.directions') }}
         </Button>
       </div>
-    </div>
-  </PanelLayout>
+    </template>
+  </PlacePanel>
 </template>

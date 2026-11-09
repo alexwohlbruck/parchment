@@ -2,6 +2,7 @@ import { nextNavigableLeg } from '@/lib/guidance/leg-navigation'
 export { isLegNavigable, nextNavigableLeg } from '@/lib/guidance/leg-navigation'
 import { computed, markRaw, reactive, ref, shallowRef, toRef, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { useStorage } from '@vueuse/core'
 import type { TripOption } from '@/types/directions.types'
 import { buildNavRoute, type NavRoute, type NavSegmentInput } from '@/lib/guidance/nav-route'
 import type { Fix, PuckState } from '@/lib/guidance/guidance-engine'
@@ -65,6 +66,7 @@ import {
   HazardWatch,
   horizonSegment,
   horizonTarget,
+  freeModeFor,
   needsHorizon,
   roamProgress,
   straightSegment,
@@ -186,7 +188,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const powerBudget = computed(() => navPowerBudget(powerStore.saver))
 
   const kind = ref<GuidanceKind>('route')
-  const freeMode = ref<FreeMode>('driving')
+  /** Kept across sessions so free roam offers the mode last picked. */
+  const freeMode = useStorage<FreeMode>('free-roam-mode', 'driving', undefined, {
+    serializer: { read: raw => freeModeFor(raw) ?? 'driving', write: mode => mode },
+  })
   /** The path ahead free roam follows in place of a route. */
   const horizon = shallowRef<NavRoute | null>(null)
   const roamStartedAt = ref(0)

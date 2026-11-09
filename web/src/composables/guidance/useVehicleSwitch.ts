@@ -64,7 +64,7 @@ export function useVehicleSwitch() {
     watched.fetching = true
     watched.fetchedAt = Date.now()
     try {
-      const set = await fetchVehicleCandidates(guidance.segments[watched.segmentIndex])
+      const set = await fetchVehicleCandidates(guidance.segments[watched.segmentIndex], readyAt(watched, guidanceClock.now()))
       if (!set || current !== watched) return
       watched.set = set
       if (guidance.transit?.kind !== 'riding') retime(watched, set)

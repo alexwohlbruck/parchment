@@ -2475,6 +2475,8 @@
         "diet_gluten_free": "Gluten Free",
         "toilets": "Restrooms",
         "toilets_access": "Restroom Access",
+        "toilets_unisex": "Unisex Restroom",
+        "ele": "Elevation",
         "toilets_disposal": "Toilet Type",
         "toilets_position": "Position",
         "changing_table": "Baby Changing",

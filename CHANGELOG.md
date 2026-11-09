@@ -10,6 +10,7 @@
 ### Changed
 
 * My location now shows the same details as any place on the map, and its free roam button starts in the mode you last used.
+* Tapping the map on a shop, school or other named place now opens that place, with the pin left where you tapped.
 
 ### Fixed
 

@@ -17,6 +17,7 @@ import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
 import { getPlaceOsmTags } from '../lib/place-tags'
 import { reverseGeocode } from './geocoding.service'
+import { isTappedPlace } from '../lib/tapped-place'
 import { logError, logWarn, logger } from '../lib/logger'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
@@ -891,9 +892,9 @@ export async function lookupEnrichedPlaceByCoordinates(
     
     let place = results[0]
 
-    // addressOnly mode: skip full enrichment, return coordinates as the title
-    // with geocoded address for supplemental info (used by /place/coords/:lat/:lng)
-    if (addressOnly) {
+    // addressOnly mode: unless the tap landed on a place, skip full enrichment and
+    // title the coordinates, with the geocoded address as supplemental info
+    if (addressOnly && !isTappedPlace(place, lat, lng)) {
       place.geometry = {
         ...place.geometry,
         value: {

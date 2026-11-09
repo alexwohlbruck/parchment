@@ -144,6 +144,26 @@ describe('yourVehicleIds', () => {
     expect(ids).toEqual(new Set(['mine-a', 'mine-c']))
   })
 
+  it('matches a planner run id, which leads with its date and time', () => {
+    const legs = focusedLegs({
+      segments: [transitSegment({ route: { id: '34_Q70+' }, trip: { id: '20261108_16:20_34_4737-LG' } })],
+    })
+    const ids = yourVehicleIds(legs, [
+      vehicle({ vehicleId: 'mine', feedId: '34', tripId: '34_4737-LG' }),
+      vehicle({ vehicleId: 'other', feedId: '34', tripId: '34_4738-LG' }),
+    ])
+    expect(ids).toEqual(new Set(['mine']))
+  })
+
+  it('follows the run guidance moved the leg to', () => {
+    const moved = { ...transitSegment({ trip: { id: 'f1_trip-7' } }), tripId: 'f1_trip-9' }
+    const ids = yourVehicleIds(focusedLegs({ segments: [moved] }), [
+      vehicle({ vehicleId: 'planned', tripId: 'f1_trip-7' }),
+      vehicle({ vehicleId: 'boarded', tripId: 'f1_trip-9' }),
+    ])
+    expect(ids).toEqual(new Set(['boarded']))
+  })
+
   // The caller reads empty as "dim nothing" — every train at full strength
   // beats three of them faded behind a fourth that is not the rider's.
   it('is empty when no leg can name its run', () => {

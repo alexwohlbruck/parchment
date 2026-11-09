@@ -183,3 +183,26 @@ export function railStyleAt(
 export function byRank<T extends { rank: number }>(trips: readonly T[]): T[] {
   return [...trips].sort((a, b) => a.rank - b.rank)
 }
+
+export function formatCurrency(cost: { currency: string; amount: number }): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: cost.currency }).format(cost.amount)
+}
+
+interface RentalPricing {
+  currency: string
+  estimatedCost: number
+  unlockPrice: number
+  perMinuteRate: number
+}
+
+/** "≈ $12.12" — estimated single-ride fare. */
+export function formatRentalFare(p: RentalPricing): string {
+  return `≈ ${formatCurrency({ currency: p.currency, amount: p.estimatedCost })}`
+}
+
+/** "$4.99 unlock + $0.41/min" — the rate card behind the estimate. */
+export function formatFareBreakdown(p: RentalPricing): string {
+  const unlock = `${formatCurrency({ currency: p.currency, amount: p.unlockPrice })} unlock`
+  if (p.perMinuteRate <= 0) return unlock
+  return `${unlock} + ${formatCurrency({ currency: p.currency, amount: p.perMinuteRate })}/min`
+}

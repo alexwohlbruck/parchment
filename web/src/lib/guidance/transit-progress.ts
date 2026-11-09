@@ -199,12 +199,26 @@ export function timetabledRemaining(
   return Math.max(0, (arrival - nowMs) / 1000) + after
 }
 
-const WALK_PACE = 1.3
+/** Metres a second on each way of reaching a stop, where the plan doesn't time the segment. */
+const MODE_PACE: Record<string, number> = { walking: 1.3, cycling: 4.5, driving: 9 }
 
-/** Seconds of walking left to the boarding stop of `stage`. */
-export function walkToStopSec(route: NavRoute, stage: TransitStage, s: number): number {
-  const board = route.segments[stage.segmentIndex]?.startDistance ?? s
-  return Math.max(0, board - s) / WALK_PACE
+/** Seconds of travel left to the boarding stop of `stage`, at each segment's planned pace. */
+export function secondsToStop(route: NavRoute, stage: TransitStage, s: number): number {
+  let sec = 0
+  for (const segment of route.segments) {
+    if (segment.index >= stage.segmentIndex) break
+    const left = segment.endDistance - Math.max(s, segment.startDistance)
+    if (left <= 0) continue
+    const length = segment.endDistance - segment.startDistance
+    const pace = segment.movingSec ? length / segment.movingSec : MODE_PACE[segment.mode] ?? MODE_PACE.walking
+    sec += left / pace
+  }
+  return sec
+}
+
+/** Whether the rider reaches ride `segmentIndex` on foot, so running for it is an option. */
+export function walksToStop(route: NavRoute, segmentIndex: number): boolean {
+  return route.segments[segmentIndex - 1]?.mode === 'walking'
 }
 
 /** A ride has no turns; give it a boarding step so the banner names the stop rather than skipping past. */

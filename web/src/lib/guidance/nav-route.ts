@@ -21,6 +21,9 @@ export interface NavSegmentInput {
   lineColor?: string | null
   mode: string
   geometry?: LngLat[]
+  /** Planned seconds for the segment, any wait at its end included. */
+  duration?: number
+  waitSeconds?: number
   instructions?: RouteInstruction[]
   edgeSegments?: RouteEdgeSegment[]
   hazards?: RouteHazard[]
@@ -76,6 +79,8 @@ export interface NavSegment {
   entranceCorner?: string
   startDistance: number
   endDistance: number
+  /** Planned seconds on the move, waits left out. */
+  movingSec?: number
 }
 
 export interface NavEdge extends RouteEdgeSegment {
@@ -136,6 +141,7 @@ export function buildNavRoute(inputs: NavSegmentInput[]): NavRoute {
     }
     segments.push({
       index: segmentIndex, mode: input.mode, lineColor: input.lineColor, startDistance, endDistance: offset,
+      ...(input.duration != null && { movingSec: Math.max(0, input.duration - (input.waitSeconds ?? 0)) }),
       ...(input.stationEntrance?.cornerLabel && { entranceCorner: input.stationEntrance.cornerLabel }),
     })
 

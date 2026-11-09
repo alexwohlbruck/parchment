@@ -13,6 +13,9 @@ export interface VehicleCandidate {
   routeType?: number
   headsign?: string
   departureMs: number
+  /** The timetable's departure, where the feed predicts its own. */
+  scheduledMs?: number
+  realTime?: boolean
   /** The leg's later stops this run calls at, by stop key. */
   calls: { stop: string; timeMs: number }[]
   position?: LngLat & { atMs: number }
@@ -225,10 +228,16 @@ export interface RideSegment {
   lineTextColor?: string
   routeType?: number
   headsign?: string
+  realTimeData?: boolean
+  /** Seconds behind the timetable at departure. */
+  delay?: number
   departureStop?: TransitStopInput
   arrivalStop?: TransitStopInput
   intermediateStops?: TransitStopInput[]
 }
+
+/** A departure moved by less than this has not moved. */
+const RETIME_MS = 30_000
 
 const toMs = (v?: string | Date) => (v ? new Date(v).getTime() : NaN)
 const shifted = (v: string | Date | undefined, deltaMs: number) => (v ? new Date(toMs(v) + deltaMs).toISOString() : undefined)
@@ -253,6 +262,10 @@ export function retargetedRide(segment: RideSegment, candidate: VehicleCandidate
     lineTextColor: candidate.textColor,
     routeType: candidate.routeType ?? segment.routeType,
     headsign: candidate.headsign ?? segment.headsign,
+    ...(candidate.realTime != null && {
+      realTimeData: candidate.realTime,
+      delay: candidate.scheduledMs != null ? Math.round((candidate.departureMs - candidate.scheduledMs) / 1000) : undefined,
+    }),
     startTime: new Date(candidate.departureMs),
     endTime: new Date(endMs),
     duration: Math.max(0, (endMs - candidate.departureMs) / 1000),
@@ -260,4 +273,30 @@ export function retargetedRide(segment: RideSegment, candidate: VehicleCandidate
     arrivalStop: arrival && { ...arrival, arrivalTime: new Date(endMs).toISOString() },
     intermediateStops,
   }
+}
+
+/** The booked run as the feed now times it, when that moves its departure and it is still to come. */
+export function liveRun(segment: RideSegment, set: CandidateSet, nowMs: number): VehicleCandidate | null {
+  const run = set.candidates.find(c => c.tripId === segment.tripId)
+  if (!run || run.departureMs <= nowMs) return null
+  return Math.abs(run.departureMs - toMs(segment.startTime)) >= RETIME_MS ? run : null
+}
+
+/** A run reaching `alightStop` sooner than the booked one and leaving no earlier than `readyMs`, the soonest there first. */
+export function earlierRun(segment: RideSegment, set: CandidateSet, readyMs: number, alightStop: string | null): VehicleCandidate | null {
+  const booked = set.candidates.find(c => c.tripId === segment.tripId)
+  const bookedDeparture = booked?.departureMs ?? toMs(segment.startTime)
+  const alightKnown = alightStop != null && set.known.includes(alightStop)
+  const arrival = (run: VehicleCandidate) => (alightKnown ? run.calls.find(c => c.stop === alightStop)?.timeMs : undefined)
+  const bookedArrival = (booked && arrival(booked)) ?? toMs(segment.endTime)
+  const reaches = (run: VehicleCandidate) => {
+    if (!alightKnown) return run.line === segment.lineName
+    const at = arrival(run)
+    return at != null && at < bookedArrival
+  }
+  const catchable = set.candidates.filter(
+    c => c.tripId !== segment.tripId && c.departureMs >= readyMs && c.departureMs <= bookedDeparture - RETIME_MS && reaches(c),
+  )
+  const soonest = (run: VehicleCandidate) => arrival(run) ?? run.departureMs
+  return catchable.sort((a, b) => soonest(a) - soonest(b))[0] ?? null
 }

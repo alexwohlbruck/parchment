@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check } from 'lucide-vue-next'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -7,19 +7,17 @@ import { formatClock } from '@/lib/directions/trip-display'
 import { formatDurationCompact } from '@/lib/time-format'
 import { reachWord } from '@/lib/directions/trip-advice'
 import type { VehicleCandidate } from '@/lib/guidance/vehicle-switch'
-import { useRunChoices } from '@/composables/guidance/useRunChoices'
+import type { RunChoice } from '@/lib/guidance/run-choices'
 
-const props = defineProps<{ segmentIndex: number; walkSec: number; nowMs: number }>()
+const props = defineProps<{ choices: RunChoice[]; known: string[]; loading: boolean; nowMs: number }>()
 const emit = defineEmits<{ choose: [candidate: VehicleCandidate, known: string[]] }>()
 const { t } = useI18n()
 
-const { choices, known, loading } = useRunChoices(toRef(props, 'segmentIndex'), toRef(props, 'walkSec'))
-
-const rows = computed(() => choices.value.map(choice => ({ ...choice, hint: reachWord(choice.reach, t) })))
+const rows = computed(() => props.choices.map(choice => ({ ...choice, hint: reachWord(choice.reach, t) })))
 const lead = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 
 function pick(candidate: VehicleCandidate, booked: boolean) {
-  if (!booked) emit('choose', candidate, known.value)
+  if (!booked) emit('choose', candidate, props.known)
 }
 </script>
 

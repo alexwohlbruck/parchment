@@ -11,6 +11,7 @@ import type { VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { bannerCue } from '@/lib/guidance/instructions/instruction-text'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
+import { useRunChoices } from '@/composables/guidance/useRunChoices'
 import { Button } from '@/components/ui/button'
 import ManeuverBanner from './ManeuverBanner.vue'
 import TransitStageCard from './transit/TransitStageCard.vue'
@@ -43,6 +44,11 @@ const pickable = computed(() => {
   return stage.value?.kind === 'wait' ? { segmentIndex: stage.value.segmentIndex, walkSec: 0 } : null
 })
 watch(() => pickable.value?.segmentIndex, () => (picking.value = false))
+const runs = useRunChoices(
+  computed(() => pickable.value?.segmentIndex ?? null),
+  computed(() => pickable.value?.walkSec ?? 0),
+  picking,
+)
 
 async function chooseRun(candidate: VehicleCandidate, known: string[]) {
   const ride = pickable.value
@@ -93,75 +99,86 @@ function previewRoute() {
 </script>
 
 <template>
-  <div class="nav-card overflow-hidden">
-    <StationStepCard
-      v-if="guidance.stationGuide"
-      class="p-4"
-      :class="stage && 'border-b'"
-      :target="guidance.stationGuide.target"
-      :state="guidance.stationGuide.state"
-      :now-ms="guidance.clockMs"
-      @next="guidance.nextStationStep"
-    />
-    <TransitStageCard
-      v-if="stage"
-      :class="guidance.stationGuide ? 'px-4 py-3' : 'p-5'"
-      :compact="!!guidance.stationGuide"
-      :stage="stage"
-      :segments="guidance.segments"
-      :now-ms="guidance.clockMs"
-      :certainty="rideCertainty(guidance.rideEstimate)"
-      :busy="guidance.rebooking"
-      :no-later-run="noLaterRun"
-      :recovering="!!recovery.view.value"
-      :picking="picking"
-      @pick-run="picking = !picking"
-      @next-run="catchNextRun"
-      @another-way="findAnotherWay"
-      @alight="guidance.alight(stage.segmentIndex)"
-    />
-    <template v-else-if="!guidance.stationGuide">
-      <ManeuverBanner
-        :progress="guidance.progress"
-        :status="guidance.status"
-        :destination="guidance.destinationLabel"
-        :metric="metric"
-        :lanes="lanes"
-        :instruction="guidance.nextInstruction"
-        :cue="cue"
-        :dash="dash"
+  <div class="relative">
+    <div class="nav-card overflow-hidden">
+      <StationStepCard
+        v-if="guidance.stationGuide"
+        class="p-4"
+        :class="stage && 'border-b'"
+        :target="guidance.stationGuide.target"
+        :state="guidance.stationGuide.state"
+        :now-ms="guidance.clockMs"
+        @next="guidance.nextStationStep"
       />
-      <div v-if="guidance.status === 'away'" class="px-5 pb-4">
-        <Button variant="secondary" class="h-12 rounded-full px-5" @click="previewRoute">
-          {{ t('guidance.preview.previewRoute') }}
-        </Button>
-      </div>
-    </template>
-    <TransitApproach
-      v-if="approach"
-      class="border-t px-5 py-3"
-      :departure-ms="approach.stage.departureMs"
-      :segment="guidance.segments[approach.stage.segmentIndex]"
-      :now-ms="guidance.clockMs"
-      :walk-sec="approach.walkSec"
-      :open="picking"
-      @toggle="picking = !picking"
-    />
-    <RunPicker
-      v-if="picking && pickable"
-      class="border-t px-5 py-2"
-      :segment-index="pickable.segmentIndex"
-      :walk-sec="pickable.walkSec"
-      :now-ms="guidance.clockMs"
-      @choose="chooseRun"
-    />
-    <MissedRecovery
-      v-if="recovery.view.value"
-      class="border-t px-5 py-3"
-      :view="recovery.view.value"
-      :now-ms="guidance.clockMs"
-      @take="recovery.take"
-      @other-routes="findAnotherWay"
-    />
+      <TransitStageCard
+        v-if="stage"
+        :class="guidance.stationGuide ? 'px-4 py-3' : 'p-5'"
+        :compact="!!guidance.stationGuide"
+        :stage="stage"
+        :segments="guidance.segments"
+        :now-ms="guidance.clockMs"
+        :certainty="rideCertainty(guidance.rideEstimate)"
+        :busy="guidance.rebooking"
+        :no-later-run="noLaterRun"
+        :recovering="!!recovery.view.value"
+        :picking="picking"
+        @pick-run="picking = !picking"
+        @next-run="catchNextRun"
+        @another-way="findAnotherWay"
+        @alight="guidance.alight(stage.segmentIndex)"
+      />
+      <template v-else-if="!guidance.stationGuide">
+        <ManeuverBanner
+          :progress="guidance.progress"
+          :status="guidance.status"
+          :destination="guidance.destinationLabel"
+          :metric="metric"
+          :lanes="lanes"
+          :instruction="guidance.nextInstruction"
+          :cue="cue"
+          :dash="dash"
+        />
+        <div v-if="guidance.status === 'away'" class="px-5 pb-4">
+          <Button variant="secondary" class="h-12 rounded-full px-5" @click="previewRoute">
+            {{ t('guidance.preview.previewRoute') }}
+          </Button>
+        </div>
+      </template>
+      <TransitApproach
+        v-if="approach"
+        class="border-t px-5 py-3"
+        :departure-ms="approach.stage.departureMs"
+        :segment="guidance.segments[approach.stage.segmentIndex]"
+        :now-ms="guidance.clockMs"
+        :walk-sec="approach.walkSec"
+        :open="picking"
+        @toggle="picking = !picking"
+      />
+      <MissedRecovery
+        v-if="recovery.view.value"
+        class="border-t px-5 py-3"
+        :view="recovery.view.value"
+        :now-ms="guidance.clockMs"
+        @take="recovery.take"
+        @other-routes="findAnotherWay"
+      />
+    </div>
+    <!-- Out of flow so the banner's measured obstruction, and with it the camera, ignores the list. -->
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="-translate-y-1 opacity-0"
+      leave-active-class="transition duration-100 ease-in"
+      leave-to-class="-translate-y-1 opacity-0"
+    >
+      <RunPicker
+        v-if="picking && pickable"
+        class="nav-card absolute inset-x-0 top-full z-10 mt-2 max-h-[50vh] overflow-y-auto px-5 py-2"
+        :choices="runs.choices.value"
+        :known="runs.known.value"
+        :loading="runs.loading.value"
+        :now-ms="guidance.clockMs"
+        @choose="chooseRun"
+      />
+    </Transition>
   </div>
 </template>

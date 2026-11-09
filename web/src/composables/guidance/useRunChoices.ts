@@ -9,53 +9,66 @@ import { guidanceClock } from '@/services/guidance/guidance-clock'
 
 const REFRESH_MS = 30_000
 
-/** The runs the rider could take on ride `segmentIndex` instead of the booked one, kept fresh while asked for. */
-export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<number>) {
+/**
+ * The runs the rider could take on ride `segmentIndex` instead of the booked one.
+ * Fetched as soon as the ride is pickable and kept between openings; refreshed only while `open`.
+ */
+export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<number>, open: Ref<boolean>) {
   const guidance = useGuidanceStore()
   const navigationPreferences = useNavigationPreferencesStore()
   const set = shallowRef<CandidateSet | null>(null)
   const loading = ref(false)
+  let fetchedAt = 0
+  let latest = 0
   let timer: ReturnType<typeof setInterval> | null = null
 
-  async function load(index: number) {
-    const segment = guidance.segments[index]
+  async function load() {
+    const index = segmentIndex.value
+    const segment = index != null ? guidance.segments[index] : null
     if (!segment) return
+    const request = ++latest
     loading.value = true
+    fetchedAt = Date.now()
     try {
       const fresh = await fetchVehicleCandidates(segment, guidanceClock.now())
-      if (segmentIndex.value === index) set.value = fresh
+      if (request === latest && fresh) set.value = fresh
     } finally {
-      loading.value = false
+      if (request === latest) loading.value = false
     }
   }
 
-  function stop() {
+  function stopRefreshing() {
     if (timer) clearInterval(timer)
     timer = null
   }
 
+  const ride = () => (segmentIndex.value != null ? guidance.segments[segmentIndex.value] : null)
   watch(
-    segmentIndex,
-    index => {
-      stop()
+    [segmentIndex, ride],
+    ([index]) => {
       set.value = null
-      if (index == null) return
-      void load(index)
-      timer = setInterval(() => void load(index), REFRESH_MS)
+      fetchedAt = 0
+      if (index != null) void load()
     },
     { immediate: true },
   )
-  onScopeDispose(stop)
+
+  watch(open, isOpen => {
+    stopRefreshing()
+    if (!isOpen || segmentIndex.value == null) return
+    if (Date.now() - fetchedAt > REFRESH_MS) void load()
+    timer = setInterval(() => void load(), REFRESH_MS)
+  })
+  onScopeDispose(stopRefreshing)
 
   const alightStop = computed(() => {
     const index = segmentIndex.value
-    const segment = index != null ? guidance.segments[index] : null
-    return guidance.route && segment ? rideStops(guidance.route, index!, segment).at(-1)?.key ?? null : null
+    const segment = ride()
+    return guidance.route && segment && index != null ? rideStops(guidance.route, index, segment).at(-1)?.key ?? null : null
   })
 
   const choices = computed(() => {
-    const index = segmentIndex.value
-    const segment = index != null ? guidance.segments[index] : null
+    const segment = ride()
     if (!set.value || !segment) return []
     return runChoices({
       set: set.value,

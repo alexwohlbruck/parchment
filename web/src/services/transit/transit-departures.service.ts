@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { Run } from '@/lib/transit/later-runs'
+import type { Run } from '@/lib/transit/run'
 
 export interface LineRun {
   departureStop: { location: { lat: number; lng: number } }

@@ -3,11 +3,19 @@
 ### Added
 
 * Transit lines you open now show up in your search recents, wearing their route bullet.
+* During transit navigation, your location marker rides along the trip timeline in step with the map, including while it estimates your position underground.
+* Neighbourhood names appear as you zoom into a city, the best-known ones first, instead of only at street level.
+* Tap the departure row during transit navigation to pick a different bus or train, earlier or later, with how much of a hurry each one needs.
 
 ### Changed
 
 ### Fixed
 
+* Biking or driving to a station during navigation no longer tells you to run: the time to the stop now uses your actual pace.
+* Trips with a same-station subway transfer, like the L to the 4 at Union Square, can now be started in navigation.
+* Navigation now waits for a late bus or train using live departure times, instead of saying it has left.
+* Your bus or train's live position now shows on the map during navigation.
+* Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.
 * An opened transit line looks the same as on the transit map, with a bold line, stop names and transfer bullets, including buses in cities the detailed transit map does not cover.
 
 ## [0.20.1-1] - 2026-11-08

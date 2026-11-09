@@ -3625,6 +3625,8 @@ export class TripService {
         )
         const staysInside = changeStaysInside(segments[i + 1]) ?? transferGap <= TripService.IN_STATION_TRANSFER_MAX_M
         if (prevIsTransit && nextIsTransit && staysInside) {
+          // MOTIS leaves timetable-only transfers (transfers.txt, no pathways) unshaped.
+          if (!(seg.geometry?.length > 1) && transferGap > 0) seg.geometry = [seg.start.location, seg.end.location]
           const movingSec = seg.duration
           const departureMs = new Date(segments[i + 1].startTime).getTime()
           const startMs = new Date(seg.startTime).getTime()

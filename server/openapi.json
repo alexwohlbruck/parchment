@@ -15178,6 +15178,26 @@
             "in": "query",
             "name": "directionId",
             "required": false
+          },
+          {
+            "description": "Soonest the rider can be at the boarding stop; widens the search for earlier runs (up to 30 min before the planned one)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "earliest",
+            "required": false
+          },
+          {
+            "description": "Latest a run may leave; widens the search for later runs (up to 60 min after the planned one) and returns up to 16",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "latest",
+            "required": false
           }
         ],
         "operationId": "getTransitBoarding-candidates",
@@ -15185,7 +15205,7 @@
           "Transit"
         ],
         "summary": "Runs a rider may have boarded in place of the planned one",
-        "description": "Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure`: any run of `routes` in the leg's direction, and runs of other routes that also call at the alighting stop. Each lists the given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express can be told from a local, and carries its live `position` when the feed publishes vehicle positions. `stops` names the later stops whose boards could be read: a run missing from one of those does not call there.",
+        "description": "Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure` (widened by `earliest` and `latest`): any run of `routes` in the leg's direction, and runs of other routes that also call at the alighting stop. Each lists the given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express can be told from a local, and carries its live `position` when the feed publishes vehicle positions. `stops` names the later stops whose boards could be read: a run missing from one of those does not call there.",
         "responses": {
           "200": {}
         }

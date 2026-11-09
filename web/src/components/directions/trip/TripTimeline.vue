@@ -349,18 +349,29 @@ function node(index: number) {
         </template>
         <template v-else-if="entry.kind === 'segment'">
           <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-            <p
-              v-if="tight.has(entry.segmentIndex)"
-              class="mb-2 pl-[46px] flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300"
-            >
-              <TriangleAlertIcon class="size-3.5 shrink-0" />
-              {{ translate('directions.advice.tightChangeHere', { minutes: tight.get(entry.segmentIndex)!.minutes }) }}
-            </p>
-            <StationGuidanceRows
-              class="mb-2 pl-[46px]"
-              :segments="segments"
-              :index="entry.segmentIndex"
-            />
+            <!-- The rail arriving at this leg runs past the change advice and the
+                 station guidance to the card. flow-root keeps the rows' bottom
+                 margin inside this box, so the rail reaches the card's own. -->
+            <div class="relative flow-root">
+              <div
+                v-if="i > 0"
+                class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                :class="railColorAt(entries, i, 'above')"
+                :style="railStyleAt(entries, i, 'above')"
+              />
+              <p
+                v-if="tight.has(entry.segmentIndex)"
+                class="mb-2 pl-[46px] flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300"
+              >
+                <TriangleAlertIcon class="size-3.5 shrink-0" />
+                {{ translate('directions.advice.tightChangeHere', { minutes: tight.get(entry.segmentIndex)!.minutes }) }}
+              </p>
+              <StationGuidanceRows
+                class="mb-2 pl-[46px]"
+                :segments="segments"
+                :index="entry.segmentIndex"
+              />
+            </div>
             <!-- A ring, not a border: a border would shift the rail inside the card 1px right. -->
             <TransitLegCard
               :data-segment-card="entry.segmentIndex"

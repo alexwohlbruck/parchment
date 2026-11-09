@@ -403,6 +403,7 @@
     "invitationSent": "Invitación enviada a {email}",
     "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
+    "what3wordsCopied": "Dirección what3words copiada al portapapeles",
     "plusCodeError": "Error al generar el Código Plus"
   },
   "map": {
@@ -2286,6 +2287,7 @@
       "address": "Dirección",
       "coordinates": "Coordenadas",
       "plusCode": "Código Plus",
+      "what3words": "what3words",
       "phoneNumber": "Número de teléfono",
       "website": "Sitio web",
       "emailAddress": "Correo electrónico",

@@ -15,6 +15,7 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
+import { loadWhatFreeWords } from '@server/lib/whatfreewords'
 import { mapEventBus } from '@/lib/event-bus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -96,6 +97,8 @@ const geocodedRoute = ref<RouteLocationRaw | null>(null)
 /** The reverse-geocoded place itself — kept for its resolved POI icon. */
 const geocodedPlace = ref<Place | null>(null)
 const isGeocoding = ref(false)
+/** The point's what3words address, once the word data has loaded. */
+const what3words = ref<string | null>(null)
 
 /**
  * The place's own POI icon, styled exactly as it is on the place detail
@@ -131,6 +134,27 @@ function copyPlusCode(lngLat: LngLat) {
   if (plusCode) {
     navigator.clipboard.writeText(plusCode)
     appService.toast.info(t('messages.plusCodeCopied'))
+  }
+}
+
+function copyWhat3words(words: string) {
+  navigator.clipboard.writeText(`///${words}`)
+  appService.toast.info(t('messages.what3wordsCopied'))
+}
+
+/**
+ * Works out the point's what3words address on the device. The word data
+ * loads on the first menu open (and is precached for offline use), so the
+ * row can appear a moment after the rest of the menu.
+ */
+async function loadWhat3words(lngLat: LngLat) {
+  what3words.value = null
+  try {
+    const words = (await loadWhatFreeWords()).latLngToWords(lngLat.lat, lngLat.lng)
+    // The menu may have moved on to another point while the data loaded.
+    if (clickedLngLat.value === lngLat) what3words.value = words
+  } catch {
+    // Leave the row out; the other copy formats still work.
   }
 }
 
@@ -192,6 +216,7 @@ function openCoordinateDetail() {
 // Reverse geocode when context menu opens
 watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
   if (isOpen && lngLat) {
+    void loadWhat3words(lngLat)
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
@@ -228,6 +253,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
       isGeocoding.value = false
     }
   } else {
+    what3words.value = null
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
@@ -492,7 +518,31 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     const coords = clickedLngLat.value
     const plusCode = encode({ latitude: coords.lat, longitude: coords.lng })
 
-    const copyItems: MenuItemDefinition[] = [
+    // The readable name and address first, then the codes.
+    const copyItems: MenuItemDefinition[] = []
+
+    if (geocodedPlaceName.value) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-place-name',
+        label: geocodedPlaceName.value,
+        onSelect: copyPlaceName,
+      })
+    }
+
+    if (
+      geocodedAddress.value &&
+      geocodedAddress.value !== geocodedPlaceName.value
+    ) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-address',
+        label: geocodedAddress.value,
+        onSelect: copyAddress,
+      })
+    }
+
+    copyItems.push(
       {
         type: 'item',
         id: 'copy-coords',
@@ -505,28 +555,15 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         label: plusCode || '',
         onSelect: () => copyPlusCode(coords),
       },
-    ]
+    )
 
-    // Add place name copy option if available
-    if (geocodedPlaceName.value) {
+    const words = what3words.value
+    if (words) {
       copyItems.push({
         type: 'item',
-        id: 'copy-place-name',
-        label: geocodedPlaceName.value,
-        onSelect: copyPlaceName,
-      })
-    }
-
-    // Add address copy option if available (and different from place name)
-    if (
-      geocodedAddress.value &&
-      geocodedAddress.value !== geocodedPlaceName.value
-    ) {
-      copyItems.push({
-        type: 'item',
-        id: 'copy-address',
-        label: geocodedAddress.value,
-        onSelect: copyAddress,
+        id: 'copy-what3words',
+        label: `///${words}`,
+        onSelect: () => copyWhat3words(words),
       })
     }
 

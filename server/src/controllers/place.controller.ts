@@ -192,7 +192,7 @@ app.get(
       tags: ['Places'],
       summary: 'Get place details by ID, name/location, or coordinates',
       description:
-        'Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups perform reverse geocoding and run full enrichment if an OSM object is found.',
+        'Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.',
     },
   },
 )

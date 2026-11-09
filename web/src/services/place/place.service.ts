@@ -12,6 +12,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { usePlaceCacheStore, buildPlaceCacheKey } from '@/stores/place-cache.store'
 import { useRecentsStore } from '@/stores/recents.store'
 import { isSamePlace } from '@/lib/library/external-ids'
+import { localPlace, placeIdExternalIds } from '@/lib/search/local-search'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
@@ -279,6 +280,68 @@ function placeService() {
   }
 
   /**
+   * Paint what the device already knows about `placeId` — a search result,
+   * a saved place, a recent place, or the point a coordinate id names — so
+   * the page has something to show before, or without, the server. Returns
+   * the seeded place, or null when nothing local matched and the current
+   * place was left alone.
+   */
+  function seedPlaceFromLocal(placeId: string): Partial<Place> | null {
+    if (currentPlace.value?.id === placeId && currentPlace.value.geometry) {
+      return currentPlace.value
+    }
+
+    const cached = findCachedPlace(placeId)
+    if (cached) return (currentPlace.value = cached)
+
+    const externalIds = placeIdExternalIds(placeId)
+    const bookmark = useBookmarksStore().bookmarks.find(b =>
+      isSamePlace(externalIds, b.externalIds),
+    )
+    if (bookmark) {
+      return (currentPlace.value = localPlace({
+        id: placeId,
+        name: bookmark.name,
+        lat: bookmark.lat,
+        lng: bookmark.lng,
+        address: bookmark.address,
+        icon: bookmark.icon,
+        iconPack: bookmark.iconPack,
+        externalIds: { ...bookmark.externalIds, ...externalIds },
+      }))
+    }
+
+    const recent = useRecentsStore().places.find(r => r.id === placeId)
+    if (recent?.lat != null && recent.lng != null) {
+      return (currentPlace.value = localPlace({
+        id: placeId,
+        name: recent.title,
+        lat: recent.lat,
+        lng: recent.lng,
+        icon: recent.icon,
+        iconPack: recent.iconPack as 'lucide' | 'maki' | undefined,
+        externalIds,
+      }))
+    }
+
+    if (placeId.startsWith('coords/')) {
+      const [lat, lng] = placeId.slice('coords/'.length).split('/').map(Number)
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return (currentPlace.value = localPlace({
+          id: placeId,
+          name: `${lat}, ${lng}`,
+          lat,
+          lng,
+          placeType: 'Coordinates',
+          externalIds,
+        }))
+      }
+    }
+
+    return null
+  }
+
+  /**
    * Fetch place details by name near a coordinate — the fallback for a place
    * that has a label but no id we can look up (a geocoder hit whose source we
    * can't resolve to a provider route).
@@ -361,6 +424,7 @@ function placeService() {
     fetchPlaceDetailsByName,
     fetchPlaceDetailsByCoordinates,
     setPartialPlace,
+    seedPlaceFromLocal,
     findCachedPlace,
     clearPlace,
     setBookmarkStatus,

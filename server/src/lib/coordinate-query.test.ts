@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { parseCoordinateQuery } from './coordinate-query'
+import { parseCoordinateQuery, parsePlusCode } from './coordinate-query'
 
 const NYC = { lat: 40.7148341, lng: -73.9915242 }
 
@@ -72,5 +72,32 @@ describe('parseCoordinateQuery', () => {
     ]) {
       expect(parseCoordinateQuery(query)).toBeNull()
     }
+  })
+
+  it('decodes a full plus code to the centre of its cell', () => {
+    const katz = { lat: 40.722188, lng: -73.987437 }
+    expect(parseCoordinateQuery('87G8P2C7+V2')).toEqual(katz)
+    expect(parseCoordinateQuery('87g8p2c7+v2')).toEqual(katz)
+    // An 11th digit refines past what the decoder reads; it is dropped.
+    expect(parseCoordinateQuery('87G8P2C7+V2X')).toEqual(katz)
+  })
+
+  it('recovers a short plus code near the reference, and only with one', () => {
+    expect(parseCoordinateQuery('P2C7+V2', { lat: 40.75, lng: -73.98 })).toEqual({
+      lat: 40.722188,
+      lng: -73.987437,
+    })
+    expect(parseCoordinateQuery('P2C7+V2')).toBeNull()
+  })
+
+  it('leaves a short plus code with a town for a caller that can geocode it', () => {
+    expect(parseCoordinateQuery('P2C7+V2 New York, NY', { lat: 0, lng: 0 })).toBeNull()
+    expect(parsePlusCode('P2C7+V2 New York, NY')).toEqual({
+      code: 'P2C7+V2',
+      short: true,
+      locality: 'New York, NY',
+    })
+    expect(parsePlusCode('87G8P2C7+V2 New York')).toBeNull()
+    expect(parsePlusCode('C7+V2')).toBeNull()
   })
 })

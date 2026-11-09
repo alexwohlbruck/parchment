@@ -10,6 +10,8 @@
 ### Changed
 
 * A place's extra details are now a tidy list of labels and values, with lengths in your units and internal import IDs hidden. Tap a value to copy it.
+* My location now shows the same details as any place on the map, and its free roam button starts in the mode you last used.
+* Tapping the map on a shop, school or other named place now opens that place, with the pin left where you tapped.
 
 ### Fixed
 
@@ -28,6 +30,9 @@
 ### Added
 
 * Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
+* Search works offline. Without a connection it finds your saved places, places you viewed recently and typed coordinates on the device, in the search box, the full results list and the directions fields. Opening one of those places offline shows what is saved about it instead of an empty page.
+* Search reads plus codes, full or short. A short code like `P2C7+V2` is placed near the map, or near the town written after it (`P2C7+V2 New York, NY`). Full codes and short codes without a town also work offline.
+* Search finds what3words addresses like `///filled.count.soap` or a w3w.co link, and the map's Copy location menu offers the point's three-word address. Both are worked out on the device with no account or key and also work offline. English words only.
 
 ### Fixed
 

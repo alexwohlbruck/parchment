@@ -7,6 +7,7 @@ import { serializeDirectionsQuery } from '@/lib/directions/directions-url'
 import { walkToStopSec } from '@/lib/guidance/transit-progress'
 import { rideCertainty } from '@/lib/guidance/ride-estimator'
 import { isAboard } from '@/lib/guidance/guidance-layout'
+import type { VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { bannerCue } from '@/lib/guidance/instructions/instruction-text'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
@@ -16,13 +17,14 @@ import TransitStageCard from './transit/TransitStageCard.vue'
 import StationStepCard from './transit/StationStepCard.vue'
 import TransitApproach from './transit/TransitApproach.vue'
 import MissedRecovery from './transit/MissedRecovery.vue'
+import RunPicker from './transit/RunPicker.vue'
 import { useGuidanceContext } from './context'
 
 defineProps<{ dash?: boolean }>()
 const { t } = useI18n()
 const router = useRouter()
 const guidance = useGuidanceStore()
-const { metric, recovery } = useGuidanceContext()
+const { metric, recovery, vehicleSwitch } = useGuidanceContext()
 
 const stage = computed(() => (isAboard(guidance.transit) ? guidance.transit : null))
 
@@ -33,6 +35,20 @@ const approach = computed(() => {
   if (current?.kind !== 'to-stop' || !route || !puck) return null
   return { stage: current, walkSec: walkToStopSec(route, current, puck.s) }
 })
+
+/** The ride whose runs are listed, while the rider can still pick one. */
+const picking = ref(false)
+const pickable = computed(() => {
+  if (approach.value) return { segmentIndex: approach.value.stage.segmentIndex, walkSec: approach.value.walkSec }
+  return stage.value?.kind === 'wait' ? { segmentIndex: stage.value.segmentIndex, walkSec: 0 } : null
+})
+watch(() => pickable.value?.segmentIndex, () => (picking.value = false))
+
+async function chooseRun(candidate: VehicleCandidate, known: string[]) {
+  const ride = pickable.value
+  picking.value = false
+  if (ride) await vehicleSwitch.choose(ride.segmentIndex, candidate, known)
+}
 
 const LANES_SHOW_METERS = 500
 const LANES_SHOW_SECONDS = 30
@@ -98,6 +114,8 @@ function previewRoute() {
       :busy="guidance.rebooking"
       :no-later-run="noLaterRun"
       :recovering="!!recovery.view.value"
+      :picking="picking"
+      @pick-run="picking = !picking"
       @next-run="catchNextRun"
       @another-way="findAnotherWay"
       @alight="guidance.alight(stage.segmentIndex)"
@@ -126,6 +144,16 @@ function previewRoute() {
       :segment="guidance.segments[approach.stage.segmentIndex]"
       :now-ms="guidance.clockMs"
       :walk-sec="approach.walkSec"
+      :open="picking"
+      @toggle="picking = !picking"
+    />
+    <RunPicker
+      v-if="picking && pickable"
+      class="border-t px-5 py-2"
+      :segment-index="pickable.segmentIndex"
+      :walk-sec="pickable.walkSec"
+      :now-ms="guidance.clockMs"
+      @choose="chooseRun"
     />
     <MissedRecovery
       v-if="recovery.view.value"

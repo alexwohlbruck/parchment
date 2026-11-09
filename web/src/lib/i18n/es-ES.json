@@ -2029,6 +2029,10 @@
         "ok": "A tiempo"
       },
       "inDuration": "en {duration}",
+      "otherRuns": "Otras salidas",
+      "arrivesAt": "llega {time}",
+      "loadingRuns": "Buscando salidas…",
+      "noOtherRuns": "No hay otras salidas a tiempo",
       "leg": {
         "walking": "Camina {duration}",
         "cycling": "Pedalea {duration}",

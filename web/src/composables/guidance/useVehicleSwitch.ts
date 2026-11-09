@@ -20,6 +20,8 @@ interface Watch {
   segmentIndex: number
   segment: unknown
   plannedTripId: string | undefined
+  /** The rider picked this run, so a sooner one isn't swapped in for it. */
+  chosen: boolean
   alightStop: string | null
   observer: RideObserver
   set: CandidateSet | null
@@ -51,6 +53,7 @@ export function useVehicleSwitch() {
       segmentIndex,
       segment,
       plannedTripId: segment.tripId,
+      chosen: false,
       alightStop: stops.at(-1)?.key ?? null,
       observer: new RideObserver(stops),
       set: null,
@@ -78,7 +81,7 @@ export function useVehicleSwitch() {
     const segment = guidance.segments[watched.segmentIndex]
     const nowMs = guidanceClock.now()
     const ready = readyAt(watched, nowMs)
-    const earlier = ready != null ? earlierRun(segment, set, ready, watched.alightStop) : null
+    const earlier = ready != null && !watched.chosen ? earlierRun(segment, set, ready, watched.alightStop) : null
     if (earlier) {
       watched.plannedTripId = earlier.tripId
       return void retarget(watched, earlier)
@@ -171,6 +174,15 @@ export function useVehicleSwitch() {
     if (position) guidance.observeRideVehicle(watched.segmentIndex, position, position.atMs)
   }
 
+  /** The rider's own pick of run for ride `segmentIndex`, before boarding. */
+  async function choose(segmentIndex: number, candidate: VehicleCandidate, known: string[]) {
+    if (current?.segmentIndex === segmentIndex) {
+      current.plannedTripId = candidate.tripId
+      current.chosen = true
+    }
+    await guidance.retargetRide(segmentIndex, candidate, known)
+  }
+
   /** The rider's answer; null is "none of these", which keeps the current guess. */
   function answer(candidate: VehicleCandidate | null) {
     if (current) settle(current, candidate)
@@ -179,5 +191,5 @@ export function useVehicleSwitch() {
   const stop = watch(() => guidance.progress, tick)
   onScopeDispose(stop)
 
-  return { question, answer }
+  return { question, answer, choose }
 }

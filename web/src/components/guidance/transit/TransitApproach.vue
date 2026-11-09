@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChevronDown } from 'lucide-vue-next'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatDurationCompact } from '@/lib/time-format'
 import { approachReach } from '@/lib/transit/transit-reachability'
@@ -14,7 +15,9 @@ const props = defineProps<{
   segment: any
   nowMs: number
   walkSec: number
+  open?: boolean
 }>()
+defineEmits<{ toggle: [] }>()
 const { t } = useI18n()
 
 const navigationPreferences = useNavigationPreferencesStore()
@@ -39,12 +42,18 @@ const laterText = computed(() =>
 </script>
 
 <template>
-  <div class="flex items-center gap-2 text-sm">
+  <button
+    class="flex w-full items-center gap-2 text-left text-sm"
+    :aria-expanded="open"
+    :aria-label="t('guidance.transit.otherRuns')"
+    @click="$emit('toggle')"
+  >
     <RouteBullet :label="segment?.lineName" :color="segment?.lineColor" :text-color="segment?.lineTextColor" />
     <span class="tabular-nums">
       {{ t('guidance.transit.inDuration', { duration: lead })
       }}<span v-if="laterText" class="text-muted-foreground">, {{ laterText }}</span>
     </span>
     <span class="ml-auto font-medium" :class="reach.tone">{{ reach.word }}</span>
-  </div>
+    <ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform" :class="open && 'rotate-180'" />
+  </button>
 </template>

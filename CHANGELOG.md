@@ -3,6 +3,7 @@
 ### Added
 
 * Transit lines you open now show up in your search recents, wearing their route bullet.
+* During transit navigation, your location marker rides along the trip timeline in step with the map, including while it estimates your position underground.
 * Neighbourhood names appear as you zoom into a city, the best-known ones first, instead of only at street level.
 
 ### Changed

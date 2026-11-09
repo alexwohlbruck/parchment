@@ -8,6 +8,7 @@ import { walkToStopSec } from '@/lib/guidance/transit-progress'
 import { rideCertainty } from '@/lib/guidance/ride-estimator'
 import { isAboard } from '@/lib/guidance/guidance-layout'
 import type { VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { followingRuns } from '@/lib/guidance/run-choices'
 import { bannerCue } from '@/lib/guidance/instructions/instruction-text'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useRoutePreviewStore } from '@/stores/route-preview.store'
@@ -151,6 +152,7 @@ function previewRoute() {
         :segment="guidance.segments[approach.stage.segmentIndex]"
         :now-ms="guidance.clockMs"
         :walk-sec="approach.walkSec"
+        :later="followingRuns(runs.choices.value, approach.stage.departureMs)"
         :open="picking"
         @toggle="picking = !picking"
       />

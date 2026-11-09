@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -7,7 +7,7 @@ import { formatDurationCompact } from '@/lib/time-format'
 import { approachReach } from '@/lib/transit/transit-reachability'
 import { reachWord } from '@/lib/directions/trip-advice'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
-import { useLaterRuns } from '@/composables/guidance/useLaterRuns'
+import type { RunChoice } from '@/lib/guidance/run-choices'
 
 const props = defineProps<{
   departureMs: number
@@ -15,6 +15,8 @@ const props = defineProps<{
   segment: any
   nowMs: number
   walkSec: number
+  /** The runs after this one, as the departure list has them. */
+  later: RunChoice[]
   open?: boolean
 }>()
 defineEmits<{ toggle: [] }>()
@@ -29,13 +31,12 @@ const reach = computed(() => {
 const leadIn = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 const lead = computed(() => leadIn(props.departureMs))
 
-const later = useLaterRuns(toRef(props, 'segment'), toRef(props, 'departureMs'))
 /** "4m, 5 9m": the runs after this one, naming a different line where it is one. */
 const laterText = computed(() =>
-  later.value
-    .map(run => {
-      const otherLine = run.lineName && run.lineName !== props.segment?.lineName ? `${run.lineName} ` : ''
-      return otherLine + leadIn(run.departureMs)
+  props.later
+    .map(({ candidate }) => {
+      const otherLine = candidate.line && candidate.line !== props.segment?.lineName ? `${candidate.line} ` : ''
+      return otherLine + leadIn(candidate.departureMs)
     })
     .join(', '),
 )

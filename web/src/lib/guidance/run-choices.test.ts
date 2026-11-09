@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { runChoices, type RunChoiceInput } from './run-choices'
+import { followingRuns, runChoices, type RunChoiceInput } from './run-choices'
 import type { VehicleCandidate } from './vehicle-switch'
 
 const T = Date.parse('2026-11-08T20:00:00Z')
@@ -56,5 +56,17 @@ describe('runChoices', () => {
   test('without a trip id, the run leaving at the booked time is the booked one', () => {
     const choices = runChoices(input([run('a', 9.5), run('b', 14)], { bookedTripId: undefined }))
     expect(choices.map(c => c.booked)).toEqual([true, false])
+  })
+})
+
+describe('followingRuns', () => {
+  test('names the next runs after the booked one, from the same list', () => {
+    const choices = runChoices(input([run('booked', 9), run('later', 14), run('after', 19), run('last', 25)]))
+    expect(ids(followingRuns(choices, min(9)))).toEqual(['later', 'after'])
+  })
+
+  test('leaves out an earlier run the rider could switch to', () => {
+    const choices = runChoices(input([run('sooner', 9), run('booked', 14), run('later', 19)], { walkSec: 4 * 60 }))
+    expect(ids(followingRuns(choices, min(14)))).toEqual(['later'])
   })
 })

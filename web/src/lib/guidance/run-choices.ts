@@ -1,5 +1,5 @@
 import { approachReach, isOutOfReach, type DepartureReachability } from '@/lib/transit/transit-reachability'
-import { SAME_RUN_MS } from '@/lib/transit/later-runs'
+import { SAME_RUN_MS } from '@/lib/transit/run'
 import type { CandidateSet, VehicleCandidate } from './vehicle-switch'
 
 export interface RunChoice {
@@ -39,6 +39,11 @@ export function runChoices(input: RunChoiceInput): RunChoice[] {
     })
     .sort((a, b) => a.candidate.departureMs - b.candidate.departureMs)
     .slice(0, MAX_CHOICES)
+}
+
+/** The runs listed after the booked one, for the line that names what follows it. */
+export function followingRuns(choices: RunChoice[], bookedMs: number, count = 2): RunChoice[] {
+  return choices.filter(c => !c.booked && c.candidate.departureMs > bookedMs + SAME_RUN_MS).slice(0, count)
 }
 
 function closestRun(runs: VehicleCandidate[], ms: number): VehicleCandidate | undefined {

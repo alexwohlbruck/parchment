@@ -13,7 +13,7 @@ const AHEAD_MS = 60 * 60_000
 
 /**
  * The runs the rider could take on ride `segmentIndex` instead of the booked one.
- * Fetched as soon as the ride is pickable and kept between openings; refreshed only while `open`.
+ * Fetched as soon as the ride is pickable and kept fresh while it is; `open` refetches a stale list at once.
  */
 export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<number>, open: Ref<boolean>) {
   const guidance = useGuidanceStore()
@@ -49,18 +49,18 @@ export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<num
   watch(
     [segmentIndex, ride],
     ([index]) => {
+      stopRefreshing()
       set.value = null
       fetchedAt = 0
-      if (index != null) void load()
+      if (index == null) return
+      void load()
+      timer = setInterval(() => void load(), REFRESH_MS)
     },
     { immediate: true },
   )
 
   watch(open, isOpen => {
-    stopRefreshing()
-    if (!isOpen || segmentIndex.value == null) return
-    if (Date.now() - fetchedAt > REFRESH_MS) void load()
-    timer = setInterval(() => void load(), REFRESH_MS)
+    if (isOpen && Date.now() - fetchedAt > REFRESH_MS) void load()
   })
   onScopeDispose(stopRefreshing)
 

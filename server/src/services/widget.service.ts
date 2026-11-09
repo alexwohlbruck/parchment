@@ -87,6 +87,9 @@ const EXCLUDE_OSM_TAG_PREFIXES = [
   'alt_name:', 'official_name:', 'check_date', 'survey:date', 'disused:',
   // website:* sub-keys (website:menu, website:facebook, etc.) are surfaced in the contact panel
   'website:',
+  // Bulk-import bookkeeping IDs (USGS, NYC DoITT, Census TIGER, …)
+  'gnis:', 'nycdoitt:', 'tiger:', 'nhd:', 'NHD:', 'lacounty:', 'chicago:',
+  'massgis:', 'osak:', 'nhs:',
 ]
 
 /** Wikidata QID pattern — these are reference IDs, not useful to display */

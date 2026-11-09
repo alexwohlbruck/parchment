@@ -335,6 +335,16 @@ describe('OSM tags descriptor and display chips', () => {
     )
   })
 
+  test('drops bulk-import IDs from the tag list', () => {
+    const descriptor = findDescriptor(
+      place({ tags: { height: '29.0', 'gnis:feature_id': '2057410', 'nycdoitt:bin': '1000003' } }),
+      WidgetType.OSM_TAGS,
+    )
+    const shown = JSON.parse(descriptor!.params.staticData).data.value
+
+    expect(shown).toEqual({ height: '29.0' })
+  })
+
   test('lifts chip-eligible tags onto the place', () => {
     const subject = place({ tags: { wheelchair: 'yes', cuisine: 'coffee_shop' } })
 

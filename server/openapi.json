@@ -15178,6 +15178,16 @@
             "in": "query",
             "name": "directionId",
             "required": false
+          },
+          {
+            "description": "Soonest the rider can be at the boarding stop; widens the search for earlier runs (up to 30 min before the planned one)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "earliest",
+            "required": false
           }
         ],
         "operationId": "getTransitBoarding-candidates",

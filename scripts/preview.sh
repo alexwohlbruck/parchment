@@ -328,6 +328,7 @@ write_env() {
   local worktree=$1 dbname=$2 sport=$3 wport=$4 server_origin=$5 client_origin=$6
   local src="$MAIN_REPO/.env" dest="$worktree/.env.preview"
   grep -vE '^(SERVER_ORIGIN|CLIENT_ORIGIN|DATABASE_URL|PORT|HOST|NODE_ENV|VITE_SERVER_ORIGIN|VITE_PORT)=' "$src" > "$dest"
+  copy_smtp "$dest"
   cat >> "$dest" <<EOF
 
 # ── written by scripts/preview.sh — do not edit, regenerated on every up ──
@@ -341,6 +342,24 @@ VITE_SERVER_ORIGIN=$server_origin
 VITE_PORT=$wport
 EOF
   chmod 600 "$dest"
+}
+
+# Sign-in is a code sent by email, so a preview that cannot send mail is a
+# preview nobody can sign in to. SMTP_* comes from the main .env like everything
+# else; any key it leaves out or empty is taken from server/.env, which is where
+# the dev server's own mail settings live.
+copy_smtp() {
+  local dest=$1 fallback="$MAIN_REPO/server/.env" key value
+  for key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM; do
+    [ -n "$(env_value "$dest" "$key")" ] && continue
+    [ -f "$fallback" ] || continue
+    value=$(env_value "$fallback" "$key")
+    [ -n "$value" ] || continue
+    { grep -v "^$key=" "$dest" || true; printf '%s=%s\n' "$key" "$value"; } > "$dest.tmp"
+    mv "$dest.tmp" "$dest"
+  done
+  [ -n "$(env_value "$dest" SMTP_HOST)" ] \
+    || log "no SMTP_HOST in .env or server/.env — this preview cannot send sign-in emails"
 }
 
 write_unit_env() {
@@ -418,6 +437,12 @@ cmd_up() {
   log "installing dependencies"
   (cd "$worktree/server" && "$BUN" install --silent) || die "server deps failed"
   (cd "$worktree/web" && "$BUN" install --silent) || die "web deps failed"
+  # The mailer reads its templates from server/emails/output, which is build
+  # output (gitignored, built only by Dockerfile.prod). A fresh worktree has
+  # none, and every email — the sign-in code included — fails to render.
+  log "building email templates"
+  (cd "$worktree/server/emails" && "$BUN" install --silent && "$BUN" run --silent build >/dev/null) \
+    || die "email templates failed to build"
 
   # Publish first: the app needs to be told its own public origin (CORS, cookies,
   # the client's API base URL), and that depends on whether HTTPS is available.

@@ -16,6 +16,9 @@
 * Navigation now waits for a late bus or train using live departure times, instead of saying it has left.
 * Your bus or train's live position now shows on the map during navigation.
 * Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.
+* Trips from your current location now name the address you set out from, instead of "Current Location".
+* Returning to directions or refreshing trip suggestions now plans from where you are now, not where you were when you first searched.
+* Waiting along a subway platform no longer makes guidance think you've boarded, and the wait card now shows where on the platform to stand.
 * An opened transit line looks the same as on the transit map, with a bold line, stop names and transfer bullets, including buses in cities the detailed transit map does not cover.
 
 ## [0.20.1-1] - 2026-11-08

@@ -288,20 +288,24 @@ function handleBrandLogoError() {
           <!-- Peek region: the sheet's collapsed detent fits down to the
                bottom of this wrapper (header + actions). -->
           <div ref="peekRef" class="space-y-3">
-            <PlaceHeader
-              :place="place"
-              @close="router.push({ name: AppRoute.MAP })"
-              @logoLoaded="handleBrandLogoLoad"
-              @logoError="handleBrandLogoError"
-            />
+            <slot name="header">
+              <PlaceHeader
+                :place="place"
+                @close="router.push({ name: AppRoute.MAP })"
+                @logoLoaded="handleBrandLogoLoad"
+                @logoError="handleBrandLogoError"
+              />
+            </slot>
 
-            <PlaceActions
-              :place="place"
-              @directions="handleDirectionsClick"
-              @directionsFrom="handleDirectionsFromClick"
-              @share="sharePlace"
-              @edit="editPlace"
-            />
+            <slot name="actions">
+              <PlaceActions
+                :place="place"
+                @directions="handleDirectionsClick"
+                @directionsFrom="handleDirectionsFromClick"
+                @share="sharePlace"
+                @edit="editPlace"
+              />
+            </slot>
           </div>
 
           <PlaceDisplayChips :place="place" />

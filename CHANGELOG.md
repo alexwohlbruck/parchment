@@ -9,6 +9,8 @@
 
 ### Changed
 
+* My location now shows the same details as any place on the map, and its free roam button starts in the mode you last used.
+
 ### Fixed
 
 * Biking or driving to a station during navigation no longer tells you to run: the time to the stop now uses your actual pace.

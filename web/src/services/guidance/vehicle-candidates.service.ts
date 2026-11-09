@@ -23,7 +23,8 @@ export function setDevCandidateOverride(override: typeof devOverride) {
 const iso = (v?: string | Date) => (v ? new Date(v).toISOString() : undefined)
 
 /** The runs the rider may board on `ride` in place of the planned one, or null when the ride can't be looked up. */
-export async function fetchVehicleCandidates(ride: CandidateRide, earliestMs?: number | null): Promise<CandidateSet | null> {
+/** `earliestMs` and `latestMs` widen the search past the runs either side of the planned one. */
+export async function fetchVehicleCandidates(ride: CandidateRide, earliestMs?: number | null, latestMs?: number): Promise<CandidateSet | null> {
   if (devOverride) return devOverride(ride)
   const stops = [...(ride.intermediateStops ?? []), ride.arrivalStop].flatMap(stop => (stop?.id ? [stop.id] : []))
   const departure = iso(ride.startTime)
@@ -40,6 +41,7 @@ export async function fetchVehicleCandidates(ride: CandidateRide, earliestMs?: n
         routes: [...routes].join(','),
         directionId: ride.directionId ?? undefined,
         earliest: earliestMs != null ? new Date(earliestMs).toISOString() : undefined,
+        latest: latestMs != null ? new Date(latestMs).toISOString() : undefined,
       },
     })
     return {

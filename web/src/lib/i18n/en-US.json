@@ -2053,6 +2053,10 @@
         "ok": "On track"
       },
       "inDuration": "in {duration}",
+      "otherRuns": "Other departures",
+      "arrivesAt": "arrives {time}",
+      "loadingRuns": "Finding departures…",
+      "noOtherRuns": "No other departures you can make",
       "leg": {
         "walking": "Walk {duration}",
         "cycling": "Ride {duration}",

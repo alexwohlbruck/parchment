@@ -3098,6 +3098,52 @@ describe('TripService — in-station transfers', () => {
     }
   })
 
+  test('an unshaped in-station transfer is drawn platform to platform', async () => {
+    const subway = (from: string, to: string, dep: string, arr: string, line: string, a: number[], b: number[]) => ({
+      mode: 'SUBWAY', transitLeg: true,
+      from: { name: from, lat: a[0], lng: a[1], stopId: from },
+      to: { name: to, lat: b[0], lng: b[1], stopId: to },
+      startTime: dep, endTime: arr, duration: 600, distance: 4000,
+      routeShortName: line, headsign: 'Uptown',
+      geometry: { type: 'LineString', coordinates: [[a[1], a[0]], [b[1], b[0]]] },
+    })
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          subway('L', 'USQ-L', '2026-01-15T08:05:00Z', '2026-01-15T08:15:00Z', 'L', [35.21, -80.85], [35.225, -80.845]),
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'USQ-L', lat: 35.225, lng: -80.845, stopId: 'USQ-L' },
+            to: { name: 'USQ-4', lat: 35.2251, lng: -80.8441, stopId: 'USQ-4' },
+            startTime: '2026-01-15T08:15:00Z', endTime: '2026-01-15T08:17:00Z',
+            duration: 120, distance: 93,
+          },
+          subway('USQ-4', 'Bowling Green', '2026-01-15T08:20:00Z', '2026-01-15T08:28:00Z', '4', [35.2251, -80.8441], [35.2304, -80.8433]),
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T07:50:00Z',
+      })
+      const segs = response.trips[0].trip.segments as any[]
+      const transfer = segs.find((s, i) => s.mode === 'walking' && segs[i - 1]?.mode === 'transit' && segs[i + 1]?.mode === 'transit')
+      expect(transfer.geometry).toEqual([
+        { lat: 35.225, lng: -80.845 },
+        { lat: 35.2251, lng: -80.8441 },
+      ])
+    } finally {
+      mockGetIntermodalRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 0 },
+      }) as any)
+    }
+  })
+
   test('far transit→walk→transit gap is street-routed, not kept as a 0m footpath', async () => {
     // MOTIS emits a zero-geometry footpath between two *different* stations
     // ~500m apart (e.g. shuttle Franklin Av → express stop Nostrand Av).

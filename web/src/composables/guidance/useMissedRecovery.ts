@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { segmentAt } from '@/lib/guidance/nav-route'
-import { walkToStopSec, type TransitStage } from '@/lib/guidance/transit-progress'
+import { secondsToStop, walksToStop, type TransitStage } from '@/lib/guidance/transit-progress'
 import { isTransitOnly } from '@/lib/guidance/better-itinerary'
 import { classifyRecovery, type MissedRide, type RecoveryPlan, type RecoverySegment } from '@/lib/guidance/missed-recovery'
 import { approachReach, isOutOfReach } from '@/lib/transit/transit-reachability'
@@ -59,7 +59,7 @@ export function useMissedRecovery() {
     const route = guidance.route
     const puck = guidance.progress?.puck
     if (stage?.kind !== 'to-stop' || !route || !puck) return null
-    const late = isOutOfReach(approachReach(stage.departureMs, guidance.clockMs, walkToStopSec(route, stage, puck.s), navigationPreferences.runPace))
+    const late = isOutOfReach(approachReach(stage.departureMs, guidance.clockMs, secondsToStop(route, stage, puck.s), walksToStop(route, stage.segmentIndex) ? navigationPreferences.runPace : null))
     return late ? { stage, missed: false } : null
   })
 

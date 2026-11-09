@@ -65,6 +65,8 @@ export interface LiveVehicle {
 }
 
 export const EARLY_MINUTES = 10
+/** The furthest before the planned run a rider running early is looked for. */
+export const MAX_EARLY_MINUTES = 30
 export const LATE_MINUTES = 20
 export const MAX_CANDIDATES = 8
 
@@ -76,11 +78,13 @@ export function boardingCandidates(input: {
   /** The leg's stops after boarding, in ride order; the last is where the rider gets off. */
   later: { stopId: string; boards: Board[] }[]
   plannedMs: number
+  /** How early a run may leave; defaults to `EARLY_MINUTES` before the planned run. */
+  fromMs?: number
   /** Short names of the leg's interchangeable routes, its own included. */
   routes: string[]
   directionId?: string
 }): BoardingCandidate[] {
-  const from = input.plannedMs - EARLY_MINUTES * 60_000
+  const from = input.fromMs ?? input.plannedMs - EARLY_MINUTES * 60_000
   const to = input.plannedMs + LATE_MINUTES * 60_000
   const routes = new Set(input.routes)
   const alightId = input.later.at(-1)?.stopId
@@ -124,6 +128,13 @@ export function boardingCandidates(input: {
     .sort((a, b) => Math.abs(Date.parse(a.departureTime) - input.plannedMs) - Math.abs(Date.parse(b.departureTime) - input.plannedMs))
     .slice(0, MAX_CANDIDATES)
     .sort((a, b) => Date.parse(a.departureTime) - Date.parse(b.departureTime))
+}
+
+/** The earliest departure to look at: `EARLY_MINUTES` before the planned run, or back to `earliestMs` when the rider can make one sooner. */
+export function earliestDeparture(plannedMs: number, earliestMs?: number): number {
+  const usual = plannedMs - EARLY_MINUTES * 60_000
+  if (earliestMs == null || Number.isNaN(earliestMs)) return usual
+  return Math.min(usual, Math.max(earliestMs, plannedMs - MAX_EARLY_MINUTES * 60_000))
 }
 
 /** A timetable run id (`{date}_{time}_{feed}_{trip}`) and a realtime vehicle's (`{feed}_{trip}`) name the same run. */

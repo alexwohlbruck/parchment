@@ -11,6 +11,7 @@
 
 * Navigation now waits for a late bus or train using live departure times, instead of saying it has left.
 * Your bus or train's live position now shows on the map during navigation.
+* Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.
 
 ## [0.20.1-1] - 2026-11-08
 

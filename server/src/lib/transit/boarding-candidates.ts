@@ -68,6 +68,8 @@ export const EARLY_MINUTES = 10
 /** The furthest before the planned run a rider running early is looked for. */
 export const MAX_EARLY_MINUTES = 30
 export const LATE_MINUTES = 20
+/** The furthest after the planned run a rider choosing a later one is looked for. */
+export const MAX_LATE_MINUTES = 60
 export const MAX_CANDIDATES = 8
 
 const departuresOf = (boards: Board[]) => boards.flatMap((b) => b.departures ?? [])
@@ -80,12 +82,16 @@ export function boardingCandidates(input: {
   plannedMs: number
   /** How early a run may leave; defaults to `EARLY_MINUTES` before the planned run. */
   fromMs?: number
+  /** How late a run may leave; defaults to `LATE_MINUTES` after the planned run. */
+  toMs?: number
+  /** How many runs to keep, the nearest the planned one first. */
+  limit?: number
   /** Short names of the leg's interchangeable routes, its own included. */
   routes: string[]
   directionId?: string
 }): BoardingCandidate[] {
   const from = input.fromMs ?? input.plannedMs - EARLY_MINUTES * 60_000
-  const to = input.plannedMs + LATE_MINUTES * 60_000
+  const to = input.toMs ?? input.plannedMs + LATE_MINUTES * 60_000
   const routes = new Set(input.routes)
   const alightId = input.later.at(-1)?.stopId
   const callsByTrip = new Map<string, Map<string, number>>()
@@ -126,7 +132,7 @@ export function boardingCandidates(input: {
   }
   return out
     .sort((a, b) => Math.abs(Date.parse(a.departureTime) - input.plannedMs) - Math.abs(Date.parse(b.departureTime) - input.plannedMs))
-    .slice(0, MAX_CANDIDATES)
+    .slice(0, input.limit ?? MAX_CANDIDATES)
     .sort((a, b) => Date.parse(a.departureTime) - Date.parse(b.departureTime))
 }
 
@@ -135,6 +141,13 @@ export function earliestDeparture(plannedMs: number, earliestMs?: number): numbe
   const usual = plannedMs - EARLY_MINUTES * 60_000
   if (earliestMs == null || Number.isNaN(earliestMs)) return usual
   return Math.min(usual, Math.max(earliestMs, plannedMs - MAX_EARLY_MINUTES * 60_000))
+}
+
+/** The latest departure to look at: `LATE_MINUTES` after the planned run, or on to `latestMs` when the rider is choosing a later one. */
+export function latestDeparture(plannedMs: number, latestMs?: number): number {
+  const usual = plannedMs + LATE_MINUTES * 60_000
+  if (latestMs == null || Number.isNaN(latestMs)) return usual
+  return Math.max(usual, Math.min(latestMs, plannedMs + MAX_LATE_MINUTES * 60_000))
 }
 
 /** A timetable run id (`{date}_{time}_{feed}_{trip}`) and a realtime vehicle's (`{feed}_{trip}`) name the same run. */

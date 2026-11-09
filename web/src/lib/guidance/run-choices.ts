@@ -21,7 +21,7 @@ export interface RunChoiceInput {
   runFactor?: number | null
 }
 
-const MAX_CHOICES = 6
+const MAX_CHOICES = 8
 
 /** The runs the rider can still make that get them off where planned, soonest first, the booked one marked. */
 export function runChoices(input: RunChoiceInput): RunChoice[] {

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { boardingCandidates, earliestDeparture, sameRun, sampleStops, withPositions, type BoardDeparture } from './boarding-candidates'
+import { boardingCandidates, earliestDeparture, latestDeparture, sameRun, sampleStops, withPositions, type BoardDeparture } from './boarding-candidates'
 
 const T = Date.parse('2026-10-15T19:00:00Z')
 const at = (min: number) => new Date(T + min * 60_000).toISOString()
@@ -27,6 +27,12 @@ describe('boardingCandidates', () => {
     const board = [{ departures: [run('t-early', '3', -12), run('t3', '3', 0)] }]
     const out = boardingCandidates({ board, later: later({ B: [] }), plannedMs: T, fromMs: T - 15 * 60_000, routes: ['3'] })
     expect(out.map((c) => c.tripId)).toEqual(['t-early', 't3'])
+  })
+
+  test('reaches on to toMs for a rider choosing a later run', () => {
+    const board = [{ departures: [run('t3', '3', 0), run('t-later', '3', 22), run('t-past', '3', 70)] }]
+    const out = boardingCandidates({ board, later: later({ B: [] }), plannedMs: T, toMs: T + 60 * 60_000, routes: ['3'] })
+    expect(out.map((c) => c.tripId)).toEqual(['t3', 't-later'])
   })
 
   test('drops interchangeable runs heading the other way', () => {
@@ -88,6 +94,15 @@ describe('sampleStops', () => {
     expect(sampled).toHaveLength(5)
     expect(sampled.at(-1)).toBe(19)
     expect(sampled[0]).toBe(0)
+  })
+})
+
+describe('latestDeparture', () => {
+  test('looks further ahead only when asked, and never past the cap', () => {
+    expect(latestDeparture(T)).toBe(T + 20 * 60_000)
+    expect(latestDeparture(T, T + 10 * 60_000)).toBe(T + 20 * 60_000)
+    expect(latestDeparture(T, T + 40 * 60_000)).toBe(T + 40 * 60_000)
+    expect(latestDeparture(T, T + 120 * 60_000)).toBe(T + 60 * 60_000)
   })
 })
 

@@ -2,7 +2,7 @@ import { requestBarrelman } from './barrelman.service'
 import {
   boardingCandidates,
   earliestDeparture,
-  LATE_MINUTES,
+  latestDeparture,
   sampleStops,
   withPositions,
   type Board,
@@ -22,6 +22,8 @@ export interface BoardingCandidatesQuery {
   directionId?: string
   /** The soonest the rider can be at the boarding stop, when that may be before the planned run. */
   earliest?: string
+  /** The latest a run may leave, when the rider is choosing a later one than planned. */
+  latest?: string
 }
 
 /** Boards fetched per request, so one leg cannot fan out without limit. */
@@ -31,6 +33,8 @@ const CONCURRENCY = 6
 /** How much faster or slower than planned a run may reach a later stop: an express, a delay. */
 const FASTEST_RIDE = 0.6
 const SLOWEST_RIDE = 1.5
+/** Runs kept when the rider is choosing among them, over the wider window. */
+const CHOICE_CANDIDATES = 16
 
 function splitStopId(id: string): { feedId: string; stopId: string } | null {
   const split = id.indexOf('_')
@@ -98,12 +102,14 @@ export async function findBoardingCandidates(query: BoardingCandidatesQuery): Pr
   const all = [...new Set(query.stops)]
   const later = sampleStops(all, MAX_LATER_STOPS)
   const fromMs = earliestDeparture(plannedMs, query.earliest ? Date.parse(query.earliest) : undefined)
+  const toMs = latestDeparture(plannedMs, query.latest ? Date.parse(query.latest) : undefined)
   const earlyMs = plannedMs - fromMs
+  const lateMs = toMs - plannedMs
   const [board, laterBoards] = await Promise.all([
-    fetchBoard(query.stopId, fromMs, plannedMs + LATE_MINUTES * 60_000),
+    fetchBoard(query.stopId, fromMs, toMs),
     inBatches(later, (id) => {
       const reachMs = (rideMs * (all.indexOf(id) + 1)) / all.length
-      return fetchBoard(id, plannedMs + reachMs * FASTEST_RIDE - earlyMs, plannedMs + reachMs * SLOWEST_RIDE + LATE_MINUTES * 60_000)
+      return fetchBoard(id, plannedMs + reachMs * FASTEST_RIDE - earlyMs, plannedMs + reachMs * SLOWEST_RIDE + lateMs)
     }),
   ])
   const candidates = boardingCandidates({
@@ -111,6 +117,8 @@ export async function findBoardingCandidates(query: BoardingCandidatesQuery): Pr
     later: later.map((stopId, i) => ({ stopId, boards: laterBoards[i].boards })),
     plannedMs,
     fromMs,
+    toMs,
+    limit: query.latest ? CHOICE_CANDIDATES : undefined,
     routes: query.routes,
     directionId: query.directionId,
   })

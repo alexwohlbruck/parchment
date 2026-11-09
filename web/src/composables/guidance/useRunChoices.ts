@@ -8,6 +8,8 @@ import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.s
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 
 const REFRESH_MS = 30_000
+/** How far ahead the rider may look for a later run. */
+const AHEAD_MS = 60 * 60_000
 
 /**
  * The runs the rider could take on ride `segmentIndex` instead of the booked one.
@@ -30,7 +32,8 @@ export function useRunChoices(segmentIndex: Ref<number | null>, walkSec: Ref<num
     loading.value = true
     fetchedAt = Date.now()
     try {
-      const fresh = await fetchVehicleCandidates(segment, guidanceClock.now())
+      const now = guidanceClock.now()
+      const fresh = await fetchVehicleCandidates(segment, now, now + AHEAD_MS)
       if (request === latest && fresh) set.value = fresh
     } finally {
       if (request === latest) loading.value = false

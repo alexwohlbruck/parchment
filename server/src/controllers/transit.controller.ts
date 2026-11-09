@@ -158,6 +158,7 @@ app.get('/boarding-candidates', async ({ query, set }) => {
     routes: list(query.routes),
     directionId: query.directionId || undefined,
     earliest: query.earliest || undefined,
+    latest: query.latest || undefined,
   })
 }, {
   query: t.Object({
@@ -168,12 +169,13 @@ app.get('/boarding-candidates', async ({ query, set }) => {
     routes: t.Optional(t.String({ description: "Comma-separated short names of the leg's interchangeable routes, its own included" })),
     directionId: t.Optional(t.String()),
     earliest: t.Optional(t.String({ format: 'date-time', description: 'Soonest the rider can be at the boarding stop; widens the search for earlier runs (up to 30 min before the planned one)' })),
+    latest: t.Optional(t.String({ format: 'date-time', description: 'Latest a run may leave; widens the search for later runs (up to 60 min after the planned one) and returns up to 16' })),
   }),
   detail: {
     tags: ['Transit'],
     summary: 'Runs a rider may have boarded in place of the planned one',
     description:
-      'Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure`: any run of `routes` '
+      'Runs leaving the boarding stop from 10 minutes before to 20 minutes after `departure` (widened by `earliest` and `latest`): any run of `routes` '
       + 'in the leg\'s direction, and runs of other routes that also call at the alighting stop. Each lists the '
       + 'given later stops it calls at (`calls`, at most ten sampled, the alighting stop always kept), so an express '
       + 'can be told from a local, and carries its live `position` when the feed publishes vehicle positions. '

@@ -1,7 +1,7 @@
 import { requestBarrelman } from './barrelman.service'
 import {
   boardingCandidates,
-  EARLY_MINUTES,
+  earliestDeparture,
   LATE_MINUTES,
   sampleStops,
   withPositions,
@@ -20,6 +20,8 @@ export interface BoardingCandidatesQuery {
   arrival: string
   routes: string[]
   directionId?: string
+  /** The soonest the rider can be at the boarding stop, when that may be before the planned run. */
+  earliest?: string
 }
 
 /** Boards fetched per request, so one leg cannot fan out without limit. */
@@ -95,17 +97,20 @@ export async function findBoardingCandidates(query: BoardingCandidatesQuery): Pr
   const rideMs = Math.max(0, Date.parse(query.arrival) - plannedMs)
   const all = [...new Set(query.stops)]
   const later = sampleStops(all, MAX_LATER_STOPS)
+  const fromMs = earliestDeparture(plannedMs, query.earliest ? Date.parse(query.earliest) : undefined)
+  const earlyMs = plannedMs - fromMs
   const [board, laterBoards] = await Promise.all([
-    fetchBoard(query.stopId, plannedMs - EARLY_MINUTES * 60_000, plannedMs + LATE_MINUTES * 60_000),
+    fetchBoard(query.stopId, fromMs, plannedMs + LATE_MINUTES * 60_000),
     inBatches(later, (id) => {
       const reachMs = (rideMs * (all.indexOf(id) + 1)) / all.length
-      return fetchBoard(id, plannedMs + reachMs * FASTEST_RIDE - EARLY_MINUTES * 60_000, plannedMs + reachMs * SLOWEST_RIDE + LATE_MINUTES * 60_000)
+      return fetchBoard(id, plannedMs + reachMs * FASTEST_RIDE - earlyMs, plannedMs + reachMs * SLOWEST_RIDE + LATE_MINUTES * 60_000)
     }),
   ])
   const candidates = boardingCandidates({
     board: board.boards,
     later: later.map((stopId, i) => ({ stopId, boards: laterBoards[i].boards })),
     plannedMs,
+    fromMs,
     routes: query.routes,
     directionId: query.directionId,
   })

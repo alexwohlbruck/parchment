@@ -23,7 +23,7 @@ export function setDevCandidateOverride(override: typeof devOverride) {
 const iso = (v?: string | Date) => (v ? new Date(v).toISOString() : undefined)
 
 /** The runs the rider may board on `ride` in place of the planned one, or null when the ride can't be looked up. */
-export async function fetchVehicleCandidates(ride: CandidateRide): Promise<CandidateSet | null> {
+export async function fetchVehicleCandidates(ride: CandidateRide, earliestMs?: number | null): Promise<CandidateSet | null> {
   if (devOverride) return devOverride(ride)
   const stops = [...(ride.intermediateStops ?? []), ride.arrivalStop].flatMap(stop => (stop?.id ? [stop.id] : []))
   const departure = iso(ride.startTime)
@@ -39,6 +39,7 @@ export async function fetchVehicleCandidates(ride: CandidateRide): Promise<Candi
         arrival,
         routes: [...routes].join(','),
         directionId: ride.directionId ?? undefined,
+        earliest: earliestMs != null ? new Date(earliestMs).toISOString() : undefined,
       },
     })
     return {
@@ -51,6 +52,8 @@ export async function fetchVehicleCandidates(ride: CandidateRide): Promise<Candi
         routeType: c.route.type,
         headsign: c.headsign,
         departureMs: Date.parse(c.departureTime),
+        scheduledMs: c.scheduledDepartureTime ? Date.parse(c.scheduledDepartureTime) : undefined,
+        realTime: c.realTime,
         calls: c.calls.map(call => ({ stop: call.stopId, timeMs: Date.parse(call.time) })),
         position: c.position && { lat: c.position.lat, lng: c.position.lng, atMs: Date.parse(c.position.at) },
       })),

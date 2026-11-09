@@ -10,6 +10,7 @@ import { minutesUntil, type TransitStage } from '@/lib/guidance/transit-progress
 import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 import { afterRide } from '@/lib/guidance/after-ride'
 import AfterRide from './AfterRide.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 
 const props = defineProps<{
   stage: TransitStage
@@ -80,8 +81,9 @@ const ride = computed(() => {
 
     <template v-if="stage.kind === 'wait' && !compact">
       <div class="font-display-heavy text-[28px] leading-none">{{ countdown }}</div>
-      <div class="text-sm text-muted-foreground">
-        {{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}
+      <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <span class="truncate">{{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}</span>
+        <RealtimeIndicator :real-time="!!segment?.realTimeData" :delay="segment?.delay" class="shrink-0" />
       </div>
     </template>
 

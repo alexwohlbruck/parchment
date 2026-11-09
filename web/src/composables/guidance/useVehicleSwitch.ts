@@ -1,7 +1,7 @@
 import { onScopeDispose, shallowRef, watch } from 'vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { rideStops, walkToStopSec } from '@/lib/guidance/transit-progress'
-import { rankCandidates, RideObserver, vehicleVerdict, type CandidateSet, type RankedCandidate, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { earlierRun, liveRun, rankCandidates, RideObserver, vehicleVerdict, type CandidateSet, type RankedCandidate, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 
@@ -9,8 +9,12 @@ import { guidanceClock } from '@/services/guidance/guidance-clock'
 const LOOKUP_WALK_SEC = 180
 const WAITING_REFRESH_MS = 60_000
 const RIDING_REFRESH_MS = 30_000
+/** Soon after a run seems gone, check the feed hasn't just got it running late. */
+const MISSED_REFRESH_MS = 15_000
 /** Long enough into the ride that an unanswered question has nothing left to settle. */
 const GIVE_UP_AFTER_MS = 15 * 60_000
+/** Time in hand, beyond the walk to the stop, before an earlier run is worth switching to. */
+const CATCH_MARGIN_MS = 60_000
 
 interface Watch {
   segmentIndex: number
@@ -60,11 +64,37 @@ export function useVehicleSwitch() {
     watched.fetching = true
     watched.fetchedAt = Date.now()
     try {
-      const set = await fetchVehicleCandidates(guidance.segments[watched.segmentIndex])
-      if (set && current === watched) watched.set = set
+      const set = await fetchVehicleCandidates(guidance.segments[watched.segmentIndex], readyAt(watched, guidanceClock.now()))
+      if (!set || current !== watched) return
+      watched.set = set
+      if (guidance.transit?.kind !== 'riding') retime(watched, set)
     } finally {
       watched.fetching = false
     }
+  }
+
+  /** Before boarding, the soonest run the rider can still make is the one to wait for: an earlier one, else the booked run as the feed times it. */
+  function retime(watched: Watch, set: CandidateSet) {
+    const segment = guidance.segments[watched.segmentIndex]
+    const nowMs = guidanceClock.now()
+    const ready = readyAt(watched, nowMs)
+    const earlier = ready != null ? earlierRun(segment, set, ready, watched.alightStop) : null
+    if (earlier) {
+      watched.plannedTripId = earlier.tripId
+      return void retarget(watched, earlier)
+    }
+    const run = liveRun(segment, set, nowMs)
+    if (run) void guidance.retimeRide(watched.segmentIndex, run, set.known)
+  }
+
+  /** When the rider could be at the stop for this ride, or null while not headed for it. */
+  function readyAt(watched: Watch, nowMs: number): number | null {
+    const stage = guidance.transit
+    const route = guidance.route
+    const puck = guidance.progress?.puck
+    if (!stage || !route || !puck || stage.segmentIndex !== watched.segmentIndex) return null
+    if (stage.kind !== 'to-stop' && stage.kind !== 'wait') return null
+    return nowMs + walkToStopSec(route, stage, puck.s) * 1000 + CATCH_MARGIN_MS
   }
 
   async function retarget(watched: Watch, candidate: VehicleCandidate) {
@@ -110,7 +140,7 @@ export function useVehicleSwitch() {
     if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
 
     const near = stage.kind !== 'to-stop' || walkToStopSec(route, stage, puck.s) < LOOKUP_WALK_SEC
-    const due = Date.now() - watched.fetchedAt > (riding ? RIDING_REFRESH_MS : WAITING_REFRESH_MS)
+    const due = Date.now() - watched.fetchedAt > (riding ? RIDING_REFRESH_MS : stage.kind === 'missed-vehicle' ? MISSED_REFRESH_MS : WAITING_REFRESH_MS)
     if (near && due && !watched.fetching) void refresh(watched)
 
     const boardedAt = watched.observer.boardedAtMs

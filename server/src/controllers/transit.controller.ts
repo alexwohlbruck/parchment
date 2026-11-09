@@ -157,6 +157,7 @@ app.get('/boarding-candidates', async ({ query, set }) => {
     arrival: query.arrival,
     routes: list(query.routes),
     directionId: query.directionId || undefined,
+    earliest: query.earliest || undefined,
   })
 }, {
   query: t.Object({
@@ -166,6 +167,7 @@ app.get('/boarding-candidates', async ({ query, set }) => {
     arrival: t.String({ format: 'date-time', description: 'Planned arrival at the alighting stop' }),
     routes: t.Optional(t.String({ description: "Comma-separated short names of the leg's interchangeable routes, its own included" })),
     directionId: t.Optional(t.String()),
+    earliest: t.Optional(t.String({ format: 'date-time', description: 'Soonest the rider can be at the boarding stop; widens the search for earlier runs (up to 30 min before the planned one)' })),
   }),
   detail: {
     tags: ['Transit'],

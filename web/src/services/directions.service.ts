@@ -1,4 +1,4 @@
-import { watch, ref } from 'vue'
+import { watch, ref, toRaw } from 'vue'
 import axios from 'axios'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
@@ -126,6 +126,7 @@ function directionsService() {
    * the shown results survive a failure.
    */
   async function getDirections({ quiet = false } = {}) {
+    refreshCurrentLocation()
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
 
     // Need at least 2 waypoints — drop any in-flight request and clear.
@@ -168,6 +169,7 @@ function directionsService() {
       const cached = quiet ? null : readPlanCache(planKey, request.preferredDepartureTime ? PLAN_CACHE_TTL_MS : LEAVE_NOW_CACHE_TTL_MS)
       if (cached) {
         store.setTrips(cached)
+        void nameCurrentLocationOrigin(cached)
         return
       }
 
@@ -211,6 +213,7 @@ function directionsService() {
 
       store.setTrips(response, { keepSelection: quiet })
       writePlanCache(planKey, response)
+      void nameCurrentLocationOrigin(response)
     } catch (error) {
       // Aborted by a newer request — leave all state to that request.
       if (axios.isCancel(error)) return
@@ -227,6 +230,38 @@ function directionsService() {
         abortController.value = null
       }
     }
+  }
+
+  /**
+   * Names the point a current-location trip sets out from. "Current Location"
+   * follows the traveller; the trip's origin is where they stood when it was planned.
+   */
+  async function nameCurrentLocationOrigin(response: TripsResponse) {
+    const origin = response.request.waypoints[0]
+    if (origin?.place?.id !== CURRENT_LOCATION_ID) return
+    const { lat, lng } = origin.coordinate
+    const geocoded = await useGeocodingService()
+      .reverseGeocode({ lat, lng, limit: 1 })
+      .catch(() => null)
+    const found = geocoded?.results[0]
+    const planned = store.trips?.request
+    if (!found || !planned || toRaw(planned) !== response.request) return
+    const name = getSearchResultName(found)
+    if (!name) return
+    const entry = planned.waypoints[0]
+    entry.name = name
+    entry.place = { ...entry.place!, name: { value: name, sourceId: found.name?.sourceId ?? '' } }
+  }
+
+  /** Moves current-location waypoints to the latest fix. */
+  function refreshCurrentLocation() {
+    const fresh = getCurrentLocationWaypoint()?.lngLat
+    if (!fresh) return
+    waypoints.value.forEach((wp, index) => {
+      if (wp.place?.id !== CURRENT_LOCATION_ID || !wp.lngLat) return
+      if (wp.lngLat.lat === fresh.lat && wp.lngLat.lng === fresh.lng) return
+      store.setWaypoint(index, getCurrentLocationWaypoint()!)
+    })
   }
 
   // ── Plan cache (sessionStorage) ─────────────────────────────────────
@@ -505,7 +540,8 @@ function directionsService() {
       const settled = waypoints.value.filter(wp => wp.lngLat)
       planned.forEach((entry, i) => {
         const place = settled[i]?.place
-        if (!place || entry.place === place) return
+        // A current-location stop keeps the name it was planned under.
+        if (!place || entry.place === place || place.id === CURRENT_LOCATION_ID) return
         entry.place = place
         entry.name = getSearchResultName(place as Place)
       })
@@ -597,6 +633,7 @@ function directionsService() {
   return {
     getDirections,
     replan: () => getDirections({ quiet: true }),
+    refreshCurrentLocation,
     fillWaypoint,
     setWaypoint,
     setWaypoints,

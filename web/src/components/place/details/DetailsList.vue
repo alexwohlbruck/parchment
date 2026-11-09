@@ -13,11 +13,12 @@ import {
   LinkIcon,
   MapIcon,
   PlusIcon,
+  Grid3x3Icon,
   ClockIcon,
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
 import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place/place-details'
 import {
@@ -29,6 +30,7 @@ import {
 import { resolveIconByName } from '@/lib/place/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
+import { loadWhatFreeWords } from '@server/lib/whatfreewords'
 import PlaceSection from './PlaceSection.vue'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
@@ -166,6 +168,24 @@ const plusCode = computed(() => {
     10,
   )
 })
+
+/** The point's what3words address, worked out on the device once the word data loads. */
+const what3words = ref<string | null>(null)
+watch(
+  coordinates,
+  async point => {
+    what3words.value = null
+    if (!point) return
+    try {
+      const words = (await loadWhatFreeWords()).latLngToWords(point.lat, point.lng)
+      // The place may have changed while the data loaded.
+      if (coordinates.value === point) what3words.value = words && `///${words}`
+    } catch {
+      // Leave the row out; coordinates and the plus code still show.
+    }
+  },
+  { immediate: true },
+)
 
 const isAddressExpanded = ref(false)
 const isHoursExpanded = ref(false)
@@ -375,6 +395,15 @@ function getFullAddress(address: any) {
                   :osmUrl="osmUrl"
                   :coordinates="coordinates"
                   :label="t('place.details.plusCode')"
+                />
+                <DetailItem
+                  v-if="what3words"
+                  :icon="Grid3x3Icon"
+                  :value="what3words"
+                  :copyValue="what3words"
+                  :osmUrl="osmUrl"
+                  :coordinates="coordinates"
+                  :label="t('place.details.what3words')"
                 />
               </div>
             </CollapsibleContent>

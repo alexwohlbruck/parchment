@@ -409,6 +409,7 @@
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
+    "what3wordsCopied": "what3words address copied to clipboard",
     "plusCodeError": "Error generating Plus Code"
   },
   "map": {
@@ -2326,6 +2327,7 @@
       "address": "Address",
       "coordinates": "Coordinates",
       "plusCode": "Plus code",
+      "what3words": "what3words",
       "phoneNumber": "Phone number",
       "website": "Website",
       "emailAddress": "Email address",

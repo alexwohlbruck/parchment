@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import path from 'path'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite'
 import svgLoader from 'vite-svg-loader'
 import { VitePWA } from 'vite-plugin-pwa'
 import { readFileSync } from 'fs'
@@ -201,6 +201,9 @@ export default defineConfig({
           'favicon.svg',
           'parchment.svg',
           'icons/*.png',
+          // what3words word list and grid (lib/whatfreewords), so three-word
+          // addresses resolve offline from the first launch.
+          'assets/whatfreewords-*',
         ],
         // The single entry chunk is ~8MB; the default 2MB cap would silently
         // drop it from the precache and break offline startup.
@@ -212,6 +215,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@server': path.resolve(__dirname, '../server/src'),
+      // Server code shared with the client (coordinate-query) imports it; the
+      // web image and CI install only web/node_modules, so resolve it here.
+      pluscodes: path.resolve(__dirname, 'node_modules/pluscodes'),
     },
   },
   optimizeDeps: {
@@ -234,6 +240,15 @@ export default defineConfig({
     // Vite rejects Host headers it wasn't told about, so the preview passes
     // the hostname it publishes under.
     allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean),
+    // Modules imported from ../server/src are served automatically, but the
+    // what3words data files there are fetched by URL, which the default allow
+    // list (this workspace) refuses. Builds emit them as assets instead.
+    fs: {
+      allow: [
+        searchForWorkspaceRoot(process.cwd()),
+        path.resolve(__dirname, '../server/src/lib/whatfreewords'),
+      ],
+    },
     // Behind that proxy the HMR client would otherwise dial this origin port
     // directly — which isn't reachable from a phone. Point it at the public
     // origin the page was actually loaded from.

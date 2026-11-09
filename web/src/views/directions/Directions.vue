@@ -99,6 +99,7 @@ const { height: controlsHeight } = useElementSize(peekRef, undefined, {
 const sheetChromeBar = inject<Ref<boolean> | null>('sheetChromeBar', null)
 onMounted(() => {
   if (sheetChromeBar) sheetChromeBar.value = true
+  directionsService.refreshCurrentLocation()
 })
 onUnmounted(() => {
   if (sheetChromeBar) sheetChromeBar.value = false

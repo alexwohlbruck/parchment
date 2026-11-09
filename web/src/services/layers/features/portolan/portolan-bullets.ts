@@ -28,6 +28,7 @@ import {
   _resetRegionsForTest,
 } from './portolan-client'
 import { api } from '@/lib/api'
+import { orderBullets } from '@/lib/transit/transit-bullets'
 import { portolanClassOf, type PortolanIndexEntry } from '@/types/portolan.types'
 
 export interface PortolanBullet {
@@ -190,4 +191,69 @@ export function resetPortolanBullets(regionList: PortolanIndexEntry[] = []) {
 export function setPortolanRouteIndex(feed: string, idx: RouteIndex | null) {
   indexes[feed] = idx
   state.generation++
+}
+
+/** A route as a stop list knows it. */
+export interface StopRouteRef {
+  routeId: string
+  routeShortName: string | null
+  routeLongName: string | null
+  routeType: number | null
+  routeColor: string | null
+  routeTextColor?: string | null
+}
+
+/** A route's bullet as drawn at one stop: portolan's curated glyph where
+ *  the pyramid covering the stop has one, the feed's own name and colours
+ *  where it does not. */
+export interface ResolvedStopBullet<R extends StopRouteRef = StopRouteRef> {
+  route: R
+  label: string
+  color: string | null
+  shape?: string
+  /** The feed's text colour — only meaningful for an uncurated bullet. */
+  textColor: string | null
+}
+
+/**
+ * One route's bullet at one stop.
+ *
+ * The map is usually open beside the stop list drawing the same lines, so
+ * the glyphs have to agree — a notched square in one and a plain circle in
+ * the other reads as two different routes. Passing the stop's own point
+ * picks the pyramid covering it, and the route type keeps a metro 4 from
+ * matching a commuter-rail one.
+ */
+export function stopBulletFor<R extends StopRouteRef>(
+  route: R,
+  stop: { lat: number; lng: number },
+): ResolvedStopBullet<R> {
+  const name = route.routeShortName || route.routeLongName
+  const b = bulletFor(route.routeId, stop.lat, stop.lng, route.routeType, name)
+  return {
+    route,
+    label: b?.label || name || '',
+    color: b?.color || route.routeColor,
+    shape: b?.shape,
+    textColor: b?.color ? null : route.routeTextColor ?? null,
+  }
+}
+
+/**
+ * A stop's routes as bullets, in the order a station header puts them.
+ *
+ * The server returns them by its own SQL sort (station-before-transfer,
+ * then route type and short name), which reads as a different system from
+ * the one the header shows for the same station. `orderBullets` is that
+ * shared rule — it sorts by the bullet's own glyph and colour, which is
+ * what a rider is actually scanning.
+ */
+export function stopBulletsFor<R extends StopRouteRef>(
+  routes: readonly R[],
+  stop: { lat: number; lng: number },
+): ResolvedStopBullet<R>[] {
+  return orderBullets(
+    routes.map(r => stopBulletFor(r, stop)),
+    b => ({ label: b.label, color: b.color, id: b.route.routeId }),
+  )
 }

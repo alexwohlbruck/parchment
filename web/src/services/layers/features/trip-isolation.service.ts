@@ -21,8 +21,9 @@
  * SYMBOLS are narrowed the way an isolation narrows them — each leg's own
  * stations, their names, and the bullets riding the span it rides — and
  * kept at full strength over the dimmed ribbons. Where portolan draws the
- * line that is portolan's own lettering; where it does not, the stops fall
- * back to the same circles-and-names overlay the route panel uses.
+ * line that is portolan's own lettering; where it does not, portolan draws
+ * the leg's own stops in that same lettering (see setDrawnRoutes), exactly
+ * as the route panel does for a line no pyramid knows.
  *
  * Stands down entirely when the route panel is the focus: that view owns
  * the dim, and two owners would fight over the paint they restore.
@@ -43,6 +44,7 @@ import {
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import type { PortolanTripLeg } from '@/services/layers/features/portolan/portolan-transit.service'
+import { stopBulletFor } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   fadeTransitNetwork,
   networkDimOpacity,
@@ -69,6 +71,10 @@ const MISS_IDLES = 3
  *  nothing left to draw fires it once and stops, so a budget counted only
  *  in idles can wait forever in a city with no pyramid. */
 const RECONCILE_DEADLINE_MS = 2500
+/** Settling on a fallback is not the last word: a slow pyramid that
+ *  answers afterwards still takes its legs back. This many idles after
+ *  settling, it stops asking. */
+const UPGRADE_IDLES = 20
 
 const overlayIds = (segmentIndex: number): StopOverlayIds =>
   stopOverlayIds(`trip-leg-stops-${segmentIndex}`)
@@ -125,15 +131,36 @@ export function useTripIsolationService() {
   function clearStops() {
     detachReconciler()
     portolan.setTripLegs(null)
+    portolan.setDrawnRoutes(null)
     for (const segmentIndex of overlaid) {
       removeStopOverlay(mapInstance, overlayIds(segmentIndex))
     }
     overlaid = new Set()
   }
 
+  /** The legs no pyramid draws: portolan letters their stops from the
+   *  leg's own data when it is up, the plain overlay when it is not. */
   function drawOverlay(legs: FocusedLeg[]) {
+    const own = portolan.portolanTransitActive()
+    portolan.setDrawnRoutes(
+      own
+        ? legs
+            .filter(leg => leg.stops.length >= 2)
+            .map(leg => ({
+              color: leg.color,
+              // the trip's own polyline is the line
+              coordinates: null,
+              stops: leg.stops.map(s => ({
+                name: s.name,
+                lng: s.lng,
+                lat: s.lat,
+                bullets: [stopBulletFor(legRoute(leg), s)],
+              })),
+            }))
+        : null,
+    )
     const next = new Set<number>()
-    for (const leg of legs) {
+    for (const leg of own ? [] : legs) {
       if (leg.stops.length < 2) continue
       addStopOverlay(
         mapInstance,
@@ -149,6 +176,16 @@ export function useTripIsolationService() {
       }
     }
     overlaid = next
+  }
+
+  function legRoute(leg: FocusedLeg) {
+    return {
+      routeId: leg.routeIds[0] ?? '',
+      routeShortName: leg.shortName,
+      routeLongName: leg.longName,
+      routeType: null,
+      routeColor: leg.color,
+    }
   }
 
   /** Portolan's token for each of a leg's lines, empty when it draws none
@@ -212,23 +249,29 @@ export function useTripIsolationService() {
 
     let waitsForHydration = 0
     let missesWhileReady = 0
+    let settled = false
+    let idlesSinceSettled = 0
+    /** Fall back for the legs nobody has claimed — and keep listening, so
+     *  a pyramid that answers late still takes its legs back. */
+    const settle = () => {
+      settled = true
+      if (drawLegs(legs, true)) detachReconciler()
+    }
     const onIdle = () => {
       if (mine !== generation) return detachReconciler()
+      if (settled) {
+        if (drawLegs(legs, true) || ++idlesSinceSettled >= UPGRADE_IDLES) detachReconciler()
+        return
+      }
       if (!portolan.portolanTransitActive()) {
-        if (++waitsForHydration >= HYDRATION_IDLES) {
-          drawLegs(legs, true)
-          detachReconciler()
-        }
+        if (++waitsForHydration >= HYDRATION_IDLES) settle()
         return
       }
       if (drawLegs(legs, false)) return detachReconciler()
       // Ready, tiles idle, some leg still unknown: once the fit has landed
       // and the tiles under it have answered a few times, that IS the
-      // answer, and the overlay is what the leg gets.
-      if (++missesWhileReady >= MISS_IDLES) {
-        drawLegs(legs, true)
-        detachReconciler()
-      }
+      // answer, and the fallback is what the leg gets.
+      if (++missesWhileReady >= MISS_IDLES) settle()
     }
     // A portolan tile source finishing is the earliest instant its token can
     // be resolved — idle also waits on the basemap, which is a frame or more
@@ -239,7 +282,7 @@ export function useTripIsolationService() {
       if (mine !== generation) return detachReconciler()
       if (!String(e?.sourceId ?? '').startsWith('portolan-tiles-')) return
       if (!e.isSourceLoaded || !portolan.portolanTransitActive()) return
-      if (drawLegs(legs, false)) detachReconciler()
+      if (drawLegs(legs, settled)) detachReconciler()
     }
     reconciler = [
       ['idle', onIdle],
@@ -249,11 +292,7 @@ export function useTripIsolationService() {
 
     reconcileDeadline = setTimeout(() => {
       reconcileDeadline = null
-      if (mine !== generation) return
-      if (!(portolan.portolanTransitActive() && drawLegs(legs, false))) {
-        drawLegs(legs, true)
-      }
-      detachReconciler()
+      if (mine === generation && !settled) settle()
     }, RECONCILE_DEADLINE_MS)
   }
 

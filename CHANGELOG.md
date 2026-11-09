@@ -11,6 +11,7 @@
 
 ### Fixed
 
+* Trips with a same-station subway transfer, like the L to the 4 at Union Square, can be started in navigation again.
 * Navigation now waits for a late bus or train using live departure times, instead of saying it has left.
 * Your bus or train's live position now shows on the map during navigation.
 * Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.

@@ -4,12 +4,11 @@ import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import type { WidgetResponse, WidgetDescriptor, Place } from '@/types/place.types'
 import PlaceSection from '@/components/place/details/PlaceSection.vue'
-import CopyButton from '@/components/CopyButton.vue'
-import { ExternalLinkIcon } from 'lucide-vue-next'
 import { formatWord } from '@/lib/string'
 import { getOsmTagLabel, osmKeyToI18nKey } from '@/lib/place/osm-tag-labels'
-import { getOsmTagIcon } from '@/lib/place/osm-tag-icons'
 import { useAppStore } from '@/stores/app.store'
+import { useClipboard } from '@/composables/useClipboard'
+import { useUnits } from '@/composables/useUnits'
 import { FloorNumbering } from '@/types/map.types'
 
 const props = defineProps<{
@@ -20,27 +19,14 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { copy } = useClipboard()
+const { formatElevation } = useUnits()
 
 /** Translate an OSM tag key label, falling back to the English TAG_LABELS dict. */
 function tagLabel(key: string): string {
   const i18nKey = `place.osmTags.labels.${osmKeyToI18nKey(key)}`
   return t(i18nKey, getOsmTagLabel(key))
 }
-
-// ── OSM link ─────────────────────────────────────────────────────────────────
-
-const osmUrl = computed(() => {
-  const source = props.place.sources?.find(s => s.id === 'osm')
-  return source?.url || ''
-})
-
-const osmUrlWithCoords = computed(() => {
-  const center = props.place.geometry?.value?.center
-  if (osmUrl.value && center) {
-    return `${osmUrl.value}#map=19/${center.lat}/${center.lng}`
-  }
-  return osmUrl.value
-})
 
 // ── Value formatting ──────────────────────────────────────────────────────────
 
@@ -49,6 +35,14 @@ const DATE_KEYS = new Set([
   'start_date', 'end_date', 'opening_date', 'construction:date',
   'demolished:date', 'check_date', 'survey:date',
 ])
+
+/** OSM tag keys whose bare numeric values are metres */
+const LENGTH_KEYS = new Set([
+  'height', 'min_height', 'ele', 'width', 'length', 'depth', 'diameter',
+  'maxheight', 'maxwidth', 'maxlength',
+])
+
+const METRES_RE = /^(-?\d+(?:\.\d+)?)\s*m?$/
 
 /**
  * Parse an OSM date value which may be:
@@ -89,6 +83,11 @@ function formatValue(key: string, value: string): { text: string; href?: string 
     if (!isNaN(num) && appStore.floorNumbering === FloorNumbering.ONE_BASED) {
       return { text: String(num + 1) }
     }
+  }
+
+  if (LENGTH_KEYS.has(key)) {
+    const metres = METRES_RE.exec(value.trim())
+    if (metres) return { text: formatElevation(Number(metres[1])) }
   }
 
   // Date fields
@@ -144,10 +143,16 @@ interface TagGroup {
 interface TagValueRow {
   id: string
   label: string
-  fullKey: string
   text: string
   rawValue: string
   href?: string
+  nested: boolean
+}
+
+interface TagGroupDisplay {
+  id: string
+  caption?: string
+  rows: TagValueRow[]
 }
 
 const tags = computed(() => props.data.data.value as Record<string, string>)
@@ -183,43 +188,40 @@ const groupedTags = computed((): TagGroup[] => {
   })
 })
 
-const hasListTags = computed(() => groupedTags.value.length > 0)
-
-function subtagLabel(sub: TagGroup['subtags'][number]): string {
-  const fullKeyLabel = getOsmTagLabel(sub.fullKey)
-  if (fullKeyLabel !== formatWord(sub.fullKey)) return tagLabel(sub.fullKey)
-  return tagLabel(sub.subKey)
+function valueRow(key: string, label: string, value: string, nested = false): TagValueRow {
+  return { id: key, label, rawValue: value, nested, ...formatValue(key, value) }
 }
 
-function valueRows(group: TagGroup): TagValueRow[] {
-  const rows: TagValueRow[] = []
-
-  if (group.rootValue !== undefined) {
-    const formatted = formatValue(group.rootKey, group.rootValue)
-    rows.push({
-      id: group.rootKey,
-      label: tagLabel(group.rootKey),
-      fullKey: group.rootKey,
-      text: formatted.text,
-      rawValue: group.rootValue,
-      href: formatted.href,
-    })
-  }
-
-  for (const sub of group.subtags) {
-    const formatted = formatValue(sub.fullKey, sub.value)
-    rows.push({
-      id: sub.fullKey,
-      label: subtagLabel(sub),
-      fullKey: sub.fullKey,
-      text: formatted.text,
-      rawValue: sub.value,
-      href: formatted.href,
-    })
-  }
-
-  return rows
+function knownLabel(key: string): string | null {
+  return getOsmTagLabel(key) !== formatWord(key) ? tagLabel(key) : null
 }
+
+/**
+ * A group with a value of its own, or several sub-tags, nests its sub-tags
+ * beneath it; a lone sub-tag reads better as one prefixed row.
+ */
+function groupDisplay(group: TagGroup): TagGroupDisplay {
+  const rootLabel = tagLabel(group.rootKey)
+  const [onlySub] = group.subtags
+
+  if (group.rootValue === undefined && group.subtags.length === 1) {
+    const label = knownLabel(onlySub.fullKey) ?? `${rootLabel} · ${tagLabel(onlySub.subKey)}`
+    return { id: group.rootKey, rows: [valueRow(onlySub.fullKey, label, onlySub.value)] }
+  }
+
+  const nested = group.subtags.map(sub =>
+    valueRow(sub.fullKey, knownLabel(sub.fullKey) ?? tagLabel(sub.subKey), sub.value, true),
+  )
+  if (group.rootValue === undefined) {
+    return { id: group.rootKey, caption: rootLabel, rows: nested }
+  }
+  return {
+    id: group.rootKey,
+    rows: [valueRow(group.rootKey, rootLabel, group.rootValue), ...nested],
+  }
+}
+
+const displayGroups = computed(() => groupedTags.value.map(groupDisplay))
 
 function valueCopyMessage(label: string): string {
   return t('place.osmTags.copiedMessage', { label })
@@ -227,79 +229,46 @@ function valueCopyMessage(label: string): string {
 </script>
 
 <template>
-  <PlaceSection v-if="hasListTags">
+  <PlaceSection v-if="displayGroups.length > 0">
     <template #main>
-      <div class="space-y-3">
-        <div
-          v-for="group in groupedTags"
-          :key="group.rootKey"
-          class="group relative flex min-w-0 items-start gap-3"
-        >
-          <component
-            :is="getOsmTagIcon(group.rootKey)"
-            class="mt-0.5 size-4 shrink-0 text-muted-foreground"
-          />
-
-          <div class="flex min-w-0 flex-1 flex-col">
-            <div class="min-w-0 pr-7 text-sm leading-tight text-muted-foreground">
-              {{ tagLabel(group.rootKey) }}
-            </div>
-
-            <div
-              :class="[
-                'min-w-0',
-                group.subtags.length > 0 ? 'mt-1 divide-y divide-border/50' : '',
-              ]"
-            >
-              <div
-                v-for="row in valueRows(group)"
-                :key="row.id"
-                class="flex min-w-0 items-center gap-2"
-                :class="group.subtags.length > 0 ? 'min-h-8 py-1' : ''"
-              >
-                <div
-                  v-if="row.fullKey !== group.rootKey"
-                  class="w-24 shrink-0 truncate text-xs text-muted-foreground"
-                  :title="row.label"
-                >
-                  {{ row.label }}
-                </div>
-                <div
-                  class="min-w-0 flex-1 break-words leading-snug text-foreground"
-                  :class="group.subtags.length > 0 ? 'text-sm' : 'text-[15px]'"
-                >
-                  <a
-                    v-if="row.href"
-                    :href="row.href"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="break-all text-primary hover:underline"
-                  >
-                    {{ row.text }}
-                  </a>
-                  <span v-else>{{ row.text }}</span>
-                </div>
-
-                <CopyButton
-                  :text="row.rawValue"
-                  :message="valueCopyMessage(row.label)"
-                  class="-mr-1 shrink-0 opacity-60 transition-opacity hover:opacity-100"
-                />
-              </div>
-            </div>
+      <div class="-my-1.5 divide-y divide-border/50 text-sm">
+        <dl v-for="group in displayGroups" :key="group.id" class="py-2">
+          <div v-if="group.caption" class="pb-1 text-muted-foreground">
+            {{ group.caption }}
           </div>
-
-          <a
-            v-if="osmUrlWithCoords"
-            :href="osmUrlWithCoords"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="absolute -right-1 -top-1 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-            :title="t('place.osmTags.viewOnOpenStreetMap')"
+          <div
+            v-for="row in group.rows"
+            :key="row.id"
+            class="flex min-w-0 items-baseline gap-4"
+            :class="{ 'pt-1': row.nested }"
           >
-            <ExternalLinkIcon class="h-4 w-4 text-muted-foreground" />
-          </a>
-        </div>
+            <dt
+              class="w-2/5 shrink-0 text-muted-foreground"
+              :class="{ 'pl-3 text-xs': row.nested }"
+            >
+              {{ row.label }}
+            </dt>
+            <dd class="min-w-0 flex-1 break-words">
+              <a
+                v-if="row.href"
+                :href="row.href"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="break-all text-primary hover:underline"
+              >
+                {{ row.text }}
+              </a>
+              <button
+                v-else
+                type="button"
+                class="cursor-pointer text-left"
+                @click="copy(row.rawValue, valueCopyMessage(row.label))"
+              >
+                {{ row.text }}
+              </button>
+            </dd>
+          </div>
+        </dl>
       </div>
     </template>
   </PlaceSection>

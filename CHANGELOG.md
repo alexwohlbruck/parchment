@@ -9,6 +9,8 @@
 
 ### Changed
 
+* A place's extra details are now a tidy list of labels and values, with lengths in your units and internal import IDs hidden. Tap a value to copy it.
+
 ### Fixed
 
 * Biking or driving to a station during navigation no longer tells you to run: the time to the stop now uses your actual pace.

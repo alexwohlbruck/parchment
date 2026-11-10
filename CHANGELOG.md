@@ -25,6 +25,8 @@
 * Returning to directions or refreshing trip suggestions now plans from where you are now, not where you were when you first searched.
 * Waiting along a subway platform no longer makes guidance think you've boarded, and the wait card now shows where on the platform to stand.
 * An opened transit line looks the same as on the transit map, with a bold line, stop names and transfer bullets, including buses in cities the detailed transit map does not cover.
+* 3D landmarks on hillsides stand on the ground: a building with a level floor no longer floats off its downhill side, as 1201 Third Avenue in Seattle did by 9 m and the Brooklyn Museum by 4 m.
+* Landmarks built over the terrain, like the Lincoln and Jefferson Memorials, are drawn at their true height instead of sinking up to 3.6 m where the ground under them is smoothed.
 
 ## [0.20.1-1] - 2026-11-08
 

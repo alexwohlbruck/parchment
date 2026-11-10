@@ -12,6 +12,7 @@
 * A place's extra details are now a tidy list of labels and values, with lengths in your units and internal import IDs hidden. Tap a value to copy it.
 * My location now shows the same details as any place on the map, and its free roam button starts in the mode you last used.
 * Tapping the map on a shop, school or other named place now opens that place, with the pin left where you tapped.
+* 3D terrain is drawn life-size instead of 20% taller, so hills, roads, bridges and landmarks sit at their true heights.
 
 ### Fixed
 

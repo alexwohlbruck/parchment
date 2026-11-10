@@ -9,11 +9,11 @@
 export const TERRAIN_SOURCE_ID = 'terrain-dem'
 
 /**
- * Vertical scale. 1.0 is life-size, which reads as almost flat at the zooms a
- * street map is used at — the eye expects the exaggeration every 3D map applies.
- * Enough to feel the terrain, not so much that a gentle hill looks like a cliff.
+ * Vertical scale: life-size. Roads, bridge decks and landmark models are all
+ * built to true heights, and any exaggeration pulls them off the ground and
+ * off each other.
  */
-export const TERRAIN_EXAGGERATION = 1.2
+export const TERRAIN_EXAGGERATION = 1
 
 /**
  * About 2 m a pixel at 512 px. Where a region's data stops lower, the archive

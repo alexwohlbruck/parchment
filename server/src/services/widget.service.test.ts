@@ -340,7 +340,7 @@ describe('OSM tags descriptor and display chips', () => {
       place({ tags: { height: '29.0', 'gnis:feature_id': '2057410', 'nycdoitt:bin': '1000003' } }),
       WidgetType.OSM_TAGS,
     )
-    const shown = JSON.parse(descriptor!.params.staticData).data.value
+    const shown = JSON.parse(String(descriptor!.params.staticData)).data.value
 
     expect(shown).toEqual({ height: '29.0' })
   })

@@ -24,7 +24,14 @@
  * that follows the terrain has its lowest vertices — its feet, its station
  * floor — at a steady depth under the same DEM the map draws (AWS Terrain
  * Tiles, which Barrelman's kit samples too), and a flat one has them at a
- * steady height. Whichever reading lines more of them up wins.
+ * steady height. Whichever reading lines more of them up wins, unless the
+ * terrain reading has only lined up a floor; see `modelGround`.
+ *
+ * The map's ground under a landmark is filled (see `map-terrain/fill.ts`),
+ * which brings it down where the lidar kept something the model draws. A
+ * model that follows the terrain was built on the ground before the fill,
+ * so only its feet go down to meet the filled ground; the rest of it stands
+ * where it was built. See `groundLifts`.
  */
 import type { Footprint } from './landmarks'
 
@@ -64,6 +71,19 @@ const FOLLOW_MARGIN = 1.25
 
 /** Fewer than this many feet on the terrain is no evidence either way. */
 const MIN_CONTACTS = 8
+
+/**
+ * Share of the lined-up feet at one height past which they are a floor, not
+ * feet. A coaster's footings stand at every height up the slope, and at the
+ * Carowinds coasters no one height holds even a quarter of them; a
+ * building's lowest vertices are its floors, each dead level, and of the
+ * buildings the terrain reading lines up, every one has 30% or more of them
+ * on one floor.
+ */
+const FLOOR_SHARE = 0.3
+
+/** Metres within which a model's vertices count as one level: a floor's. */
+const LEVEL = 0.05
 
 /**
  * Where in the band of feet the model's ground is put. High in it, so most
@@ -120,36 +140,72 @@ const BURIED = 0.05
  * the wrong one the feet spread out over the slope, and only the few at one
  * end of it are at the bottom. So the reading with more contacts in a band at
  * the bottom is the model's.
+ *
+ * Except where that band is a floor. A flat building on a site with a level
+ * plateau — a podium on a hillside, a ground floor raised over a lidar bump
+ * — has its floor there at a steady depth under the DEM too, and since the
+ * buried share set aside can take most of its base at y = 0, the floor can
+ * outnumber it. That only shows the ground under the floor is level, which
+ * any building's is. A building truly built over the terrain shows more: it
+ * keeps Barrelman's frame, its origin on the lowest ground under it, so the
+ * terrain reading puts that ground at y = 0, within a band. One that lines
+ * up a floor and puts the lowest ground metres from y = 0 — 9 m below it at
+ * 1201 Third Avenue in Seattle, whose base steps down a hill — is flat. A
+ * coaster built by Barrelman's kit over a coarser DEM than the map's can be
+ * metres off there, but its feet are never a floor.
  */
 export function modelGround(contacts: readonly Contact[], raw: readonly number[], scale: number): ModelGround {
   const flat: number[] = []
-  const terrain: number[] = []
+  const terrain: Array<{ y: number; at: number }> = []
+  let lowest = Infinity
   contacts.forEach(([, y], i) => {
     if (!Number.isFinite(raw[i])) return
     flat.push(y)
-    terrain.push(y - raw[i] / scale)
+    terrain.push({ y, at: y - raw[i] / scale })
+    lowest = Math.min(lowest, raw[i] / scale)
   })
   const band = CONTACT_BAND / scale
-  const onFlat = bottom(flat, band)
-  const onTerrain = bottom(terrain, band)
+  const onFlat = bottom(flat, band, y => y)
+  const onTerrain = bottom(terrain, band, c => c.at)
   if (onTerrain.length < MIN_CONTACTS || onTerrain.length < onFlat.length * FOLLOW_MARGIN) return { follows: false }
-  return { follows: true, offset: onTerrain[Math.min(onTerrain.length - 1, Math.floor(onTerrain.length * GROUND_QUANTILE))] }
+  const offset = onTerrain[Math.min(onTerrain.length - 1, Math.floor(onTerrain.length * GROUND_QUANTILE))].at
+  // Where the terrain reading puts the lowest ground under the model, in its own frame.
+  const origin = lowest + offset
+  const floor = onLevel(onTerrain.map(c => c.y), LEVEL / scale) >= onTerrain.length * FLOOR_SHARE
+  if (floor && Math.abs(origin) > band) return { follows: false }
+  return { follows: true, offset }
 }
 
-/** The values in the band `width` wide at the bottom of a set, past its BURIED share; sorted. */
-function bottom(values: readonly number[], width: number): number[] {
-  const v = [...values].sort((a, b) => a - b)
+/** The items in the band `width` wide at the bottom of a set by `value`, past its BURIED share; sorted. */
+function bottom<T>(items: readonly T[], width: number, value: (item: T) => number): T[] {
+  const v = [...items].sort((a, b) => value(a) - value(b))
   const from = Math.floor(v.length * BURIED)
   let to = from
-  while (to < v.length && v[to] - v[from] <= width) to++
+  while (to < v.length && value(v[to]) - value(v[from]) <= width) to++
   return v.slice(from, to)
 }
 
+/** The most of a set of heights that stand within `width` of each other: its biggest level. */
+function onLevel(heights: readonly number[], width: number): number {
+  const v = [...heights].sort((a, b) => a - b)
+  let most = 0
+  for (let i = 0, j = 0; i < v.length; i++) {
+    while (v[i] - v[j] > width) j++
+    most = Math.max(most, i - j + 1)
+  }
+  return most
+}
+
+/** Floats per grid point in `groundLifts`: the map's rise, the model's own ground, and the fill's depth. */
+export const GROUND_STRIDE = 3
+
 /**
  * The ground under a placed model, for the vertex shader: per sample, the
- * map's rise above the lowest point and the model's own ground, interleaved,
- * in model units; their mean difference, which is what the model above the
- * blend is lifted by; and the lowest point itself, which the base is set on.
+ * map's rise above the lowest point, the model's own ground, and how far the
+ * fill brought the map's ground down from the ground the model was built on,
+ * interleaved, in model units; the mean lift, which is what the model above
+ * the blend is lifted by; and the lowest point itself, which the base is set
+ * on.
  *
  * `heights` are the map's, exaggerated, as the terrain draws them. A 0 among
  * real heights is a tile that has not loaded, not the sea, and is read as the
@@ -158,6 +214,17 @@ function bottom(values: readonly number[], width: number): number[] {
  * drape, so its supports stretch to meet the taller hills. `raw` is that DEM
  * in true metres where it differs from the map's, which fills the ground
  * under a landmark (see `map-terrain/fill.ts`): NaN where unknown.
+ *
+ * The fill matters only to the feet of such a model. Lifted by the filled
+ * ground everywhere, a model built on the bare DEM would sink by however
+ * much the fill took away — the Lincoln Memorial by 3.6 m, a bridge's low
+ * deck where the fill reaches under it — so the mean, and the drape above
+ * the feet, are worked out from the bare ground, and the depth the fill
+ * took is kept apart for the shader to take off the feet alone, fading out
+ * over FILL_FADE above them (see GROUND in `landmark-layer.ts`), so they
+ * still meet the ground the map draws. A flat model stands on the filled
+ * ground, which is the point of the fill, so its depth is 0 and its drape is
+ * what it always was.
  */
 export function groundLifts(
   heights: readonly number[],
@@ -171,16 +238,20 @@ export function groundLifts(
   const lowest = Math.min(...known)
   // With no terrain loaded at all, the map is flat for now, whatever the model.
   const offset = model.follows && loaded ? model.offset : null
-  const lifts = new Float32Array(heights.length * 2)
+  const lifts = new Float32Array(heights.length * GROUND_STRIDE)
   let sum = 0
   heights.forEach((h, i) => {
     const at = loaded && h === 0 ? lowest : h
     const rise = (at - lowest) / scale
-    const built = Number.isFinite(raw[i]) ? raw[i] : at / exaggeration
+    const bare = Number.isFinite(raw[i])
+    const built = bare ? raw[i] : at / exaggeration
     const own = offset === null ? 0 : built / scale + offset
-    lifts[i * 2] = rise
-    lifts[i * 2 + 1] = own
-    sum += rise - own
+    // Never negative: the fill only ever brings the ground down.
+    const filled = offset !== null && bare ? Math.max(0, raw[i] * exaggeration - at) / scale : 0
+    lifts[i * GROUND_STRIDE] = rise
+    lifts[i * GROUND_STRIDE + 1] = own
+    lifts[i * GROUND_STRIDE + 2] = filled
+    sum += rise + filled - own
   })
   return { lifts, mean: heights.length ? sum / heights.length : 0, lowest }
 }
@@ -198,14 +269,27 @@ export const GROUND_SINK = 0.5
 export const BASE_BAND = 0.05
 
 /**
- * How far, in model units, the base is pushed down, and how high above the
- * model's own ground a vertex is still base. A model that follows the
- * terrain has its feet scattered through a band (CONTACT_BAND), so all of
- * them are base. Nothing with the terrain off, where the map is flat.
+ * Metres above the base over which a terrain model's feet stop following the
+ * fill down (see `groundLifts`). Not a step at the base: the model's own
+ * ground is read at only GROUND_GRID² points, so between them a foot can
+ * stand a metre or two off it on a steep site — at the Brooklyn Bridge's
+ * Brooklyn approach, up to 2.5 m — and a foot taken for something above the
+ * base would hang over the filled ground by all the fill took away. Short
+ * against GROUND_BLEND all the same, so a bridge's low deck, a terrace or a
+ * stair stays where it was built.
  */
-export function baseSink(model: ModelGround, scale: number, terrain: boolean): { depth: number; band: number } {
-  if (!terrain) return { depth: 0, band: 0 }
-  return { depth: GROUND_SINK / scale, band: (model.follows ? CONTACT_BAND : BASE_BAND) / scale }
+export const FILL_FADE = 6
+
+/**
+ * How far, in model units, the base is pushed down, how high above the
+ * model's own ground a vertex is still base, and how far above that the
+ * fill's depth fades out of the drape. A model that follows the terrain has
+ * its feet scattered through a band (CONTACT_BAND), so all of them are
+ * base. No sink and no base with the terrain off, where the map is flat.
+ */
+export function baseSink(model: ModelGround, scale: number, terrain: boolean): { depth: number; band: number; fade: number } {
+  if (!terrain) return { depth: 0, band: 0, fade: FILL_FADE / scale }
+  return { depth: GROUND_SINK / scale, band: (model.follows ? CONTACT_BAND : BASE_BAND) / scale, fade: FILL_FADE / scale }
 }
 
 /** Metres: a floor this far down never clips anything. */

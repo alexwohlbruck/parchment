@@ -37,7 +37,7 @@
  */
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
-  baseSink, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
+  baseSink, elevationDrape, GROUND_STRIDE, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, NEON_GLOW, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
@@ -130,11 +130,15 @@ const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 
 /**
  * The terrain under a landmark, as a GROUND_GRID² grid over its plan extent
  * (`u_bounds`: minX, minZ, maxX, maxZ), in model metres: per point, the map's
- * rise above the lowest ground, and the ground the model itself was built on
- * (0 for a flat base; see `groundLifts`). A vertex is lifted by the first less
- * the second, as far as GROUND_BLEND says; `u_ground_mean` is that difference
- * averaged, which is what the rigid part above the blend takes. All zero with
- * the terrain off.
+ * rise above the lowest ground, the ground the model itself was built on (0
+ * for a flat base; see `groundLifts`), and how far the fill brought the
+ * first down from the ground the model was built on (0 but for a model that
+ * follows the terrain). A vertex is lifted by the rise it was built on — the
+ * first plus the third — less its own ground, as far as GROUND_BLEND says;
+ * `u_ground_mean` is that difference averaged, which is what the rigid part
+ * above the blend takes. Its feet go on down by the third, to the ground
+ * the map draws, and what stands just above them part of the way (`u_sink.z`).
+ * All zero with the terrain off.
  *
  * How the placement's elevation changes that is `elevationDrape`'s: `u_rigid`
  * 1 stands a raised model rigid on the mean, `u_ground_at` measures the blend
@@ -142,23 +146,24 @@ const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 
  * `u_floor` clips what goes under the flat map with the terrain off.
  *
  * `u_sink` pushes the base under the terrain (see `baseSink`): by `.x`, every
- * vertex no more than `.y` above the ground it meets.
+ * vertex no more than `.y` above the ground it meets; and `.z` is the height
+ * above that over which the fill's depth fades out.
  */
 const GROUND = `
-  uniform vec2 u_ground[${GROUND_GRID * GROUND_GRID}];
+  uniform vec3 u_ground[${GROUND_GRID * GROUND_GRID}];
   uniform float u_ground_mean;
   uniform vec4 u_bounds;
   uniform float u_blend;
   uniform float u_rigid;
   uniform float u_ground_at;
   uniform float u_floor;
-  uniform vec2 u_sink;
-  vec2 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
+  uniform vec3 u_sink;
+  vec3 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
   /**
    * At a plan point, held at the grid's edge beyond it: x the map's rise, y
-   * the model's own ground.
+   * the model's own ground, z the depth the fill took off the first.
    */
-  vec2 groundUnder(vec2 xz) {
+  vec3 groundUnder(vec2 xz) {
     vec2 span = max(u_bounds.zw - u_bounds.xy, vec2(1e-3));
     vec2 g = clamp((xz - u_bounds.xy) / span, 0.0, 1.0) * float(${GROUND_GRID - 1});
     ivec2 c = min(ivec2(floor(g)), ivec2(${GROUND_GRID - 2}));
@@ -169,11 +174,12 @@ const GROUND = `
       f.y);
   }
   vec3 drape(vec3 p, float sink) {
-    vec2 g = groundUnder(p.xz);
+    vec3 g = groundUnder(p.xz);
     float above = p.y - g.y - u_ground_at;
     float follow = (1.0 - u_rigid) * (1.0 - clamp(above / u_blend, 0.0, 1.0));
-    float base = (1.0 - u_rigid) * step(above, u_sink.y) * sink;
-    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow) - base, 0.0);
+    float foot = (1.0 - u_rigid) * step(above, u_sink.y);
+    float filled = (1.0 - u_rigid) * (1.0 - clamp((above - u_sink.y) / u_sink.z, 0.0, 1.0));
+    return p + vec3(0.0, mix(u_ground_mean, g.x + g.z - g.y, follow) - filled * g.z - foot * sink, 0.0);
   }
   vec3 onGround(vec3 p) { return drape(p, u_sink.x); }`
 
@@ -719,11 +725,11 @@ export type Replaced = { refs: string[]; featureIds: number[] }
 
 type Placement = Landmark & {
   placed: Anchor
-  /** The map's rise and the model's own ground, per grid point, in model metres; see GROUND. */
+  /** The map's rise, the model's own ground and the fill's depth, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
-  /** How far its base is pushed under the terrain, and what counts as base, in model units; see `baseSink`. */
-  sink: { depth: number; band: number }
+  /** How far its base is pushed under the terrain, what counts as base, and how far above it the fill fades out, in model units; see `baseSink`. */
+  sink: { depth: number; band: number; fade: number }
   /** How its elevation changes the way it meets the ground; see GROUND. */
   drape: ElevationDrape
   /** Whether it is close enough for its detail model; see `drawnModel`. */
@@ -1113,7 +1119,7 @@ export class LandmarkLayer {
   ): Placement {
     const model = this.models.get(landmark.model)
     const footprint = model?.footprint
-    let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * 2)
+    let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * GROUND_STRIDE)
     let base = 0, groundMean = 0
     let own: ModelGround = { follows: false }
     if (sample) {
@@ -1743,14 +1749,14 @@ export class LandmarkLayer {
    */
   private groundUniforms(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, p: Placement) {
     const f = this.models.get(p.model)?.footprint
-    gl.uniform2fv(u.u_ground, p.ground)
+    gl.uniform3fv(u.u_ground, p.ground)
     gl.uniform1f(u.u_ground_mean, p.groundMean)
     gl.uniform4f(u.u_bounds, f?.minX ?? 0, f?.minZ ?? 0, f?.maxX ?? 1, f?.maxZ ?? 1)
     gl.uniform1f(u.u_blend, GROUND_BLEND / p.scale)
     gl.uniform1f(u.u_rigid, p.drape.rigid ? 1 : 0)
     gl.uniform1f(u.u_ground_at, p.drape.groundAt)
     gl.uniform1f(u.u_floor, p.drape.floor)
-    gl.uniform2f(u.u_sink, p.sink.depth, p.sink.band)
+    gl.uniform3f(u.u_sink, p.sink.depth, p.sink.band, p.sink.fade)
   }
 
   /**

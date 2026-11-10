@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { baseSink, elevationDrape, GROUND_SINK, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
+import {
+  baseSink, elevationDrape, FILL_FADE, GROUND_SINK, GROUND_STRIDE, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact,
+} from './landmark-ground'
 
 /** A sloping site: the raw DEM rises 0.1 m per metre east, from 190 m. */
 const dem = (x: number) => 190 + x * 0.1
@@ -58,6 +60,40 @@ describe('modelGround', () => {
     expect(modelGround(contacts, partial, 1)).toEqual({ follows: false })
   })
 
+  it('keeps a building flat whose floor happens to sit level with a plateau', () => {
+    // 1201 Third Avenue in Seattle: a base at y = 0 stepping 10 m down a
+    // hill, the lidar's plateau at the top of it, and a ground floor 1.2 m
+    // up resting on that plateau. With the buried share set aside, the floor
+    // lines up more contacts under the terrain than the base does flat.
+    const plateau = (x: number) => (x < 30 ? 200 : 200 - (x - 30) * 0.4)
+    const contacts: Contact[] = []
+    for (let x = 0; x < 30; x += 2) contacts.push([x, 1.2, 0], [x, 1.2, 10])
+    for (let x = 30; x <= 56; x += 2) contacts.push([x, 0, 0])
+    for (let x = 0; x <= 56; x += 2) for (let z = 20; z <= 40; z += 4) contacts.push([x, 25 + z, z])
+    const raw = contacts.map(([x]) => plateau(x) + 1.2)
+    expect(modelGround(contacts, raw, 1)).toEqual({ follows: false })
+  })
+
+  it('still finds a building stepped down a slope to the ground under it', () => {
+    // Healy Hall: floors at 0 and 1.2 m, each on the ground under it, the
+    // lowest ground at y = 0 as Barrelman's frame has it.
+    const ground = (x: number) => (x < 30 ? 50 : 51.2)
+    const contacts: Contact[] = []
+    for (let x = 0; x <= 58; x += 2) contacts.push([x, ground(x) - 50, 0], [x, ground(x) - 50, 10])
+    for (let x = 0; x <= 58; x += 2) contacts.push([x, 22, 20])
+    const raw = contacts.map(([x]) => ground(x) + (x % 4 ? 0.3 : -0.3))
+    const found = modelGround(contacts, raw, 1)
+    expect(found.follows).toBe(true)
+  })
+
+  it('keeps a coaster read over another DEM than the one it was built on', () => {
+    // Its feet at every height, the map's lowest ground metres under its
+    // datum: off Barrelman's frame, but never a floor.
+    const { contacts, raw } = coaster()
+    const ground = modelGround(contacts, raw.map((h, i) => (i === 0 ? h - 4 : h)), 1)
+    expect(ground.follows).toBe(true)
+  })
+
   it('reads a scaled model in its own units', () => {
     const { contacts, raw } = coaster()
     // The same coaster drawn at half size: half the model units per metre.
@@ -78,8 +114,9 @@ describe('groundLifts', () => {
     expect(lowest).toBeCloseTo(228, 6)
     const rise = [0, 4.8, 0, 9.6]
     rise.forEach((r, i) => {
-      expect(lifts[i * 2]).toBeCloseTo(r, 4)
-      expect(lifts[i * 2 + 1]).toBe(0)
+      expect(lifts[i * GROUND_STRIDE]).toBeCloseTo(r, 4)
+      expect(lifts[i * GROUND_STRIDE + 1]).toBe(0)
+      expect(lifts[i * GROUND_STRIDE + 2]).toBe(0)
     })
     expect(mean).toBeCloseTo((4.8 + 9.6) / 4, 4)
   })
@@ -91,7 +128,7 @@ describe('groundLifts', () => {
     // map's ground there: the base (`lowest`), plus its own y, plus the lift.
     raw.forEach((h, i) => {
       const foot = h + offset
-      const lift = lifts[i * 2] - lifts[i * 2 + 1]
+      const lift = lifts[i * GROUND_STRIDE] - lifts[i * GROUND_STRIDE + 1]
       expect(lowest + foot + lift).toBeCloseTo(h * exaggeration, 4)
     })
   })
@@ -112,15 +149,42 @@ describe('groundLifts', () => {
     const offset = -191
     const { lifts, lowest } = groundLifts(filled, exaggeration, { follows: true, offset }, 1, [NaN, NaN, NaN, raw[3]])
     raw.forEach((h, i) => {
-      const lift = lifts[i * 2] - lifts[i * 2 + 1]
-      expect(lowest + h + offset + lift).toBeCloseTo(filled[i], 4)
+      // A foot takes the whole lift, the fill's depth and all (see GROUND).
+      const [rise, own, fill] = lifts.slice(i * GROUND_STRIDE, (i + 1) * GROUND_STRIDE)
+      expect(lowest + h + offset + rise + fill - own - fill).toBeCloseTo(filled[i], 4)
     })
+  })
+
+  it('stands the rest of a terrain model where it was built, however deep the fill', () => {
+    // Life-size, a terrain model's ground is the map's, so it stands rigid
+    // at its own height: the Lincoln Memorial on its knoll, which the fill
+    // takes 3.6 m off because the model draws the terrace itself.
+    const bare = [10, 14, 17, 10]
+    const filled = [10, 10.4, 10.4, 10]
+    const offset = -10
+    const { lifts, mean, lowest } = groundLifts(filled, 1, { follows: true, offset }, 1, [NaN, bare[1], bare[2], NaN])
+    // Its top, 30 m up, is drawn at 30 m over its datum, not sunk by the fill.
+    expect(lowest + 30 + mean).toBeCloseTo(30 - offset, 4)
+    // The fill's depth, kept apart for its feet alone, and none outside the fill.
+    expect(lifts[1 * GROUND_STRIDE + 2]).toBeCloseTo(3.6, 4)
+    expect(lifts[0 * GROUND_STRIDE + 2]).toBe(0)
+    // A foot at point 2 still lands on the filled ground there.
+    const [rise, own, fill] = lifts.slice(2 * GROUND_STRIDE, 3 * GROUND_STRIDE)
+    expect(lowest + bare[2] + offset + rise + fill - own - fill).toBeCloseTo(filled[2], 4)
+  })
+
+  it('leaves a flat model on the filled ground, as the fill means it to', () => {
+    const bare = [10, 14, 17, 10]
+    const filled = [10, 10.4, 10.4, 10]
+    const { lifts, mean } = groundLifts(filled, 1, { follows: false }, 1, [NaN, bare[1], bare[2], NaN])
+    expect(mean).toBeCloseTo((0.4 + 0.4) / 4, 4)
+    for (let i = 0; i < 4; i++) expect(lifts[i * GROUND_STRIDE + 2]).toBe(0)
   })
 })
 
 describe('baseSink', () => {
   it('pushes only what stands on a flat model\'s ground under the terrain', () => {
-    expect(baseSink({ follows: false }, 1, true)).toEqual({ depth: GROUND_SINK, band: 0.05 })
+    expect(baseSink({ follows: false }, 1, true)).toEqual({ depth: GROUND_SINK, band: 0.05, fade: FILL_FADE })
     // In model units: a model drawn at half size is pushed twice as far in its own.
     expect(baseSink({ follows: false }, 0.5, true).depth).toBe(GROUND_SINK * 2)
   })
@@ -130,7 +194,7 @@ describe('baseSink', () => {
   })
 
   it('pushes nothing with the terrain off', () => {
-    expect(baseSink({ follows: false }, 1, false)).toEqual({ depth: 0, band: 0 })
+    expect(baseSink({ follows: false }, 1, false)).toMatchObject({ depth: 0, band: 0 })
   })
 })
 

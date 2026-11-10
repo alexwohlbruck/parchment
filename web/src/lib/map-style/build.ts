@@ -64,6 +64,7 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
 import { buildingFacadeColor } from './building-facade'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -526,9 +527,9 @@ export function buildLayers(options: {
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
-  const converted = base
+  const converted = withNeighbourhoodLabels(base
     .map(l => resolve(l, tokens, categories, flavor))
-    .map(l => localize(l, lang))
+    .map(l => localize(l, lang)))
 
   const park = converted.find(l => l.id === 'Park')
   const detailLabel: DetailLabelStyle = {
@@ -844,6 +845,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
           }
         : {}),
       [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
+      [NEIGHBOURHOOD_SOURCE]: neighbourhoodSource(buildTileUrl(tileServerUrl, NEIGHBOURHOOD_TILES)),
     },
     state: indoorState(),
     sky: SKY[flavor],

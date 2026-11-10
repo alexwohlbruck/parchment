@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { buildNavRoute, pointAt, stepIndexAt, type NavSegmentInput } from './nav-route'
-import { MISSED_GRACE_MS, minutesUntil, rideStops, stageEvent, timetabledRemaining, transitStage, withBoardingStep, type TransitSegmentInput } from './transit-progress'
+import { MISSED_GRACE_MS, minutesUntil, rideStops, secondsToStop, walksToStop, stageEvent, timetabledRemaining, transitStage, withBoardingStep, type TransitSegmentInput } from './transit-progress'
 import { polyline } from './test-routes'
 import type { PuckState } from './guidance-engine'
 
@@ -50,6 +50,13 @@ describe('transitStage', () => {
     expect(stage(305, 0)).toMatchObject({ kind: 'wait' })
   })
 
+  test('standing along the platform is still waiting', () => {
+    expect(stage(400, 0)).toMatchObject({ kind: 'wait' })
+    expect(stage(500, 0.8)).toMatchObject({ kind: 'wait' })
+    expect(stage(400, 9)).toMatchObject({ kind: 'riding' })
+    expect(stage(600, 0)).toMatchObject({ kind: 'riding' })
+  })
+
   test('still at the stop well after departure means the vehicle was missed', () => {
     expect(stage(300, 0, departure + MISSED_GRACE_MS + 1000)?.kind).toBe('missed-vehicle')
     expect(stage(300, 0, departure + 30_000)?.kind).toBe('wait')
@@ -93,6 +100,30 @@ describe('transitStage', () => {
 
   test('leaving the line near the end of the ride is a missed stop', () => {
     expect(stage(2000, 9, departure, false)?.kind).toBe('missed-stop')
+  })
+})
+
+describe('secondsToStop', () => {
+  const stage = { kind: 'to-stop', segmentIndex: 2, stop: 'Tryon', departureMs: departure } as const
+  const bikeRoute = buildNavRoute([
+    { mode: 'cycling', geometry: polyline([[0, 900]]), duration: 200 },
+    { mode: 'walking', geometry: polyline([[0, 100]], polyline([[0, 900]]).at(-1)), duration: 200, waitSeconds: 120 },
+    { mode: 'transit', geometry: ride },
+  ])
+
+  test('times each segment at its own planned pace, waits left out', () => {
+    expect(secondsToStop(bikeRoute, stage as never, 0)).toBeCloseTo(280, 0)
+    expect(secondsToStop(bikeRoute, stage as never, 450)).toBeCloseTo(180, 0)
+  })
+
+  test('falls back to a pace for the mode when the plan has no time', () => {
+    const untimed = buildNavRoute([{ mode: 'cycling', geometry: polyline([[0, 900]]) }, { mode: 'transit', geometry: ride }])
+    expect(secondsToStop(untimed, { ...stage, segmentIndex: 1 } as never, 0)).toBeCloseTo(200, 0)
+  })
+
+  test('running is an option only on foot', () => {
+    expect(walksToStop(bikeRoute, 2)).toBe(true)
+    expect(walksToStop(buildNavRoute([{ mode: 'cycling', geometry: walk }, { mode: 'transit', geometry: ride }]), 1)).toBe(false)
   })
 })
 

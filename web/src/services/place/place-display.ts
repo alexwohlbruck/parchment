@@ -3,6 +3,7 @@ import { capitalize } from '@/lib/string'
 import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
+import type { RouteBulletStyle } from '@/types/transit.types'
 import type { AutocompleteResult } from '@/types/search.types'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
@@ -41,6 +42,8 @@ export interface PlaceDisplay {
   customColor?: string
   /** Brand logo, rendered in place of an icon glyph. */
   imageUrl: string | null
+  /** A transit line's bullet, rendered in place of the icon. */
+  bullet?: RouteBulletStyle
   placeType: string | null
   address: string | null
   summary: string | null
@@ -187,6 +190,7 @@ export function recentPlaceToDisplay(
     iconPack: entry.iconPack ?? 'lucide',
     customColor: getCategoryColor(entry.category ?? 'default', isDark),
     imageUrl: null,
+    bullet: entry.bullet,
     placeType: null,
     address: entry.subtitle ?? null,
     summary: null,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, SignalLow, SignalZero } from 'lucide-vue-next'
+import { ArrowRight, ChevronDown, SignalLow, SignalZero } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatClock } from '@/lib/directions/trip-display'
@@ -10,6 +10,8 @@ import { minutesUntil, type TransitStage } from '@/lib/guidance/transit-progress
 import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 import { afterRide } from '@/lib/guidance/after-ride'
 import AfterRide from './AfterRide.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import BoardingHint from '@/components/transit/trip/BoardingHint.vue'
 
 const props = defineProps<{
   stage: TransitStage
@@ -23,8 +25,10 @@ const props = defineProps<{
   recovering?: boolean
   /** Another card leads, so the wait shrinks to one line. */
   compact?: boolean
+  /** The other runs are listed below. */
+  picking?: boolean
 }>()
-defineEmits<{ nextRun: []; anotherWay: []; alight: [] }>()
+defineEmits<{ nextRun: []; anotherWay: []; alight: []; pickRun: [] }>()
 const { t } = useI18n()
 
 const segment = computed(() => props.segments[props.stage.segmentIndex])
@@ -80,9 +84,17 @@ const ride = computed(() => {
 
     <template v-if="stage.kind === 'wait' && !compact">
       <div class="font-display-heavy text-[28px] leading-none">{{ countdown }}</div>
-      <div class="text-sm text-muted-foreground">
-        {{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}
-      </div>
+      <button
+        class="flex items-center gap-1.5 text-left text-sm text-muted-foreground"
+        :aria-expanded="picking"
+        :aria-label="t('guidance.transit.otherRuns')"
+        @click="$emit('pickRun')"
+      >
+        <span class="truncate">{{ t('guidance.transit.from', { stop: stage.stop }) }} · {{ formatClock(new Date(stage.departureMs)) }}</span>
+        <RealtimeIndicator :real-time="!!segment?.realTimeData" :delay="segment?.delay" class="shrink-0" />
+        <ChevronDown class="ml-auto size-4 shrink-0 transition-transform" :class="picking && 'rotate-180'" />
+      </button>
+      <BoardingHint v-if="segment?.boardingPosition" :position="segment.boardingPosition" :color="segment.lineColor" />
     </template>
 
     <template v-else-if="ride">

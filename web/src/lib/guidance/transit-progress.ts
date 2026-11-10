@@ -68,6 +68,8 @@ export const MISSED_GRACE_MS = 90_000
 /** Closer than this to the alighting stop: get off now. */
 export const ALIGHT_NOW_METERS = 150
 const BOARDED_METERS = 60
+/** Further along than the longest platform: no rider waiting on it reaches this. */
+const PAST_PLATFORM_METERS = 250
 const VEHICLE_SPEED = 4
 export const STOP_PASSED_METERS = 25
 const MISSED_STOP_SEARCH = 1500
@@ -111,7 +113,8 @@ export function transitStage(
     const board = stops[0]
     const alight = stops.at(-1)
     if (!board || !alight) return null
-    const boarded = puck.s > board.s + BOARDED_METERS
+    const along = puck.s - board.s
+    const boarded = along > PAST_PLATFORM_METERS || (along > BOARDED_METERS && puck.speed >= VEHICLE_SPEED)
     if (!boarded) return waiting(span.index, segment, puck.s >= span.startDistance - AT_STOP_METERS, nowMs)
     const passed = stops.filter(stop => stop.s <= puck.s + STOP_PASSED_METERS).length
     const remaining = Math.max(0, alight.s - puck.s)
@@ -196,12 +199,26 @@ export function timetabledRemaining(
   return Math.max(0, (arrival - nowMs) / 1000) + after
 }
 
-const WALK_PACE = 1.3
+/** Metres a second on each way of reaching a stop, where the plan doesn't time the segment. */
+const MODE_PACE: Record<string, number> = { walking: 1.3, cycling: 4.5, driving: 9 }
 
-/** Seconds of walking left to the boarding stop of `stage`. */
-export function walkToStopSec(route: NavRoute, stage: TransitStage, s: number): number {
-  const board = route.segments[stage.segmentIndex]?.startDistance ?? s
-  return Math.max(0, board - s) / WALK_PACE
+/** Seconds of travel left to the boarding stop of `stage`, at each segment's planned pace. */
+export function secondsToStop(route: NavRoute, stage: TransitStage, s: number): number {
+  let sec = 0
+  for (const segment of route.segments) {
+    if (segment.index >= stage.segmentIndex) break
+    const left = segment.endDistance - Math.max(s, segment.startDistance)
+    if (left <= 0) continue
+    const length = segment.endDistance - segment.startDistance
+    const pace = segment.movingSec ? length / segment.movingSec : MODE_PACE[segment.mode] ?? MODE_PACE.walking
+    sec += left / pace
+  }
+  return sec
+}
+
+/** Whether the rider reaches ride `segmentIndex` on foot, so running for it is an option. */
+export function walksToStop(route: NavRoute, segmentIndex: number): boolean {
+  return route.segments[segmentIndex - 1]?.mode === 'walking'
 }
 
 /** A ride has no turns; give it a boarding step so the banner names the stop rather than skipping past. */

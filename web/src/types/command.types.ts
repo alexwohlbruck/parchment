@@ -1,6 +1,7 @@
 import { Component } from 'vue'
 import { Icon } from '@/types/app.types'
 import { MapEngine } from '@/types/map.types'
+import type { RouteBulletStyle } from '@/types/transit.types'
 import type { ThemeColor } from '@/lib/utils'
 import { CommandName } from '@/stores/command.store'
 
@@ -18,7 +19,7 @@ export type PaletteItem = {
   imageUrl?: string
   /** When set, the item renders a transit route bullet instead of an icon —
    *  the line's short name on its GTFS colour, pill-shaped when it's a word. */
-  bullet?: { label: string; color?: string | null; textColor?: string | null }
+  bullet?: RouteBulletStyle
 }
 
 export type Command = PaletteItem & {

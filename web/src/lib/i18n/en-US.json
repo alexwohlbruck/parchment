@@ -409,6 +409,7 @@
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
+    "what3wordsCopied": "what3words address copied to clipboard",
     "plusCodeError": "Error generating Plus Code"
   },
   "map": {
@@ -2053,6 +2054,10 @@
         "ok": "On track"
       },
       "inDuration": "in {duration}",
+      "otherRuns": "Other departures",
+      "arrivesAt": "arrives {time}",
+      "loadingRuns": "Finding departures…",
+      "noOtherRuns": "No other departures you can make",
       "leg": {
         "walking": "Walk {duration}",
         "cycling": "Ride {duration}",
@@ -2322,6 +2327,7 @@
       "address": "Address",
       "coordinates": "Coordinates",
       "plusCode": "Plus code",
+      "what3words": "what3words",
       "phoneNumber": "Phone number",
       "website": "Website",
       "emailAddress": "Email address",
@@ -2471,6 +2477,8 @@
         "diet_gluten_free": "Gluten Free",
         "toilets": "Restrooms",
         "toilets_access": "Restroom Access",
+        "toilets_unisex": "Unisex Restroom",
+        "ele": "Elevation",
         "toilets_disposal": "Toilet Type",
         "toilets_position": "Position",
         "changing_table": "Baby Changing",

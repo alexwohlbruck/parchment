@@ -17,6 +17,14 @@ vi.mock('@/lib/api', () => ({
 
 vi.mock('@/services/layers/features/portolan/portolan-bullets', () => ({
   bulletFor: () => null,
+  // no curated styles: every bullet is the feed's own name and colours
+  stopBulletsFor: (routes: any[]) =>
+    routes.map(route => ({
+      route,
+      label: route.routeShortName || route.routeLongName || '',
+      color: route.routeColor,
+      textColor: route.routeTextColor ?? null,
+    })),
   ensureBulletsAt: () => Promise.resolve(),
   // portolan-stops reads this one; without it the page's stop-index
   // lookup throws into an unhandled rejection that CI counts as a failure.

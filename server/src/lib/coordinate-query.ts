@@ -1,9 +1,10 @@
 /**
  * Recognises a search query that is a coordinate pair rather than a place
  * name, in the shapes people paste from other apps: decimal pairs with or
- * without brackets, hemisphere letters, degrees-minutes-seconds, `geo:` URIs
- * and map URLs.
+ * without brackets, hemisphere letters, degrees-minutes-seconds, `geo:` URIs,
+ * map URLs and plus codes.
  */
+import { decode as decodePlusCode, expand as expandPlusCode } from 'pluscodes'
 
 export interface LatLng {
   lat: number
@@ -30,9 +31,22 @@ const BRACKETS: Record<string, string> = { '(': ')', '[': ']', '{': '}', '<': '>
 // `lat: 40.71, lng: -73.99` or `lat=40.71&lon=-73.99`
 const LABEL = /\b(?:lat(?:itude)?|lng|lon(?:g(?:itude)?)?)\s*[:=]\s*/gi
 
-export function parseCoordinateQuery(query: string): LatLng | null {
+/**
+ * `reference` is the point a short plus code ("PX7V+4H") is recovered near —
+ * the map centre, typically. Without one, short codes aren't recognised.
+ */
+export function parseCoordinateQuery(query: string, reference?: LatLng): LatLng | null {
   const fromUrl = parseMapUrl(query.trim())
   if (fromUrl) return fromUrl
+
+  const plusCode = parsePlusCode(query)
+  if (plusCode) {
+    if (!plusCode.short) return decodePlus(plusCode.code)
+    // A named locality says where to recover the code; the map centre
+    // could be anywhere else, so leave it to a caller that can geocode it.
+    if (plusCode.locality || !reference) return null
+    return recoverShortPlusCode(plusCode.code, reference)
+  }
 
   let text = normalise(query)
   if (text.toLowerCase().startsWith('geo:')) text = text.slice(4).split(/[;?]/)[0]
@@ -69,6 +83,41 @@ function fromMatch(m: RegExpMatchArray, letterFirst: boolean | null): LatLng | n
 
   if (!one.hemi || !two.hemi) return validateAndNormalizeCoords(a, b)
   return fromHemispheres(a, one.hemi, b, two.hemi)
+}
+
+// Open Location Code alphabet. A full code has 8 digits before the "+"; a
+// short one drops the first 2 or 4 and is recovered near a reference point.
+const OLC = '[23456789CFGHJMPQRVWX]'
+const PLUS_CODE = new RegExp(String.raw`^(${OLC}{8}|${OLC}{4}|${OLC}{6})\+(${OLC}{2,3})?(?:[\s,]+(.+))?$`, 'i')
+
+export interface PlusCodeQuery {
+  code: string
+  short: boolean
+  /** The place a short code is relative to, as in "PX7V+4H New York, NY". */
+  locality?: string
+}
+
+export function parsePlusCode(query: string): PlusCodeQuery | null {
+  const m = query.trim().match(PLUS_CODE)
+  if (!m) return null
+  const [, head, tail = '', locality] = m
+  // A full code can't carry a locality; "87G7PX7V+4H Foo" isn't a code.
+  if (head.length === 8 && locality) return null
+  // pluscodes reads two digits after the "+"; an 11th refines a 14 m cell
+  // to 3 m, which a search result doesn't need.
+  const code = `${head}+${tail.slice(0, 2)}`.toUpperCase()
+  return { code, short: head.length < 8, locality: locality?.trim() || undefined }
+}
+
+/** The centre of a short plus code's cell, taken nearest `reference`. */
+export function recoverShortPlusCode(code: string, reference: LatLng): LatLng | null {
+  const full = expandPlusCode(code, { latitude: reference.lat, longitude: reference.lng })
+  return full ? decodePlus(full) : null
+}
+
+function decodePlus(code: string): LatLng | null {
+  const decoded = decodePlusCode(code)
+  return decoded ? validateAndNormalizeCoords(decoded.latitude, decoded.longitude, false) : null
 }
 
 function normalise(query: string): string {

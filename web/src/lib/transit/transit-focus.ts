@@ -34,6 +34,9 @@ export interface FocusedLeg {
   /** The line's own colour, as the trip's polyline draws it (`#rrggbb`), or
    *  null for a feed that publishes none. */
   color: string | null
+  /** The line's own names, for its bullet where nothing curated one. */
+  shortName: string | null
+  longName: string | null
 }
 
 /** Feed-local id, or null when there is nothing to strip. */
@@ -84,9 +87,12 @@ export function focusedLegs(trip: { segments?: unknown[] } | null | undefined): 
       segmentIndex,
       feedId,
       routeIds: [...new Set(routeIds)],
-      tripId: local(td?.trip?.id),
+      // A flattened segment's own id follows the run guidance has moved it to.
+      tripId: local('tripId' in seg ? seg.tripId : td?.trip?.id),
       stops,
       color: color ? (color.startsWith('#') ? color : `#${color}`) : null,
+      shortName: td?.route?.shortName ?? td?.shortName ?? null,
+      longName: td?.route?.longName ?? null,
     })
   })
 
@@ -136,9 +142,12 @@ export function yourVehicleIds(
   const out = new Set<string>()
   for (const v of vehicles) {
     const trips = wanted.get(v.feedId)
-    if (!trips) continue
-    const tripId = localTripId(v)
-    if (tripId && trips.has(tripId)) out.add(v.vehicleId)
+    if (trips && [...trips].some(trip => isRun(trip, v))) out.add(v.vehicleId)
   }
   return out
+}
+
+/** A planner run id (`{date}_{time}_{feed}_{trip}`, feed prefix stripped) and a vehicle's trip name the same run. */
+function isRun(tripId: string, vehicle: TransitVehiclePosition): boolean {
+  return tripId === localTripId(vehicle) || (!!vehicle.tripId && tripId.endsWith(`_${vehicle.tripId}`))
 }

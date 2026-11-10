@@ -1,6 +1,6 @@
 // After a missed boarding: wait for the same line's next run, or ride something else.
 
-import { SAME_RUN_MS } from '@/lib/transit/later-runs'
+import { SAME_RUN_MS } from '@/lib/transit/run'
 import { isFollowable, neededGain, type Itinerary, type ItinerarySegment } from './better-itinerary'
 
 interface RecoveryStop {

@@ -68,6 +68,7 @@ import {
   type Expr,
   actsFilterExpr,
   activeRouteIdx,
+  bulletId,
   bulletIdsOf,
   classFilterExpr,
   composeFilter,
@@ -97,6 +98,9 @@ const SRC_STATIONS = 'portolan-stations'
 const SRC_ISOLATED_LINE = 'portolan-isolated-line'
 const ISOLATED_LINE = 'portolan-isolated-line'
 const ISOLATED_LINE_GHOST = 'portolan-isolated-line-ghost'
+const SRC_DRAWN_LINES = 'portolan-drawn-lines'
+const DRAWN_LINES = 'portolan-drawn-lines'
+const DRAWN_LINES_GHOST = 'portolan-drawn-lines-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const steadyId = (feed: string) => `portolan-ribbon-steady-${feed}`
 const rampId = (kind: string, feed: string) => `portolan-ribbon-${kind}-${feed}`
@@ -319,6 +323,7 @@ export function usePortolanTransitService() {
     setIsolatedRouteStops,
     setIsolatedRouteGeometry,
     setTripLegs,
+    setDrawnRoutes,
     setStopService,
     portolanRouteToken,
     portolanTransitActive,
@@ -452,7 +457,7 @@ function setTripLegs(legs: PortolanTripLeg[] | null) {
  *  itinerary — in which case they are the subject of the view, not the
  *  network's own thinning-by-zoom crowd. */
 function stopsNarrowed(): boolean {
-  return !!isolatedRoute || !!tripLegs
+  return !!isolatedRoute || !!tripLegs || !!drawnRoutes
 }
 
 /** A cat rides the line rather than sitting at a stop, so its span is
@@ -577,35 +582,61 @@ function syncIsolatedLine() {
     return
   }
   const { color, w, o } = isolatedLineStyle()
-  const data = {
-    type: 'Feature' as const,
-    properties: {},
-    geometry: {
-      type: 'LineString' as const,
-      // densify + tolerance:0, or the geojson→tile step drops sparse
-      // GTFS segments crossing vertex-less tiles (see addRouteShape)
-      coordinates: densifyLine(isolatedGeometry),
-    },
-  }
   removeIsolatedLine()
-  addSource(SRC_ISOLATED_LINE, {
+  addRouteLine(
+    { source: SRC_ISOLATED_LINE, line: ISOLATED_LINE, ghost: ISOLATED_LINE_GHOST },
+    [{ coordinates: isolatedGeometry, color }],
+    w,
+    o,
+  )
+}
+
+/**
+ * One or more lines drawn the way addRibbonLayer draws a ribbon — same
+ * caps, the ribbons' width curve at the class width with the isolation
+ * boost folded in, the class opacity, and on MapLibre the same
+ * solid-below-buildings / ghost-above-buildings pair (Mapbox gets the slot
+ * + occlusion form). Inserted at the top of the ribbon stack, under every
+ * symbol, so the line reads as one more ribbon and the stations keep
+ * drawing over it.
+ */
+function addRouteLine(
+  ids: { source: string; line: string; ghost: string },
+  lines: { coordinates: [number, number][]; color: string }[],
+  w: number,
+  o: number,
+) {
+  addSource(ids.source, {
     type: 'geojson',
+    // densify + tolerance:0, or the geojson→tile step drops sparse GTFS
+    // segments crossing vertex-less tiles
     tolerance: 0,
     buffer: 128,
-    data,
+    data: {
+      type: 'FeatureCollection',
+      features: lines.map(l => ({
+        type: 'Feature' as const,
+        properties: { color: l.color },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: densifyLine(l.coordinates),
+        },
+      })),
+    },
   })
+  const color: Expr = ['get', 'color']
   const width = widthExpr(w * ISOLATION_WIDTH)
   const layout = { 'line-cap': 'round', 'line-join': 'round' }
 
   if (engine === MapEngine.MAPBOX) {
     addLayer({
-      id: ISOLATED_LINE,
+      id: ids.line,
       type: 'line',
-      source: SRC_ISOLATED_LINE,
+      source: ids.source,
       slot: 'middle',
       layout,
       paint: {
-        'line-color': ribbonColorWithAlpha(color as unknown as Expr, o as unknown as Expr),
+        'line-color': ribbonColorWithAlpha(color, o as unknown as Expr),
         'line-width': width,
         'line-opacity': 1,
         'line-occlusion-opacity': OCCLUDED_OPACITY,
@@ -618,9 +649,9 @@ function syncIsolatedLine() {
   const buildings = buildingLayer()
   addLayer(
     {
-      id: ISOLATED_LINE,
+      id: ids.line,
       type: 'line',
-      source: SRC_ISOLATED_LINE,
+      source: ids.source,
       layout,
       paint: {
         'line-color': color,
@@ -634,9 +665,9 @@ function syncIsolatedLine() {
   if (!buildings) return
   addLayer(
     {
-      id: ISOLATED_LINE_GHOST,
+      id: ids.ghost,
       type: 'line',
-      source: SRC_ISOLATED_LINE,
+      source: ids.source,
       layout,
       paint: {
         'line-color': color,
@@ -646,6 +677,142 @@ function syncIsolatedLine() {
     },
     firstLabelLayer(buildings),
   )
+}
+
+// ── drawn routes ───────────────────────────────────────────────────────
+
+/** A stop on a drawn route: its name, and the bullets its label carries. */
+export interface PortolanDrawnStop {
+  name: string
+  lng: number
+  lat: number
+  /** In display order — the same bullets the panel beside the map shows. */
+  bullets: { label: string; color?: string | null; shape?: string }[]
+}
+
+/**
+ * A line no pyramid draws, handed over by the caller to draw in
+ * portolan's own style.
+ *
+ * A bus in a city with no pyramid still has a shape and stops, and used to
+ * get a separate overlay of its own: a thin line, hollow circles, names off
+ * to the right and no bullets — a different map from the one every
+ * pyramid-covered line opens on. Drawn here, it goes through the same
+ * station layers, dot and bullet-strip images and isolated-line paint as
+ * the tiles' own stations, so a line looks the same whether or not a
+ * pyramid knows it.
+ */
+export interface PortolanDrawnRoute {
+  /** `#rrggbb` or bare hex; null for a feed that publishes none. */
+  color: string | null
+  /** The line itself, or null when the caller draws its own (a trip's
+   *  polyline). */
+  coordinates: [number, number][] | null
+  stops: PortolanDrawnStop[]
+}
+
+const DRAWN_DEFAULT_HEX = '007CBF'
+
+let drawnRoutes: PortolanDrawnRoute[] | null = null
+let drawnRoutesSig = ''
+
+const hexOf = (color: string | null | undefined): string => {
+  const hex = String(color ?? '').replace(/^#/, '').toUpperCase()
+  return /^[0-9A-F]{6}$/.test(hex) ? hex : DRAWN_DEFAULT_HEX
+}
+
+function setDrawnRoutes(routes: PortolanDrawnRoute[] | null) {
+  const next = routes?.filter(r => r.stops.length || (r.coordinates?.length ?? 0) >= 2) ?? []
+  const sig = next
+    .map(r =>
+      [
+        hexOf(r.color),
+        r.coordinates?.length ?? 0,
+        r.coordinates?.[0]?.join(',') ?? '',
+        r.stops
+          .map(s => `${s.name}@${s.lng},${s.lat}:${s.bullets.map(b => `${b.label}/${b.color ?? ''}/${b.shape ?? ''}`).join('+')}`)
+          .join(';'),
+      ].join('|'),
+    )
+    .join('#')
+  // Re-sync even on an unchanged set if the line went with a style teardown.
+  const lineGone = next.some(r => r.coordinates) && !map?.getLayer?.(DRAWN_LINES)
+  if (sig === drawnRoutesSig && !lineGone) return
+  drawnRoutesSig = sig
+  drawnRoutes = next.length ? next : null
+  if (!hydrationReady()) return
+  syncDrawnLines()
+  applyStations()
+  applyStationZoomRelax()
+  applyStationScale()
+  applyStationDim()
+}
+
+function removeDrawnLines() {
+  if (!map) return
+  for (const id of [DRAWN_LINES_GHOST, DRAWN_LINES]) {
+    if (map.getLayer(id)) map.removeLayer(id)
+  }
+  if (map.getSource(SRC_DRAWN_LINES)) map.removeSource(SRC_DRAWN_LINES)
+}
+
+function syncDrawnLines() {
+  if (!map) return
+  removeDrawnLines()
+  const lines = (drawnRoutes ?? [])
+    .filter(r => (r.coordinates?.length ?? 0) >= 2)
+    .map(r => ({ coordinates: r.coordinates!, color: `#${hexOf(r.color)}` }))
+  if (!lines.length) return
+  addRouteLine(
+    { source: SRC_DRAWN_LINES, line: DRAWN_LINES, ghost: DRAWN_LINES_GHOST },
+    lines,
+    1,
+    1,
+  )
+}
+
+/**
+ * The drawn routes' stops as station features — one marker (a dot in the
+ * line's colour) and one labelled station each, shaped exactly like the
+ * tiles' own so every station layer, image and the bullet-row measurer
+ * treat them the same.
+ */
+function drawnStationFeatures(): any[] {
+  if (!drawnRoutes) return []
+  const measurer = rowMeasurer()
+  const out: any[] = []
+  for (const route of drawnRoutes) {
+    const hex = hexOf(route.color)
+    route.stops.forEach((stop, i) => {
+      const geometry = { type: 'Point', coordinates: [stop.lng, stop.lat] }
+      const terminus = i === 0 || i === route.stops.length - 1
+      out.push({
+        type: 'Feature',
+        geometry,
+        properties: { ftype: 'marker', icon: `dots-${hex}@0`, bearing: 0, nmarkers: 1 },
+      })
+      const ids: string[] = []
+      for (const b of stop.bullets) {
+        if (!b.label || b.label.length > 8) continue
+        const id = bulletId(b.label, hexOf(b.color), b.shape ?? '')
+        if (!ids.includes(id)) ids.push(id)
+      }
+      out.push({
+        type: 'Feature',
+        geometry,
+        properties: {
+          ftype: 'station',
+          name: stop.name,
+          nmarkers: 1,
+          rank: 0,
+          imp: terminus ? 1 : 0,
+          ...(ids.length ? { brow: 'row-' + ids.join('|') } : {}),
+          nrows: measurer.rows(stop.name),
+        },
+      })
+    })
+  }
+  return out
 }
 
 /**
@@ -1004,6 +1171,8 @@ function teardownPortolanTransit() {
   isolatedRoute = null
   tripLegs = null
   tripLegsSig = ''
+  drawnRoutes = null
+  drawnRoutesSig = ''
   clearHydration()
   clearMounts()
   inkDark = null
@@ -1501,6 +1670,11 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]): boolean {
 
   addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
   addSymbolLayers()
+  // the style swap took a drawn route's line with it
+  if (drawnRoutes) {
+    syncDrawnLines()
+    applyStations()
+  }
   // Freshly mounted layers know nothing of a dim or a hide already in force.
   if (networkDimmed) applyStationDim()
   if (networkHidden) applyNetworkVisibility()
@@ -2358,8 +2532,15 @@ const NO_MASKS: Record<string, string> = {}
 function applyStations() {
   const src = map?.getSource?.(SRC_STATIONS)
   if (!src) return
+  // A drawn route's stops ride along with whatever the tiles contribute.
+  const drawn = drawnStationFeatures()
+  const publish = (feats: any[]) =>
+    src.setData({
+      type: 'FeatureCollection',
+      features: drawn.length ? feats.concat(drawn) : feats,
+    })
   if (!stationsRaw) {
-    src.setData(EMPTY_FC)
+    publish([])
     return
   }
   // Stations are the one thing isolation still NARROWS rather than dims.
@@ -2380,7 +2561,7 @@ function applyStations() {
       )
       .map((f: any) => serviceDimmedBullets(f, at))
       .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
-    src.setData({ type: 'FeatureCollection', features: feats })
+    publish(feats)
     return
   }
   // Same narrowing for an itinerary, over several lines at once: each leg
@@ -2393,7 +2574,12 @@ function applyStations() {
       if (!hit) continue
       feats.push(isolatedMarkerFeature(serviceDimmedBullets(f, at), hit.route))
     }
-    src.setData({ type: 'FeatureCollection', features: feats })
+    publish(feats)
+    return
+  }
+  // A drawn route narrows the stations to its own, as an isolation does.
+  if (drawn.length) {
+    publish([])
     return
   }
   const date = serviceTime

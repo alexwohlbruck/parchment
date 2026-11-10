@@ -403,6 +403,7 @@
     "invitationSent": "Invitación enviada a {email}",
     "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
+    "what3wordsCopied": "Dirección what3words copiada al portapapeles",
     "plusCodeError": "Error al generar el Código Plus"
   },
   "map": {
@@ -2029,6 +2030,10 @@
         "ok": "A tiempo"
       },
       "inDuration": "en {duration}",
+      "otherRuns": "Otras salidas",
+      "arrivesAt": "llega {time}",
+      "loadingRuns": "Buscando salidas…",
+      "noOtherRuns": "No hay otras salidas a tiempo",
       "leg": {
         "walking": "Camina {duration}",
         "cycling": "Pedalea {duration}",
@@ -2282,6 +2287,7 @@
       "address": "Dirección",
       "coordinates": "Coordenadas",
       "plusCode": "Código Plus",
+      "what3words": "what3words",
       "phoneNumber": "Número de teléfono",
       "website": "Sitio web",
       "emailAddress": "Correo electrónico",
@@ -2428,6 +2434,8 @@
         "diet_gluten_free": "Sin gluten",
         "toilets": "Aseos",
         "toilets_access": "Acceso a aseos",
+        "toilets_unisex": "Aseo unisex",
+        "ele": "Elevación",
         "toilets_disposal": "Tipo de inodoro",
         "toilets_position": "Posición",
         "changing_table": "Cambiador de bebés",

@@ -6,11 +6,44 @@
 
 ### Fixed
 
+## [0.20.2] - 2026-11-10
+
+### Added
+
+* Transit lines you open now show up in your search recents, wearing their route bullet.
+* During transit navigation, your location marker rides along the trip timeline in step with the map, including while it estimates your position underground.
+* Neighbourhood names appear as you zoom into a city, the best-known ones first, instead of only at street level.
+* Tap the departure row during transit navigation to pick a different bus or train, earlier or later, with how much of a hurry each one needs.
+
+### Changed
+
+* A place's extra details are now a tidy list of labels and values, with lengths in your units and internal import IDs hidden. Tap a value to copy it.
+* My location now shows the same details as any place on the map, and its free roam button starts in the mode you last used.
+* Tapping the map on a shop, school or other named place now opens that place, with the pin left where you tapped.
+* 3D terrain is drawn life-size instead of 20% taller, so hills, roads, bridges and landmarks sit at their true heights.
+
+### Fixed
+
+* Biking or driving to a station during navigation no longer tells you to run: the time to the stop now uses your actual pace.
+* Trips with a same-station subway transfer, like the L to the 4 at Union Square, can now be started in navigation.
+* Navigation now waits for a late bus or train using live departure times, instead of saying it has left.
+* Your bus or train's live position now shows on the map during navigation.
+* Arriving at a stop early, navigation switches you to an earlier bus or train that gets you there sooner, instead of counting down to the one it planned.
+* Trips from your current location now name the address you set out from, instead of "Current Location".
+* Returning to directions or refreshing trip suggestions now plans from where you are now, not where you were when you first searched.
+* Waiting along a subway platform no longer makes guidance think you've boarded, and the wait card now shows where on the platform to stand.
+* An opened transit line looks the same as on the transit map, with a bold line, stop names and transfer bullets, including buses in cities the detailed transit map does not cover.
+* 3D landmarks on hillsides stand on the ground: a building with a level floor no longer floats off its downhill side, as 1201 Third Avenue in Seattle did by 9 m and the Brooklyn Museum by 4 m.
+* Landmarks built over the terrain, like the Lincoln and Jefferson Memorials, are drawn at their true height instead of sinking up to 3.6 m where the ground under them is smoothed.
+
 ## [0.20.1-1] - 2026-11-08
 
 ### Added
 
 * Search recognises coordinates in more of the shapes they get pasted in: wrapped in brackets like `(40.7148, -73.9915)`, with hemisphere letters on either side, in degrees, minutes and seconds like `40°42'53"N 73°59'29"W`, as `geo:` links, and as Google Maps or OpenStreetMap URLs.
+* Search works offline. Without a connection it finds your saved places, places you viewed recently and typed coordinates on the device, in the search box, the full results list and the directions fields. Opening one of those places offline shows what is saved about it instead of an empty page.
+* Search reads plus codes, full or short. A short code like `P2C7+V2` is placed near the map, or near the town written after it (`P2C7+V2 New York, NY`). Full codes and short codes without a town also work offline.
+* Search finds what3words addresses like `///filled.count.soap` or a w3w.co link, and the map's Copy location menu offers the point's three-word address. Both are worked out on the device with no account or key and also work offline. English words only.
 
 ### Fixed
 

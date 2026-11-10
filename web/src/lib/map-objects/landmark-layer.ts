@@ -37,7 +37,7 @@
  */
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
-  baseSink, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
+  baseSink, deckGround, elevationDrape, groundContacts, groundLifts, modelGround, type Contact, type DeckGround, type ElevationDrape, type ModelGround,
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, NEON_GLOW, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
@@ -50,6 +50,7 @@ import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 import { tileBounds, type Bounds } from './tile-lines'
 import { mercator } from '@/lib/map-decks/decks'
+import { LIFT_BLEND } from '@/lib/map-decks/lift-field'
 import { terrainSampler, type HeightsLoader, type TerrainSampler } from '@/lib/map-decks/ground'
 import { fillCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
 import { fillAt, groundFill, type GroundFill } from '@/lib/map-terrain/fill'
@@ -122,6 +123,10 @@ const SEED_BELOW = 0.5
  */
 const GROUND_BLEND = 25
 
+/** The texture unit a bridge's lift ground is bound to, and what it holds for any other landmark; see GROUND. */
+const DECK_UNIT = 6
+const EMPTY_DECK: DeckGround = { cols: 2, rows: 2, heights: new Float32Array(8) }
+
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
 
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
@@ -143,6 +148,13 @@ const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 
  *
  * `u_sink` pushes the base under the terrain (see `baseSink`): by `.x`, every
  * vertex no more than `.y` above the ground it meets.
+ *
+ * A bridge's grid is the unexaggerated terrain's, and the exaggeration lifts
+ * it as it lifts the map's decks: `u_deck.x` (exaggeration less 1, else 0)
+ * times the ground in `u_deck_ground` (see `deckGround`, read over the same
+ * extent), the smoothed ground mixed toward the bare ground within LIFT_BLEND
+ * of it. `u_deck.y` is the lowest ground in true metres, `.z` metres per
+ * model unit, `.w` the elevation.
  */
 const GROUND = `
   uniform vec2 u_ground[${GROUND_GRID * GROUND_GRID}];
@@ -153,6 +165,8 @@ const GROUND = `
   uniform float u_ground_at;
   uniform float u_floor;
   uniform vec2 u_sink;
+  uniform highp sampler2D u_deck_ground;
+  uniform vec4 u_deck;
   vec2 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
   /**
    * At a plan point, held at the grid's edge beyond it: x the map's rise, y
@@ -168,14 +182,37 @@ const GROUND = `
       mix(groundAt(c.x, c.y + 1), groundAt(c.x + 1, c.y + 1), f.x),
       f.y);
   }
+  /** Smoothed and bare ground, true metres, at a plan point; held at the edge beyond it. */
+  vec2 deckGroundUnder(vec2 xz) {
+    ivec2 size = textureSize(u_deck_ground, 0);
+    vec2 span = max(u_bounds.zw - u_bounds.xy, vec2(1e-3));
+    vec2 g = clamp((xz - u_bounds.xy) / span, 0.0, 1.0) * vec2(size - 1);
+    ivec2 c = min(ivec2(floor(g)), size - 2);
+    vec2 f = g - vec2(c);
+    return mix(
+      mix(texelFetch(u_deck_ground, c, 0).rg, texelFetch(u_deck_ground, c + ivec2(1, 0), 0).rg, f.x),
+      mix(texelFetch(u_deck_ground, c + ivec2(0, 1), 0).rg, texelFetch(u_deck_ground, c + ivec2(1, 1), 0).rg, f.x),
+      f.y);
+  }
+  /** What the exaggeration adds to a bridge's point, draped as without it. */
+  float deckLift(vec3 p) {
+    if (u_deck.x == 0.0) return 0.0;
+    vec2 g = (deckGroundUnder(p.xz) - u_deck.y) / u_deck.z;
+    float follow = clamp(1.0 - ((p.y - g.y) * u_deck.z + u_deck.w) / ${LIFT_BLEND.toFixed(1)}, 0.0, 1.0);
+    return u_deck.x * mix(g.x, g.y, follow);
+  }
   vec3 drape(vec3 p, float sink) {
     vec2 g = groundUnder(p.xz);
     float above = p.y - g.y - u_ground_at;
     float follow = (1.0 - u_rigid) * (1.0 - clamp(above / u_blend, 0.0, 1.0));
     float base = (1.0 - u_rigid) * step(above, u_sink.y) * sink;
-    return p + vec3(0.0, mix(u_ground_mean, g.x - g.y, follow) - base, 0.0);
+    float lift = mix(u_ground_mean, g.x - g.y, follow);
+    return p + vec3(0.0, lift + deckLift(p + vec3(0.0, lift, 0.0)) - base, 0.0);
   }
   vec3 onGround(vec3 p) { return drape(p, u_sink.x); }`
+
+/** Every uniform GROUND declares, set by `groundUniforms`. */
+const GROUND_UNIFORMS = ['u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_deck_ground', 'u_deck']
 
 /** Outside the clip volume, where a vertex goes to not be drawn. */
 const OFF_SCREEN = 'vec4(0.0, 0.0, 2.0, 1.0)'
@@ -618,10 +655,10 @@ const SHADOW_VS = `#version 300 es
   out vec2 v_uv;
   /** Metres the vertex stands above the ground under it. */
   out float v_above;
-  /** The ground's rise above the lowest point, in map metres, at a map point. */
+  /** The ground's rise above the lowest point, in map metres, at a map point; a bridge's grid is unexaggerated. */
   float riseAt(vec2 m) {
     vec2 xz = vec2(u_plan.x * m.x + u_plan.y * m.y, -u_plan.y * m.x + u_plan.x * m.y) / u_plan.z;
-    return groundUnder(xz).x * u_plan.z;
+    return groundUnder(xz).x * u_plan.z * (1.0 + u_deck.x);
   }
   void main() {
     vec3 m = (u_node * vec4(a_position, 1.0)).xyz;
@@ -730,6 +767,8 @@ type Placement = Landmark & {
   detailed: boolean
   /** `entrances`, flattened for the glow's uniform array. */
   doors: Float32Array
+  /** A bridge's lift with the exaggeration, once its ground has loaded: its ground, exaggeration less 1, and the lowest ground in true metres. */
+  deck: { ground: DeckGround; strength: number; lowest: number } | null
 }
 
 export class LandmarkLayer {
@@ -782,6 +821,9 @@ export class LandmarkLayer {
   private grounds = new Map<string, ModelGround>()
   /** The terrain filled under each placed model, by placement; see `map-terrain/fill.ts`. */
   private fills = new Map<string, GroundFill>()
+  /** The ground each placed bridge is lifted with, by placement, and on the GPU once drawn; see `deckGround`. */
+  private decks = new Map<string, DeckGround>()
+  private deckTextures = new Map<DeckGround, WebGLTexture>()
   /** The terrain's own heights at one zoom, before anything is filled into them. */
   private bare: TerrainSampler | null = null
   /** Buildings found inside a drawn landmark's footprint, by the last gather. */
@@ -858,24 +900,18 @@ export class LandmarkLayer {
     }
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
+        'u_emissions', 'u_panes', ...GROUND_UNIFORMS, 'u_node',
         'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
         'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions', ...GROUND_UNIFORMS, 'u_node'])
     this.seed = program(gl, DRAW_VS, SEED_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_res', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_res', 'u_emissions', ...GROUND_UNIFORMS, 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
-      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
+      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions', ...GROUND_UNIFORMS])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
-    this.glow = program(gl, GLOW_VS, GLOW_FS,
-      ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
-        'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
-    this.halo = program(gl, HALO_VS, HALO_FS,
-      ['u_matrix', 'u_local', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
+    this.glow = program(gl, GLOW_VS, GLOW_FS, ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', ...GROUND_UNIFORMS])
+    this.halo = program(gl, HALO_VS, HALO_FS, ['u_matrix', 'u_local', 'u_opacity', ...GROUND_UNIFORMS])
     const vao = gl.createVertexArray()!
     const buffer = gl.createBuffer()!
     gl.bindVertexArray(vao)
@@ -909,6 +945,7 @@ export class LandmarkLayer {
     // Terrain changes the ground every landmark stands on.
     listen('terrain', () => {
       this.fills.clear()
+      this.decks.clear()
       this.invalidate()
     })
     this.invalidate()
@@ -925,6 +962,9 @@ export class LandmarkLayer {
     this.hiddenFor.clear()
     this.grounds.clear()
     this.fills.clear()
+    this.decks.clear()
+    for (const texture of this.deckTextures.values()) gl.deleteTexture(texture)
+    this.deckTextures.clear()
     this.options.carver?.clear(CARVER_OWNER)
     this.bare = null
     for (const model of this.models.values()) release(gl, model)
@@ -1018,12 +1058,17 @@ export class LandmarkLayer {
     }
     // Filled before any is placed, a frame for each new one: a big model's fill takes some milliseconds.
     for (const landmark of wanted) {
-      if (!terrain || !this.fill(landmark)) continue
+      if (!terrain) break
+      const filled = this.fill(landmark)
+      const lifted = yield* this.liftDeck(landmark)
+      if (!this.map) return
+      if (!lifted && !filled) continue
       yield
       if (!this.map) return
     }
     this.placements = wanted.map(landmark => this.place(landmark, terrain, detailed(landmark)))
     this.carveFills()
+    this.decks = rememberedFills(this.decks, new Set([...this.placements, ...this.leaving].map(placementKey)))
     // The low model is always wanted, detailed or not: it is what stands in
     // until the detail model arrives, and its footprint is what hides the
     // buildings and samples the ground.
@@ -1116,6 +1161,7 @@ export class LandmarkLayer {
     let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * 2)
     let base = 0, groundMean = 0
     let own: ModelGround = { follows: false }
+    let deck: Placement['deck'] = null
     if (sample) {
       const points = footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]
       const fill = this.fills.get(placementKey(landmark))
@@ -1123,8 +1169,14 @@ export class LandmarkLayer {
       const drawn = this.drawnGround(sample, fill, exaggeration)
       if (footprint && model) own = this.modelGround(landmark, model, drawn)
       const raw = points.map(p => (fill && drawn.filled(p) ? this.bareAt(p) : NaN))
-      const lifts = groundLifts(points.map(drawn.at), exaggeration, own, landmark.scale, raw)
-      base = lifts.lowest
+      const heights = points.map(drawn.at)
+      const lifted = landmark.bridge && footprint && exaggeration !== 1 ? this.decks.get(placementKey(landmark)) : undefined
+      // A bridge is draped on the terrain as it truly is, and its deck field adds the exaggeration.
+      const lifts = lifted
+        ? groundLifts(heights.map(h => h / exaggeration), 1, own, landmark.scale, raw)
+        : groundLifts(heights, exaggeration, own, landmark.scale, raw)
+      base = lifted ? lifts.lowest * exaggeration : lifts.lowest
+      if (lifted) deck = { ground: lifted, strength: exaggeration - 1, lowest: lifts.lowest }
       if (footprint) {
         ground = lifts.lifts
         groundMean = lifts.mean
@@ -1138,7 +1190,7 @@ export class LandmarkLayer {
     const drape = elevationDrape(landmark.elevation, landmark.scale, !!sample)
     const sink = baseSink(own, landmark.scale, !!sample)
     const doors = new Float32Array(landmark.entrances.flat())
-    return { ...landmark, placed, ground, groundMean, sink, drape, detailed, doors }
+    return { ...landmark, placed, ground, groundMean, sink, drape, detailed, doors, deck }
   }
 
   /**
@@ -1185,6 +1237,19 @@ export class LandmarkLayer {
     const fill = groundFill(coverage, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
     if (!fill) return false
     this.fills.set(key, fill)
+    return true
+  }
+
+  /** Work out the ground a bridge is lifted with, once its model and the bare ground under it have loaded; whether it was worked out now. */
+  private *liftDeck(landmark: Landmark): Generator<void, boolean> {
+    const key = placementKey(landmark)
+    const footprint = this.models.get(landmark.model)?.footprint
+    if (!landmark.bridge || this.decks.has(key) || !footprint) return false
+    const bare = this.bareGround()
+    if (!bare) return false
+    const ground = yield* deckGround(footprint, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
+    if (!ground) return false
+    this.decks.set(key, ground)
     return true
   }
 
@@ -1751,6 +1816,30 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_ground_at, p.drape.groundAt)
     gl.uniform1f(u.u_floor, p.drape.floor)
     gl.uniform2f(u.u_sink, p.sink.depth, p.sink.band)
+    gl.uniform4f(u.u_deck, p.deck?.strength ?? 0, p.deck?.lowest ?? 0, p.scale, p.elevation)
+    gl.uniform1i(u.u_deck_ground, DECK_UNIT)
+    gl.activeTexture(gl.TEXTURE0 + DECK_UNIT)
+    gl.bindTexture(gl.TEXTURE_2D, this.deckTexture(gl, p.deck?.ground ?? null))
+    gl.activeTexture(gl.TEXTURE0)
+  }
+
+  /** A bridge's lift ground on the GPU, or an empty one; textures of grounds no longer kept are freed. */
+  private deckTexture(gl: WebGL2RenderingContext, ground: DeckGround | null): WebGLTexture {
+    const data = ground ?? EMPTY_DECK
+    let texture = this.deckTextures.get(data)
+    if (texture) return texture
+    for (const [kept, t] of this.deckTextures) {
+      if (kept === EMPTY_DECK || [...this.decks.values()].includes(kept)) continue
+      gl.deleteTexture(t)
+      this.deckTextures.delete(kept)
+    }
+    texture = gl.createTexture()!
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, data.cols, data.rows, 0, gl.RG, gl.FLOAT, data.heights)
+    for (const param of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, param, gl.NEAREST)
+    this.deckTextures.set(data, texture)
+    return texture
   }
 
   /**
@@ -1912,7 +2001,7 @@ export class LandmarkLayer {
     if (!context) return
     for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
       'depthMask', 'depthFunc', 'depthRange', 'blend', 'blendFunc', 'cullFace', 'cullFaceSide', 'frontFace',
-      'activeTexture', 'bindTexture', 'stencilTest'])
+      'activeTexture', 'bindTexture', 'stencilTest', 'pixelStoreUnpackFlipY'])
       if (context[key]) context[key].dirty = true
   }
 

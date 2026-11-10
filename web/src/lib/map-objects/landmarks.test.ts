@@ -64,6 +64,12 @@ describe('parseLandmark', () => {
     expect(parseLandmark(feature({}))?.attribution).toBeNull()
   })
 
+  it('knows a bridge by its catalog type', () => {
+    expect(parseLandmark(feature({ type: 'bridge' }))?.bridge).toBe(true)
+    expect(parseLandmark(feature({ type: 'tower' }))?.bridge).toBe(false)
+    expect(parseLandmark(feature({}))?.bridge).toBe(false)
+  })
+
   it('drops refs it cannot read rather than the whole landmark', () => {
     expect(parseLandmark(feature({ replaces: 'way/1 5013364 relation/2' }))?.replaces)
       .toEqual(['way/1', 'relation/2'])

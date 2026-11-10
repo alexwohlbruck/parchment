@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* 3D bridge models rise with the exaggerated terrain exactly as the map's own roads over them do, so a road no longer floats above or sinks into a long bridge's deck.
+
 ## [0.20.1-1] - 2026-11-08
 
 ### Added

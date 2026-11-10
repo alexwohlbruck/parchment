@@ -26,6 +26,8 @@
  * Tiles, which Barrelman's kit samples too), and a flat one has them at a
  * steady height. Whichever reading lines more of them up wins.
  */
+import type { Point } from '@/lib/map-decks/decks'
+import { smoothedGround } from '@/lib/map-decks/lift-field'
 import type { Footprint } from './landmarks'
 
 /** A point in a model's own frame: x east, y up, z south. */
@@ -183,6 +185,55 @@ export function groundLifts(
     sum += rise - own
   })
   return { lifts, mean: heights.length ? sum / heights.length : 0, lowest }
+}
+
+/** Metres between the points a bridge's lift ground is read at, and the most points per side. */
+const DECK_CELL = 2
+const DECK_POINTS = 256
+
+/**
+ * The ground a bridge is lifted with as the terrain is exaggerated, the way
+ * the map's own decks are (see `map-decks/lift-field.ts`), on a grid over
+ * its plan extent, row by row from minZ: per point, the smoothed ground and
+ * the bare ground under it, in true metres. `toMap` takes a point of its
+ * plan to mercator, `metres` is a model unit in metres, and `bare` reads the
+ * raw DEM: null while its tile loads, which makes this null too, NaN where
+ * there is none — and where any point has no ground, null as well, and the
+ * bridge is lifted as any other landmark. A row at a time, so a long bridge
+ * is read over a few frames.
+ */
+export type DeckGround = { cols: number; rows: number; heights: Float32Array }
+
+export function* deckGround(
+  footprint: Footprint,
+  toMap: (x: number, z: number) => Point,
+  metres: number,
+  bare: (p: Point) => number | null,
+): Generator<void, DeckGround | null> {
+  const { minX, maxX, minZ, maxZ } = footprint
+  let loading = false
+  const at = (p: Point) => {
+    const h = bare(p)
+    if (h === null) loading = true
+    return h
+  }
+  const smoothed = smoothedGround(at)
+  const points = (span: number) => Math.min(DECK_POINTS, Math.max(2, Math.ceil((span * metres) / DECK_CELL) + 1))
+  const [cols, rows] = [points(maxX - minX), points(maxZ - minZ)]
+  const heights = new Float32Array(cols * rows * 2)
+  let known = true
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const p = toMap(minX + ((maxX - minX) * i) / (cols - 1), minZ + ((maxZ - minZ) * j) / (rows - 1))
+      const smooth = smoothed(p)
+      const ground = at(p)
+      if (smooth === null || ground === null || !Number.isFinite(ground)) known = false
+      heights[(j * cols + i) * 2] = smooth ?? NaN
+      heights[(j * cols + i) * 2 + 1] = ground ?? NaN
+    }
+    yield
+  }
+  return loading || !known ? null : { cols, rows, heights }
 }
 
 /**

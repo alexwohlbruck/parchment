@@ -1,6 +1,8 @@
-import { expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { eyeOf, LandmarkLayer, rememberedFills } from './landmark-layer'
-import { LANDMARK_FLAVOR } from './landmarks'
+import { mercator } from '@/lib/map-decks/decks'
+import { groundLifts } from './landmark-ground'
+import { groundGrid, LANDMARK_FLAVOR, type Landmark } from './landmarks'
 import { planCoverage } from './landmark-coverage'
 
 const polygon = (id: number, offset = 0) => ({
@@ -132,4 +134,61 @@ it('keeps the fills of landmarks that left the view, dropping the longest gone p
   expect(kept.has('gone69')).toBe(true)
   expect(kept.has('gone5')).toBe(false)
   expect([...kept.keys()].at(-1)).toBe('drawn')
+})
+
+describe('placing a bridge', () => {
+  const footprint = { minX: -130, maxX: 130, minZ: -8, maxZ: 8 }
+  const base = {
+    id: 'bridge', name: 'Bridge', model: 'bridge.glb', lng: -117.1545, lat: 32.73142, bearing: 0, scale: 1, elevation: 0, minzoom: 15,
+    detail: null, entrances: [], replaces: [], attribution: null, bridge: true,
+  } satisfies Landmark
+  const anchor = mercator([base.lng, base.lat])
+  /** True metres: a canyon floor 41 m up under the anchor, rising 0.2 m a metre either side. */
+  const ground = ([x]: number[]) => 41 + Math.abs(x - anchor[0]) * 40075016.686 * Math.cos((base.lat * Math.PI) / 180) * 0.2
+
+  function layerAt(exaggeration: number) {
+    const layer = new LandmarkLayer({
+      id: 'landmarks', source: 'detail', sourceLayer: 'landmarks', modelUrl: file => file, onReplace: vi.fn(), flavor: LANDMARK_FLAVOR.light,
+    }) as any
+    layer.map = { getTerrain: () => ({ exaggeration }) }
+    layer.models.set(base.model, { footprint, contacts: [] })
+    layer.bareGround = () => ({ ground: { at: ground } })
+    const sample = (point: [number, number]) => ground(mercator(point)) * exaggeration
+    const place = (landmark: Landmark) => {
+      const steps = layer.liftDeck(landmark)
+      while (!steps.next().done);
+      return layer.place(landmark, sample, false)
+    }
+    return { place, heights: groundGrid(base, footprint).map(sample) }
+  }
+
+  it('is draped as any landmark with the terrain at life size', () => {
+    const { place } = layerAt(1)
+    const { bridge: _, ...asBridge } = place(base)
+    const { bridge: __, ...asOther } = place({ ...base, bridge: false })
+    expect(asBridge.deck).toBeNull()
+    expect(asBridge).toEqual(asOther)
+  })
+
+  it('leaves any other landmark as it was', () => {
+    const { place, heights } = layerAt(1.2)
+    const tower = place({ ...base, id: 'tower', bridge: false })
+    const today = groundLifts(heights, 1.2, { follows: false }, 1)
+    expect(tower.deck).toBeNull()
+    expect(tower.ground).toEqual(today.lifts)
+    expect(tower.groundMean).toBe(today.mean)
+  })
+
+  it('is draped on the terrain as it truly is, and lifted by its deck ground', () => {
+    const { place, heights } = layerAt(1.2)
+    const bridge = place(base)
+    const truly = groundLifts(heights.map(h => h / 1.2), 1, { follows: false }, 1)
+    expect(bridge.ground).toEqual(truly.lifts)
+    expect(bridge.groundMean).toBe(truly.mean)
+    expect(bridge.deck).toMatchObject({ lowest: truly.lowest })
+    expect(bridge.deck.strength).toBeCloseTo(0.2, 12)
+    expect(bridge.deck.ground.cols).toBe(131)
+    // Set on the same exaggerated ground as any landmark.
+    expect(bridge.placed).toEqual(place({ ...base, bridge: false }).placed)
+  })
 })

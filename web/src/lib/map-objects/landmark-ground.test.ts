@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { baseSink, elevationDrape, GROUND_SINK, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
+import { mercator, type Point } from '@/lib/map-decks/decks'
+import { LIFT_BLEND, smoothedGround } from '@/lib/map-decks/lift-field'
+import {
+  baseSink, deckGround, elevationDrape, GROUND_SINK, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact, type DeckGround,
+} from './landmark-ground'
+import { GROUND_GRID, groundGrid, modelToLngLat } from './landmarks'
 
 /** A sloping site: the raw DEM rises 0.1 m per metre east, from 190 m. */
 const dem = (x: number) => 190 + x * 0.1
@@ -182,5 +187,95 @@ describe('elevationDrape', () => {
     expect(elevationDrape(-5, 1, false).floor).toBe(5)
     expect(elevationDrape(20, 1, false).floor).toBe(-20)
     expect(elevationDrape(-5, 1, true).floor).toBeLessThan(-1000)
+  })
+})
+
+/** A generator run to its end, as the layer's frame task runs it over several frames. */
+function run<T>(steps: Generator<void, T>): T {
+  for (;;) {
+    const step = steps.next()
+    if (step.done) return step.value
+  }
+}
+
+describe('deckGround', () => {
+  // The Cabrillo Bridge's canyon: a floor 41 m up, rims 72 m up 150 m either side.
+  const landmark = { lng: -117.1545, lat: 32.73142, bearing: 0, scale: 1 }
+  const footprint = { minX: -200, maxX: 200, minZ: -6, maxZ: 6 }
+  const unit = 1 / (40075016.686 * Math.cos((landmark.lat * Math.PI) / 180))
+  const anchor = mercator([landmark.lng, landmark.lat])
+  const bare = ([x]: Point) => 41 + 31 * Math.min(1, ((x - anchor[0]) / unit / 150) ** 2)
+  const toMap = (x: number, z: number) => mercator(modelToLngLat(landmark, x, z))
+  const groundAt = (x: number, z: number) => bare(toMap(x, z))
+  const exaggeration = 1.2
+  // Built over the terrain from the canyon floor: its feet on the DEM, its deck level at 75 m.
+  const built = 41
+  const own = { follows: true as const, offset: -built }
+  const deckY = 75 - built
+
+  /** Bilinear over a row-major grid spanning the footprint, as the shader reads it. */
+  const bilinear = (values: (k: number) => number, cols: number, rows: number, x: number, z: number) => {
+    const gx = Math.min(1, Math.max(0, (x - footprint.minX) / (footprint.maxX - footprint.minX))) * (cols - 1)
+    const gz = Math.min(1, Math.max(0, (z - footprint.minZ) / (footprint.maxZ - footprint.minZ))) * (rows - 1)
+    const [i, j] = [Math.min(Math.floor(gx), cols - 2), Math.min(Math.floor(gz), rows - 2)]
+    const [fx, fz] = [gx - i, gz - j]
+    const at = (a: number, b: number) => values((j + b) * cols + i + a)
+    return (at(0, 0) * (1 - fx) + at(1, 0) * fx) * (1 - fz) + (at(0, 1) * (1 - fx) + at(1, 1) * fx) * fz
+  }
+
+  /** Where GROUND draws a vertex, in true metres up: as any landmark without `deck`, as a bridge with it. */
+  function drawn([x, y, z]: Contact, deck: DeckGround | null): number {
+    const heights = groundGrid(landmark, footprint).map(p => bare(mercator(p)) * exaggeration)
+    const { lifts, mean, lowest } = deck
+      ? groundLifts(heights.map(h => h / exaggeration), 1, own, 1)
+      : groundLifts(heights, exaggeration, own, 1)
+    const g = [0, 1].map(c => bilinear(k => lifts[k * 2 + c], GROUND_GRID, GROUND_GRID, x, z))
+    const follow = 1 - Math.min(1, Math.max(0, (y - g[1]) / 25))
+    const lifted = y + mean + (g[0] - g[1] - mean) * follow
+    if (!deck) return lowest + lifted
+    const [smooth, ground] = [0, 1].map(c => bilinear(k => deck.heights[k * 2 + c], deck.cols, deck.rows, x, z) - lowest)
+    const w = Math.min(1, Math.max(0, 1 - (lifted - ground) / LIFT_BLEND))
+    return lowest * exaggeration + lifted + (exaggeration - 1) * (smooth + (ground - smooth) * w)
+  }
+
+  /** Where the map draws its own deck at a point `z` metres up: Barrelman's lift. */
+  const smoothed = smoothedGround(bare)
+  function mapDeck(x: number, z: number, height: number): number {
+    const p = toMap(x, z)
+    const smooth = smoothed(p)!
+    const ground = bare(p)
+    return height + (exaggeration - 1) * (smooth + (ground - smooth) * Math.min(1, Math.max(0, 1 - (height - ground) / LIFT_BLEND)))
+  }
+
+  it('lifts a bridge\'s deck as the map lifts the road on it', () => {
+    const deck = run(deckGround(footprint, toMap, 1, bare))!
+    expect(deck.cols).toBe(201)
+    let before = 0
+    for (let x = -196; x <= 196; x += 7)
+      for (const z of [-5, 0, 5]) {
+        const vertex: Contact = [x, deckY, z]
+        expect(Math.abs(drawn(vertex, deck) - mapDeck(x, z, 75))).toBeLessThan(0.1)
+        before = Math.max(before, Math.abs(drawn(vertex, null) - mapDeck(x, z, 75)))
+      }
+    // Lifted by the mean ground over its whole extent, it was metres off.
+    expect(before).toBeGreaterThan(2)
+  })
+
+  it('keeps its feet on the exaggerated terrain', () => {
+    const deck = run(deckGround(footprint, toMap, 1, bare))!
+    for (let x = -150; x <= 150; x += 30) {
+      const foot: Contact = [x, groundAt(x, 0) - built, 0]
+      expect(drawn(foot, deck)).toBeCloseTo(groundAt(x, 0) * exaggeration, 1)
+    }
+  })
+
+  it('waits for the ground, and gives up where there is none', () => {
+    expect(run(deckGround(footprint, toMap, 1, () => null))).toBeNull()
+    expect(run(deckGround(footprint, toMap, 1, () => NaN))).toBeNull()
+  })
+
+  it('reads a long bridge no coarser than the grid allows', () => {
+    const long = run(deckGround({ minX: -950, maxX: 950, minZ: -700, maxZ: 700 }, toMap, 1, bare))!
+    expect([long.cols, long.rows]).toEqual([256, 256])
   })
 })

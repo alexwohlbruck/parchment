@@ -149,6 +149,8 @@ export type Landmark = {
   replaces: string[]
   /** A credit the map must show while drawing the model, when its licence asks. */
   attribution: string | null
+  /** Whether the model is a bridge, which rises with exaggerated terrain as the map's decks do; see `deckGround`. */
+  bridge: boolean
 }
 
 const MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
@@ -209,6 +211,7 @@ export function parseLandmark(feature: any): Landmark | null {
     // MVT has no arrays, so the refs arrive space-separated.
     replaces: String(p.replaces ?? '').split(/\s+/).filter(ref => OSM_REF_RE.test(ref)),
     attribution: typeof p.attribution === 'string' && p.attribution.trim() ? p.attribution.trim() : null,
+    bridge: p.type === 'bridge',
   }
 }
 

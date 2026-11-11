@@ -1,6 +1,7 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
 import { LayerType } from '../../schema/layers.schema'
 import { BIKE_SUITABILITY_COLOR_EXPRESSION } from '../../lib/bike-suitability'
+import { CYCLING_WAYS_SOURCE } from './cycling'
 
 /**
  * Every rideable street and path, coloured by how comfortable it is to ride.
@@ -9,14 +10,6 @@ import { BIKE_SUITABILITY_COLOR_EXPRESSION } from '../../lib/bike-suitability'
  * bike facility, surface, smoothness, parked cars, pedestrians, light, grade;
  * see `import/create-bike-suitability.sql` there. This only paints the score.
  */
-
-const SOURCE = {
-  id: 'bike-suitability',
-  type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/bike_suitability_tiles/{z}/{x}/{y}'],
-  minzoom: 12,
-  maxzoom: 16,
-}
 
 const WIDTH = [
   'interpolate', ['exponential', 1.6], ['zoom'],
@@ -27,10 +20,12 @@ const WIDTH = [
   20, 16,
 ]
 
+const SCORED = ['has', 'score']
+
 const BANDS = [
-  { band: 'grade', filter: ['all', ['!=', ['get', 'bridge'], true], ['!=', ['get', 'tunnel'], true]] },
-  { band: 'bridge', filter: ['==', ['get', 'bridge'], true] },
-  { band: 'tunnel', filter: ['==', ['get', 'tunnel'], true] },
+  { band: 'grade', filter: ['all', SCORED, ['!=', ['get', 'bridge'], true], ['!=', ['get', 'tunnel'], true]] },
+  { band: 'bridge', filter: ['all', SCORED, ['==', ['get', 'bridge'], true]] },
+  { band: 'tunnel', filter: ['all', SCORED, ['==', ['get', 'tunnel'], true]] },
 ]
 
 export const BIKE_SUITABILITY_LAYER_TEMPLATES: DefaultLayerTemplate[] = BANDS.map(
@@ -50,8 +45,9 @@ export const BIKE_SUITABILITY_LAYER_TEMPLATES: DefaultLayerTemplate[] = BANDS.ma
       id: `bike-suitability-${band}`,
       type: 'line',
       slot: band,
-      source: SOURCE,
-      'source-layer': 'bike_suitability',
+      source: CYCLING_WAYS_SOURCE,
+      'source-layer': 'bicycle_ways',
+      minzoom: 12,
       filter,
       paint: {
         'line-color': BIKE_SUITABILITY_COLOR_EXPRESSION,

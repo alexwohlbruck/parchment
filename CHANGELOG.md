@@ -2,7 +2,12 @@
 
 ### Added
 
+* Navigation shows the trip timeline for any trip with more than one leg, highlighting the stretch you're on as you go.
+
 ### Changed
+
+* Trip legs are cards that list the streets you'll travel instead of every turn, with lane types and only the warnings worth acting on.
+* A trip opens with one elevation strip across its walking and cycling legs, coloured by mode.
 
 ### Fixed
 

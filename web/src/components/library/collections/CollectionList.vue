@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
@@ -16,7 +16,15 @@ import {
   PlusIcon,
   FilterIcon,
   CheckIcon,
+  ArchiveIcon,
+  ChevronDownIcon,
 } from 'lucide-vue-next'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { SectionHeader } from '@/components/ui/section-header'
 import CollectionCard from '@/components/library/collections/CollectionCard.vue'
 import { createCollectionFromDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
@@ -29,7 +37,6 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const localCollections = ref<Collection[]>([...props.collections])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
@@ -39,25 +46,17 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 type OwnershipFilter = 'all' | 'mine' | 'shared'
 const ownershipFilter = ref<OwnershipFilter>('all')
 
-watch(
-  () => props.collections,
-  newCollections => {
-    localCollections.value = [...newCollections]
-  },
-  { deep: true },
-)
-
 const sharedCount = computed(
-  () => localCollections.value.filter((c) => c.role && c.role !== 'owner').length,
+  () => props.collections.filter((c) => c.role && c.role !== 'owner').length,
 )
 
 const filteredCollections = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localCollections.value, searchQuery.value, {
+    ? fuzzyFilter(props.collections, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : localCollections.value
+    : props.collections
 
   // Ownership filter runs after search so users can still find anything by
   // name even when "Shared with me" is active.
@@ -84,6 +83,20 @@ const filteredCollections = computed(() => {
   })
 
   return result
+})
+
+const activeCollections = computed(() =>
+  filteredCollections.value.filter(c => !c.archivedAt),
+)
+const archivedCollections = computed(() =>
+  filteredCollections.value.filter(c => c.archivedAt),
+)
+const archivedExpanded = ref(false)
+const archivedOpen = computed({
+  get: () => archivedExpanded.value || !!searchQuery.value,
+  set: open => {
+    archivedExpanded.value = open
+  },
 })
 
 function toggleSortOrder() {
@@ -239,11 +252,42 @@ async function createCollection() {
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">
       <CollectionCard
-        v-for="collection in filteredCollections"
+        v-for="collection in activeCollections"
         :key="collection.id"
         :collection="collection"
         class="w-full"
       />
+
+      <Collapsible
+        v-if="archivedCollections.length > 0"
+        v-model:open="archivedOpen"
+        :class="{ 'pt-2': activeCollections.length > 0 }"
+      >
+        <CollapsibleTrigger as-child>
+          <SectionHeader
+            :title="t('library.collections.archived')"
+            :icon="ArchiveIcon"
+            :count="archivedCollections.length"
+            clickable
+            class="py-2"
+          >
+            <template #trailing>
+              <ChevronDownIcon
+                class="size-4 shrink-0 text-muted-foreground transition-transform"
+                :class="{ 'rotate-180': archivedOpen }"
+              />
+            </template>
+          </SectionHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="flex flex-col gap-2">
+          <CollectionCard
+            v-for="collection in archivedCollections"
+            :key="collection.id"
+            :collection="collection"
+            class="w-full"
+          />
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   </div>
 </template>

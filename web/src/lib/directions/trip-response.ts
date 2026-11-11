@@ -62,6 +62,7 @@ function mapSegment(seg: any, id: string, legIndex: number) {
     legIndex,
     mode: normalizeMode(seg.mode),
     vehicleType: seg.vehicle?.type || seg.mode,
+    vehicle: seg.vehicle ?? null,
     startTime: new Date(seg.startTime),
     endTime: new Date(seg.endTime),
     duration: seg.duration,

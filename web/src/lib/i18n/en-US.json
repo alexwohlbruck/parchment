@@ -987,6 +987,52 @@
       "goneBody": "Departures have moved on since it was planned.",
       "planAgain": "Plan again",
       "retry": "Try again"
+    },
+    "leg": {
+      "to": {
+        "walking": "Walk to {place}",
+        "cycling": "Ride to {place}",
+        "scooter": "Ride to {place}",
+        "driving": "Drive to {place}"
+      },
+      "plain": {
+        "walking": "Walk",
+        "cycling": "Ride",
+        "scooter": "Ride",
+        "driving": "Drive"
+      },
+      "yourVehicle": "your {vehicle}",
+      "route": "Route",
+      "allTurns": "All {n} turns",
+      "hideTurns": "Hide turns",
+      "friendly": "{pct}% bike-friendly",
+      "stretchesLeft": "{done} of {n} done",
+      "left": "{distance} left",
+      "surface": {
+        "steps": "Stairs",
+        "protected": "Protected bike lane",
+        "lane": "Bike lane",
+        "path": "Path",
+        "quiet": "Quiet street",
+        "road": "Shared with traffic",
+        "sidewalk": "Sidewalk"
+      },
+      "unnamed": {
+        "steps": "Stairs",
+        "protected": "Bike path",
+        "lane": "Bike lane",
+        "path": "Path",
+        "quiet": "Side street",
+        "road": "Unnamed road",
+        "unknown": "Unnamed way"
+      },
+      "climb": "{pct}% climb",
+      "handoff": {
+        "lockUp": "Lock up",
+        "park": "Park",
+        "pickUp": "Pick up {vehicle}"
+      },
+      "stops": "{n} stops"
     }
   },
   "library": {

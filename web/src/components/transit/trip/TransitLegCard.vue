@@ -9,9 +9,11 @@ import DepartureBoard, { type BoardCard } from '@/components/transit/departures/
 import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
 import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
 import BoardingHint from './BoardingHint.vue'
+import LegCardSurface from '@/components/directions/trip/LegCardSurface.vue'
 import { TRIP_MODE_COLORS, formatClock, rideDirection, segmentRail } from '@/lib/directions/trip-display'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
-import { formatDurationCompact } from '@/lib/time-format'
+import { formatDurationLong } from '@/lib/time-format'
+import { useUnits } from '@/composables/useUnits'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const props = defineProps<{
@@ -35,6 +37,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { formatDistance } = useUnits()
 
 const direction = computed(() => rideDirection(props.segment))
 
@@ -49,12 +52,10 @@ function stopClass(index: number) {
 </script>
 
 <template>
-  <div class="rounded-[22px] ring-1 ring-border bg-card">
-    <div
-      class="flex items-stretch rounded-t-[22px] pl-2"
-      :class="!segment.lineColor && 'bg-muted/40'"
-      :style="segment.lineColor ? { background: `#${segment.lineColor}1f` } : {}"
-    >
+  <div class="relative pb-3">
+    <LegCardSurface />
+    <div class="absolute left-[22px] -translate-x-1/2 w-0.5 bottom-[-2px] h-[16px]" v-bind="segmentRail(segment)" />
+    <div class="relative flex items-stretch pl-2">
       <div class="relative flex flex-col items-center justify-center w-7 shrink-0">
         <div
           class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[calc(50%+2px)]"
@@ -79,7 +80,7 @@ function stopClass(index: number) {
           />
         </div>
       </div>
-      <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2.5 pr-3">
+      <div class="flex-1 min-w-0 flex items-center gap-2 pt-3 pb-1.5 pl-6 pr-3.5">
       <div
         v-if="(segment.routeOptions?.length ?? 0) > 1"
         class="flex items-center gap-1 shrink-0"
@@ -123,7 +124,7 @@ function stopClass(index: number) {
       />
       </div>
     </div>
-    <div class="relative py-2.5 pl-2 pr-3">
+    <div class="relative pt-1.5 pb-3 pl-2 pr-3.5">
       <div
         class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
         v-bind="segmentRail(segment)"
@@ -137,7 +138,7 @@ function stopClass(index: number) {
             v-bind="segmentRail(segment)"
           />
         </div>
-        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
+        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-6">
           <div class="min-w-0">
             <div class="text-sm font-medium text-foreground leading-snug">
               {{ segment.departureStop.name }}
@@ -159,7 +160,7 @@ function stopClass(index: number) {
       </div>
       <div v-if="alerts ?? [].length" class="relative flex">
         <div class="w-7 shrink-0" />
-        <div class="flex-1 min-w-0 pl-2.5 space-y-1.5">
+        <div class="flex-1 min-w-0 pl-6 space-y-1.5">
           <template
             v-for="alert in alerts ?? []"
             :key="alert.id"
@@ -179,7 +180,7 @@ function stopClass(index: number) {
       </div>
       <div v-if="showBoard" class="relative flex">
         <div class="w-7 shrink-0" />
-        <div class="flex-1 min-w-0 pl-2.5">
+        <div class="flex-1 min-w-0 pl-6">
           <DepartureBoard
             :key="boardKey"
             :cards="boardCards ?? []"
@@ -196,11 +197,14 @@ function stopClass(index: number) {
         v-model:open="stopsOpen"
         class="relative"
       >
-        <CollapsibleTrigger data-stop-fold class="group/stops flex w-full transition-colors cursor-pointer select-none">
+        <CollapsibleTrigger data-stop-fold class="group/stops flex w-full cursor-pointer select-none">
           <div class="w-7 shrink-0" />
-          <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
-            <ChevronDownIcon class="size-3.5 transition-transform" :class="stopsOpen && 'rotate-180'" />
-            <span>{{ segment.intermediateStops.length }} stops · {{ formatDurationCompact(segment.duration) }}</span>
+          <span class="ml-3.5 -mr-3.5 flex h-11 flex-1 items-center gap-2 border-y px-2.5 text-[13px] transition-colors group-hover/stops:bg-muted/40">
+            <span class="font-medium text-foreground">{{ t('directions.leg.stops', { n: segment.intermediateStops.length }) }}</span>
+            <span class="flex-1 text-left tabular-nums text-muted-foreground">{{ formatDurationLong(segment.duration) }}</span>
+            <span class="flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <ChevronDownIcon class="size-3.5 transition-transform" :class="stopsOpen && 'rotate-180'" />
+            </span>
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -219,7 +223,7 @@ function stopClass(index: number) {
                 />
               </div>
               <div
-                class="flex-1 min-w-0 flex items-center gap-2 pl-2.5 text-xs"
+                class="flex-1 min-w-0 flex items-center gap-2 pl-6 text-xs"
                 :class="passed === si + 1 ? 'text-foreground font-medium' : 'text-muted-foreground'"
               >
                 <span class="flex-1 truncate">{{ stop.name }}</span>
@@ -239,7 +243,7 @@ function stopClass(index: number) {
             v-bind="segmentRail(segment)"
           />
         </div>
-        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
+        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-6">
           <div class="min-w-0">
             <div class="text-sm font-medium text-foreground leading-snug">
               {{ segment.arrivalStop.name }}
@@ -251,6 +255,14 @@ function stopClass(index: number) {
           <span class="text-sm font-semibold tabular-nums shrink-0">
             {{ formatClock(new Date(segment.endTime)) }}
           </span>
+        </div>
+      </div>
+      <div class="flex">
+        <div class="w-7 shrink-0" />
+        <div class="flex flex-1 flex-wrap items-center gap-x-2 pl-6 text-xs text-muted-foreground">
+          <span class="tabular-nums">{{ formatDurationLong(segment.duration) }} · {{ formatDistance(segment.distance ?? 0) }}</span>
+          <span v-if="segment.agencyName">· {{ segment.agencyName }}</span>
+          <slot />
         </div>
       </div>
       <div

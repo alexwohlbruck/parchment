@@ -13,7 +13,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { along, holds, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { cutCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
@@ -26,7 +26,7 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
-import { KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
+import { cutsInView, KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
 /** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
@@ -272,14 +272,8 @@ export class TunnelLayer {
 
   /** The cuts in the cut tiles read for the view, one copy each. */
   private served(): ServedCut[] {
-    // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
-    const v = this.view()
-    const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
-    const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
-    const found = new Map<string, ServedCut>()
-    for (const key of this.cutTilesInView())
-      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
-    return [...found.values()]
+    const tiles = this.cutTilesInView().map(key => this.cutTiles.get(key) ?? [])
+    return cutsInView(tiles, this.view(), new Set(this.built.split(' ')), CUT_REACH)
   }
 
   private build(): Built | null {

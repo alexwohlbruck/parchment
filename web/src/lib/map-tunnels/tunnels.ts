@@ -10,7 +10,7 @@
  *
  * Pure functions, in Web Mercator units for position and metres for height.
  */
-import { along, mercator, metresPerUnit, outline, parseLine, parseProfile, quad, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { along, boundsOf, meets, mercator, metresPerUnit, outline, parseLine, parseProfile, quad, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 
 export type BoreKind = 'road' | 'path' | 'rail'
 const KINDS: BoreKind[] = ['road', 'path', 'rail']
@@ -74,6 +74,27 @@ export function parseCut(props: Record<string, any>): ServedCut | null {
     edges: [Number(props.left_edge), Number(props.right_edge)],
     cut: { floor, walls, open, crown: Number(props.crown), headroom: Number(props.headroom), base: Number(props.base) },
   }
+}
+
+/** How far past the view, as a share of it, a cut comes to be drawn, and strays to be dropped: a pan back and forth must not re-carve the ground under it. */
+const NEAR = 0.25
+const FAR = 1
+
+const around = (v: Bounds, share: number): Bounds => {
+  const [dx, dy] = [(v.maxX - v.minX) * share, (v.maxY - v.minY) * share]
+  return { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
+}
+
+/** The cuts read for a view, one copy each: those near it, and those `shown` already that have not strayed far; `reach` in metres past each line. */
+export function cutsInView(tiles: ServedCut[][], view: Bounds, shown: ReadonlySet<string>, reach: number): ServedCut[] {
+  const [near, far] = [around(view, NEAR), around(view, FAR)]
+  const found = new Map<string, ServedCut>()
+  for (const cuts of tiles)
+    for (const cut of cuts) {
+      const b = boundsOf(cut.points, reach)
+      if (meets(b, near) || (shown.has(cut.key) && meets(b, far))) found.set(cut.key, cut)
+    }
+  return [...found.values()]
 }
 
 export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }

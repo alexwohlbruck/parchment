@@ -51,6 +51,8 @@ import {
   GRID_SNAP_THRESHOLD_DEG,
 } from '@/lib/geo/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { tripsBounds } from '@/lib/directions/trip-bounds'
+import type { TripsResponse } from '@/types/directions.types'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
@@ -102,7 +104,7 @@ function mapService() {
 
   // Track map loading state and queued operations
   const isMapReady = ref(false)
-  const queuedTrips = ref<{ trips: any; visibleTripIds: Set<string> } | null>(
+  const queuedTrips = ref<{ trips: TripsResponse; visibleTripIds: Set<string> } | null>(
     null,
   )
   let isReinitializingForLanguage = false
@@ -662,10 +664,7 @@ function mapService() {
 
       // Show queued trips if any
       if (queuedTrips.value) {
-        mapStrategy?.setTrips(
-          queuedTrips.value.trips,
-          queuedTrips.value.visibleTripIds,
-        )
+        showTrips(queuedTrips.value.trips, queuedTrips.value.visibleTripIds)
         queuedTrips.value = null
       }
 
@@ -1355,7 +1354,7 @@ function mapService() {
           : new Set<string>()
 
         if (isMapReady.value && mapStrategy) {
-          mapStrategy.setTrips(trips, defaultTripIds)
+          showTrips(trips, defaultTripIds)
         } else {
           queuedTrips.value = { trips, visibleTripIds: defaultTripIds }
         }
@@ -1369,7 +1368,7 @@ function mapService() {
   )
 
   // Note: selectedTripId changes are handled by setVisibleTrips(), showAllTrips(), 
-  // and showOnlyWaypoints() which explicitly call mapStrategy.setTrips().
+  // and showOnlyWaypoints() which explicitly call showTrips().
   // Instruction markers are automatically managed by marker-layers.service via its own watcher.
 
   function destroy() {
@@ -1414,6 +1413,12 @@ function mapService() {
     mapStrategy?.destroy() // Remove map instance
   }
 
+  function showTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+    if (!mapStrategy?.setTrips(trips, visibleTripIds)) return
+    const bounds = tripsBounds(trips, visibleTripIds)
+    if (bounds) fitBounds(bounds, { duration: 1000 })
+  }
+
   /**
    * Set which trips are visible on the map
    */
@@ -1435,7 +1440,7 @@ function mapService() {
     }
 
     if (isMapReady.value && mapStrategy) {
-      mapStrategy.setTrips(trips, visibleTripIds)
+      showTrips(trips, visibleTripIds)
     } else {
       queuedTrips.value = { trips, visibleTripIds }
     }
@@ -1454,7 +1459,7 @@ function mapService() {
     directionsStore.setSelectedTripId(null)
 
     if (isMapReady.value && mapStrategy) {
-      mapStrategy.setTrips(trips, allTripIds)
+      showTrips(trips, allTripIds)
     } else {
       queuedTrips.value = { trips, visibleTripIds: allTripIds }
     }
@@ -1471,7 +1476,7 @@ function mapService() {
     const noTripIds = new Set<string>()
 
     if (isMapReady.value && mapStrategy) {
-      mapStrategy.setTrips(trips, noTripIds)
+      showTrips(trips, noTripIds)
       // Reset selected trip to null when showing only waypoints
       directionsStore.setSelectedTripId(null)
     } else {

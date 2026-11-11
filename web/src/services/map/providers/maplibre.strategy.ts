@@ -64,7 +64,7 @@ import {
   ShadowMode,
 } from '@/types/map.types'
 
-import { Directions, TripsResponse } from '@/types/directions.types'
+import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/event-bus'
@@ -80,8 +80,6 @@ import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/map/vue-marker'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
-import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
@@ -2007,53 +2005,6 @@ export class MaplibreStrategy extends MapStrategy {
 
 
 
-
-  protected override fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
-    if (visibleTrips.length === 0) return
-
-    const bounds = new LngLatBounds()
-
-    visibleTrips.forEach(trip => {
-      trip.segments.forEach(segment => {
-        if (segment.geometry) {
-          segment.geometry.forEach(coord => {
-            bounds.extend([coord.lng, coord.lat])
-          })
-        }
-      })
-    })
-
-    // Extend by the request waypoints too — route geometry is snapped to
-    // the road graph and may diverge from the user-specified waypoint
-    // (e.g. a POI pinned slightly off the nearest road). Including the
-    // waypoints guarantees every pin stays in view after the fit.
-    trips.request?.waypoints?.forEach(wp => {
-      const c = wp?.coordinate
-      if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
-        bounds.extend([c.lng, c.lat])
-      }
-    })
-
-    if (bounds.isEmpty()) return
-
-    const appStore = useAppStore()
-    const padding = calculateFitPadding(
-      toContainerRect(
-        appStore.visibleMapArea,
-        this.container.getBoundingClientRect(),
-      ),
-      this.container.clientWidth,
-      this.container.clientHeight,
-    )
-
-    this.mapInstance.fitBounds(bounds, {
-      padding,
-      duration: 1000,
-      // Building-level cap so a very short route doesn't zoom past street level.
-      maxZoom: 19,
-    })
-  }
 
   /**
    * POI interaction.

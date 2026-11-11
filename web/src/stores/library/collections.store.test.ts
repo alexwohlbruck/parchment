@@ -117,3 +117,27 @@ describe('collections store — bookmark membership', () => {
     expect(hydrated?.bookmarks?.map(b => b.id)).toEqual(['b1', 'b2', 'b3'])
   })
 })
+
+describe('collections store — archive', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  test('an update without archive state keeps the one already held', () => {
+    const collections = useCollectionsStore()
+    collections.setCollections([{ ...collection('c1'), archivedAt: '2026-11-01T00:00:00Z' }])
+    collections.updateCollection({ ...collection('c1'), name: 'Renamed' })
+
+    expect(collections.getCollectionById('c1')?.archivedAt).toBe('2026-11-01T00:00:00Z')
+  })
+
+  test('archiving the last-saved collection stops one-tap saves into it', () => {
+    const collections = useCollectionsStore()
+    collections.setCollections([collection('c1')])
+    collections.setLastSavedCollectionId('c1')
+    collections.setArchivedAt('c1', '2026-11-01T00:00:00Z')
+
+    expect(collections.lastSavedCollectionId).toBeNull()
+  })
+})

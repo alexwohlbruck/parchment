@@ -108,6 +108,18 @@ describe('buildSavedPlacesProjection', () => {
     expect(layers.map(l => l.name)).toEqual(['Coffee'])
   })
 
+  it('leaves archived collections off the selector and the map', () => {
+    const { layers, visibility } = build({
+      collections: [
+        collection('col-1', 'Coffee'),
+        { ...collection('col-2', 'Trips'), archivedAt: '2026-11-01T00:00:00.000Z' },
+      ],
+    })
+
+    expect(layers.map(l => l.name)).toEqual(['Coffee', 'Unfiled'])
+    expect([...visibility.collectionIds]).toEqual(['col-1'])
+  })
+
   it('drops the group entirely when nothing is saved', () => {
     const projection = build({ bookmarks: [] })
 

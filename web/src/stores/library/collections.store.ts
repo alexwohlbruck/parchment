@@ -148,9 +148,20 @@ export const useCollectionsStore = defineStore('collections', () => {
     const index = collections.value.findIndex(c => c.id === collection.id)
 
     if (index !== -1) {
+      if (!('archivedAt' in collection)) {
+        normalizedCollection.archivedAt = collections.value[index].archivedAt
+      }
       collections.value[index] = normalizedCollection
     } else {
       collections.value.push(normalizedCollection)
+    }
+  }
+
+  function setArchivedAt(id: string, archivedAt: string | null) {
+    const collection = collections.value.find(c => c.id === id)
+    if (collection) collection.archivedAt = archivedAt
+    if (archivedAt && lastSavedCollectionId.value === id) {
+      lastSavedCollectionId.value = null
     }
   }
 
@@ -287,6 +298,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     getCollectionById,
     setCollections,
     updateCollection,
+    setArchivedAt,
     remapBookmarkId,
     getCollectionIdsForBookmark,
     removeCollection,

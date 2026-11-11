@@ -94,6 +94,10 @@ export interface Collection {
   // Client-only: the metadata is encrypted and this device can't open it.
   locked?: boolean
 
+  // When the caller archived it. Per user: a share recipient's archive is
+  // their own. Only list and `/:id` fetches carry it.
+  archivedAt?: string | null
+
   // Caller's effective role on this collection. `'owner'` on collections the
   // caller owns; a `ShareRole` when the collection is shared TO the caller.
   // The server populates this on accessible fetches (`/:id` and

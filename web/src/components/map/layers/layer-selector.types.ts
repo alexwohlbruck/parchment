@@ -1,4 +1,5 @@
 import type { SavedPlacesLayerMeta } from '@/lib/map/saved-places-layers'
+import type { LayerAppearance } from '@/lib/map/layer-appearances'
 
 /**
  * A row in the map's layer selector.
@@ -22,4 +23,10 @@ export interface SelectorNode {
   /** Collection icon pack / color, when this row is a saved-places entry. */
   meta?: SavedPlacesLayerMeta
   onToggle: (visible: boolean) => void
+  /** Built-in layers: the looks it can take, one showing at a time. */
+  appearances?: LayerAppearance[]
+  appearance?: LayerAppearance
+  onAppearance?: (id: string) => void
+  /** Toggles that narrow every appearance, drawn as chips. */
+  filters?: SelectorNode[]
 }

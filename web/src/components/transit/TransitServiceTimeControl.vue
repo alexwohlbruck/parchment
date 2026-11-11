@@ -51,7 +51,7 @@ function pickDay(day: number) {
 </script>
 
 <template>
-  <div class="mb-2 ml-[26px] mr-1 mt-0.5 space-y-2 rounded-md bg-accent/40 px-2.5 py-2">
+  <div class="space-y-2 rounded-md bg-accent/40 px-2.5 py-2">
     <div class="flex items-center gap-2">
       <span class="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
         {{ t('layers.transit.serviceTime') }}

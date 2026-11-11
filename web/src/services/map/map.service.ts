@@ -33,6 +33,7 @@ import { useEnvironmentDataService } from '@/services/layers/features/environmen
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
+import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
 import { useAppStore } from '@/stores/app.store'
 import { createAnimationHold } from '@/lib/map/animation-hold'
 import { trackHeldPointers } from '@/lib/map/held-pointers'
@@ -570,6 +571,10 @@ function mapService() {
       initStep('layers', () =>
         layersService.initializeLayers(allLayers, mapStrategy),
       )
+
+      useLayerAppearanceStore()
+        .applyAll(mapStrategy)
+        .catch(error => console.error('[map] layer appearances failed to apply', error))
 
       // Groups whose cartography the basemap draws — the cycling tint is the
       // road layer itself, recoloured. `setStyle` brings those back hidden, and

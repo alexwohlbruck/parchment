@@ -1,10 +1,11 @@
 ## [Unreleased]
 
 ### Added
-* A Bike suitability layer colours every street red to green by how comfortable it is to ride, scored from speed, lanes, bike facilities and surface.
+* The Cycling layer has a Suitability look that colours every street red to green by how comfortable it is to ride, scored from speed, lanes, bike facilities and surface.
 * Bike directions use those comfort scores: moving the safety-versus-speed slider toward safety steers routes off busy streets.
 
 ### Changed
+* Built-in map layers are now one switch each, with a picker for how they look: Cycling shows infrastructure or suitability, and Transit shows what's running now or the full service.
 
 ### Fixed
 

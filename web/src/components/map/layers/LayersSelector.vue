@@ -31,6 +31,8 @@ import {
 import { canvasIdFromLayerId, CANVASES_GROUP_ID } from '@/lib/canvas/canvas-layers'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
+import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
+import { LAYER_APPEARANCES } from '@/lib/map/layer-appearances'
 import {
   CLASS_GROUP_ROW_ID_PREFIX,
   TRANSIT_CLASS_GROUPS,
@@ -47,6 +49,7 @@ const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
+const appearanceStore = useLayerAppearanceStore()
 const canvasesStore = useCanvasesStore()
 const { t } = useI18n()
 
@@ -195,6 +198,8 @@ function labelsNode(): SelectorNode {
 }
 
 function groupNode(node: any): SelectorNode {
+  if (node.origin === 'default' && !node.parentGroupId) return builtInLayerNode(node)
+
   // Sort by the group tree's own `order` first — that's how "Frequents" pins
   // above the collections — and fall back to name for anything sharing one.
   // Sub-layers (casings, label twins, station infrastructure) ride their
@@ -208,11 +213,6 @@ function groupNode(node: any): SelectorNode {
     (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name),
   )
 
-  // The Transit group's primary children are the portolan class toggles.
-  if (node.id === TRANSIT_GROUP_ID) {
-    children.unshift(...transitClassNodes())
-  }
-
   return {
     id: node.id,
     name: node.name,
@@ -221,6 +221,31 @@ function groupNode(node: any): SelectorNode {
     children,
     count: children.length,
     onToggle: (visible: boolean) => setGroupVisible(node, visible),
+  }
+}
+
+/** A built-in group is one switch: its children become appearances and filters rather than rows. */
+function builtInLayerNode(node: any): SelectorNode {
+  const appearances = LAYER_APPEARANCES[node.id]
+  const filters = node.id === TRANSIT_GROUP_ID ? transitClassNodes() : undefined
+  const hasOptions = (appearances?.length ?? 0) > 1 || !!filters?.length
+
+  return {
+    id: node.id,
+    name: node.name,
+    icon: node.icon,
+    visible: node.visible,
+    appearances,
+    appearance: appearanceStore.appearanceOf(node.id),
+    onAppearance: id =>
+      appearanceStore.setAppearance(node.id, id, mapService.mapStrategy),
+    filters,
+    onToggle: (visible: boolean) => {
+      if (visible && hasOptions && !expanded.value.has(node.id)) {
+        toggleExpanded(node.id)
+      }
+      appearanceStore.setLayerVisible(node, visible, mapService.mapStrategy)
+    },
   }
 }
 
@@ -360,16 +385,16 @@ function findGroupNode(id: string, tree: any[]): any {
                   :node="node"
                   :expanded="expanded"
                   @toggle-expanded="toggleExpanded"
-                />
-                <!-- The service-time control belongs to the Transit group: it
-                     filters the portolan map to what actually runs at an instant. -->
-                <TransitServiceTimeControl
-                  v-if="
-                    node.id === TRANSIT_GROUP_ID &&
-                    node.visible &&
-                    expanded.has(node.id)
-                  "
-                />
+                >
+                  <template #options>
+                    <TransitServiceTimeControl
+                      v-if="
+                        node.id === TRANSIT_GROUP_ID &&
+                        node.appearance?.id === 'live'
+                      "
+                    />
+                  </template>
+                </LayerSelectorRow>
               </template>
             </div>
           </section>

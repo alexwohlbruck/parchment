@@ -428,6 +428,13 @@
       "when": 1793833707592,
       "tag": "0060_navigation_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794437540275,
+      "tag": "0061_collection_archives",
+      "breakpoints": true
     }
   ]
 }

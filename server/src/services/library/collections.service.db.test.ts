@@ -45,6 +45,8 @@ import {
   getPublicCollectionByToken,
   rotateCollectionKey,
   changeCollectionScheme,
+  getCollections,
+  setCollectionArchived,
 } from './collections.service'
 
 describe('PublicLinkNotAllowedOnE2eeError', () => {
@@ -232,6 +234,41 @@ describe('getSharedCollections', () => {
     const rows = await getSharedCollections(aliceId)
     // Alice's owned collections MUST NOT appear here; this is recipient-only.
     expect(rows.every((r) => r.userId !== aliceId)).toBe(true)
+  })
+})
+
+describe('setCollectionArchived', () => {
+  test('archives for the caller only', async () => {
+    const id = await makeCollection(aliceId)
+    await shareWith(aliceId, bobHandle, id, 'viewer')
+
+    const result = await setCollectionArchived(id, bobId, true)
+    expect(result?.archivedAt).toBeInstanceOf(Date)
+
+    const forBob = (await getSharedCollections(bobId)).find((c) => c.id === id)
+    const forAlice = (await getCollections(aliceId)).find((c) => c.id === id)
+    expect(forBob?.archivedAt).toEqual(result!.archivedAt)
+    expect(forAlice?.archivedAt).toBeNull()
+  })
+
+  test('archiving twice keeps the original date', async () => {
+    const id = await makeCollection(aliceId)
+    const first = await setCollectionArchived(id, aliceId, true)
+    const second = await setCollectionArchived(id, aliceId, true)
+    expect(second?.archivedAt).toEqual(first!.archivedAt)
+  })
+
+  test('unarchive clears it', async () => {
+    const id = await makeCollection(aliceId)
+    await setCollectionArchived(id, aliceId, true)
+    const result = await setCollectionArchived(id, aliceId, false)
+    expect(result?.archivedAt).toBeNull()
+    expect((await getAccessibleCollection(id, aliceId))?.archivedAt).toBeNull()
+  })
+
+  test('returns null without access', async () => {
+    const id = await makeCollection(aliceId)
+    expect(await setCollectionArchived(id, bobId, true)).toBeNull()
   })
 })
 

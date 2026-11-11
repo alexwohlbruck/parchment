@@ -217,6 +217,46 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
+  .put(
+    '/:id/archive',
+    async ({ params: { id }, user, set, t }) => {
+      const result = await collectionsService.setCollectionArchived(id, user.id, true)
+      if (!result) {
+        set.status = 404
+        return { error: t('errors.library.collectionNotFound') }
+      }
+      return result
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Archive a collection',
+        description:
+          'Files the collection away for the caller only: owners and share recipients each keep their own archive. Archived collections still come back from the list endpoints, with `archivedAt` set.',
+      },
+    },
+  )
+
+  .delete(
+    '/:id/archive',
+    async ({ params: { id }, user, set, t }) => {
+      const result = await collectionsService.setCollectionArchived(id, user.id, false)
+      if (!result) {
+        set.status = 404
+        return { error: t('errors.library.collectionNotFound') }
+      }
+      return result
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Unarchive a collection',
+      },
+    },
+  )
+
   // Change a collection's encryption scheme atomically. The client
   // packages the whole migration (re-encrypted or decrypted point set
   // under the new scheme + rewrapped share envelopes + new metadata

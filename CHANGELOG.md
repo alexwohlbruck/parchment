@@ -7,6 +7,7 @@
 ### Fixed
 
 * Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.
+* Transit trips draw each line in the same colour the map uses, so Charlotte's Blue and Gold lines no longer fall back to the app's accent colour.
 
 ## [0.20.2] - 2026-11-10
 

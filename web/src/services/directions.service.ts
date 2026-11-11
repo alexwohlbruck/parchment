@@ -20,6 +20,7 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { usePlaceService } from '@/services/place/place.service'
 import { constraintRequestFields } from '@/lib/directions/waypoint-time'
 import { mapCandidate } from '@/lib/directions/trip-response'
+import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -202,7 +203,7 @@ function directionsService() {
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },
         },
-        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds)),
+        trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds))),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:

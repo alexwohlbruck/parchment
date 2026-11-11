@@ -316,11 +316,7 @@ async function loadDepartures() {
             scheduledMs: prev?.scheduledMs ?? schedMs,
             // A run only counts as cancelled when no source still runs it.
             cancelled: (prev?.cancelled ?? true) && d.cancelled === true,
-            route:
-              prev?.route ??
-              (d.route
-                ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
-                : undefined),
+            route: prev?.route ?? (d.route ? runRoute(seg, d.route.shortName) : undefined),
             tripId: prev?.tripId ?? d.trip?.id,
           })
         }
@@ -695,6 +691,14 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   }
 }
 
+
+/** A run's line in the leg's own colours, which carry any curation the feed's lack. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function runRoute(seg: any, shortName: string): DepartureOption['route'] {
+  const line = seg.routeOptions?.find((o: { shortName?: string }) => o.shortName === shortName)
+    ?? { color: seg.lineColor, textColor: seg.lineTextColor }
+  return { shortName, color: line.color ?? undefined, textColor: line.textColor ?? undefined }
+}
 
 /** Per-segment board cards, each enriched with its visual state. Recomputes off
  *  the nowMs tick and whenever fresh departures land. */

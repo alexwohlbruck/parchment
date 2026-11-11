@@ -8,6 +8,8 @@ import type { RouteHazard } from '@/types/directions.types'
 export const MIN_PROFILE_GAIN_METERS = 10
 /** The profile never stretches less height than this, so a gentle street doesn't read as a mountain. */
 const MIN_PROFILE_RANGE_METERS = 15
+/** A walk across a station forecourt has no hill worth drawing, and its elevation data is often noise. */
+const MIN_PROFILE_SECONDS = 180
 const SMOOTH_WINDOW = 5
 /** Profile samples per unit of strip width. */
 const SAMPLES_PER_WIDTH = 140
@@ -48,6 +50,7 @@ export interface TripStripModel {
 }
 
 const selfPowered = (mode: string) => mode === 'walking' || mode === 'cycling' || mode === 'biking'
+const profiled = (s: StripSegment) => selfPowered(s.mode) && s.duration - (s.waitSeconds ?? 0) >= MIN_PROFILE_SECONDS
 
 function elevationTrack(geometry: StripSegment['geometry']): { d: number; e: number }[] {
   if (!Array.isArray(geometry)) return []
@@ -96,10 +99,10 @@ export function tripStrip(segments: StripSegment[]): TripStripModel {
     return headsUpHazards(segment).map(h => ({ index, kind: h.kind, x: leg.x0 + (h.startDistance / segment.distance!) * (leg.x1 - leg.x0) }))
   })
 
-  const gain = segments.reduce((sum, s) => sum + (selfPowered(s.mode) ? s.totalElevationGain ?? 0 : 0), 0)
+  const gain = segments.reduce((sum, s) => sum + (profiled(s) ? s.totalElevationGain ?? 0 : 0), 0)
   if (gain < MIN_PROFILE_GAIN_METERS) return { legs, profiles: [], markers }
 
-  const tracks = segments.map(s => (selfPowered(s.mode) ? smooth(elevationTrack(s.geometry)) : []))
+  const tracks = segments.map(s => (profiled(s) ? smooth(elevationTrack(s.geometry)) : []))
   const all = tracks.flat().map(p => p.e)
   if (!all.length) return { legs, profiles: [], markers }
   const lo = Math.min(...all)

@@ -12,6 +12,16 @@ export const TRIP_MODE_COLORS = {
   truck: 'bg-compass-500',
 } as const
 
+/** The same colours as text, for SVG strokes and fills drawn in `currentColor`. */
+const TRIP_MODE_TEXT_COLORS = {
+  walking: 'text-cobalt-500',
+  driving: 'text-violet-500',
+  cycling: 'text-forest-500',
+  biking: 'text-forest-500',
+  transit: 'text-parchment-600',
+  truck: 'text-compass-500',
+} as const
+
 const DEFAULT_MODE_COLOR = 'bg-parchment-500'
 const EMPTY_RAIL_COLOR = 'bg-border'
 
@@ -19,6 +29,10 @@ export function modeColor(mode: string): string {
   return (
     TRIP_MODE_COLORS[mode as keyof typeof TRIP_MODE_COLORS] ?? DEFAULT_MODE_COLOR
   )
+}
+
+export function modeTextColor(mode: string): string {
+  return TRIP_MODE_TEXT_COLORS[mode as keyof typeof TRIP_MODE_TEXT_COLORS] ?? 'text-parchment-600'
 }
 
 /** Clock time without the am/pm marker, which the surrounding row implies. */

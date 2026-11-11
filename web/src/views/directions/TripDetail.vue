@@ -49,6 +49,7 @@ import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import TripRace from '@/components/directions/trip/TripRace.vue'
 import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
+import TripStrip from '@/components/directions/trip/TripStrip.vue'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -1084,8 +1085,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </span>
       </div>
 
+      <TripStrip :segments="trip.segments" class="mt-1" />
+
       <TripTimeline
-        class="mt-4"
+        class="mt-5"
         :segments="trip.segments"
         :waypoints="routeWaypoints"
         :start-time="trip.startTime"

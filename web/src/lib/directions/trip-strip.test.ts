@@ -28,6 +28,12 @@ describe('tripStrip', () => {
     expect(walkTop).toBeLessThan(top)
   })
 
+  test('skips a walk too short to have a hill', () => {
+    const toPlatform: StripSegment = { ...walk, startTime: t(0), endTime: t(2), duration: 120, totalElevationGain: 20 }
+    const { profiles } = tripStrip([toPlatform, { ...train, startTime: t(2) }, { ...walk, totalElevationGain: 15 }])
+    expect(profiles.map(p => p.index)).toEqual([2])
+  })
+
   test('leaves the profile out when there is nothing to climb', () => {
     expect(tripStrip([{ ...ride, totalElevationGain: 3 }]).profiles).toEqual([])
   })

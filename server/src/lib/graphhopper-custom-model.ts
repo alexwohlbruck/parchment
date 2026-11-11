@@ -70,6 +70,11 @@ export function getSnapPreventions(
   }
 }
 
+/** How much a bike route trades time for calmer streets: the safety-vs-speed slider, flipped. */
+export function bikeSuitabilityWeight(prefs: RoutingPreferences | undefined): number {
+  return +(1 - (prefs?.safetyVsSpeed ?? 0.5)).toFixed(2)
+}
+
 /**
  * Build a GraphHopper custom_model from unified routing preferences.
  *

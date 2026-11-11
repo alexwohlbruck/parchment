@@ -1,6 +1,6 @@
 import type { SpeechCatalog, SpeechRequest } from '../../types/speech.types'
 import axios from 'axios'
-import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
+import { bikeSuitabilityWeight, buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
 import type {
   Integration,
   IntegrationConfig,
@@ -1378,6 +1378,11 @@ export class BarrelmanIntegration
     const customModel = this.buildCustomModel(request)
     if (customModel) {
       requestBody.custom_model = customModel
+    }
+
+    // Barrelman steers bike routes by its per-street suitability scores.
+    if (request.mode === TravelMode.CYCLING) {
+      requestBody.bike_suitability = { weight: bikeSuitabilityWeight(request.preferences) }
     }
 
     const routing = this.routingTarget()

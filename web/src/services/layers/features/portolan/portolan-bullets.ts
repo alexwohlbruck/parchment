@@ -29,7 +29,9 @@ import {
 } from './portolan-client'
 import { api } from '@/lib/api'
 import { orderBullets } from '@/lib/transit/transit-bullets'
+import { splitFeedId } from '@/lib/transit/transit-alerts'
 import { portolanClassOf, type PortolanIndexEntry } from '@/types/portolan.types'
+import type { TransitRouteType } from '@server/types/trip.types'
 
 export interface PortolanBullet {
   label: string
@@ -140,7 +142,7 @@ export function bulletFor(
   routeId: string,
   lat?: number,
   lng?: number,
-  routeType?: number | null,
+  routeType?: number | TransitRouteType | null,
   name?: string | null,
 ): PortolanBullet | null {
   // touch the generation so Vue re-evaluates when a fetch lands
@@ -256,4 +258,62 @@ export function stopBulletsFor<R extends StopRouteRef>(
     routes.map(r => stopBulletFor(r, stop)),
     b => ({ label: b.label, color: b.color, id: b.route.routeId }),
   )
+}
+
+/** A trip segment, as much of it as its line's colours need. */
+interface LineSegment {
+  mode: string
+  routeType?: number | TransitRouteType | null
+  lineName?: string
+  lineColor?: string | null
+  lineTextColor?: string | null
+  departureStop?: { location?: { lat: number; lng: number } }
+  transitDetails?: { route?: { id?: string } }
+  routeOptions?: { id?: string; shortName?: string; color?: string | null; textColor?: string | null }[]
+}
+
+function boardingPoint(seg: LineSegment) {
+  return seg.mode === 'transit' ? seg.departureStop?.location : undefined
+}
+
+
+function curatedColors(
+  routeId: string | undefined,
+  name: string | undefined,
+  routeType: number | TransitRouteType | null | undefined,
+  at: { lat: number; lng: number },
+) {
+  if (!routeId) return null
+  const b = bulletFor(splitFeedId(routeId).localId, at.lat, at.lng, routeType, name)
+  return b?.color ? { color: b.color, textColor: null } : null
+}
+
+/**
+ * A trip with its lines in the colours the map draws them. Names stay the
+ * feed's own: departures, guidance and recovery match runs by them.
+ */
+export function withCuratedLineColors<T extends { segments: object[] }>(trip: T): T {
+  return {
+    ...trip,
+    segments: (trip.segments as LineSegment[]).map(seg => {
+      const at = boardingPoint(seg)
+      if (!at) return seg
+      const own = curatedColors(seg.transitDetails?.route?.id, seg.lineName, seg.routeType, at)
+      return {
+        ...seg,
+        ...(own && { lineColor: own.color, lineTextColor: own.textColor }),
+        routeOptions: seg.routeOptions?.map(o => {
+          const c = curatedColors(o.id, o.shortName, seg.routeType, at)
+          return c ? { ...o, ...c } : o
+        }),
+      }
+    }),
+  }
+}
+
+/** Trips with their lines in the map's colours, once the indexes covering them have loaded. */
+export async function withCuratedTripColors<T extends { segments: object[] }>(trips: T[]): Promise<T[]> {
+  const points = trips.flatMap(t => t.segments as LineSegment[]).map(boardingPoint)
+  await Promise.all(points.map(p => ensureBulletsAt(p?.lat, p?.lng)))
+  return trips.map(withCuratedLineColors)
 }

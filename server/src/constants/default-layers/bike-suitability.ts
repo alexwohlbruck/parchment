@@ -12,7 +12,7 @@ import { LayerType } from '../../schema/layers.schema'
 const SOURCE = {
   id: 'bike-suitability',
   type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/bike_suitability/{z}/{x}/{y}'],
+  tiles: ['{PROXY_URL}/barrelman/bike_suitability_tiles/{z}/{x}/{y}'],
   minzoom: 12,
   maxzoom: 16,
 }

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+* A Bike suitability layer colours every street red to green by how comfortable it is to ride, scored from speed, lanes, bike facilities and surface.
 
 ### Changed
 

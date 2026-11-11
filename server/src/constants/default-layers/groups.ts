@@ -18,6 +18,18 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     // `web/scripts/convert-basemap-style.mjs`.
     basemapGroup: 'cycling',
   },
+  {
+    templateId: 'default:group:bike-suitability',
+    description:
+      'Every street coloured by how comfortable it is to ride, scored from OpenStreetMap.',
+    name: 'Bike suitability',
+    icon: 'BikeIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 3,
+    parentGroupId: null,
+    integrationId: 'barrelman',
+  },
   // Cycling subgroups
   {
     templateId: 'default:group:cycling:cycleways',

@@ -1,5 +1,6 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
 import { LayerType } from '../../schema/layers.schema'
+import { BIKE_SUITABILITY_COLOR_EXPRESSION } from '../../lib/bike-suitability'
 
 /**
  * Every rideable street and path, coloured by how comfortable it is to ride.
@@ -16,19 +17,6 @@ const SOURCE = {
   minzoom: 12,
   maxzoom: 16,
 }
-
-/** Red for a street to avoid through to green for one anyone would ride. */
-const SCORE_COLOR = [
-  'interpolate',
-  ['linear'],
-  ['get', 'score'],
-  0, 'hsl(358, 78%, 46%)',
-  30, 'hsl(14, 88%, 52%)',
-  50, 'hsl(34, 96%, 52%)',
-  65, 'hsl(50, 96%, 50%)',
-  80, 'hsl(88, 62%, 44%)',
-  100, 'hsl(142, 64%, 34%)',
-]
 
 const WIDTH = [
   'interpolate', ['exponential', 1.6], ['zoom'],
@@ -66,7 +54,7 @@ export const BIKE_SUITABILITY_LAYER_TEMPLATES: DefaultLayerTemplate[] = BANDS.ma
       'source-layer': 'bike_suitability',
       filter,
       paint: {
-        'line-color': SCORE_COLOR,
+        'line-color': BIKE_SUITABILITY_COLOR_EXPRESSION,
         'line-width': WIDTH,
         'line-opacity': band === 'tunnel' ? 0.5 : 0.9,
         'line-emissive-strength': 1,

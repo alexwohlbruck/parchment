@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.
+
 ## [0.20.2] - 2026-11-10
 
 ### Added

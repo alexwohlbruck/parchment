@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { along, densify, metresPerUnit, type Mesh, type Point } from '@/lib/map-decks/decks'
-import { parseCut, portalMesh, type Cut, type PortalMesh } from './tunnels'
+import { cutsInView, parseCut, portalMesh, type Cut, type PortalMesh, type ServedCut } from './tunnels'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -115,5 +115,23 @@ describe('portalMesh', () => {
     expect(out.mouth.position.length / 9).toBe(4)
     const pier = vertices(out.walls, [0, 1, 0]).filter(v => Math.abs((y0 - v.p[1]) / M) <= 0.51)
     expect(pier.length).toBeGreaterThan(0)
+  })
+})
+
+describe('cutsInView', () => {
+  // A view 100 m square at the origin.
+  const view = { minX: at(0)[0], minY: at(0, 100)[1], maxX: at(100)[0], maxY: at(0)[1] }
+  const cut = (key: string, east: number) => ({ key, points: [at(east, 50), at(east + 5, 50)] }) as ServedCut
+  const keys = (shown: string[], ...cuts: ServedCut[]) => cutsInView([cuts], view, new Set(shown), 0).map(c => c.key)
+
+  test('draws a cut that comes near the view, once', () => {
+    expect(keys([], cut('a', 50), cut('a', 50), cut('b', 120))).toEqual(['a', 'b'])
+  })
+
+  test('keeps a cut already drawn until it strays well past the view', () => {
+    const edge = cut('a', 140)
+    expect(keys([], edge)).toEqual([])
+    expect(keys(['a'], edge)).toEqual(['a'])
+    expect(keys(['a'], cut('a', 220))).toEqual([])
   })
 })

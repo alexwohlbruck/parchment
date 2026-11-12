@@ -1009,7 +1009,7 @@
         "shared": "Shared with me"
       },
       "archived": "Archived",
-      "archivedNotice": "Archived. It stays off the map and out of your list until you unarchive it."
+      "archivedNotice": "This collection is archived."
     },
     "actions": {
       "addToCollection": "Add to collection",

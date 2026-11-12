@@ -983,7 +983,7 @@
         "shared": "Compartidas conmigo"
       },
       "archived": "Archivadas",
-      "archivedNotice": "Archivada. No aparece en el mapa ni en tu lista hasta que la desarchives."
+      "archivedNotice": "Esta colección está archivada."
     },
     "actions": {
       "addToCollection": "Añadir a colección",

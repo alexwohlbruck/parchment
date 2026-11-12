@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { stripX, tripStrip, type StripSegment } from './trip-strip'
+import { colorRuns, stripX, tripProfiles, tripStrip, type StripSegment } from './trip-strip'
+import type { RouteEdgeSegment } from '@/types/directions.types'
 
 const t = (minute: number) => new Date(Date.UTC(2026, 10, 11, 15, minute)).toISOString()
 const line = (from: number, to: number, points = 10) =>
@@ -48,4 +49,24 @@ describe('tripStrip', () => {
 test('stripX follows a traveller along a leg', () => {
   const segments = [ride, train, walk]
   expect(stripX(tripStrip(segments), segments, 0, 500)).toBeCloseTo(0.1)
+})
+
+describe('colouring by profile', () => {
+  const edge = (startDistance: number, endDistance: number, bikeFacility: string) => ({ startDistance, endDistance, bikeFacility }) as RouteEdgeSegment
+  const scoredRide: StripSegment = { ...ride, edgeSegments: [edge(0, 300, 'path'), edge(300, 500, 'path'), edge(500, 1000, 'none')] }
+  const scoredWalk: StripSegment = { ...walk, edgeSegments: [edge(0, 500, 'none')] }
+
+  test('offers the profiles some leg of the trip can be coloured by', () => {
+    expect(tripProfiles([scoredRide, train])).toEqual(['stress', 'infrastructure', 'surface', 'incline'])
+    expect(tripProfiles([train, scoredWalk])).toEqual(['surface', 'incline'])
+    expect(tripProfiles([ride, train])).toEqual([])
+  })
+
+  test('splits a leg into runs of one colour along its share of the strip', () => {
+    const { legs } = tripStrip([scoredRide, train, scoredWalk])
+    const runs = colorRuns(scoredRide, legs[0], 'infrastructure')
+    expect(runs.map(r => [r.x0, r.x1])).toEqual([[0, 0.1], [0.1, 0.2]])
+    expect(runs[0].color).not.toBe(runs[1].color)
+    expect(colorRuns(scoredWalk, legs[2], 'infrastructure')).toEqual([])
+  })
 })

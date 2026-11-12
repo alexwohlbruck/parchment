@@ -112,15 +112,6 @@ export function getInfrastructureCategory(facility: string | undefined): Profile
   return INFRASTRUCTURE_CATEGORIES[FACILITY_GROUPS[facility ?? ''] ?? 'unknown']
 }
 
-// ── Category map by profile type ────────────────────────────────────
-
-export const CATEGORY_MAPS: Record<RouteProfileType, Record<string, ProfileCategory>> = {
-  surface: SURFACE_CATEGORIES,
-  incline: INCLINE_CATEGORIES,
-  stress: STRESS_CATEGORIES,
-  infrastructure: INFRASTRUCTURE_CATEGORIES,
-}
-
 // ── Lookup helpers ──────────────────────────────────────────────────
 
 export function getSurfaceCategory(surface: string): ProfileCategory {

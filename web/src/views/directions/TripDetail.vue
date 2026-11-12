@@ -49,6 +49,8 @@ import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
 import TripStrip from '@/components/directions/trip/TripStrip.vue'
+import TripColorPicker from '@/components/directions/trip/TripColorPicker.vue'
+import { canColorBy, tripProfiles } from '@/lib/directions/trip-strip'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -948,13 +950,28 @@ const formatTime = (date: Date | string): string => {
 }
 
 
-function onRouteProfileChange(
-  segmentIndex: number,
-  profile: RouteProfileType | null,
-) {
-  if (!trip.value) return
-  mapService.setSegmentRouteProfile(trip.value.id, segmentIndex, profile)
+/** The trip-wide colouring picked above the strip; a leg it covers draws by it on the map whether open or not. */
+const colorBy = ref<RouteProfileType | null>(null)
+/** What each leg asked for itself, by being opened. */
+const legProfiles = new Map<number, RouteProfileType | null>()
+
+function applyLegProfile(segmentIndex: number) {
+  const segment = trip.value?.segments[segmentIndex]
+  if (!segment) return
+  const profile = colorBy.value && canColorBy(segment, colorBy.value) ? colorBy.value : legProfiles.get(segmentIndex) ?? null
+  mapService.setSegmentRouteProfile(trip.value!.id, segmentIndex, profile)
 }
+
+function onRouteProfileChange(segmentIndex: number, profile: RouteProfileType | null) {
+  legProfiles.set(segmentIndex, profile)
+  applyLegProfile(segmentIndex)
+}
+
+watch(() => trip.value?.id, () => {
+  legProfiles.clear()
+  if (colorBy.value && !tripProfiles(trip.value?.segments ?? []).includes(colorBy.value)) colorBy.value = null
+})
+watch([colorBy, () => trip.value?.id], () => trip.value?.segments.forEach((_, i) => applyLegProfile(i)))
 
 const routeWaypoints = useRouteWaypoints(() => ({
   waypoints: directionsStore.trips?.request?.waypoints,
@@ -1077,7 +1094,8 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </span>
       </div>
 
-      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" class="mt-1" />
+      <TripColorPicker v-model="colorBy" :segments="trip.segments" class="mt-2" />
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" class="mt-1" />
 
       <TripTimeline
         class="mt-5"

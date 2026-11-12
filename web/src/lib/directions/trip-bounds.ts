@@ -37,3 +37,17 @@ export function tripsBounds(
 
   return Number.isFinite(bounds.minLat) ? bounds : null
 }
+
+/** The view already frames these bounds: they sit inside it and span at least `fill` of it one way or the other. */
+export function boundsFillView(
+  bounds: Bounds,
+  view: { north: number; south: number; east: number; west: number } | null,
+  fill = 0.5,
+): boolean {
+  if (!view) return false
+  const inside = bounds.minLat >= view.south && bounds.maxLat <= view.north && bounds.minLng >= view.west && bounds.maxLng <= view.east
+  if (!inside) return false
+  const tall = (bounds.maxLat - bounds.minLat) / (view.north - view.south || 1)
+  const wide = (bounds.maxLng - bounds.minLng) / (view.east - view.west || 1)
+  return Math.max(tall, wide) >= fill
+}

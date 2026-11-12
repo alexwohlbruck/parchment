@@ -51,7 +51,7 @@ import {
   GRID_SNAP_THRESHOLD_DEG,
 } from '@/lib/geo/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { tripsBounds } from '@/lib/directions/trip-bounds'
+import { boundsFillView, tripsBounds } from '@/lib/directions/trip-bounds'
 import type { TripsResponse } from '@/types/directions.types'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -1413,10 +1413,49 @@ function mapService() {
     mapStrategy?.destroy() // Remove map instance
   }
 
+  /**
+   * Get the geographic bounds of the visible (unobstructed) map area.
+   * Uses appStore.visibleMapArea to account for left sheet, bottom sheet,
+   * and other obstructing components, then unprojects the corners to
+   * geographic coordinates. Falls back to full viewport bounds.
+   */
+  function getVisibleBounds(): MapBounds | null {
+    const map = mapStrategy?.mapInstance
+    if (!map?.unproject) return mapStrategy?.getBounds() || null
+
+    const viewportArea = appStore.visibleMapArea
+    if (!viewportArea || !viewportArea.width || !viewportArea.height) {
+      return mapStrategy?.getBounds() || null
+    }
+
+    // `unproject` reads container-relative pixels, and the obstruction
+    // bounds are viewport-relative — on desktop the sidebar sits between
+    // the two origins.
+    const visibleArea = mapContainer
+      ? toContainerRect(viewportArea, mapContainer.getBoundingClientRect())
+      : viewportArea
+
+    // Unproject the four corners of the visible area rect (pixel → lng/lat)
+    const nw = map.unproject([visibleArea.x, visibleArea.y])
+    const ne = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y])
+    const sw = map.unproject([visibleArea.x, visibleArea.y + visibleArea.height])
+    const se = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y + visibleArea.height])
+
+    if (!nw || !ne || !sw || !se) return mapStrategy?.getBounds() || null
+
+    return {
+      north: Math.max(nw.lat, ne.lat, sw.lat, se.lat),
+      south: Math.min(nw.lat, ne.lat, sw.lat, se.lat),
+      east: Math.max(nw.lng, ne.lng, sw.lng, se.lng),
+      west: Math.min(nw.lng, ne.lng, sw.lng, se.lng),
+    }
+  }
+
   function showTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
     if (!mapStrategy?.setTrips(trips, visibleTripIds)) return
     const bounds = tripsBounds(trips, visibleTripIds)
-    if (bounds) fitBounds(bounds, { duration: 1000 })
+    // Hovering down the list, the trips between the same two places mostly fit the view already; refitting each one swings the camera.
+    if (bounds && !boundsFillView(bounds, getVisibleBounds())) fitBounds(bounds, { duration: 1000 })
   }
 
   /**
@@ -1670,43 +1709,7 @@ function mapService() {
       return mapStrategy?.getBounds() || null
     },
 
-    /**
-     * Get the geographic bounds of the visible (unobstructed) map area.
-     * Uses appStore.visibleMapArea to account for left sheet, bottom sheet,
-     * and other obstructing components, then unprojects the corners to
-     * geographic coordinates. Falls back to full viewport bounds.
-     */
-    getVisibleBounds(): MapBounds | null {
-      const map = mapStrategy?.mapInstance
-      if (!map?.unproject) return mapStrategy?.getBounds() || null
-
-      const viewportArea = appStore.visibleMapArea
-      if (!viewportArea || !viewportArea.width || !viewportArea.height) {
-        return mapStrategy?.getBounds() || null
-      }
-
-      // `unproject` reads container-relative pixels, and the obstruction
-      // bounds are viewport-relative — on desktop the sidebar sits between
-      // the two origins.
-      const visibleArea = mapContainer
-        ? toContainerRect(viewportArea, mapContainer.getBoundingClientRect())
-        : viewportArea
-
-      // Unproject the four corners of the visible area rect (pixel → lng/lat)
-      const nw = map.unproject([visibleArea.x, visibleArea.y])
-      const ne = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y])
-      const sw = map.unproject([visibleArea.x, visibleArea.y + visibleArea.height])
-      const se = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y + visibleArea.height])
-
-      if (!nw || !ne || !sw || !se) return mapStrategy?.getBounds() || null
-
-      return {
-        north: Math.max(nw.lat, ne.lat, sw.lat, se.lat),
-        south: Math.min(nw.lat, ne.lat, sw.lat, se.lat),
-        east: Math.max(nw.lng, ne.lng, sw.lng, se.lng),
-        west: Math.min(nw.lng, ne.lng, sw.lng, se.lng),
-      }
-    },
+    getVisibleBounds,
 
     // Get current map center
     getCenter() {

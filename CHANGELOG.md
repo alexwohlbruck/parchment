@@ -11,6 +11,9 @@
 
 ### Fixed
 
+* A trip's route draws over the transit lines it rides, so hovering a transit trip shows its own line instead of hiding it under the network.
+* Hovering between trips no longer swings the map when the trip is already in view.
+
 * Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.
 * Transit trips draw each line in the same colour the map uses, so Charlotte's Blue and Gold lines no longer fall back to the app's accent colour.
 

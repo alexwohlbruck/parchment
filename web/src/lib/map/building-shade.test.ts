@@ -76,11 +76,15 @@ describe('roof colour', () => {
 
 describe('terrain-aware building shade', () => {
   test('every geometry pass samples the DEM', () => {
-    // The buildings, the cast shadow and the occlusion seed all project the
-    // same footprints; one of them left at zero puts that pass out of register
-    // with the other two.
+    // Buildings stand on their footprint's lowest ground, as MapLibre's do.
     expect(source).not.toContain('get_elevation(a_centroid)')
-    expect(source.match(/anchor_elevation\(a_centroid\)/g)?.length).toBeGreaterThanOrEqual(4)
+    expect(source.match(/anchor_elevation\(a_centroid\)/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('ground shadow and occlusion lie on the ground beneath each vertex', () => {
+    // At the footprint's lowest point they would show below the uphill walls.
+    expect(source).toContain('gl_Position = u_matrix * vec4(p, get_elevation(p), 1.0);')
+    expect(source).toContain('gl_Position = u_matrix * vec4(a_pos, get_elevation(a_pos), 1.0);')
   })
 
   test('the centroid attribute is bound from MapLibre\'s own buffer', () => {

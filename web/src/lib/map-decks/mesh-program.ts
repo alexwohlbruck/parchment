@@ -5,6 +5,7 @@
 import type { Mesh } from './decks'
 import { MATERIALS } from './baked/mesh-file'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import type { GroundShadow } from '@/lib/vendor/ao-shadow'
 
 // `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
 // sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
@@ -71,7 +72,8 @@ const FS = `#version 300 es
   uniform float u_shadowAlpha;
   uniform sampler2D u_mask;
   uniform float u_maskAlpha;
-  uniform float u_maskBlur;
+  uniform vec2 u_maskBlur;
+  uniform float u_maskLod;
   uniform vec2 u_viewport;
   in vec3 v_color;
   in vec4 v_sun;
@@ -86,7 +88,7 @@ const FS = `#version 300 es
     for (int dy = -1; dy <= 1; dy++)
       for (int dx = -1; dx <= 1; dx++) {
         float w = exp(-0.5 * float(dx * dx + dy * dy));
-        sh += textureLod(u_mask, uv + vec2(float(dx), float(dy)) * u_maskBlur * 2.0, 0.0).a * w;
+        sh += textureLod(u_mask, uv + vec2(float(dx), float(dy)) * u_maskBlur * 2.0, u_maskLod + 1.0).a * w;
         sw += w;
       }
     return sh / sw * u_maskAlpha;
@@ -191,7 +193,7 @@ export type MeshView = {
    * The buildings' shadows: their sun shadow map, the origin the mesh is drawn about and how dark a shadow is;
    * their screen-space ground shadow mask; and the bias a vertex lying on the ground has.
    */
-  sun?: { frame: SunFrame | null; origin: [number, number]; alpha: number; ground: { texture: WebGLTexture; blurStep: number; alpha: number } | null; gradeBias: number }
+  sun?: { frame: SunFrame | null; origin: [number, number]; alpha: number; ground: GroundShadow | null; gradeBias: number }
 }
 
 /**
@@ -199,7 +201,7 @@ export type MeshView = {
  * its attributes; returns a draw for a range of vertices and an unbind. A mesh
  * without low colours or biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'maskLod' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
 const locations = new WeakMap<WebGLProgram, Locations>()
 const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
 
@@ -223,7 +225,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   if (!at) {
     const u = (name: string) => gl.getUniformLocation(program, name)
     at = {
-      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), gradeBias: u('u_grade_bias') },
+      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), maskLod: u('u_maskLod'), gradeBias: u('u_grade_bias') },
       sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
       attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
     }
@@ -248,7 +250,8 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   const ground = view.sun?.ground ?? null
   gl.uniform1f(at.uniforms.gradeBias, view.sun?.gradeBias ?? 0)
   gl.uniform1f(at.uniforms.maskAlpha, ground?.alpha ?? 0)
-  gl.uniform1f(at.uniforms.maskBlur, ground?.blurStep ?? 0)
+  gl.uniform2f(at.uniforms.maskBlur, ground?.blurStep[0] ?? 0, ground?.blurStep[1] ?? 0)
+  gl.uniform1f(at.uniforms.maskLod, ground?.blurLod ?? 0)
   gl.uniform1i(at.uniforms.mask, MASK_UNIT)
   gl.activeTexture(gl.TEXTURE0 + MASK_UNIT)
   gl.bindTexture(gl.TEXTURE_2D, ground?.texture ?? emptyMask(gl))

@@ -1,110 +1,117 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
-import { formatClock, modeTextColor } from '@/lib/directions/trip-display'
+import { computed, ref, useId } from 'vue'
+import { useElementSize } from '@vueuse/core'
+import TripBar from '@/components/directions/TripBar.vue'
+import { formatClock } from '@/lib/directions/trip-display'
+import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import { stripX, tripStrip, type StripSegment } from '@/lib/directions/trip-strip'
 
 const props = defineProps<{
-  segments: StripSegment[]
+  segments: (StripSegment & { lineName?: string; lineTextColor?: string | null; legIndex?: number })[]
   /** Live: how far along the trip the traveller is. */
   progress?: { segment: number; offset: number } | null
 }>()
 
-const W = 320
-const BAR_Y = 46
-const BAR_H = 5
-const TOP = 4
-const GAP = 1.5
+/** Profile height; its baseline sits on the bar's centre line. */
+const H = 44
+const BAR_CENTER = 14
 
 const id = useId()
+const inner = ref<HTMLElement | null>(null)
+const { width } = useElementSize(inner)
+
+const start = computed(() => new Date(props.segments[0]?.startTime ?? 0))
+const minutes = computed(() => {
+  const end = props.segments.at(-1)?.endTime
+  return end ? Math.max(1, (new Date(end).getTime() - start.value.getTime()) / 60000) : 1
+})
+const pxPerMinute = computed(() => width.value / minutes.value)
+
 const model = computed(() => tripStrip(props.segments))
-const height = computed(() => (model.value.profiles.length ? BAR_Y + BAR_H : BAR_H))
-const barY = computed(() => height.value - BAR_H)
 
 const colorOf = (index: number) => {
   const segment = props.segments[index]
-  return segment.lineColor
-    ? { class: '', style: { color: `#${segment.lineColor}` } }
-    : { class: modeTextColor(segment.mode), style: {} }
+  return segment.lineColor ? `#${segment.lineColor}` : getTravelModeColor(segment.mode)
 }
 
-const bars = computed(() =>
-  model.value.legs.flatMap(leg => {
-    const moving = { key: `m${leg.index}`, x: leg.x0 * W + GAP, w: Math.max(2, (leg.x1 - leg.x0) * W - GAP * 2), wait: false, ...colorOf(leg.index) }
-    const waitW = (leg.xEnd - leg.x1) * W - GAP * 2
-    return waitW > 2 ? [moving, { key: `w${leg.index}`, x: leg.x1 * W + GAP, w: waitW, wait: true, class: '', style: {} }] : [moving]
-  }),
-)
-
-const y = (v: number) => TOP + (1 - v) * (BAR_Y - TOP - 4)
+const y = (v: number) => 2 + (1 - v) * (H - 8)
 
 const profiles = computed(() =>
   model.value.profiles.map(({ index, points }) => {
-    const line = points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * W).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ')
-    const first = points[0].x * W
-    const last = points.at(-1)!.x * W
-    return { index, line, area: `${line} L${last.toFixed(1)} ${BAR_Y} L${first.toFixed(1)} ${BAR_Y}Z`, ...colorOf(index) }
+    const w = width.value
+    const line = points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * w).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ')
+    const first = points[0].x * w
+    const last = points.at(-1)!.x * w
+    return { index, line, area: `${line} L${last.toFixed(1)} ${H} L${first.toFixed(1)} ${H}Z`, color: colorOf(index) }
   }),
 )
 
-const markers = computed(() => (model.value.profiles.length ? model.value.markers.map(m => ({ ...m, x: m.x * W })) : []))
+/** Where the bar's centre line sits below the top of the strip. */
+const barY = computed(() => (profiles.value.length ? H : BAR_CENTER))
+
+const markers = computed(() => (profiles.value.length ? model.value.markers.map(m => m.x * width.value) : []))
 
 const progressX = computed(() =>
-  props.progress ? stripX(model.value, props.segments, props.progress.segment, props.progress.offset) * W : null,
+  props.progress ? stripX(model.value, props.segments, props.progress.segment, props.progress.offset) * width.value : null,
 )
 
-const startLabel = computed(() => (props.segments[0] ? formatClock(new Date(props.segments[0].startTime)) : ''))
+const startLabel = computed(() => (props.segments.length ? formatClock(start.value) : ''))
 const endLabel = computed(() => (props.segments.length ? formatClock(new Date(props.segments.at(-1)!.endTime)) : ''))
 </script>
 
 <template>
-  <div v-if="segments.length">
-    <svg :viewBox="`0 0 ${W} ${height}`" class="block w-full h-auto overflow-visible" aria-hidden="true">
-      <defs>
-        <linearGradient
-          v-for="p in profiles"
-          :id="`${id}-fade-${p.index}`"
-          :key="p.index"
-          :class="p.class"
-          :style="p.style"
-          x1="0" y1="0" x2="0" y2="1"
+  <div v-if="segments.length" class="px-3">
+    <div ref="inner" class="relative">
+      <template v-if="profiles.length && width">
+        <div :style="{ height: `${H - BAR_CENTER}px` }" />
+        <svg
+          class="pointer-events-none absolute left-0 top-0 w-full overflow-visible"
+          :height="H"
+          :viewBox="`0 0 ${width} ${H}`"
+          preserveAspectRatio="none"
+          aria-hidden="true"
         >
-          <stop offset="0" stop-color="currentColor" stop-opacity="0.3" />
-          <stop offset="1" stop-color="currentColor" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <g v-for="p in profiles" :key="p.index" :class="p.class" :style="p.style">
-        <path :d="p.area" :fill="`url(#${id}-fade-${p.index})`" />
-        <path :d="p.line" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
-      </g>
-      <rect
-        v-for="bar in bars"
-        :key="bar.key"
-        :x="bar.x"
-        :y="barY"
-        :width="bar.w"
-        :height="BAR_H"
-        :rx="BAR_H / 2"
-        :class="bar.wait ? 'fill-muted-foreground/30' : bar.class"
-        :style="bar.style"
-        :fill="bar.wait ? undefined : 'currentColor'"
-      />
-      <path
-        v-for="(m, i) in markers"
-        :key="i"
-        :d="`M${m.x} ${BAR_Y - 6} l3.5 5 h-7z`"
-        class="fill-amber-700 dark:fill-amber-400"
+          <defs>
+            <linearGradient v-for="p in profiles" :id="`${id}-fade-${p.index}`" :key="p.index" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" :stop-color="p.color" stop-opacity="0.3" />
+              <stop offset="1" :stop-color="p.color" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <g v-for="p in profiles" :key="p.index">
+            <path :d="p.area" :fill="`url(#${id}-fade-${p.index})`" />
+            <path :d="p.line" fill="none" :stroke="p.color" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+          </g>
+          <path
+            v-for="(x, i) in markers"
+            :key="i"
+            :d="`M${x} ${H - 13} l3.5 5 h-7z`"
+            class="fill-amber-600 dark:fill-amber-400"
+          />
+          <line
+            v-if="progressX != null"
+            :x1="progressX" :x2="progressX" y1="2" :y2="H"
+            class="stroke-primary" stroke-width="1.5" stroke-dasharray="2 2"
+          />
+        </svg>
+      </template>
+      <TripBar
+        v-if="width"
+        :segments="segments"
+        :timeline-start="start"
+        :px-per-minute="pxPerMinute"
       />
       <template v-if="progressX != null">
-        <rect :x="progressX" y="0" :width="W - progressX + GAP" :height="height + 1" class="fill-background/55" />
-        <line
-          v-if="profiles.length"
-          :x1="progressX" :x2="progressX" :y1="TOP" :y2="barY"
-          class="stroke-primary" stroke-width="1.5" stroke-dasharray="2 2"
+        <div
+          class="pointer-events-none absolute inset-y-0 right-[-12px] z-[30] bg-background/55"
+          :style="{ left: `${progressX}px` }"
         />
-        <circle :cx="progressX" :cy="barY + BAR_H / 2" r="5" class="fill-primary stroke-background" stroke-width="2" />
+        <div
+          class="pointer-events-none absolute z-[40] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-sm"
+          :style="{ left: `${progressX}px`, top: `${barY}px` }"
+        />
       </template>
-    </svg>
-    <div class="mt-1.5 flex justify-between text-[11px] text-muted-foreground tabular-nums">
+    </div>
+    <div class="mt-1 flex justify-between text-[11px] text-muted-foreground tabular-nums">
       <span>{{ startLabel }}</span>
       <span>{{ endLabel }}</span>
     </div>

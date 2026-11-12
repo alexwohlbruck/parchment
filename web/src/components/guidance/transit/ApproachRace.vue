@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { arrivalZone, spareZones, type Race, type RaceZoneKind } from '@/lib/directions/trip-advice'
+import { spareZones, type Race } from '@/lib/directions/trip-advice'
 import { formatClockCompact } from '@/lib/directions/trip-display'
 
 /** When you reach the stop, on a fixed timeline around the departure: walking slower drags the marker later. */
@@ -21,23 +21,22 @@ const TICKS = [10, 5, 0, -5].map(m => m * MIN)
 const at = (spareMs: number) => (EARLIEST - Math.min(EARLIEST, Math.max(LATEST, spareMs))) / (EARLIEST - LATEST)
 const pct = (spareMs: number) => `${at(spareMs) * 100}%`
 
-const ZONE_COLORS: Record<RaceZoneKind, string> = {
-  calm: 'bg-forest-400',
-  leave: 'bg-forest-600',
-  hurry: 'bg-amber-500',
-  run: 'bg-orange-600',
-  tooFar: 'bg-red-600',
-}
-const zone = computed(() => arrivalZone(props.race, props.nowMs))
+/** Half the width over which one zone's colour blends into the next, as a share of the track. */
+const BLEND = 0.04
 
-/** The track, with the outermost zones stretched to the timeline's ends. */
-const segments = computed(() => {
+/** One gradient across the track, each zone's colour easing into its neighbour's at their boundary. */
+const gradient = computed(() => {
   const zones = spareZones(props.race, props.nowMs)
-  return zones.map((z, i) => {
-    const latest = i === 0 ? LATEST : z.fromMs
-    const earliest = i === zones.length - 1 ? EARLIEST : z.toMs
-    return { kind: z.kind, left: pct(earliest), width: `${(at(latest) - at(earliest)) * 100}%`, color: ZONE_COLORS[z.kind] }
+    .reverse()
+    .map(z => ({ kind: z.kind, left: at(z.toMs), right: at(z.fromMs) }))
+    .filter(z => z.right > z.left)
+  const stops = zones.flatMap((z, i) => {
+    const edge = Math.min(BLEND, (z.right - z.left) / 2)
+    const from = i === 0 ? 0 : z.left + edge
+    const to = i === zones.length - 1 ? 1 : z.right - edge
+    return [`var(--zone-${z.kind}) ${from * 100}%`, `var(--zone-${z.kind}) ${to * 100}%`]
   })
+  return `linear-gradient(to right, ${stops.join(', ')})`
 })
 
 const ticks = computed(() =>
@@ -78,13 +77,7 @@ const label = computed(() =>
       </span>
     </div>
     <div class="relative h-[18px]">
-      <div
-        v-for="s in segments"
-        :key="s.kind"
-        class="absolute top-1/2 h-1.5 -translate-y-1/2 transition-all duration-700 first:rounded-l-full last:rounded-r-full"
-        :class="[s.color, s.kind === zone ? 'opacity-100' : 'opacity-30']"
-        :style="{ left: s.left, width: s.width }"
-      />
+      <div class="zones absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full" :style="{ backgroundImage: gradient }" />
       <div class="absolute top-1/2 h-3.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/70" :style="{ left: pct(0) }" />
       <div
         class="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary shadow-sm ring-[3px] ring-primary/25 transition-[left] duration-700"
@@ -104,3 +97,20 @@ const label = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+.zones {
+  --zone-calm: #2a9d8f;
+  --zone-leave: #3f9b5a;
+  --zone-hurry: #e0a100;
+  --zone-run: #e86a1c;
+  --zone-tooFar: #d93b3b;
+}
+.dark .zones {
+  --zone-calm: #5cc8b8;
+  --zone-leave: #6fcf7f;
+  --zone-hurry: #f5c542;
+  --zone-run: #ff8a3d;
+  --zone-tooFar: #ff5c5c;
+}
+</style>

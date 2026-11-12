@@ -7,7 +7,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { SectionHeader } from '@/components/ui/section-header'
 
 const props = defineProps<{
   count: number
@@ -27,21 +26,18 @@ const open = computed({
 
 <template>
   <Collapsible v-if="count > 0" v-model:open="open">
-    <CollapsibleTrigger as-child>
-      <SectionHeader
-        :title="t('library.archived')"
-        :icon="ArchiveIcon"
-        :count="count"
-        clickable
-        class="py-2"
-      >
-        <template #trailing>
-          <ChevronDownIcon
-            class="size-4 shrink-0 text-muted-foreground transition-transform"
-            :class="{ 'rotate-180': open }"
-          />
-        </template>
-      </SectionHeader>
+    <CollapsibleTrigger
+      class="group flex w-full items-center gap-2 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ArchiveIcon class="size-4 shrink-0" />
+      <span class="flex-1">
+        {{ t('library.archived') }}
+        <span class="font-normal">({{ count }})</span>
+      </span>
+      <ChevronDownIcon
+        class="size-4 shrink-0 transition-transform"
+        :class="{ 'rotate-180': open }"
+      />
     </CollapsibleTrigger>
     <CollapsibleContent class="flex flex-col gap-2">
       <slot />

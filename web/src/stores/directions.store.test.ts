@@ -276,6 +276,16 @@ describe('useDirectionsStore', () => {
       expect(store.trips).toBeNull()
       expect(store.selectedTripId).toBeNull()
     })
+
+    test('forgets the search the trips answered, so it plans again', () => {
+      const store = useDirectionsStore()
+      store.setPlanned('a|walking')
+      expect(store.plannedKey).toBe('a|walking')
+
+      store.unsetTrips()
+
+      expect(store.plannedKey).toBe('')
+    })
   })
 
   describe('setSelectedTripId', () => {

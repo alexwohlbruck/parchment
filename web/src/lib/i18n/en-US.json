@@ -767,8 +767,7 @@
         "tooFar": "Moved to the {line} at {time}; the {from} is out of reach"
       },
       "race": {
-        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
-        "late": "Late"
+        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min"
       },
       "status": {
         "leaveIn": "Leave in {minutes} min",

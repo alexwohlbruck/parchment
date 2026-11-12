@@ -748,8 +748,7 @@
         "tooFar": "Cambiado al {line} de las {time}; no llegas al de las {from}"
       },
       "race": {
-        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
-        "late": "Tarde"
+        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min"
       },
       "status": {
         "leaveIn": "Sal en {minutes} min",

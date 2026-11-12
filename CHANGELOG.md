@@ -4,7 +4,7 @@
 
 ### Changed
 
-* While you walk to a transit stop, navigation shows how early or late you'll arrive on a gauge that moves as you speed up or slow down. It says Early when you'll have more than five minutes to spare.
+* While you walk to a transit stop, navigation shows when you'll reach it on a timeline around the departure, coloured from early to too late. It says Early when you'll have more than five minutes to spare.
 
 ### Fixed
 

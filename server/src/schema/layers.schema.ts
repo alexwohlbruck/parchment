@@ -58,6 +58,7 @@ export const layers = pgTable('layers', {
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -77,6 +78,7 @@ export const layerGroups = pgTable('layer_groups', {
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -112,6 +114,7 @@ export const defaultLayerUserState = pgTable(
     showInLayerSelector: boolean('show_in_layer_selector'),
     groupId: text('group_id'),
     parentGroupId: text('parent_group_id'),
+    archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

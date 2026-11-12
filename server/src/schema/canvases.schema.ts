@@ -82,6 +82,7 @@ export const canvases = pgTable(
     // Reserved for a future Yjs / CRDT document format; not in use yet.
     futureCrdtFormatVersion: integer('future_crdt_format_version'),
 
+    archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
 import RouteCard from '@/components/library/routes/RouteCard.vue'
+import ArchivedSection from '@/components/library/ArchivedSection.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
@@ -24,19 +25,10 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const localRoutes = ref<Route[]>([...props.routes])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt' | 'distance'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
-
-watch(
-  () => props.routes,
-  (newRoutes) => {
-    localRoutes.value = [...newRoutes]
-  },
-  { deep: true },
-)
 
 function routeDistance(r: Route): number {
   return r.distance ?? r.body?.stats?.distance ?? 0
@@ -44,11 +36,11 @@ function routeDistance(r: Route): number {
 
 const filteredRoutes = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localRoutes.value, searchQuery.value, {
+    ? fuzzyFilter(props.routes, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : localRoutes.value
+    : props.routes
 
   result = [...result].sort((a, b) => {
     let comparison = 0
@@ -68,6 +60,9 @@ const filteredRoutes = computed(() => {
 
   return result
 })
+
+const activeRoutes = computed(() => filteredRoutes.value.filter(r => !r.archivedAt))
+const archivedRoutes = computed(() => filteredRoutes.value.filter(r => r.archivedAt))
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -161,11 +156,23 @@ function createRoute() {
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">
       <RouteCard
-        v-for="route in filteredRoutes"
+        v-for="route in activeRoutes"
         :key="route.id"
         :route="route"
         class="w-full"
       />
+      <ArchivedSection
+        :count="archivedRoutes.length"
+        :force-open="!!searchQuery"
+        :class="{ 'pt-2': activeRoutes.length > 0 }"
+      >
+        <RouteCard
+          v-for="route in archivedRoutes"
+          :key="route.id"
+          :route="route"
+          class="w-full"
+        />
+      </ArchivedSection>
     </div>
   </div>
 </template>

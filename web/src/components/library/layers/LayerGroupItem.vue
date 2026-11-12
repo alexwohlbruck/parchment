@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
+import { useArchiveService } from '@/services/library/archive.service'
 import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
 import { groupSubtreeMatches, matchesQuery } from '@/lib/map/layer-search'
 import { useDragAndDrop } from '@/composables/map/useDragAndDrop'
@@ -19,6 +20,7 @@ import {
   FolderIcon,
   PencilIcon,
   TrashIcon,
+  ArchiveIcon,
 } from 'lucide-vue-next'
 import {
   DropdownMenu,
@@ -63,6 +65,7 @@ const { t } = useI18n()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const appService = useAppService()
+const archiveService = useArchiveService()
 const mapService = useMapService()
 
 const query = computed(() => (props.filter ?? '').trim().toLowerCase())
@@ -291,6 +294,13 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </template>
+            <DropdownMenuItem
+              v-if="!isVirtual"
+              @click="archiveService.setLayerArchived(group, true)"
+            >
+              <ArchiveIcon class="size-3 mr-2" />
+              {{ t('general.archive') }}
+            </DropdownMenuItem>
             <DropdownMenuItem
               v-if="!isVirtual"
               @click="deleteGroup"

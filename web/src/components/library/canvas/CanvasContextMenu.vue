@@ -19,6 +19,8 @@ import { useAppService } from '@/services/app.service'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { currentMapSettings } from '@/composables/canvas/useCanvasMapSettings'
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   Building2Icon,
   DoorOpenIcon,
   InfoIcon,
@@ -149,6 +151,13 @@ const menuItems = computed<MenuItemDefinition[]>(() => [
     label: t('canvases.dialog.editTitle'),
     icon: markRaw(PencilIcon),
     onSelect: () => emit('edit'),
+  },
+  {
+    type: 'item',
+    id: 'archive',
+    label: t(props.canvas.archivedAt ? 'general.unarchive' : 'general.archive'),
+    icon: markRaw(props.canvas.archivedAt ? ArchiveRestoreIcon : ArchiveIcon),
+    onSelect: () => canvasesService.setArchived(props.canvas.id, !props.canvas.archivedAt),
   },
   {
     type: 'item',

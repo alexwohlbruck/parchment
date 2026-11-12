@@ -2,7 +2,7 @@
 
 ### Added
 
-* Archive a collection to take it off the map and out of your list without deleting it. Archiving a shared collection only hides it for you.
+* Archive collections, routes, layers and canvases to take them off the map and out of your library without deleting them. Archiving a shared collection only hides it for you.
 
 ### Changed
 

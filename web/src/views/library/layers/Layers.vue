@@ -36,12 +36,15 @@ import { useLayersStore } from '@/stores/layers.store'
 import Layers from '@/components/library/layers/LayerList.vue'
 import LayerStoreDialog from '@/components/library/layers/LayerStoreDialog.vue'
 import LayerGroupConfiguration from '@/components/library/layers/LayerGroupConfiguration.vue'
+import ArchivedLayerRow from '@/components/library/layers/ArchivedLayerRow.vue'
+import ArchivedSection from '@/components/library/ArchivedSection.vue'
+import { matchesQuery } from '@/lib/map/layer-search'
 
 const { t } = useI18n()
 const router = useRouter()
 const appService = useAppService()
 const layersStore = useLayersStore()
-const { mainReorderableItems } = storeToRefs(layersStore)
+const { mainReorderableItems, archivedItems } = storeToRefs(layersStore)
 
 // The layer editor is a sheet view, not a dialog: it renders the draft on
 // the live map while you edit, which a modal over the map cannot do.
@@ -72,8 +75,16 @@ onMounted(load)
 onReconnected(load)
 
 const isEmpty = computed(
-  () => !loading.value && mainReorderableItems.value.length === 0,
+  () =>
+    !loading.value &&
+    mainReorderableItems.value.length === 0 &&
+    archivedItems.value.length === 0,
 )
+
+const archivedMatches = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  return archivedItems.value.filter(item => matchesQuery(item.name, query))
+})
 const showOffline = computed(() => isEmpty.value && isOffline.value)
 </script>
 
@@ -139,6 +150,17 @@ const showOffline = computed(() => isEmpty.value && isOffline.value)
       </DropdownMenu>
     </div>
     <Layers class="flex-1 min-h-0" :filter="searchQuery" />
+    <ArchivedSection
+      :count="archivedMatches.length"
+      :force-open="!!searchQuery.trim()"
+      class="pb-4"
+    >
+      <ArchivedLayerRow
+        v-for="item in archivedMatches"
+        :key="item.id"
+        :item="item"
+      />
+    </ArchivedSection>
   </div>
 
   <LayerStoreDialog v-model:open="storeOpen" />

@@ -16,15 +16,8 @@ import {
   PlusIcon,
   FilterIcon,
   CheckIcon,
-  ArchiveIcon,
-  ChevronDownIcon,
 } from 'lucide-vue-next'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { SectionHeader } from '@/components/ui/section-header'
+import ArchivedSection from '@/components/library/ArchivedSection.vue'
 import CollectionCard from '@/components/library/collections/CollectionCard.vue'
 import { createCollectionFromDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
@@ -91,13 +84,6 @@ const activeCollections = computed(() =>
 const archivedCollections = computed(() =>
   filteredCollections.value.filter(c => c.archivedAt),
 )
-const archivedExpanded = ref(false)
-const archivedOpen = computed({
-  get: () => archivedExpanded.value || !!searchQuery.value,
-  set: open => {
-    archivedExpanded.value = open
-  },
-})
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -258,36 +244,18 @@ async function createCollection() {
         class="w-full"
       />
 
-      <Collapsible
-        v-if="archivedCollections.length > 0"
-        v-model:open="archivedOpen"
+      <ArchivedSection
+        :count="archivedCollections.length"
+        :force-open="!!searchQuery"
         :class="{ 'pt-2': activeCollections.length > 0 }"
       >
-        <CollapsibleTrigger as-child>
-          <SectionHeader
-            :title="t('library.collections.archived')"
-            :icon="ArchiveIcon"
-            :count="archivedCollections.length"
-            clickable
-            class="py-2"
-          >
-            <template #trailing>
-              <ChevronDownIcon
-                class="size-4 shrink-0 text-muted-foreground transition-transform"
-                :class="{ 'rotate-180': archivedOpen }"
-              />
-            </template>
-          </SectionHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent class="flex flex-col gap-2">
-          <CollectionCard
-            v-for="collection in archivedCollections"
-            :key="collection.id"
-            :collection="collection"
-            class="w-full"
-          />
-        </CollapsibleContent>
-      </Collapsible>
+        <CollectionCard
+          v-for="collection in archivedCollections"
+          :key="collection.id"
+          :collection="collection"
+          class="w-full"
+        />
+      </ArchivedSection>
     </div>
   </div>
 </template>

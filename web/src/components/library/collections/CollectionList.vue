@@ -17,7 +17,6 @@ import {
   FilterIcon,
   CheckIcon,
 } from 'lucide-vue-next'
-import ArchivedSection from '@/components/library/ArchivedSection.vue'
 import CollectionCard from '@/components/library/collections/CollectionCard.vue'
 import { createCollectionFromDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
@@ -43,13 +42,15 @@ const sharedCount = computed(
   () => props.collections.filter((c) => c.role && c.role !== 'owner').length,
 )
 
+const activeCollections = computed(() => props.collections.filter(c => !c.archivedAt))
+
 const filteredCollections = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(props.collections, searchQuery.value, {
+    ? fuzzyFilter(activeCollections.value, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : props.collections
+    : activeCollections.value
 
   // Ownership filter runs after search so users can still find anything by
   // name even when "Shared with me" is active.
@@ -78,12 +79,6 @@ const filteredCollections = computed(() => {
   return result
 })
 
-const activeCollections = computed(() =>
-  filteredCollections.value.filter(c => !c.archivedAt),
-)
-const archivedCollections = computed(() =>
-  filteredCollections.value.filter(c => c.archivedAt),
-)
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -238,24 +233,12 @@ async function createCollection() {
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">
       <CollectionCard
-        v-for="collection in activeCollections"
+        v-for="collection in filteredCollections"
         :key="collection.id"
         :collection="collection"
         class="w-full"
       />
 
-      <ArchivedSection
-        :count="archivedCollections.length"
-        :force-open="!!searchQuery"
-        :class="{ 'pt-2': activeCollections.length > 0 }"
-      >
-        <CollectionCard
-          v-for="collection in archivedCollections"
-          :key="collection.id"
-          :collection="collection"
-          class="w-full"
-        />
-      </ArchivedSection>
     </div>
   </div>
 </template>

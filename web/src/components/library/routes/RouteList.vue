@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
 import RouteCard from '@/components/library/routes/RouteCard.vue'
-import ArchivedSection from '@/components/library/ArchivedSection.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
@@ -34,13 +33,15 @@ function routeDistance(r: Route): number {
   return r.distance ?? r.body?.stats?.distance ?? 0
 }
 
+const activeRoutes = computed(() => props.routes.filter(r => !r.archivedAt))
+
 const filteredRoutes = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(props.routes, searchQuery.value, {
+    ? fuzzyFilter(activeRoutes.value, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : props.routes
+    : activeRoutes.value
 
   result = [...result].sort((a, b) => {
     let comparison = 0
@@ -60,9 +61,6 @@ const filteredRoutes = computed(() => {
 
   return result
 })
-
-const activeRoutes = computed(() => filteredRoutes.value.filter(r => !r.archivedAt))
-const archivedRoutes = computed(() => filteredRoutes.value.filter(r => r.archivedAt))
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -156,23 +154,11 @@ function createRoute() {
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">
       <RouteCard
-        v-for="route in activeRoutes"
+        v-for="route in filteredRoutes"
         :key="route.id"
         :route="route"
         class="w-full"
       />
-      <ArchivedSection
-        :count="archivedRoutes.length"
-        :force-open="!!searchQuery"
-        :class="{ 'pt-2': activeRoutes.length > 0 }"
-      >
-        <RouteCard
-          v-for="route in archivedRoutes"
-          :key="route.id"
-          :route="route"
-          class="w-full"
-        />
-      </ArchivedSection>
     </div>
   </div>
 </template>

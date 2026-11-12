@@ -12,6 +12,11 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useI18n } from 'vue-i18n'
+import { ArchiveIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { CountBadge } from '@/components/ui/count-badge'
+import { useArchivedItems, type ArchiveKind } from '@/composables/library/useArchivedItems'
 
 const authService = useAuthService()
 const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.LIBRARY_READ))
@@ -43,6 +48,7 @@ const tabCounts = computed<Record<string, number | null>>(() => ({
 }))
 
 const router = useRouter()
+const { t } = useI18n()
 const route = useRoute()
 
 const tabValue = ref('collections')
@@ -61,6 +67,13 @@ watch(
   },
   { immediate: true },
 )
+
+const archived = useArchivedItems()
+const archivedCount = computed(() => archived.counts.value[tabValue.value as ArchiveKind] ?? 0)
+
+function openArchive() {
+  router.push({ name: AppRoute.LIBRARY_ARCHIVE, params: { kind: tabValue.value } })
+}
 
 function handleTabChange(tabId: string | number) {
   const tab = tabs.find(t => t.id === String(tabId))
@@ -95,6 +108,17 @@ function handleTabChange(tabId: string | number) {
 
         <div class="flex-1 pt-3">
           <router-view />
+        </div>
+
+        <div
+          v-if="archivedCount"
+          class="sticky bottom-0 -mx-3 -mb-4 px-3 py-3 bg-background/80 backdrop-blur-xl border-t border-border/50"
+        >
+          <Button variant="ghost" class="w-full justify-start gap-2 text-muted-foreground" @click="openArchive">
+            <ArchiveIcon class="size-4" />
+            {{ t('library.archived') }}
+            <CountBadge :count="archivedCount" />
+          </Button>
         </div>
       </Tabs>
     </template>

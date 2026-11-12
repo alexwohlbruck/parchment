@@ -1162,7 +1162,16 @@
         }
       }
     },
-    "archived": "Archived"
+    "archived": "Archived",
+    "archive": {
+      "title": {
+        "collections": "Archived collections",
+        "routes": "Archived routes",
+        "layers": "Archived layers",
+        "canvases": "Archived canvases"
+      },
+      "empty": "Nothing archived"
+    }
   },
   "services": {
     "bookmarks": {

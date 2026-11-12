@@ -11,7 +11,6 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import CanvasCard from '@/components/library/canvas/CanvasCard.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
-import ArchivedSection from '@/components/library/ArchivedSection.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { Button } from '@/components/ui/button'
@@ -46,7 +45,7 @@ const showOffline = computed(
 )
 
 const sorted = computed(() =>
-  [...canvases.value].sort(
+  canvases.value.filter(c => !c.archivedAt).sort(
     (a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   ),
@@ -59,9 +58,6 @@ const filtered = computed(() => {
     (canvas.name ?? '').toLowerCase().includes(q),
   )
 })
-
-const activeCanvases = computed(() => filtered.value.filter(c => !c.archivedAt))
-const archivedCanvases = computed(() => filtered.value.filter(c => c.archivedAt))
 
 function create() {
   editing.value = null
@@ -135,25 +131,12 @@ function openCreated(canvas: Canvas) {
 
     <div v-if="filtered.length" class="flex flex-col gap-2 pb-4">
       <CanvasCard
-        v-for="canvas in activeCanvases"
+        v-for="canvas in filtered"
         :key="canvas.id"
         :canvas="canvas"
         class="w-full"
         @rename="rename"
       />
-      <ArchivedSection
-        :count="archivedCanvases.length"
-        :force-open="!!searchQuery"
-        :class="{ 'pt-2': activeCanvases.length > 0 }"
-      >
-        <CanvasCard
-          v-for="canvas in archivedCanvases"
-          :key="canvas.id"
-          :canvas="canvas"
-          class="w-full"
-          @rename="rename"
-        />
-      </ArchivedSection>
     </div>
 
     <div v-else class="text-center py-8 text-muted-foreground">

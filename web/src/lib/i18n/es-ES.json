@@ -1136,7 +1136,16 @@
         }
       }
     },
-    "archived": "Archivado"
+    "archived": "Archivado",
+    "archive": {
+      "title": {
+        "collections": "Colecciones archivadas",
+        "routes": "Rutas archivadas",
+        "layers": "Capas archivadas",
+        "canvases": "Lienzos archivados"
+      },
+      "empty": "Nada archivado"
+    }
   },
   "services": {
     "bookmarks": {

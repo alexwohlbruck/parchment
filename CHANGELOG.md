@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+* A trip's elevation strip can be coloured by suitability, infrastructure, surface or incline instead of travel mode, with the route on the map coloured to match.
 
 ### Changed
 

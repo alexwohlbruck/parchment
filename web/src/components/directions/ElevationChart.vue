@@ -19,9 +19,9 @@ import type { RouteEdgeSegment, TravelMode } from '@/types/directions.types'
 import {
   type RouteProfileType,
   PROFILE_TABS,
-  CATEGORY_MAPS,
   getEdgeCategory,
 } from '@/lib/directions/route-profile-colors'
+import { profileStats, profileSummary } from '@/lib/directions/route-profile-stats'
 
 interface Props {
   /** Index of this segment within the trip — used to scope map updates */
@@ -358,64 +358,8 @@ const tooltipStyle = computed(() => {
 
 // ── Summary stats ───────────────────────────────────────────────────
 
-interface StatItem { key: string; label: string; color: string; percentage: number }
-
-function computeProfileStats(
-  segments: RouteEdgeSegment[],
-  profile: RouteProfileType,
-): StatItem[] {
-  const categoryMap = CATEGORY_MAPS[profile]
-  if (!categoryMap) return []
-
-  const groupTotals = new Map<string, { distance: number; label: string; color: string }>()
-  let totalDist = 0
-
-  for (const seg of segments) {
-    const cat = getEdgeCategory(profile, seg)
-    const dist = seg.endDistance - seg.startDistance
-    totalDist += dist
-    const existing = groupTotals.get(cat.group)
-    if (existing) existing.distance += dist
-    else groupTotals.set(cat.group, { distance: dist, label: cat.label, color: cat.color })
-  }
-
-  if (totalDist === 0) return []
-
-  return Array.from(groupTotals.values())
-    .map(g => ({
-      key: g.label,
-      label: g.label,
-      color: g.color,
-      percentage: Math.round((g.distance / totalDist) * 100),
-    }))
-    .filter(g => g.percentage > 0)
-    .sort((a, b) => b.percentage - a.percentage)
-}
-
-const activeStats = computed(() => {
-  if (!props.edgeSegments) return []
-  return computeProfileStats(props.edgeSegments, activeProfile.value)
-})
-
-function summarize(stats: StatItem[], mixedLabel: string): string {
-  if (stats.length === 0) return ''
-  const top = stats[0]
-  if (top.percentage >= 90) return `${top.label}`
-  if (top.percentage >= 65) return `Mostly ${top.label.toLowerCase()}`
-  if (stats.length === 2 && stats[1].percentage >= 25) return `${top.label} & ${stats[1].label.toLowerCase()}`
-  return mixedLabel
-}
-
-const MIXED_LABELS: Record<RouteProfileType, string> = {
-  surface: 'Mixed surfaces',
-  incline: 'Varied terrain',
-  stress: 'Mixed suitability',
-  infrastructure: 'Mixed infrastructure',
-}
-
-const activeSummary = computed(() =>
-  summarize(activeStats.value, MIXED_LABELS[activeProfile.value] || 'Mixed'),
-)
+const activeStats = computed(() => (props.edgeSegments ? profileStats(props.edgeSegments, activeProfile.value) : []))
+const activeSummary = computed(() => profileSummary(activeStats.value, activeProfile.value))
 </script>
 
 <template>

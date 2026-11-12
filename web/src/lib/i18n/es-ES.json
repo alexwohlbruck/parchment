@@ -971,6 +971,52 @@
       "goneBody": "Las salidas han cambiado desde que se planificó.",
       "planAgain": "Planificar de nuevo",
       "retry": "Reintentar"
+    },
+    "leg": {
+      "to": {
+        "walking": "Camina a {place}",
+        "cycling": "Pedalea a {place}",
+        "scooter": "Ve en patinete a {place}",
+        "driving": "Conduce a {place}"
+      },
+      "plain": {
+        "walking": "Camina",
+        "cycling": "Pedalea",
+        "scooter": "Patinete",
+        "driving": "Conduce"
+      },
+      "yourVehicle": "tu {vehicle}",
+      "route": "Ruta",
+      "allTurns": "Las {n} indicaciones",
+      "hideTurns": "Ocultar indicaciones",
+      "friendly": "{pct}% apto para bicis",
+      "stretchesLeft": "{done} de {n} hechos",
+      "left": "Quedan {distance}",
+      "surface": {
+        "steps": "Escaleras",
+        "protected": "Carril bici protegido",
+        "lane": "Carril bici",
+        "path": "Sendero",
+        "quiet": "Calle tranquila",
+        "road": "Con el tráfico",
+        "sidewalk": "Acera"
+      },
+      "unnamed": {
+        "steps": "Escaleras",
+        "protected": "Ciclovía",
+        "lane": "Carril bici",
+        "path": "Sendero",
+        "quiet": "Calle secundaria",
+        "road": "Calle sin nombre",
+        "unknown": "Vía sin nombre"
+      },
+      "climb": "Subida del {pct}%",
+      "handoff": {
+        "lockUp": "Aparca la bici",
+        "park": "Aparca",
+        "pickUp": "Recoge {vehicle}"
+      },
+      "stops": "{n} paradas"
     }
   },
   "library": {

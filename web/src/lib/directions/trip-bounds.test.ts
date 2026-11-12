@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tripsBounds } from './trip-bounds'
+import { boundsFillView, tripsBounds } from './trip-bounds'
 import type { TripsResponse } from '@/types/directions.types'
 
 const trips = {
@@ -19,5 +19,21 @@ describe('tripsBounds', () => {
 
   it('returns null when no trip is visible', () => {
     expect(tripsBounds(trips, new Set())).toBeNull()
+  })
+})
+
+describe('boundsFillView', () => {
+  const view = { north: 41, south: 40, east: -73, west: -74 }
+
+  it('leaves a trip that already fills the view where it is', () => {
+    expect(boundsFillView({ minLat: 40.2, maxLat: 40.9, minLng: -73.9, maxLng: -73.5 }, view)).toBe(true)
+  })
+
+  it('refits a trip that runs off the view', () => {
+    expect(boundsFillView({ minLat: 40.2, maxLat: 41.2, minLng: -73.9, maxLng: -73.5 }, view)).toBe(false)
+  })
+
+  it('refits a trip too small to read at this zoom', () => {
+    expect(boundsFillView({ minLat: 40.5, maxLat: 40.6, minLng: -73.6, maxLng: -73.5 }, view)).toBe(false)
   })
 })

@@ -13,7 +13,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { SOUND_MODES } from '@/lib/guidance/guidance-preferences'
 import { puckMode } from '@/lib/guidance/vehicle-indicator'
 import VehiclePicker from '../VehiclePicker.vue'
-import LiveTransitTimeline from '../transit/LiveTransitTimeline.vue'
+import LiveTripTimeline from '../LiveTripTimeline.vue'
 import { useGuidanceContext } from '../context'
 
 const { t } = useI18n()
@@ -22,7 +22,7 @@ const { camera, openPanel } = useGuidanceContext()
 
 const s = computed(() => guidance.progress?.puck.s ?? 0)
 const travelMode = computed(() => guidance.travelMode)
-const hasTransit = computed(() => guidance.segments.some(segment => segment.mode === 'transit'))
+const multiLeg = computed(() => guidance.segments.length > 1)
 const currentSegment = computed(() => (guidance.route ? segmentAt(guidance.route, s.value)?.index ?? 0 : 0))
 
 const actions = computed(() => guidance.kind === 'free' ? [
@@ -105,8 +105,8 @@ const choices = computed(() => [
 
 <template>
   <div class="space-y-6">
-    <LiveTransitTimeline
-      v-if="hasTransit"
+    <LiveTripTimeline
+      v-if="multiLeg"
       :segments="guidance.segments"
       :current="currentSegment"
       :stage="guidance.transit"

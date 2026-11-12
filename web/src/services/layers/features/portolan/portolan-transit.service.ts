@@ -40,7 +40,7 @@
  *    symbols — symbols must never see the layer filters or they gate twice.
  */
 
-import { belowRouteBandBeforeId } from '@/lib/map/layer-slots'
+import { routeBandLift } from '@/lib/map/layer-slots'
 import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import { getVersion } from 'maplibre-gl'
 import { networkDim } from './portolan-isolation-tuning'
@@ -1455,10 +1455,23 @@ const ghostId = (id: string) => `${id}-ghost`
  */
 function addLayer(spec: any, before?: string) {
   if (engine !== MapEngine.MAPLIBRE || !map.style?.addLayer) return map.addLayer(spec, before)
-  // Ribbons mount as tiles hydrate, after a trip's line may already be up; they go under it.
-  const anchor = spec.type === 'symbol' ? before : belowRouteBandBeforeId(styleLayers(), before)
-  map.style.addLayer(spec, anchor, { validate: false })
+  map.style.addLayer(spec, before, { validate: false })
   map._update(true)
+  if (spec.type !== 'symbol') queueRouteBandLift()
+}
+
+let liftQueued = false
+
+/** Ribbons mount as tiles hydrate, after a trip's line may already be up; lift it back over them. */
+function queueRouteBandLift() {
+  if (liftQueued) return
+  liftQueued = true
+  queueMicrotask(() => {
+    liftQueued = false
+    const lift = map && routeBandLift(styleLayers())
+    if (!lift) return
+    for (const id of lift.ids) map.moveLayer(id, lift.before)
+  })
 }
 
 function addSource(id: string, spec: any) {

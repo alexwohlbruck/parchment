@@ -106,25 +106,30 @@ export function inTunnelsBeforeId(layers: readonly StyleLayer[]): string | undef
 }
 
 /**
- * Just above the transit network's ribbons on the ground, still under the 3D
- * buildings and the labels: a trip's line is the subject of the view, so the
- * ribbons it rides must not draw over it.
+ * Just above the transit network's ribbons, ghosts included, and under its
+ * station labels: a trip's line is the subject of the view, so no ribbon it
+ * rides may draw over it, not even the see-through copy over the buildings.
  */
 export function aboveTransitBeforeId(layers: readonly StyleLayer[]): string | undefined {
-  const ground = layers.findIndex(l => l.type === 'fill-extrusion')
-  const end = ground < 0 ? layers.length : ground
+  const rest = layers.filter(l => !isRouteBand(l))
   let last = -1
-  for (let i = 0; i < end; i++) if (isOverlay(layers[i]) && layers[i].type !== 'symbol') last = i
-  if (last < 0) return belowLabelsBeforeId(layers)
-  return layers[last + 1]?.id
+  rest.forEach((l, i) => {
+    if (isOverlay(l) && l.type !== 'symbol') last = i
+  })
+  if (last < 0) return belowLabelsBeforeId(rest)
+  return rest[last + 1]?.id
 }
 
-/** Where the transit network inserts a ribbon: at `anchor`, or under the first trip line when that comes sooner. */
-export function belowRouteBandBeforeId(layers: readonly StyleLayer[], anchor: string | undefined): string | undefined {
-  const route = layers.findIndex(isRouteBand)
-  if (route < 0) return anchor
-  const at = anchor ? layers.findIndex(l => l.id === anchor) : layers.length
-  return route < at ? layers[route].id : anchor
+/**
+ * The trip lines to move, and where, once a ribbon has mounted above them.
+ * Ribbons keep the place the transit network chose; the trip line moves up.
+ */
+export function routeBandLift(layers: readonly StyleLayer[]): { ids: string[]; before: string | undefined } | null {
+  const first = layers.findIndex(isRouteBand)
+  if (first < 0) return null
+  const above = layers.slice(first).some(l => isOverlay(l) && l.type !== 'symbol')
+  if (!above) return null
+  return { ids: layers.filter(isRouteBand).map(l => l.id), before: aboveTransitBeforeId(layers) }
 }
 
 /**

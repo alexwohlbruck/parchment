@@ -6304,6 +6304,49 @@
         }
       }
     },
+    "/library/canvases/{id}/archive": {
+      "put": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "putLibraryCanvasesByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Archive a canvas",
+        "description": "Takes the canvas off the map and out of the main list without deleting it. Archived ones still come back from the list endpoint, with `archivedAt` set.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCanvasesByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Unarchive a canvas",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/library/canvases/": {
       "get": {
         "operationId": "getLibraryCanvases",
@@ -7437,6 +7480,49 @@
           "Library"
         ],
         "summary": "Delete a collection",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/collections/{id}/archive": {
+      "put": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "putLibraryCollectionsByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Archive a collection",
+        "description": "Files the collection away for the caller only: owners and share recipients each keep their own archive. Archived collections still come back from the list endpoints, with `archivedAt` set.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCollectionsByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Unarchive a collection",
         "responses": {
           "200": {}
         }
@@ -8877,6 +8963,7 @@
           "Layers"
         ],
         "summary": "Update a user-owned layer",
+        "description": "`archived: true` takes the item, and anything nested under it, off the map and the layer selector until `archived: false`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8978,6 +9065,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9080,6 +9170,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9182,6 +9275,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9426,6 +9522,7 @@
           "Layers"
         ],
         "summary": "Update a user-owned layer group",
+        "description": "`archived: true` takes the item, and anything nested under it, off the map and the layer selector until `archived: false`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -9477,6 +9574,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9529,6 +9629,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9581,6 +9684,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9966,6 +10072,7 @@
           "Layers"
         ],
         "summary": "Upsert user state for a default template",
+        "description": "`archived: true` takes the item, and anything nested under it, off the map and the layer selector until `archived: false`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10057,6 +10164,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -10153,6 +10263,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -10249,6 +10362,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "archived": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -10353,6 +10469,49 @@
             }
           }
         },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/routes/{id}/archive": {
+      "put": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "putLibraryRoutesByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Archive a route",
+        "description": "Takes the route off the map and out of the main list without deleting it. Archived ones still come back from the list endpoint, with `archivedAt` set.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryRoutesByIdArchive",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Unarchive a route",
         "responses": {
           "200": {}
         }

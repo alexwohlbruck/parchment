@@ -1333,7 +1333,7 @@ describe('TripService — scoring', () => {
     }
 
     /** Dispatch intermodal responses by pre-transit mode, like MOTIS would. */
-    function mockIntermodalByAccessMode() {
+    function mockIntermodalByAccessMode({ walkTransit = true } = {}) {
       mockGetIntermodalRoute.mockImplementation(async (req: any) => {
         if (req.preTransitModes?.includes('CAR_PARKING')) {
           return {
@@ -1348,7 +1348,7 @@ describe('TripService — scoring', () => {
           }
         }
         return {
-          itineraries: [makeTransitItinerary()],
+          itineraries: walkTransit ? [makeTransitItinerary()] : [],
           metadata: { searchWindow: 3600 },
         }
       })
@@ -1491,7 +1491,8 @@ describe('TripService — scoring', () => {
         location: { lat: 35.215, lng: -80.870 },
       }
 
-      mockIntermodalByAccessMode()
+      // Walking to the bus would beat walking 1 km to the bike first.
+      mockIntermodalByAccessMode({ walkTransit: false })
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
 
       const response = await tripService.planTrip({

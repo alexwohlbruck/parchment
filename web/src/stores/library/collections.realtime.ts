@@ -56,6 +56,11 @@ function applyPublicLinkChanged(payload: unknown) {
   applyUpdated(payload)
 }
 
+function applyArchiveChanged(payload: unknown) {
+  if (!isCollectionLike(payload)) return
+  useCollectionsStore().setArchivedAt(payload.id, payload.archivedAt ?? null)
+}
+
 /**
  * A new key or scheme invalidates every decrypted place. Refetching the
  * collection opens its new share envelope; places on screen re-decrypt.
@@ -130,6 +135,7 @@ registerRealtimeHandlers('collections', {
   'collection:rotated': applyRotatedOrSchemeChanged,
   'collection:scheme-changed': applyRotatedOrSchemeChanged,
   'collection:public-link-changed': applyPublicLinkChanged,
+  'collection:archive-changed': applyArchiveChanged,
   'share:envelope-updated': applyShareEnvelopeUpdated,
   // Share lifecycle events — the recipient may have just gained or lost
   // a collection in their library, so refetch (and fast-drop on revoke).

@@ -7,6 +7,8 @@ import {
   Pencil,
   Trash,
   Share2Icon,
+  ArchiveIcon,
+  ArchiveRestoreIcon,
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
@@ -95,6 +97,15 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
           },
         },
       ]
+
+  const archived = !!props.collection.archivedAt
+  items.push({
+    type: 'item',
+    id: 'archive',
+    label: t(archived ? 'general.unarchive' : 'general.archive'),
+    icon: markRaw(archived ? ArchiveRestoreIcon : ArchiveIcon),
+    onSelect: () => collectionsService.setArchived(props.collection.id, !archived),
+  })
 
   items.push({
     type: 'item',

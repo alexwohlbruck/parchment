@@ -361,6 +361,8 @@ export interface Layer {
   // Never set for core layers or fresh custom layers.
   origin?: LayerOrigin
   userId?: string
+  /** Archived items stay in the library but leave the map and the selector. */
+  archivedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -379,6 +381,7 @@ export interface LayerGroup {
   integrationId?: string | null
   origin?: LayerOrigin
   userId: string
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -484,6 +487,7 @@ export interface DefaultUserStateRow {
   showInLayerSelector: boolean | null
   groupId: string | null
   parentGroupId: string | null
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
 }

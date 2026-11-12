@@ -60,7 +60,10 @@
       "keepEditing": "Keep editing"
     },
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "undo": "Undo"
   },
   "weather": {
     "title": "Weather Conditions",
@@ -767,12 +770,7 @@
         "tooFar": "Moved to the {line} at {time}; the {from} is out of reach"
       },
       "race": {
-        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
-        "you": "You",
-        "walk": "{minutes} min to the stop",
-        "leaves": "leaves in {minutes} min",
-        "now": "Now",
-        "to": "to"
+        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min"
       },
       "status": {
         "leaveIn": "Leave in {minutes} min",
@@ -1050,7 +1048,8 @@
         "all": "All collections",
         "mine": "My collections",
         "shared": "Shared with me"
-      }
+      },
+      "archivedNotice": "This collection is archived."
     },
     "actions": {
       "addToCollection": "Add to collection",
@@ -1203,6 +1202,16 @@
           }
         }
       }
+    },
+    "archived": "Archived",
+    "archive": {
+      "title": {
+        "collections": "Archived collections",
+        "routes": "Archived routes",
+        "layers": "Archived layers",
+        "canvases": "Archived canvases"
+      },
+      "empty": "Nothing archived"
     }
   },
   "services": {
@@ -1240,6 +1249,11 @@
       "fetchBookmarksError": "Failed to fetch bookmarks in collection",
       "updateBookmarkSuccess": "Bookmark updated successfully in collection",
       "updateBookmarkError": "Failed to update bookmark in collection"
+    },
+    "archive": {
+      "archived": "Archived",
+      "unarchived": "Unarchived",
+      "error": "Couldn't update the archive"
     }
   },
   "offlineMaps": {
@@ -2097,7 +2111,8 @@
       },
       "noneOfThese": "None of these",
       "reach": {
-        "ok": "On track"
+        "ok": "On track",
+        "early": "Early"
       },
       "inDuration": "in {duration}",
       "otherRuns": "Other departures",

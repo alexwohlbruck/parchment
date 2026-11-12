@@ -36,6 +36,7 @@ import {
   upgradeCollectionToE2ee,
 } from '@/lib/identity/collection-scheme-switch'
 import { useAuthStore } from '@/stores/auth.store'
+import { useArchiveService } from '@/services/library/archive.service'
 
 // TODO: i18n error messages
 
@@ -184,6 +185,7 @@ function isUnnamedStarter(collection: Collection): boolean {
 
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
+  const archiveService = useArchiveService()
   const authStore = useAuthStore()
   const friendsStore = useFriendsStore()
   const identityStore = useIdentityStore()
@@ -454,6 +456,18 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  function setArchived(id: string, archived: boolean) {
+    return archiveService.setArchived(
+      {
+        id,
+        path: `/library/collections/${id}`,
+        read: () => collectionsStore.getCollectionById(id)?.archivedAt,
+        write: archivedAt => collectionsStore.setArchivedAt(id, archivedAt),
+      },
+      archived,
+    )
+  }
+
   async function getBookmarksInCollection(collectionId: string) {
     try {
       const response = await api.get(
@@ -608,6 +622,7 @@ export const useCollectionsService = createSharedComposable(() => {
     updateCollection,
     changeScheme,
     deleteCollection,
+    setArchived,
     getBookmarksInCollection,
     getCollectionDisplayName,
     getEncryptedPoints,

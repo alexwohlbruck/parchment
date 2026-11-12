@@ -3,19 +3,21 @@
 ### Added
 
 * Navigation shows the trip timeline for any trip with more than one leg, highlighting the stretch you're on as you go.
+* Archive collections, routes, layers and canvases to take them off the map and out of your library without deleting them. Archiving a shared collection only hides it for you.
 
 ### Changed
 
 * Trip legs are cards that list the streets you'll travel instead of every turn, with lane types and only the warnings worth acting on.
 * A trip opens with one elevation strip across its walking and cycling legs, coloured by mode.
+* While you walk to a transit stop, navigation shows when you'll reach it on a timeline around the departure, coloured from early to too late. It says Early when you'll have more than five minutes to spare.
 
 ### Fixed
 
 * A trip's route draws over the transit lines it rides, so hovering a transit trip shows its own line instead of hiding it under the network.
 * Hovering between trips no longer swings the map when the trip is already in view.
-
 * Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.
 * Transit trips draw each line in the same colour the map uses, so Charlotte's Blue and Gold lines no longer fall back to the app's accent colour.
+* Transit trips no longer ride a train the wrong way to reach a bus you could have walked to, or offer driving to transit when walking gets you there as soon.
 
 ## [0.20.2] - 2026-11-10
 

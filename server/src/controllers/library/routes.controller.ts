@@ -3,10 +3,21 @@ import { permissions } from '../../middleware/auth.middleware.js'
 import { PermissionId } from '../../types/auth.types'
 import * as routesService from '../../services/library/routes.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
+import { archiveEndpoints } from './archive'
 
 const routesRouter = new Elysia({ prefix: '/routes' })
   .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
+
+  .use(
+    archiveEndpoints({
+      noun: 'route',
+      description:
+        'Takes the route off the map and out of the main list without deleting it. Archived ones still come back from the list endpoint, with `archivedAt` set.',
+      notFound: 'errors.library.routeNotFound',
+      setArchived: routesService.setRouteArchived,
+    }),
+  )
 
   // All custom routes owned by the authenticated user.
   .get(

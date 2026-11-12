@@ -169,7 +169,6 @@ export function buildSavedPlacesProjection(
   params: BuildParams,
 ): SavedPlacesProjection {
   const {
-    collections,
     bookmarks,
     layerOverrides,
     groupOverrides,
@@ -179,6 +178,8 @@ export function buildSavedPlacesProjection(
     lockedLabel,
     untitledLabel,
   } = params
+  // Archived collections leave the map along with the list.
+  const collections = params.collections.filter(c => !c.archivedAt)
 
   // A `user-e2ee` collection holds no bookmark rows at all — its places live
   // in `encrypted_points`, which only decrypt once the collection is switched

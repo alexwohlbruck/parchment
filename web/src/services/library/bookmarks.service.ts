@@ -542,7 +542,7 @@ export const useBookmarksService = createSharedComposable(() => {
    */
   function resolveDefaultCollectionId(): string | null {
     const writable = collectionsStore.collections.filter(
-      canWriteCollection,
+      c => canWriteCollection(c) && !c.archivedAt,
     )
     if (writable.length === 0) return null
 

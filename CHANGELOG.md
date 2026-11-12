@@ -27,6 +27,7 @@
 * Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.
 * Transit trips draw each line in the same colour the map uses, so Charlotte's Blue and Gold lines no longer fall back to the app's accent colour.
 * Transit trips no longer ride a train the wrong way to reach a bus you could have walked to, or offer driving to transit when walking gets you there as soon.
+* 3D building shadows have smooth edges instead of blocky steps, and the shadow at a building's foot no longer spills below its walls.
 
 ## [0.20.2] - 2026-11-10
 

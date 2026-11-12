@@ -54,6 +54,20 @@ export type SunView = {
 }
 
 /**
+ * How high across the light the map reaches, metres above the floor: the visible
+ * ground's width, so a roof in view is covered without spending texels on sky.
+ * Taller casters still shade it, through the depth range.
+ */
+export function coveredHeight(ground: number[][], ceiling: number): number {
+  let span = 0
+  for (const a of ground) for (const b of ground) span = Math.max(span, Math.hypot(a[0] - b[0], a[1] - b[1]))
+  return Math.min(ceiling, Math.max(span, MIN_COVERED_HEIGHT))
+}
+
+/** Metres; the least `coveredHeight`, for a view so close its ground is narrower than a house. */
+const MIN_COVERED_HEIGHT = 30
+
+/**
  * The sun's view of the ground in sight: an orthographic box down the light,
  * as tight around the visible ground and everything standing on it as the
  * light direction allows.
@@ -74,11 +88,13 @@ export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: num
   })
   const lo = [Infinity, Infinity, Infinity]
   const hi = [-Infinity, -Infinity, -Infinity]
+  const covered = coveredHeight(ground, ceiling)
   // Terrain dips below the centre's ground as well as rising above it.
-  for (const [e, n] of ground) for (const h of [floor - ceiling * 0.25, floor + ceiling]) {
+  for (const [e, n] of ground) for (const h of [floor - ceiling * 0.25, floor + covered, floor + ceiling]) {
     const p = [e, n, h]
     const l = [p[0] * r[0] + p[1] * r[1] + p[2] * r[2], p[0] * u[0] + p[1] * u[1] + p[2] * u[2], p[0] * f[0] + p[1] * f[1] + p[2] * f[2]]
-    for (let i = 0; i < 3; i++) {
+    // Across the light only up to the covered height; along it, all the way to the ceiling.
+    for (let i = h > floor + covered ? 2 : 0; i < 3; i++) {
       lo[i] = Math.min(lo[i], l[i])
       hi[i] = Math.max(hi[i], l[i])
     }
@@ -104,8 +120,8 @@ export function sunLightMatrix(view: SunView): { light: Mat4; depthPerMetre: num
 
 /**
  * `sunShade(p)`: 0 lit to 1 in the sun's shadow, for a point in the light's
- * clip space, scaled by the frame's `strength`. Four hardware-filtered taps,
- * so a soft 3-texel edge.
+ * clip space, scaled by the frame's `strength`. A 3×3 tent of
+ * hardware-filtered taps, so a soft edge about four texels wide with no stair-steps.
  */
 export const SUN_SHADOW_GLSL = `
   uniform highp sampler2DShadow u_sunShadow;
@@ -120,11 +136,14 @@ export const SUN_SHADOW_GLSL = `
     if (!sunCovers(p)) return 0.0;
     vec3 c = p.xyz / p.w * 0.5 + 0.5;
     float z = c.z - (0.4 + 1.2 * min(slope, 4.0)) * u_sunBias;
-    float t = 0.75 * u_sunTexel;
-    // Lod, not plain texture: callers sample inside a per-fragment branch.
-    float lit = textureLod(u_sunShadow, vec3(c.xy + vec2(-t, -t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, -t), z), 0.0)
-              + textureLod(u_sunShadow, vec3(c.xy + vec2(-t, t), z), 0.0) + textureLod(u_sunShadow, vec3(c.xy + vec2(t, t), z), 0.0);
-    return u_sunOn * (1.0 - lit * 0.25);
+    float lit = 0.0;
+    for (int dy = -1; dy <= 1; dy++)
+      for (int dx = -1; dx <= 1; dx++) {
+        float w = (2.0 - abs(float(dx))) * (2.0 - abs(float(dy)));
+        // Lod, not plain texture: callers sample inside a per-fragment branch.
+        lit += w * textureLod(u_sunShadow, vec3(c.xy + vec2(float(dx), float(dy)) * u_sunTexel, z), 0.0);
+      }
+    return u_sunOn * (1.0 - lit / 16.0);
   }
 `
 

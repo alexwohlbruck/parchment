@@ -34,13 +34,15 @@ export interface WallShadowLayerOptions {
   }>
 }
 
+export type GroundShadow = { texture: WebGLTexture; blurStep: [number, number]; blurLod: number; alpha: number }
+
 export class WallShadowLayer {
   constructor(options: WallShadowLayerOptions)
   readonly id: string
   readonly type: 'custom'
   readonly renderingMode: '2d' | '3d'
-  /** This frame's ground shadow mask, its blur step and strength; null when none was drawn. */
-  groundShadow(): { texture: WebGLTexture; blurStep: number; alpha: number } | null
+  /** This frame's ground shadow mask, its blur step in uv, the mip level to read it at, and its strength; null when none was drawn. */
+  groundShadow(): GroundShadow | null
   enabled: boolean
   wallShade: boolean
   groundFx: boolean

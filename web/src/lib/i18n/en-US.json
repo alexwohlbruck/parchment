@@ -2048,7 +2048,8 @@
       },
       "noneOfThese": "None of these",
       "reach": {
-        "ok": "On track"
+        "ok": "On track",
+        "early": "Early"
       },
       "inDuration": "in {duration}",
       "otherRuns": "Other departures",

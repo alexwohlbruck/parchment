@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
-import { raceZones, type Race, type RaceZoneKind } from '@/lib/directions/trip-advice'
+import { arrivalZone, type Race, type RaceZoneKind } from '@/lib/directions/trip-advice'
 
 /** A tug of war between your walk and the train's departure: the knot is where you reach the stop. */
 const props = defineProps<{
@@ -25,11 +25,7 @@ const WALK_COLORS: Record<RaceZoneKind, { bar: string; hatch: string }> = {
   run: { bar: 'bg-orange-600', hatch: 'text-orange-600' },
   tooFar: { bar: 'bg-red-600', hatch: 'text-red-600' },
 }
-/** How the walk ends: the zone the rider reaches the stop in. */
-const walkColor = computed(() => {
-  const zone = raceZones(props.race, leadMs.value).find(z => props.race.walkMs <= z.toMs)
-  return WALK_COLORS[zone?.kind ?? 'tooFar']
-})
+const walkColor = computed(() => WALK_COLORS[arrivalZone(props.race, props.nowMs)])
 
 const lineColor = computed(() => (props.ride?.lineColor ? `#${props.ride.lineColor}` : 'hsl(var(--primary))'))
 

@@ -249,6 +249,12 @@ export function raceZones(race: Race, leadMs: number): RaceZone[] {
   return edges.filter(([, from, to]) => to > from).map(([kind, fromMs, toMs]) => ({ kind, fromMs, toMs }))
 }
 
+/** The zone the rider reaches the stop in. */
+export function arrivalZone(race: Race, nowMs: number): RaceZoneKind {
+  const leadMs = Math.max(0, race.departAtMs - nowMs)
+  return raceZones(race, leadMs).find(z => race.walkMs <= z.toMs)?.kind ?? 'tooFar'
+}
+
 function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
   const next = runs[target + 1]
   if (!next) return {}

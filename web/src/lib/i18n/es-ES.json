@@ -2024,7 +2024,8 @@
       },
       "noneOfThese": "Ninguno de estos",
       "reach": {
-        "ok": "A tiempo"
+        "ok": "A tiempo",
+        "early": "Con tiempo"
       },
       "inDuration": "en {duration}",
       "otherRuns": "Otras salidas",

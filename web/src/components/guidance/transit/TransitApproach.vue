@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-vue-next'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { formatDurationCompact } from '@/lib/time-format'
 import { approachReach } from '@/lib/transit/transit-reachability'
-import { approachRace, reachWord } from '@/lib/directions/trip-advice'
+import { approachRace, arrivalZone, reachWord } from '@/lib/directions/trip-advice'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import type { RunChoice } from '@/lib/guidance/run-choices'
 import ApproachRace from './ApproachRace.vue'
@@ -28,11 +28,12 @@ const { t } = useI18n()
 const navigationPreferences = useNavigationPreferencesStore()
 
 const runFactor = computed(() => (props.onFoot ? navigationPreferences.runPace : null))
+const race = computed(() => approachRace(props.departureMs, props.nowMs, props.toStopSec, runFactor.value))
 const reach = computed(() => {
   const state = approachReach(props.departureMs, props.nowMs, props.toStopSec, runFactor.value)
-  return reachWord(state, t) ?? { word: t('guidance.transit.reach.ok'), tone: 'text-forest-600 dark:text-forest-400' }
+  const comfortable = arrivalZone(race.value, props.nowMs) === 'calm' ? 'early' : 'ok'
+  return reachWord(state, t) ?? { word: t(`guidance.transit.reach.${comfortable}`), tone: 'text-forest-600 dark:text-forest-400' }
 })
-const race = computed(() => approachRace(props.departureMs, props.nowMs, props.toStopSec, runFactor.value))
 const leadIn = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 const lead = computed(() => leadIn(props.departureMs))
 

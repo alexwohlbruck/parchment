@@ -6,6 +6,7 @@ import {
   adviceReach,
   adviceStatus,
   approachRace,
+  arrivalZone,
   raceZones,
   adviceValidUntil,
   boardsAtMs,
@@ -321,6 +322,14 @@ describe('run', () => {
     const min = 60_000
     expect(approachRace(10 * min, 0, 420, 1.5)).toEqual({ departAtMs: 10 * min, walkMs: 7 * min, spareMs: 3 * min, bufferMs: 2 * min, runFactor: 1.5 })
     expect(approachRace(5 * min, 0, 480, null).spareMs).toBe(-3 * min)
+  })
+
+  test('the arrival zone is early with over five minutes spare', () => {
+    const min = 60_000
+    expect(arrivalZone(approachRace(12 * min, 0, 180, null), 0)).toBe('calm')
+    expect(arrivalZone(approachRace(8 * min, 0, 300, null), 0)).toBe('leave')
+    expect(arrivalZone(approachRace(8 * min, 0, 420, null), 0)).toBe('hurry')
+    expect(arrivalZone(approachRace(8 * min, 0, 600, 1.5), 0)).toBe('run')
   })
 
   test('the board word for the planned run follows the advice', () => {

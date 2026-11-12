@@ -768,10 +768,8 @@
       },
       "race": {
         "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
-        "you": "You",
         "walk": "{minutes} min to the stop",
         "leaves": "leaves in {minutes} min",
-        "now": "Now",
         "to": "to"
       },
       "status": {

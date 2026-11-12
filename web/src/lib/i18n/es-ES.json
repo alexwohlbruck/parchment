@@ -749,10 +749,8 @@
       },
       "race": {
         "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
-        "you": "Tú",
         "walk": "{minutes} min hasta la parada",
         "leaves": "sale en {minutes} min",
-        "now": "Ahora",
         "to": "hacia"
       },
       "status": {

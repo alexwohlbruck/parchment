@@ -4,6 +4,8 @@
 
 ### Changed
 
+* A trip's walk to the stop and the train's departure now share one bar, with the time you have to spare or are short shown where they meet.
+
 ### Fixed
 
 * Directions now frame the route across the whole visible map, instead of squeezing it into a small corner beside the panel.

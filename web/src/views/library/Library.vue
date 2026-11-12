@@ -32,11 +32,14 @@ const tabs = [
   { id: 'canvases', label: 'Canvases', route: AppRoute.LIBRARY_CANVASES },
 ]
 
+const unarchived = (items: { archivedAt?: string | null }[]) =>
+  items.filter(item => !item.archivedAt).length || null
+
 const tabCounts = computed<Record<string, number | null>>(() => ({
-  collections: collections.value.length || null,
+  collections: unarchived(collections.value),
   layers: userLayers.value.length || null,
-  routes: routes.value.length || null,
-  canvases: canvases.value.length || null,
+  routes: unarchived(routes.value),
+  canvases: unarchived(canvases.value),
 }))
 
 const router = useRouter()

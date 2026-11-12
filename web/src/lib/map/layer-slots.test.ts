@@ -217,8 +217,12 @@ describe('a trip line over the transit network', () => {
     { id: 'Road labels', type: 'symbol' },
   ]
 
-  test('route lands above every ribbon and under the stations', () => {
-    expect(slotBeforeId(STYLE, 'route')).toBe('portolan-stations')
+  test('route lands above the ground ribbons and under the 3D buildings', () => {
+    expect(slotBeforeId(STYLE, 'route')).toBe('Building 3D')
+  })
+
+  test('route lands under the stations when there are no 3D buildings', () => {
+    expect(slotBeforeId(STYLE.filter(l => l.type !== 'fill-extrusion' && !l.id.endsWith('ghost')), 'route')).toBe('portolan-stations')
   })
 
   test('route falls back to under the labels without a transit network', () => {

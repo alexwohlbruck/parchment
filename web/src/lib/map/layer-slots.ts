@@ -106,17 +106,17 @@ export function inTunnelsBeforeId(layers: readonly StyleLayer[]): string | undef
 }
 
 /**
- * Above the transit network, under the stations and labels that follow it: a
- * trip's line is the subject of the view, so the ribbons it rides must not
- * draw over it.
+ * Just above the transit network's ribbons on the ground, still under the 3D
+ * buildings and the labels: a trip's line is the subject of the view, so the
+ * ribbons it rides must not draw over it.
  */
 export function aboveTransitBeforeId(layers: readonly StyleLayer[]): string | undefined {
+  const ground = layers.findIndex(l => l.type === 'fill-extrusion')
+  const end = ground < 0 ? layers.length : ground
   let last = -1
-  layers.forEach((l, i) => {
-    if (isOverlay(l) && l.type !== 'symbol') last = i
-  })
+  for (let i = 0; i < end; i++) if (isOverlay(layers[i]) && layers[i].type !== 'symbol') last = i
   if (last < 0) return belowLabelsBeforeId(layers)
-  return layers.slice(last + 1).find(l => l.type === 'symbol')?.id
+  return layers[last + 1]?.id
 }
 
 /** Where the transit network inserts a ribbon: at `anchor`, or under the first trip line when that comes sooner. */

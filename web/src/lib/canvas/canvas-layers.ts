@@ -155,14 +155,9 @@ function canvasSize(canvas: Canvas): number {
 export function buildCanvasesProjection(
   params: BuildParams,
 ): CanvasesProjection {
-  const {
-    canvases,
-    activeCanvasIds,
-    activeCanvases,
-    groupOverrides,
-    groupLabel,
-    lockedLabel,
-  } = params
+  const { activeCanvasIds, groupOverrides, groupLabel, lockedLabel } = params
+  const canvases = params.canvases.filter(c => !c.archivedAt)
+  const activeCanvases = params.activeCanvases.filter(c => !c.archivedAt)
 
   if (!canvases.length) return EMPTY_CANVASES_PROJECTION
 

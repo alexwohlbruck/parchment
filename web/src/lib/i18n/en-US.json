@@ -1008,7 +1008,6 @@
         "mine": "My collections",
         "shared": "Shared with me"
       },
-      "archived": "Archived",
       "archivedNotice": "This collection is archived."
     },
     "actions": {
@@ -1162,7 +1161,8 @@
           }
         }
       }
-    }
+    },
+    "archived": "Archived"
   },
   "services": {
     "bookmarks": {
@@ -1198,10 +1198,12 @@
       "addBookmarkError": "Failed to add bookmark to collection",
       "fetchBookmarksError": "Failed to fetch bookmarks in collection",
       "updateBookmarkSuccess": "Bookmark updated successfully in collection",
-      "updateBookmarkError": "Failed to update bookmark in collection",
-      "archiveSuccess": "Collection archived",
-      "unarchiveSuccess": "Collection unarchived",
-      "archiveError": "Couldn't update the collection"
+      "updateBookmarkError": "Failed to update bookmark in collection"
+    },
+    "archive": {
+      "archived": "Archived",
+      "unarchived": "Unarchived",
+      "error": "Couldn't update the archive"
     }
   },
   "offlineMaps": {

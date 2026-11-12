@@ -36,6 +36,7 @@ import {
   upgradeCollectionToE2ee,
 } from '@/lib/identity/collection-scheme-switch'
 import { useAuthStore } from '@/stores/auth.store'
+import { useArchiveService } from '@/services/library/archive.service'
 
 // TODO: i18n error messages
 
@@ -184,6 +185,7 @@ function isUnnamedStarter(collection: Collection): boolean {
 
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
+  const archiveService = useArchiveService()
   const authStore = useAuthStore()
   const friendsStore = useFriendsStore()
   const identityStore = useIdentityStore()
@@ -454,30 +456,16 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  async function setArchived(id: string, archived: boolean) {
-    const previous = collectionsStore.getCollectionById(id)?.archivedAt ?? null
-    collectionsStore.setArchivedAt(
-      id,
-      archived ? new Date().toISOString() : null,
+  function setArchived(id: string, archived: boolean) {
+    return archiveService.setArchived(
+      {
+        id,
+        path: `/library/collections/${id}`,
+        read: () => collectionsStore.getCollectionById(id)?.archivedAt,
+        write: archivedAt => collectionsStore.setArchivedAt(id, archivedAt),
+      },
+      archived,
     )
-    try {
-      const path = `/library/collections/${id}/archive`
-      const { data } = archived ? await api.put(path) : await api.delete(path)
-      collectionsStore.setArchivedAt(id, data.archivedAt)
-      toast.success(
-        t(`services.collections.${archived ? 'archiveSuccess' : 'unarchiveSuccess'}`),
-        {
-          id: `collection-archive:${id}`,
-          action: {
-            label: t('general.undo'),
-            onClick: () => setArchived(id, !archived),
-          },
-        },
-      )
-    } catch (error) {
-      collectionsStore.setArchivedAt(id, previous)
-      toast.error(t('services.collections.archiveError'), { cause: error })
-    }
   }
 
   async function getBookmarksInCollection(collectionId: string) {

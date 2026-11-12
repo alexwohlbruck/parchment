@@ -1,4 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
+import { useArchiveService } from '@/services/library/archive.service'
 import { toast } from '@/lib/toast'
 import { api } from '@/lib/api'
 import { isOffline } from '@/lib/connectivity'
@@ -119,6 +120,7 @@ export const useCanvasesService = createSharedComposable(() => {
     (i18n.global as any).t(key, named ?? {})
   const canvasesStore = useCanvasesStore()
   const authStore = useAuthStore()
+  const archiveService = useArchiveService()
 
   function displayName(canvas: Canvas | null | undefined): string {
     if (!canvas) return ''
@@ -574,6 +576,21 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  function setArchived(id: string, archived: boolean) {
+    return archiveService.setArchived(
+      {
+        id,
+        path: `/library/canvases/${id}`,
+        read: () => canvasesStore.getCanvasById(id)?.archivedAt,
+        write: archivedAt => {
+          const canvas = canvasesStore.getCanvasById(id)
+          if (canvas) canvasesStore.upsertCanvas({ ...canvas, archivedAt })
+        },
+      },
+      archived,
+    )
+  }
+
   return {
     displayName,
     fetchCanvases,
@@ -590,5 +607,6 @@ export const useCanvasesService = createSharedComposable(() => {
     revokeShareLink,
     fetchPublicCanvas,
     deleteCanvas,
+    setArchived,
   }
 })

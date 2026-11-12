@@ -23,6 +23,8 @@ export interface DefaultStatePatch {
   showInLayerSelector?: boolean | null
   groupId?: string | null
   parentGroupId?: string | null
+  /** Sent as a flag; the server stamps `archivedAt`. */
+  archived?: boolean
 }
 
 export function useLayerCrudService() {
@@ -42,7 +44,7 @@ export function useLayerCrudService() {
     return data
   }
 
-  async function updateLayer(id: string, updates: Partial<Layer>) {
+  async function updateLayer(id: string, updates: Partial<Layer> & { archived?: boolean }) {
     const { data } = await api.put<Layer>(`/library/layers/${id}`, updates)
     return data
   }
@@ -67,7 +69,10 @@ export function useLayerCrudService() {
     return data
   }
 
-  async function updateLayerGroup(id: string, updates: Partial<LayerGroup>) {
+  async function updateLayerGroup(
+    id: string,
+    updates: Partial<LayerGroup> & { archived?: boolean },
+  ) {
     const { data } = await api.put<LayerGroup>(
       `/library/layers/groups/${id}`,
       updates,

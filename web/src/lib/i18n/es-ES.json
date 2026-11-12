@@ -982,7 +982,6 @@
         "mine": "Mis colecciones",
         "shared": "Compartidas conmigo"
       },
-      "archived": "Archivadas",
       "archivedNotice": "Esta colección está archivada."
     },
     "actions": {
@@ -1136,7 +1135,8 @@
           }
         }
       }
-    }
+    },
+    "archived": "Archivado"
   },
   "services": {
     "bookmarks": {
@@ -1174,10 +1174,12 @@
       "removeBookmarkError": "Error al eliminar marcador de la colección",
       "fetchBookmarksError": "Error al obtener marcadores en la colección",
       "updateBookmarkSuccess": "Marcador actualizado correctamente en la colección",
-      "updateBookmarkError": "Error al actualizar marcador en la colección",
-      "archiveSuccess": "Colección archivada",
-      "unarchiveSuccess": "Colección desarchivada",
-      "archiveError": "No se pudo actualizar la colección"
+      "updateBookmarkError": "Error al actualizar marcador en la colección"
+    },
+    "archive": {
+      "archived": "Archivado",
+      "unarchived": "Desarchivado",
+      "error": "No se pudo actualizar el archivo"
     }
   },
   "offlineMaps": {

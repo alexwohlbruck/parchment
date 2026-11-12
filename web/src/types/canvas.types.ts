@@ -383,6 +383,7 @@ export interface Canvas {
   metadataKeyVersion?: number
   bodyEncrypted?: string | null
 
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
 

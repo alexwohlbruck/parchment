@@ -1015,10 +1015,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
            `RouteDetailPage` for why any other value breaks. -->
       <SheetHeader
         v-slot="{ stuck }"
-        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
+        class="-mx-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
       >
       <div
-        class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
+        class="px-3 md:pt-4 pb-2 border-b transition-colors duration-200"
         :class="stuck ? 'border-border/60' : 'border-transparent'"
       >
       <div>
@@ -1083,6 +1083,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
       </div>
       </SheetHeader>
 
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>
+        <TripColorPicker v-model="colorBy" :segments="trip.segments" class="-mx-3 mb-1 pt-1" />
+      </TripStrip>
+
       <!-- Timezone warning -->
       <div
         v-if="directionsStore.timezoneWarning"
@@ -1093,9 +1097,6 @@ const routeWaypoints = useRouteWaypoints(() => ({
           Your destination is in a different time zone ({{ directionsStore.timezoneWarning.offsetDifferenceText }})
         </span>
       </div>
-
-      <TripColorPicker v-model="colorBy" :segments="trip.segments" class="mt-2" />
-      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" class="mt-1" />
 
       <TripTimeline
         class="mt-5"

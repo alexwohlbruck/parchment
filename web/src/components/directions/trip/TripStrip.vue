@@ -16,6 +16,8 @@ const props = defineProps<{
   waypoints?: RouteWaypointDisplay[]
   /** Colour the profile by this instead of by travel mode, on the legs it covers. */
   colorBy?: RouteProfileType | null
+  /** Carry the background above it down to the bar's centre line, so the strip straddles the edge between the two. */
+  fold?: boolean
 }>()
 
 /** Room at each end for a waypoint icon. */
@@ -26,8 +28,10 @@ const H = 44
 const BAR_CENTER = 14
 
 const id = useId()
+const root = ref<HTMLElement | null>(null)
 const inner = ref<HTMLElement | null>(null)
 const { width } = useElementSize(inner)
+const { height: rootHeight } = useElementSize(root)
 
 const start = computed(() => new Date(props.segments[0]?.startTime ?? 0))
 const minutes = computed(() => {
@@ -73,6 +77,8 @@ const profiles = computed(() =>
 /** Where the bar's centre line sits below the top of the strip. */
 const barY = computed(() => (profiles.value.length ? H : BAR_CENTER))
 
+const foldY = computed(() => (rootHeight.value >= 0 && inner.value ? inner.value.offsetTop + barY.value : 0))
+
 const markers = computed(() => (profiles.value.length ? model.value.markers.map(m => px.value(m.x)) : []))
 
 const progressX = computed(() =>
@@ -84,7 +90,9 @@ const endLabel = computed(() => (props.segments.length ? formatClock(new Date(pr
 </script>
 
 <template>
-  <div v-if="segments.length" class="px-3">
+  <div v-if="segments.length" ref="root" class="relative isolate px-3">
+    <div v-if="fold" class="absolute -inset-x-3 top-0 -z-10 bg-background" :style="{ height: `${foldY}px` }" />
+    <slot />
     <div ref="inner" class="relative">
       <template v-if="profiles.length && width">
         <div :style="{ height: `${H - BAR_CENTER}px` }" />

@@ -1,3 +1,4 @@
+import { ROUTE_BAND } from '@/lib/map/layer-slots'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import {
@@ -444,7 +445,8 @@ export class TripGroup extends MapLayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-color': getSegmentCaseColor(segment),
@@ -470,7 +472,8 @@ export class TripGroup extends MapLayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-color': getSegmentColor(segment),
@@ -549,7 +552,8 @@ export class TripGroup extends MapLayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-gradient': caseStops,
@@ -575,7 +579,8 @@ export class TripGroup extends MapLayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-gradient': mainStops,
@@ -756,7 +761,8 @@ export class TripGroup extends MapLayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -786,7 +792,8 @@ export class TripGroup extends MapLayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
-        slot: 'middle',
+        slot: 'route',
+        metadata: ROUTE_BAND,
         layout: {
           'line-join': 'round',
           'line-cap': 'round',

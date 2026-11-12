@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { belowLabelsBeforeId, belowRoadsBeforeId, slotBeforeId } from './layer-slots'
+import { ROUTE_BAND, belowLabelsBeforeId, belowRoadsBeforeId, belowRouteBandBeforeId, slotBeforeId } from './layer-slots'
 
 /**
  * Both halves shipped wrong. The cycling lanes drew over the POI names and
@@ -204,5 +204,31 @@ describe('where an overlay slots into the basemap', () => {
   test('bottom is below middle', () => {
     const at = (id: string | undefined) => STYLE.findIndex(l => l.id === id)
     expect(at(slotBeforeId(STYLE, 'bottom'))).toBeLessThan(at(slotBeforeId(STYLE, 'middle')))
+  })
+})
+
+describe('a trip line over the transit network', () => {
+  const STYLE = [
+    { id: 'Minor road', type: 'line' },
+    { id: 'portolan-ribbon-mta-steady', type: 'line' },
+    { id: 'Building 3D', type: 'fill-extrusion' },
+    { id: 'portolan-ribbon-mta-steady-ghost', type: 'line' },
+    { id: 'portolan-stations', type: 'symbol' },
+    { id: 'Road labels', type: 'symbol' },
+  ]
+
+  test('route lands above every ribbon and under the stations', () => {
+    expect(slotBeforeId(STYLE, 'route')).toBe('portolan-stations')
+  })
+
+  test('route falls back to under the labels without a transit network', () => {
+    expect(slotBeforeId(STYLE.filter(l => !l.id.startsWith('portolan-')), 'route')).toBe('Road labels')
+  })
+
+  test('a ribbon mounted later goes under a trip line that is already up', () => {
+    const withTrip = [...STYLE.slice(0, 4), { id: 'trip-a-segment', type: 'line', metadata: ROUTE_BAND }, ...STYLE.slice(4)]
+    expect(belowRouteBandBeforeId(withTrip, 'Building 3D')).toBe('Building 3D')
+    expect(belowRouteBandBeforeId(withTrip, 'portolan-stations')).toBe('trip-a-segment')
+    expect(belowRouteBandBeforeId(STYLE, 'portolan-stations')).toBe('portolan-stations')
   })
 })

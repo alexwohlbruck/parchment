@@ -750,8 +750,7 @@
       "race": {
         "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
         "walk": "{minutes} min hasta la parada",
-        "leaves": "sale en {minutes} min",
-        "to": "hacia"
+        "leaves": "sale en {minutes} min"
       },
       "status": {
         "leaveIn": "Sal en {minutes} min",

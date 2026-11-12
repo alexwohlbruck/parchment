@@ -5,6 +5,7 @@ import en from '@/lib/i18n/en-US.json'
 import {
   adviceReach,
   adviceStatus,
+  approachRace,
   raceZones,
   adviceValidUntil,
   boardsAtMs,
@@ -314,6 +315,12 @@ describe('run', () => {
     ])
     expect(raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: null }, min).map(z => z.kind))
       .toEqual(['hurry', 'tooFar'])
+  })
+
+  test('the approach race counts the walk left against the departure', () => {
+    const min = 60_000
+    expect(approachRace(10 * min, 0, 420, 1.5)).toEqual({ departAtMs: 10 * min, walkMs: 7 * min, spareMs: 3 * min, bufferMs: 2 * min, runFactor: 1.5 })
+    expect(approachRace(5 * min, 0, 480, null).spareMs).toBe(-3 * min)
   })
 
   test('the board word for the planned run follows the advice', () => {

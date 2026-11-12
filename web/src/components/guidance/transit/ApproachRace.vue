@@ -8,7 +8,7 @@ import { raceZones, type Race, type RaceZoneKind } from '@/lib/directions/trip-a
 const props = defineProps<{
   race: Race
   nowMs: number
-  ride?: { lineColor?: string; lineTextColor?: string; lineName?: string; departureStop?: { name?: string } }
+  ride?: { lineColor?: string; lineTextColor?: string; lineName?: string }
 }>()
 
 const { t } = useI18n()
@@ -64,11 +64,7 @@ const label = computed(() =>
 </script>
 
 <template>
-  <div role="img" :aria-label="label" class="mt-3 max-w-80 text-xs tabular-nums text-muted-foreground">
-    <div v-if="ride?.departureStop?.name" class="mb-1 ml-8 truncate">
-      {{ t('directions.advice.race.to') }} <span class="font-medium text-foreground">{{ ride.departureStop.name }}</span>
-    </div>
-
+  <div role="img" :aria-label="label" class="text-xs tabular-nums text-muted-foreground">
     <div class="grid grid-cols-[22px_1fr_auto] items-center gap-x-2.5 gap-y-1">
       <!-- The gap the knot leaves, above the side that holds it -->
       <span />

@@ -46,7 +46,6 @@ import { AppRoute } from '@/router'
 import { tripSignature } from '@/lib/directions/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
-import TripRace from '@/components/directions/trip/TripRace.vue'
 import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
@@ -791,7 +790,6 @@ const boarding = computed(() => {
 })
 const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value, boarding.value) : null))
 
-const firstRide = computed(() => trip.value?.segments.find(s => s.mode === 'transit'))
 
 const tight = computed(() => tightChanges(trip.value?.segments ?? []))
 /** The tightest change, named once in the header; each one is also flagged where it happens. */
@@ -1027,12 +1025,6 @@ const routeWaypoints = useRouteWaypoints(() => ({
           </div>
 
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
-          <TripRace
-            v-if="advice?.race"
-            :race="advice.race"
-            :now-ms="nowMs"
-            :ride="firstRide"
-          />
       </div>
 
       <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">

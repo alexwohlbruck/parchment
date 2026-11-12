@@ -4,7 +4,7 @@
 
 ### Changed
 
-* A trip's walk to the stop and the train's departure now share one bar, with the time you have to spare or are short shown where they meet.
+* Turn-by-turn navigation shows your walk to the stop and the train's departure as one bar, with the time you have to spare or are short shown where they meet.
 
 ### Fixed
 

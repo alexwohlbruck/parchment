@@ -5,6 +5,7 @@ import TripBar from '@/components/directions/TripBar.vue'
 import { formatClock } from '@/lib/directions/trip-display'
 import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import { stripX, tripStrip, type StripSegment } from '@/lib/directions/trip-strip'
+import { tripBarScale } from '@/lib/directions/trip-bar-scale'
 
 const props = defineProps<{
   segments: (StripSegment & { lineName?: string; lineTextColor?: string | null; legIndex?: number })[]
@@ -29,6 +30,14 @@ const pxPerMinute = computed(() => width.value / minutes.value)
 
 const model = computed(() => tripStrip(props.segments))
 
+/** A strip fraction in px, on the same scale the bar lays its rides out on. */
+const px = computed(() => {
+  const t0 = start.value.getTime()
+  const span = minutes.value * 60000
+  const scale = tripBarScale(props.segments, t0, t0 + span, width.value)
+  return (f: number) => scale(t0 + f * span)
+})
+
 const colorOf = (index: number) => {
   const segment = props.segments[index]
   return segment.lineColor ? `#${segment.lineColor}` : getTravelModeColor(segment.mode)
@@ -38,10 +47,9 @@ const y = (v: number) => 2 + (1 - v) * (H - 8)
 
 const profiles = computed(() =>
   model.value.profiles.map(({ index, points }) => {
-    const w = width.value
-    const line = points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * w).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ')
-    const first = points[0].x * w
-    const last = points.at(-1)!.x * w
+    const line = points.map((p, i) => `${i ? 'L' : 'M'}${px.value(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ')
+    const first = px.value(points[0].x)
+    const last = px.value(points.at(-1)!.x)
     return { index, line, area: `${line} L${last.toFixed(1)} ${H} L${first.toFixed(1)} ${H}Z`, color: colorOf(index) }
   }),
 )
@@ -49,10 +57,10 @@ const profiles = computed(() =>
 /** Where the bar's centre line sits below the top of the strip. */
 const barY = computed(() => (profiles.value.length ? H : BAR_CENTER))
 
-const markers = computed(() => (profiles.value.length ? model.value.markers.map(m => m.x * width.value) : []))
+const markers = computed(() => (profiles.value.length ? model.value.markers.map(m => px.value(m.x)) : []))
 
 const progressX = computed(() =>
-  props.progress ? stripX(model.value, props.segments, props.progress.segment, props.progress.offset) * width.value : null,
+  props.progress ? px.value(stripX(model.value, props.segments, props.progress.segment, props.progress.offset)) : null,
 )
 
 const startLabel = computed(() => (props.segments.length ? formatClock(start.value) : ''))

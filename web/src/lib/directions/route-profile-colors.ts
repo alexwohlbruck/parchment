@@ -6,6 +6,7 @@
  *   - surface:  `surface` encoded value
  *   - incline:  `average_slope` encoded value
  *   - stress:   Barrelman's bike suitability score, else `bike_priority` (cycling only)
+ *   - infrastructure: Barrelman's bike facility for the way (cycling only)
  */
 
 import type { TravelMode } from '@/types/directions.types'
@@ -15,6 +16,7 @@ export type RouteProfileType =
   | 'surface'
   | 'incline'
   | 'stress'
+  | 'infrastructure'
 
 export interface ProfileCategory {
   label: string
@@ -36,7 +38,8 @@ export interface ProfileTabDef {
  * include the current travel mode.
  */
 export const PROFILE_TABS: ProfileTabDef[] = [
-  { id: 'stress',  label: 'Bike friendly', modes: ['cycling'] as TravelMode[] },
+  { id: 'stress',  label: 'Suitability', modes: ['cycling'] as TravelMode[] },
+  { id: 'infrastructure', label: 'Infrastructure', modes: ['cycling'] as TravelMode[] },
   { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving'] as TravelMode[] },
   { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking'] as TravelMode[] },
 ]
@@ -85,12 +88,37 @@ export const STRESS_CATEGORIES: Record<string, ProfileCategory> = {
   unknown:   { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
 }
 
+// ── Infrastructure categories ───────────────────────────────────────
+
+export const INFRASTRUCTURE_CATEGORIES: Record<string, ProfileCategory> = {
+  path:      { label: 'Bike path', color: '#1f8a5b', caseColor: '#0f5536', group: 'path' },
+  protected: { label: 'Protected lane', color: '#2fa36f', caseColor: '#17673f', group: 'protected' },
+  lane:      { label: 'Bike lane', color: '#62c08f', caseColor: '#2f7f55', group: 'lane' },
+  shared:    { label: 'Shared', color: '#a3cdb6', caseColor: '#5d8a72', group: 'shared' },
+  none:      { label: 'Mixed traffic', color: '#8f969c', caseColor: '#565c61', group: 'none' },
+  unknown:   { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
+}
+
+const FACILITY_GROUPS: Record<string, string> = {
+  path: 'path',
+  track: 'protected', cyclestreet: 'protected',
+  buffered_lane: 'lane', lane: 'lane',
+  shared_path: 'shared', busway: 'shared', advisory: 'shared', shoulder: 'shared', sharrow: 'shared',
+  none: 'none',
+}
+
+/** The infrastructure category of a Barrelman `bike_facility` value. */
+export function getInfrastructureCategory(facility: string | undefined): ProfileCategory {
+  return INFRASTRUCTURE_CATEGORIES[FACILITY_GROUPS[facility ?? ''] ?? 'unknown']
+}
+
 // ── Category map by profile type ────────────────────────────────────
 
 export const CATEGORY_MAPS: Record<RouteProfileType, Record<string, ProfileCategory>> = {
   surface: SURFACE_CATEGORIES,
   incline: INCLINE_CATEGORIES,
   stress: STRESS_CATEGORIES,
+  infrastructure: INFRASTRUCTURE_CATEGORIES,
 }
 
 // ── Lookup helpers ──────────────────────────────────────────────────
@@ -163,6 +191,8 @@ export function getEdgeCategory(
       return edge.bikeSuitability != null
         ? getSuitabilityCategory(edge.bikeSuitability)
         : getStressCategory(edge.bikePriority, edge.getOffBike)
+    case 'infrastructure':
+      return getInfrastructureCategory(edge.bikeFacility)
     default:
       return { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' }
   }

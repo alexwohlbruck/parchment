@@ -248,6 +248,7 @@ export interface RouteEdgeSegment {
   averageSpeed?: number     // km/h — actual routing speed used
   bikePriority?: number     // 0–1 — GraphHopper's bike-friendliness (higher = safer/friendlier)
   bikeSuitability?: number  // 0–100 — Barrelman's comfort score for the way, as on the bike suitability layer
+  bikeFacility?: string     // Barrelman's bike facility for the way: path | track | cyclestreet | buffered_lane | lane | shared_path | busway | advisory | shoulder | sharrow | none
   crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
   osmWayId?: number         // the OSM way the edge belongs to
   country?: string          // ISO 3166-1 alpha-3

@@ -91,6 +91,7 @@ export class BarrelmanGraphHopperAdapter {
         speedLimit: seg.speedLimit,
         bikePriority: seg.bikePriority,
         bikeSuitability: seg.bikeSuitability,
+        bikeFacility: seg.bikeFacility,
         crossing: seg.crossing,
         osmWayId: seg.osmWayId,
         country: seg.country,

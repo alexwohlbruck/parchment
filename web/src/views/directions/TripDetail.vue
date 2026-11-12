@@ -49,6 +49,8 @@ import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
 import TripStrip from '@/components/directions/trip/TripStrip.vue'
+import TripColorPicker from '@/components/directions/trip/TripColorPicker.vue'
+import { canColorBy, tripProfiles } from '@/lib/directions/trip-strip'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -948,13 +950,28 @@ const formatTime = (date: Date | string): string => {
 }
 
 
-function onRouteProfileChange(
-  segmentIndex: number,
-  profile: RouteProfileType | null,
-) {
-  if (!trip.value) return
-  mapService.setSegmentRouteProfile(trip.value.id, segmentIndex, profile)
+/** The trip-wide colouring picked above the strip; a leg it covers draws by it on the map whether open or not. */
+const colorBy = ref<RouteProfileType | null>(null)
+/** What each leg asked for itself, by being opened. */
+const legProfiles = new Map<number, RouteProfileType | null>()
+
+function applyLegProfile(segmentIndex: number) {
+  const segment = trip.value?.segments[segmentIndex]
+  if (!segment) return
+  const profile = colorBy.value && canColorBy(segment, colorBy.value) ? colorBy.value : legProfiles.get(segmentIndex) ?? null
+  mapService.setSegmentRouteProfile(trip.value!.id, segmentIndex, profile)
 }
+
+function onRouteProfileChange(segmentIndex: number, profile: RouteProfileType | null) {
+  legProfiles.set(segmentIndex, profile)
+  applyLegProfile(segmentIndex)
+}
+
+watch(() => trip.value?.id, () => {
+  legProfiles.clear()
+  if (colorBy.value && !tripProfiles(trip.value?.segments ?? []).includes(colorBy.value)) colorBy.value = null
+})
+watch([colorBy, () => trip.value?.id], () => trip.value?.segments.forEach((_, i) => applyLegProfile(i)))
 
 const routeWaypoints = useRouteWaypoints(() => ({
   waypoints: directionsStore.trips?.request?.waypoints,
@@ -998,10 +1015,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
            `RouteDetailPage` for why any other value breaks. -->
       <SheetHeader
         v-slot="{ stuck }"
-        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
+        class="-mx-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
       >
       <div
-        class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
+        class="px-3 md:pt-4 pb-2 border-b transition-colors duration-200"
         :class="stuck ? 'border-border/60' : 'border-transparent'"
       >
       <div>
@@ -1066,6 +1083,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
       </div>
       </SheetHeader>
 
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>
+        <TripColorPicker v-model="colorBy" :segments="trip.segments" class="-mx-3 mb-1 pt-1" />
+      </TripStrip>
+
       <!-- Timezone warning -->
       <div
         v-if="directionsStore.timezoneWarning"
@@ -1076,8 +1097,6 @@ const routeWaypoints = useRouteWaypoints(() => ({
           Your destination is in a different time zone ({{ directionsStore.timezoneWarning.offsetDifferenceText }})
         </span>
       </div>
-
-      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" class="mt-1" />
 
       <TripTimeline
         class="mt-5"

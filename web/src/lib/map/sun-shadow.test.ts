@@ -34,6 +34,17 @@ describe('sunLightMatrix', () => {
     expect(texelMetres).toBeGreaterThanOrEqual(1600 / 2048)
     expect(texelMetres).toBeLessThan(4000 / 2048)
   })
+
+  it('spends a close view\'s texels on its ground, and still sees casters up to the ceiling', () => {
+    const near = 40 * perMetre
+    const close = { ...view, ceiling: 400, toward: [1, 1, -1] as [number, number, number], corners: view.corners.map(([x, y]) => [center[0] + Math.sign(x - center[0]) * near, center[1] + Math.sign(y - center[1]) * near]) as Array<[number, number]> }
+    const { light, texelMetres } = sunLightMatrix(close)
+    expect(texelMetres).toBeLessThan(0.15)
+    // 400 m up the ray toward the sun from the centre: off the covered height, still in the depth range.
+    const k = 400 / Math.SQRT2
+    const top = apply(light, [center[0] - k * perMetre, center[1] + k * perMetre, 400 * perMetre, 1])
+    expect(Math.abs(top[2])).toBeLessThanOrEqual(1)
+  })
 })
 
 describe('tileToMercator', () => {

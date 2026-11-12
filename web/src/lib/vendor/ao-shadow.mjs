@@ -123,6 +123,9 @@ const TERRAIN_UNIT = 3;
  */
 const PLAN_VIEW_PITCH = 0.001;
 
+/** PARCHMENT: the ground shadow mask's longest side, in texels; see `_sizeMask`. */
+const MASK_MAX_SIDE = 2048;
+
 // u_ht/u_bt/u_ct < 0 selects the flat attribute, else interpolates the vec2 pair.
 // Light color is hardcoded to white (the default in the styles we target).
 const FE = `
@@ -358,10 +361,10 @@ const SHAD_VS = `
     // Roof (t=1) shears by height, wall bottoms (t=0) by fill-extrusion-base,
     // so floating slabs (render_min_height) don't cast full-height shadows.
     float h = mix(FE(a_base_f, a_base_v, u_bt), FE(a_height_f, a_height_v, u_ht), t) * u_heightScale;
-    // PARCHMENT: the shadow lands on the ground, and with terrain on the
-    // ground is not at zero — it has to be sheared at the height the building
-    // is actually standing at or it projects to the wrong place on screen.
-    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, anchor_elevation(a_centroid), 1.0);
+    // PARCHMENT: the shadow lies on the ground where it falls. The building's
+    // anchor is the footprint's lowest point, and a shadow there slips under the uphill walls.
+    vec2 p = a_pos + u_shadowOff * h;
+    gl_Position = u_matrix * vec4(p, get_elevation(p), 1.0);
   }`;
 const SHAD_FS = `
   precision highp float;
@@ -372,7 +375,7 @@ const SEED_VS = `
   uniform mat4 u_matrix;
   attribute vec2 a_pos;
   ${TERRAIN}
-  void main() { gl_Position = u_matrix * vec4(a_pos, anchor_elevation(a_centroid), 1.0); }`;
+  void main() { gl_Position = u_matrix * vec4(a_pos, get_elevation(a_pos), 1.0); }`; // PARCHMENT
 const SEED_FS = `
   precision highp float;
   uniform vec2 u_res;
@@ -412,6 +415,7 @@ const COMP_FS = `
   uniform sampler2D u_sdf, u_shadow;
   uniform float u_radius, u_intensity, u_shadowAlpha, u_aoFade;
   uniform vec2 u_offset, u_blurStep;
+  uniform float u_blurBias; // PARCHMENT: reads the mask's mip level as wide as a blur step
   uniform vec3 u_shadowColor;
   varying vec2 v_uv;
 
@@ -421,7 +425,7 @@ const COMP_FS = `
       for (int dx = -2; dx <= 2; dx++) {
         float d2 = float(dx * dx + dy * dy);
         float w = exp(-0.5 * d2);
-        sh += texture2D(u_shadow, v_uv + vec2(float(dx), float(dy)) * u_blurStep).a * w;
+        sh += texture2D(u_shadow, v_uv + vec2(float(dx), float(dy)) * u_blurStep, u_blurBias).a * w;
         sw += w;
       }
     float shadow = (sh / sw) * u_shadowAlpha;
@@ -489,9 +493,9 @@ function createTexture(gl, size, useFloat, filter = gl.NEAREST) {
   return tex;
 }
 
-function beginPass(gl, fbo, size, { stencil = false } = {}) {
+function beginPass(gl, fbo, [w, h], { stencil = false } = {}) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.viewport(0, 0, size, size);
+  gl.viewport(0, 0, w, h);
   gl.disable(gl.DEPTH_TEST);
   gl.depthMask(false);
   gl.disable(gl.BLEND);
@@ -519,7 +523,7 @@ const PAINTER_STATE = ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bind
   'bindFramebuffer', 'viewport', 'depthTest', 'depthMask', 'depthFunc', 'depthRange',
   'stencilTest', 'stencilFunc', 'stencilOp', 'stencilMask', 'colorMask', 'blend', 'blendFunc',
   'blendColor', 'blendEquation', 'cullFace', 'cullFaceSide', 'frontFace', 'activeTexture',
-  'bindTexture', 'clearColor', 'clearDepth', 'clearStencil'];
+  'bindTexture', 'bindRenderbuffer', 'clearColor', 'clearDepth', 'clearStencil'];
 
 function saveGlState(ctx) {
   return {
@@ -660,25 +664,22 @@ export class WallShadowLayer {
 
     this._compProg = linkProgram(gl, JFA_VS, COMP_FS);
     this._uComp = uniformLocs(gl, this._compProg,
-      ['u_sdf', 'u_shadow', 'u_radius', 'u_intensity', 'u_shadowAlpha', 'u_aoFade', 'u_offset', 'u_blurStep', 'u_shadowColor']);
+      ['u_sdf', 'u_shadow', 'u_radius', 'u_intensity', 'u_shadowAlpha', 'u_aoFade', 'u_offset', 'u_blurStep', 'u_blurBias', 'u_shadowColor']);
 
     // textures: [0],[1] JFA ping-pong, [2] shadow mask
     const N = this._sdfRes;
     this._useFloat = !!gl.getExtension('EXT_color_buffer_float');
-    this._tex = [createTexture(gl, N, this._useFloat), createTexture(gl, N, this._useFloat),
-                 createTexture(gl, N, false, gl.LINEAR)];
+    // PARCHMENT: the shadow mask [2] is sized to the view in `_sizeMask`, not the SDF's grid.
+    this._tex = [createTexture(gl, N, this._useFloat), createTexture(gl, N, this._useFloat), gl.createTexture()];
 
     // FBOs: [0],[1] JFA, [2] shadow mask + stencil
     this._fbo = Array.from({ length: 3 }, () => gl.createFramebuffer());
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[i]);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this._tex[i], 0);
     }
     this._stencilRB = gl.createRenderbuffer();
-    gl.bindRenderbuffer(gl.RENDERBUFFER, this._stencilRB);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH24_STENCIL8, N, N);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[2]);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, this._stencilRB);
+    this._maskSize = [0, 0];
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this._quadBuf = gl.createBuffer();
@@ -890,7 +891,7 @@ export class WallShadowLayer {
       // geometry, so a frame that changes neither reuses them.
       const key = this._groundKey(tiles, saved.vp);
       if (!sameKey(key, this._groundCache)) {
-        this._shadowPass(gl, tiles);
+        this._shadowPass(gl, tiles, saved.vp);
         this._seedPass(gl, tiles);
         this._jfaPass(gl, this._aoRadiusUv(saved.vp) * this._sdfRes);
         this._groundCache = key;
@@ -933,8 +934,41 @@ export class WallShadowLayer {
    * mask, the composite's blur step and its strength. Null when none was drawn.
    */
   groundShadow() {
-    if (!this._groundDrawn || !this._tex) return null;
-    return { texture: this._tex[2], blurStep: this.shadowBlur / this._sdfRes, alpha: this.shadowAlpha * this.groundOpacity() * this._fade * this.opacity };
+    if (!this._groundDrawn || !this._maskVp) return null;
+    const { step, lod } = this._maskBlur(this._maskVp);
+    return { texture: this._tex[2], blurStep: step, blurLod: lod, alpha: this.shadowAlpha * this.groundOpacity() * this._fade * this.opacity };
+  }
+
+  /**
+   * PARCHMENT: the ground shadow mask, one texel per drawing-buffer pixel up to
+   * `MASK_MAX_SIDE`. Mipmapped, so the blur reads a level as wide as its step.
+   */
+  _sizeMask(gl, vp) {
+    const k = Math.min(1, MASK_MAX_SIDE / Math.max(vp[2], vp[3], 1));
+    const w = Math.max(1, Math.round(vp[2] * k)), h = Math.max(1, Math.round(vp[3] * k));
+    this._maskVp = vp;
+    if (w === this._maskSize[0] && h === this._maskSize[1]) return;
+    this._maskSize = [w, h];
+    gl.bindTexture(gl.TEXTURE_2D, this._tex[2]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    for (const [p, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+                          [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]])
+      gl.texParameteri(gl.TEXTURE_2D, p, v);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this._stencilRB);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH24_STENCIL8, w, h);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[2]);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this._tex[2], 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, this._stencilRB);
+  }
+
+  /**
+   * PARCHMENT: the blur's step in uv, the same number of pixels across and up,
+   * and the mask's mip level that wide. Softness scales with the view's size.
+   */
+  _maskBlur(vp) {
+    const px = this.shadowBlur * Math.sqrt(vp[2] * vp[3]) / this._sdfRes;
+    const texels = px * this._maskSize[0] / vp[2];
+    return { step: /** @type {[number, number]} */ ([px / vp[2], px / vp[3]]), px, lod: Math.log2(Math.max(texels, 1)) };
   }
 
   /** PARCHMENT: the AO radius as a fraction of the SDF, shared by the flood and the composite. */
@@ -972,9 +1006,10 @@ export class WallShadowLayer {
 
   /* ── 1. shadow mask → FBO[2] with stencil (no overlap) ── */
 
-  _shadowPass(gl, tiles) {
+  _shadowPass(gl, tiles, vp) {
     const U = this._uShad;
-    beginPass(gl, this._fbo[2], this._sdfRes, { stencil: true });
+    this._sizeMask(gl, vp); // PARCHMENT
+    beginPass(gl, this._fbo[2], this._maskSize, { stencil: true });
     gl.stencilFunc(gl.EQUAL, 0, 0xFF);
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
 
@@ -995,6 +1030,8 @@ export class WallShadowLayer {
     this._casterShadows(gl); // PARCHMENT
     this._vao.bind(null);
     gl.disable(gl.STENCIL_TEST);
+    gl.bindTexture(gl.TEXTURE_2D, this._tex[2]); // PARCHMENT
+    gl.generateMipmap(gl.TEXTURE_2D);
   }
 
   /**
@@ -1022,7 +1059,7 @@ export class WallShadowLayer {
 
   _seedPass(gl, tiles) {
     const U = this._uSeed;
-    beginPass(gl, this._fbo[0], this._sdfRes);
+    beginPass(gl, this._fbo[0], [this._sdfRes, this._sdfRes]);
     gl.useProgram(this._seedProg);
     gl.uniform2f(U.u_res, this._sdfRes, this._sdfRes);
 
@@ -1090,8 +1127,9 @@ export class WallShadowLayer {
     gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);
     gl.uniform3fv(U.u_shadowColor, this.shadowColor);
 
-    const blurStep = this.shadowBlur / this._sdfRes;
-    gl.uniform2f(U.u_blurStep, blurStep, blurStep);
+    const blur = this._maskBlur(vp); // PARCHMENT
+    gl.uniform2f(U.u_blurStep, blur.step[0], blur.step[1]);
+    gl.uniform1f(U.u_blurBias, Math.log2(Math.max(blur.px, 1)));
 
     const bearing = this._map.getBearing() * Math.PI / 180;
     const c = Math.cos(bearing), s = Math.sin(bearing);

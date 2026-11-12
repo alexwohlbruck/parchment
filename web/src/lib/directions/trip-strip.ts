@@ -2,7 +2,8 @@
 
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { headsUpHazards } from './leg-heads-up'
-import type { RouteHazard } from '@/types/directions.types'
+import { getEdgeColor, PROFILE_TABS, type RouteProfileType } from './route-profile-colors'
+import type { RouteEdgeSegment, RouteHazard, TravelMode } from '@/types/directions.types'
 
 /** Less climbing than this across the trip, and the profile is a flat line not worth the room. */
 export const MIN_PROFILE_GAIN_METERS = 10
@@ -25,6 +26,7 @@ export interface StripSegment {
   geometry?: { lat: number; lng: number; elevation?: number }[] | unknown
   totalElevationGain?: number
   hazards?: RouteHazard[]
+  edgeSegments?: RouteEdgeSegment[]
 }
 
 export interface StripLeg {
@@ -129,4 +131,30 @@ export function stripX(model: TripStripModel, segments: StripSegment[], index: n
   const distance = segments[index]?.distance
   const f = distance ? Math.min(1, Math.max(0, offset / distance)) : 0
   return leg.x0 + f * (leg.x1 - leg.x0)
+}
+
+/** Whether a leg can be coloured by `profile`: a leg on foot or bike, of a mode the profile covers, with edge data. */
+export function canColorBy(segment: StripSegment, profile: RouteProfileType): boolean {
+  const mode = (segment.mode === 'biking' ? 'cycling' : segment.mode) as TravelMode
+  return selfPowered(segment.mode) && !!segment.edgeSegments?.length && !!PROFILE_TABS.find(t => t.id === profile)?.modes.includes(mode)
+}
+
+/** The profiles at least one leg of the trip can be coloured by, in menu order. */
+export function tripProfiles(segments: StripSegment[]): RouteProfileType[] {
+  return PROFILE_TABS.map(t => t.id).filter(id => segments.some(s => canColorBy(s, id)))
+}
+
+/** A leg's stretches by `profile` colour, as strip fractions; neighbouring edges of one colour are merged. */
+export function colorRuns(segment: StripSegment, leg: StripLeg, profile: RouteProfileType): { x0: number; x1: number; color: string }[] {
+  const distance = segment.distance || segment.edgeSegments?.at(-1)?.endDistance
+  if (!distance || !canColorBy(segment, profile)) return []
+  const x = (d: number) => leg.x0 + Math.min(1, Math.max(0, d / distance)) * (leg.x1 - leg.x0)
+  const runs: { x0: number; x1: number; color: string }[] = []
+  for (const edge of segment.edgeSegments!) {
+    const color = getEdgeColor(profile, edge)
+    const last = runs.at(-1)
+    if (last?.color === color) last.x1 = x(edge.endDistance)
+    else runs.push({ x0: x(edge.startDistance), x1: x(edge.endDistance), color })
+  }
+  return runs
 }

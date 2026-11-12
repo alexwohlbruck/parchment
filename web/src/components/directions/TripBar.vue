@@ -130,7 +130,7 @@ const isRide = (segment: BarSegment) => segment.mode !== 'walking' || isWalkingO
 </script>
 
 <template>
-  <div class="relative h-7 flex items-center">
+  <div class="relative isolate h-7 flex items-center">
     <div class="absolute inset-x-0 h-px top-1/2 -translate-y-1/2 bg-border/30" />
 
     <div

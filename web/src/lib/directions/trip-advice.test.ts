@@ -7,6 +7,7 @@ import {
   adviceStatus,
   approachRace,
   arrivalZone,
+  spareZones,
   raceZones,
   adviceValidUntil,
   boardsAtMs,
@@ -322,6 +323,14 @@ describe('run', () => {
     const min = 60_000
     expect(approachRace(10 * min, 0, 420, 1.5)).toEqual({ departAtMs: 10 * min, walkMs: 7 * min, spareMs: 3 * min, bufferMs: 2 * min, runFactor: 1.5 })
     expect(approachRace(5 * min, 0, 480, null).spareMs).toBe(-3 * min)
+  })
+
+  test('spare zones run from late to early', () => {
+    const min = 60_000
+    const zones = spareZones(approachRace(10 * min, 0, 0, 1.5), 0)
+    expect(zones.map(z => [z.kind, z.fromMs / min, z.toMs / min])).toEqual([
+      ['tooFar', -Infinity, -5], ['run', -5, 0], ['hurry', 0, 2], ['leave', 2, 5], ['calm', 5, 10],
+    ])
   })
 
   test('the arrival zone is early with over five minutes spare', () => {

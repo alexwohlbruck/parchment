@@ -255,6 +255,14 @@ export function arrivalZone(race: Race, nowMs: number): RaceZoneKind {
   return raceZones(race, leadMs).find(z => race.walkMs <= z.toMs)?.kind ?? 'tooFar'
 }
 
+/** The race's zones by spare time at the stop: positive is early, negative is late. */
+export function spareZones(race: Race, nowMs: number): RaceZone[] {
+  const leadMs = Math.max(0, race.departAtMs - nowMs)
+  return raceZones(race, leadMs)
+    .map(({ kind, fromMs, toMs }) => ({ kind, fromMs: leadMs - toMs, toMs: leadMs - fromMs }))
+    .reverse()
+}
+
 function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {
   const next = runs[target + 1]
   if (!next) return {}

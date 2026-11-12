@@ -64,6 +64,6 @@ const laterText = computed(() =>
       <span class="ml-auto font-medium" :class="reach.tone">{{ reach.word }}</span>
       <ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform" :class="open && 'rotate-180'" />
     </button>
-    <ApproachRace v-if="onFoot" class="mt-2" :race="race" :now-ms="nowMs" :ride="segment" />
+    <ApproachRace v-if="onFoot" class="mt-2.5" :race="race" :now-ms="nowMs" :line-name="segment?.lineName" />
   </div>
 </template>

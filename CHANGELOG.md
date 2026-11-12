@@ -4,7 +4,7 @@
 
 ### Changed
 
-* Turn-by-turn navigation shows your walk to the stop and the train's departure as one bar, with the time you have to spare or are short shown where they meet. It says Early when you'll reach the stop with more than five minutes to spare.
+* While you walk to a transit stop, navigation shows how early or late you'll arrive on a gauge that moves as you speed up or slow down. It says Early when you'll have more than five minutes to spare.
 
 ### Fixed
 

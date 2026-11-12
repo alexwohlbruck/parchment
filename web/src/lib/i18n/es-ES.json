@@ -751,12 +751,7 @@
         "tooFar": "Cambiado al {line} de las {time}; no llegas al de las {from}"
       },
       "race": {
-        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
-        "you": "Tú",
-        "walk": "{minutes} min hasta la parada",
-        "leaves": "sale en {minutes} min",
-        "now": "Ahora",
-        "to": "hacia"
+        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min"
       },
       "status": {
         "leaveIn": "Sal en {minutes} min",
@@ -2046,7 +2041,8 @@
       },
       "noneOfThese": "Ninguno de estos",
       "reach": {
-        "ok": "A tiempo"
+        "ok": "A tiempo",
+        "early": "Con tiempo"
       },
       "inDuration": "en {duration}",
       "otherRuns": "Otras salidas",

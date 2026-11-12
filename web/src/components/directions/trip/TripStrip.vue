@@ -6,12 +6,17 @@ import { formatClock } from '@/lib/directions/trip-display'
 import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import { stripX, tripStrip, type StripSegment } from '@/lib/directions/trip-strip'
 import { tripBarScale } from '@/lib/directions/trip-bar-scale'
+import type { RouteWaypointDisplay } from '@/composables/directions/useRouteWaypoints'
 
 const props = defineProps<{
   segments: (StripSegment & { lineName?: string; lineTextColor?: string | null; legIndex?: number })[]
   /** Live: how far along the trip the traveller is. */
   progress?: { segment: number; offset: number } | null
+  waypoints?: RouteWaypointDisplay[]
 }>()
+
+/** Room at each end for a waypoint icon. */
+const INSET = 22
 
 /** Profile height; its baseline sits on the bar's centre line. */
 const H = 44
@@ -34,7 +39,7 @@ const model = computed(() => tripStrip(props.segments))
 const px = computed(() => {
   const t0 = start.value.getTime()
   const span = minutes.value * 60000
-  const scale = tripBarScale(props.segments, t0, t0 + span, width.value)
+  const scale = tripBarScale(props.segments, t0, t0 + span, width.value, INSET)
   return (f: number) => scale(t0 + f * span)
 })
 
@@ -107,6 +112,8 @@ const endLabel = computed(() => (props.segments.length ? formatClock(new Date(pr
         :segments="segments"
         :timeline-start="start"
         :px-per-minute="pxPerMinute"
+        :waypoints="waypoints"
+        :inset="INSET"
       />
       <template v-if="progressX != null">
         <div

@@ -20,15 +20,21 @@ export function badgeWidth(segment: BarScaleSegment): number {
 const isRide = (segment: BarScaleSegment, walkingOnly: boolean) => segment.mode !== 'walking' || walkingOnly
 
 /**
- * Maps a time (ms) onto [0, width] px, laid out from `start` to `end`. Each ride is
- * stretched to at least its badge's width; the rest of the bar shrinks to make room.
+ * Maps a time (ms) onto [inset, width - inset] px, laid out from `start` to `end`. Each
+ * ride is stretched to at least its badge's width; the rest of the bar shrinks to make room.
  */
 export function tripBarScale(
   segments: BarScaleSegment[],
   start: number,
   end: number,
   width: number,
+  inset = 0,
 ): (ms: number) => number {
+  const scale = innerScale(segments, start, end, Math.max(0, width - 2 * inset))
+  return ms => inset + scale(ms)
+}
+
+function innerScale(segments: BarScaleSegment[], start: number, end: number, width: number): (ms: number) => number {
   const walkingOnly = segments.length > 0 && segments.every(s => s.mode === 'walking')
   const cuts = new Map<number, number>([[start, 0], [end, 0]])
   for (const segment of segments) {

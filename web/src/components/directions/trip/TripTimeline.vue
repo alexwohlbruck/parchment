@@ -32,6 +32,7 @@ import { placeToDisplay, waypointToDisplay } from '@/services/place/place-displa
 import { useThemeStore } from '@/stores/theme.store'
 import type { RouteWaypointDisplay } from '@/composables/directions/useRouteWaypoints'
 import { ItemIcon } from '@/components/ui/item-icon'
+import WaypointNode from './WaypointNode.vue'
 import { PlaceCard } from '@/components/place/card'
 import TransitLegCard from '@/components/transit/trip/TransitLegCard.vue'
 import StationGuidanceRows from '@/components/transit/trip/StationGuidanceRows.vue'
@@ -293,28 +294,7 @@ const legKey = (entry: TimelineEntry) => {
             class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
             :class="railColorAt(entries, i, 'above')"
           />
-          <ItemIcon
-            v-if="entry.waypointIndex > 0 || entry.wp.ownIcon"
-            v-bind="node(i)"
-            :icon="entry.wp.display.icon"
-            :icon-pack="entry.wp.display.iconPack"
-            :color="entry.wp.display.color"
-            :custom-color="entry.wp.display.customColor"
-            :image-url="entry.wp.display.imageUrl ?? undefined"
-            size="sm"
-            variant="solid"
-            shape="circle"
-            class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
-          />
-          <div
-            v-else
-            v-bind="node(i)"
-            class="relative z-10 mt-1 size-7 flex items-center justify-center shrink-0"
-          >
-            <div
-              class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 ring-2 ring-muted-light"
-            />
-          </div>
+          <WaypointNode v-bind="node(i)" :waypoint="entry.wp" size="rail" class="relative z-10 mt-1" />
         </template>
         <template v-else-if="entry.kind === 'place-stop'">
           <div

@@ -1085,7 +1085,7 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </span>
       </div>
 
-      <TripStrip :segments="trip.segments" class="mt-1" />
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" class="mt-1" />
 
       <TripTimeline
         class="mt-5"

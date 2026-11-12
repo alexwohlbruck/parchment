@@ -107,6 +107,7 @@ onBeforeUnmount(() => unregisterTick?.())
   <div>
     <TripStrip
       :segments="segments"
+      :waypoints="waypoints"
       :progress="progress != null ? { segment: current, offset: progress } : null"
       class="mb-4"
     />

@@ -66,7 +66,16 @@ function stopClass(index: number) {
           class="absolute left-1/2 -translate-x-1/2 w-0.5 top-1/2 bottom-[-2px]"
           v-bind="segmentRail(segment)"
         />
+        <RouteBullet
+          v-if="segment.lineName"
+          size="md"
+          class="relative z-10 max-w-[44px]"
+          :label="segment.lineName"
+          :color="segment.lineColor"
+          :text-color="segment.lineTextColor"
+        />
         <div
+          v-else
           class="relative z-10 size-7 rounded-full flex items-center justify-center text-white shrink-0"
           :class="!segment.lineColor && (TRIP_MODE_COLORS[segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
           :style="segment.lineColor ? {
@@ -94,15 +103,10 @@ function stopClass(index: number) {
           :text-color="opt.textColor"
         />
       </div>
-      <RouteBullet
-        v-else
-        size="md"
-        class="shrink-0 max-w-[60%]"
-        :label="segment.lineName"
-        :color="segment.lineColor"
-        :text-color="segment.lineTextColor"
+      <ArrowRight
+        v-if="(segment.routeOptions?.length ?? 0) > 1"
+        class="size-3.5 text-muted-foreground shrink-0"
       />
-      <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
       <span class="min-w-0 flex flex-col leading-tight">
         <span class="text-sm font-semibold text-foreground truncate">{{ direction.label }}</span>
         <span v-if="direction.toward" class="text-[11px] text-muted-foreground truncate">

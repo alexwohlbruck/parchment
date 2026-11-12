@@ -8,6 +8,8 @@ import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import { formatDurationParts } from '@/lib/time-format'
 import { tripBarScale } from '@/lib/directions/trip-bar-scale'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import WaypointNode from '@/components/directions/trip/WaypointNode.vue'
+import type { RouteWaypointDisplay } from '@/composables/directions/useRouteWaypoints'
 
 interface BarSegment {
   id?: string
@@ -29,6 +31,9 @@ const props = defineProps<{
   /** Where x = 0 falls on the clock. */
   timelineStart: Date | string
   pxPerMinute: number
+  /** Caps drawn as the timeline's waypoint icons, which take `inset` px clear of the rides at each end. */
+  waypoints?: RouteWaypointDisplay[]
+  inset?: number
 }>()
 
 const { t } = useI18n()
@@ -41,7 +46,7 @@ const endOf = (segment: BarSegment) =>
 
 const x = computed(() => {
   const end = Math.max(startMs.value, ...props.segments.map(endOf))
-  return tripBarScale(props.segments, startMs.value, end, ((end - startMs.value) / 60000) * props.pxPerMinute)
+  return tripBarScale(props.segments, startMs.value, end, ((end - startMs.value) / 60000) * props.pxPerMinute, props.inset)
 })
 
 function segLeft(segment: BarSegment) {
@@ -114,6 +119,12 @@ const caps = computed(() => {
   return positions
 })
 
+/** The end caps sit centred in the inset, clear of the first and last ride. */
+function capX(pos: number, i: number) {
+  const half = (props.inset ?? 0) / 2
+  return i === 0 ? pos - half : i === caps.value.length - 1 ? pos + half : pos
+}
+
 // Walks show through as the tick track, Transit-app style, unless the whole trip is a walk.
 const isRide = (segment: BarSegment) => segment.mode !== 'walking' || isWalkingOnly.value
 </script>
@@ -130,8 +141,18 @@ const isRide = (segment: BarSegment) => segment.mode !== 'walking' || isWalkingO
       :style="{ left: `${span.left}px`, width: `${span.width}px`, ...tickStyle(span) }"
     />
 
+    <template v-if="waypoints?.length === caps.length">
+      <WaypointNode
+        v-for="(pos, i) in caps"
+        :key="`wp-${i}`"
+        :waypoint="waypoints[i]"
+        size="bar"
+        class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-[60]"
+        :style="{ left: `${capX(pos, i)}px` }"
+      />
+    </template>
     <div
-      v-if="caps.length"
+      v-else-if="caps.length"
       class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-background border-[1.5px] border-foreground/60 z-[20] shadow-xs"
       :style="{ left: `${caps[0]}px` }"
     />
@@ -168,6 +189,7 @@ const isRide = (segment: BarSegment) => segment.mode !== 'walking' || isWalkingO
       </div>
     </template>
 
+    <template v-if="waypoints?.length !== caps.length">
     <div
       v-if="caps.length > 1"
       class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-primary border-[1.5px] border-white z-[20] shadow-xs"
@@ -179,6 +201,7 @@ const isRide = (segment: BarSegment) => segment.mode !== 'walking' || isWalkingO
       class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2 rounded-full bg-background border-[1.5px] border-primary z-[20]"
       :style="{ left: `${pos}px` }"
     />
+    </template>
     <slot />
   </div>
 </template>

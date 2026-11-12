@@ -60,7 +60,10 @@
       "keepEditing": "Keep editing"
     },
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "undo": "Undo"
   },
   "weather": {
     "title": "Weather Conditions",
@@ -1004,7 +1007,8 @@
         "all": "All collections",
         "mine": "My collections",
         "shared": "Shared with me"
-      }
+      },
+      "archivedNotice": "This collection is archived."
     },
     "actions": {
       "addToCollection": "Add to collection",
@@ -1157,6 +1161,16 @@
           }
         }
       }
+    },
+    "archived": "Archived",
+    "archive": {
+      "title": {
+        "collections": "Archived collections",
+        "routes": "Archived routes",
+        "layers": "Archived layers",
+        "canvases": "Archived canvases"
+      },
+      "empty": "Nothing archived"
     }
   },
   "services": {
@@ -1194,6 +1208,11 @@
       "fetchBookmarksError": "Failed to fetch bookmarks in collection",
       "updateBookmarkSuccess": "Bookmark updated successfully in collection",
       "updateBookmarkError": "Failed to update bookmark in collection"
+    },
+    "archive": {
+      "archived": "Archived",
+      "unarchived": "Unarchived",
+      "error": "Couldn't update the archive"
     }
   },
   "offlineMaps": {

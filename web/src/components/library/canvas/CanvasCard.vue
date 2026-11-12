@@ -23,6 +23,8 @@ import {
   PencilIcon,
   Trash2Icon,
   LockIcon,
+  ArchiveIcon,
+  ArchiveRestoreIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { useCanvasesService } from '@/services/library/canvases.service'
@@ -92,6 +94,7 @@ async function remove() {
 
     <template #trailing>
       <Switch
+        v-if="!canvas.archivedAt"
         v-model="active"
         :aria-label="t('canvases.showOnMap')"
         @click.stop
@@ -105,6 +108,15 @@ async function remove() {
         <DropdownMenuContent align="end">
           <DropdownMenuItem @click="emit('rename', canvas)">
             <PencilIcon class="size-4" /> {{ t('canvases.actions.rename') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            @click="canvasesService.setArchived(canvas.id, !canvas.archivedAt)"
+          >
+            <component
+              :is="canvas.archivedAt ? ArchiveRestoreIcon : ArchiveIcon"
+              class="size-4"
+            />
+            {{ t(canvas.archivedAt ? 'general.unarchive' : 'general.archive') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem class="text-destructive" @click="remove">

@@ -8,6 +8,16 @@ import { i18nPlugin } from '../../lib/i18n/plugin'
 
 const app = new Elysia().use(i18nPlugin)
 
+const archivedDescription =
+  '`archived: true` takes the item, and anything nested under it, off the map and the layer selector until `archived: false`.'
+
+/** The server stamps the archive time; clients only say whether. */
+function withArchivedAt<T extends { archived?: boolean }>({ archived, ...rest }: T) {
+  return archived === undefined
+    ? rest
+    : { ...rest, archivedAt: archived ? new Date() : null }
+}
+
 // Each route is wrapped in .group('') to isolate the permissions()
 // middleware — Elysia's .use() leaks to all subsequent routes otherwise.
 
@@ -74,7 +84,7 @@ app.group('', (g) =>
     .put(
       '/layers/:id',
       async ({ user, params: { id }, body, set, t }) => {
-        const layer = await layersService.updateLayer(id, user.id, body)
+        const layer = await layersService.updateLayer(id, user.id, withArchivedAt(body))
         if (!layer) {
           set.status = 404
           return { error: t('errors.library.layerNotFound') }
@@ -97,8 +107,13 @@ app.group('', (g) =>
           isSubLayer: t.Optional(t.Boolean()),
           enabled: t.Optional(t.Boolean()),
           integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+          archived: t.Optional(t.Boolean()),
         }),
-        detail: { tags: ['Layers'], summary: 'Update a user-owned layer' },
+        detail: {
+          tags: ['Layers'],
+          summary: 'Update a user-owned layer',
+          description: archivedDescription,
+        },
       },
     ),
 )
@@ -174,7 +189,7 @@ app.group('', (g) =>
     .put(
       '/layers/groups/:id',
       async ({ user, params: { id }, body, set, t }) => {
-        const group = await layersService.updateLayerGroup(id, user.id, body)
+        const group = await layersService.updateLayerGroup(id, user.id, withArchivedAt(body))
         if (!group) {
           set.status = 404
           return { error: t('errors.library.layerGroupNotFound') }
@@ -192,10 +207,12 @@ app.group('', (g) =>
           order: t.Optional(t.Number()),
           parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
           integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+          archived: t.Optional(t.Boolean()),
         }),
         detail: {
           tags: ['Layers'],
           summary: 'Update a user-owned layer group',
+          description: archivedDescription,
         },
       },
     ),
@@ -373,7 +390,7 @@ app.group('', (g) =>
           user.id,
           templateId,
           type,
-          patch,
+          withArchivedAt(patch),
         )
       },
       {
@@ -387,10 +404,12 @@ app.group('', (g) =>
           showInLayerSelector: t.Optional(t.Union([t.Boolean(), t.Null()])),
           groupId: t.Optional(t.Union([t.String(), t.Null()])),
           parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+          archived: t.Optional(t.Boolean()),
         }),
         detail: {
           tags: ['Layers'],
           summary: 'Upsert user state for a default template',
+          description: archivedDescription,
         },
       },
     ),

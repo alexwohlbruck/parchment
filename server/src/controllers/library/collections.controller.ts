@@ -5,6 +5,7 @@ import * as collectionsService from '../../services/library/collections.service'
 import * as encryptedPointsService from '../../services/library/encrypted-points.service'
 import * as sharingService from '../../services/sharing.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
+import { archiveEndpoints } from './archive'
 
 const collectionMetadata = {
   name: t.Optional(t.String()),
@@ -215,6 +216,16 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         summary: 'Delete a collection',
       },
     },
+  )
+
+  .use(
+    archiveEndpoints({
+      noun: 'collection',
+      description:
+        'Files the collection away for the caller only: owners and share recipients each keep their own archive. Archived collections still come back from the list endpoints, with `archivedAt` set.',
+      notFound: 'errors.library.collectionNotFound',
+      setArchived: collectionsService.setCollectionArchived,
+    }),
   )
 
   // Change a collection's encryption scheme atomically. The client

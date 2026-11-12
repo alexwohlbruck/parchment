@@ -1,6 +1,6 @@
 import { db } from '../../db'
 import { routes, Route, NewRoute, RouteBody } from '../../schema/routes.schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, sql } from 'drizzle-orm'
 import { generateId } from '../../util'
 import { randomBytes } from 'node:crypto'
 
@@ -97,6 +97,20 @@ export async function deleteRoute(
     .where(and(eq(routes.id, id), eq(routes.userId, userId)))
     .returning()
   return result.length > 0
+}
+
+/** Leaves `updatedAt` alone: filing a route away isn't an edit to it. */
+export async function setRouteArchived(
+  id: string,
+  userId: string,
+  archived: boolean,
+): Promise<Route | undefined> {
+  const [updated] = await db
+    .update(routes)
+    .set({ archivedAt: archived ? sql`coalesce(${routes.archivedAt}, now())` : null })
+    .where(and(eq(routes.id, id), eq(routes.userId, userId)))
+    .returning()
+  return updated
 }
 
 // ===== Public Link Sharing =====

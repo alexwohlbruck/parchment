@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ChevronRightIcon } from 'lucide-vue-next'
+import { CountBadge } from '@/components/ui/count-badge'
 import type { Component } from 'vue'
 
 /**
@@ -14,7 +15,7 @@ withDefaults(
   defineProps<{
     title: string
     icon?: Component
-    /** Rendered in parentheses after the title. */
+    /** Shown as a badge after the title. */
     count?: number | string
     /** Appends a `+`, for a count that is a floor rather than a total. */
     hasMore?: boolean
@@ -45,12 +46,12 @@ defineEmits<{ select: [] }>()
       "
     >
       <component v-if="icon" :is="icon" class="size-4 shrink-0 text-muted-foreground" />
-      <span class="truncate">
-        {{ title }}
-        <span v-if="count !== undefined" class="font-normal">
-          ({{ count }}{{ hasMore ? '+' : '' }})
-        </span>
-      </span>
+      <span class="truncate">{{ title }}</span>
+      <CountBadge
+        v-if="count !== undefined"
+        :count="`${count}${hasMore ? '+' : ''}`"
+        class="shrink-0"
+      />
     </h3>
 
     <slot name="trailing">

@@ -3,6 +3,7 @@ import { permissions } from '../../middleware/auth.middleware.js'
 import { PermissionId } from '../../types/auth.types'
 import * as canvasesService from '../../services/library/canvases.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
+import { archiveEndpoints } from './archive'
 
 /**
  * Canvases — user-built maps made of stacked layers.
@@ -16,6 +17,16 @@ import { i18nPlugin } from '../../lib/i18n/plugin'
 const canvasesRouter = new Elysia({ prefix: '/canvases' })
   .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
+
+  .use(
+    archiveEndpoints({
+      noun: 'canvas',
+      description:
+        'Takes the canvas off the map and out of the main list without deleting it. Archived ones still come back from the list endpoint, with `archivedAt` set.',
+      notFound: 'errors.library.canvasNotFound',
+      setArchived: canvasesService.setCanvasArchived,
+    }),
+  )
 
   .get(
     '/',

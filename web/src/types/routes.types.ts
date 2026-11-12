@@ -73,6 +73,7 @@ export interface Route {
   bodyEncrypted?: string | null
   bodyNonce?: string | null
 
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
 

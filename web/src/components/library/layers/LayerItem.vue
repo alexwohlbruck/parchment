@@ -7,6 +7,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
+import { useArchiveService } from '@/services/library/archive.service'
 import type { Layer } from '@/types/map.types'
 import * as LucideIcons from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
@@ -22,6 +23,7 @@ import {
   PencilIcon,
   MoveIcon,
   TrashIcon,
+  ArchiveIcon,
 } from 'lucide-vue-next'
 import {
   Tooltip,
@@ -51,6 +53,7 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapService = useMapService()
 const appService = useAppService()
+const archiveService = useArchiveService()
 
 /**
  * Only the user's own layers are editable. System layers are projected from a
@@ -190,6 +193,13 @@ async function toggleLayer(enabled: boolean) {
         <DropdownMenuItem v-if="showUngroupAction" @click="handleUngroup">
           <MoveIcon class="size-3 mr-2" />
           {{ t('layers.actions.ungroupLayer') }}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          v-if="!isVirtual"
+          @click="archiveService.setLayerArchived(layer, true)"
+        >
+          <ArchiveIcon class="size-3 mr-2" />
+          {{ t('general.archive') }}
         </DropdownMenuItem>
         <DropdownMenuItem
           v-if="!isVirtual"

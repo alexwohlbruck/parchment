@@ -6,7 +6,7 @@ import {
   type NewCanvas,
 } from '../../schema/canvases.schema'
 import type { CollectionScheme } from '../../schema/library.schema'
-import { and, eq, desc, getTableColumns } from 'drizzle-orm'
+import { and, eq, desc, getTableColumns, sql } from 'drizzle-orm'
 import { generateId } from '../../util'
 import { randomBytes } from 'node:crypto'
 
@@ -254,6 +254,20 @@ export async function getPublicCanvasByToken(
   if (!canvas) return null
   if (canvas.scheme !== 'server-key') return null
   return canvas
+}
+
+/** Leaves `updatedAt` alone: filing a canvas away isn't an edit to it. */
+export async function setCanvasArchived(
+  id: string,
+  userId: string,
+  archived: boolean,
+): Promise<CanvasSummary | undefined> {
+  const [updated] = await db
+    .update(canvases)
+    .set({ archivedAt: archived ? sql`coalesce(${canvases.archivedAt}, now())` : null })
+    .where(and(eq(canvases.id, id), eq(canvases.userId, userId)))
+    .returning(canvasSummary)
+  return updated
 }
 
 export async function deleteCanvas(

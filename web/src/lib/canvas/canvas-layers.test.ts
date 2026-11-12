@@ -157,6 +157,17 @@ describe('what the map draws', () => {
     expect(p.visibleIds).toEqual([])
   })
 
+  it('leaves an archived canvas off the map and the selector, even if it was on', () => {
+    const archived = canvas('b', { archivedAt: '2026-11-01T00:00:00.000Z' })
+    const p = build({
+      canvases: [canvas('a'), archived],
+      activeCanvasIds: ['a', 'b'],
+      activeCanvases: [canvas('a'), archived],
+    })
+    expect(p.visibleIds).toEqual(['a'])
+    expect(p.layers).toHaveLength(1)
+  })
+
   it('draws nothing for a canvas that is listed but switched off', () => {
     const p = build({
       canvases: [canvas('a'), canvas('b')],

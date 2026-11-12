@@ -1,4 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
+import { useArchiveService } from '@/services/library/archive.service'
 import { toast } from '@/lib/toast'
 import { api } from '@/lib/api'
 import { isOffline } from '@/lib/connectivity'
@@ -95,6 +96,7 @@ export const useRoutesService = createSharedComposable(() => {
     (i18n.global as any).t(key, named ?? {})
   const routesStore = useRoutesStore()
   const authStore = useAuthStore()
+  const archiveService = useArchiveService()
 
   function getRouteDisplayName(route: Route | null | undefined): string {
     if (!route) return ''
@@ -425,6 +427,21 @@ export const useRoutesService = createSharedComposable(() => {
     }
   }
 
+  function setArchived(id: string, archived: boolean) {
+    return archiveService.setArchived(
+      {
+        id,
+        path: `/library/routes/${id}`,
+        read: () => routesStore.getRouteById(id)?.archivedAt,
+        write: archivedAt => {
+          const route = routesStore.getRouteById(id)
+          if (route) routesStore.upsertRoute({ ...route, archivedAt })
+        },
+      },
+      archived,
+    )
+  }
+
   /** Mint a public share link. server-key routes only. Returns the URL. */
   async function createShareLink(id: string): Promise<string | null> {
     try {
@@ -470,6 +487,7 @@ export const useRoutesService = createSharedComposable(() => {
     createRoute,
     updateRoute,
     deleteRoute,
+    setArchived,
     createShareLink,
     revokeShareLink,
   }

@@ -89,6 +89,7 @@ export const routes = pgTable(
     bodyEncrypted: text('body_encrypted'),
     bodyNonce: text('body_nonce'),
 
+    archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

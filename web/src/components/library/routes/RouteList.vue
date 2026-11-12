@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -24,31 +24,24 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const localRoutes = ref<Route[]>([...props.routes])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt' | 'distance'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
-watch(
-  () => props.routes,
-  (newRoutes) => {
-    localRoutes.value = [...newRoutes]
-  },
-  { deep: true },
-)
-
 function routeDistance(r: Route): number {
   return r.distance ?? r.body?.stats?.distance ?? 0
 }
 
+const activeRoutes = computed(() => props.routes.filter(r => !r.archivedAt))
+
 const filteredRoutes = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localRoutes.value, searchQuery.value, {
+    ? fuzzyFilter(activeRoutes.value, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : localRoutes.value
+    : activeRoutes.value
 
   result = [...result].sort((a, b) => {
     let comparison = 0

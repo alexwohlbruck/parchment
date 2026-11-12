@@ -90,6 +90,14 @@ function canSaveTo(collection: Collection) {
   return canWriteCollection(collection) && !(collection.scheme === 'user-e2ee' && collection.locked)
 }
 
+/** Archived collections stay listed only while this place is in them, so it can be taken out. */
+function isListed(collection: Collection) {
+  return (
+    canSaveTo(collection) &&
+    (!collection.archivedAt || bookmarkCollectionIds.value.includes(collection.id))
+  )
+}
+
 watch(
   () => props.bookmark?.id,
   async (id, oldId) => {
@@ -176,7 +184,7 @@ async function fetchCollectionsForBookmark() {
 const frozenOrder = ref<Map<string, number>>(new Map())
 
 function buildFrozenOrder(): Map<string, number> {
-  const writable = collections.value.filter(canSaveTo)
+  const writable = collections.value.filter(isListed)
   const lastSavedId = lastSavedCollectionId.value
   const ordered = writable
     .slice()
@@ -191,7 +199,7 @@ function buildFrozenOrder(): Map<string, number> {
 }
 
 const sortedAndFilteredCollections = computed(() => {
-  const writableCollections = collections.value.filter(canSaveTo)
+  const writableCollections = collections.value.filter(isListed)
 
   const sourceCollections = fuzzyFilter(
     writableCollections,

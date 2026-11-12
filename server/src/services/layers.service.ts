@@ -49,7 +49,7 @@ export async function createLayer(params: CreateLayerParams) {
 export async function updateLayer(
   id: string,
   userId: string,
-  updates: Partial<CreateLayerParams>,
+  updates: Partial<CreateLayerParams> & { archivedAt?: Date | null },
 ) {
   const [layer] = await db
     .update(layers)
@@ -98,7 +98,7 @@ export async function createLayerGroup(params: CreateLayerGroupParams) {
 export async function updateLayerGroup(
   id: string,
   userId: string,
-  updates: Partial<CreateLayerGroupParams>,
+  updates: Partial<CreateLayerGroupParams> & { archivedAt?: Date | null },
 ) {
   const [group] = await db
     .update(layerGroups)
@@ -173,6 +173,7 @@ export interface DefaultStatePatch {
   showInLayerSelector?: boolean | null
   groupId?: string | null
   parentGroupId?: string | null
+  archivedAt?: Date | null
 }
 
 export async function getDefaultUserState(userId: string) {
@@ -201,6 +202,7 @@ export async function upsertDefaultUserState(
     showInLayerSelector: patch.showInLayerSelector ?? null,
     groupId: patch.groupId ?? null,
     parentGroupId: patch.parentGroupId ?? null,
+    archivedAt: patch.archivedAt ?? null,
     createdAt: now,
     updatedAt: now,
   }
@@ -218,6 +220,7 @@ export async function upsertDefaultUserState(
   }
   if ('groupId' in patch) setClause.groupId = patch.groupId
   if ('parentGroupId' in patch) setClause.parentGroupId = patch.parentGroupId
+  if ('archivedAt' in patch) setClause.archivedAt = patch.archivedAt
 
   const [row] = await db
     .insert(defaultLayerUserState)

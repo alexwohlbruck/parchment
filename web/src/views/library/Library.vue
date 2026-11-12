@@ -12,6 +12,12 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useI18n } from 'vue-i18n'
+import { ArchiveIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { SheetFooter } from '@/components/sheet'
+import { CountBadge } from '@/components/ui/count-badge'
+import { useArchivedItems, type ArchiveKind } from '@/composables/library/useArchivedItems'
 
 const authService = useAuthService()
 const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.LIBRARY_READ))
@@ -32,14 +38,18 @@ const tabs = [
   { id: 'canvases', label: 'Canvases', route: AppRoute.LIBRARY_CANVASES },
 ]
 
+const unarchived = (items: { archivedAt?: string | null }[]) =>
+  items.filter(item => !item.archivedAt).length || null
+
 const tabCounts = computed<Record<string, number | null>>(() => ({
-  collections: collections.value.length || null,
+  collections: unarchived(collections.value),
   layers: userLayers.value.length || null,
-  routes: routes.value.length || null,
-  canvases: canvases.value.length || null,
+  routes: unarchived(routes.value),
+  canvases: unarchived(canvases.value),
 }))
 
 const router = useRouter()
+const { t } = useI18n()
 const route = useRoute()
 
 const tabValue = ref('collections')
@@ -59,6 +69,13 @@ watch(
   { immediate: true },
 )
 
+const archived = useArchivedItems()
+const archivedCount = computed(() => archived.counts.value[tabValue.value as ArchiveKind] ?? 0)
+
+function openArchive() {
+  router.push({ name: AppRoute.LIBRARY_ARCHIVE, params: { kind: tabValue.value } })
+}
+
 function handleTabChange(tabId: string | number) {
   const tab = tabs.find(t => t.id === String(tabId))
   if (tab) {
@@ -74,7 +91,7 @@ function handleTabChange(tabId: string | number) {
       <Tabs
         :model-value="tabValue"
         @update:model-value="handleTabChange"
-        class="w-full min-h-full flex flex-col"
+        class="w-full flex-1 flex flex-col"
       >
         <div class="-mx-3 px-3 flex items-end border-b" style="width: calc(100% + 1.5rem)">
           <TabsList variant="linear" class="border-b-0">
@@ -94,6 +111,17 @@ function handleTabChange(tabId: string | number) {
           <router-view />
         </div>
       </Tabs>
+
+      <SheetFooter
+        v-if="archivedCount"
+        class="px-3 py-2 md:-mx-3 md:-mb-4 bg-background/80 backdrop-blur-xl border-t border-border/50"
+      >
+        <Button variant="ghost" class="w-full justify-start gap-2 text-muted-foreground" @click="openArchive">
+          <ArchiveIcon class="size-4" />
+          {{ t('library.archived') }}
+          <CountBadge :count="archivedCount" />
+        </Button>
+      </SheetFooter>
     </template>
     <UpgradeBanner v-else feature="library" required-tier="basic" />
   </PanelLayout>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CountBadge } from '@/components/ui/count-badge'
 import { type HTMLAttributes, computed } from 'vue'
 import { TabsTrigger, type TabsTriggerProps, useForwardProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
@@ -35,9 +36,6 @@ const forwardedProps = useForwardProps(delegatedProps)
     "
   >
     <slot />
-    <span
-      v-if="count != null"
-      class="ml-1.5 text-[10px] font-bold text-muted-foreground bg-foreground/5 rounded-full px-1.5 py-0.5 leading-none"
-    >{{ count }}</span>
+    <CountBadge v-if="count != null" :count="count" class="ml-1.5" />
   </TabsTrigger>
 </template>

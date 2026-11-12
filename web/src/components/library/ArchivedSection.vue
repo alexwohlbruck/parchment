@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArchiveIcon, ChevronDownIcon } from 'lucide-vue-next'
+import { CountBadge } from '@/components/ui/count-badge'
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,10 +31,9 @@ const open = computed({
       class="group flex w-full items-center gap-2 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
     >
       <ArchiveIcon class="size-4 shrink-0" />
-      <span class="flex-1">
-        {{ t('library.archived') }}
-        <span class="font-normal">({{ count }})</span>
-      </span>
+      <span>{{ t('library.archived') }}</span>
+      <CountBadge :count="count" />
+      <span class="flex-1" />
       <ChevronDownIcon
         class="size-4 shrink-0 transition-transform"
         :class="{ 'rotate-180': open }"

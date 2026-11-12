@@ -1,11 +1,18 @@
 ## [Unreleased]
 
 ### Added
-* A trip's elevation strip can be coloured by suitability, infrastructure, surface or incline instead of travel mode, with the route on the map coloured to match.
 
 ### Changed
 
 ### Fixed
+
+## [0.21.1] - 2026-11-12
+
+### Added
+* A trip's elevation strip can be coloured by suitability, infrastructure, surface or incline instead of travel mode, with the route on the map coloured to match.
+
+### Fixed
+* The stop icons on a trip's strip no longer draw over the trip header when you scroll.
 
 ## [0.21.0] - 2026-11-12
 

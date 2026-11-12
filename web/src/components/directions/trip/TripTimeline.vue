@@ -8,11 +8,8 @@ import {
   CarFrontIcon,
   ClockIcon,
   ExternalLinkIcon,
-  LockIcon,
   LogInIcon,
   LogOutIcon,
-  MapPinIcon,
-  SquareParkingIcon,
   TriangleAlertIcon,
 } from 'lucide-vue-next'
 import {
@@ -255,9 +252,9 @@ function handoffOf(entry: PlaceStopEntry) {
   const mode = props.segments[entry.segmentIndex]?.mode
   const display = placeToDisplay(entry.place, { isDark: themeStore.isDark, t: translate })
   const detail = display.summary ?? display.placeType
-  if (mode === 'cycling' || mode === 'biking') return { icon: LockIcon, verb: translate('directions.leg.handoff.lockUp'), label: entry.label, detail }
-  if (mode === 'driving') return { icon: SquareParkingIcon, verb: translate('directions.leg.handoff.park'), label: entry.label, detail }
-  return { icon: MapPinIcon, verb: entry.label, label: null, detail }
+  if (mode === 'cycling' || mode === 'biking') return { verb: translate('directions.leg.handoff.lockUp'), label: entry.label, detail }
+  if (mode === 'driving') return { verb: translate('directions.leg.handoff.park'), label: entry.label, detail }
+  return { verb: entry.label, label: null, detail }
 }
 
 const handoffRing = (i: number) => ({ class: railColorAt(entries.value, i, 'above'), style: railStyleAt(entries.value, i, 'above') })
@@ -319,7 +316,7 @@ const legKey = (entry: TimelineEntry) => {
             />
           </div>
         </template>
-        <template v-else-if="entry.kind === 'place-stop' && handoffOf(entry).verb === entry.label">
+        <template v-else-if="entry.kind === 'place-stop'">
           <div
             class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
             :class="railColorAt(entries, i, 'above')"

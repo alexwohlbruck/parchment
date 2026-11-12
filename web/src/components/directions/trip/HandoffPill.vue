@@ -2,7 +2,7 @@
 import type { Component } from 'vue'
 
 defineProps<{
-  icon: Component
+  icon?: Component
   verb: string
   label?: string | null
   detail?: string | null
@@ -12,7 +12,7 @@ defineProps<{
 
 <template>
   <div class="flex items-center gap-2.5 rounded-xl bg-muted px-3 py-2 text-[13px]">
-    <component :is="icon" class="size-4 shrink-0 text-muted-foreground" />
+    <component :is="icon" v-if="icon" class="size-4 shrink-0 text-muted-foreground" />
     <div class="min-w-0 flex-1">
       <div class="truncate">
         <span class="font-semibold text-foreground">{{ verb }}</span>

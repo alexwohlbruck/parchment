@@ -16,6 +16,8 @@ export type BookmarkWithCollections = Bookmark & { collectionIds: string[] }
 export type NewBookmark = typeof bookmarks.$inferInsert
 export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert
+/** A collection as one user sees it: with when they archived it, if they did. */
+export type CollectionForUser = Collection & { archivedAt: Date | null }
 export type BookmarkCollection = typeof bookmarksCollections.$inferSelect
 export type NewBookmarkCollection = typeof bookmarksCollections.$inferInsert
 

@@ -157,6 +157,26 @@ export const bookmarksCollections = pgTable(
   }),
 )
 
+/**
+ * Per-user, so a recipient can archive a collection shared with them without
+ * hiding it from the owner or anyone else.
+ */
+export const collectionArchives = pgTable(
+  'collection_archives',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    archivedAt: timestamp('archived_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.collectionId] }),
+  }),
+)
+
 // Encrypted points for sensitive collections
 // These are E2EE and cannot be searched server-side
 export const encryptedPoints = pgTable('encrypted_points', {

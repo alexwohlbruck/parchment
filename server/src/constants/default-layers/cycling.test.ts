@@ -14,8 +14,13 @@ describe('cycling defaults', () => {
     g => g.templateId === 'default:group:cycling',
   )!
 
-  test('the group switches on the basemap tint', () => {
-    expect(group.basemapGroup).toBe('cycling')
+  /** Infrastructure, not the suitability look, owns the tint. */
+  test('the cycleways switch the basemap tint', () => {
+    const cycleways = DEFAULT_LAYER_GROUPS.find(
+      g => g.templateId === 'default:group:cycling:cycleways',
+    )!
+    expect(cycleways.basemapGroup).toBe('cycling')
+    expect(group.basemapGroup).toBeUndefined()
   })
 
   /** Under transit: where the two cross, the train passes over the bike lane. */
@@ -205,12 +210,14 @@ describe('cycling defaults', () => {
     },
   )
 
-  test('every cycling group owns a layer or the basemap behind it', () => {
+  test('every cycling group owns a layer, a subgroup or the basemap behind it', () => {
     const groups = DEFAULT_LAYER_GROUPS.filter(g =>
       g.templateId.startsWith('default:group:cycling'),
     )
     for (const g of groups) {
-      const owns = CYCLING_LAYER_TEMPLATES.some(t => t.groupId === g.templateId)
+      const owns =
+        CYCLING_LAYER_TEMPLATES.some(t => t.groupId === g.templateId) ||
+        DEFAULT_LAYER_GROUPS.some(c => c.parentGroupId === g.templateId)
       expect(owns || Boolean(g.basemapGroup), g.templateId).toBe(true)
     }
   })

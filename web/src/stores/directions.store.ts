@@ -27,6 +27,9 @@ export const SELECTABLE_MODES: readonly SelectedMode[] = [
 export const useDirectionsStore = defineStore('directions', () => {
   const directions = ref<null | Directions>(null)
   const trips = ref<null | TripsResponse>(null)
+  /** The search `trips` answers, and when it was planned; outlives the planner service between pages. */
+  const plannedKey = ref('')
+  const plannedAt = ref(0)
   const waypoints = ref<Waypoint[]>([
     {
       lngLat: null,
@@ -118,8 +121,14 @@ export const useDirectionsStore = defineStore('directions', () => {
     directions.value = null
   }
 
+  function setPlanned(key: string) {
+    plannedKey.value = key
+    plannedAt.value = Date.now()
+  }
+
   function unsetTrips() {
     trips.value = null
+    plannedKey.value = ''
     selectedTripId.value = null
   }
 
@@ -150,6 +159,8 @@ export const useDirectionsStore = defineStore('directions', () => {
   return {
     directions,
     trips,
+    plannedKey,
+    plannedAt,
     waypoints,
     selectedMode,
     tripView,
@@ -164,6 +175,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     setTrips,
     unsetDirections,
     unsetTrips,
+    setPlanned,
     removeTrips,
     setSelectedTripId,
     setWaypoint,

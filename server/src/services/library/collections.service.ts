@@ -1,6 +1,7 @@
 import { db } from '../../db'
 import {
   collections,
+  collectionArchives,
   bookmarksCollections,
   encryptedPoints,
 } from '../../schema/library.schema'
@@ -18,6 +19,7 @@ import {
   NewCollection,
   NewBookmarkCollection,
   Collection,
+  CollectionForUser,
 } from '../../types/library.types'
 import type { CollectionScheme } from '../../schema/library.schema'
 import { generateId } from '../../util'
@@ -68,11 +70,21 @@ async function getOwnerHandle(
   return buildHandle(u.alias)
 }
 
+/** Joins in when `userId` archived the collection, null if they haven't. */
+function archivedBy(userId: string) {
+  return and(
+    eq(collectionArchives.collectionId, collections.id),
+    eq(collectionArchives.userId, userId),
+  )
+}
+
 export async function getCollections(userId: string) {
-  return await db
-    .select()
+  const rows = await db
+    .select({ collection: collections, archivedAt: collectionArchives.archivedAt })
     .from(collections)
+    .leftJoin(collectionArchives, archivedBy(userId))
     .where(eq(collections.userId, userId))
+  return rows.map((r) => ({ ...r.collection, archivedAt: r.archivedAt }))
 }
 
 /** The ids among `ids` whose collections are user-e2ee. */
@@ -123,15 +135,17 @@ export async function getAccessibleCollection(
   id: string,
   userId: string,
 ): Promise<
-  | (Collection & { role: 'owner' | ShareRole } & Partial<ShareEnvelopeAttachment>)
+  | (CollectionForUser & { role: 'owner' | ShareRole } & Partial<ShareEnvelopeAttachment>)
   | null
 > {
-  const [collection] = await db
-    .select()
+  const [row] = await db
+    .select({ collection: collections, archivedAt: collectionArchives.archivedAt })
     .from(collections)
+    .leftJoin(collectionArchives, archivedBy(userId))
     .where(eq(collections.id, id))
     .limit(1)
-  if (!collection) return null
+  if (!row) return null
+  const collection = { ...row.collection, archivedAt: row.archivedAt }
 
   if (collection.userId === userId) {
     return { ...collection, role: 'owner' }
@@ -176,10 +190,11 @@ export async function getAccessibleCollection(
  */
 export async function getSharedCollections(
   userId: string,
-): Promise<Array<Collection & { role: ShareRole } & ShareEnvelopeAttachment>> {
+): Promise<Array<CollectionForUser & { role: ShareRole } & ShareEnvelopeAttachment>> {
   const rows = await db
     .select({
       collection: collections,
+      archivedAt: collectionArchives.archivedAt,
       role: incomingShares.role,
       encryptedData: incomingShares.encryptedData,
       nonce: incomingShares.nonce,
@@ -187,6 +202,7 @@ export async function getSharedCollections(
     })
     .from(incomingShares)
     .innerJoin(collections, eq(collections.id, incomingShares.resourceId))
+    .leftJoin(collectionArchives, archivedBy(userId))
     .where(
       and(
         eq(incomingShares.userId, userId),
@@ -200,6 +216,7 @@ export async function getSharedCollections(
 
   return rows.map((r) => ({
     ...r.collection,
+    archivedAt: r.archivedAt,
     role: r.role,
     shareEnvelope: { encryptedData: r.encryptedData, nonce: r.nonce },
     senderHandle: r.senderHandle,
@@ -399,6 +416,49 @@ export async function deleteCollection(id: string, userId: string) {
   }
 
   return deleted
+}
+
+/**
+ * Archiving is the caller's own filing, so any role may do it and the event
+ * reaches only the caller's devices. Returns null when they can't see it.
+ */
+export async function setCollectionArchived(
+  id: string,
+  userId: string,
+  archived: boolean,
+): Promise<{ id: string; archivedAt: Date | null } | null> {
+  const collection = await getAccessibleCollection(id, userId)
+  if (!collection) return null
+
+  let archivedAt: Date | null = null
+  if (archived) {
+    const [row] = await db
+      .insert(collectionArchives)
+      .values({ userId, collectionId: id })
+      .onConflictDoUpdate({
+        target: [collectionArchives.userId, collectionArchives.collectionId],
+        set: { archivedAt: collection.archivedAt ?? new Date() },
+      })
+      .returning()
+    archivedAt = row.archivedAt
+  } else {
+    await db
+      .delete(collectionArchives)
+      .where(
+        and(
+          eq(collectionArchives.userId, userId),
+          eq(collectionArchives.collectionId, id),
+        ),
+      )
+  }
+
+  const result = { id, archivedAt }
+  const { publish } = await import('../realtime/event-bus.service')
+  publish('collection:archive-changed', result, {
+    localUserIds: [userId],
+    remoteHandles: [],
+  })
+  return result
 }
 
 // ===== Bookmarks in Collections =====

@@ -45,7 +45,7 @@ const showOffline = computed(
 )
 
 const sorted = computed(() =>
-  [...canvases.value].sort(
+  canvases.value.filter(c => !c.archivedAt).sort(
     (a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   ),

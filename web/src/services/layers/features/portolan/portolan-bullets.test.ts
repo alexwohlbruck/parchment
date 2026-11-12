@@ -10,6 +10,7 @@ import {
   feedsAt,
   resetPortolanBullets,
   setPortolanRouteIndex,
+  withCuratedLineColors,
 } from './portolan-bullets'
 
 const NYC = { feed: 'northeast-corridor', maxzoom: 18, bounds: [-75.8, 39.3, -71.9, 42.2] }
@@ -121,5 +122,61 @@ describe('telling two agencies apart by mode', () => {
     // An older pyramid predates the mode field; it cannot contradict anything.
     setPortolanRouteIndex('northeast-corridor', { '4': { label: '4', color: '00933C' } })
     expect(bulletFor('4', BROOKLYN.lat, BROOKLYN.lng, 1)?.label).toBe('4')
+  })
+})
+
+describe('a trip’s lines', () => {
+  const CHARLOTTE = { feed: 'charlotte-region', maxzoom: 18, bounds: [-81, 35, -80.6, 35.4] }
+  const UPTOWN = { lat: 35.22, lng: -80.84 }
+
+  const ride = (overrides: Record<string, unknown> = {}) => ({
+    mode: 'transit',
+    routeType: 'tram',
+    lineName: '501',
+    lineColor: null as string | null,
+    lineTextColor: null as string | null,
+    departureStop: { location: UPTOWN },
+    transitDetails: { route: { id: 'cats_501' } },
+    routeOptions: undefined as { id: string; shortName: string; color?: string }[] | undefined,
+    ...overrides,
+  })
+
+  beforeEach(() => {
+    resetPortolanBullets([CHARLOTTE])
+    setPortolanRouteIndex('charlotte-region', {
+      '501': { label: 'Blue', color: '0067B1', mode: 'tram' },
+      '510': { label: 'Gold', color: 'CBA052', mode: 'tram' },
+    })
+  })
+
+  test('take the curated colour over the feed’s, and keep the feed’s name', () => {
+    const [seg] = withCuratedLineColors({ segments: [ride({ lineColor: '00933C', lineTextColor: 'FFFFFF' })] }).segments
+    expect(seg).toMatchObject({ lineName: '501', lineColor: '0067B1', lineTextColor: null })
+  })
+
+  test('colour each interchangeable route on its own', () => {
+    const [seg] = withCuratedLineColors({
+      segments: [ride({
+        routeOptions: [
+          { id: 'cats_501', shortName: '501' },
+          { id: 'cats_510', shortName: '510' },
+          { id: 'cats_7', shortName: '7', color: '123456' },
+        ],
+      })],
+    }).segments
+    expect(seg.routeOptions?.map(o => o.color)).toEqual(['0067B1', 'CBA052', '123456'])
+  })
+
+  test('match only the curated mode the planner names', () => {
+    const [seg] = withCuratedLineColors({ segments: [ride({ routeType: 'bus' })] }).segments
+    expect(seg.lineColor).toBeNull()
+  })
+
+  test('leave walks and uncurated lines alone', () => {
+    const walk = { mode: 'walking' }
+    const bus = ride({ lineName: '7', lineColor: '123456', transitDetails: { route: { id: 'cats_7' } } })
+    const { segments } = withCuratedLineColors({ segments: [walk, bus] })
+    expect(segments[0]).toBe(walk)
+    expect(segments[1]).toMatchObject({ lineColor: '123456' })
   })
 })

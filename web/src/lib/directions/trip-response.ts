@@ -33,6 +33,7 @@ function extractTransitFields(seg: any) {
     // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
     // (length > 1) on merged legs — render "4 or 5" and union the board.
     routeOptions: (td.routeOptions ?? []).map((r: any) => ({
+      id: r.id,
       shortName: r.shortName,
       color: r.color,
       textColor: r.textColor,
@@ -61,6 +62,7 @@ function mapSegment(seg: any, id: string, legIndex: number) {
     legIndex,
     mode: normalizeMode(seg.mode),
     vehicleType: seg.vehicle?.type || seg.mode,
+    vehicle: seg.vehicle ?? null,
     startTime: new Date(seg.startTime),
     endTime: new Date(seg.endTime),
     duration: seg.duration,

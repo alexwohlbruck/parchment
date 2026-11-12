@@ -46,6 +46,12 @@ const OVERLAY_PREFIX = 'portolan-'
 
 export const isOverlay = (l: { id: string }) => l.id.startsWith(OVERLAY_PREFIX)
 
+/** Marks a planned trip's own line, which the transit network must stay under. */
+export const ROUTE_BAND = { 'parchment:band': 'route' } as const
+
+const isRouteBand = (l: { metadata?: unknown }) =>
+  (l.metadata as Record<string, unknown> | undefined)?.['parchment:band'] === 'route'
+
 /**
  * The first stroke the basemap draws — rivers, then the road network.
  *
@@ -100,6 +106,33 @@ export function inTunnelsBeforeId(layers: readonly StyleLayer[]): string | undef
 }
 
 /**
+ * Just above the transit network's ribbons, ghosts included, and under its
+ * station labels: a trip's line is the subject of the view, so no ribbon it
+ * rides may draw over it, not even the see-through copy over the buildings.
+ */
+export function aboveTransitBeforeId(layers: readonly StyleLayer[]): string | undefined {
+  const rest = layers.filter(l => !isRouteBand(l))
+  let last = -1
+  rest.forEach((l, i) => {
+    if (isOverlay(l) && l.type !== 'symbol') last = i
+  })
+  if (last < 0) return belowLabelsBeforeId(rest)
+  return rest[last + 1]?.id
+}
+
+/**
+ * The trip lines to move, and where, once a ribbon has mounted above them.
+ * Ribbons keep the place the transit network chose; the trip line moves up.
+ */
+export function routeBandLift(layers: readonly StyleLayer[]): { ids: string[]; before: string | undefined } | null {
+  const first = layers.findIndex(isRouteBand)
+  if (first < 0) return null
+  const above = layers.slice(first).some(l => isOverlay(l) && l.type !== 'symbol')
+  if (!above) return null
+  return { ids: layers.filter(isRouteBand).map(l => l.id), before: aboveTransitBeforeId(layers) }
+}
+
+/**
  * The `beforeId` a slot resolves to, or undefined to draw on top.
  *
  * `top` and an unnamed slot both mean the top of the stack, which is where an
@@ -112,6 +145,7 @@ export function slotBeforeId(
 ): string | undefined {
   if (slot === 'bottom') return belowRoadsBeforeId(layers)
   if (slot === 'middle') return belowLabelsBeforeId(layers)
+  if (slot === 'route') return aboveTransitBeforeId(layers)
   if (slot === 'tunnel') return inTunnelsBeforeId(layers)
   if (slot === 'grade') return atGradeBeforeId(layers)
   if (slot === 'bridge') return onBridgesBeforeId(layers)
@@ -120,4 +154,4 @@ export function slotBeforeId(
 
 /** The nearest slot Mapbox Standard has, for the names it does not know. */
 export const mapboxSlot = (slot: string | undefined) =>
-  slot === 'tunnel' ? 'bottom' : slot === 'bridge' || slot === 'grade' ? 'middle' : slot
+  slot === 'tunnel' ? 'bottom' : slot === 'bridge' || slot === 'grade' || slot === 'route' ? 'middle' : slot

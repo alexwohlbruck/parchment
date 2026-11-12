@@ -5,6 +5,9 @@ import en from '@/lib/i18n/en-US.json'
 import {
   adviceReach,
   adviceStatus,
+  approachRace,
+  arrivalZone,
+  spareZones,
   raceZones,
   adviceValidUntil,
   boardsAtMs,
@@ -314,6 +317,28 @@ describe('run', () => {
     ])
     expect(raceZones({ departAtMs: 0, walkMs: 0, spareMs: 0, bufferMs: 2 * min, runFactor: null }, min).map(z => z.kind))
       .toEqual(['hurry', 'tooFar'])
+  })
+
+  test('the approach race counts the walk left against the departure', () => {
+    const min = 60_000
+    expect(approachRace(10 * min, 0, 420, 1.5)).toEqual({ departAtMs: 10 * min, walkMs: 7 * min, spareMs: 3 * min, bufferMs: 2 * min, runFactor: 1.5 })
+    expect(approachRace(5 * min, 0, 480, null).spareMs).toBe(-3 * min)
+  })
+
+  test('spare zones run from late to early', () => {
+    const min = 60_000
+    const zones = spareZones(approachRace(10 * min, 0, 0, 1.5), 0)
+    expect(zones.map(z => [z.kind, z.fromMs / min, z.toMs / min])).toEqual([
+      ['tooFar', -Infinity, -5], ['run', -5, 0], ['hurry', 0, 2], ['leave', 2, 5], ['calm', 5, 10],
+    ])
+  })
+
+  test('the arrival zone is early with over five minutes spare', () => {
+    const min = 60_000
+    expect(arrivalZone(approachRace(12 * min, 0, 180, null), 0)).toBe('calm')
+    expect(arrivalZone(approachRace(8 * min, 0, 300, null), 0)).toBe('leave')
+    expect(arrivalZone(approachRace(8 * min, 0, 420, null), 0)).toBe('hurry')
+    expect(arrivalZone(approachRace(8 * min, 0, 600, 1.5), 0)).toBe('run')
   })
 
   test('the board word for the planned run follows the advice', () => {

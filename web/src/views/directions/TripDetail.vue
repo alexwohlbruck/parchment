@@ -46,9 +46,9 @@ import { AppRoute } from '@/router'
 import { tripSignature } from '@/lib/directions/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
-import TripRace from '@/components/directions/trip/TripRace.vue'
 import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
+import TripStrip from '@/components/directions/trip/TripStrip.vue'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -316,11 +316,7 @@ async function loadDepartures() {
             scheduledMs: prev?.scheduledMs ?? schedMs,
             // A run only counts as cancelled when no source still runs it.
             cancelled: (prev?.cancelled ?? true) && d.cancelled === true,
-            route:
-              prev?.route ??
-              (d.route
-                ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
-                : undefined),
+            route: prev?.route ?? (d.route ? runRoute(seg, d.route.shortName) : undefined),
             tripId: prev?.tripId ?? d.trip?.id,
           })
         }
@@ -696,6 +692,14 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
 }
 
 
+/** A run's line in the leg's own colours, which carry any curation the feed's lack. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function runRoute(seg: any, shortName: string): DepartureOption['route'] {
+  const line = seg.routeOptions?.find((o: { shortName?: string }) => o.shortName === shortName)
+    ?? { color: seg.lineColor, textColor: seg.lineTextColor }
+  return { shortName, color: line.color ?? undefined, textColor: line.textColor ?? undefined }
+}
+
 /** Per-segment board cards, each enriched with its visual state. Recomputes off
  *  the nowMs tick and whenever fresh departures land. */
 const boardCards = computed(() => {
@@ -787,7 +791,6 @@ const boarding = computed(() => {
 })
 const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value, boarding.value) : null))
 
-const firstRide = computed(() => trip.value?.segments.find(s => s.mode === 'transit'))
 
 const tight = computed(() => tightChanges(trip.value?.segments ?? []))
 /** The tightest change, named once in the header; each one is also flagged where it happens. */
@@ -1023,12 +1026,6 @@ const routeWaypoints = useRouteWaypoints(() => ({
           </div>
 
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
-          <TripRace
-            v-if="advice?.race"
-            :race="advice.race"
-            :now-ms="nowMs"
-            :ride="firstRide"
-          />
       </div>
 
       <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">
@@ -1080,8 +1077,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </span>
       </div>
 
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" class="mt-1" />
+
       <TripTimeline
-        class="mt-4"
+        class="mt-5"
         :segments="trip.segments"
         :waypoints="routeWaypoints"
         :start-time="trip.startTime"

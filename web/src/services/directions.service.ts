@@ -20,6 +20,7 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { usePlaceService } from '@/services/place/place.service'
 import { constraintRequestFields } from '@/lib/directions/waypoint-time'
 import { mapCandidate } from '@/lib/directions/trip-response'
+import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -150,6 +151,14 @@ function directionsService() {
     // nothing to do.
     if (!quiet && requestKey === lastRequestKey.value) return
 
+    // Back from a trip's page: the list it left is still in the store. Show it
+    // as is, and refresh it quietly once it's older than a leave-now plan lasts.
+    if (!quiet && requestKey === store.plannedKey && store.trips) {
+      lastRequestKey.value = requestKey
+      if (!departureTime.value && Date.now() - store.plannedAt > LEAVE_NOW_CACHE_TTL_MS) void getDirections({ quiet: true })
+      return
+    }
+
     // Supersede any in-flight request: its inputs are now stale.
     abortController.value?.abort()
     const controller = new AbortController()
@@ -169,6 +178,7 @@ function directionsService() {
       const cached = quiet ? null : readPlanCache(planKey, request.preferredDepartureTime ? PLAN_CACHE_TTL_MS : LEAVE_NOW_CACHE_TTL_MS)
       if (cached) {
         store.setTrips(cached)
+        store.setPlanned(requestKey)
         void nameCurrentLocationOrigin(cached)
         return
       }
@@ -202,7 +212,7 @@ function directionsService() {
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },
         },
-        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds)),
+        trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds))),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
@@ -212,6 +222,7 @@ function directionsService() {
       }
 
       store.setTrips(response, { keepSelection: quiet })
+      store.setPlanned(requestKey)
       writePlanCache(planKey, response)
       void nameCurrentLocationOrigin(response)
     } catch (error) {

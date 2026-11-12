@@ -11,7 +11,8 @@ import { collectionIcon } from '@/lib/library/collection-display'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type { Bookmark } from '@/types/library.types'
-import { LockIcon } from 'lucide-vue-next'
+import { ArchiveIcon, LockIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
 import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
@@ -146,6 +147,22 @@ function handleCollectionDelete() {
         @edit="handleCollectionEdit"
       />
     </template>
+
+    <div
+      v-if="collection.archivedAt"
+      class="flex items-center gap-2 mb-3 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+    >
+      <ArchiveIcon class="size-4 shrink-0" />
+      <span class="flex-1">{{ t('library.collections.archivedNotice') }}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-7 shrink-0"
+        @click="collectionsService.setArchived(collection.id, false)"
+      >
+        {{ t('general.unarchive') }}
+      </Button>
+    </div>
 
     <CollectionLockedNotice
       v-if="collection.locked"

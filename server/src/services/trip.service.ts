@@ -50,6 +50,7 @@ import { chosenEntrance, entranceRef, entranceWaypointLabel } from '../lib/trans
 import type { StationEntrance } from '../types/integration.types'
 import { haversineMeters } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
+import { dropDominatedTransitTrips } from '../lib/directions/dominated-trips'
 import { activeExclusions, dropExcludedTrips } from '../lib/directions/excluded-modes'
 import {
   PROFILE_SPAN_MS,
@@ -194,9 +195,9 @@ export class TripService {
     // 5 on shared express tracks) into a single "4 or 5" trip, so the rider
     // sees one option boarding whichever train comes first.
     const arrivalTarget = this.getArrivalTarget(request)
-    const mergedCandidates = this.mergeInterchangeableTrips(
+    const mergedCandidates = dropDominatedTransitTrips(this.mergeInterchangeableTrips(
       candidates, request.sortPreference, arrivalTarget != null,
-    )
+    ))
 
     const shortlist = this.filterQualityTrips(
       this.scoreAndOrder(request, mergedCandidates, arrivalTarget),

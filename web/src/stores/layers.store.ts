@@ -47,6 +47,7 @@ import {
   type LayerStoreItem,
 } from '@/lib/map/layer-templates'
 import { i18n } from '@/lib/i18n'
+import { partitionArchived } from '@/lib/map/layer-archive'
 
 /**
  * What a user is allowed to change about a default template. The definition
@@ -294,6 +295,7 @@ export const useLayersStore = defineStore('layers', () => {
       isSubLayer: template.isSubLayer ?? false,
       enabled: state?.enabled ?? true,
       integrationId: template.integrationId ?? null,
+      archivedAt: state?.archivedAt ?? null,
       origin: 'default',
       userId: 'template',
       createdAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
@@ -320,6 +322,7 @@ export const useLayersStore = defineStore('layers', () => {
           ? state.parentGroupId
           : (template.parentGroupId ?? null),
       integrationId: template.integrationId ?? null,
+      archivedAt: state?.archivedAt ?? null,
       origin: 'default',
       userId: 'template',
       createdAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
@@ -451,7 +454,7 @@ export const useLayersStore = defineStore('layers', () => {
     return configuredIntegrationSet.value.has(integrationId.toLowerCase())
   }
 
-  const filteredMergedLayers = computed(() => {
+  const availableLayers = computed(() => {
     const set = configuredIntegrationSet.value
     return mergedLayers.value.filter(l => {
       if (!l.integrationId) return true
@@ -459,13 +462,22 @@ export const useLayersStore = defineStore('layers', () => {
     })
   })
 
-  const allLayerGroups = computed(() => {
+  const availableGroups = computed(() => {
     const set = configuredIntegrationSet.value
     return mergedGroups.value.filter(g => {
       if (!g.integrationId) return true
       return set.has(g.integrationId.toLowerCase())
     })
   })
+
+  // Everything downstream — the map, the selector, the library list — sees
+  // only what isn't archived. The library lists the rest separately.
+  const archivePartition = computed(() =>
+    partitionArchived(availableLayers.value, availableGroups.value),
+  )
+  const filteredMergedLayers = computed(() => archivePartition.value.layers)
+  const allLayerGroups = computed(() => archivePartition.value.groups)
+  const archivedItems = computed(() => archivePartition.value.archived)
 
   // ==========================================================================
   // LAYER STORE (pre-defined bundles the user can add to their library)
@@ -632,7 +644,7 @@ export const useLayersStore = defineStore('layers', () => {
   function upsertLocalState(
     templateId: string,
     type: DefaultStateType,
-    patch: DefaultStatePatch,
+    patch: Omit<DefaultStatePatch, 'archived'> & { archivedAt?: string | null },
   ) {
     // Build a new row object rather than mutating the existing one in place.
     // The computed `defaultStateIndex` is built from this array, and in-place
@@ -666,6 +678,7 @@ export const useLayersStore = defineStore('layers', () => {
           showInLayerSelector: patch.showInLayerSelector ?? null,
           groupId: patch.groupId ?? null,
           parentGroupId: patch.parentGroupId ?? null,
+          archivedAt: patch.archivedAt ?? null,
           createdAt: now,
           updatedAt: now,
         },
@@ -865,6 +878,36 @@ export const useLayersStore = defineStore('layers', () => {
     )
     syncGroupsToCache()
     syncLayersToCache()
+  }
+
+  async function setArchived(id: string, kind: DefaultStateType, archived: boolean) {
+    if (isVirtualLayerId(id)) return
+
+    if (isTemplateId(id)) {
+      upsertLocalState(id, kind, {
+        archivedAt: archived ? new Date().toISOString() : null,
+      })
+      syncStateToCache()
+      try {
+        await crudService.upsertDefaultUserState(id, kind, { archived })
+      } catch (error) {
+        await loadLayers()
+        throw error
+      }
+      return
+    }
+
+    if (kind === 'layer') {
+      const updated = await crudService.updateLayer(id, { archived })
+      const index = userOwnedLayers.value.findIndex(l => l.id === id)
+      if (index !== -1) userOwnedLayers.value[index] = updated
+      syncLayersToCache()
+    } else {
+      const updated = await crudService.updateLayerGroup(id, { archived })
+      const index = userOwnedGroups.value.findIndex(g => g.id === id)
+      if (index !== -1) userOwnedGroups.value[index] = updated
+      syncGroupsToCache()
+    }
   }
 
   // ==========================================================================
@@ -1214,6 +1257,7 @@ export const useLayersStore = defineStore('layers', () => {
     groupsWithLayers: groupsWithLayersList,
     mainReorderableItems: mainReorderableItemsList,
     groupTree,
+    archivedItems,
     getGroupTotalLayerCount,
 
     // Layer store
@@ -1228,6 +1272,7 @@ export const useLayersStore = defineStore('layers', () => {
     addLayerGroup,
     updateLayerGroup,
     removeLayerGroup,
+    setArchived,
 
     // Optimistic visibility
     updateLayerVisibility,

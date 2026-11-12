@@ -41,7 +41,6 @@ export class MapStrategy {
   accessToken?: string
   markers: Map<string, any> = new Map() // Track active markers
   layerGroups: Map<string, MapLayerGroup> = new Map()
-  protected fitMapToTrips(_trips: TripsResponse, _visibleTripIds: Set<string>) {}
   protected clickDebounceTimer: number | null = null
   private poiTapController: PoiTapController | null = null
   private cancelPendingDoubleTapZoom = (event: {
@@ -493,7 +492,8 @@ export class MapStrategy {
     source?.setData?.(data)
   }
 
-  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+  /** Returns whether the shown trips changed. */
+  setTrips(trips: TripsResponse, visibleTripIds: Set<string>): boolean {
     // Idempotent: if we already show exactly these trips, skip destroy+recreate
     const currentTripIds = new Set(
       [...this.layerGroups.keys()]
@@ -504,7 +504,7 @@ export class MapStrategy {
       currentTripIds.size === visibleTripIds.size &&
       [...visibleTripIds].every(id => currentTripIds.has(id))
     ) {
-      return
+      return false
     }
 
     for (const groupId of this.layerGroups.keys()) {
@@ -514,19 +514,13 @@ export class MapStrategy {
       }
     }
 
-    const visibleTrips: any[] = []
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
-        const groupId = `trip-${trip.id}`
-        const tripGroup = new TripGroup(this, trip)
-        this.layerGroups.set(groupId, tripGroup)
-        visibleTrips.push(trip)
+        this.layerGroups.set(`trip-${trip.id}`, new TripGroup(this, trip))
       }
     })
 
-    if (visibleTripIds.size > 0) {
-      this.fitMapToTrips(trips, visibleTripIds)
-    }
+    return true
   }
 
   unsetDirections() {

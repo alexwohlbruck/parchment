@@ -110,7 +110,7 @@ export function departureReachability(
 }
 
 /** Spare time on the way to a stop under which the rider is told to hurry. */
-const APPROACH_MARGIN_SEC = 120
+export const APPROACH_MARGIN_SEC = 120
 
 /** How a rider walking to a stop is doing against the departure, for guidance. */
 export function approachReach(

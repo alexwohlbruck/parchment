@@ -24,14 +24,21 @@ import { LayerType } from '../../schema/layers.schema'
  * transit lines that cross above it.
  */
 
+/**
+ * Every cycling way in one tile layer, `bicycle_ways`: the infrastructure, and
+ * from z12 every rideable street with its suitability `score`, so both looks
+ * of the cycling layer read one set of tiles.
+ */
+export const CYCLING_WAYS_SOURCE = {
+  id: 'cycling',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/cycling_tiles/{z}/{x}/{y}'],
+  maxzoom: 16,
+}
+
 /** Barrelman's two cycling tile sets, keyed by the layer inside each. */
 const SOURCES = {
-  bicycle_ways: {
-    id: 'bicycle-ways',
-    type: 'vector' as const,
-    tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-    maxzoom: 16,
-  },
+  bicycle_ways: CYCLING_WAYS_SOURCE,
   bicycle_routes: {
     id: 'bicycle-routes',
     type: 'vector' as const,

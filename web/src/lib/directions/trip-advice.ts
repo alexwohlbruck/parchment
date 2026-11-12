@@ -3,7 +3,7 @@
  * hurry, leave now, or take your time, and what a missed run costs.
  */
 import type { DepartureProfile, DepartureRun } from '@/types/multimodal.types'
-import { departureReachability, type DepartureReachability } from '@/lib/transit/transit-reachability'
+import { APPROACH_MARGIN_SEC, departureReachability, type DepartureReachability } from '@/lib/transit/transit-reachability'
 import { formatClockCompact } from './trip-display'
 import { tripType, type TripTypeSegment } from './trip-type'
 import { DEFAULT_TRANSIT_BUFFER_MINUTES } from '@/lib/preferences/navigation-preferences'
@@ -220,6 +220,12 @@ function race(run: DepartureRun, nowMs: number, options: AdviceOptions): Race {
   }
 }
 
+/** The race while walking to the stop under guidance, judged by the same margin as its reach word. */
+export function approachRace(departAtMs: number, nowMs: number, toStopSec: number, runFactor: number | null): Race {
+  const walkMs = Math.max(0, toStopSec) * 1000
+  return { departAtMs, walkMs, spareMs: departAtMs - nowMs - walkMs, bufferMs: APPROACH_MARGIN_SEC * 1000, runFactor }
+}
+
 export type RaceZoneKind = 'calm' | 'leave' | 'hurry' | 'run' | 'tooFar'
 
 export interface RaceZone {
@@ -241,6 +247,20 @@ export function raceZones(race: Race, leadMs: number): RaceZone[] {
     ['tooFar', runTo, Infinity],
   ]
   return edges.filter(([, from, to]) => to > from).map(([kind, fromMs, toMs]) => ({ kind, fromMs, toMs }))
+}
+
+/** The zone the rider reaches the stop in. */
+export function arrivalZone(race: Race, nowMs: number): RaceZoneKind {
+  const leadMs = Math.max(0, race.departAtMs - nowMs)
+  return raceZones(race, leadMs).find(z => race.walkMs <= z.toMs)?.kind ?? 'tooFar'
+}
+
+/** The race's zones by spare time at the stop: positive is early, negative is late. */
+export function spareZones(race: Race, nowMs: number): RaceZone[] {
+  const leadMs = Math.max(0, race.departAtMs - nowMs)
+  return raceZones(race, leadMs)
+    .map(({ kind, fromMs, toMs }) => ({ kind, fromMs: leadMs - toMs, toMs: leadMs - fromMs }))
+    .reverse()
 }
 
 function nextRun(runs: DepartureRun[], target: number): { next?: NextRun } {

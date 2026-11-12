@@ -18,7 +18,10 @@ import {
   Share2Icon,
   Trash2Icon,
   LockIcon,
+  ArchiveIcon,
+  ArchiveRestoreIcon,
 } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { AppRoute } from '@/router'
 import { useUnits } from '@/composables/useUnits'
 import { useRoutesService } from '@/services/library/routes.service'
@@ -28,6 +31,7 @@ import type { Route, RouteMode } from '@/types/routes.types'
 const props = defineProps<{ route: Route }>()
 
 const router = useRouter()
+const { t } = useI18n()
 const { formatDistance } = useUnits()
 const routesService = useRoutesService()
 
@@ -109,6 +113,15 @@ async function remove() {
           </DropdownMenuItem>
           <DropdownMenuItem v-if="!isPrivate" @click="share">
             <Share2Icon class="size-4" /> Copy share link
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            @click="routesService.setArchived(route.id, !route.archivedAt)"
+          >
+            <component
+              :is="route.archivedAt ? ArchiveRestoreIcon : ArchiveIcon"
+              class="size-4"
+            />
+            {{ t(route.archivedAt ? 'general.unarchive' : 'general.archive') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem class="text-destructive" @click="remove">

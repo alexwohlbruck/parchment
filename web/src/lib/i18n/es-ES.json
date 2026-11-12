@@ -59,7 +59,10 @@
       "keepEditing": "Seguir editando"
     },
     "expand": "Expandir",
-    "collapse": "Contraer"
+    "collapse": "Contraer",
+    "archive": "Archivar",
+    "unarchive": "Desarchivar",
+    "undo": "Deshacer"
   },
   "weather": {
     "title": "Condiciones del tiempo",
@@ -722,6 +725,18 @@
         "invalidJson": "JSON no válido."
       },
       "addedToCanvas": "Se añadió {name} a este lienzo"
+    },
+    "appearances": {
+      "cycling": {
+        "infrastructure": "Infraestructura",
+        "suitability": "Idoneidad",
+        "stressful": "Estresante",
+        "comfortable": "Cómoda"
+      },
+      "transit": {
+        "live": "En vivo",
+        "fullService": "Servicio completo"
+      }
     }
   },
   "directions": {
@@ -748,12 +763,7 @@
         "tooFar": "Cambiado al {line} de las {time}; no llegas al de las {from}"
       },
       "race": {
-        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min",
-        "you": "Tú",
-        "walk": "{minutes} min hasta la parada",
-        "leaves": "sale en {minutes} min",
-        "now": "Ahora",
-        "to": "hacia"
+        "label": "Llegas a la parada en {walk} min; el {line} sale en {train} min"
       },
       "status": {
         "leaveIn": "Sal en {minutes} min",
@@ -961,6 +971,52 @@
       "goneBody": "Las salidas han cambiado desde que se planificó.",
       "planAgain": "Planificar de nuevo",
       "retry": "Reintentar"
+    },
+    "leg": {
+      "to": {
+        "walking": "Camina a {place}",
+        "cycling": "Pedalea a {place}",
+        "scooter": "Ve en patinete a {place}",
+        "driving": "Conduce a {place}"
+      },
+      "plain": {
+        "walking": "Camina",
+        "cycling": "Pedalea",
+        "scooter": "Patinete",
+        "driving": "Conduce"
+      },
+      "yourVehicle": "tu {vehicle}",
+      "route": "Ruta",
+      "allTurns": "Las {n} indicaciones",
+      "hideTurns": "Ocultar indicaciones",
+      "friendly": "{pct}% apto para bicis",
+      "stretchesLeft": "{done} de {n} hechos",
+      "left": "Quedan {distance}",
+      "surface": {
+        "steps": "Escaleras",
+        "protected": "Carril bici protegido",
+        "lane": "Carril bici",
+        "path": "Sendero",
+        "quiet": "Calle tranquila",
+        "road": "Con el tráfico",
+        "sidewalk": "Acera"
+      },
+      "unnamed": {
+        "steps": "Escaleras",
+        "protected": "Ciclovía",
+        "lane": "Carril bici",
+        "path": "Sendero",
+        "quiet": "Calle secundaria",
+        "road": "Calle sin nombre",
+        "unknown": "Vía sin nombre"
+      },
+      "climb": "Subida del {pct}%",
+      "handoff": {
+        "lockUp": "Aparca la bici",
+        "park": "Aparca",
+        "pickUp": "Recoge {vehicle}"
+      },
+      "stops": "{n} paradas"
     }
   },
   "library": {
@@ -978,7 +1034,8 @@
         "all": "Todas las colecciones",
         "mine": "Mis colecciones",
         "shared": "Compartidas conmigo"
-      }
+      },
+      "archivedNotice": "Esta colección está archivada."
     },
     "actions": {
       "addToCollection": "Añadir a colección",
@@ -1131,6 +1188,16 @@
           }
         }
       }
+    },
+    "archived": "Archivado",
+    "archive": {
+      "title": {
+        "collections": "Colecciones archivadas",
+        "routes": "Rutas archivadas",
+        "layers": "Capas archivadas",
+        "canvases": "Lienzos archivados"
+      },
+      "empty": "Nada archivado"
     }
   },
   "services": {
@@ -1170,6 +1237,11 @@
       "fetchBookmarksError": "Error al obtener marcadores en la colección",
       "updateBookmarkSuccess": "Marcador actualizado correctamente en la colección",
       "updateBookmarkError": "Error al actualizar marcador en la colección"
+    },
+    "archive": {
+      "archived": "Archivado",
+      "unarchived": "Desarchivado",
+      "error": "No se pudo actualizar el archivo"
     }
   },
   "offlineMaps": {
@@ -2027,7 +2099,8 @@
       },
       "noneOfThese": "Ninguno de estos",
       "reach": {
-        "ok": "A tiempo"
+        "ok": "A tiempo",
+        "early": "Con tiempo"
       },
       "inDuration": "en {duration}",
       "otherRuns": "Otras salidas",

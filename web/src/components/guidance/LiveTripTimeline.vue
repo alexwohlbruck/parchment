@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
+import TripStrip from '@/components/directions/trip/TripStrip.vue'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { rideStops, type TransitStage } from '@/lib/guidance/transit-progress'
 import { timelineY, type TimelineAnchor } from '@/lib/guidance/timeline-position'
@@ -9,7 +10,7 @@ import { register as registerTick, type Tick } from '@/lib/map/animation-schedul
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
-import VehicleThumbnail from '../VehicleThumbnail.vue'
+import VehicleThumbnail from './VehicleThumbnail.vue'
 
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +31,13 @@ const waypoints = useRouteWaypoints(() => {
     startTime: props.segments[0]?.startTime,
     endTime: props.segments.at(-1)?.endTime,
   }
+})
+
+/** Metres into the current leg, in 5 m steps so the cards don't redraw every frame. */
+const progress = computed(() => {
+  const span = guidance.route?.segments[props.current]
+  const s = guidance.progress?.puck.s
+  return span && s != null ? Math.max(0, Math.round((s - span.startDistance) / 5) * 5) : null
 })
 
 const root = ref<HTMLElement | null>(null)
@@ -65,7 +73,7 @@ function measure() {
       continue
     }
     const span = route.segments[Number(el.dataset.nodeSegment)]
-    if (span) next.push({ s: el.dataset.nodeAt === 'end' ? span.endDistance : span.startDistance, y: centerY(el, top) })
+    if (span) next.push({ s: el.dataset.nodeAt === 'end' ? span.endDistance : span.startDistance + Number(el.dataset.nodeOffset ?? 0), y: centerY(el, top) })
   }
   anchors = next
   shownY = null
@@ -96,14 +104,22 @@ onBeforeUnmount(() => unregisterTick?.())
 </script>
 
 <template>
-  <div ref="root" class="relative">
-    <TripTimeline :segments="segments" :waypoints="waypoints" :current="current" :stage="stage" />
-    <div ref="puck" class="pointer-events-none invisible absolute left-[22px] top-0 z-20 w-12 will-change-transform">
-      <VehicleThumbnail
-        :indicator="guidance.vehicle.indicator"
-        :color="guidance.vehicle.color"
-        :class="guidance.vehicle.indicator === 'arrow' && 'rotate-180'"
-      />
+  <div>
+    <TripStrip
+      :segments="segments"
+      :waypoints="waypoints"
+      :progress="progress != null ? { segment: current, offset: progress } : null"
+      class="mb-4"
+    />
+    <div ref="root" class="relative">
+      <TripTimeline :segments="segments" :waypoints="waypoints" :current="current" :progress="progress" :stage="stage" />
+      <div ref="puck" class="pointer-events-none invisible absolute left-[22px] top-0 z-20 w-12 will-change-transform">
+        <VehicleThumbnail
+          :indicator="guidance.vehicle.indicator"
+          :color="guidance.vehicle.color"
+          :class="guidance.vehicle.indicator === 'arrow' && 'rotate-180'"
+        />
+      </div>
     </div>
   </div>
 </template>

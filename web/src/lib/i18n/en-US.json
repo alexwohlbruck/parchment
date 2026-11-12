@@ -60,7 +60,10 @@
       "keepEditing": "Keep editing"
     },
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "undo": "Undo"
   },
   "weather": {
     "title": "Weather Conditions",
@@ -741,6 +744,18 @@
         "invalidJson": "Invalid JSON."
       },
       "addedToCanvas": "Added {name} to this canvas"
+    },
+    "appearances": {
+      "cycling": {
+        "infrastructure": "Infrastructure",
+        "suitability": "Suitability",
+        "stressful": "Stressful",
+        "comfortable": "Comfortable"
+      },
+      "transit": {
+        "live": "Live",
+        "fullService": "Full service"
+      }
     }
   },
   "directions": {
@@ -767,12 +782,7 @@
         "tooFar": "Moved to the {line} at {time}; the {from} is out of reach"
       },
       "race": {
-        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min",
-        "you": "You",
-        "walk": "{minutes} min to the stop",
-        "leaves": "leaves in {minutes} min",
-        "now": "Now",
-        "to": "to"
+        "label": "You reach the stop in {walk} min; the {line} leaves in {train} min"
       },
       "status": {
         "leaveIn": "Leave in {minutes} min",
@@ -987,6 +997,52 @@
       "goneBody": "Departures have moved on since it was planned.",
       "planAgain": "Plan again",
       "retry": "Try again"
+    },
+    "leg": {
+      "to": {
+        "walking": "Walk to {place}",
+        "cycling": "Ride to {place}",
+        "scooter": "Ride to {place}",
+        "driving": "Drive to {place}"
+      },
+      "plain": {
+        "walking": "Walk",
+        "cycling": "Ride",
+        "scooter": "Ride",
+        "driving": "Drive"
+      },
+      "yourVehicle": "your {vehicle}",
+      "route": "Route",
+      "allTurns": "All {n} turns",
+      "hideTurns": "Hide turns",
+      "friendly": "{pct}% bike-friendly",
+      "stretchesLeft": "{done} of {n} done",
+      "left": "{distance} left",
+      "surface": {
+        "steps": "Stairs",
+        "protected": "Protected bike lane",
+        "lane": "Bike lane",
+        "path": "Path",
+        "quiet": "Quiet street",
+        "road": "Shared with traffic",
+        "sidewalk": "Sidewalk"
+      },
+      "unnamed": {
+        "steps": "Stairs",
+        "protected": "Bike path",
+        "lane": "Bike lane",
+        "path": "Path",
+        "quiet": "Side street",
+        "road": "Unnamed road",
+        "unknown": "Unnamed way"
+      },
+      "climb": "{pct}% climb",
+      "handoff": {
+        "lockUp": "Lock up",
+        "park": "Park",
+        "pickUp": "Pick up {vehicle}"
+      },
+      "stops": "{n} stops"
     }
   },
   "library": {
@@ -1004,7 +1060,8 @@
         "all": "All collections",
         "mine": "My collections",
         "shared": "Shared with me"
-      }
+      },
+      "archivedNotice": "This collection is archived."
     },
     "actions": {
       "addToCollection": "Add to collection",
@@ -1157,6 +1214,16 @@
           }
         }
       }
+    },
+    "archived": "Archived",
+    "archive": {
+      "title": {
+        "collections": "Archived collections",
+        "routes": "Archived routes",
+        "layers": "Archived layers",
+        "canvases": "Archived canvases"
+      },
+      "empty": "Nothing archived"
     }
   },
   "services": {
@@ -1194,6 +1261,11 @@
       "fetchBookmarksError": "Failed to fetch bookmarks in collection",
       "updateBookmarkSuccess": "Bookmark updated successfully in collection",
       "updateBookmarkError": "Failed to update bookmark in collection"
+    },
+    "archive": {
+      "archived": "Archived",
+      "unarchived": "Unarchived",
+      "error": "Couldn't update the archive"
     }
   },
   "offlineMaps": {
@@ -2051,7 +2123,8 @@
       },
       "noneOfThese": "None of these",
       "reach": {
-        "ok": "On track"
+        "ok": "On track",
+        "early": "Early"
       },
       "inDuration": "in {duration}",
       "otherRuns": "Other departures",

@@ -4,6 +4,7 @@ import type { RouteEdgeSegment, RouteInstruction } from '@/types/directions.type
 import type { RouteMetrics } from '@/lib/guidance/alternatives'
 import type { TripOption } from '@/types/directions.types'
 import { mapCandidate } from '@/lib/directions/trip-response'
+import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
 
 export interface RerouteSegment {
   mode: string
@@ -87,5 +88,5 @@ export async function requestTransitItineraries(params: TransitItineraryRequest)
     availableVehicles: [],
     preferredDepartureTime: params.departAt.toISOString(),
   })
-  return (data?.trips ?? []).map((candidate: unknown, i: number) => mapCandidate(candidate, i))
+  return withCuratedTripColors<TripOption>((data?.trips ?? []).map((candidate: unknown, i: number) => mapCandidate(candidate, i)))
 }

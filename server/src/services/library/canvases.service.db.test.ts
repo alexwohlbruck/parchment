@@ -21,6 +21,7 @@ import {
   getCanvasById,
   getPublicCanvasByToken,
   revokePublicLink,
+  setCanvasArchived,
   updateCanvas,
   PublicLinkNotAllowedOnE2eeError,
   SchemeAlreadySetError,
@@ -68,6 +69,29 @@ describe('updateCanvas', () => {
       layers: [{ id: 'a', kind: 'library', layerId: 'l1', visible: true }],
     })
 
+    await deleteCanvas(id, userId)
+  })
+})
+
+describe('setCanvasArchived', () => {
+  test('files the canvas away without counting as an edit', async () => {
+    const id = await seedServerKey()
+    const before = await getCanvasById(id, userId)
+
+    const archived = await setCanvasArchived(id, userId, true)
+    expect(archived?.archivedAt).toBeInstanceOf(Date)
+    expect(archived?.updatedAt).toEqual(before!.updatedAt)
+
+    const again = await setCanvasArchived(id, userId, true)
+    expect(again?.archivedAt).toEqual(archived!.archivedAt)
+
+    expect((await setCanvasArchived(id, userId, false))?.archivedAt).toBeNull()
+    await deleteCanvas(id, userId)
+  })
+
+  test('only the owner can archive', async () => {
+    const id = await seedServerKey()
+    expect(await setCanvasArchived(id, 'someone-else', true)).toBeUndefined()
     await deleteCanvas(id, userId)
   })
 })

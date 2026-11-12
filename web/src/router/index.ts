@@ -42,6 +42,7 @@ export enum AppRoute {
   LIBRARY_ROUTES = 'library-routes',
   LIBRARY_LAYERS = 'library-layers',
   LIBRARY_CANVASES = 'library-canvases',
+  LIBRARY_ARCHIVE = 'library-archive',
   LAYER_EDITOR_NEW = 'layer-editor-new',
   LAYER_EDITOR = 'layer-editor',
   CANVAS_EDITOR = 'canvas-editor',
@@ -259,6 +260,15 @@ const router = createRouter({
               component: () => import('@/views/library/canvases/Canvases.vue'),
             },
           ],
+        },
+        {
+          path: '/library/archive/:kind(collections|routes|layers|canvases)',
+          name: AppRoute.LIBRARY_ARCHIVE,
+          component: () => import('@/views/library/Archive.vue'),
+          props: true,
+          meta: {
+            auth: true,
+          },
         },
         {
           path: '/library/collections/:id',

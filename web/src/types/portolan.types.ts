@@ -12,6 +12,8 @@
  *   portolan/internal/pipeline/stations.go ~1114 (symbol props)
  */
 
+import type { TransitRouteType } from '@server/types/trip.types'
+
 /** One row of /tiles/portolan/index.json — every feed with a cut pyramid.
  *  Bounds and maxzoom ride along so every vector source can be built from
  *  the index alone, without touching each feed's tiles.json. */
@@ -70,6 +72,20 @@ export const PORTOLAN_CLASSES = [
 ] as const
 export type PortolanClass = (typeof PORTOLAN_CLASSES)[number]
 
+/** The trip planner names a route's type rather than numbering it. */
+const PLANNER_CLASSES: Record<TransitRouteType, PortolanClass> = {
+  tram: 'tram',
+  subway: 'metro',
+  rail: 'regional',
+  bus: 'bus',
+  trolleybus: 'bus',
+  ferry: 'ferry',
+  cable_tram: 'cable',
+  aerial_lift: 'aerial',
+  funicular: 'funicular',
+  monorail: 'monorail',
+}
+
 /**
  * The class portolan files a GTFS `route_type` under — the port of
  * `mode.Of` (internal/mode/mode.go), basic types then the extended HVT
@@ -80,8 +96,9 @@ export type PortolanClass = (typeof PORTOLAN_CLASSES)[number]
  * Returns null for a type portolan calls unknown, which matches nothing
  * rather than matching the first thing tried.
  */
-export function portolanClassOf(routeType?: number | null): PortolanClass | null {
+export function portolanClassOf(routeType?: number | TransitRouteType | null): PortolanClass | null {
   if (routeType == null) return null
+  if (typeof routeType === 'string') return PLANNER_CLASSES[routeType] ?? null
 
   switch (routeType) {
     case 0: return 'tram'

@@ -409,7 +409,8 @@ function summarize(stats: StatItem[], mixedLabel: string): string {
 const MIXED_LABELS: Record<RouteProfileType, string> = {
   surface: 'Mixed surfaces',
   incline: 'Varied terrain',
-  stress: 'Mixed friendliness',
+  stress: 'Mixed suitability',
+  infrastructure: 'Mixed infrastructure',
 }
 
 const activeSummary = computed(() =>

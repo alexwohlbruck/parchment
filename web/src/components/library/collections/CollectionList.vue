@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
@@ -29,7 +29,6 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const localCollections = ref<Collection[]>([...props.collections])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
@@ -39,25 +38,19 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 type OwnershipFilter = 'all' | 'mine' | 'shared'
 const ownershipFilter = ref<OwnershipFilter>('all')
 
-watch(
-  () => props.collections,
-  newCollections => {
-    localCollections.value = [...newCollections]
-  },
-  { deep: true },
+const sharedCount = computed(
+  () => props.collections.filter((c) => c.role && c.role !== 'owner').length,
 )
 
-const sharedCount = computed(
-  () => localCollections.value.filter((c) => c.role && c.role !== 'owner').length,
-)
+const activeCollections = computed(() => props.collections.filter(c => !c.archivedAt))
 
 const filteredCollections = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localCollections.value, searchQuery.value, {
+    ? fuzzyFilter(activeCollections.value, searchQuery.value, {
         keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : localCollections.value
+    : activeCollections.value
 
   // Ownership filter runs after search so users can still find anything by
   // name even when "Shared with me" is active.
@@ -85,6 +78,7 @@ const filteredCollections = computed(() => {
 
   return result
 })
+
 
 function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -244,6 +238,7 @@ async function createCollection() {
         :collection="collection"
         class="w-full"
       />
+
     </div>
   </div>
 </template>

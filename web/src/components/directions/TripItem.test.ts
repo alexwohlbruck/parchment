@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TripItem from './TripItem.vue'
+import TripBar from './TripBar.vue'
 
 // ── Stub the heavy, environment-coupled dependencies ─────────────────────────
 vi.mock('@/services/map/map.service', () => ({
@@ -96,7 +97,7 @@ describe('TripItem timeline rendering', () => {
       }),
       seg({ mode: 'transit', lineName: 'F', routeType: 'subway', startTime: new Date('2026-06-12T14:07:00Z') }),
     ])
-    const spans = (wrapper.vm as unknown as {
+    const spans = (wrapper.findComponent(TripBar).vm as unknown as {
       trackSpans: { type: string; width: number }[]
     }).trackSpans
     const walk = spans.find((s) => s.type === 'walk')
@@ -114,7 +115,7 @@ describe('TripItem timeline rendering', () => {
       seg({ mode: 'walking', duration: 600, distance: 800 }),
       seg({ mode: 'transit', lineName: 'Q', routeType: 'subway', duration: 600 }),
     ])
-    const spans = (wrapper.vm as unknown as {
+    const spans = (wrapper.findComponent(TripBar).vm as unknown as {
       trackSpans: { type: string }[]
     }).trackSpans
     expect(spans.some((s) => s.type === 'wait')).toBe(false)
@@ -125,7 +126,7 @@ describe('TripItem timeline rendering', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking', duration: 600, distance: 800 }),
     ])
-    const vm = wrapper.vm as unknown as {
+    const vm = wrapper.findComponent(TripBar).vm as unknown as {
       trackSpans: unknown[]
       isWalkingOnly: boolean
     }

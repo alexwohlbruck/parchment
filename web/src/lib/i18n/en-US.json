@@ -744,6 +744,18 @@
         "invalidJson": "Invalid JSON."
       },
       "addedToCanvas": "Added {name} to this canvas"
+    },
+    "appearances": {
+      "cycling": {
+        "infrastructure": "Infrastructure",
+        "suitability": "Suitability",
+        "stressful": "Stressful",
+        "comfortable": "Comfortable"
+      },
+      "transit": {
+        "live": "Live",
+        "fullService": "Full service"
+      }
     }
   },
   "directions": {

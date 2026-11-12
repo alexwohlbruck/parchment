@@ -5,15 +5,18 @@
  * Each profile is driven by a single GraphHopper path-detail field:
  *   - surface:  `surface` encoded value
  *   - incline:  `average_slope` encoded value
- *   - stress:   `bike_priority` encoded value (cycling only)
+ *   - stress:   Barrelman's bike suitability score, else `bike_priority` (cycling only)
+ *   - infrastructure: Barrelman's bike facility for the way (cycling only)
  */
 
 import type { TravelMode } from '@/types/directions.types'
+import { bikeSuitabilityColor } from '@server/lib/bike-suitability'
 
 export type RouteProfileType =
   | 'surface'
   | 'incline'
   | 'stress'
+  | 'infrastructure'
 
 export interface ProfileCategory {
   label: string
@@ -35,7 +38,8 @@ export interface ProfileTabDef {
  * include the current travel mode.
  */
 export const PROFILE_TABS: ProfileTabDef[] = [
-  { id: 'stress',  label: 'Bike friendly', modes: ['cycling'] as TravelMode[] },
+  { id: 'stress',  label: 'Suitability', modes: ['cycling'] as TravelMode[] },
+  { id: 'infrastructure', label: 'Infrastructure', modes: ['cycling'] as TravelMode[] },
   { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving'] as TravelMode[] },
   { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking'] as TravelMode[] },
 ]
@@ -68,19 +72,44 @@ export const INCLINE_CATEGORIES: Record<string, ProfileCategory> = {
 }
 
 // ── Bike-friendliness categories ────────────────────────────────────
-// Driven by GraphHopper's `bike_priority` encoded value (0–1, higher =
-// friendlier). We keep the STRESS_CATEGORIES name + type-id 'stress'
-// internally so existing map/layer code doesn't need to rename, but the
-// semantics are flipped: "very_low" friendliness = red (worst),
-// "very_high" = green (best).
+// Coloured from the bike suitability ramp, at a score inside each band, so
+// the legend matches the map layer. Kept under the 'stress' id internally.
+
+const suitabilityCategory = (label: string, group: string, score: number): ProfileCategory => ({
+  label, group, color: bikeSuitabilityColor(score), caseColor: bikeSuitabilityColor(score, 0.35),
+})
 
 export const STRESS_CATEGORIES: Record<string, ProfileCategory> = {
-  very_high: { label: 'Very friendly', color: '#7ca06a', caseColor: '#426330', group: 'very_high' },
-  high:      { label: 'Friendly',      color: '#a3c095', caseColor: '#7ca06a', group: 'high' },
-  moderate:  { label: 'Moderate',      color: '#e97f00', caseColor: '#a54100', group: 'moderate' },
-  low:       { label: 'Low',           color: '#f86f3b', caseColor: '#b12b00', group: 'low' },
-  very_low:  { label: 'Unfriendly',    color: '#b33c2c', caseColor: '#761408', group: 'very_low' },
-  unknown:   { label: 'Unknown',       color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
+  very_high: suitabilityCategory('Very friendly', 'very_high', 90),
+  high:      suitabilityCategory('Friendly', 'high', 72),
+  moderate:  suitabilityCategory('Moderate', 'moderate', 57),
+  low:       suitabilityCategory('Low', 'low', 40),
+  very_low:  suitabilityCategory('Unfriendly', 'very_low', 15),
+  unknown:   { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
+}
+
+// ── Infrastructure categories ───────────────────────────────────────
+
+export const INFRASTRUCTURE_CATEGORIES: Record<string, ProfileCategory> = {
+  path:      { label: 'Bike path', color: '#1f8a5b', caseColor: '#0f5536', group: 'path' },
+  protected: { label: 'Protected lane', color: '#2fa36f', caseColor: '#17673f', group: 'protected' },
+  lane:      { label: 'Bike lane', color: '#62c08f', caseColor: '#2f7f55', group: 'lane' },
+  shared:    { label: 'Shared', color: '#a3cdb6', caseColor: '#5d8a72', group: 'shared' },
+  none:      { label: 'Mixed traffic', color: '#8f969c', caseColor: '#565c61', group: 'none' },
+  unknown:   { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
+}
+
+const FACILITY_GROUPS: Record<string, string> = {
+  path: 'path',
+  track: 'protected', cyclestreet: 'protected',
+  buffered_lane: 'lane', lane: 'lane',
+  shared_path: 'shared', busway: 'shared', advisory: 'shared', shoulder: 'shared', sharrow: 'shared',
+  none: 'none',
+}
+
+/** The infrastructure category of a Barrelman `bike_facility` value. */
+export function getInfrastructureCategory(facility: string | undefined): ProfileCategory {
+  return INFRASTRUCTURE_CATEGORIES[FACILITY_GROUPS[facility ?? ''] ?? 'unknown']
 }
 
 // ── Category map by profile type ────────────────────────────────────
@@ -89,6 +118,7 @@ export const CATEGORY_MAPS: Record<RouteProfileType, Record<string, ProfileCateg
   surface: SURFACE_CATEGORIES,
   incline: INCLINE_CATEGORIES,
   stress: STRESS_CATEGORIES,
+  infrastructure: INFRASTRUCTURE_CATEGORIES,
 }
 
 // ── Lookup helpers ──────────────────────────────────────────────────
@@ -137,6 +167,12 @@ export function getStressCategory(
   return STRESS_CATEGORIES.very_low
 }
 
+/** A suitability score's band, drawn in the score's own colour as on the map layer. */
+export function getSuitabilityCategory(score: number): ProfileCategory {
+  const band = score >= 80 ? 'very_high' : score >= 65 ? 'high' : score >= 50 ? 'moderate' : score >= 30 ? 'low' : 'very_low'
+  return { ...STRESS_CATEGORIES[band], color: bikeSuitabilityColor(score), caseColor: bikeSuitabilityColor(score, 0.35) }
+}
+
 // ── Generic edge → category resolver ────────────────────────────────
 
 import type { RouteEdgeSegment } from '@/types/directions.types'
@@ -152,7 +188,11 @@ export function getEdgeCategory(
     case 'incline':
       return getInclineCategory(edge.averageSlope)
     case 'stress':
-      return getStressCategory(edge.bikePriority, edge.getOffBike)
+      return edge.bikeSuitability != null
+        ? getSuitabilityCategory(edge.bikeSuitability)
+        : getStressCategory(edge.bikePriority, edge.getOffBike)
+    case 'infrastructure':
+      return getInfrastructureCategory(edge.bikeFacility)
     default:
       return { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' }
   }

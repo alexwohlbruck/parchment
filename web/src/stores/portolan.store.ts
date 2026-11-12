@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useLayersStore } from '@/stores/layers.store'
+import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
 import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {
@@ -31,6 +32,7 @@ const TICK_MS = 60_000
  */
 export const usePortolanTransitStore = defineStore('portolan-transit', () => {
   const layersStore = useLayersStore()
+  const appearanceStore = useLayerAppearanceStore()
   const portolanService = usePortolanTransitService()
 
   let mapStrategy: MapStrategy | undefined
@@ -79,6 +81,11 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
       : dateAtDaySlot(fixedDay.value, fixedMinutes.value, now.value),
   )
 
+  /** The time the network is filtered to; none draws every line, whenever it runs. */
+  const filterDate = computed(() =>
+    appearanceStore.appearanceOf(TRANSIT_GROUP_ID)?.id === 'full-service' ? null : serviceDate.value,
+  )
+
   /** What the control renders — live mode mirrors the clock. */
   const displayDay = computed(() => portolanDay(serviceDate.value))
   const displayMinutes = computed(() => minutesOfDay(serviceDate.value))
@@ -113,7 +120,7 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
   // ── renderer wiring ──────────────────────────────────────────────────
 
   function applyFilters() {
-    portolanService.setServiceTime(serviceDate.value)
+    portolanService.setServiceTime(filterDate.value)
     portolanService.setClassVisibility(classVisibilityFor(classGroups.value))
   }
 
@@ -129,7 +136,7 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
     mapStrategy?.setBasemapTransitPoisVisible(!on)
   })
 
-  watch(serviceDate, d => {
+  watch(filterDate, d => {
     if (active.value) portolanService.setServiceTime(d)
   })
 

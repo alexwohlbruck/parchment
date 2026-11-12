@@ -1,10 +1,14 @@
 ## [Unreleased]
 
 ### Added
+* The Cycling layer has a Suitability look that colours every street red to green by how comfortable it is to ride, scored from speed, lanes, bike facilities and surface.
+* Bike directions use those comfort scores: moving the safety-versus-speed slider toward safety steers routes off busy streets.
+* A bike route's profile can show its suitability or its infrastructure: how much of the ride is on bike paths, protected lanes, painted lanes or in traffic.
 
 * Archive collections, routes, layers and canvases to take them off the map and out of your library without deleting them. Archiving a shared collection only hides it for you.
 
 ### Changed
+* Built-in map layers are now one switch each, with a picker for how they look: Cycling shows infrastructure or suitability, and Transit shows what's running now or the full service.
 
 * While you walk to a transit stop, navigation shows when you'll reach it on a timeline around the departure, coloured from early to too late. It says Early when you'll have more than five minutes to spare.
 

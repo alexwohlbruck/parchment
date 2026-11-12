@@ -725,6 +725,18 @@
         "invalidJson": "JSON no válido."
       },
       "addedToCanvas": "Se añadió {name} a este lienzo"
+    },
+    "appearances": {
+      "cycling": {
+        "infrastructure": "Infraestructura",
+        "suitability": "Idoneidad",
+        "stressful": "Estresante",
+        "comfortable": "Cómoda"
+      },
+      "transit": {
+        "live": "En vivo",
+        "fullService": "Servicio completo"
+      }
     }
   },
   "directions": {

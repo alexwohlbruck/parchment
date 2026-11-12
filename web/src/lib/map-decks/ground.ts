@@ -109,12 +109,47 @@ export function fetchHeights(template: string, encoding: 'terrarium' | 'mapbox')
     if (res.status === 404 || res.status === 204) return null
     if (!res.ok) throw new Error(`terrain ${res.status}`)
     const image = await createImageBitmap(await res.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
-    const { width, height } = image
-    const context = new OffscreenCanvas(width, height).getContext('2d', { willReadFrequently: true })!
-    context.drawImage(image, 0, 0)
-    image.close()
-    return decodeHeights(context.getImageData(0, 0, width, height).data, width, encoding)
+    try {
+      return decodeHeights(await readPixels(image), image.width, encoding)
+    } finally {
+      image.close()
+    }
   }
+}
+
+let distorted: boolean | undefined
+
+/** Whether the browser alters what a canvas reads back, as Firefox's fingerprinting protection does: a few pixels a tile, each hundreds of metres off. */
+function canvasDistorted(): boolean {
+  if (distorted !== undefined) return distorted
+  const context = new OffscreenCanvas(5, 5).getContext('2d', { willReadFrequently: true })!
+  const written = context.createImageData(5, 5)
+  written.data.forEach((_, i) => (written.data[i] = i % 4 === 3 ? 255 : i))
+  context.putImageData(written, 0, 0)
+  const read = context.getImageData(0, 0, 5, 5).data
+  return (distorted = read.some((v, i) => v !== written.data[i]))
+}
+
+/** An image's RGBA bytes, read through a video frame where the canvas would alter them. */
+async function readPixels(image: ImageBitmap): Promise<Uint8ClampedArray> {
+  const { width, height } = image
+  if (canvasDistorted() && typeof VideoFrame !== 'undefined') {
+    const frame = new VideoFrame(image, { timestamp: 0 })
+    try {
+      const format = frame.format ?? ''
+      if (format.startsWith('RGB') || format.startsWith('BGR')) {
+        const rgba = new Uint8ClampedArray(width * height * 4)
+        await frame.copyTo(rgba, { rect: { x: 0, y: 0, width, height }, layout: [{ offset: 0, stride: width * 4 }] })
+        if (format.startsWith('BGR')) for (let i = 0; i < rgba.length; i += 4) [rgba[i], rgba[i + 2]] = [rgba[i + 2], rgba[i]]
+        return rgba
+      }
+    } finally {
+      frame.close()
+    }
+  }
+  const context = new OffscreenCanvas(width, height).getContext('2d', { willReadFrequently: true })!
+  context.drawImage(image, 0, 0)
+  return context.getImageData(0, 0, width, height).data
 }
 
 export type TerrainSampler = { source: string; ground: GroundSampler }

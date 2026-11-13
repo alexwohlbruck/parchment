@@ -126,7 +126,8 @@ import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
-import { TerrainCarver } from '@/lib/map-terrain/carver'
+import { TerrainCarver, cutCarving } from '@/lib/map-terrain/carver'
+import { roofCuts } from '@/lib/map-decks/roofs'
 import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
@@ -284,6 +285,8 @@ const OBJECT_LAYER_ID = 'map-objects'
 
 /** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
 const LANDMARK_LAYER_ID = 'map-landmarks'
+/** The terrain carver's owner for the ground carved over decks that run under a roof. */
+const ROOFED_DECKS = 'roofed-decks'
 
 /** Longest the object models wait for the first tiles; see `firstTilesLaidOut`. */
 const FIRST_TILES_WAIT_MS = 3000
@@ -1286,6 +1289,8 @@ export class MaplibreStrategy extends MapStrategy {
       }
     }
     this.bridgeLabelKey = labelKey
+    this.terrainCarver.set(ROOFED_DECKS, new Map([...roofCuts(this.deckLayer?.standing() ?? [])].map(([key, f]) => [key, cutCarving(f)])), { rank: 2, focus: true })
+    this.terrainCarver.carveTiles()
     this.muteFlatTunnels()
     this.elevateLines()
   }

@@ -5,6 +5,8 @@
 ### Changed
 
 ### Fixed
+
+* Covered roads on stacked structures, such as the Brooklyn-Queens Expressway under the Brooklyn Heights Promenade, show their decks instead of disappearing into the hillside.
 * Tunnel entrances in 3D look like the real thing: bores side by side share one headwall, roads passing under a street no longer show a dark gap, and portals sit in the ground rather than on it.
 
 ## [0.21.1] - 2026-11-12

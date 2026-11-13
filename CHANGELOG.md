@@ -5,6 +5,7 @@
 ### Changed
 
 ### Fixed
+* Navigation no longer keeps saying your train has left once GPS catches up and shows you aboard it.
 
 ## [0.21.1] - 2026-11-12
 

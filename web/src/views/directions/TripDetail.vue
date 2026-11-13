@@ -1072,7 +1072,6 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </Button>
       </div>
       </div>
-      </div>
       </SheetHeader>
 
       <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>

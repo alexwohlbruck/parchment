@@ -131,6 +131,34 @@ Test the shipped module, never a copy of its logic pasted into the test file.
 If a test needs to reimplement a component's computed to test it, extract that
 computed to `lib/` and test it there.
 
+## UI copy and choices
+
+Describe what the user **gets**, not the mechanism that delivers it. A label
+should answer the question the user is actually asking, in their words, so they
+never have to translate their situation into our model.
+
+- **Outcomes over mechanisms.** "You'll arrive 4 min late" beats "Delay: +4";
+  "Leave by 8:42" beats "Departure: 8:42". If an option needs a "Choose this
+  if…" subtitle, the label has failed. Rewrite it until the subtitle is
+  unnecessary, then delete the subtitle.
+- **Put the difference in the big text.** When options or rows share a phrase,
+  the shared part is small and the part that varies is prominent. A user
+  scanning only the large text should be able to tell rows apart.
+- **Preselect the common case.** A choice with a sensible default ships with
+  that default selected and the primary action enabled. Never make the user
+  answer a question they don't care about before they can continue.
+- **One primary action.** Cancel and dismiss are never styled louder than the
+  action you want taken. A sheet or dialog that can be swiped away or closed
+  doesn't need a "Not now" button.
+- **Pictures mirror the choice.** Icons in a header or illustration match the
+  icons on the options they explain, and reflect the current selection.
+- **Cut noise at decision points.** No upsell badges, uneven dividers, jargon
+  ("taste profile", "leg", "headsign") or hedging questions in titles while the
+  user is deciding.
+- **Plain and short.** Shorter is better as long as it stays specific. Use
+  sentence case, no trailing periods on labels, and numbers instead of number
+  words.
+
 ## Important rules
 
 - Do NOT start new dev servers. The user runs their own.

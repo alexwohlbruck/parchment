@@ -26,6 +26,7 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
+import { bedCarving, type ServedBed } from '@/lib/map-terrain/road-beds'
 import { HEADWALL as HEADWALL_DEPTH, KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
@@ -122,7 +123,7 @@ export class TunnelLayer {
   /** Whether the cuts carved are those of every cut tile in view. */
   private settled = false
   /** Cut tiles read, by `z/x/y`, most recent last; and those being read. */
-  private cutTiles = new Map<string, ServedCut[]>()
+  private cutTiles = new Map<string, { cuts: ServedCut[]; beds: ServedBed[] }>()
   private reading = new Map<string, AbortController>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
@@ -218,7 +219,7 @@ export class TunnelLayer {
       fetch(this.sources.tiles.replace('{z}', z).replace('{x}', x).replace('{y}', y), { signal: request.signal })
         .then(res => (res.ok ? res.arrayBuffer() : res.status === 404 || res.status === 204 ? null : Promise.reject(new Error(`Tunnel cuts ${res.status}`))))
         .then(raw => {
-          this.cutTiles.set(key, raw ? readCutTile(raw) : [])
+          this.cutTiles.set(key, raw ? readCutTile(raw) : { cuts: [], beds: [] })
           for (const old of this.cutTiles.keys()) if (this.cutTiles.size > CUT_TILES) this.cutTiles.delete(old)
           if (this.reading.get(key) === request) this.reading.delete(key)
           if (this.map) this.rebuildNow()
@@ -287,28 +288,34 @@ export class TunnelLayer {
     this.options.terrain?.release()
   }
 
-  /** The cuts in the cut tiles read for the view, one copy each. */
-  private served(): ServedCut[] {
+  /** The cuts and road beds in the cut tiles read for the view, one copy each. */
+  private served(): { cuts: ServedCut[]; beds: ServedBed[] } {
     // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
     const v = this.view()
     const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
     const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
-    const found = new Map<string, ServedCut>()
-    for (const key of this.cutTilesInView())
-      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
-    return [...found.values()]
+    const cuts = new Map<string, ServedCut>()
+    const beds = new Map<string, ServedBed>()
+    for (const key of this.cutTilesInView()) {
+      const tile = this.cutTiles.get(key)
+      for (const cut of tile?.cuts ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) cuts.set(cut.key, cut)
+      for (const bed of tile?.beds ?? []) if (meets(boundsOf(bed.points, CUT_REACH), view)) beds.set(bed.key, bed)
+    }
+    return { cuts: [...cuts.values()], beds: [...beds.values()] }
   }
 
   private build(): Built | null {
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const cuts = this.map.getZoom() >= TUNNEL_MIN_ZOOM ? this.served() : []
-    const read = cuts.map(c => c.key).sort().join(' ')
+    const { cuts, beds } = this.map.getZoom() >= TUNNEL_MIN_ZOOM ? this.served() : { cuts: [], beds: [] }
+    const read = [...cuts, ...beds].map(c => c.key).sort().join(' ')
     const close = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && close && read === this.built) return null
     this.stale = false
     this.built = read
     if (!close) this.origin = [center.x, center.y]
     const mesh = emptyBuilt()
+    // Filled first, so a cut opening off a road bed is carved into it.
+    for (const bed of beds) mesh.footprints.set(bed.key, bedCarving(bed))
     if (!cuts.length) return mesh
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1

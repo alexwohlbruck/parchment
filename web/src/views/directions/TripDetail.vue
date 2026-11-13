@@ -1055,19 +1055,19 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </p>
       </div>
 
-      <div class="mt-3 flex items-center gap-2">
-        <Button v-if="legToStart != null && startEligibility === 'preview'" class="flex-1 gap-2" @click="previewRoute">
+      <div class="mt-3 flex items-center gap-1">
+        <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1 gap-1.5 px-3.5" @click="previewRoute">
           <MapIcon class="size-4" />
           {{ translate('guidance.preview.action') }}
         </Button>
-        <Button v-else-if="legToStart != null" class="flex-1 gap-2" @click="startGuidance">
+        <Button v-else-if="legToStart != null" size="sm" class="mr-1 gap-1.5 px-3.5" @click="startGuidance">
           <NavigationIcon class="size-4" />
           {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
         </Button>
-        <Button variant="outline" size="icon" aria-label="Share">
+        <Button variant="ghost" size="icon-md" aria-label="Share">
           <ShareIcon class="size-4" />
         </Button>
-        <Button variant="outline" size="icon" aria-label="Save">
+        <Button variant="ghost" size="icon-md" aria-label="Save">
           <BookmarkIcon class="size-4" />
         </Button>
       </div>

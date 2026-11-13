@@ -70,6 +70,7 @@ function measure() {
   const top = container.getBoundingClientRect().top
   const next: TimelineAnchor[] = []
   for (const el of container.querySelectorAll<HTMLElement>('[data-node-segment], [data-segment-card]')) {
+    if (!el.getClientRects().length) continue
     if (el.dataset.segmentCard != null) {
       const fold = el.querySelector('[data-stop-fold]')
       rides.value[Number(el.dataset.segmentCard)]?.forEach((stop, k) => {

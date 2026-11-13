@@ -989,6 +989,8 @@
       "route": "Ruta",
       "allTurns": "Las {n} indicaciones",
       "hideTurns": "Ocultar indicaciones",
+      "showCompleted": "Mostrar completado",
+      "hideCompleted": "Ocultar completado",
       "friendly": "{pct}% apto para bicis",
       "stretchesLeft": "{done} de {n} hechos",
       "left": "Quedan {distance}",

@@ -834,6 +834,11 @@ export class BakedBridgeLayer {
     }
     return best && this.drawnAt(best)
   }
+  /** The decks drawn, each on the surface it stands on; none while they are not. */
+  standing(): BakedMesh['stands'] {
+    if (!this.covered) return []
+    return [...this.parts].flatMap(([id, part]) => (this.wanted.has(id) ? part.data.stands : []))
+  }
   /** The ground under the decks drawn, or null while they are not. */
   footprints(): GeoJSON.MultiPolygon | null {
     if (!this.covered) return null

@@ -12,8 +12,8 @@ import { footprint, type Footprint } from './carve'
 /** A bed as served: its centreline, the height along it in metres, and its half width. */
 export type ServedBed = { key: string; points: Point[]; floor: number[]; half: number }
 
-/** Metres past the carriageway over which the fill banks down to the ground: an embankment's wall, steepened. */
-const BANK_OUT = 2
+/** Metres past the carriageway over which the fill comes down to the ground: near enough a retaining wall, so it keeps off what runs alongside. */
+const BANK_OUT = 0.5
 
 /** A bed from a `tunnel_cuts` tile feature of kind `bed`, or null for one that does not hold together. */
 export function parseBed(props: Record<string, any>): ServedBed | null {

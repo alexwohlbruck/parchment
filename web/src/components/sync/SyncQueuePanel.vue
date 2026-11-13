@@ -76,7 +76,7 @@ const syncStore = useSyncStore()
           <Button
             size="icon-xs"
             variant="ghost"
-            :aria-label="t('offline.sync.dismiss')"
+            :aria-label="t('offline.sync.discard')"
             @click="syncStore.dismiss(item.id)"
           >
             <XIcon class="size-3.5" />
@@ -86,7 +86,7 @@ const syncStore = useSyncStore()
           v-else-if="item.status === 'pending'"
           size="icon-xs"
           variant="ghost"
-          :aria-label="t('offline.sync.cancel')"
+          :aria-label="t('offline.sync.discard')"
           @click="syncStore.cancel(item.id)"
         >
           <XIcon class="size-3.5" />

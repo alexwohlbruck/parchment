@@ -34,4 +34,29 @@ describe('dropDominatedTransitTrips', () => {
     const drive = trip('drive', seg('driving', 26, 32))
     expect(names(dropDominatedTransitTrips([walkToBus, drive]))).toEqual(['walk+27+blue', 'drive'])
   })
+
+  describe('park-and-ride against driving the whole way', () => {
+    const drive = trip('drive', seg('driving', 32, 38))
+
+    test('drops a park-and-ride several times slower than the drive', () => {
+      const parkAndRide = trip('drive+510', seg('driving', 54, 58), seg('walking', 58, 62, 2), seg('transit', 62, 66), seg('walking', 66, 80))
+      expect(names(dropDominatedTransitTrips([drive, parkAndRide]))).toEqual(['drive'])
+    })
+
+    test('keeps a park-and-ride competitive with a long drive', () => {
+      const longDrive = trip('drive', seg('driving', 0, 45))
+      const parkAndRide = trip('drive+rail', seg('driving', 0, 15), seg('transit', 18, 50), seg('walking', 50, 55))
+      expect(dropDominatedTransitTrips([longDrive, parkAndRide])).toHaveLength(2)
+    })
+
+    test('keeps park-and-ride when no drive was planned', () => {
+      const parkAndRide = trip('drive+510', seg('driving', 54, 58), seg('transit', 62, 66), seg('walking', 66, 80))
+      expect(dropDominatedTransitTrips([parkAndRide])).toHaveLength(1)
+    })
+
+    test('a taxi to the station is not measured against your own car', () => {
+      const taxi = trip('taxi+510', { ...seg('driving', 54, 58), ownership: 'shared' }, seg('transit', 62, 66), seg('walking', 66, 80))
+      expect(dropDominatedTransitTrips([drive, taxi])).toHaveLength(2)
+    })
+  })
 })

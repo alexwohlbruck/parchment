@@ -3,7 +3,7 @@ import { buildNavRoute, pointAt, smoothedBearingAt, stepIndexAt, type NavRoute }
 import { DEFAULT_CAMERA_TUNING, PUCK_FOOTROOM, frameCamera, puckFocal, type FramingInput } from './camera-framing'
 import type { PuckState } from './guidance-engine'
 import { cityDrive, polyline } from './test-routes'
-import { angleDelta } from './spring'
+import { angleDelta, normalizeDeg } from './spring'
 
 function puckAt(route: NavRoute, s: number, speed: number): PuckState {
   return {
@@ -71,6 +71,14 @@ describe('frameCamera', () => {
     const straightOn = frame(city, 570, 12, { bearingMode: 'straight' })
     expect(angleDelta(straightOn.bearing, lookAhead.bearing)).toBeGreaterThan(10)
     expect(Math.abs(angleDelta(straightOn.bearing, lookAhead.bearing))).toBeLessThanOrEqual(45)
+  })
+
+  test('a standing walker sees the map turned the way they face, except north up', () => {
+    const course = frame(straight, 1000, 0, { travelMode: 'walking' }).bearing
+    const facing = { bearing: normalizeDeg(course + 120), weight: 1 }
+    expect(frame(straight, 1000, 0, { travelMode: 'walking', facing }).bearing).toBeCloseTo(facing.bearing)
+    expect(angleDelta(course, frame(straight, 1000, 0, { travelMode: 'walking', facing: { ...facing, weight: 0.5 } }).bearing)).toBeCloseTo(60)
+    expect(frame(straight, 1000, 0, { mode: 'north-up', facing }).bearing).toBe(0)
   })
 
   test('walking frames tighter than driving', () => {

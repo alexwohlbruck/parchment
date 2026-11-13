@@ -184,7 +184,7 @@ watch(
           "
         >
           <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -313,7 +313,6 @@ watch(
     >
       <SettingsItem
         :title="$t('settings.behavior.floorNumbering.system')"
-        :description="$t('settings.behavior.floorNumbering.description')"
         :icon="LayersIcon"
       >
         <Select v-model="floorNumbering">
@@ -338,7 +337,6 @@ watch(
     <SettingsSection id="units" :title="$t('settings.behavior.units.title')">
       <SettingsItem
         :title="$t('settings.behavior.units.system')"
-        :description="$t('settings.behavior.units.description')"
         :icon="Gauge"
       >
         <Select v-model="unitSystem">

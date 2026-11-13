@@ -4,6 +4,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { deckLiftAt } from '@/services/guidance/deck-lift.service'
+import { sampleFacing } from '@/services/guidance/facing.service'
 import { register as registerTick, type Tick } from '@/lib/map/animation-scheduler'
 import { VEHICLE_LAYER_ID, VehicleLayer, type VehiclePose } from '@/lib/guidance/vehicle-layer'
 import type { VehicleModel } from '@/lib/guidance/vehicle-indicator'
@@ -21,7 +22,7 @@ export function useGuidanceVehicle() {
     if (!puck) return false
     out.lng = puck.position.lng
     out.lat = puck.position.lat
-    out.bearing = puck.bearing
+    out.bearing = sampleFacing()?.bearing ?? puck.bearing
     out.elevation = ground(out.lng, out.lat) + deckLiftAt(puck.s)
     return true
   }
@@ -32,10 +33,12 @@ export function useGuidanceVehicle() {
   const tick: Tick = now => {
     if (!guidanceEngine.frameDue(now)) return 'active'
     const puck = guidanceEngine.sample()
-    if (puck && (puck.position.lng !== last.lng || puck.position.lat !== last.lat || puck.bearing !== last.bearing)) {
+    if (!puck) return 'active'
+    const bearing = sampleFacing()?.bearing ?? puck.bearing
+    if (puck.position.lng !== last.lng || puck.position.lat !== last.lat || bearing !== last.bearing) {
       last.lng = puck.position.lng
       last.lat = puck.position.lat
-      last.bearing = puck.bearing
+      last.bearing = bearing
       map.triggerRepaint()
     }
     return 'active'

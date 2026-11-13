@@ -13,7 +13,11 @@ const props = defineProps<{ choices: RunChoice[]; known: string[]; loading: bool
 const emit = defineEmits<{ choose: [candidate: VehicleCandidate, known: string[]] }>()
 const { t } = useI18n()
 
-const rows = computed(() => props.choices.map(choice => ({ ...choice, hint: reachWord(choice.reach, t) })))
+const rows = computed(() => props.choices.map(choice => ({ ...choice, hint: reachWord(choice.reach, t) ?? spareWord(choice.spareSec) })))
+
+function spareWord(sec: number) {
+  return { word: t('directions.advice.status.spare', { minutes: Math.floor(sec / 60) }), tone: 'text-muted-foreground' }
+}
 const lead = (ms: number) => formatDurationCompact(Math.max(0, (ms - props.nowMs) / 1000))
 
 function pick(candidate: VehicleCandidate, booked: boolean) {

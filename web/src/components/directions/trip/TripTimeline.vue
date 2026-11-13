@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AccessibilityIcon,
@@ -110,6 +110,7 @@ interface PlaceStopEntry extends TripPlaceStop {
 interface PickupEntry {
   kind: 'pickup'
   segmentIndex: number
+  mode: string
   vehicle: string
   label: string | null
   time: string | null
@@ -123,7 +124,7 @@ function pickupBefore(segments: any[], index: number): PickupEntry | null {
   const vehicle = segment.ownership === 'personal' && segment.mode !== 'walking' && segment.mode !== 'transit' ? segment.vehicle?.name : null
   if (!vehicle || segments[index - 1]?.mode !== 'walking') return null
   const label = segment.start?.label && segment.start.label !== vehicle ? segment.start.label : null
-  return { kind: 'pickup', segmentIndex: index, vehicle, label, time: segment.startTime ? String(segment.startTime) : null }
+  return { kind: 'pickup', segmentIndex: index, mode: segment.mode, vehicle, label, time: segment.startTime ? String(segment.startTime) : null }
 }
 
 const entries = computed<TimelineEntry[]>(() => {
@@ -143,7 +144,7 @@ const entries = computed<TimelineEntry[]>(() => {
       role: 'origin',
       displayName: '',
       time: segs[0]?.startTime ?? props.startTime ?? null,
-      ...display(null, 'Origin'),
+      ...display(null, translate('directions.leg.start')),
     },
   }]
 
@@ -175,7 +176,7 @@ const entries = computed<TimelineEntry[]>(() => {
       role: 'destination',
       displayName: last?.end?.label ?? '',
       time: last?.endTime ?? props.endTime ?? null,
-      ...display(last?.end?.place ?? null, last?.end?.label || 'Destination'),
+      ...display(last?.end?.place ?? null, last?.end?.label || translate('directions.leg.destination')),
     },
   })
   return list
@@ -198,6 +199,9 @@ function isPast(entry: TimelineEntry): boolean {
   if (entry.kind === 'pickup') return at <= props.current
   return entry.kind === 'segment' ? at < props.current : at < props.current && at < props.segments.length - 1
 }
+
+const pastShown = ref(false)
+const hasPast = computed(() => entries.value.some(isPast))
 
 function passedStops(segmentIndex: number): number | undefined {
   if (props.current == null) return undefined
@@ -272,8 +276,17 @@ const legKey = (entry: TimelineEntry) => {
 
 <template>
   <div>
+    <button
+      v-if="hasPast"
+      type="button"
+      class="flex h-11 w-full cursor-pointer items-center pl-2 text-[13px] font-medium text-primary"
+      @click="pastShown = !pastShown"
+    >
+      {{ pastShown ? translate('directions.leg.hideCompleted') : translate('directions.leg.showCompleted') }}
+    </button>
     <div
       v-for="(entry, i) in entries"
+      v-show="pastShown || !isPast(entry)"
       :key="legKey(entry)"
       class="flex transition-opacity"
       :class="[!isCard(entry) && 'pl-2', isPast(entry) && 'opacity-50']"
@@ -385,7 +398,7 @@ const legKey = (entry: TimelineEntry) => {
         <HandoffPill
           v-else-if="entry.kind === 'pickup'"
           :icon="CarFrontIcon"
-          :verb="translate('directions.leg.handoff.pickUp', { vehicle: entry.vehicle })"
+          :verb="translate(`directions.leg.handoff.${entry.mode === 'driving' ? 'getIn' : 'getOn'}`, { vehicle: entry.vehicle })"
           :label="entry.label"
           :time="entry.time ? formatTime(entry.time) : null"
         />
@@ -432,7 +445,7 @@ const legKey = (entry: TimelineEntry) => {
                 v-if="entry.segment.carryingVehicle"
                 class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
               >
-                <BikeIcon class="size-3" /> Bring bike on board
+                <BikeIcon class="size-3" /> {{ translate('directions.leg.bringBike') }}
               </span>
             </TransitLegCard>
           </div>
@@ -451,7 +464,7 @@ const legKey = (entry: TimelineEntry) => {
             @route-profile-change="(index, profile) => emit('routeProfileChange', index, profile)"
           >
             <div
-              v-if="entrancePhrase(entry.segment.stationEntrance)"
+              v-if="entrancePhrase(entry.segment.stationEntrance, translate)"
               class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
             >
               <component
@@ -462,7 +475,7 @@ const legKey = (entry: TimelineEntry) => {
                     : LogInIcon"
                 class="size-3 shrink-0"
               />
-              <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>
+              <span>{{ entrancePhrase(entry.segment.stationEntrance, translate) }}</span>
             </div>
             <StationGuidanceRows
               class="mt-1.5"
@@ -470,7 +483,7 @@ const legKey = (entry: TimelineEntry) => {
               :index="entry.segmentIndex"
             />
             <div v-if="waitMinutes(entry.segment)" class="mt-0.5 text-xs text-muted-foreground">
-              then wait {{ waitMinutes(entry.segment) }} min
+              {{ translate('directions.leg.wait', { minutes: waitMinutes(entry.segment) }) }}
             </div>
             <div
               v-if="entry.segment.mode === 'rideshare' && entry.segment.rideshareDetails"
@@ -484,11 +497,11 @@ const legKey = (entry: TimelineEntry) => {
                 v-if="entry.segment.rideshareDetails.surgeMultiplier && entry.segment.rideshareDetails.surgeMultiplier > 1"
                 class="text-amber-500 font-medium"
               >
-                {{ entry.segment.rideshareDetails.surgeMultiplier.toFixed(1) }}× surge
+                {{ translate('directions.leg.surge', { x: entry.segment.rideshareDetails.surgeMultiplier.toFixed(1) }) }}
               </span>
               <span v-if="entry.segment.rideshareDetails.pickupEta" class="inline-flex items-center gap-1">
                 <ClockIcon class="size-3" />
-                {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
+                {{ translate('directions.leg.pickupIn', { minutes: Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }) }}
               </span>
               <a
                 v-if="entry.segment.rideshareDetails.bookingUrl"
@@ -496,7 +509,7 @@ const legKey = (entry: TimelineEntry) => {
                 target="_blank"
                 class="text-primary hover:underline"
               >
-                Book in {{ entry.segment.rideshareDetails.provider }} →
+                {{ translate('directions.leg.bookWith', { provider: entry.segment.rideshareDetails.provider }) }}
               </a>
             </div>
             <div
@@ -514,14 +527,14 @@ const legKey = (entry: TimelineEntry) => {
                   </div>
                   <div class="text-xs text-muted-foreground">
                     {{ entry.segment.sharedMobilityDetails.provider }}
-                    <span v-if="entry.segment.sharedMobilityDetails.propulsionType === 'electric_assist'"> · e-bike</span>
+                    <span v-if="entry.segment.sharedMobilityDetails.propulsionType === 'electric_assist'"> · {{ translate('directions.leg.eBike') }}</span>
                   </div>
                 </div>
                 <div
                   v-if="entry.segment.sharedMobilityDetails.availableVehicles != null"
                   class="shrink-0 text-xs font-medium text-teal-700 dark:text-teal-300"
                 >
-                  {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
+                  {{ translate(`directions.leg.available.${entry.segment.sharedMobilityDetails.vehicleType === 'scooter' ? 'scooter' : 'bike'}`, entry.segment.sharedMobilityDetails.availableVehicles) }}
                 </div>
               </div>
               <div
@@ -542,7 +555,7 @@ const legKey = (entry: TimelineEntry) => {
                 rel="noopener"
                 class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 text-[13px] font-medium text-white transition-colors hover:bg-teal-700"
               >
-                Unlock in {{ entry.segment.sharedMobilityDetails.provider }}
+                {{ translate('directions.leg.unlockIn', { provider: entry.segment.sharedMobilityDetails.provider }) }}
                 <ExternalLinkIcon class="size-3.5" />
               </a>
             </div>

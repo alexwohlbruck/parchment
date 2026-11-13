@@ -32,10 +32,10 @@ const { routes } = storeToRefs(routesStore)
 const { canvases } = storeToRefs(canvasesStore)
 
 const tabs = [
-  { id: 'collections', label: 'Collections', route: AppRoute.LIBRARY_COLLECTIONS },
-  { id: 'routes', label: 'Routes', route: AppRoute.LIBRARY_ROUTES },
-  { id: 'layers', label: 'Layers', route: AppRoute.LIBRARY_LAYERS },
-  { id: 'canvases', label: 'Canvases', route: AppRoute.LIBRARY_CANVASES },
+  { id: 'collections', route: AppRoute.LIBRARY_COLLECTIONS },
+  { id: 'routes', route: AppRoute.LIBRARY_ROUTES },
+  { id: 'layers', route: AppRoute.LIBRARY_LAYERS },
+  { id: 'canvases', route: AppRoute.LIBRARY_CANVASES },
 ]
 
 const unarchived = (items: { archivedAt?: string | null }[]) =>
@@ -102,7 +102,7 @@ function handleTabChange(tabId: string | number) {
               variant="linear"
               :count="tabCounts[tab.id]"
             >
-              {{ tab.label }}
+              {{ t(`palette.commands.goto.pages.${tab.id}`) }}
             </TabsTrigger>
           </TabsList>
         </div>

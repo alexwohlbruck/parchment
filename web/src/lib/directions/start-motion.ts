@@ -16,12 +16,16 @@ function usable(deg: number | null | undefined): deg is number {
   return deg != null && Number.isFinite(deg)
 }
 
+/** Whether a compass reading with this accuracy is worth using; Android reports none. */
+export function compassReliable(accuracy: number | null | undefined): boolean {
+  return accuracy == null || (accuracy >= 0 && accuracy <= MAX_COMPASS_ERROR)
+}
+
 /** The way the traveller is facing: their course while moving, else a calibrated compass. */
 export function travellerHeading({ course, speed, compass, compassAccuracy }: HeadingSources): number | null {
   if (usable(course) && usable(speed) && speed >= MIN_COURSE_SPEED) return course
   if (!usable(compass)) return null
-  if (compassAccuracy != null && (compassAccuracy < 0 || compassAccuracy > MAX_COMPASS_ERROR)) return null
-  return compass
+  return compassReliable(compassAccuracy) ? compass : null
 }
 
 /** What the trip planner is told about the traveller at a current-location origin. */

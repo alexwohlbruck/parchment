@@ -7,6 +7,8 @@ export interface RunChoice {
   reach: DepartureReachability
   /** At the stop the rider gets off, where the feed knows it. */
   arrivalMs?: number
+  /** Time left over at the stop before it leaves, at a walk. */
+  spareSec: number
   booked: boolean
 }
 
@@ -35,7 +37,8 @@ export function runChoices(input: RunChoiceInput): RunChoice[] {
       const arrivalMs = alightKnown ? candidate.calls.find(c => c.stop === alightStop)?.timeMs : undefined
       if (alightKnown && arrivalMs == null) return []
       if (isOutOfReach(reach) && !(booked && reach !== 'departed')) return []
-      return [{ candidate, reach, arrivalMs, booked }]
+      const spareSec = (candidate.departureMs - nowMs) / 1000 - toStopSec
+      return [{ candidate, reach, arrivalMs, spareSec, booked }]
     })
     .sort((a, b) => a.candidate.departureMs - b.candidate.departureMs)
     .slice(0, MAX_CHOICES)

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TripListAdvice } from '@/composables/directions/useTripAdvice'
 import { byRank } from '@/lib/directions/trip-display'
 import { stableTripKeys } from '@/lib/directions/trip-signature'
 import type { TripOption } from '@/types/directions.types'
 
 const props = defineProps<{ trips: TripOption[]; advice: TripListAdvice }>()
+
+const { t } = useI18n()
 
 const ranked = computed(() => byRank(props.trips))
 const keys = computed(() => stableTripKeys(props.trips))
@@ -28,7 +31,7 @@ const keys = computed(() => stableTripKeys(props.trips))
   </TransitionGroup>
 
   <div v-if="!ranked.length" class="text-center py-8 text-muted-foreground">
-    <p class="text-sm">No trips available</p>
+    <p class="text-sm">{{ t('directions.noTrips') }}</p>
   </div>
 </template>
 

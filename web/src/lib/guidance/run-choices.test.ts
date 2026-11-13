@@ -38,6 +38,11 @@ describe('runChoices', () => {
     expect(comfortable.reach).toBe('ok')
   })
 
+  test('counts the wait left at the stop after the walk', () => {
+    const [comfortable] = runChoices(input([run('booked', 14)]))
+    expect(comfortable.spareSec).toBe(6 * 60)
+  })
+
   test('drops runs out of reach even at a run, and ones already gone', () => {
     const choices = runChoices(input([run('gone', -1), run('far', 2), run('booked', 9)]))
     expect(ids(choices)).toEqual(['booked'])

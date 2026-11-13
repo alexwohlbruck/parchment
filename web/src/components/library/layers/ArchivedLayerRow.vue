@@ -16,17 +16,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAppService } from '@/services/app.service'
+import { useLayerDelete } from '@/composables/library/useLayerDelete'
 import { useArchiveService } from '@/services/library/archive.service'
-import { useLayersStore } from '@/stores/layers.store'
 import type { Layer, LayerGroup } from '@/types/map.types'
 
 const props = defineProps<{ item: Layer | LayerGroup }>()
 
 const { t } = useI18n()
-const appService = useAppService()
+const { deleteLayer, deleteGroup } = useLayerDelete()
 const archiveService = useArchiveService()
-const layersStore = useLayersStore()
 
 const isGroup = computed(() => !('groupId' in props.item))
 
@@ -37,15 +35,8 @@ const icon = computed<Component>(() => {
   return isGroup.value ? FolderIcon : LayersIcon
 })
 
-async function remove() {
-  const confirmed = await appService.confirm({
-    title: t(isGroup.value ? 'layers.actions.deleteGroup' : 'layers.actions.deleteLayer'),
-    description: t('library.confirmDelete', { name: props.item.name }),
-    destructive: true,
-  })
-  if (!confirmed) return
-  if (isGroup.value) await layersStore.removeLayerGroup(props.item.id)
-  else await layersStore.removeLayer(props.item.id)
+function remove() {
+  return isGroup.value ? deleteGroup(props.item) : deleteLayer(props.item)
 }
 </script>
 

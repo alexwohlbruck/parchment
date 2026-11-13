@@ -230,7 +230,7 @@ function sharePlace() {
       return
     } catch (err) {
       navigator.clipboard.writeText(url)
-      toast.info('Link copied to clipboard')
+      toast.info(t('sharing.publicLink.copied'))
     }
   }
 }

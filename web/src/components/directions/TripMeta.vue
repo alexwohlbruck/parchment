@@ -29,35 +29,44 @@ const icon = computed(() => {
   return getSegmentIcon('transit', seg?.routeType)
 })
 
-/** "A · Uptown & The Bronx", else "Q · toward Coney Island"; merged legs read "4 or 5 · …". */
-const headsign = computed(() => {
+const PURE_TRANSIT = new Set(['transit', 'transitWalking'])
+
+const direction = computed(() => {
   const seg = props.trip.segments.find(
     s => s.mode === 'transit' && ((s as { headsign?: string }).headsign || (s as { directionLabel?: string }).directionLabel),
-  ) as { headsign?: string; directionLabel?: string; lineName?: string; routeOptions?: { shortName?: string }[] } | undefined
+  ) as { headsign?: string; directionLabel?: string } | undefined
   if (!seg) return null
-  const options = seg.routeOptions ?? []
-  const line =
-    options.length > 1
-      ? options.map(o => o.shortName).filter(Boolean).join(` ${t('directions.or')} `)
-      : seg.lineName
-  const direction = seg.directionLabel ?? t('directions.toward', { headsign: seg.headsign })
-  return `${line ? line + ' · ' : ''}${direction}`
+  return seg.directionLabel ?? t('directions.toward', { headsign: seg.headsign })
 })
+
+const typeLabel = computed(() =>
+  direction.value && PURE_TRANSIT.has(type.value.key)
+    ? null
+    : t(`directions.tripTypes.${type.value.key}`),
+)
 </script>
 
 <template>
   <div>
     <div class="flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
-      <span class="inline-flex items-center gap-1">
+      <span class="inline-flex items-center gap-1 min-w-0">
         <component
           :is="icon"
           class="size-3"
           :style="{ color: getTravelModeColor(type.iconMode) }"
         />
-        <span class="font-semibold text-foreground/80">
-          {{ t(`directions.tripTypes.${type.key}`) }}
+        <span v-if="direction" class="text-xs font-semibold text-foreground truncate">
+          {{ direction }}
+        </span>
+        <span v-else class="font-semibold text-foreground/80">
+          {{ typeLabel }}
         </span>
       </span>
+
+      <template v-if="direction && typeLabel">
+        <span class="size-0.5 rounded-full bg-muted-foreground/50" />
+        <span>{{ typeLabel }}</span>
+      </template>
 
       <template v-if="showDistance">
         <span class="size-0.5 rounded-full bg-muted-foreground/50" />
@@ -68,10 +77,6 @@ const headsign = computed(() => {
         <span class="size-0.5 rounded-full bg-muted-foreground/50" />
         <span class="tabular-nums">${{ trip.cost.total.amount.toFixed(2) }}</span>
       </template>
-    </div>
-
-    <div v-if="headsign" class="mt-1 text-[11px] text-muted-foreground truncate">
-      {{ headsign }}
     </div>
 
     <AdviceStatusLine v-if="status" :status="status" class="mt-1 text-xs" />

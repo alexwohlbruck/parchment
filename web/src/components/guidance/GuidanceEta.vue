@@ -35,7 +35,7 @@ const distance = computed(() => bannerDistance(props.progress?.remainingMeters ?
       <div v-else class="text-muted-foreground">{{ t('guidance.waitingForLocation') }}</div>
     </div>
     <Button
-      variant="destructive"
+      variant="secondary"
       class="shrink-0 rounded-full"
       :class="dash ? 'h-14 px-7 text-lg' : 'h-12 px-6 text-base'"
       :aria-label="t('guidance.exit')"

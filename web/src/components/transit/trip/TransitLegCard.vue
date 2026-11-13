@@ -13,7 +13,6 @@ import LegCardSurface from '@/components/directions/trip/LegCardSurface.vue'
 import { TRIP_MODE_COLORS, formatClock, rideDirection, segmentRail } from '@/lib/directions/trip-display'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import { formatDurationLong } from '@/lib/time-format'
-import { useUnits } from '@/composables/useUnits'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const props = defineProps<{
@@ -37,7 +36,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { formatDistance } = useUnits()
 
 const direction = computed(() => rideDirection(props.segment))
 
@@ -148,7 +146,7 @@ function stopClass(index: number) {
               {{ segment.departureStop.name }}
             </div>
             <div class="text-[11px] text-muted-foreground mt-px">
-              Board<span v-if="segment.departureStop.platformCode"> · Platform {{ segment.departureStop.platformCode }}</span>
+              {{ t('directions.leg.getOn') }}<span v-if="segment.departureStop.platformCode"> · {{ t('directions.leg.platform', { code: segment.departureStop.platformCode }) }}</span>
             </div>
             <BoardingHint
               v-if="segment.boardingPosition"
@@ -253,7 +251,7 @@ function stopClass(index: number) {
               {{ segment.arrivalStop.name }}
             </div>
             <div class="text-[11px] text-muted-foreground mt-px">
-              Alight<span v-if="segment.arrivalStop.platformCode"> · Platform {{ segment.arrivalStop.platformCode }}</span>
+              {{ t('directions.leg.getOff') }}<span v-if="segment.arrivalStop.platformCode"> · {{ t('directions.leg.platform', { code: segment.arrivalStop.platformCode }) }}</span>
             </div>
           </div>
           <span class="text-sm font-semibold tabular-nums shrink-0">
@@ -264,8 +262,8 @@ function stopClass(index: number) {
       <div class="flex">
         <div class="w-7 shrink-0" />
         <div class="flex flex-1 flex-wrap items-center gap-x-2 pl-6 text-xs text-muted-foreground">
-          <span class="tabular-nums">{{ formatDurationLong(segment.duration) }} · {{ formatDistance(segment.distance ?? 0) }}</span>
-          <span v-if="segment.agencyName">· {{ segment.agencyName }}</span>
+          <span v-if="!segment.intermediateStops?.length" class="tabular-nums">{{ formatDurationLong(segment.duration) }}</span>
+          <span v-if="segment.agencyName"><template v-if="!segment.intermediateStops?.length">· </template>{{ segment.agencyName }}</span>
           <slot />
         </div>
       </div>

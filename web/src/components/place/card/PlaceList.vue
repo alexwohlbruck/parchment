@@ -5,6 +5,7 @@ import { PlaceCardSkeleton } from '@/components/place/card'
 import { SkeletonList } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SearchXIcon } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(defineProps<{
   places: Place[]
@@ -22,6 +23,8 @@ const emit = defineEmits<{
   'place-leave': []
   retry: []
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -34,8 +37,8 @@ const emit = defineEmits<{
     <EmptyState
       v-else-if="places.length === 0"
       :icon="SearchXIcon"
-      title="No places found"
-      description="Try adjusting your search or exploring a different area"
+      :title="t('place.list.empty')"
+      :description="t('place.list.emptyDescription')"
       :offline="offline"
       @retry="emit('retry')"
     />

@@ -174,6 +174,7 @@ export class GuidanceEngine {
     this.lastFix = fix
     this.lastMatch = match
     this.estimated = false
+    this.lastAccepted = true
 
     const step = this.route.steps[stepIndexAt(this.route, match.s) + 1]
     this.offRoute.configure(offRouteOptionsFor(segmentAt(this.route, match.s)?.mode ?? 'driving'))
@@ -217,6 +218,8 @@ export class GuidanceEngine {
   private settle(fix: Fix): void {
     this.lastGood = { t: fix.t, s: this.filter?.state.s ?? this.lastGood?.s ?? 0, v: this.filter?.state.v ?? fix.speed ?? 0 }
     this.estimated = false
+    // A fix the filter gated out can't anchor reach, or later fixes are searched for around the stale estimate.
+    if (!this.lastAccepted) return
     if (fix.accuracy > TRUSTED_ACCURACY && this.trustedFix) return
     this.trustedFix = fix
     if (!this.filter || this.offRoute.isOffRoute) return
@@ -327,13 +330,14 @@ export class GuidanceEngine {
     this.stillSpeed = this.options.stillSpeedOverride ?? profile.stillSpeed
 
     const still = this.isStill(fix)
+    const sigma = Math.max(3, fix.accuracy)
     if (!this.filter) {
       this.filter = new AlongRouteFilter(
         { s: match.s, v: fix.speed ?? 0, t: fix.t, sigma: fix.accuracy },
         this.options.filter,
       )
       this.renderedS = match.s
-    } else if (still) {
+    } else if (still && this.filter.agrees({ t: fix.t, s: match.s, sigma })) {
       this.filter.hold(fix.t)
       this.lastAccepted = true
     } else {
@@ -341,7 +345,7 @@ export class GuidanceEngine {
       this.lastAccepted = this.filter.update({
         t: fix.t,
         s: match.s,
-        sigma: Math.max(3, fix.accuracy),
+        sigma,
         speed: stepSpeed ?? fix.speed,
       }).accepted
     }

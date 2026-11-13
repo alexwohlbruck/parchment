@@ -573,7 +573,7 @@ const filterFunction = computed(() => {
           </CommandGroup>
 
           <!-- TODO: i18n -->
-          <CommandEmpty>No matching commands.</CommandEmpty>
+          <CommandEmpty>{{ t('palette.noResults') }}</CommandEmpty>
         </CommandList>
 
         <!-- Command selected, display arguments. For search we also render with

@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+* Every departure in navigation's run picker now shows how much time you'll have to spare, not just the ones you need to hurry for.
 
 ### Fixed
 * Navigation no longer keeps saying your train has left once GPS catches up and shows you aboard it.

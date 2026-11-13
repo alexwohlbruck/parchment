@@ -3,6 +3,8 @@
  *
  * Kept out of the view so each rule can be read — and tested — on its own.
  */
+import type { TFn } from '@/lib/guidance/instructions/instruction-text'
+
 export const TRIP_MODE_COLORS = {
   walking: 'bg-cobalt-500',
   driving: 'bg-violet-500',
@@ -104,13 +106,14 @@ export function entrancePhrase(
       }
     | null
     | undefined,
+  t: TFn,
 ): string {
   if (!entrance) return ''
-  const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
+  const exit = entrance.role === 'exit'
   const place = entrance.name || entrance.ref || entrance.cornerLabel
-  if (place) return `${verb} at ${place}`
-  if (entrance.role !== 'exit' && entrance.description) {
-    return `${verb} · ${entrance.description}`
+  if (place) return t(exit ? 'directions.entrance.exitAt' : 'directions.entrance.enterAt', { place })
+  if (!exit && entrance.description) {
+    return t('directions.entrance.enterToward', { description: entrance.description })
   }
   return ''
 }

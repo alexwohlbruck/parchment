@@ -82,8 +82,8 @@ async function requestOtp() {
 // Form validation schema
 const formSchema = toTypedSchema(
   z.object({
-    email: z.string().email('Please enter a valid email address'),
-    selectedServer: z.string().url('Please enter a valid URL'),
+    email: z.string().email(t('auth.signIn.invalidEmail')),
+    selectedServer: z.string().url(t('auth.server.invalidUrl')),
   }),
 )
 
@@ -116,15 +116,15 @@ const handleServerSelection = async (server: string) => {
 async function addNewServer(): Promise<boolean> {
   try {
     const result = (await appService.promptForm({
-      title: 'Add Custom Server',
-      description: 'Enter the URL of your self-hosted Parchment server',
+      title: t('auth.server.addTitle'),
+      description: t('auth.server.addDescription'),
       schema: z.object({
         url: z
           .string()
-          .url('Please enter a valid URL')
+          .url(t('auth.server.invalidUrl'))
           .refine(
             url => url.startsWith('https://') || url.startsWith('http://'),
-            'URL must start with http:// or https://',
+            t('auth.server.invalidProtocol'),
           ),
       }),
       initialValues: {
@@ -160,7 +160,7 @@ async function addNewServer(): Promise<boolean> {
 
 const deleteServer = (serverToDelete: string) => {
   if (serverToDelete === DEFAULT_SERVER_URL) {
-    appService.toast('Cannot delete the main server')
+    appService.toast(t('auth.server.cannotDeleteMain'))
     return
   }
 
@@ -177,7 +177,7 @@ const deleteServer = (serverToDelete: string) => {
 
 async function startPasskeySignin() {
   if (isTauri) {
-    return appService.toast('Passkey sign in not supported') // TODO: i18n
+    return appService.toast(t('auth.passkey.unsupported'))
   }
   awaitingPasskey.value = true
   try {
@@ -189,7 +189,7 @@ async function startPasskeySignin() {
       return
     }
     // Show error for other types of failures
-    appService.toast('Failed to sign in with passkey')
+    appService.toast(t('auth.passkey.signInFailed'))
     console.error('Passkey authentication error:', error)
   } finally {
     awaitingPasskey.value = false

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ListIcon, MapPinIcon, MegaphoneIcon, PlusIcon, SearchIcon, SplitIcon } from 'lucide-vue-next'
+import { ListIcon, MapPinIcon, SearchIcon, SplitIcon } from 'lucide-vue-next'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { FREE_MODES } from '@/lib/guidance/free-roam'
@@ -29,13 +29,10 @@ const currentSegment = computed(() => passed.value + (guidance.route ? segmentAt
 const actions = computed(() => guidance.kind === 'free' ? [
   { key: 'destination', icon: MapPinIcon, enabled: true, open: () => openPanel('destination') },
   { key: 'alongTheWay', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
-  { key: 'report', icon: MegaphoneIcon, enabled: false, open: () => {} },
 ] : [
-  { key: 'search', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
-  { key: 'addStop', icon: PlusIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
+  { key: 'searchAlongRoute', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
   { key: 'routes', icon: SplitIcon, enabled: canReroute(travelMode.value), open: () => openPanel('routes') },
   { key: 'steps', icon: ListIcon, enabled: !!guidance.route?.steps.length, open: () => openPanel('steps') },
-  { key: 'report', icon: MegaphoneIcon, enabled: false, open: () => {} },
 ])
 
 const sound = computed(() => guidance.soundModeAt(s.value))
@@ -114,7 +111,7 @@ const choices = computed(() => [
       :stage="guidance.transit"
     />
 
-    <div class="grid gap-1" :class="actions.length === 5 ? 'grid-cols-5' : 'grid-cols-3'">
+    <div class="grid gap-1" :class="actions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'">
       <button
         v-for="action in actions"
         :key="action.key"

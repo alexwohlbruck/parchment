@@ -170,13 +170,11 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'floor-numbering',
         titleKey: 'settings.behavior.floorNumbering.title',
-        descriptionKey: 'settings.behavior.floorNumbering.description',
         keywords: ['floors', 'levels', 'ground floor'],
       },
       {
         id: 'units',
         titleKey: 'settings.behavior.units.title',
-        descriptionKey: 'settings.behavior.units.description',
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
       },
     ],
@@ -271,8 +269,7 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.configuration.3dTerrain' },
           {
             titleKey: 'settings.mapSettings.configuration.hdRoads',
-            descriptionKey:
-              'settings.mapSettings.configuration.hdRoadsDescription',
+            keywords: ['hd roads', 'turn arrows'],
           },
           {
             titleKey: 'settings.mapSettings.configuration.indoorMaps',

@@ -26,7 +26,12 @@ import {
   DoorOpenIcon,
   SunIcon,
 } from 'lucide-vue-next'
-import { useThemeStore, allColors } from '@/stores/theme.store'
+import {
+  useThemeStore,
+  allColors,
+  colorSchemes,
+  type ColorScheme,
+} from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map/map.service'
 import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
@@ -41,8 +46,8 @@ import ControlSettingsSection from '@/components/map/controls/ControlSettingsSec
 
 // Theme store
 const themeStore = useThemeStore()
-const { isDark, accentColor, radius } = storeToRefs(themeStore)
-const { toggleDark, setAccentColor, setRadius } = themeStore
+const { colorScheme, accentColor, radius } = storeToRefs(themeStore)
+const { setColorScheme, setAccentColor, setRadius } = themeStore
 
 // Map store
 const mapStore = useMapStore()
@@ -84,7 +89,7 @@ const handleColorChange = (value: any) => {
           @update:model-value="handleColorChange"
         >
           <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -129,18 +134,19 @@ const handleColorChange = (value: any) => {
         :command-id="CommandName.TOGGLE_THEME"
       >
         <Select
-          :model-value="isDark ? 'dark' : 'light'"
-          @update:model-value="value => toggleDark(value === 'dark')"
+          :model-value="colorScheme"
+          @update:model-value="value => setColorScheme(value as ColorScheme)"
         >
           <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="light">
-              {{ $t('settings.appearance.appTheme.theme.values.light') }}
-            </SelectItem>
-            <SelectItem value="dark">
-              {{ $t('settings.appearance.appTheme.theme.values.dark') }}
+            <SelectItem
+              v-for="scheme in colorSchemes"
+              :key="scheme"
+              :value="scheme"
+            >
+              {{ $t(`settings.appearance.appTheme.theme.values.${scheme}`) }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -165,9 +171,6 @@ const handleColorChange = (value: any) => {
       <SettingsItem
         v-if="settings.engine === MapEngine.MAPLIBRE"
         :title="$t('settings.mapSettings.configuration.3dObjects')"
-        :description="
-          $t('settings.mapSettings.configuration.3dObjectsDescription')
-        "
         :icon="TreePineIcon"
       >
         <Switch
@@ -179,9 +182,6 @@ const handleColorChange = (value: any) => {
       <SettingsItem
         v-if="isMaplibre"
         :title="$t('settings.mapSettings.configuration.shadows.title')"
-        :description="
-          $t('settings.mapSettings.configuration.shadows.description')
-        "
         :icon="SunIcon"
       >
         <Select
@@ -216,9 +216,6 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.hdRoads')"
-        :description="
-          $t('settings.mapSettings.configuration.hdRoadsDescription')
-        "
         :icon="RouteIcon"
         :badge="$t('settings.mapSettings.configuration.experimental')"
       >
@@ -321,7 +318,6 @@ const handleColorChange = (value: any) => {
       <SettingsItem
         v-if="isMaplibre"
         :title="$t('settings.mapSettings.style.poiStyle')"
-        :description="$t('settings.mapSettings.style.poiStyleDescription')"
         :icon="MapPinIcon"
       >
         <Select

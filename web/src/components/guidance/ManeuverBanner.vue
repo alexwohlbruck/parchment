@@ -31,7 +31,7 @@ const distance = computed(() => bannerDistance(props.progress?.distanceToNext ??
 const road = computed(() => {
   const instruction = next.value?.instruction
   if (!instruction) return ''
-  if (kind.value === 'arrive') return t('guidance.banner.arrive')
+  if (kind.value === 'arrive') return props.destination || t('guidance.banner.arrive')
   if (props.instruction) return bannerTitle(props.instruction, t)
   return instruction.streetName || instruction.streetRef || stepText(instruction, t)
 })

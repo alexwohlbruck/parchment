@@ -405,7 +405,7 @@ useMapListener(
     >
       <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
       <span class="text-amber-800 dark:text-amber-200">
-        Your destination is in a different time zone ({{ timezoneWarning.offsetDifferenceText }})
+        {{ t('directions.timezoneOffset', { offset: timezoneWarning.offsetDifferenceText }) }}
       </span>
     </div>
 

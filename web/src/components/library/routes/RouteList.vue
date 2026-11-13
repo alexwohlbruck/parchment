@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { RouteIcon } from 'lucide-vue-next'
@@ -24,6 +25,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt' | 'distance'>('updatedAt')
@@ -92,7 +94,7 @@ function createRoute() {
           <Input
             v-model="searchQuery"
             class="w-full pl-8"
-            placeholder="Search routes…"
+            :placeholder="t('library.search.routes')"
           />
         </div>
 
@@ -107,20 +109,21 @@ function createRoute() {
               :class="{ 'font-medium': sortBy === 'name' }"
               @click="setSortBy('name')"
             >
-              Name {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
+              {{ t('general.name') }}
+              {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'updatedAt' }"
               @click="setSortBy('updatedAt')"
             >
-              Last modified
+              {{ t('general.lastModified') }}
               {{ sortBy === 'updatedAt' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'distance' }"
               @click="setSortBy('distance')"
             >
-              Distance
+              {{ t('library.sort.distance') }}
               {{ sortBy === 'distance' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -145,9 +148,18 @@ function createRoute() {
       v-else-if="filteredRoutes.length === 0"
       class="flex-1 flex items-center justify-center"
     >
-      <EmptyState :icon="RouteIcon" title="No routes found">
+      <EmptyState
+        :icon="RouteIcon"
+        :title="
+          searchQuery
+            ? t('library.empty.searchResults', {
+                entityPlural: t('library.entities.routes.title.plural'),
+              })
+            : t('library.empty.noRoutes')
+        "
+      >
         <Button v-if="searchQuery" size="sm" variant="outline" @click="searchQuery = ''">
-          Clear search
+          {{ t('general.clearSearch') }}
         </Button>
       </EmptyState>
     </div>

@@ -8,6 +8,7 @@ import { formatDurationCompact, formatDurationLong } from '@/lib/time-format'
 import type { RecoveryView } from '@/composables/guidance/useMissedRecovery'
 import type { RecoveryPlan } from '@/lib/guidance/missed-recovery'
 import type { TripOption } from '@/types/directions.types'
+import { lineSequence } from '@/lib/guidance/line-sequence'
 
 type Plan = RecoveryPlan<TripOption>
 
@@ -18,7 +19,7 @@ const { t } = useI18n()
 const clock = (ms: number) => formatClock(new Date(ms))
 const rides = (plan: Plan) => plan.itinerary.segments.filter(s => s.mode === 'transit')
 const boarding = (plan: Plan) => rides(plan)[0]?.departureStop?.name ?? ''
-const lines = (plan: Plan) => rides(plan).map(s => s.lineName ?? '').join(' → ')
+const lines = (plan: Plan) => lineSequence(rides(plan).map(s => s.lineName ?? ''), t)
 
 function arrival(arrivalMs: number, delayMs: number) {
   const at = t('guidance.recovery.arrive', { time: clock(arrivalMs) })

@@ -30,7 +30,7 @@ import {
   importGeoFile,
   parseGeoData,
 } from '@/lib/canvas/geo-import'
-import { LinkIcon, LockIcon, SearchIcon, UploadIcon } from 'lucide-vue-next'
+import { LinkIcon, LockIcon, SearchIcon, FolderOpenIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -225,7 +225,7 @@ function connectorUnavailable() {
             @click="fileInput?.click()"
           >
             <Spinner v-if="busy" class="size-4" />
-            <UploadIcon v-else class="size-4" />
+            <FolderOpenIcon v-else class="size-4" />
             {{ t('canvases.add.options.import.title') }}
           </Button>
 

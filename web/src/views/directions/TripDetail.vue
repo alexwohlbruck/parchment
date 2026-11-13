@@ -10,7 +10,7 @@ import {
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
-import { sameArrivalDepartAt, tightChanges, walksToFirstStop } from '@/lib/directions/trip-advice'
+import { sameArrivalDepartAt, walksToFirstStop } from '@/lib/directions/trip-advice'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
@@ -39,7 +39,6 @@ import {
   MapIcon,
   RefreshCwIcon,
   ShareIcon,
-  TriangleAlertIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { tripSignature } from '@/lib/directions/trip-signature'
@@ -734,6 +733,12 @@ async function startGuidance() {
   router.push({ name: AppRoute.GUIDANCE })
 }
 
+const startLabel = computed(() => {
+  const leg = legToStart.value
+  const place = leg ? directionsStore.trips?.request?.waypoints?.[leg + 1]?.name?.trim() : null
+  return place ? translate('directions.goTo', { place }) : translate('guidance.start')
+})
+
 const routePreview = useRoutePreviewStore()
 function previewRoute() {
   if (!trip.value || legToStart.value == null) return
@@ -794,15 +799,6 @@ const boarding = computed(() => {
 const advice = computed(() => (trip.value ? adviceFor(trip.value, nowMs.value, boarding.value) : null))
 
 
-const tight = computed(() => tightChanges(trip.value?.segments ?? []))
-/** The tightest change, named once in the header; each one is also flagged where it happens. */
-const tightNote = computed(() => {
-  const [first] = [...tight.value.values()].sort((a, b) => a.minutes - b.minutes)
-  if (!first) return null
-  return first.stop
-    ? translate('directions.advice.tightChange', { minutes: first.minutes, stop: first.stop })
-    : translate('directions.advice.status.change', { minutes: first.minutes })
-})
 /** No live prediction for the run the trip boards: its times are the timetable's. */
 const scheduledOnly = computed(() => {
   if (!advice.value) return false
@@ -1053,25 +1049,20 @@ const routeWaypoints = useRouteWaypoints(() => ({
           </Button>
           <Button v-else-if="legToStart != null" size="sm" class="mr-1 gap-1.5 px-3.5" @click="startGuidance">
             <NavigationIcon class="size-4" />
-            {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
+            {{ startLabel }}
           </Button>
-          <Button variant="ghost" size="icon-md" aria-label="Share">
+          <Button variant="ghost" size="icon-md" :aria-label="translate('general.share')">
             <ShareIcon class="size-4" />
           </Button>
-          <Button variant="ghost" size="icon-md" aria-label="Save">
+          <Button variant="ghost" size="icon-md" :aria-label="translate('general.save')">
             <BookmarkIcon class="size-4" />
           </Button>
         </div>
       </div>
 
-      <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">
-        <p v-if="switchedNote" class="flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-muted-foreground">
-          <RefreshCwIcon class="size-3.5 shrink-0" />{{ switchedNote }}
-        </p>
-        <p v-if="tightNote" class="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-amber-800 dark:text-amber-200">
-          <TriangleAlertIcon class="size-3.5 shrink-0" />{{ tightNote }}
-        </p>
-      </div>
+      <p v-if="switchedNote" class="mt-3 flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">
+        <RefreshCwIcon class="size-3.5 shrink-0" />{{ switchedNote }}
+      </p>
       </div>
       </SheetHeader>
 
@@ -1089,7 +1080,7 @@ const routeWaypoints = useRouteWaypoints(() => ({
       >
         <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
         <span class="text-amber-800 dark:text-amber-200">
-          Your destination is in a different time zone ({{ directionsStore.timezoneWarning.offsetDifferenceText }})
+          {{ translate('directions.timezoneOffset', { offset: directionsStore.timezoneWarning.offsetDifferenceText }) }}
         </span>
       </div>
 

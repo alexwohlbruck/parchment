@@ -59,6 +59,7 @@ import {
 } from '@/constants/layers'
 import MeasureDot from './MeasureDot.vue'
 import MeasureToolPanel from './MeasureToolPanel.vue'
+import UnitSystemToggle from './UnitSystemToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -470,25 +471,11 @@ function closeTool() {
             {{ t('isochrone.stopsReachable', { count: reachableStops }) }}
           </p>
 
-          <div class="mt-1 flex items-center justify-between gap-3">
-            <Label class="text-[11px] font-medium text-muted-foreground">
-              {{ t('measure.unitsMetric') }}
-            </Label>
-            <div class="flex flex-1 justify-center">
-              <Switch
-                :model-value="areaUnitSystem === 'imperial'"
-                aria-label="Metric or Imperial units"
-                @update:model-value="
-                  v => (areaUnitSystem = v ? 'imperial' : 'metric')
-                "
-              />
-            </div>
-            <Label
-              class="shrink-0 text-[11px] font-medium text-muted-foreground"
-            >
-              {{ t('measure.unitsImperial') }}
-            </Label>
-          </div>
+          <UnitSystemToggle
+            v-model="areaUnitSystem"
+            :metric-label="t('measure.unitsMetric')"
+            :imperial-label="t('measure.unitsImperial')"
+          />
         </template>
 
         <!-- Error -->

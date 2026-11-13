@@ -22,7 +22,7 @@ const arrivedAt = formatClock(new Date())
     </div>
     <Button v-if="hasNextLeg" class="h-12 rounded-full px-5" @click="$emit('next')">
       <NavigationIcon class="size-4" />
-      {{ t('guidance.arrival.nextLeg') }}
+      {{ t('guidance.arrival.continue') }}
     </Button>
     <Button v-else-if="keepGoing" variant="secondary" class="h-12 rounded-full px-5" @click="$emit('keepGoing')">
       {{ t(`guidance.free.keepGoing.${keepGoing}`) }}

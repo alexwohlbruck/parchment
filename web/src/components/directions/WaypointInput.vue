@@ -418,7 +418,7 @@ const waypointMarks = computed(() =>
 
 const currentLocationDisplay = computed(() =>
   makePlaceDisplay({
-    title: t('directions.currentLocation', 'Current Location'),
+    title: t('directions.currentLocation', 'Current location'),
     icon: 'Locate',
   }),
 )
@@ -443,7 +443,7 @@ const createCurrentLocationResult = (): AutocompleteResult | null => {
   return {
     id: 'current-location',
     type: 'current_location',
-    title: t('directions.currentLocation', 'Current Location'),
+    title: t('directions.currentLocation', 'Current location'),
     description: t(
       'directions.useCurrentLocation',
       'Use your current location',

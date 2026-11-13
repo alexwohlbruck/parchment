@@ -26,7 +26,7 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
-import { KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
+import { KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
 /** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
@@ -43,6 +43,9 @@ const CUT_PAD = 0.15
 const CUT_TILES = 64
 /** Metres past its line a cut's walls and carving reach. */
 const CUT_REACH = 30
+
+/** Stencil marks: a cut's lid, and a mouth, through which alone the bore is drawn. */
+const [LID, MOUTH] = [1, 2]
 
 /** Its name among the carver's owners. Ranked after the landmarks' fills, so a cut is carved into filled ground. */
 const CARVER_OWNER = 'tunnels'
@@ -72,14 +75,16 @@ const BACKFILL = [1.5, 6]
  * just behind the headwall's face, and to each wall's top beside them,
  * banking up past its coping; and filled over the bore behind the headwall.
  */
-function carving({ points, at, edges, cut }: ServedCut): Footprint[] {
+function carving({ points, at, edges, cut, cover }: ServedCut): Footprint[] {
   const sill = truncate(points.slice(at), SILL).at(-1)!
   const wall = edges.map(e => e + KERB)
   const out = (m: number) => wall.map(w => w + m) as [number, number]
   const lane = cut.floor.slice(cut.open, at + 1)
   const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
-  const over = [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
-  const crown = along(over).map(m => cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK)
+  // Over the whole bore drawn, up to the ground it lies under: where the terrain leaves out a street or deck over it, the ground is raised to meet it.
+  const over = cover ? [sill, ...points.slice(at + 1)] : [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
+  const lid = cover ? [cover[0], ...cover.slice(1)] : over.map(() => -Infinity)
+  const crown = along(over).map((m, k) => Math.max(lid[k], cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK))
   return [
     footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1])),
     // The ground over the bore, filled up to meet the headwall's top from behind.
@@ -304,6 +309,14 @@ export class TunnelLayer {
       mesh.floors.push({ from, to: mesh.floor.position.length / 3, ends: [s.points[s.cut.open], s.points[s.at]] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
+    const shared = new Map<string, Headwall[]>()
+    for (const s of cuts) {
+      if (!s.shared) continue
+      const { corners, heading, scale } = headwallFrame(s.points, s.at, s.edges, this.origin, s.face)
+      const wall = { corners, heading, scale, top: s.cut.crown * exaggeration, foot: (Math.min(s.cut.floor[s.at], s.cut.base) - 0.5) * exaggeration }
+      shared.set(s.shared, [...(shared.get(s.shared) ?? []), wall])
+    }
+    for (const walls of shared.values()) if (walls.length > 1) joinHeadwalls(walls, { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh)
     return mesh
   }
 
@@ -373,27 +386,29 @@ export class TunnelLayer {
     gl.stencilMask(0xff)
     gl.clearStencil(0)
     gl.clear(gl.STENCIL_BUFFER_BIT)
-    // Mark each cut's lid and each mouth wherever nothing drawn so far stands in front of them…
+    // Mark each cut's lid, and each mouth apart from it, wherever nothing drawn so far stands in front of them…
     gl.colorMask(false, false, false, false)
     gl.depthMask(false)
-    gl.stencilFunc(gl.ALWAYS, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
+    gl.stencilFunc(gl.ALWAYS, LID, 0xff)
     draw('lid')
+    gl.stencilFunc(gl.ALWAYS, MOUTH, 0xff)
     draw('mouth')
     // …clear the depth there, and set the cut's floor back into it…
     gl.depthMask(true)
     gl.depthFunc(gl.ALWAYS)
     gl.depthRange(far, far)
-    gl.stencilFunc(gl.EQUAL, 1, 0xff)
+    gl.stencilFunc(gl.LEQUAL, LID, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
     draw('lid')
     draw('mouth')
     gl.depthRange(near, far)
     gl.depthFunc(gl.LEQUAL)
     draw('floor')
-    // …then stand the walls on it, and draw the bore under the ground.
+    // …then stand the walls on it, and draw the bore under the ground through its mouth alone: seen past a lid, over the headwall, is the ground behind it.
     gl.colorMask(true, true, true, true)
     draw('walls')
+    gl.stencilFunc(gl.EQUAL, MOUTH, 0xff)
     draw('bore')
     // Where the terrain could not take the carving, the floor shows instead of the ground blurred over it.
     const exposed = this.exposedFloors()

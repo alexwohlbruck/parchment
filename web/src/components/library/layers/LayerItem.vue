@@ -6,7 +6,7 @@ import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map/map.service'
-import { useAppService } from '@/services/app.service'
+import { useLayerDelete } from '@/composables/library/useLayerDelete'
 import { useArchiveService } from '@/services/library/archive.service'
 import type { Layer } from '@/types/map.types'
 import * as LucideIcons from 'lucide-vue-next'
@@ -52,7 +52,7 @@ const router = useRouter()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapService = useMapService()
-const appService = useAppService()
+const { deleteLayer } = useLayerDelete()
 const archiveService = useArchiveService()
 
 /**
@@ -95,15 +95,6 @@ function handleUngroup() {
   }
 }
 
-async function deleteLayer() {
-  const confirmed = await appService.confirm({
-    title: t('layers.actions.deleteLayer'),
-    description: t('library.confirmDelete', { name: props.layer.name }),
-    destructive: true,
-  })
-  if (!confirmed) return
-  await layersStore.removeLayer(props.layer.id)
-}
 
 async function toggleLayer(enabled: boolean) {
   await layersService.setLayerShownInSelector(
@@ -204,7 +195,7 @@ async function toggleLayer(enabled: boolean) {
         <DropdownMenuItem
           v-if="!isVirtual"
           class="text-destructive"
-          @click="deleteLayer"
+          @click="deleteLayer(layer)"
         >
           <TrashIcon class="size-3 mr-2" />
           {{ t('layers.actions.deleteLayer') }}

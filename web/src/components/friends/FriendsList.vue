@@ -7,18 +7,19 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useLocationService } from '@/services/location.service'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
+import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
 import { appEventBus } from '@/lib/event-bus'
 import FriendCard from './FriendCard.vue'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { UserPlus, Users, Shield } from 'lucide-vue-next'
-import type { Friendship } from '@/services/friends.service'
 import Alert from '@/components/ui/alert/Alert.vue'
 import { TransitionFade } from '@morev/vue-transitions'
 
 const { t } = useI18n()
 
 const friendsStore = useFriendsStore()
+const { removeFriend } = useRemoveFriend()
 const identityStore = useIdentityStore()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
@@ -74,9 +75,6 @@ async function loadLocationConfigs() {
   }
 }
 
-async function handleRemove(friend: Friendship) {
-  await friendsStore.remove(friend)
-}
 
 async function handleSyncKeys() {
   await friendsStore.syncKeys()
@@ -195,7 +193,7 @@ onUnmounted(() => {
           :friend-location="getFriendLocation(friend.friendHandle)"
           :location-config="getLocationConfig(friend.friendHandle)"
           :location-saving="locationSaving === friend.friendHandle"
-          @remove="handleRemove"
+          @remove="removeFriend"
           @toggle-location="handleToggleLocation"
           @sync-keys="handleSyncKeys"
         />

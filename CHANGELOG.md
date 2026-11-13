@@ -1,11 +1,16 @@
 ## [Unreleased]
 
 ### Added
+* The theme setting can match your device's light or dark mode.
 
 ### Changed
+* Turn-by-turn is calmer: ending a trip is no longer a loud red button, offers to switch routes show their countdown on the close button, and the routes panel leads with how much time you'd save.
+* Transit results lead with the direction each train is heading, and hazards read as where they are, like "Stairs · in 120 m".
+* Settings, confirmations and the library read plainer, and deleting or removing something says what will happen.
 * Trip and departure times read plainer: "2 min late" instead of "2 min short", "Too late" instead of "Too far", and clearer hazard warnings like "Steep hill".
 
 ### Fixed
+* Layers in a deleted group no longer disappear until you reload.
 * A trip's route now stays on top of the cycling and transit layers when the map is in 3D.
 
 ## [0.21.1] - 2026-11-12

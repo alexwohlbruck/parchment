@@ -7,6 +7,7 @@ import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
+import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
 import { useAppService } from '@/services/app.service'
 import { useLocationService } from '@/services/location.service'
 import { AppRoute } from '@/router'
@@ -27,7 +28,6 @@ import {
   BatteryIcon,
   BatteryChargingIcon,
   ArrowRightIcon,
-  WaypointsIcon,
 } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import {
@@ -58,6 +58,7 @@ const { t } = useI18n()
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
 const appService = useAppService()
+const { removeFriend } = useRemoveFriend()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
 const mapService = useMapService()
@@ -223,18 +224,7 @@ function centerMapOnFriend() {
 async function handleRemoveFriend() {
   if (!friend.value) return
 
-  const confirmed = await appService.confirm({
-    title: t('friends.detail.removeFriend'),
-    description: t('friends.detail.removeConfirmation', {
-      name: displayName.value,
-    }),
-    continueText: t('general.delete'),
-    cancelText: t('general.cancel'),
-    destructive: true,
-  })
-
-  if (confirmed) {
-    await friendsStore.remove(friend.value)
+  if (await removeFriend(friend.value)) {
     router.push({ name: AppRoute.LOOKOUT })
   }
 }
@@ -315,15 +305,7 @@ watch([isLoading, friend], ([loading, f]) => {
           @click="getDirections"
         >
           <ArrowRightIcon class="size-4" />
-          Directions
-        </Button>
-        <Button
-          variant="outline"
-          class="flex-1 gap-2"
-          disabled
-        >
-          <WaypointsIcon class="size-4" />
-          Start convoy
+          {{ t('friends.detail.directions') }}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

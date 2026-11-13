@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
+import { useLayerDelete } from '@/composables/library/useLayerDelete'
 import { useArchiveService } from '@/services/library/archive.service'
 import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
 import { groupSubtreeMatches, matchesQuery } from '@/lib/map/layer-search'
@@ -65,6 +66,7 @@ const { t } = useI18n()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const appService = useAppService()
+const { deleteGroup } = useLayerDelete()
 const archiveService = useArchiveService()
 const mapService = useMapService()
 
@@ -167,17 +169,6 @@ function openLayerGroupConfigDialog() {
       groupId: props.group.id,
     },
   })
-}
-
-async function deleteGroup() {
-  // Deleting a group takes the layers inside it, so this is worth confirming.
-  const confirmed = await appService.confirm({
-    title: t('layers.actions.deleteGroup'),
-    description: t('library.confirmDelete', { name: props.group.name }),
-    destructive: true,
-  })
-  if (!confirmed) return
-  await layersStore.removeLayerGroup(props.group.id)
 }
 
 function handleToggleExpanded() {
@@ -303,7 +294,7 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
             </DropdownMenuItem>
             <DropdownMenuItem
               v-if="!isVirtual"
-              @click="deleteGroup"
+              @click="deleteGroup(group)"
               class="text-destructive"
             >
               <TrashIcon class="size-3 mr-2" />

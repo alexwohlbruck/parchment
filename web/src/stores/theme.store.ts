@@ -5,6 +5,9 @@ import { type Style, styles } from '@/lib/registry/styles'
 import { defineStore } from 'pinia'
 import { useDark } from '@vueuse/core'
 
+export const colorSchemes = ['auto', 'light', 'dark'] as const
+export type ColorScheme = (typeof colorSchemes)[number]
+
 interface Config {
   accentColor: Theme['name']
   radius: number
@@ -65,8 +68,13 @@ export const useThemeStore = defineStore('theme', () => {
 
   /* Light/dark mode */
 
-  const isDark = useDark()
+  const colorScheme = useStorage<ColorScheme>('vueuse-color-scheme', 'auto')
+  const isDark = useDark({ storageRef: colorScheme })
   const toggleDark = useToggle(isDark)
+
+  function setColorScheme(scheme: ColorScheme) {
+    colorScheme.value = scheme
+  }
 
   /* Color */
 
@@ -106,6 +114,8 @@ export const useThemeStore = defineStore('theme', () => {
 
   return {
     config,
+    colorScheme,
+    setColorScheme,
     isDark,
     toggleDark,
     initAccentColor,

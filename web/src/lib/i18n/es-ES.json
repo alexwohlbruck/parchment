@@ -646,7 +646,6 @@
         "attribution": "Atribución",
         "attributionPlaceholder": "© Proveedor de datos",
         "geojsonData": "GeoJSON",
-        "geojsonHint": "Los datos pegados se guardan con la capa. La subida de archivos llegará más adelante.",
         "kinds": {
           "raster": "Teselas ráster",
           "raster-dem": "Elevación",
@@ -1025,9 +1024,6 @@
       "bookmarks": "Buscar marcadores...",
       "collections": "Buscar colecciones..."
     },
-    "sort": {
-      "name": "Nombre"
-    },
     "collections": {
       "filter": {
         "label": "Filtrar colecciones",
@@ -1107,7 +1103,6 @@
         }
       }
     },
-    "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?",
     "dialog": {
       "createCollection": {
         "title": "Nueva colección",
@@ -1593,7 +1588,6 @@
       "destination": "Destino",
       "alongTheWay": "En el camino"
     },
-    "startLeg": "Iniciar tramo {leg}",
     "arrival": {
       "destination": "Tu destino",
       "at": "Llegada a las {time}",
@@ -2819,14 +2813,12 @@
       "units": {
         "title": "Unidades",
         "system": "Sistema de unidades",
-        "description": "Sistema de unidades preferido para temperatura, distancia y velocidad",
         "metric": "Métrico (°C, km, m/s)",
         "imperial": "Imperial (°F, mi, mph)"
       },
       "floorNumbering": {
         "title": "Numeración de pisos",
         "system": "Convención de numeración de pisos",
-        "description": "Cómo se muestran los números de piso. Base cero cuenta la planta baja como 0 (común en Europa). Base uno cuenta la planta baja como 1 (común en las Américas).",
         "zeroBased": "Base cero (Planta baja = 0)",
         "oneBased": "Base uno (Planta baja = 1)"
       },
@@ -2882,10 +2874,8 @@
         "3dTerrain": "Terreno 3D",
         "3dBuildings": "Edificios 3D",
         "3dObjects": "Objetos 3D",
-        "3dObjectsDescription": "Dibuja árboles y mobiliario urbano como modelos. Solo MapLibre.",
         "shadows": {
           "title": "Sombras",
-          "description": "Sombras de edificios y objetos. «Con inclinación» las oculta en la vista cenital plana.",
           "values": {
             "off": "Desactivadas",
             "tilted": "Con inclinación",
@@ -2893,7 +2883,6 @@
           }
         },
         "hdRoads": "Carreteras HD",
-        "hdRoadsDescription": "Dibuja carriles, pasos de peatones y flechas de giro a nivel de calle",
         "indoorMaps": "Mapas de interiores",
         "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",
         "poiLabels": "Etiquetas de POI",
@@ -2953,7 +2942,6 @@
         "title": "Estilo",
         "mapStyle": "Estilo del mapa",
         "poiStyle": "Iconos de lugares",
-        "poiStyleDescription": "Cómo se dibujan los puntos de interés en el mapa.",
         "poiStyleBadge": "Insignias de color",
         "poiStyleGlyph": "Solo iconos",
         "descriptionMaplibre": "Estilo visual del mapa",
@@ -3360,16 +3348,6 @@
       "title": "Conecta tus aplicaciones",
       "description": "Conecta servicios de mapas, búsqueda y más."
     },
-    "invite": {
-      "title": "Invitar a otros",
-      "description": "Envía invitaciones a personas con las que quieras colaborar. Siempre puedes hacerlo después desde ajustes.",
-      "emailLabel": "Direcciones de correo",
-      "placeholder": "Escribe un correo y presiona Enter...",
-      "send": "Enviar invitaciones",
-      "sendFailed": "No se pudo enviar la invitación.",
-      "sent": "{count} invitación(es) enviada(s).",
-      "sentSummary": "{count} invitación(es) enviada(s)"
-    },
     "openstreetmap": {
       "title": "Mejoremos el mapa juntos",
       "description": "Conecta tu cuenta para contribuir a OpenStreetMap.",
@@ -3431,8 +3409,6 @@
     },
     "add": {
       "trigger": "Añadir una capa",
-      "title": "Añadir una capa",
-      "description": "¿Qué quieres poner en este lienzo?",
       "noLayers": "Todavía no hay capas en tu biblioteca.",
       "noCollections": "Todavía no hay colecciones.",
       "options": {
@@ -3685,9 +3661,7 @@
       "reviewAction": "Revisar sincronización",
       "failedToast": "No se pudo sincronizar «{label}»",
       "failedManyToast": "No se pudieron sincronizar {count} cambios",
-      "cancel": "Cancelar",
       "retryAction": "Reintentar",
-      "dismiss": "Descartar",
       "labels": {
         "save": "Guardar «{name}»",
         "update": "Actualizar «{name}»",

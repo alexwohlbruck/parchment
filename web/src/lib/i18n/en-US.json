@@ -22,7 +22,7 @@
     "edit": "Edit",
     "view": "View",
     "unsave": "Unsave",
-    "clearSearch": "Clear Search",
+    "clearSearch": "Clear search",
     "search": "Search",
     "create": "Create",
     "add": "Add",
@@ -30,8 +30,8 @@
     "remove": "Remove",
     "more": "More",
     "loading": "Loading...",
-    "dateAdded": "Date Added",
-    "lastModified": "Last Modified",
+    "dateAdded": "Date added",
+    "lastModified": "Last modified",
     "lastSeen": "Last seen",
     "updated": "Updated",
     "description": "Description",
@@ -66,10 +66,10 @@
     "undo": "Undo"
   },
   "weather": {
-    "title": "Weather Conditions",
+    "title": "Weather",
     "subtitle": "Current conditions and forecast",
-    "airQuality": "Air Quality",
-    "feelsLike": "Feels Like",
+    "airQuality": "Air quality",
+    "feelsLike": "Feels like",
     "humidity": "Humidity",
     "wind": "Wind",
     "visibility": "Visibility",
@@ -93,7 +93,7 @@
         "pm10": "PM10",
         "o3": "Ozone",
         "no2": "Nitrogen dioxide",
-        "so2": "Sulphur dioxide",
+        "so2": "Sulfur dioxide",
         "co": "Carbon monoxide"
       },
       "levels": {
@@ -207,7 +207,7 @@
         "commonCategories": {
           "restaurants": "Restaurants",
           "coffee": "Coffee",
-          "fastFood": "Fast Food",
+          "fastFood": "Fast food",
           "groceries": "Groceries",
           "gas": "Gas",
           "parking": "Parking",
@@ -218,17 +218,17 @@
           "hospitals": "Hospitals",
           "atms": "ATMs",
           "banks": "Banks",
-          "evCharging": "EV Charging",
-          "powerOutlets": "Power Outlets",
-          "postOffices": "Post Offices",
+          "evCharging": "EV charging",
+          "powerOutlets": "Power outlets",
+          "postOffices": "Post offices",
           "convenience": "Convenience",
           "bakeries": "Bakeries",
-          "shoppingMalls": "Shopping Malls",
+          "shoppingMalls": "Shopping malls",
           "clothing": "Clothing",
-          "liquorStores": "Liquor Stores",
+          "liquorStores": "Liquor stores",
           "hardware": "Hardware",
-          "autoRepair": "Auto Repair",
-          "hairSalons": "Hair Salons",
+          "autoRepair": "Auto repair",
+          "hairSalons": "Hair salons",
           "doctors": "Doctors",
           "veterinarians": "Veterinarians",
           "gyms": "Gyms",
@@ -240,41 +240,41 @@
           "wifi": "WiFi",
           "police": "Police",
           "restrooms": "Restrooms",
-          "drinkingWater": "Drinking Water",
+          "drinkingWater": "Drinking water",
           "benches": "Benches",
-          "picnicTables": "Picnic Tables",
+          "picnicTables": "Picnic tables",
           "shelters": "Shelters",
           "playgrounds": "Playgrounds",
-          "trashCans": "Trash Cans",
+          "trashCans": "Trash cans",
           "recycling": "Recycling",
-          "bikeParking": "Bike Parking",
+          "bikeParking": "Bike parking",
           "transitStops": "Transit",
-          "trainStations": "Train Stations",
+          "trainStations": "Train stations",
           "airports": "Airports",
-          "placesOfWorship": "Places of Worship",
+          "placesOfWorship": "Places of worship",
           "schools": "Schools",
           "childcare": "Childcare",
-          "iceCream": "Ice Cream",
+          "iceCream": "Ice cream",
           "dentists": "Dentists",
-          "urgentCare": "Urgent Care",
-          "beautySalons": "Beauty Salons",
+          "urgentCare": "Urgent care",
+          "beautySalons": "Beauty salons",
           "laundry": "Laundry",
-          "carWash": "Car Wash",
-          "carRental": "Car Rental",
-          "dogParks": "Dog Parks",
-          "publicArt": "Public Art",
+          "carWash": "Car wash",
+          "carRental": "Car rental",
+          "dogParks": "Dog parks",
+          "publicArt": "Public art",
           "viewpoints": "Viewpoints",
-          "natureReserves": "Nature Reserves",
+          "natureReserves": "Nature reserves",
           "beaches": "Beaches",
-          "petStores": "Pet Stores",
-          "farmersMarkets": "Farmers Markets",
-          "picnicAreas": "Picnic Areas",
+          "petStores": "Pet stores",
+          "farmersMarkets": "Farmers markets",
+          "picnicAreas": "Picnic areas",
           "fountains": "Fountains",
           "showers": "Showers",
-          "publicBookcases": "Public Bookcases",
-          "outdoorGyms": "Outdoor Gyms",
-          "bikeRepair": "Bike Repair",
-          "postBoxes": "Post Boxes",
+          "publicBookcases": "Public bookcases",
+          "outdoorGyms": "Outdoor gyms",
+          "bikeRepair": "Bike repair",
+          "postBoxes": "Post boxes",
           "defibrillators": "Defibrillators"
         },
         "brand": {
@@ -329,18 +329,18 @@
       },
       "chooseMapEngine": {
         "name": "Choose map engine",
-        "description": "Change the javascript engine used to render the map",
+        "description": "Changes how the map looks and what it can show",
         "arguments": {
           "engine": {
             "name": "Map engine",
             "values": {
               "mapbox": {
                 "name": "Mapbox GL",
-                "description": "A beautiful, detailed 3D map with dynamic lighting"
+                "description": "Realistic 3D buildings and lighting"
               },
               "maplibre": {
                 "name": "MapLibre GL",
-                "description": "A fork of Mapbox GL v1 with an open-source license"
+                "description": "Parchment's own map style, with shadows and 3D trees"
               }
             }
           }
@@ -392,7 +392,8 @@
         "confirmTitle": "Sign out?",
         "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
       }
-    }
+    },
+    "noResults": "No matching commands"
   },
   "messages": {
     "error": {
@@ -438,7 +439,8 @@
     "empty": "Click on the map to add points.",
     "unitsMetric": "Metric",
     "unitsImperial": "Imperial",
-    "cycleUnit": "Click to cycle unit"
+    "cycleUnit": "Change unit",
+    "units": "Units"
   },
   "radius": {
     "title": "Radius",
@@ -449,8 +451,8 @@
     "clickToConfirm": "Click on the map to set the radius."
   },
   "isochrone": {
-    "title": "Reachable area",
-    "close": "Close isochrone tool",
+    "title": "Travel time",
+    "close": "Close travel time",
     "empty": "Click on the map to set a starting point.",
     "loading": "Computing reachable area…",
     "errorGeneric": "Couldn't compute the reachable area.",
@@ -462,8 +464,8 @@
     "modeTransit": "Transit",
     "reach": "Within",
     "minutes": "{count} min",
-    "bands": "Bands",
-    "bandsCount": "{count} bands",
+    "bands": "Rings",
+    "bandsCount": "{count} rings",
     "arriveBy": "Arrive by",
     "arriveByHint": "Show the area that can reach this point",
     "stopsReachable": "{count} transit stops reachable"
@@ -503,26 +505,26 @@
       "live": "Live"
     },
     "meta": {
-      "title": "Layer Info",
+      "title": "Layer info",
       "fields": {
         "engine": "Compatible engines",
         "id": "Layer ID",
-        "name": "Layer Name",
-        "icon": "Layer Icon",
+        "name": "Layer name",
+        "icon": "Layer icon",
         "iconPlaceholder": "Choose an icon",
         "showInLayerSelector": "Show in layer selector",
         "fadeBasemap": "Fade basemap",
         "type": {
-          "title": "Layer Type",
+          "title": "Layer type",
           "values": {
             "fill": "Fill",
             "line": "Line",
             "symbol": "Symbol",
             "circle": "Circle",
             "heatmap": "Heatmap",
-            "fill-extrusion": "Fill Extrusion",
+            "fill-extrusion": "Fill extrusion",
             "raster": "Raster",
-            "raster-particle": "Raster Particle",
+            "raster-particle": "Raster particle",
             "hillshade": "Hillshade",
             "model": "Model",
             "background": "Background",
@@ -532,31 +534,31 @@
           }
         },
         "customConfiguration": {
-          "title": "Custom Configuration",
+          "title": "Custom configuration",
           "placeholder": "Enter custom Mapbox layer configuration"
         }
       }
     },
     "groups": {
-      "create": "Create Layer Group",
-      "edit": "Edit Layer Group",
+      "create": "Create layer group",
+      "edit": "Edit layer group",
       "fields": {
-        "name": "Group Name",
+        "name": "Group name",
         "namePlaceholder": "Enter group name",
         "visible": "Visible",
-        "icon": "Group Icon",
+        "icon": "Group icon",
         "iconPlaceholder": "Choose an icon"
       }
     },
     "actions": {
       "new": "New",
-      "newLayer": "New Layer",
-      "newGroup": "New Group",
-      "editLayer": "Edit Layer",
-      "editGroup": "Edit Group",
-      "deleteGroup": "Delete Group",
-      "deleteLayer": "Delete Layer",
-      "ungroupLayer": "Ungroup Layer"
+      "newLayer": "New layer",
+      "newGroup": "New group",
+      "editLayer": "Edit layer",
+      "editGroup": "Edit group",
+      "deleteGroup": "Delete group",
+      "deleteLayer": "Delete layer",
+      "ungroupLayer": "Ungroup layer"
     },
     "empty": {
       "message": "No layers configured",
@@ -665,7 +667,6 @@
         "attribution": "Attribution",
         "attributionPlaceholder": "© Data provider",
         "geojsonData": "GeoJSON",
-        "geojsonHint": "Pasted data is stored with the layer. File uploads are coming later.",
         "kinds": {
           "raster": "Raster tiles",
           "raster-dem": "Elevation",
@@ -756,6 +757,10 @@
         "live": "Live",
         "fullService": "Full service"
       }
+    },
+    "delete": {
+      "title": "Delete \"{name}\"?",
+      "groupDescription": "The layers inside move out of the group."
     }
   },
   "directions": {
@@ -764,7 +769,7 @@
         "leave": "Leave now",
         "hurry": "Hurry",
         "missed": "Missed",
-        "cancelled": "Cancelled",
+        "cancelled": "Canceled",
         "tooFar": "Too late",
         "run": "Run"
       },
@@ -820,7 +825,6 @@
     "toward": "toward {headsign}",
     "arriveAtStop": "Arrive at {stop}",
     "trainNumber": "Train {number}",
-    "or": "or",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
     "directionsHere": "Directions here",
@@ -1012,7 +1016,6 @@
         "driving": "Drive"
       },
       "yourVehicle": "your {vehicle}",
-      "route": "Route",
       "allTurns": "All {n} turns",
       "hideTurns": "Hide turns",
       "friendly": "{pct}% bike-friendly",
@@ -1038,21 +1041,69 @@
       },
       "climb": "{pct}% climb",
       "handoff": {
-        "lockUp": "Lock up",
+        "lockUp": "Lock up your bike",
         "park": "Park",
-        "pickUp": "Pick up {vehicle}"
+        "getIn": "Get in your {vehicle}",
+        "getOn": "Get on your {vehicle}"
       },
-      "stops": "{n} stops"
+      "stops": "{n} stops",
+      "via": "via {streets}",
+      "hazardAt": "in {distance}",
+      "getOn": "Get on",
+      "getOff": "Get off",
+      "platform": "Platform {code}",
+      "start": "Start",
+      "destination": "Destination",
+      "bringBike": "Bring your bike on board",
+      "wait": "Wait {minutes} min",
+      "surge": "{x}× surge",
+      "pickupIn": "Pickup in {minutes} min",
+      "bookWith": "Book with {provider}",
+      "unlockIn": "Unlock in {provider}",
+      "eBike": "e-bike",
+      "available": {
+        "bike": "{n} bike | {n} bikes",
+        "scooter": "{n} scooter | {n} scooters"
+      }
+    },
+    "goTo": "Go to {place}",
+    "timezoneOffset": "Times at your destination are {offset}",
+    "noTrips": "No trips found",
+    "findingTrips": "Finding trips…",
+    "colorBy": {
+      "label": "Color by",
+      "mode": "Travel mode"
+    },
+    "entrance": {
+      "enterAt": "Enter at {place}",
+      "exitAt": "Exit at {place}",
+      "enterToward": "Enter · {description}"
+    },
+    "waypointTime": {
+      "leave": "Leave",
+      "arrive": "Arrive",
+      "thisStop": "This stop",
+      "arriving": "You'll get here at {time}",
+      "leaveAfter": "Leave after",
+      "arriveBy": "Arrive by",
+      "anyTime": "Any time",
+      "other": "Other",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "stay": "Time here",
+      "ariaSet": "Time for {place}: {time}",
+      "ariaUnset": "Set a time for {place}"
     }
   },
   "library": {
     "title": "Library",
     "search": {
       "bookmarks": "Search bookmarks...",
-      "collections": "Search collections..."
+      "collections": "Search collections...",
+      "routes": "Search routes…"
     },
     "sort": {
-      "name": "Name"
+      "distance": "Distance"
     },
     "collections": {
       "filter": {
@@ -1079,8 +1130,9 @@
       "action": "create {entitySingular}",
       "searchResults": "No {entityPlural} match your search",
       "collectionBookmarks": "No bookmarks in this collection yet",
-      "noCollections": "No collections available.",
-      "noCollectionsFound": "No collections found"
+      "noCollections": "No collections yet",
+      "noCollectionsFound": "No collections found",
+      "noRoutes": "No routes yet"
     },
     "entities": {
       "bookmarks": {
@@ -1133,7 +1185,6 @@
         }
       }
     },
-    "confirmDelete": "Are you sure you want to delete \"{name}\"?",
     "dialog": {
       "createCollection": {
         "title": "New collection",
@@ -1144,12 +1195,12 @@
         "description": "Give it a name and decide who can read it."
       },
       "editBookmark": {
-        "title": "Edit Bookmark",
+        "title": "Edit bookmark",
         "description": "Modify bookmark details"
       },
       "deleteCollection": {
-        "title": "Delete Collection",
-        "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
+        "title": "Delete \"{name}\"?",
+        "description": "Its places stay saved. Anyone you shared it with loses access."
       }
     },
     "form": {
@@ -1303,10 +1354,10 @@
   },
   "friends": {
     "title": "Friends",
-    "addFriend": "Add Friend",
-    "addFirstFriend": "Add Your First Friend",
-    "removeFriend": "Remove Friend",
-    "sendInvite": "Send Invite",
+    "addFriend": "Add friend",
+    "addFirstFriend": "Add your first friend",
+    "removeFriend": "Remove friend",
+    "sendInvite": "Send invite",
     "accept": "Accept",
     "cancel": "Cancel",
     "done": "Done",
@@ -1314,37 +1365,37 @@
     "countOne": "{n} friend",
     "countMany": "{n} friends",
     "invitations": {
-      "title": "Pending Invitations",
+      "title": "Pending invitations",
       "incoming": "Incoming",
       "outgoing": "Outgoing",
-      "noIncoming": "No incoming invitations.",
-      "noOutgoing": "No outgoing invitations.",
-      "noPending": "No pending invitations."
+      "noIncoming": "No incoming invitations",
+      "noOutgoing": "No outgoing invitations",
+      "noPending": "No pending invitations"
     },
     "empty": {
-      "title": "You haven't added any friends yet.",
-      "setupRequired": "Set up your federation identity to connect with friends across servers."
+      "title": "No friends yet",
+      "setupRequired": "Set up a handle so friends can find you"
     },
     "addDialog": {
-      "title": "Add Friend",
+      "title": "Add friend",
       "description": "Enter a friend's handle to send them an invitation. They can be on this server or any other Parchment server.",
-      "handleLabel": "Friend's Handle",
+      "handleLabel": "Friend's handle",
       "formatHint": "Format: username{'@'}server.domain",
       "userNotFound": "User not found. Check the handle and try again.",
       "lookupFailed": "Failed to look up user. Please try again.",
       "sendFailed": "Failed to send invitation",
-      "invitationSent": "Invitation sent successfully!"
+      "invitationSent": "Invitation sent"
     },
     "e2ee": {
-      "title": "End-to-End Encrypted",
+      "title": "End-to-end encrypted",
       "description": "Your location is encrypted on your device. Only the friends you choose can decrypt it."
     },
     "identity": {
-      "title": "Federation Identity",
-      "description": "Your identity for connecting with friends across servers",
+      "title": "Identity",
+      "description": "How friends find you",
       "configuredDescription": "How other people find and verify you",
       "handle": "Handle",
-      "handleDescription": "Your unique identifier for federation",
+      "handleDescription": "How friends find and add you",
       "username": "Username",
       "usernameDescription": "Your unique name on this server",
       "server": "Server",
@@ -1353,18 +1404,18 @@
       "notSet": "Not set",
       "edit": "Edit",
       "set": "Set",
-      "setupButton": "Set Up Identity",
-      "setupDescription": "Set up your federation identity to connect with friends and share data securely across Parchment servers.",
-      "importButton": "Import Recovery Key",
+      "setupButton": "Set up identity",
+      "setupDescription": "Set up a handle so friends can find you",
+      "importButton": "Import recovery key",
       "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
-      "recoveryKey": "Recovery Key",
+      "recoveryKey": "Recovery key",
       "recoveryKeyDescription": "View your recovery key for backup",
-      "viewKey": "View Key",
+      "viewKey": "View key",
       "aliasHint": "3-30 characters, letters, numbers, underscores only",
       "updateFailed": "Failed to update alias",
       "setupInvitations": "Set up your identity to see invitations.",
       "restoreIdentity": "Restore identity",
-      "restoreIdentityDescription": "Your account has a federation identity — restore it here to connect with friends.",
+      "restoreIdentityDescription": "Restore your handle on this device to see your friends",
       "staleTitle": "This device is out of sync",
       "staleDescription": "Your keys were rotated on another device. Tap a passkey to sync this device — until you do, your saved data here won't match what's on your other devices.",
       "syncWithPasskey": "Sync with passkey"
@@ -1416,21 +1467,21 @@
       "setupAction": "Set up"
     },
     "recoveryKey": {
-      "setupTitle": "Set Up Identity",
+      "setupTitle": "Set up identity",
       "setupDescription": "Create your federation identity with end-to-end encryption",
-      "importTitle": "Import Recovery Key",
+      "importTitle": "Import recovery key",
       "importDescription": "Restore your identity using your recovery key",
-      "viewTitle": "Your Recovery Key",
+      "viewTitle": "Your recovery key",
       "viewDescription": "Save this key securely to recover your identity on other devices",
       "warning": "Keep this key secret! Anyone with this key can access your encrypted data.",
-      "copied": "Copied!",
-      "copyKey": "Copy Key",
+      "copied": "Copied",
+      "copyKey": "Copy key",
       "confirmSaved": "I have saved my recovery key securely",
-      "completeSetup": "Complete Setup",
+      "completeSetup": "Complete setup",
       "enterKey": "Enter your recovery key",
       "invalidKey": "Invalid recovery key format",
       "importFailed": "Failed to import recovery key",
-      "importKey": "Import Key"
+      "importKey": "Import key"
     },
     "map": {
       "lastSeen": "Last seen",
@@ -1442,7 +1493,7 @@
       "daysAgo": "{n}d ago"
     },
     "locationSettings": {
-      "title": "Location Sharing",
+      "title": "Location sharing",
       "description": "Choose which friends can see your real-time location. All location data is end-to-end encrypted.",
       "addFriendsPrompt": "Add friends to start sharing your location.",
       "e2eeNotice": "Your location is encrypted on your device before being sent. Only the friends you choose can decrypt and see your location. The server never sees your actual coordinates."
@@ -1452,13 +1503,13 @@
       "minutesAgo": "{count}m ago",
       "hoursAgo": "{count}h ago",
       "daysAgo": "{count}d ago",
-      "lastKnownLocation": "Last Known Location",
-      "showOnMap": "Show on Map",
+      "lastKnownLocation": "Last known location",
+      "showOnMap": "Show on map",
       "recentlySeen": "Recently seen",
       "lastSeen": "Last seen",
       "noLocationData": "No location data",
       "noLocationDescription": "This friend hasn't shared their location with you yet.",
-      "locationSharing": "Location Sharing",
+      "locationSharing": "Location sharing",
       "shareMyLocation": "Share my location",
       "sharingEnabled": "Your location is shared with this friend",
       "sharingDisabled": "Your location is hidden from this friend",
@@ -1469,13 +1520,15 @@
       "heading": "Heading",
       "battery": "Battery",
       "security": "Security",
-      "encryptionKey": "Encryption Key",
-      "signingKey": "Signing Key",
-      "removeFriend": "Remove Friend",
-      "removeConfirmation": "Are you sure you want to remove {name} as a friend? This will also stop all location sharing.",
-      "syncKeys": "Sync Keys",
+      "encryptionKey": "Encryption key",
+      "signingKey": "Signing key",
+      "removeFriend": "Remove friend",
+      "removeConfirmation": "You'll stop seeing each other's location.",
+      "syncKeys": "Sync keys",
       "keysSynced": "Keys synced successfully",
-      "syncFailed": "Failed to sync keys"
+      "syncFailed": "Failed to sync keys",
+      "removeTitle": "Remove {name}?",
+      "directions": "Directions"
     }
   },
   "dashboard": {
@@ -1532,10 +1585,8 @@
       "adaptiveSpeech": "Speed up for close turns",
       "adaptiveSpeechDescription": "Up to 1.5× when turns come quickly",
       "title": "Turn-by-turn",
-      "cameraMode": "Camera",
-      "cameraModeDescription": "How the map follows you",
-      "bearingMode": "Camera direction",
-      "bearingModeDescription": "Which way the map faces",
+      "cameraMode": "Map view",
+      "bearingMode": "Map faces",
       "autoSwitchDocks": "Switch bike share stations",
       "autoSwitchDocksDescription": "When yours is full or out of bikes",
       "speedDisplay": "Speed display",
@@ -1604,9 +1655,6 @@
     },
     "menu": {
       "searchAlongRoute": "Search along route",
-      "search": "Search",
-      "addStop": "Add stop",
-      "report": "Report",
       "steps": "Steps",
       "routes": "Routes",
       "title": "Options",
@@ -1617,12 +1665,11 @@
       "destination": "Destination",
       "alongTheWay": "Along the way"
     },
-    "startLeg": "Start leg {leg}",
     "arrival": {
       "destination": "Your destination",
       "at": "Arrived at {time}",
-      "nextLeg": "Next leg",
-      "done": "Done"
+      "done": "Done",
+      "continue": "Continue"
     },
     "voice": {
       "units": {
@@ -2069,10 +2116,9 @@
         "walking": "walk",
         "cycling": "ride",
         "driving": "drive",
-        "transit": "ride"
+        "transit": "take transit"
       },
       "go": "Go",
-      "notYet": "Not yet",
       "docksFree": "{n} dock free | {n} docks free"
     },
     "transit": {
@@ -2107,9 +2153,7 @@
       },
       "gotOff": "I got off",
       "missedVehicle": "The {line} has left",
-      "missedVehicleHint": "Catch the next one or find another way",
       "nextDeparture": "Next departure",
-      "anotherWay": "Another way",
       "noLaterRun": "No later departure today",
       "missedStop": "You passed {stop}",
       "missedStopHint": "Get off at the next stop",
@@ -2142,7 +2186,9 @@
         "done": "Done",
         "stepOf": "{n}/{total}",
         "advancesIn": "next in {duration}"
-      }
+      },
+      "anotherRoute": "Another route",
+      "nextLine": "Next {line}"
     },
     "ahead": {
       "title": "Along the route",
@@ -2193,18 +2239,20 @@
       "title": "Routes",
       "current": "Current route",
       "protectedShare": "{n}% protected",
-      "empty": "No other routes right now"
+      "empty": "No other routes right now",
+      "loading": "Finding routes…"
     },
     "itinerary": {
       "sooner": "Arrive {duration} sooner",
-      "take": "Take the {lines}"
+      "take": "Take the {lines}",
+      "thenLine": "{lines}, then the {line}"
     },
     "recovery": {
       "finding": "Finding the next way…",
       "next": "Next {line} in {duration}",
       "arrive": "arrive {time}",
       "later": "+{duration}",
-      "take": "Take the {lines} from {stop}",
+      "take": "From {stop}, take the {lines}",
       "orWait": "Or wait for the next {line} · arrive {time}",
       "switch": "Switch",
       "otherRoutes": "Other routes",
@@ -2311,7 +2359,7 @@
   "profileMenu": {
     "shortcuts": "Shortcuts",
     "docs": "Docs",
-    "apiDocs": "API Docs",
+    "apiDocs": "API docs",
     "whatsNew": "What's new",
     "fullChangelog": "Full changelog",
     "checkForUpdates": "Check for updates",
@@ -2326,10 +2374,10 @@
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",
-      "transitStop": "Transit Stop",
+      "transitStop": "Transit stop",
       "departures": "Departures",
-      "upcomingDepartures": "Upcoming Departures",
-      "unknownDirection": "Unknown Direction",
+      "upcomingDepartures": "Upcoming departures",
+      "unknownDirection": "Unknown direction",
       "now": "Now",
       "min": "min",
       "live": "LIVE",
@@ -2451,14 +2499,16 @@
     "sources": {
       "lastUpdated": "Last updated {date}",
       "lastUpdatedBy": "Last updated {date} by {updatedBy}",
-      "viewOn": "View on {name}"
+      "viewOn": "View on {name}",
+      "dataFrom": "Data from {sources}",
+      "and": "and"
     },
     "related": {
       "insideName": "Inside {name}",
       "insideThisPlace": "Inside this place",
       "locatedIn": "Located in",
       "partOf": "Part of",
-      "relatedPlaces": "Related Places"
+      "relatedPlaces": "Related places"
     },
     "reviews": {
       "title": "Reviews",
@@ -2492,23 +2542,23 @@
         "permissive": "Permissive"
       },
       "labels": {
-        "bicycle_parking": "Parking Type",
-        "cargo_bike": "Cargo Bike",
-        "parking": "Parking Type",
-        "parking_condition": "Parking Condition",
+        "bicycle_parking": "Parking type",
+        "cargo_bike": "Cargo bike",
+        "parking": "Parking type",
+        "parking_condition": "Parking condition",
         "parking_orientation": "Orientation",
         "capacity": "Capacity",
-        "capacity_disabled": "Disabled Spaces",
-        "capacity_charging": "EV Charging Spaces",
-        "capacity_women": "Women's Spaces",
-        "capacity_car_sharing": "Car Sharing Spaces",
-        "capacity_motorcycle": "Motorcycle Spaces",
+        "capacity_disabled": "Disabled spaces",
+        "capacity_charging": "EV charging spaces",
+        "capacity_women": "Women's spaces",
+        "capacity_car_sharing": "Car sharing spaces",
+        "capacity_motorcycle": "Motorcycle spaces",
         "seats": "Seats",
         "access": "Access",
         "fee": "Fee",
         "charge": "Price",
         "toll": "Toll",
-        "maxstay": "Max Stay",
+        "maxstay": "Max stay",
         "indoor": "Indoor",
         "covered": "Covered",
         "lit": "Lit",
@@ -2522,24 +2572,24 @@
         "depth": "Depth",
         "diameter": "Diameter",
         "building_levels": "Floors",
-        "building_material": "Building Material",
-        "roof_shape": "Roof Shape",
-        "start_date": "Year Built",
+        "building_material": "Building material",
+        "roof_shape": "Roof shape",
+        "start_date": "Year built",
         "level": "Floor",
         "layer": "Level",
-        "wheelchair": "Wheelchair Access",
-        "wheelchair_description": "Wheelchair Notes",
-        "toilets_wheelchair": "Wheelchair Restroom",
-        "tactile_paving": "Tactile Paving",
+        "wheelchair": "Wheelchair access",
+        "wheelchair_description": "Wheelchair notes",
+        "toilets_wheelchair": "Wheelchair restroom",
+        "tactile_paving": "Tactile paving",
         "operator": "Operator",
-        "operator_type": "Operator Type",
+        "operator_type": "Operator type",
         "brand": "Brand",
         "network": "Network",
         "ref": "Reference",
         "cuisine": "Cuisine",
         "delivery": "Delivery",
         "takeaway": "Takeaway",
-        "outdoor_seating": "Outdoor Seating",
+        "outdoor_seating": "Outdoor seating",
         "microbrewery": "Microbrewery",
         "brewery": "Brewery",
         "organic": "Organic",
@@ -2547,34 +2597,34 @@
         "diet_vegetarian": "Vegetarian",
         "diet_halal": "Halal",
         "diet_kosher": "Kosher",
-        "diet_gluten_free": "Gluten Free",
+        "diet_gluten_free": "Gluten free",
         "toilets": "Restrooms",
-        "toilets_access": "Restroom Access",
-        "toilets_unisex": "Unisex Restroom",
+        "toilets_access": "Restroom access",
+        "toilets_unisex": "Unisex restroom",
         "ele": "Elevation",
-        "toilets_disposal": "Toilet Type",
+        "toilets_disposal": "Toilet type",
         "toilets_position": "Position",
-        "changing_table": "Baby Changing",
+        "changing_table": "Baby changing",
         "diaper": "Diaper",
         "shower": "Shower",
-        "drinking_water": "Drinking Water",
-        "bottle": "Bottle Fill",
+        "drinking_water": "Drinking water",
+        "bottle": "Bottle fill",
         "seasonal": "Seasonal",
-        "oneway": "One Way",
+        "oneway": "One way",
         "lanes": "Lanes",
-        "maxspeed": "Speed Limit",
-        "maxheight": "Height Limit",
-        "maxwidth": "Width Limit",
-        "internet_access": "Internet Access",
+        "maxspeed": "Speed limit",
+        "maxheight": "Height limit",
+        "maxwidth": "Width limit",
+        "internet_access": "Internet access",
         "internet_access_fee": "Fee",
-        "internet_access_ssid": "Network Name",
+        "internet_access_ssid": "Network name",
         "smoking": "Smoking",
-        "smoking_outside": "Outdoor Smoking",
+        "smoking_outside": "Outdoor smoking",
         "voltage": "Voltage",
         "frequency": "Frequency",
         "genus": "Genus",
         "species": "Species",
-        "circumference": "Trunk Circumference",
+        "circumference": "Trunk circumference",
         "recycling_glass": "Glass",
         "recycling_paper": "Paper",
         "recycling_cans": "Cans",
@@ -2583,21 +2633,21 @@
         "recycling_batteries": "Batteries",
         "recycling_electronics": "Electronics",
         "recycling_cardboard": "Cardboard",
-        "generator_source": "Energy Source",
-        "generator_output_electricity": "Power Output",
+        "generator_source": "Energy source",
+        "generator_output_electricity": "Power output",
         "denomination": "Denomination",
         "religion": "Religion",
-        "second_hand": "Second Hand",
-        "bulk_purchase": "Bulk Purchase",
-        "drive_through": "Drive Through",
+        "second_hand": "Second hand",
+        "bulk_purchase": "Bulk purchase",
+        "drive_through": "Drive through",
         "rooms": "Rooms",
         "stars": "Stars",
         "beds": "Beds",
         "surveillance": "Surveillance",
         "inscription": "Inscription",
-        "artwork_type": "Artwork Type",
+        "artwork_type": "Artwork type",
         "artist_name": "Artist",
-        "heritage": "Heritage Listed"
+        "heritage": "Heritage listed"
       }
     },
     "gallery": {
@@ -2609,6 +2659,10 @@
     "unavailable": {
       "title": "Place unavailable",
       "description": "We couldn't load this place"
+    },
+    "list": {
+      "empty": "No places found",
+      "emptyDescription": "Try a different search or area"
     }
   },
   "settings": {
@@ -2903,16 +2957,14 @@
       "units": {
         "title": "Units",
         "system": "Unit system",
-        "description": "Preferred unit system for temperature, distance, and speed",
         "metric": "Metric (°C, km, m/s)",
         "imperial": "Imperial (°F, mi, mph)"
       },
       "floorNumbering": {
         "title": "Floor numbering",
-        "system": "Floor numbering convention",
-        "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
-        "zeroBased": "Zero-based (Ground = 0)",
-        "oneBased": "One-based (Ground = 1)"
+        "system": "Ground floor number",
+        "zeroBased": "Ground floor is 0",
+        "oneBased": "Ground floor is 1"
       },
       "shakeForFeedback": {
         "title": "Shake to send feedback",
@@ -2953,7 +3005,8 @@
           "title": "Theme",
           "values": {
             "light": "Light",
-            "dark": "Dark"
+            "dark": "Dark",
+            "auto": "Match device"
           }
         }
       }
@@ -2965,19 +3018,16 @@
         "experimental": "Experimental",
         "3dTerrain": "3D terrain",
         "3dBuildings": "3D buildings",
-        "3dObjects": "3D objects",
-        "3dObjectsDescription": "Draw trees and street furniture as models. MapLibre only.",
+        "3dObjects": "3D trees and street furniture",
         "shadows": {
           "title": "Shadows",
-          "description": "Building and object shadows. “When tilted” hides them in the flat top-down view.",
           "values": {
             "off": "Off",
-            "tilted": "When tilted",
+            "tilted": "In 3D view",
             "always": "Always"
           }
         },
-        "hdRoads": "HD roads",
-        "hdRoadsDescription": "Draw lanes, crosswalks and turn arrows at street level",
+        "hdRoads": "Lanes and crosswalks",
         "indoorMaps": "Indoor maps",
         "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
         "poiLabels": "POI labels",
@@ -3037,8 +3087,7 @@
         "title": "Style",
         "mapStyle": "Map style",
         "poiStyle": "Place icons",
-        "poiStyleDescription": "How points of interest are drawn on the map.",
-        "poiStyleBadge": "Coloured badges",
+        "poiStyleBadge": "Colored badges",
         "poiStyleGlyph": "Icons only",
         "descriptionMaplibre": "Visual style for the map",
         "descriptionMapbox": "Mapbox uses its own standard style",
@@ -3311,7 +3360,7 @@
     "comment": "Comment",
     "resolve": "Resolve",
     "commentAndResolve": "Comment & resolve",
-    "reopen": "Reactivate",
+    "reopen": "Reopen",
     "commentPlaceholder": "Add a comment...",
     "viewOnOsm": "View on OpenStreetMap",
     "commentAdded": "Comment added",
@@ -3323,10 +3372,10 @@
     "actionClosed": "resolved this note",
     "actionReopened": "reactivated this note",
     "addNote": "Add note",
-    "createNote": "New Note",
+    "createNote": "New note",
     "createDescription": "Drag the marker to adjust the location. Describe the issue or suggestion below.",
     "createPlaceholder": "Describe what needs attention at this location...",
-    "submitNote": "Submit Note",
+    "submitNote": "Submit note",
     "noteCreated": "Note created",
     "createError": "Failed to create note"
   },
@@ -3334,7 +3383,7 @@
     "title": "404",
     "subtitle": "Wrong continent",
     "message": "Even Columbus was a better navigator.",
-    "action": "Return to Spain"
+    "action": "Back to the map"
   },
   "sharing": {
     "title": "Share \"{name}\"",
@@ -3390,7 +3439,8 @@
       "sendCode": "Send verification code",
       "signInWithPasskey": "Sign in with passkey",
       "or": "Or",
-      "termsAndPrivacy": "By continuing, you agree to Parchment's Terms of Service and Privacy Policy"
+      "termsAndPrivacy": "By continuing, you agree to Parchment's Terms of Service and Privacy Policy",
+      "invalidEmail": "Enter a valid email address"
     },
     "otp": {
       "title": "Verification code",
@@ -3405,13 +3455,20 @@
       "success": "Success!"
     },
     "server": {
-      "addCustom": "Add custom server..."
+      "addCustom": "Add custom server...",
+      "addTitle": "Add a server",
+      "addDescription": "Enter your Parchment server's address",
+      "invalidUrl": "Enter a valid URL",
+      "invalidProtocol": "Start with http:// or https://",
+      "cannotDeleteMain": "The main server can't be removed"
     },
     "passkey": {
       "restoringTitle": "Restoring your data…",
       "restoringDescription": "Tap your passkey one more time to unlock your encrypted data.",
       "restoredSuccess": "Your data is ready.",
-      "restoreFailed": "Couldn't restore your data — try again from Settings → Encryption keys."
+      "restoreFailed": "Couldn't restore your data — try again from Settings → Encryption keys.",
+      "unsupported": "Passkeys aren't supported here yet",
+      "signInFailed": "Couldn't sign in with your passkey"
     }
   },
   "subscription": {
@@ -3445,7 +3502,7 @@
     },
     "alias": {
       "title": "Choose a username",
-      "description": "Pick a unique username for your federation identity. Others can find and add you with this handle.",
+      "description": "Pick a unique username. Friends can find and add you with it.",
       "label": "Username",
       "placeholder": "username",
       "hint": "3-30 characters, letters, numbers, and underscores only.",
@@ -3470,8 +3527,8 @@
         "dark": "Dark",
         "auto": "System"
       },
-      "metric": "Metric",
-      "imperial": "Imperial"
+      "metric": "Kilometers",
+      "imperial": "Miles"
     },
     "passkey": {
       "title": "Sign in with a passkey",
@@ -3480,16 +3537,6 @@
     "integrations": {
       "title": "Connect your apps",
       "description": "Connect services for maps, search, and more."
-    },
-    "invite": {
-      "title": "Invite others",
-      "description": "Send invitations to people you'd like to collaborate with. You can always do this later from settings.",
-      "emailLabel": "Email addresses",
-      "placeholder": "Type an email and press Enter...",
-      "send": "Send invitations",
-      "sendFailed": "Failed to send invitation.",
-      "sent": "Sent {count} invitation(s).",
-      "sentSummary": "{count} invitation(s) sent"
     },
     "openstreetmap": {
       "title": "Make the map better, together",
@@ -3552,8 +3599,6 @@
     },
     "add": {
       "trigger": "Add a layer",
-      "title": "Add a layer",
-      "description": "What would you like to put on this canvas?",
       "noLayers": "No layers in your library yet.",
       "noCollections": "No collections yet.",
       "options": {
@@ -3582,7 +3627,7 @@
           "description": "Friends sharing their location with you, live."
         },
         "import": {
-          "title": "Upload a file",
+          "title": "Open a file",
           "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
         }
       },
@@ -3723,7 +3768,7 @@
       "description": "Pick a dataset to make a layer from, or bring your own.",
       "search": "Search data sources",
       "noResults": "Nothing matches that.",
-      "uploadDirectly": "Upload directly",
+      "uploadDirectly": "From a file or link",
       "connectToSource": "Connect to a source",
       "connectorSoon": "Live database sources aren't available yet.",
       "urlPlaceholder": "https://example.com/data.geojson",
@@ -3806,16 +3851,15 @@
       "reviewAction": "Review sync",
       "failedToast": "Couldn't sync \"{label}\"",
       "failedManyToast": "Couldn't sync {count} changes",
-      "cancel": "Cancel",
       "retryAction": "Retry",
-      "dismiss": "Dismiss",
       "labels": {
         "save": "Save \"{name}\"",
         "update": "Update \"{name}\"",
         "remove": "Remove \"{name}\"",
         "create": "Create \"{name}\"",
         "delete": "Delete \"{name}\""
-      }
+      },
+      "discard": "Discard change"
     },
     "viewUnavailable": {
       "title": "This view needs to load first",
@@ -3834,7 +3878,7 @@
     "dragHint": "Drag the marker to correct the location.",
     "geometryNotice": "The shape of this feature can’t be edited here — only its details.",
     "pendingNotice": "You have an edit pending for this place. It’s live on OpenStreetMap and will appear on the map after the next data update.",
-    "duplicatesTitle": "Already on the map? | Already on the map? | Already on the map?",
+    "duplicatesTitle": "Similar places nearby",
     "duplicatesHint": "Similar places exist nearby. If one of these is what you’re adding, edit it instead of creating a duplicate.",
     "editThisInstead": "Edit",
     "allTags": "All tags",
@@ -3881,7 +3925,7 @@
       "removeInterval": "Remove"
     },
     "brand": {
-      "isThis": "Is this one of these chains?",
+      "isThis": "Matching chains",
       "addsTags": "Fills in {count} detail | Fills in {count} detail | Fills in {count} details",
       "chainsHeading": "Chains"
     },

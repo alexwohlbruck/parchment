@@ -33,7 +33,7 @@ import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import router, { AppRoute } from '@/router'
 import { useGuidanceStore } from '@/stores/guidance.store'
-import { headingKnown } from '@/lib/guidance/vehicle-indicator'
+import { sampleFacing } from '@/services/guidance/facing.service'
 
 const MARKER_ID = 'self'
 
@@ -278,7 +278,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
     const puck = guidanceEngine.sample()
     if (!puck || !this.mapAPI) return 'active'
     this.mapAPI.setMarkerLngLat(fullId, puck.position)
-    this.mapAPI.setMarkerHeading(fullId, headingKnown(puck) ? puck.bearing : null, 1, 'map')
+    this.mapAPI.setMarkerHeading(fullId, sampleFacing()?.bearing ?? null, 1, 'map')
     this.mapAPI.setMarkerLift?.(fullId, deckLiftAt(puck.s))
     this.lastRendered = null
     this.headingDirty = true

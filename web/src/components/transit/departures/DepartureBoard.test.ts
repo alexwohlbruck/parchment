@@ -49,10 +49,10 @@ describe('status wording', () => {
     expect(footnote(w).text()).toBe('2:24')
   })
 
-  it('labels a tight run "Hurry" and one out of reach "Can\'t make it"', () => {
+  it('labels a tight run "Hurry" and one out of reach "Too late"', () => {
     const w = mountBoard([card({ hurry: true }), card({ unreachable: true }, 2_000)])
     expect(footnote(w, 0).text()).toBe('Hurry')
-    expect(footnote(w, 1).text()).toBe("Can't make it")
+    expect(footnote(w, 1).text()).toBe('Too late')
   })
 
   it('labels a run you can still make at a jog "Run"', () => {
@@ -65,9 +65,9 @@ describe('status wording', () => {
     expect(footnote(w).text()).toBe('Cancelled')
   })
 
-  it('ranks "Can\'t make it" above "Hurry" when both somehow apply', () => {
+  it('ranks "Too late" above "Hurry" when both somehow apply', () => {
     const w = mountBoard([card({ unreachable: true, hurry: true })])
-    expect(footnote(w).text()).toBe("Can't make it")
+    expect(footnote(w).text()).toBe('Too late')
   })
 
   it('leaves a departed run wordless — "3m ago" already says it', () => {

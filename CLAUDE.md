@@ -155,9 +155,11 @@ never have to translate their situation into our model.
 - **Cut noise at decision points.** No upsell badges, uneven dividers, jargon
   ("taste profile", "leg", "headsign") or hedging questions in titles while the
   user is deciding.
-- **Plain and short.** Shorter is better as long as it stays specific. Use
-  sentence case, no trailing periods on labels, and numbers instead of number
-  words.
+- **Short, but friendly.** Copy has to fit the space it lives in: a chip, a
+  row's second line or a button holds a few words, not a sentence. Within that,
+  sound like a person ("Can't make it", not "Unreachable"). If clearer copy
+  doesn't fit, cut words before adding a line. Use sentence case, no trailing
+  periods on labels, and numbers instead of number words.
 
 ## Important rules
 

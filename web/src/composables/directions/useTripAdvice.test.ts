@@ -59,7 +59,7 @@ describe('useTripListAdvice', () => {
     const { advice, wrapper } = mountAdvice([transitTrip(60)])
     expect(advice().status.transit).toMatchObject({ word: 'Leave in 10 min', details: [] })
     await vi.advanceTimersByTimeAsync(6 * 60_000)
-    expect(advice().status.transit).toMatchObject({ word: 'Leave now', details: ['next one 20 min later'] })
+    expect(advice().status.transit).toMatchObject({ word: 'Leave now', details: ['next 20 min later'] })
     wrapper.unmount()
   })
 

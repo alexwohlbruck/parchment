@@ -3,7 +3,7 @@
 ### Added
 
 ### Changed
-* Trip and departure times read plainer: "2 min late" instead of "2 min short", "Can't make it" instead of "Too far", and clearer hazard warnings like "Steep hill".
+* Trip and departure times read plainer: "2 min late" instead of "2 min short", "Too late" instead of "Too far", and clearer hazard warnings like "Steep hill".
 
 ### Fixed
 * A trip's route now stays on top of the cycling and transit layers when the map is in 3D.

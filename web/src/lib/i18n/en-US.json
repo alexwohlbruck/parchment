@@ -765,7 +765,7 @@
         "hurry": "Hurry",
         "missed": "Missed",
         "cancelled": "Cancelled",
-        "tooFar": "Can't make it",
+        "tooFar": "Too late",
         "run": "Run"
       },
       "crossover": "{mode} is faster if you leave after {time}",
@@ -793,7 +793,7 @@
         "spareNone": "under 1 min to spare",
         "short": "{minutes} min late",
         "shortWalking": "{minutes} min late if you walk",
-        "next": "next one {minutes} min later",
+        "next": "next {minutes} min later",
         "nextAt": "next at {time}",
         "finding": "finding a later one",
         "change": "{minutes} min to change",
@@ -1697,7 +1697,7 @@
       "watchPedestrians": "{action}, and watch for pedestrians",
       "hazards": {
         "crosswalk": "Crosswalk ahead",
-        "uncontrolled_crossing": "Crossing without lights ahead",
+        "uncontrolled_crossing": "Crossing with no signal ahead",
         "rail_crossing": "Railroad crossing ahead",
         "ford": "Water crossing ahead",
         "sharp_curve": "Sharp curve ahead",
@@ -1706,7 +1706,7 @@
         "shared_space": "Shared street ahead, watch for people walking",
         "tram_tracks": "Tram tracks in the road ahead, keep clear of the rails",
         "tram_crossing": "Tram tracks ahead, cross them square on",
-        "unlit": "No street lights ahead",
+        "unlit": "Unlit stretch ahead",
         "flood_prone": "Road ahead floods in heavy rain",
         "icy_bridge": "Bridge ahead may be icy",
         "school_zone": "School zone ahead",
@@ -2020,7 +2020,7 @@
     "hazards": {
       "crosswalk": "Crosswalk",
       "traffic_signals": "Traffic light",
-      "uncontrolled_crossing": "Crossing without lights",
+      "uncontrolled_crossing": "Crossing, no signal",
       "rail_crossing": "Railroad crossing",
       "tunnel": "Tunnel",
       "ford": "Water crossing",
@@ -2035,7 +2035,7 @@
       "give_way": "Yield sign",
       "tram_tracks": "Tram tracks",
       "tram_crossing": "Tram crossing",
-      "unlit": "No street lights",
+      "unlit": "Unlit",
       "flood_prone": "Flood-prone road",
       "icy_bridge": "Icy bridge",
       "school_zone": "School zone",
@@ -2047,7 +2047,7 @@
       "movable_bridge": "Drawbridge",
       "bike_lane_end": "Bike lane ends",
       "bike_lane_start": "Bike lane starts",
-      "bike_track_start": "Protected bike lane starts",
+      "bike_track_start": "Protected bike lane",
       "hazard": "Hazard"
     },
     "hazardCounts": {

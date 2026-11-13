@@ -223,10 +223,10 @@ describe('adviceStatus', () => {
 
   test('the trip page weighs the walk against the train, and what waiting costs', () => {
     const next = { departAtMs: now(30), laterMin: 6 }
-    expect(line({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, 'header')).toBe('Leave now · 3 min to spare · next one 12 min later')
-    expect(line({ kind: 'hurry', race: race(0.4), next }, 'header')).toBe('Hurry · under 1 min to spare · next one 6 min later')
-    expect(line({ kind: 'run', race: race(-1.5, 1.8), next }, 'header')).toBe('Run · 2 min late if you walk · next one 6 min later')
-    expect(line({ kind: 'missed', departAtMs: now(24), left: false }, 'header')).toBe(`Can't make it · next at ${clock(24)}`)
+    expect(line({ kind: 'leave', nextLaterMin: 12, race: race(3.5) }, 'header')).toBe('Leave now · 3 min to spare · next 12 min later')
+    expect(line({ kind: 'hurry', race: race(0.4), next }, 'header')).toBe('Hurry · under 1 min to spare · next 6 min later')
+    expect(line({ kind: 'run', race: race(-1.5, 1.8), next }, 'header')).toBe('Run · 2 min late if you walk · next 6 min later')
+    expect(line({ kind: 'missed', departAtMs: now(24), left: false }, 'header')).toBe(`Too late · next at ${clock(24)}`)
   })
 
   test('time in hand is a calm countdown, or the clock for a plan well ahead', () => {
@@ -240,8 +240,8 @@ describe('adviceStatus', () => {
   test('a result card names the run, and carries a tight change the trip page shows on the step', () => {
     const next = { departAtMs: now(30), laterMin: 6 }
     const tight = { minutes: 1, stop: 'Jay St' }
-    expect(line({ kind: 'hurry', race: race(1), next }, 'card', { tight })).toBe(`Hurry · ${clock(12)} · next one 6 min later · 1 min to change`)
-    expect(line({ kind: 'hurry', race: race(1), next }, 'header', { tight })).toBe('Hurry · 1 min to spare · next one 6 min later')
+    expect(line({ kind: 'hurry', race: race(1), next }, 'card', { tight })).toBe(`Hurry · ${clock(12)} · next 6 min later · 1 min to change`)
+    expect(line({ kind: 'hurry', race: race(1), next }, 'header', { tight })).toBe('Hurry · 1 min to spare · next 6 min later')
     expect(line(null, 'card', { tight })).toBe('1 min to change')
     expect(line({ kind: 'gone' }, 'card', { tight })).toBe('None you can catch · finding a later one')
   })

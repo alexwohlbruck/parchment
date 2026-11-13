@@ -38,6 +38,7 @@ import {
   bridgeBandIndex,
   type BrunnelLayer,
 } from '@/lib/map-style/brunnel'
+import { isRouteBand } from './route-band'
 
 type StyleLayer = BrunnelLayer
 
@@ -46,11 +47,6 @@ const OVERLAY_PREFIX = 'portolan-'
 
 export const isOverlay = (l: { id: string }) => l.id.startsWith(OVERLAY_PREFIX)
 
-/** Marks a planned trip's own line, which the transit network must stay under. */
-export const ROUTE_BAND = { 'parchment:band': 'route' } as const
-
-const isRouteBand = (l: { metadata?: unknown }) =>
-  (l.metadata as Record<string, unknown> | undefined)?.['parchment:band'] === 'route'
 
 /**
  * The first stroke the basemap draws — rivers, then the road network.

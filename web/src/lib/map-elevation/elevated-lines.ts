@@ -5,6 +5,8 @@
  * profile off the ground rather than draped over it.
  */
 
+import { isRouteBand } from '@/lib/map/route-band'
+
 /** The MapLibre fork's properties, which the style spec's types do not list. */
 export const PROFILE_PROPERTY = 'line-elevation-profile'
 export const OCCLUSION_PROPERTY = 'line-depth-occlusion-factor'
@@ -51,12 +53,14 @@ interface LineLayer {
   type: string
   source?: string
   sourceLayer?: string
+  metadata?: unknown
 }
 
 const isRibbon = (layer: LineLayer) => layer.sourceLayer === RIBBON_SOURCE_LAYER
 
+/** A trip's line has no heights and lies on the terrain, but is drawn among the raised lines so its order over them still holds. */
 export function elevatesLine(layer: LineLayer): boolean {
-  return layer.type === 'line' && (layer.sourceLayer === CYCLING_SOURCE_LAYER || isRibbon(layer))
+  return layer.type === 'line' && (layer.sourceLayer === CYCLING_SOURCE_LAYER || isRibbon(layer) || isRouteBand(layer))
 }
 
 /** A ribbon keeps its width and its place beside the others however far the map tilts; a cycling mark narrows with the road it paints. */

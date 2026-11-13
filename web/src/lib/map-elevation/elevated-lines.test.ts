@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { expression } from '@maplibre/maplibre-gl-style-spec'
 import { ELEVATION_FORMAT, ELEVATION_PROFILE, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough, withElevationFormat } from './elevated-lines'
+import { ROUTE_BAND } from '@/lib/map/route-band'
 
 describe('elevated lines', () => {
   test('are the cycling ways and the transit ribbons, tiled or copied out', () => {
@@ -9,7 +10,12 @@ describe('elevated lines', () => {
     expect(elevatesLine({ id: 'portolan-ribbon-transition-nyc', type: 'line', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(true)
   })
 
-  test('leave the basemap, the route lines and anything not a line alone', () => {
+  test('include a trip line, so the cycling and transit lines cannot draw over it in 3D', () => {
+    expect(elevatesLine({ id: 'trip-1-segment-0', type: 'line', source: 'trip-1-segment-0', metadata: ROUTE_BAND })).toBe(true)
+    expect(holdsWidth({ id: 'trip-1-segment-0', type: 'line', source: 'trip-1-segment-0', metadata: ROUTE_BAND })).toBe(false)
+  })
+
+  test('leave the basemap, other overlays and anything not a line alone', () => {
     expect(elevatesLine({ id: 'Minor road', type: 'line', source: 'openmaptiles', sourceLayer: 'transportation' })).toBe(false)
     expect(elevatesLine({ id: 'route-0', type: 'line', source: 'route-0' })).toBe(false)
     expect(elevatesLine({ id: 'portolan-stations', type: 'symbol', source: 'portolan-tiles-nyc', sourceLayer: 'ribbons' })).toBe(false)

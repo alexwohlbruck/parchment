@@ -42,7 +42,7 @@ const travelled = computed(() => bannerDistance(guidance.travelledMeters, metric
       <SearchIcon />
     </Button>
     <Button
-      variant="destructive"
+      variant="secondary"
       class="shrink-0 rounded-full"
       :class="dash ? 'h-14 px-7 text-lg' : 'h-12 px-6 text-base'"
       :aria-label="t('guidance.exit')"

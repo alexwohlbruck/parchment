@@ -40,7 +40,7 @@ function take(row: (typeof rows.value)[number]) {
 
 <template>
   <div>
-    <div v-if="alternatives.loading.value && !rows.length" class="py-6 text-center text-sm text-muted-foreground">…</div>
+    <div v-if="alternatives.loading.value && !rows.length" class="py-6 text-center text-sm text-muted-foreground">{{ t('guidance.alternatives.loading') }}</div>
     <div v-else-if="!rows.length" class="py-6 text-center text-sm text-muted-foreground">{{ t('guidance.alternatives.empty') }}</div>
     <ol v-else class="divide-y">
       <li v-for="(row, i) in rows" :key="i">
@@ -50,14 +50,10 @@ function take(row: (typeof rows.value)[number]) {
           @click="take(row)"
         >
           <div class="min-w-0 flex-1">
-            <div class="font-medium">
+            <div class="font-medium">{{ row.isCurrent ? t('guidance.alternatives.current') : row.delta }}</div>
+            <div class="truncate text-sm text-muted-foreground tabular-nums">
               {{ formatDurationCompact(row.candidate.metrics.duration) }}
-              <span class="ml-1 text-sm font-normal text-muted-foreground">
-                {{ row.isCurrent ? t('guidance.alternatives.current') : row.delta }}
-              </span>
-            </div>
-            <div class="truncate text-sm text-muted-foreground">
-              <template v-if="row.candidate.metrics.via">{{ t('guidance.alternatives.via', { street: row.candidate.metrics.via }) }}</template>
+              <template v-if="row.candidate.metrics.via"> · {{ t('guidance.alternatives.via', { street: row.candidate.metrics.via }) }}</template>
               <template v-if="row.protectedShare > 0"> · {{ t('guidance.alternatives.protectedShare', { n: row.protectedShare }) }}</template>
             </div>
           </div>

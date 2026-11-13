@@ -8,6 +8,7 @@ import SegmentHandoff from './SegmentHandoff.vue'
 import DockWatchCard from './DockWatchCard.vue'
 import VehicleQuestion from './transit/VehicleQuestion.vue'
 import { useGuidanceContext } from './context'
+import { lineSequence } from '@/lib/guidance/line-sequence'
 
 const { t } = useI18n()
 const guidance = useGuidanceStore()
@@ -20,7 +21,7 @@ const offer = computed(() => {
     return {
       key: `itinerary:${better.from}:${better.gainMs}`,
       headline: t('guidance.itinerary.sooner', { duration: formatDurationCompact(better.gainMs / 1000) }),
-      detail: better.lines.length ? t('guidance.itinerary.take', { lines: better.lines.join(' → ') }) : null,
+      detail: better.lines.length ? t('guidance.itinerary.take', { lines: lineSequence(better.lines, t) }) : null,
       seconds: itinerary.offerSeconds,
       accept: () => itinerary.accept(),
       dismiss: () => itinerary.dismiss(),

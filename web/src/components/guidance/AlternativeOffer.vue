@@ -25,11 +25,13 @@ onBeforeUnmount(() => frame != null && cancelAnimationFrame(frame))
       <div class="font-medium leading-snug">{{ headline }}</div>
       <div v-if="detail" class="truncate text-sm text-muted-foreground">{{ detail }}</div>
     </div>
-    <Button class="relative h-12 overflow-hidden rounded-full px-5" @click="$emit('accept')">
-      <span class="absolute inset-y-0 left-0 bg-primary-foreground/20" :style="{ width: `${elapsed * 100}%` }" aria-hidden="true" />
-      <span class="relative">{{ t('guidance.alternatives.switch') }}</span>
+    <Button class="h-12 rounded-full px-5" @click="$emit('accept')">
+      {{ t('guidance.alternatives.switch') }}
     </Button>
-    <Button size="icon" variant="ghost" class="size-12 rounded-full" :aria-label="t('guidance.menu.close')" @click="$emit('dismiss')">
+    <Button size="icon" variant="ghost" class="relative size-12 rounded-full" :aria-label="t('guidance.menu.close')" @click="$emit('dismiss')">
+      <svg class="absolute inset-0 size-full -rotate-90 text-muted-foreground/40" viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="2" pathLength="1" stroke-dasharray="1" :stroke-dashoffset="elapsed" />
+      </svg>
       <XIcon class="size-4" />
     </Button>
   </div>

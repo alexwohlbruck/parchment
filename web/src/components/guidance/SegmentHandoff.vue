@@ -43,9 +43,6 @@ onBeforeUnmount(() => {
         {{ t('guidance.handoff.docksFree', handoff.docks) }}
       </div>
     </div>
-    <Button variant="ghost" class="h-12 rounded-full px-3 text-muted-foreground" @click="emit('settle')">
-      {{ t('guidance.handoff.notYet') }}
-    </Button>
     <Button class="relative h-12 overflow-hidden rounded-full px-5" @click="emit('settle')">
       <span
         class="absolute inset-y-0 left-0 bg-primary-foreground/20"

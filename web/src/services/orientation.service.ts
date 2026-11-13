@@ -44,6 +44,12 @@ function screenAngle(): number {
   return (window as unknown as { orientation?: number }).orientation ?? 0
 }
 
+function viewerTilt(beta: number, gamma: number): number {
+  const angle = screenAngle()
+  if (angle === 90 || angle === 270 || angle === -90) return Math.abs(gamma)
+  return angle === 180 ? -beta : beta
+}
+
 function orientationService() {
   const heading = ref<number | null>(null)
   // Heading uncertainty in degrees, as reported by iOS `webkitCompassAccuracy`
@@ -51,6 +57,8 @@ function orientationService() {
   // platform gives no accuracy signal (Chrome/Android), so callers can fall
   // back to a default beam width.
   const headingAccuracy = ref<number | null>(null)
+  // Front-back tilt towards the viewer: 0 flat, 90 upright. Tells a phone in hand from one in a pocket.
+  const tilt = ref<number | null>(null)
   const permissionState = ref<OrientationPermissionState>('prompt')
   let listening = false
 
@@ -59,6 +67,7 @@ function orientationService() {
 
   function handleEvent(event: DeviceOrientationEvent) {
     const e = event as DeviceOrientationEventiOS
+    if (e.beta != null && e.gamma != null) tilt.value = viewerTilt(e.beta, e.gamma)
 
     // iOS: compass heading is provided directly (deg clockwise from north).
     if (
@@ -162,6 +171,7 @@ function orientationService() {
   return {
     heading: readonly(heading),
     headingAccuracy: readonly(headingAccuracy),
+    tilt: readonly(tilt),
     permissionState: readonly(permissionState),
     isSupported,
     requestPermission,

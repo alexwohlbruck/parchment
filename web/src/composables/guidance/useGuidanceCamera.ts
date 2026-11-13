@@ -12,6 +12,8 @@ import { projectLatLng } from '@/lib/map/movement-interpolation'
 import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { createSpring, stepAngleSpring, stepSpring } from '@/lib/guidance/spring'
 import { deckLiftAt } from '@/services/guidance/deck-lift.service'
+import { sampleFacing } from '@/services/guidance/facing.service'
+import { holdBearing } from '@/lib/guidance/facing'
 import { CAMERA_MODES, frameCamera, framingSpeed, metersPerPixel } from '@/lib/guidance/camera-framing'
 import { createFramingSpeed, holdZoom, stepFramingSpeed } from '@/lib/guidance/framing-speed'
 import { segmentAt } from '@/lib/guidance/nav-route'
@@ -51,6 +53,7 @@ export function useGuidanceCamera() {
   let focalOffset = 0
   const speedBands = createFramingSpeed()
   let heldZoom: number | null = null
+  let heldFacing: number | null = null
   let lastMs = performance.now()
   let resumeTimer: ReturnType<typeof setTimeout> | null = null
   const heldPointers = trackHeldPointers(() => map?.getCanvasContainer())
@@ -79,6 +82,8 @@ export function useGuidanceCamera() {
     if (!route || !puck || !visible) return 'active'
 
     const travelMode = segmentAt(route, puck.s)?.mode ?? 'driving'
+    const facing = sampleFacing()
+    heldFacing = facing?.compass != null ? holdBearing(heldFacing, facing.compass) : null
     const target = frameCamera({
       route,
       puck,
@@ -88,6 +93,7 @@ export function useGuidanceCamera() {
       visibleHeight: visible.height,
       speed: stepFramingSpeed(speedBands, framingSpeed(route, puck, travelMode), nowMs / 1000),
       tuning: guidance.cameraTuning,
+      facing: facing && heldFacing != null && facing.weight > 0 ? { bearing: heldFacing, weight: facing.weight } : undefined,
     })
     heldZoom = holdZoom(heldZoom, target.zoom, target.framingManeuver)
 

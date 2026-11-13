@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AccessibilityIcon,
@@ -200,6 +200,9 @@ function isPast(entry: TimelineEntry): boolean {
   return entry.kind === 'segment' ? at < props.current : at < props.current && at < props.segments.length - 1
 }
 
+const pastShown = ref(false)
+const hasPast = computed(() => entries.value.some(isPast))
+
 function passedStops(segmentIndex: number): number | undefined {
   if (props.current == null) return undefined
   const stage = props.stage
@@ -273,8 +276,17 @@ const legKey = (entry: TimelineEntry) => {
 
 <template>
   <div>
+    <button
+      v-if="hasPast"
+      type="button"
+      class="flex h-11 w-full cursor-pointer items-center pl-2 text-[13px] font-medium text-primary"
+      @click="pastShown = !pastShown"
+    >
+      {{ pastShown ? translate('directions.leg.hideCompleted') : translate('directions.leg.showCompleted') }}
+    </button>
     <div
       v-for="(entry, i) in entries"
+      v-show="pastShown || !isPast(entry)"
       :key="legKey(entry)"
       class="flex transition-opacity"
       :class="[!isCard(entry) && 'pl-2', isPast(entry) && 'opacity-50']"

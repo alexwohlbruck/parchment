@@ -111,7 +111,7 @@ export class AlongRouteFilter {
     const value = component === 0 ? this.x.s : this.x.v
     const innovation = z - value
     const S = P[component * 4] + variance
-    if (innovation * innovation > this.options.gateSigmas ** 2 * S) return false
+    if (!this.withinGate(innovation, S)) return false
     const K = [P[component] / S, P[3 + component] / S, P[6 + component] / S]
     this.x = {
       s: this.x.s + K[0] * innovation,
@@ -145,6 +145,16 @@ export class AlongRouteFilter {
       return { accepted: true }
     }
     return { accepted }
+  }
+
+  /** Whether a fix at `s` (σ `sigma`) at `t` would pass the outlier gate. */
+  agrees(fix: { t: number; s: number; sigma: number }): boolean {
+    this.propagate(fix.t)
+    return this.withinGate(fix.s - this.x.s, this.P[0] + fix.sigma * fix.sigma)
+  }
+
+  private withinGate(innovation: number, S: number): boolean {
+    return innovation * innovation <= this.options.gateSigmas ** 2 * S
   }
 
   /** Fold in a coarse position without letting it count toward a re-seed. */

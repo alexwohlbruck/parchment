@@ -1018,6 +1018,8 @@
       "yourVehicle": "your {vehicle}",
       "allTurns": "All {n} turns",
       "hideTurns": "Hide turns",
+      "showCompleted": "Show completed",
+      "hideCompleted": "Hide completed",
       "friendly": "{pct}% bike-friendly",
       "stretchesLeft": "{done} of {n} done",
       "left": "{distance} left",

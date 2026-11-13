@@ -83,15 +83,15 @@ function carving({ points, at, edges, cut, cover }: ServedCut): Footprint[] {
   const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
   // Over the whole bore drawn, up to the ground it lies under: where the terrain leaves out a street or deck over it, the ground is raised to meet it.
   // The bore's samples past the sill, so none falls on it and leaves a piece of no length.
-  const inBore = along(points.slice(at)).map((m, k) => [m, k] as const).filter(([m, k]) => k > 0 && m > SILL + 0.1)
-  const over = cover ? [sill, ...inBore.map(([, k]) => points[at + k])] : [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
+  const bore = cover ? points.slice(at) : truncate(points.slice(at), BACKFILL[1])
+  const inBore = along(bore).map((m, k) => [m, k] as const).filter(([m, k]) => k > 0 && m > SILL + 0.1)
+  const over = [sill, ...inBore.map(([, k]) => bore[k])]
   const lid = cover ? [cover[0], ...inBore.map(([, k]) => cover[k])] : over.map(() => -Infinity)
   const crown = along(over).map((m, k) => Math.max(lid[k], cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK))
-  return [
-    footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1])),
-    // The ground over the bore, filled up to meet the headwall's top from behind.
-    footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true),
-  ]
+  const cutFloor = footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1]))
+  if (over.length < 2) return [cutFloor]
+  // The ground over the bore, filled up to meet the headwall's top from behind.
+  return [cutFloor, footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true)]
 }
 
 /** The ground behind a wall joining two headwalls, filled up to its top and banking down away from it, and left as it is in front. */

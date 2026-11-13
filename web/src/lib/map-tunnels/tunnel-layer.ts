@@ -65,10 +65,10 @@ const CARVED_ZOOM = FINE_TERRAIN_MAXZOOM - 1
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
 /** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
-const SILL = 0.5
+const SILL = 3
 
 /** How far back over a bore the ground is filled to its headwall's top, in metres, before it falls away. */
-const BACKFILL = [1.5, 6]
+const BACKFILL = [4.5, 6]
 
 /**
  * The ground carved for a cut: down to the floor between its walls, out to
@@ -82,8 +82,10 @@ function carving({ points, at, edges, cut, cover }: ServedCut): Footprint[] {
   const lane = cut.floor.slice(cut.open, at + 1)
   const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
   // Over the whole bore drawn, up to the ground it lies under: where the terrain leaves out a street or deck over it, the ground is raised to meet it.
-  const over = cover ? [sill, ...points.slice(at + 1)] : [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
-  const lid = cover ? [cover[0], ...cover.slice(1)] : over.map(() => -Infinity)
+  // The bore's samples past the sill, so none falls on it and leaves a piece of no length.
+  const inBore = along(points.slice(at)).map((m, k) => [m, k] as const).filter(([m, k]) => k > 0 && m > SILL + 0.1)
+  const over = cover ? [sill, ...inBore.map(([, k]) => points[at + k])] : [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
+  const lid = cover ? [cover[0], ...inBore.map(([, k]) => cover[k])] : over.map(() => -Infinity)
   const crown = along(over).map((m, k) => Math.max(lid[k], cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK))
   return [
     footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1])),

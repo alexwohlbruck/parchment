@@ -136,7 +136,7 @@ const SKEW_LIMIT = 1.5
 /** How far past each wall its top runs, in metres. */
 export const MARGIN = 0.9
 /** How deep the headwall's top runs back over the bore, in metres. */
-export const HEADWALL = 1.5
+export const HEADWALL = 3
 /** How far a wall's top stands over the ground beside it, in metres. */
 const CAP = 0.15
 /** How far a wall's face runs down past the floor, so the terrain never shows a gap under it. */

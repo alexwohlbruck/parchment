@@ -2,6 +2,8 @@
 
 ### Added
 
+* Toggle 3D layers, map labels, map controls, shadows, place icon style, rotation snapping and units straight from the command palette.
+
 ### Changed
 
 ### Fixed

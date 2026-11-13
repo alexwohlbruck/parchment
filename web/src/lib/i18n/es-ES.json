@@ -379,6 +379,96 @@
           }
         }
       },
+      "toggle3dBuildings": {
+        "name": "Alternar edificios 3D",
+        "description": "Mostrar u ocultar edificios en relieve",
+        "keywords": "extruir altura"
+      },
+      "toggle3dTerrain": {
+        "name": "Alternar terreno 3D",
+        "description": "Mostrar u ocultar el relieve del terreno",
+        "keywords": "colinas montañas elevación relieve"
+      },
+      "toggle3dObjects": {
+        "name": "Alternar objetos 3D",
+        "description": "Mostrar u ocultar árboles y mobiliario urbano",
+        "keywords": "árboles modelos"
+      },
+      "mapShadows": {
+        "name": "Sombras del mapa",
+        "description": "Elegir cuándo proyectan sombra los edificios y objetos",
+        "keywords": "iluminación sol",
+        "arguments": {
+          "mode": {
+            "name": "Sombras"
+          }
+        }
+      },
+      "toggleHdRoads": {
+        "name": "Alternar carreteras HD",
+        "description": "Mostrar u ocultar carriles, pasos de peatones y flechas de giro",
+        "keywords": "carriles pasos detalle calle"
+      },
+      "toggleIndoorMaps": {
+        "name": "Alternar mapas interiores",
+        "description": "Mostrar u ocultar planos de aeropuertos, centros comerciales y estadios",
+        "keywords": "planos interiores plantas"
+      },
+      "toggleMapLabels": {
+        "name": "Alternar etiquetas del mapa",
+        "description": "Mostrar u ocultar un tipo de etiqueta del mapa",
+        "keywords": "texto nombres poi carretera transporte lugar",
+        "arguments": {
+          "label": {
+            "name": "Etiquetas"
+          }
+        }
+      },
+      "toggleMapControl": {
+        "name": "Alternar control del mapa",
+        "description": "Mostrar u ocultar un control del mapa",
+        "keywords": "zoom brújula escala vista calle ubicar tiempo botones",
+        "arguments": {
+          "control": {
+            "name": "Control"
+          }
+        }
+      },
+      "placeIconStyle": {
+        "name": "Estilo de iconos de lugares",
+        "description": "Elegir cómo se dibujan los puntos de interés",
+        "keywords": "poi insignias glifos marcadores",
+        "arguments": {
+          "style": {
+            "name": "Estilo"
+          }
+        }
+      },
+      "toggleNorthUpSnap": {
+        "name": "Alternar ajuste al norte",
+        "description": "Enderezar el mapa al girarlo cerca del norte",
+        "keywords": "rotación rumbo brújula"
+      },
+      "gridSnap": {
+        "name": "Ajustar a la cuadrícula",
+        "description": "Elegir cómo se ajusta la rotación a la cuadrícula de calles",
+        "keywords": "rotación rumbo cuadrícula",
+        "arguments": {
+          "mode": {
+            "name": "Modo"
+          }
+        }
+      },
+      "updateUnitSystem": {
+        "name": "Cambiar sistema de unidades",
+        "description": "Cambiar entre unidades métricas e imperiales",
+        "keywords": "métrico imperial millas kilómetros celsius fahrenheit",
+        "arguments": {
+          "units": {
+            "name": "Unidades"
+          }
+        }
+      },
       "signOut": {
         "name": "Cerrar sesión",
         "description": "Cerrar sesión de tu cuenta",
@@ -386,6 +476,10 @@
         "confirmTitle": "¿Cerrar sesión?",
         "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
       }
+    },
+    "toggleState": {
+      "shown": "Visible",
+      "hidden": "Oculto"
     }
   },
   "messages": {

@@ -5,6 +5,7 @@
  * it would wait behind the view's heavy detail tiles.
  */
 import { parseCut, type ServedCut } from './tunnels'
+import { parseBed, type ServedBed } from '@/lib/map-terrain/road-beds'
 
 type Properties = Record<string, string | number | boolean>
 
@@ -106,7 +107,11 @@ export function layerProperties(raw: ArrayBuffer | Uint8Array, name: string): Pr
   return []
 }
 
-/** The cuts in a `tunnel_cuts` tile. */
-export function readCutTile(raw: ArrayBuffer | Uint8Array): ServedCut[] {
-  return layerProperties(raw, 'tunnel_cuts').map(parseCut).filter((cut): cut is ServedCut => cut !== null)
+/** The cuts and road beds in a `tunnel_cuts` tile. */
+export function readCutTile(raw: ArrayBuffer | Uint8Array): { cuts: ServedCut[]; beds: ServedBed[] } {
+  const features = layerProperties(raw, 'tunnel_cuts')
+  return {
+    cuts: features.map(parseCut).filter((cut): cut is ServedCut => cut !== null),
+    beds: features.map(parseBed).filter((bed): bed is ServedBed => bed !== null),
+  }
 }

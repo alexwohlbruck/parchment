@@ -6,6 +6,14 @@
 
 ### Fixed
 
+## [0.21.4] - 2026-11-13
+
+### Fixed
+
+* Highways on embankments and in cuttings no longer lean or wobble in 3D: the ground under them is held level, so their lanes and paint lie flat.
+* Covered roads on stacked structures, such as the Brooklyn-Queens Expressway under the Brooklyn Heights Promenade, show their decks instead of disappearing into the hillside.
+* Tunnel entrances in 3D look like the real thing: bores side by side share one headwall, roads passing under a street no longer show a dark gap, and portals sit in the ground rather than on it.
+
 ## [0.21.3] - 2026-11-13
 
 ### Changed

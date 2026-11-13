@@ -49,8 +49,15 @@ describe('readCutTile', () => {
       line: '-808340000,352250000;-1000,0;-1000,0;-1000,0', floor: '2000,1990,1980,1980', wall_left: '2000,2010,2034,2034', wall_right: '2000,2012,2034,2034',
       crown: 203.4, headroom: 4.6, base: 198,
     }
-    const cuts = readCutTile(tile(layer('tunnel_cuts', [cut, { ...cut, id: 'broken', floor: '1,2' }])))
+    const { cuts } = readCutTile(tile(layer('tunnel_cuts', [cut, { ...cut, id: 'broken', floor: '1,2' }])))
     expect(cuts.map(c => c.key)).toEqual(['road:1,2'])
     expect(cuts[0].cut.floor).toEqual([200, 199, 198, 198])
+  })
+
+  test('reads the road beds riding along apart from the cuts', () => {
+    const bed = { id: 'bed:1:0', kind: 'bed', left_edge: 5.5, right_edge: 5.5, line: '-808340000,352250000;-1000,0;-1000,0', floor: '175,174,173' }
+    const { cuts, beds } = readCutTile(tile(layer('tunnel_cuts', [bed, { ...bed, id: 'broken', floor: '1' }])))
+    expect(cuts).toEqual([])
+    expect(beds.map(b => [b.key, b.half, b.floor])).toEqual([['bed:1:0', 5.5, [17.5, 17.4, 17.3]]])
   })
 })

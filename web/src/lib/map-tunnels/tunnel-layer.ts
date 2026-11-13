@@ -26,7 +26,8 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
-import { KERB, MARGIN, portalMesh, truncate, type BoreKind, type ServedCut } from './tunnels'
+import { bedCarving, type ServedBed } from '@/lib/map-terrain/road-beds'
+import { HEADWALL as HEADWALL_DEPTH, KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
 /** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
@@ -43,6 +44,9 @@ const CUT_PAD = 0.15
 const CUT_TILES = 64
 /** Metres past its line a cut's walls and carving reach. */
 const CUT_REACH = 30
+
+/** Stencil marks: a cut's lid, and a mouth, through which alone the bore is drawn. */
+const [LID, MOUTH] = [1, 2]
 
 /** Its name among the carver's owners. Ranked after the landmarks' fills, so a cut is carved into filled ground. */
 const CARVER_OWNER = 'tunnels'
@@ -62,29 +66,43 @@ const CARVED_ZOOM = FINE_TERRAIN_MAXZOOM - 1
 /** How far past its wall the ground is carved to a cut's floor, and how far out it banks up to meet the ground, in metres. */
 const CARVE = [0.5, 4]
 /** How far behind a headwall's face the floor is carved, so the ground rises inside it rather than in front. */
-const SILL = 0.5
+const SILL = 3
 
 /** How far back over a bore the ground is filled to its headwall's top, in metres, before it falls away. */
-const BACKFILL = [1.5, 6]
+const BACKFILL = [4.5, 6]
 
 /**
  * The ground carved for a cut: down to the floor between its walls, out to
  * just behind the headwall's face, and to each wall's top beside them,
  * banking up past its coping; and filled over the bore behind the headwall.
  */
-function carving({ points, at, edges, cut }: ServedCut): Footprint[] {
+function carving({ points, at, edges, cut, cover }: ServedCut): Footprint[] {
   const sill = truncate(points.slice(at), SILL).at(-1)!
   const wall = edges.map(e => e + KERB)
   const out = (m: number) => wall.map(w => w + m) as [number, number]
   const lane = cut.floor.slice(cut.open, at + 1)
   const tops = cut.walls.map(w => [...w.slice(cut.open, at + 1), w[at]]) as [number[], number[]]
-  const over = [sill, ...truncate(points.slice(at), BACKFILL[1]).slice(1)]
-  const crown = along(over).map(m => cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK)
-  return [
-    footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1])),
-    // The ground over the bore, filled up to meet the headwall's top from behind.
-    footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true),
-  ]
+  // Over the whole bore drawn, up to the ground it lies under: where the terrain leaves out a street or deck over it, the ground is raised to meet it.
+  // The bore's samples past the sill, so none falls on it and leaves a piece of no length.
+  const bore = cover ? points.slice(at) : truncate(points.slice(at), BACKFILL[1])
+  const inBore = along(bore).map((m, k) => [m, k] as const).filter(([m, k]) => k > 0 && m > SILL + 0.1)
+  const over = [sill, ...inBore.map(([, k]) => bore[k])]
+  const lid = cover ? [cover[0], ...inBore.map(([, k]) => cover[k])] : over.map(() => -Infinity)
+  const crown = along(over).map((m, k) => Math.max(lid[k], cut.crown - Math.max(0, m + SILL - BACKFILL[0]) * BANK))
+  const cutFloor = footprint([...points.slice(cut.open, at + 1), sill], [...lane, lane.at(-1)!], tops, out(CARVE[0]), out(MARGIN), out(CARVE[1]))
+  if (over.length < 2) return [cutFloor]
+  // The ground over the bore, filled up to meet the headwall's top from behind.
+  return [cutFloor, footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true)]
+}
+
+/** The ground behind a wall joining two headwalls, filled up to its top and banking down away from it, and left as it is in front. */
+function backfill({ from, to, behind, top }: { from: Point; to: Point; behind: Point; top: number }, origin: Point, exaggeration: number): Footprint {
+  const points: Point[] = [[from[0] + origin[0], from[1] + origin[1]], [to[0] + origin[0], to[1] + origin[1]]]
+  const [ex, ey] = [to[0] - from[0], to[1] - from[1]]
+  const back = behind[0] * -ey + behind[1] * ex >= 0 ? 0 : 1
+  const side = (m: number) => (back === 0 ? [m, 0] : [0, m]) as [number, number]
+  const height = top / exaggeration
+  return footprint(points, [height, height], [[height, height], [height, height]], side(HEADWALL_DEPTH), side(HEADWALL_DEPTH), side(HEADWALL_DEPTH + BACKFILL[1]), true)
 }
 
 export class TunnelLayer {
@@ -105,7 +123,7 @@ export class TunnelLayer {
   /** Whether the cuts carved are those of every cut tile in view. */
   private settled = false
   /** Cut tiles read, by `z/x/y`, most recent last; and those being read. */
-  private cutTiles = new Map<string, ServedCut[]>()
+  private cutTiles = new Map<string, { cuts: ServedCut[]; beds: ServedBed[] }>()
   private reading = new Map<string, AbortController>()
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
@@ -201,7 +219,7 @@ export class TunnelLayer {
       fetch(this.sources.tiles.replace('{z}', z).replace('{x}', x).replace('{y}', y), { signal: request.signal })
         .then(res => (res.ok ? res.arrayBuffer() : res.status === 404 || res.status === 204 ? null : Promise.reject(new Error(`Tunnel cuts ${res.status}`))))
         .then(raw => {
-          this.cutTiles.set(key, raw ? readCutTile(raw) : [])
+          this.cutTiles.set(key, raw ? readCutTile(raw) : { cuts: [], beds: [] })
           for (const old of this.cutTiles.keys()) if (this.cutTiles.size > CUT_TILES) this.cutTiles.delete(old)
           if (this.reading.get(key) === request) this.reading.delete(key)
           if (this.map) this.rebuildNow()
@@ -270,28 +288,34 @@ export class TunnelLayer {
     this.options.terrain?.release()
   }
 
-  /** The cuts in the cut tiles read for the view, one copy each. */
-  private served(): ServedCut[] {
+  /** The cuts and road beds in the cut tiles read for the view, one copy each. */
+  private served(): { cuts: ServedCut[]; beds: ServedBed[] } {
     // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
     const v = this.view()
     const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
     const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
-    const found = new Map<string, ServedCut>()
-    for (const key of this.cutTilesInView())
-      for (const cut of this.cutTiles.get(key) ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) found.set(cut.key, cut)
-    return [...found.values()]
+    const cuts = new Map<string, ServedCut>()
+    const beds = new Map<string, ServedBed>()
+    for (const key of this.cutTilesInView()) {
+      const tile = this.cutTiles.get(key)
+      for (const cut of tile?.cuts ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) cuts.set(cut.key, cut)
+      for (const bed of tile?.beds ?? []) if (meets(boundsOf(bed.points, CUT_REACH), view)) beds.set(bed.key, bed)
+    }
+    return { cuts: [...cuts.values()], beds: [...beds.values()] }
   }
 
   private build(): Built | null {
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
-    const cuts = this.map.getZoom() >= TUNNEL_MIN_ZOOM ? this.served() : []
-    const read = cuts.map(c => c.key).sort().join(' ')
+    const { cuts, beds } = this.map.getZoom() >= TUNNEL_MIN_ZOOM ? this.served() : { cuts: [], beds: [] }
+    const read = [...cuts, ...beds].map(c => c.key).sort().join(' ')
     const close = Math.abs(center.x - this.origin[0]) < REBASE && Math.abs(center.y - this.origin[1]) < REBASE
     if (!this.stale && close && read === this.built) return null
     this.stale = false
     this.built = read
     if (!close) this.origin = [center.x, center.y]
     const mesh = emptyBuilt()
+    // Filled first, so a cut opening off a road bed is carved into it.
+    for (const bed of beds) mesh.footprints.set(bed.key, bedCarving(bed))
     if (!cuts.length) return mesh
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
@@ -300,10 +324,21 @@ export class TunnelLayer {
     for (const s of cuts) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration, base: s.cut.base * exaggeration }
       const from = mesh.floor.position.length / 3
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers)
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers, s.under)
       mesh.floors.push({ from, to: mesh.floor.position.length / 3, ends: [s.points[s.cut.open], s.points[s.at]] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
+    const shared = new Map<string, Headwall[]>()
+    for (const s of cuts) {
+      if (!s.shared) continue
+      const { corners, heading, scale } = headwallFrame(s.points, s.at, s.edges, this.origin, s.face)
+      const wall = { corners, heading, scale, top: s.cut.crown * exaggeration, foot: (Math.min(s.cut.floor[s.at], s.cut.base) - 0.5) * exaggeration }
+      shared.set(s.shared, [...(shared.get(s.shared) ?? []), wall])
+    }
+    for (const [key, walls] of shared)
+      if (walls.length > 1)
+        joinHeadwalls(walls, { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh).forEach((j, i) =>
+          mesh.footprints.set(`${key}|join${i}`, backfill(j, this.origin, exaggeration)))
     return mesh
   }
 
@@ -373,27 +408,29 @@ export class TunnelLayer {
     gl.stencilMask(0xff)
     gl.clearStencil(0)
     gl.clear(gl.STENCIL_BUFFER_BIT)
-    // Mark each cut's lid and each mouth wherever nothing drawn so far stands in front of them…
+    // Mark each cut's lid, and each mouth apart from it, wherever nothing drawn so far stands in front of them…
     gl.colorMask(false, false, false, false)
     gl.depthMask(false)
-    gl.stencilFunc(gl.ALWAYS, 1, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
+    gl.stencilFunc(gl.ALWAYS, LID, 0xff)
     draw('lid')
+    gl.stencilFunc(gl.ALWAYS, MOUTH, 0xff)
     draw('mouth')
     // …clear the depth there, and set the cut's floor back into it…
     gl.depthMask(true)
     gl.depthFunc(gl.ALWAYS)
     gl.depthRange(far, far)
-    gl.stencilFunc(gl.EQUAL, 1, 0xff)
+    gl.stencilFunc(gl.LEQUAL, LID, 0xff)
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
     draw('lid')
     draw('mouth')
     gl.depthRange(near, far)
     gl.depthFunc(gl.LEQUAL)
     draw('floor')
-    // …then stand the walls on it, and draw the bore under the ground.
+    // …then stand the walls on it, and draw the bore under the ground through its mouth alone: seen past a lid, over the headwall, is the ground behind it.
     gl.colorMask(true, true, true, true)
     draw('walls')
+    gl.stencilFunc(gl.EQUAL, MOUTH, 0xff)
     draw('bore')
     // Where the terrain could not take the carving, the floor shows instead of the ground blurred over it.
     const exposed = this.exposedFloors()

@@ -123,16 +123,14 @@ const ride = computed(() => {
     <template v-else-if="stage.kind === 'missed-vehicle'">
       <div>
         <div class="text-lg font-medium leading-snug">{{ t('guidance.transit.missedVehicle', { line }) }}</div>
-        <div v-if="!recovering" class="text-sm text-muted-foreground">
-          {{ noLaterRun ? t('guidance.transit.noLaterRun') : t('guidance.transit.missedVehicleHint') }}
-        </div>
+        <div v-if="!recovering && noLaterRun" class="text-sm text-muted-foreground">{{ t('guidance.transit.noLaterRun') }}</div>
       </div>
       <div v-if="!recovering" class="flex gap-2">
         <Button class="h-12 flex-1 rounded-full" :disabled="busy || noLaterRun" @click="$emit('nextRun')">
-          {{ t('guidance.transit.nextDeparture') }}
+          {{ line ? t('guidance.transit.nextLine', { line }) : t('guidance.transit.nextDeparture') }}
         </Button>
         <Button variant="secondary" class="h-12 flex-1 rounded-full" @click="$emit('anotherWay')">
-          {{ t('guidance.transit.anotherWay') }}
+          {{ t('guidance.transit.anotherRoute') }}
         </Button>
       </div>
     </template>
@@ -143,7 +141,7 @@ const ride = computed(() => {
         <div class="text-sm text-muted-foreground">{{ t('guidance.transit.missedStopHint') }}</div>
       </div>
       <Button variant="secondary" class="h-12 rounded-full" @click="$emit('anotherWay')">
-        {{ t('guidance.transit.anotherWay') }}
+        {{ t('guidance.transit.anotherRoute') }}
       </Button>
     </template>
   </div>

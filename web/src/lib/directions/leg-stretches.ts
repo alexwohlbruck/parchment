@@ -165,18 +165,18 @@ export function legStretches(segment: StretchSource): Stretch[] {
   })
 }
 
-/** Share of a cycling leg's distance on ways rated friendly or better, 0–1, or null without priority data. */
-export function friendlyShare(segment: StretchSource): number | null {
-  let friendly = 0
+/** Share of a cycling leg's distance on ways rated comfortable or better, 0–1, or null without priority data. */
+export function comfortableShare(segment: StretchSource): number | null {
+  let comfortable = 0
   let total = 0
   for (const edge of segment.edgeSegments ?? []) {
     if (edge.bikePriority == null) continue
     const meters = edge.endDistance - edge.startDistance
     const group = getStressCategory(edge.bikePriority, edge.getOffBike).group
-    if (group === 'high' || group === 'very_high') friendly += meters
+    if (group === 'high' || group === 'very_high') comfortable += meters
     total += meters
   }
-  return total ? friendly / total : null
+  return total ? comfortable / total : null
 }
 
 /** Which stretch `offset` metres into the leg falls on. */

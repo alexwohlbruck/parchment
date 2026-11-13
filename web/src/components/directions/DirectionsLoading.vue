@@ -5,6 +5,9 @@
  * the path draws in. Echoes the trip-timeline aesthetic instead of a plain
  * spinner.
  */
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -16,7 +19,7 @@
       <span class="route-dot route-dot--end" />
       <span class="route-vehicle" />
     </div>
-    <span class="text-sm text-muted-foreground">Finding trips…</span>
+    <span class="text-sm text-muted-foreground">{{ t('directions.findingTrips') }}</span>
   </div>
 </template>
 

@@ -157,8 +157,9 @@ const endLabel = computed(() => (props.segments.length ? formatClock(new Date(pr
         />
       </template>
     </div>
-    <div class="mt-1 flex justify-between text-[11px] text-muted-foreground tabular-nums">
+    <div class="mt-1 flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
       <span>{{ startLabel }}</span>
+      <slot name="labels" />
       <span>{{ endLabel }}</span>
     </div>
   </div>

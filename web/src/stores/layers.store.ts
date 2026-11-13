@@ -873,8 +873,9 @@ export const useLayersStore = defineStore('layers', () => {
     userOwnedGroups.value = userOwnedGroups.value.filter(
       g => !allIds.has(g.id),
     )
-    userOwnedLayers.value = userOwnedLayers.value.filter(
-      l => !l.groupId || !allIds.has(l.groupId),
+    // The server ungroups the layers rather than deleting them.
+    userOwnedLayers.value = userOwnedLayers.value.map(l =>
+      l.groupId && allIds.has(l.groupId) ? { ...l, groupId: null } : l,
     )
     syncGroupsToCache()
     syncLayersToCache()

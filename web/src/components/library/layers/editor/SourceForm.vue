@@ -251,9 +251,6 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
           placeholder='{ "type": "FeatureCollection", "features": [] }'
           @update:model-value="v => setGeoJson(String(v))"
         />
-        <p class="text-xs text-muted-foreground">
-          {{ t('layers.editor.source.geojsonHint') }}
-        </p>
       </div>
     </div>
 

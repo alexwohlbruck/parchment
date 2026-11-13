@@ -84,7 +84,7 @@ export function getSearchResultName(place: Place): string {
 
   // Handle current location
   if (place.id === 'current-location') {
-    return place.name.value || 'Current Location'
+    return place.name.value || 'Current location'
   }
 
   // If place has a name, use it

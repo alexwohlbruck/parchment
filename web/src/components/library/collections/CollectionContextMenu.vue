@@ -60,10 +60,10 @@ async function editCollection() {
 
 async function deleteCollection() {
   const confirmed = await appService.confirm({
-    title: t('library.dialog.deleteCollection.title'),
-    description: t('library.dialog.deleteCollection.description', {
+    title: t('library.dialog.deleteCollection.title', {
       name: collectionsService.getCollectionDisplayName(props.collection),
     }),
+    description: t('library.dialog.deleteCollection.description'),
     continueText: t('general.delete'),
     cancelText: t('general.cancel'),
     destructive: true,

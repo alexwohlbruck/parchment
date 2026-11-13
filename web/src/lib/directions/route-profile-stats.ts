@@ -25,7 +25,7 @@ export function profileStats(segments: RouteEdgeSegment[], profile: RouteProfile
 const MIXED_LABELS: Record<RouteProfileType, string> = {
   surface: 'Mixed surfaces',
   incline: 'Varied terrain',
-  stress: 'Mixed suitability',
+  stress: 'Mixed comfort',
   infrastructure: 'Mixed infrastructure',
 }
 

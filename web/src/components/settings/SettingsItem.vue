@@ -28,7 +28,7 @@ defineProps<Props>()
           <H6>{{ title }}</H6>
           <Badge
             v-if="badge"
-            :variant="badgeVariant || 'primary'"
+            :variant="badgeVariant || 'secondary'"
             class="text-[10px] px-1.5 py-0"
           >
             {{ badge }}

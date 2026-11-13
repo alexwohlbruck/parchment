@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
+import { useI18n } from 'vue-i18n'
 import { CalendarIcon, ClockIcon, AlertTriangleIcon } from 'lucide-vue-next'
 import { CalendarDate, type DateValue } from '@internationalized/date'
 import { Calendar } from '@/components/ui/calendar'
@@ -56,6 +57,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: WaypointTimeConstraint | null]
   'update:open': [value: boolean]
 }>()
+
+const { t } = useI18n()
 
 const open = ref(props.open ?? false)
 watch(() => props.open, (v) => { if (v !== undefined) open.value = v })
@@ -142,8 +145,8 @@ function dayOutOfRange(value: string) {
 const quickDays = computed(() => {
   const today = dayjs().startOf('day')
   return [
-    { value: today.format('YYYY-MM-DD'), label: 'Today' },
-    { value: today.add(1, 'day').format('YYYY-MM-DD'), label: 'Tomorrow' },
+    { value: today.format('YYYY-MM-DD'), label: t('directions.waypointTime.today') },
+    { value: today.add(1, 'day').format('YYYY-MM-DD'), label: t('directions.waypointTime.tomorrow') },
   ].map((option) => ({ ...option, disabled: dayOutOfRange(option.value) }))
 })
 
@@ -218,9 +221,9 @@ const summary = computed(() => constraintSummary(props.modelValue, props.arrives
 const isSet = computed(() => summary.value?.tone === 'set')
 
 const heading = computed(() => {
-  if (role.value === 'origin') return 'Leave'
-  if (role.value === 'destination') return 'Arrive'
-  return props.label?.trim() || 'This stop'
+  if (role.value === 'origin') return t('directions.waypointTime.leave')
+  if (role.value === 'destination') return t('directions.waypointTime.arrive')
+  return props.label?.trim() || t('directions.waypointTime.thisStop')
 })
 </script>
 
@@ -241,7 +244,7 @@ const heading = computed(() => {
         size="sm"
         class="h-10 min-w-10 shrink-0 gap-1.5 px-2"
         :class="isSet ? 'text-primary' : 'text-muted-foreground'"
-        :aria-label="summary ? `Time for ${heading}: ${summary.text}` : `Set a time for ${heading}`"
+        :aria-label="summary ? t('directions.waypointTime.ariaSet', { place: heading, time: summary.text }) : t('directions.waypointTime.ariaUnset', { place: heading })"
       >
         <ClockIcon class="size-4" />
         <span v-if="summary" class="text-xs tabular-nums" :class="isSet && 'font-medium'">
@@ -255,7 +258,7 @@ const heading = computed(() => {
         <div class="space-y-0.5">
           <p class="text-sm font-medium leading-tight">{{ heading }}</p>
           <p v-if="arrivesAt && !modelValue?.time" class="text-xs text-muted-foreground">
-            Arriving {{ dayjs(arrivesAt).format('h:mm A') }} — the next leg leaves then.
+            {{ t('directions.waypointTime.arriving', { time: dayjs(arrivesAt).format('h:mm A') }) }}
           </p>
         </div>
 
@@ -273,14 +276,14 @@ const heading = computed(() => {
             variant="outline"
             class="h-10 w-full text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
-            Leave after
+            {{ t('directions.waypointTime.leaveAfter') }}
           </ToggleGroupItem>
           <ToggleGroupItem
             value="arriveBy"
             variant="outline"
             class="h-10 w-full text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
-            Arrive by
+            {{ t('directions.waypointTime.arriveBy') }}
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -304,7 +307,7 @@ const heading = computed(() => {
             >
               <CalendarIcon class="size-3.5 shrink-0" />
               <span class="truncate">
-                {{ isOtherDay ? dayjs(day).format('D MMM') : 'Other' }}
+                {{ isOtherDay ? dayjs(day).format('D MMM') : t('directions.waypointTime.other') }}
               </span>
             </Button>
           </div>
@@ -335,7 +338,7 @@ const heading = computed(() => {
               :class="timed && 'text-muted-foreground'"
               @click="timed = !timed"
             >
-              Any time
+              {{ t('directions.waypointTime.anyTime') }}
             </Button>
             <Button
               v-for="offset in QUICK_OFFSETS"
@@ -350,7 +353,7 @@ const heading = computed(() => {
         </div>
 
         <div v-if="isStop" class="space-y-2">
-          <p class="text-xs text-muted-foreground">Stay here</p>
+          <p class="text-xs text-muted-foreground">{{ t('directions.waypointTime.stay') }}</p>
           <div class="grid grid-cols-3 gap-1">
             <Button
               v-for="minutes in DWELL_OPTIONS"
@@ -379,9 +382,9 @@ const heading = computed(() => {
             class="h-11 flex-1 text-xs"
             @click="remove"
           >
-            Remove
+            {{ t('general.remove') }}
           </Button>
-          <Button class="h-11 flex-1 text-sm" @click="apply">Done</Button>
+          <Button class="h-11 flex-1 text-sm" @click="apply">{{ t('general.done') }}</Button>
         </div>
       </div>
     </template>

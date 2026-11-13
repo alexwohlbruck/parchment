@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { useI18n } from 'vue-i18n'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 
 /**
@@ -13,6 +14,8 @@ defineProps<{
 }>()
 
 const model = defineModel<MeasureUnitSystem>({ required: true })
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -23,7 +26,7 @@ const model = defineModel<MeasureUnitSystem>({ required: true })
     <div class="flex flex-1 justify-center">
       <Switch
         :model-value="model === 'imperial'"
-        aria-label="Metric or Imperial units"
+        :aria-label="t('measure.units')"
         @update:model-value="v => (model = v ? 'imperial' : 'metric')"
       />
     </div>

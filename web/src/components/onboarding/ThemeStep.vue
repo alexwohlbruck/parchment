@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import OnboardingHeader from './OnboardingHeader.vue'
 import { computed, inject, onMounted, watch } from 'vue'
-import { useStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useThemeStore, allColors } from '@/stores/theme.store'
@@ -29,8 +28,8 @@ const themeStore = useThemeStore()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
-const { accentColor } = storeToRefs(themeStore)
-const { setAccentColor } = themeStore
+const { accentColor, colorScheme } = storeToRefs(themeStore)
+const { setAccentColor, setColorScheme } = themeStore
 const { unitSystem } = storeToRefs(appStore)
 
 const languageOptions = computed(() =>
@@ -40,18 +39,6 @@ const languageOptions = computed(() =>
   ),
 )
 
-const colorScheme = useStorage('vueuse-color-scheme', 'auto')
-
-const currentMode = computed(() => {
-  const v = colorScheme.value
-  if (v === 'dark') return 'dark'
-  if (v === 'light') return 'light'
-  return 'auto'
-})
-
-function setMode(mode: 'light' | 'dark' | 'auto') {
-  colorScheme.value = mode
-}
 
 const modeOptions = computed(() => [
   {
@@ -177,13 +164,13 @@ onMounted(() => {
           v-for="option in modeOptions"
           :key="option.value"
           class="flex flex-col items-center gap-3 rounded-xl border px-2 py-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-pressed="currentMode === option.value"
+          :aria-pressed="colorScheme === option.value"
           :class="[
-            currentMode === option.value
+            colorScheme === option.value
               ? 'border-primary bg-primary/5'
               : 'hover:border-primary/40',
           ]"
-          @click="setMode(option.value)"
+          @click="setColorScheme(option.value)"
         >
           <component :is="option.icon" class="size-5" />
           <span class="text-sm font-medium">{{ option.label }}</span>

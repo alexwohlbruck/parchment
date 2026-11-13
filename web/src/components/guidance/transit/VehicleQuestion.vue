@@ -22,8 +22,8 @@ const { t } = useI18n()
         @click="$emit('answer', candidate)"
       >
         <RouteBullet size="md" class="shrink-0" :label="candidate.line" :color="candidate.color" :text-color="candidate.textColor" />
-        <span class="min-w-0 flex-1 truncate text-sm">{{ candidate.headsign }}</span>
-        <span class="shrink-0 text-sm text-muted-foreground tabular-nums">{{ formatClock(new Date(candidate.departureMs)) }}</span>
+        <span class="shrink-0 font-medium tabular-nums">{{ formatClock(new Date(candidate.departureMs)) }}</span>
+        <span class="min-w-0 flex-1 truncate text-sm text-muted-foreground">{{ candidate.headsign }}</span>
       </button>
     </div>
     <button class="self-start text-sm text-muted-foreground hover:text-foreground" @click="$emit('answer', null)">

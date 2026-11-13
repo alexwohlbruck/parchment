@@ -1,8 +1,9 @@
 import { describe, test, expect } from 'vitest'
+import en from '@/lib/i18n/en-US.json'
+import { translator } from '@/lib/guidance/test-routes'
 import {
   depCountdown,
   entrancePhrase,
-  formatCo2,
   formatTimeRange,
   joinStatus,
   modeColor,
@@ -65,26 +66,28 @@ describe('movingDuration', () => {
 })
 
 describe('entrancePhrase', () => {
+  const t = translator(en)
+
   test('prefers a real entrance name', () => {
-    expect(entrancePhrase({ role: 'entrance', name: 'Main St' })).toBe('Enter at Main St')
-    expect(entrancePhrase({ role: 'exit', name: 'Main St' })).toBe('Exit at Main St')
+    expect(entrancePhrase({ role: 'entrance', name: 'Main St' }, t)).toBe('Enter at Main St')
+    expect(entrancePhrase({ role: 'exit', name: 'Main St' }, t)).toBe('Exit at Main St')
   })
 
   test('uses a platform description only when entering', () => {
-    expect(entrancePhrase({ description: '1 trains Downtown' })).toBe('Enter · 1 trains Downtown')
-    expect(entrancePhrase({ role: 'exit', description: '1 trains Downtown' })).toBe('')
+    expect(entrancePhrase({ description: '1 trains Downtown' }, t)).toBe('Enter · 1 trains Downtown')
+    expect(entrancePhrase({ role: 'exit', description: '1 trains Downtown' }, t)).toBe('')
   })
 
   test('says nothing rather than fabricating', () => {
-    expect(entrancePhrase(null)).toBe('')
-    expect(entrancePhrase({})).toBe('')
+    expect(entrancePhrase(null, t)).toBe('')
+    expect(entrancePhrase({}, t)).toBe('')
   })
 
   test('names an entrance by OSM name, then ref, then its corner', () => {
     const corner = 'Broadway & West 28th Street · NW corner'
-    expect(entrancePhrase({ name: 'Main St', ref: 'S2', cornerLabel: corner })).toBe('Enter at Main St')
-    expect(entrancePhrase({ ref: 'S2', cornerLabel: corner })).toBe('Enter at S2')
-    expect(entrancePhrase({ role: 'exit', cornerLabel: corner, description: '1 trains Downtown' }))
+    expect(entrancePhrase({ name: 'Main St', ref: 'S2', cornerLabel: corner }, t)).toBe('Enter at Main St')
+    expect(entrancePhrase({ ref: 'S2', cornerLabel: corner }, t)).toBe('Enter at S2')
+    expect(entrancePhrase({ role: 'exit', cornerLabel: corner, description: '1 trains Downtown' }, t))
       .toBe(`Exit at ${corner}`)
   })
 })
@@ -102,16 +105,6 @@ describe('rideDirection', () => {
   test('falls back to the headsign, as without labels', () => {
     expect(rideDirection({ headsign: 'Coney Island' })).toEqual({ label: 'Coney Island' })
     expect(rideDirection({ lineLongName: 'Broadway Local' })).toEqual({ label: 'Broadway Local' })
-  })
-})
-
-describe('formatCo2', () => {
-  test('uses grams below a kilogram', () => {
-    expect(formatCo2(0.42)).toBe('420 g')
-  })
-
-  test('uses one decimal kilogram above', () => {
-    expect(formatCo2(1.25)).toBe('1.3 kg')
   })
 })
 

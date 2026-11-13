@@ -141,6 +141,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
   const legIndex = ref(0)
   const route = shallowRef<NavRoute | null>(null)
   const segments = shallowRef<LegSegment[]>([])
+  /** Segments of this leg already travelled before a replan dropped them from `route`. */
+  const passedSegments = shallowRef<LegSegment[]>([])
   const segmentDurations = computed(() => segments.value.map(s => s.duration ?? 0))
   const status = ref<GuidanceStatus>('navigating')
   /** Legs already finished, per trip, so the trip page offers the next one. */
@@ -604,7 +606,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
         mode: segment.mode,
       })
       if (!fresh || route.value !== navRoute) return
-      reshape(spliceReroute(segments.value, index, fresh))
+      reshape(spliceReroute(segments.value, index, fresh), index)
       turnAroundWatch = new TurnAroundWatch()
     } catch {
       // Keep guiding on the old route; the next off-route check retries.
@@ -614,8 +616,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   }
 
   /** Swaps in a replanned leg mid-guidance, keeping the announcer's progress. */
-  function reshape(next: LegSegment[]) {
+  function reshape(next: LegSegment[], passed = 0) {
     stopSpeech()
+    passedSegments.value = [...passedSegments.value, ...segments.value.slice(0, passed)]
     segments.value = next
     const navRoute = markRaw(buildNavRoute(next.map(withBoardingStep)))
     lanePlans.value = routeLanePlans(navRoute)
@@ -632,12 +635,12 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   /** Follows another route for the rest of the segment the traveller is on. */
   function takeAlternative(index: number, alternative: Partial<LegSegment>) {
-    reshape(spliceReroute(segments.value, index, alternative))
+    reshape(spliceReroute(segments.value, index, alternative), index)
   }
 
   /** Rides another transit plan from segment `from` on. */
   function takeItinerary(from: number, fresh: LegSegment[]) {
-    reshape(adoptItinerary(segments.value, from, fresh))
+    reshape(adoptItinerary(segments.value, from, fresh), from)
     spokenTransit = new Set()
   }
 
@@ -654,7 +657,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
       requestReroute({ position: station.location, heading: null, destination: end, mode: after.mode }),
     ])
     if (!into || !outOf || route.value !== navRoute) return false
-    reshape(switchStation(segments.value.slice(boundary), 0, into, outOf, station))
+    reshape(switchStation(segments.value.slice(boundary), 0, into, outOf, station), boundary)
     announce({ kind: 'dock-switch', station: station.name }, puck.s)
     return true
   }
@@ -731,7 +734,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     nextHorizonAt = 0
     hazardWatch = new HazardWatch()
     if (fresh) {
-      await requestMotionPermission()
+      await Promise.all([requestMotionPermission(), orientation.requestPermission()])
       holdScreenAwake()
     }
     progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
@@ -772,6 +775,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     route.value = null
     trip.value = null
     segments.value = []
+    passedSegments.value = []
     continuation.value = null
     transit.value = null
     leaveRide()
@@ -781,7 +785,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   async function start(option: TripOption, leg: number) {
     unlockSpeech()
-    await requestMotionPermission()
+    await Promise.all([requestMotionPermission(), orientation.requestPermission()])
     leaveRoam()
     trip.value = markRaw(option)
     legIndex.value = leg
@@ -797,6 +801,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const navRoute = markRaw(buildNavRoute(parts.map(withBoardingStep)))
     lanePlans.value = routeLanePlans(navRoute)
     segments.value = parts
+    passedSegments.value = []
     route.value = navRoute
     progress.value = null
     status.value = 'navigating'
@@ -845,8 +850,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (!toStop || !fromStop || route.value !== navRoute) return false
     const split = splitAtStop(segments.value, index, toStop, fromStop, stop)
     if (!split) return false
+    const passed = [...passedSegments.value, ...segments.value.slice(0, index)]
     continuation.value = [...split.continuation, ...(continuation.value ?? [])]
     guidanceEngine.setRoute(follow(split.leg))
+    passedSegments.value = passed
     return true
   }
 
@@ -929,6 +936,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     handoff,
     settleHandoff,
     segments,
+    passedSegments,
     transit,
     stationGuide,
     nextStationStep,

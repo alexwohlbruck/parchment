@@ -270,3 +270,28 @@ describe('GuidanceEngine when the GPS signal degrades', () => {
     for (let t = 30; t <= 150; t += 5) expect(engine.sample(t)!.s).toBeLessThanOrEqual(600 + 15)
   })
 })
+
+describe('GuidanceEngine after a signal gap on a ride', () => {
+  const walk = polyline([[0, 300]])
+  const route = buildNavRoute([
+    { mode: 'walking', geometry: walk },
+    { mode: 'transit', geometry: polyline([[90, 6000]], walk.at(-1)) },
+  ])
+
+  function waitThenVanish(): GuidanceEngine {
+    const engine = new GuidanceEngine(route)
+    for (let t = 0; t < 60; t++) engine.pushFix({ t, position: pointAt(route, 300), accuracy: 8, speed: 0, heading: null })
+    for (let t = 60; t < 300; t++) engine.sample(t)
+    return engine
+  }
+
+  test.each([
+    ['moving', 10],
+    ['dwelling at a station', 0],
+  ])('good fixes far down the line move the puck there when %s', (_, speed) => {
+    const engine = waitThenVanish()
+    for (let t = 300; t < 310; t++) engine.pushFix({ t, position: pointAt(route, 2000), accuracy: 10, speed, heading: null })
+    expect(engine.isOffRoute).toBe(false)
+    expect(engine.sample(310)!.s).toBeGreaterThan(1950)
+  })
+})

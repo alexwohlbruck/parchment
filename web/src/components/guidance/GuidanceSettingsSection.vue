@@ -22,7 +22,6 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
   <SettingsSection id="guidance" :title="$t('guidance.settings.title')">
     <SettingsItem
       :title="$t('guidance.settings.cameraMode')"
-      :description="$t('guidance.settings.cameraModeDescription')"
       :icon="CameraIcon"
     >
       <Select v-model="preferences.cameraMode">
@@ -38,7 +37,6 @@ const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMI
     </SettingsItem>
     <SettingsItem
       :title="$t('guidance.settings.bearingMode')"
-      :description="$t('guidance.settings.bearingModeDescription')"
       :icon="ScanEyeIcon"
     >
       <Select v-model="preferences.bearingMode">

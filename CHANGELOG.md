@@ -6,6 +6,12 @@
 
 ### Fixed
 
+## [0.21.3] - 2026-11-13
+
+### Changed
+
+* The cycling map layer and route breakdown now share one "Comfort" scale, from very stressful to very comfortable.
+
 ## [0.21.2] - 2026-11-13
 
 ### Added

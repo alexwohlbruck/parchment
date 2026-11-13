@@ -26,7 +26,7 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
-import { KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
+import { HEADWALL as HEADWALL_DEPTH, KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
 /** Milliseconds a rebuild waits after a tile event, so a burst of them is read at once. */
@@ -90,6 +90,16 @@ function carving({ points, at, edges, cut, cover }: ServedCut): Footprint[] {
     // The ground over the bore, filled up to meet the headwall's top from behind.
     footprint(over, crown, [crown, crown], out(MARGIN), out(MARGIN), out(MARGIN + BACKFILL[1]), true),
   ]
+}
+
+/** The ground behind a wall joining two headwalls, filled up to its top and banking down away from it, and left as it is in front. */
+function backfill({ from, to, behind, top }: { from: Point; to: Point; behind: Point; top: number }, origin: Point, exaggeration: number): Footprint {
+  const points: Point[] = [[from[0] + origin[0], from[1] + origin[1]], [to[0] + origin[0], to[1] + origin[1]]]
+  const [ex, ey] = [to[0] - from[0], to[1] - from[1]]
+  const back = behind[0] * -ey + behind[1] * ex >= 0 ? 0 : 1
+  const side = (m: number) => (back === 0 ? [m, 0] : [0, m]) as [number, number]
+  const height = top / exaggeration
+  return footprint(points, [height, height], [[height, height], [height, height]], side(HEADWALL_DEPTH), side(HEADWALL_DEPTH), side(HEADWALL_DEPTH + BACKFILL[1]), true)
 }
 
 export class TunnelLayer {
@@ -305,7 +315,7 @@ export class TunnelLayer {
     for (const s of cuts) {
       const scaled = { ...s.cut, floor: s.cut.floor.map(z => z * exaggeration), walls: s.cut.walls.map(w => w.map(z => z * exaggeration)) as [number[], number[]], crown: s.cut.crown * exaggeration, headroom: s.cut.headroom * exaggeration, base: s.cut.base * exaggeration }
       const from = mesh.floor.position.length / 3
-      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers)
+      portalMesh(s.points, s.at, s.edges, scaled, this.origin, { surface: floors[s.kind], concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh, s.face, s.piers, s.under)
       mesh.floors.push({ from, to: mesh.floor.position.length / 3, ends: [s.points[s.cut.open], s.points[s.at]] })
       carving(s).forEach((f, i) => mesh.footprints.set(`${s.key}|${i}`, f))
     }
@@ -316,7 +326,10 @@ export class TunnelLayer {
       const wall = { corners, heading, scale, top: s.cut.crown * exaggeration, foot: (Math.min(s.cut.floor[s.at], s.cut.base) - 0.5) * exaggeration }
       shared.set(s.shared, [...(shared.get(s.shared) ?? []), wall])
     }
-    for (const walls of shared.values()) if (walls.length > 1) joinHeadwalls(walls, { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh)
+    for (const [key, walls] of shared)
+      if (walls.length > 1)
+        joinHeadwalls(walls, { surface: p.surface, concrete: p.concrete, parapet: p.parapet, bore: p.concrete }, mesh).forEach((j, i) =>
+          mesh.footprints.set(`${key}|join${i}`, backfill(j, this.origin, exaggeration)))
     return mesh
   }
 

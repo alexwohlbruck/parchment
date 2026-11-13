@@ -93,8 +93,10 @@ export type Headwall = { corners: [Point, Point]; heading: Point; scale: number;
 /**
  * One wall between neighbouring portals' headwalls, from each one's nearer corner to the other's: portals side
  * by side stand in one headwall, as the Lincoln Tunnel's three bores do, rather than as boxes with ground between.
+ * Returns each wall, relative to the origin, with the way its back faces and its top in metres, for the ground behind it to be filled.
  */
-export function joinHeadwalls(walls: Headwall[], colors: PortalColors, out: PortalMesh) {
+export function joinHeadwalls(walls: Headwall[], colors: PortalColors, out: PortalMesh): Array<{ from: Point; to: Point; behind: Point; top: number }> {
+  const joins: Array<{ from: Point; to: Point; behind: Point; top: number }> = []
   const lead = walls[0]
   const left = (p: Point) => (p[0] * -lead.heading[1] + p[1] * lead.heading[0])
   const sorted = [...walls].sort((a, b) => left(a.corners[0]) + left(a.corners[1]) - left(b.corners[0]) - left(b.corners[1]))
@@ -110,7 +112,9 @@ export function joinHeadwalls(walls: Headwall[], colors: PortalColors, out: Port
     quad(out.walls, at3(p, foot), at3(q, foot), at3(q, top), at3(p, top), colors.concrete)
     quad(out.walls, at3(qb, foot), at3(pb, foot), at3(pb, top), at3(qb, top), colors.concrete)
     quad(out.walls, at3(p, top), at3(q, top), at3(qb, top), at3(pb, top), colors.parapet)
+    joins.push({ from: p, to: q, behind: [hx, hy], top: Math.min(a.top, b.top) })
   }
+  return joins
 }
 
 export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }
@@ -161,8 +165,12 @@ export function headwallFrame(points: Point[], at: number, edges: [number, numbe
   return { heading: [tx, ty] as Point, scale, onFace, corners: [onFace(edges[0] + KERB + MARGIN), onFace(-(edges[1] + KERB + MARGIN))] as [Point, Point] }
 }
 
-export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh, face?: Point, piers: Array<[number, number]> = []) {
-  const n = points.length
+/** How far into a bore it is drawn, in metres: past it nothing shows from outside, and a bore curving close in would fold its walls across each other. */
+export const BORE_DRAWN = 15
+
+/** `through` draws the whole bore, for an underpass seen through from end to end. */
+export function portalMesh(points: Point[], at: number, edges: [number, number], cut: Cut, origin: Point, colors: PortalColors, out: PortalMesh, face?: Point, piers: Array<[number, number]> = [], through = false) {
+  const n = through ? points.length : Math.min(points.length, at + 1 + along(points.slice(at)).filter(m => m > 0 && m <= BORE_DRAWN).length)
   const { heading: [tx, ty], scale, onFace } = headwallFrame(points, at, edges, origin, face)
   const h = (m: number) => m * scale
   const wall = outline(points, [edges[0] + KERB, edges[1] + KERB], origin)
@@ -230,7 +238,8 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]
     const [fa, fb] = [floor[a], floor[b]]
-    const [ca, cb] = [fa + cut.headroom, fb + cut.headroom]
+    // Never lower than the mouth's top: a floor falling away inside would leave a gap over the bore, through which the ground shows.
+    const [ca, cb] = [Math.max(fa + cut.headroom, mouth), Math.max(fb + cut.headroom, mouth)]
     const [la, lb, ra, rb] = [wall[a].left, wall[b].left, wall[a].right, wall[b].right]
     quad(out.bore, at3(la, fa), at3(ra, fa), at3(rb, fb), at3(lb, fb), shade(a, colors.surface))
     quad(out.bore, at3(la, fa), at3(lb, fb), at3(lb, cb), at3(la, ca), shade(a, colors.bore))
@@ -242,5 +251,5 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     }
   }
   const last = n - 1
-  if (last > at) quad(out.bore, at3(wall[last].left, floor[last]), at3(wall[last].right, floor[last]), at3(wall[last].right, floor[last] + cut.headroom), at3(wall[last].left, floor[last] + cut.headroom), shade(last, colors.bore))
+  if (last > at) quad(out.bore, at3(wall[last].left, floor[last] - FOOT), at3(wall[last].right, floor[last] - FOOT), at3(wall[last].right, Math.max(floor[last] + cut.headroom, mouth)), at3(wall[last].left, Math.max(floor[last] + cut.headroom, mouth)), shade(last, colors.bore))
 }

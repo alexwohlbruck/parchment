@@ -1040,7 +1040,7 @@ const routeWaypoints = useRouteWaypoints(() => ({
 
           <!-- Leave – arrive -->
           <div class="mt-1 text-sm text-muted-foreground tabular-nums">
-            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template>
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template><template v-if="trip.cost?.total"> · {{ formatCurrency(trip.cost.total) }}</template><template v-if="trip.co2Emissions"> · {{ formatCo2(trip.co2Emissions) }} CO₂</template>
           </div>
 
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
@@ -1055,31 +1055,22 @@ const routeWaypoints = useRouteWaypoints(() => ({
         </p>
       </div>
 
-      <!-- Actions sit on the bottom row, clear of the sheet's back/close nav in the top-right corner. -->
-      <div class="mt-3 flex items-center justify-between gap-4">
-        <!-- Cost / CO2 -->
-        <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground tabular-nums">
-          <span v-if="trip.cost?.total">{{ formatCurrency(trip.cost.total) }}</span>
-          <span v-if="trip.co2Emissions">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
-        </div>
-
-        <!-- Start + Share + Save -->
-        <div class="flex items-center gap-0.5 shrink-0 -mr-2">
-          <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1.5" @click="previewRoute">
-            <MapIcon class="size-4" />
-            {{ translate('guidance.preview.action') }}
-          </Button>
-          <Button v-else-if="legToStart != null" size="sm" class="mr-1.5" @click="startGuidance">
-            <NavigationIcon class="size-4" />
-            {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
-          </Button>
-          <Button variant="ghost" size="icon-sm">
-            <ShareIcon class="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm">
-            <BookmarkIcon class="size-4" />
-          </Button>
-        </div>
+      <div class="mt-3 flex items-center gap-2">
+        <Button v-if="legToStart != null && startEligibility === 'preview'" class="flex-1 gap-2" @click="previewRoute">
+          <MapIcon class="size-4" />
+          {{ translate('guidance.preview.action') }}
+        </Button>
+        <Button v-else-if="legToStart != null" class="flex-1 gap-2" @click="startGuidance">
+          <NavigationIcon class="size-4" />
+          {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
+        </Button>
+        <Button variant="outline" size="icon" aria-label="Share">
+          <ShareIcon class="size-4" />
+        </Button>
+        <Button variant="outline" size="icon" aria-label="Save">
+          <BookmarkIcon class="size-4" />
+        </Button>
+      </div>
       </div>
       </div>
       </SheetHeader>

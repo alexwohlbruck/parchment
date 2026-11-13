@@ -26,7 +26,7 @@ const label = computed(() => options.value.find(o => o.id === colorBy.value)?.la
 <template>
   <DropdownMenu v-if="options.length">
     <DropdownMenuTrigger
-      class="-my-1 inline-flex items-center gap-0.5 rounded px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      class="relative -my-1 inline-flex items-center gap-0.5 rounded px-1.5 py-1 text-xs after:absolute after:-inset-x-3 after:-inset-y-3 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       {{ label }}
       <ChevronDownIcon class="size-3" />

@@ -731,7 +731,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     nextHorizonAt = 0
     hazardWatch = new HazardWatch()
     if (fresh) {
-      await requestMotionPermission()
+      await Promise.all([requestMotionPermission(), orientation.requestPermission()])
       holdScreenAwake()
     }
     progressTimer ??= setInterval(refreshProgress, PROGRESS_INTERVAL_MS)
@@ -781,7 +781,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   async function start(option: TripOption, leg: number) {
     unlockSpeech()
-    await requestMotionPermission()
+    await Promise.all([requestMotionPermission(), orientation.requestPermission()])
     leaveRoam()
     trip.value = markRaw(option)
     legIndex.value = leg

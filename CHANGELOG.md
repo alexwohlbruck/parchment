@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+* While walking or cycling, the navigation arrow and map turn with your phone's compass when you slow down or stop, so you can see which way you're facing.
 
 ### Changed
 

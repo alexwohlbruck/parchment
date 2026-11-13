@@ -6,6 +6,7 @@ import type { PuckState } from './guidance-engine'
 import { bearingDeg } from '@/lib/map/movement-interpolation'
 import { angleDelta, normalizeDeg } from './spring'
 import { modeProfile } from './mode-profiles'
+import { blendAngle } from './facing'
 
 export type CameraMode = 'north-up' | 'heading-up' | 'follow-3d'
 export type BearingMode = 'straight' | 'look-ahead'
@@ -82,6 +83,8 @@ export interface FramingInput {
   /** Speed to size the view for, m/s; defaults to the puck's, floored by `framingSpeed`. */
   speed?: number
   tuning?: CameraTuning
+  /** The compass's pull on the view while the traveller dawdles. */
+  facing?: { bearing: number; weight: number }
 }
 
 export interface CameraTarget {
@@ -162,12 +165,9 @@ export function frameCamera(input: FramingInput): CameraTarget {
     Math.max(range.minZoom, zoomForGroundSpan(ahead, aheadPixels, puck.position.lat, pitch)),
   )
 
+  const course = input.bearingMode === 'look-ahead' ? lookAheadBearing(route, puck, tuning) : puck.bearing
   const bearing =
-    mode === 'north-up'
-      ? 0
-      : input.bearingMode === 'look-ahead'
-        ? lookAheadBearing(route, puck, tuning)
-        : puck.bearing
+    mode === 'north-up' ? 0 : input.facing ? blendAngle(course, input.facing.bearing, input.facing.weight) : course
 
   return {
     zoom,

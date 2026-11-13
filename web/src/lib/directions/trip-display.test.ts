@@ -2,7 +2,6 @@ import { describe, test, expect } from 'vitest'
 import {
   depCountdown,
   entrancePhrase,
-  formatCo2,
   formatTimeRange,
   joinStatus,
   modeColor,
@@ -102,16 +101,6 @@ describe('rideDirection', () => {
   test('falls back to the headsign, as without labels', () => {
     expect(rideDirection({ headsign: 'Coney Island' })).toEqual({ label: 'Coney Island' })
     expect(rideDirection({ lineLongName: 'Broadway Local' })).toEqual({ label: 'Broadway Local' })
-  })
-})
-
-describe('formatCo2', () => {
-  test('uses grams below a kilogram', () => {
-    expect(formatCo2(0.42)).toBe('420 g')
-  })
-
-  test('uses one decimal kilogram above', () => {
-    expect(formatCo2(1.25)).toBe('1.3 kg')
   })
 })
 

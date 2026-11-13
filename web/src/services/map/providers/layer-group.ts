@@ -1,4 +1,4 @@
-import { ROUTE_BAND } from '@/lib/map/layer-slots'
+import { ROUTE_BAND } from '@/lib/map/route-band'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import {

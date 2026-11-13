@@ -76,10 +76,6 @@ export function joinStatus(base: string, extra: string | null): string {
   return extra ? `${base} — ${extra}` : base
 }
 
-export function formatCo2(kg: number): string {
-  return kg >= 1 ? `${kg.toFixed(1)} kg` : `${Math.round(kg * 1000)} g`
-}
-
 export function movingDuration(segment: {
   duration?: number
   waitSeconds?: number

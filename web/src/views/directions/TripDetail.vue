@@ -3,7 +3,6 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import {
   depCountdown,
   formatClockCompact,
-  formatCo2,
   formatCurrency,
   joinStatus,
   movingDuration,
@@ -50,6 +49,7 @@ import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
 import TripStrip from '@/components/directions/trip/TripStrip.vue'
 import TripColorPicker from '@/components/directions/trip/TripColorPicker.vue'
+import TripColorLegend from '@/components/directions/trip/TripColorLegend.vue'
 import { canColorBy, tripProfiles } from '@/lib/directions/trip-strip'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
@@ -1021,7 +1021,8 @@ const routeWaypoints = useRouteWaypoints(() => ({
         class="px-3 md:pt-4 pb-2 border-b transition-colors duration-200"
         :class="stuck ? 'border-border/60' : 'border-transparent'"
       >
-      <div>
+      <div class="flex items-end justify-between gap-3">
+      <div class="min-w-0">
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
               {{ heroDuration.main }}
@@ -1039,10 +1040,28 @@ const routeWaypoints = useRouteWaypoints(() => ({
 
           <!-- Leave – arrive -->
           <div class="mt-1 text-sm text-muted-foreground tabular-nums">
-            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template>
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template><template v-if="trip.cost?.total"> · {{ formatCurrency(trip.cost.total) }}</template>
           </div>
 
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
+      </div>
+
+        <div class="flex shrink-0 items-center gap-1 -mr-1.5">
+          <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1 gap-1.5 px-3.5" @click="previewRoute">
+            <MapIcon class="size-4" />
+            {{ translate('guidance.preview.action') }}
+          </Button>
+          <Button v-else-if="legToStart != null" size="sm" class="mr-1 gap-1.5 px-3.5" @click="startGuidance">
+            <NavigationIcon class="size-4" />
+            {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
+          </Button>
+          <Button variant="ghost" size="icon-md" aria-label="Share">
+            <ShareIcon class="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-md" aria-label="Save">
+            <BookmarkIcon class="size-4" />
+          </Button>
+        </div>
       </div>
 
       <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">
@@ -1053,38 +1072,14 @@ const routeWaypoints = useRouteWaypoints(() => ({
           <TriangleAlertIcon class="size-3.5 shrink-0" />{{ tightNote }}
         </p>
       </div>
-
-      <!-- Actions sit on the bottom row, clear of the sheet's back/close nav in the top-right corner. -->
-      <div class="mt-3 flex items-center justify-between gap-4">
-        <!-- Cost / CO2 -->
-        <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground tabular-nums">
-          <span v-if="trip.cost?.total">{{ formatCurrency(trip.cost.total) }}</span>
-          <span v-if="trip.co2Emissions">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
-        </div>
-
-        <!-- Start + Share + Save -->
-        <div class="flex items-center gap-0.5 shrink-0 -mr-2">
-          <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1.5" @click="previewRoute">
-            <MapIcon class="size-4" />
-            {{ translate('guidance.preview.action') }}
-          </Button>
-          <Button v-else-if="legToStart != null" size="sm" class="mr-1.5" @click="startGuidance">
-            <NavigationIcon class="size-4" />
-            {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
-          </Button>
-          <Button variant="ghost" size="icon-sm">
-            <ShareIcon class="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm">
-            <BookmarkIcon class="size-4" />
-          </Button>
-        </div>
-      </div>
       </div>
       </SheetHeader>
 
-      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>
-        <TripColorPicker v-model="colorBy" :segments="trip.segments" class="-mx-3 mb-1 pt-1" />
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold class="pt-4">
+        <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-4" />
+        <template #labels>
+          <TripColorPicker v-model="colorBy" :segments="trip.segments" />
+        </template>
       </TripStrip>
 
       <!-- Timezone warning -->

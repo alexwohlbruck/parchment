@@ -1022,7 +1022,8 @@ const routeWaypoints = useRouteWaypoints(() => ({
         class="px-3 md:pt-4 pb-2 border-b transition-colors duration-200"
         :class="stuck ? 'border-border/60' : 'border-transparent'"
       >
-      <div>
+      <div class="flex items-end justify-between gap-3">
+      <div class="min-w-0">
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
               {{ heroDuration.main }}
@@ -1046,6 +1047,24 @@ const routeWaypoints = useRouteWaypoints(() => ({
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />
       </div>
 
+        <div class="flex shrink-0 items-center gap-1 -mr-1.5">
+          <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1 gap-1.5 px-3.5" @click="previewRoute">
+            <MapIcon class="size-4" />
+            {{ translate('guidance.preview.action') }}
+          </Button>
+          <Button v-else-if="legToStart != null" size="sm" class="mr-1 gap-1.5 px-3.5" @click="startGuidance">
+            <NavigationIcon class="size-4" />
+            {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
+          </Button>
+          <Button variant="ghost" size="icon-md" aria-label="Share">
+            <ShareIcon class="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-md" aria-label="Save">
+            <BookmarkIcon class="size-4" />
+          </Button>
+        </div>
+      </div>
+
       <div v-if="switchedNote || tightNote" class="mt-3 space-y-1.5 text-xs">
         <p v-if="switchedNote" class="flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-muted-foreground">
           <RefreshCwIcon class="size-3.5 shrink-0" />{{ switchedNote }}
@@ -1054,27 +1073,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
           <TriangleAlertIcon class="size-3.5 shrink-0" />{{ tightNote }}
         </p>
       </div>
-
-      <div class="mt-3 flex items-center gap-1">
-        <Button v-if="legToStart != null && startEligibility === 'preview'" size="sm" class="mr-1 gap-1.5 px-3.5" @click="previewRoute">
-          <MapIcon class="size-4" />
-          {{ translate('guidance.preview.action') }}
-        </Button>
-        <Button v-else-if="legToStart != null" size="sm" class="mr-1 gap-1.5 px-3.5" @click="startGuidance">
-          <NavigationIcon class="size-4" />
-          {{ legToStart > 0 ? translate('guidance.startLeg', { leg: legToStart + 1 }) : translate('guidance.start') }}
-        </Button>
-        <Button variant="ghost" size="icon-md" aria-label="Share">
-          <ShareIcon class="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon-md" aria-label="Save">
-          <BookmarkIcon class="size-4" />
-        </Button>
-      </div>
       </div>
       </SheetHeader>
 
-      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>
+      <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold class="pt-4">
         <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-1 pt-1" />
         <template #labels>
           <TripColorPicker v-model="colorBy" :segments="trip.segments" />

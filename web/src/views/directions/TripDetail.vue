@@ -50,6 +50,7 @@ import AdviceStatusLine from '@/components/directions/AdviceStatusLine.vue'
 import TripTimeline from '@/components/directions/trip/TripTimeline.vue'
 import TripStrip from '@/components/directions/trip/TripStrip.vue'
 import TripColorPicker from '@/components/directions/trip/TripColorPicker.vue'
+import TripColorLegend from '@/components/directions/trip/TripColorLegend.vue'
 import { canColorBy, tripProfiles } from '@/lib/directions/trip-strip'
 import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
@@ -1084,7 +1085,10 @@ const routeWaypoints = useRouteWaypoints(() => ({
       </SheetHeader>
 
       <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold>
-        <TripColorPicker v-model="colorBy" :segments="trip.segments" class="-mx-3 mb-1 pt-1" />
+        <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-1 pt-1" />
+        <template #labels>
+          <TripColorPicker v-model="colorBy" :segments="trip.segments" />
+        </template>
       </TripStrip>
 
       <!-- Timezone warning -->

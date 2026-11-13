@@ -749,7 +749,7 @@
     "appearances": {
       "cycling": {
         "infrastructure": "Infrastructure",
-        "suitability": "Suitability",
+        "comfort": "Comfort",
         "stressful": "Stressful",
         "comfortable": "Comfortable"
       },
@@ -1020,7 +1020,7 @@
       "hideTurns": "Hide turns",
       "showCompleted": "Show completed",
       "hideCompleted": "Hide completed",
-      "friendly": "{pct}% bike-friendly",
+      "comfortable": "{pct}% comfortable",
       "stretchesLeft": "{done} of {n} done",
       "left": "{distance} left",
       "surface": {

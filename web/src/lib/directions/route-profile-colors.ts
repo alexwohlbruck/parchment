@@ -38,7 +38,7 @@ export interface ProfileTabDef {
  * include the current travel mode.
  */
 export const PROFILE_TABS: ProfileTabDef[] = [
-  { id: 'stress',  label: 'Suitability', modes: ['cycling'] as TravelMode[] },
+  { id: 'stress',  label: 'Comfort', modes: ['cycling'] as TravelMode[] },
   { id: 'infrastructure', label: 'Infrastructure', modes: ['cycling'] as TravelMode[] },
   { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving'] as TravelMode[] },
   { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking'] as TravelMode[] },
@@ -80,11 +80,11 @@ const suitabilityCategory = (label: string, group: string, score: number): Profi
 })
 
 export const STRESS_CATEGORIES: Record<string, ProfileCategory> = {
-  very_high: suitabilityCategory('Very friendly', 'very_high', 90),
-  high:      suitabilityCategory('Friendly', 'high', 72),
+  very_high: suitabilityCategory('Very comfortable', 'very_high', 90),
+  high:      suitabilityCategory('Comfortable', 'high', 72),
   moderate:  suitabilityCategory('Moderate', 'moderate', 57),
-  low:       suitabilityCategory('Low', 'low', 40),
-  very_low:  suitabilityCategory('Unfriendly', 'very_low', 15),
+  low:       suitabilityCategory('Stressful', 'low', 40),
+  very_low:  suitabilityCategory('Very stressful', 'very_low', 15),
   unknown:   { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
 }
 

@@ -41,7 +41,7 @@ export const LAYER_APPEARANCES: Record<string, LayerAppearance[]> = {
     },
     {
       id: 'suitability',
-      name: 'layers.appearances.cycling.suitability',
+      name: 'layers.appearances.cycling.comfort',
       groupIds: ['default:group:bike-suitability'],
       swatch: ramp(10, 92, 70, 35).map(color => ({ color })),
       legend: {

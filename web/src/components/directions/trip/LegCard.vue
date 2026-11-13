@@ -5,7 +5,7 @@ import { ChevronDownIcon, SignpostIcon, TrendingUpIcon, TriangleAlertIcon } from
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import LegCardSurface from './LegCardSurface.vue'
-import { friendlyShare, legStretches, stretchAt, type Stretch } from '@/lib/directions/leg-stretches'
+import { comfortableShare, legStretches, stretchAt, type Stretch } from '@/lib/directions/leg-stretches'
 import { headsUpHazards, legHeadsUp } from '@/lib/directions/leg-heads-up'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { modeColor, movingDuration } from '@/lib/directions/trip-display'
@@ -65,8 +65,8 @@ const context = computed(() => {
   const parts: { text: string; climb?: boolean }[] = []
   const vehicle = props.segment.ownership === 'personal' && props.segment.mode !== 'walking' ? props.segment.vehicle?.name : null
   if (vehicle) parts.push({ text: vehicle })
-  const share = cycling.value ? friendlyShare(props.segment) : null
-  if (share != null) parts.push({ text: t('directions.leg.friendly', { pct: Math.round(share * 100) }) })
+  const share = cycling.value ? comfortableShare(props.segment) : null
+  if (share != null) parts.push({ text: t('directions.leg.comfortable', { pct: Math.round(share * 100) }) })
   const gain = props.segment.mode === 'driving' ? 0 : props.segment.totalElevationGain ?? 0
   if (gain >= 10) parts.push({ text: formatElevation(gain), climb: true })
   return parts

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { friendlyShare, legStretches, streetKey } from './leg-stretches'
+import { comfortableShare, legStretches, streetKey } from './leg-stretches'
 import type { RouteEdgeSegment, RouteInstruction } from '@/types/directions.types'
 
 const at = { lat: 0, lng: 0 }
@@ -72,10 +72,10 @@ test('streetKey ignores the direction prefix', () => {
   expect(streetKey('South Davidson Street')).toBe(streetKey('N Davidson Street'))
 })
 
-test('friendlyShare weighs edges by length', () => {
+test('comfortableShare weighs edges by length', () => {
   const edges: RouteEdgeSegment[] = [
     { startDistance: 0, endDistance: 75, bikePriority: 1.2 },
     { startDistance: 75, endDistance: 100, bikePriority: 0.5 },
   ]
-  expect(friendlyShare({ edgeSegments: edges })).toBe(0.75)
+  expect(comfortableShare({ edgeSegments: edges })).toBe(0.75)
 })

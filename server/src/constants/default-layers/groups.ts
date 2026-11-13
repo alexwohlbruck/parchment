@@ -63,7 +63,7 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     templateId: 'default:group:bike-suitability',
     description:
       'Every street coloured by how comfortable it is to ride, scored from OpenStreetMap.',
-    name: 'Suitability',
+    name: 'Comfort',
     icon: 'BikeIcon',
     showInLayerSelector: true,
     visible: false,

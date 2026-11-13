@@ -5,6 +5,7 @@
 ### Changed
 
 ### Fixed
+* A trip's route now stays on top of the cycling and transit layers when the map is in 3D.
 
 ## [0.21.1] - 2026-11-12
 

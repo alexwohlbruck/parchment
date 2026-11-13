@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { ROUTE_BAND, belowLabelsBeforeId, belowRoadsBeforeId, routeBandLift, slotBeforeId } from './layer-slots'
+import { ROUTE_BAND } from './route-band'
+import { belowLabelsBeforeId, belowRoadsBeforeId, routeBandLift, slotBeforeId } from './layer-slots'
 
 /**
  * Both halves shipped wrong. The cycling lanes drew over the POI names and

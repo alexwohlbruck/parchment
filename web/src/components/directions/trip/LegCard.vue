@@ -92,10 +92,10 @@ function stretchName(stretch: Stretch): string {
 
 function stretchTag(stretch: Stretch): string | null {
   const mode = props.segment.mode
-  if (mode === 'driving') return null
+  if (mode === 'driving' || !stretch.name) return null
   if (mode === 'walking') {
     if (stretch.surface === 'steps') return t('directions.leg.surface.steps')
-    if (stretch.surface === 'path') return stretch.name ? t('directions.leg.surface.sidewalk') : null
+    if (stretch.surface === 'path') return t('directions.leg.surface.sidewalk')
     return null
   }
   return stretch.surface === 'unknown' ? null : t(`directions.leg.surface.${stretch.surface}`)
@@ -114,7 +114,8 @@ const footerLabel = computed(() => {
   if (open.value) return formatDistance(props.segment.distance ?? 0)
   const named = stretches.value.filter(s => s.name)
   const longest = [...named].sort((a, b) => b.to - b.from - (a.to - a.from)).slice(0, 2)
-  return named.filter(s => longest.includes(s)).map(s => s.name).join(', ') || formatDistance(props.segment.distance ?? 0)
+  const streets = named.filter(s => longest.includes(s)).map(s => s.name).join(', ')
+  return streets ? t('directions.leg.via', { streets }) : formatDistance(props.segment.distance ?? 0)
 })
 
 const current = computed(() => (props.progress != null ? stretchAt(stretches.value, props.progress) : -1))
@@ -167,8 +168,8 @@ const turnText = (instruction: RouteInstruction, index: number) =>
             :class="item.severity === 'low' ? 'bg-muted text-muted-foreground' : 'bg-amber-500/12 text-amber-800 dark:text-amber-300'"
           >
             <TriangleAlertIcon class="size-3" />
-            {{ t(`guidance.hazards.${item.kind}`) }}
-            <span class="tabular-nums opacity-70">{{ formatDistance(item.at) }}<template v-if="item.count > 1"> · ×{{ item.count }}</template></span>
+            <span><template v-if="item.count > 1">{{ item.count }}× </template>{{ t(`guidance.hazards.${item.kind}`) }}</span>
+            <span class="tabular-nums opacity-70">· {{ t('directions.leg.hazardAt', { distance: formatDistance(item.at) }) }}</span>
           </span>
         </div>
         <CollapsibleTrigger
@@ -176,8 +177,7 @@ const turnText = (instruction: RouteInstruction, index: number) =>
           class="-mx-3.5 mt-3 flex h-11 w-[calc(100%+1.75rem)] cursor-pointer select-none items-center gap-2 border-t pl-3.5 pr-2.5 text-left text-[13px] transition-colors hover:bg-muted/40"
           :class="!open && 'rounded-b-2xl'"
         >
-          <span class="font-medium text-foreground">{{ t('directions.leg.route') }}</span>
-          <span class="min-w-0 flex-1 truncate text-muted-foreground">{{ footerLabel }}</span>
+          <span class="min-w-0 flex-1 truncate font-medium text-foreground">{{ footerLabel }}</span>
           <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
           </span>

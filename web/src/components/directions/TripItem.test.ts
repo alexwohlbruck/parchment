@@ -72,7 +72,7 @@ describe('TripItem timeline rendering', () => {
     expect(walkLabels.length).toBe(0)
   })
 
-  it('shows a single quiet headsign line, not a card row', () => {
+  it('leads a transit trip with its direction instead of its type', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking' }),
       seg({ mode: 'transit', lineName: 'A', headsign: 'Inwood-207 St', routeType: 'subway' }),
@@ -81,6 +81,7 @@ describe('TripItem timeline rendering', () => {
     // toward key is rendered (i18n stub echoes key+args)
     expect(wrapper.text()).toContain('directions.toward')
     expect(wrapper.text()).toContain('Inwood-207 St')
+    expect(wrapper.text()).not.toContain('directions.tripTypes')
   })
 
   it('splits a transfer walk into a walking span and a trailing wait span', () => {

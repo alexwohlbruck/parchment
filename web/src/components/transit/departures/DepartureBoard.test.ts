@@ -62,7 +62,7 @@ describe('status wording', () => {
 
   it('shows only the worst news — cancelled outranks the rest', () => {
     const w = mountBoard([card({ cancelled: true, unreachable: true, hurry: true })])
-    expect(footnote(w).text()).toBe('Cancelled')
+    expect(footnote(w).text()).toBe('Canceled')
   })
 
   it('ranks "Too late" above "Hurry" when both somehow apply', () => {

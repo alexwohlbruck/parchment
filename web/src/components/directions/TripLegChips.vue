@@ -7,6 +7,7 @@ import {
 } from '@/lib/directions/travel-mode-colors'
 import { getModeIcon, getSegmentIcon } from '@/lib/directions/travel-mode-icons'
 import { tripChips, type TripChip } from '@/lib/directions/trip-chips'
+import { formatDurationParts } from '@/lib/time-format'
 import type { TripOption } from '@/types/directions.types'
 
 const props = defineProps<{ segments: TripOption['segments'] }>()
@@ -53,7 +54,7 @@ function badgeStyle(chip: Extract<TripChip, { kind: 'transit' }>) {
             color: getTravelModeColor(chip.kind === 'walk' ? 'walking' : chip.mode),
           }"
         />
-        {{ chip.minutes }}<span class="text-[10px] font-normal">min</span>
+        <span v-for="part in formatDurationParts(chip.minutes * 60).parts" :key="part.unit">{{ part.value }}<span class="text-[10px] font-normal">{{ part.unit }}</span></span>
       </span>
     </template>
   </div>

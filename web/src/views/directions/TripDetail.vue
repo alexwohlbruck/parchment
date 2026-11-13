@@ -3,7 +3,6 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import {
   depCountdown,
   formatClockCompact,
-  formatCo2,
   formatCurrency,
   joinStatus,
   movingDuration,
@@ -1041,7 +1040,7 @@ const routeWaypoints = useRouteWaypoints(() => ({
 
           <!-- Leave – arrive -->
           <div class="mt-1 text-sm text-muted-foreground tabular-nums">
-            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template><template v-if="trip.cost?.total"> · {{ formatCurrency(trip.cost.total) }}</template><template v-if="trip.co2Emissions"> · {{ formatCo2(trip.co2Emissions) }} CO₂</template>
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}<template v-if="scheduledOnly"> · {{ translate('directions.advice.status.scheduled') }}</template><template v-if="trip.cost?.total"> · {{ formatCurrency(trip.cost.total) }}</template>
           </div>
 
           <AdviceStatusLine v-if="advice?.status" :status="advice.status" class="mt-2 text-sm" />

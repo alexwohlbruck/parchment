@@ -15,6 +15,8 @@ import VehicleThumbnail from './VehicleThumbnail.vue'
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   segments: any[]
+  /** Leading segments already travelled and no longer on `guidance.route`. */
+  passed: number
   /** Index of the segment the traveller is on. */
   current: number
   stage: TransitStage | null
@@ -35,7 +37,7 @@ const waypoints = useRouteWaypoints(() => {
 
 /** Metres into the current leg, in 5 m steps so the cards don't redraw every frame. */
 const progress = computed(() => {
-  const span = guidance.route?.segments[props.current]
+  const span = guidance.route?.segments[props.current - props.passed]
   const s = guidance.progress?.puck.s
   return span && s != null ? Math.max(0, Math.round((s - span.startDistance) / 5) * 5) : null
 })
@@ -45,8 +47,12 @@ const puck = ref<HTMLElement | null>(null)
 
 const rides = computed(() => {
   const route = guidance.route
-  return props.segments.map((segment, i) => (route && segment.mode === 'transit' ? rideStops(route, i, segment) : null))
+  return props.segments.map((segment, i) =>
+    route && i >= props.passed && segment.mode === 'transit' ? rideStops(route, i - props.passed, segment) : null,
+  )
 })
+
+const stage = computed(() => props.stage && { ...props.stage, segmentIndex: props.stage.segmentIndex + props.passed })
 
 let anchors: TimelineAnchor[] = []
 let shownY: number | null = null
@@ -64,6 +70,7 @@ function measure() {
   const top = container.getBoundingClientRect().top
   const next: TimelineAnchor[] = []
   for (const el of container.querySelectorAll<HTMLElement>('[data-node-segment], [data-segment-card]')) {
+    if (!el.getClientRects().length) continue
     if (el.dataset.segmentCard != null) {
       const fold = el.querySelector('[data-stop-fold]')
       rides.value[Number(el.dataset.segmentCard)]?.forEach((stop, k) => {
@@ -72,7 +79,7 @@ function measure() {
       })
       continue
     }
-    const span = route.segments[Number(el.dataset.nodeSegment)]
+    const span = route.segments[Number(el.dataset.nodeSegment) - props.passed]
     if (span) next.push({ s: el.dataset.nodeAt === 'end' ? span.endDistance : span.startDistance + Number(el.dataset.nodeOffset ?? 0), y: centerY(el, top) })
   }
   anchors = next

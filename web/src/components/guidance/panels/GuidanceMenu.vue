@@ -22,8 +22,9 @@ const { camera, openPanel } = useGuidanceContext()
 
 const s = computed(() => guidance.progress?.puck.s ?? 0)
 const travelMode = computed(() => guidance.travelMode)
-const multiLeg = computed(() => guidance.segments.length > 1)
-const currentSegment = computed(() => (guidance.route ? segmentAt(guidance.route, s.value)?.index ?? 0 : 0))
+const timelineSegments = computed(() => [...guidance.passedSegments, ...guidance.segments])
+const passed = computed(() => guidance.passedSegments.length)
+const currentSegment = computed(() => passed.value + (guidance.route ? segmentAt(guidance.route, s.value)?.index ?? 0 : 0))
 
 const actions = computed(() => guidance.kind === 'free' ? [
   { key: 'destination', icon: MapPinIcon, enabled: true, open: () => openPanel('destination') },
@@ -106,8 +107,9 @@ const choices = computed(() => [
 <template>
   <div class="space-y-6">
     <LiveTripTimeline
-      v-if="multiLeg"
-      :segments="guidance.segments"
+      v-if="timelineSegments.length > 1"
+      :segments="timelineSegments"
+      :passed="passed"
       :current="currentSegment"
       :stage="guidance.transit"
     />

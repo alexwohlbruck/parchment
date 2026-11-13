@@ -3,10 +3,12 @@
 ### Added
 
 ### Changed
+* Every departure in navigation's run picker now shows how much time you'll have to spare, not just the ones you need to hurry for.
 
 ### Fixed
 * Navigation no longer keeps saying your train has left once GPS catches up and shows you aboard it.
 * A trip's route now stays on top of the cycling and transit layers when the map is in 3D.
+* The trip timeline in navigation no longer disappears after a reroute, such as on the last walk of a transit trip. Completed steps fold away, with a toggle to show them.
 
 ## [0.21.1] - 2026-11-12
 

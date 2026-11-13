@@ -765,12 +765,12 @@
         "hurry": "Hurry",
         "missed": "Missed",
         "cancelled": "Cancelled",
-        "tooFar": "Too far",
+        "tooFar": "Can't make it",
         "run": "Run"
       },
       "crossover": "{mode} is faster if you leave after {time}",
       "modes": {
-        "cycling": "Biking",
+        "cycling": "Cycling",
         "walking": "Walking",
         "bikeshare": "Bike share",
         "scootershare": "Scooter share",
@@ -788,34 +788,34 @@
         "leaveIn": "Leave in {minutes} min",
         "leaveAt": "Leave at {time}",
         "every": "Every {minutes} min",
-        "gone": "No departure you can make",
-        "spare": "{minutes} min spare",
-        "spareNone": "under 1 min spare",
-        "short": "{minutes} min short",
-        "shortWalking": "{minutes} min short at a walk",
-        "next": "next {minutes} min later",
+        "gone": "None you can catch",
+        "spare": "{minutes} min to spare",
+        "spareNone": "under 1 min to spare",
+        "short": "{minutes} min late",
+        "shortWalking": "{minutes} min late if you walk",
+        "next": "next one {minutes} min later",
         "nextAt": "next at {time}",
-        "finding": "checking later departures",
-        "change": "{minutes} min change",
-        "scheduled": "scheduled"
+        "finding": "finding a later one",
+        "change": "{minutes} min to change",
+        "scheduled": "no live times"
       },
       "tightChange": "{minutes} min to change at {stop}",
       "tightChangeHere": "Only {minutes} min to make this change"
     },
     "tripTypes": {
-      "bikeshare": "Bike Share",
-      "scootershare": "Scooter Share",
+      "bikeshare": "Bike share",
+      "scootershare": "Scooter share",
       "walking": "Walking",
       "cycling": "Cycling",
       "driving": "Driving",
       "rideshare": "Rideshare",
       "transit": "Transit",
-      "transitWalking": "Transit & Walking",
-      "transitBike": "Transit & Bike",
-      "transitBikeShare": "Transit & Bike Share",
-      "transitScooter": "Transit & Scooter",
-      "transitRideshare": "Transit & Rideshare",
-      "parkAndRide": "Park & Ride"
+      "transitWalking": "Transit and walking",
+      "transitBike": "Transit and bike",
+      "transitBikeShare": "Transit and bike share",
+      "transitScooter": "Transit and scooter",
+      "transitRideshare": "Transit and rideshare",
+      "parkAndRide": "Park and ride"
     },
     "toward": "toward {headsign}",
     "arriveAtStop": "Arrive at {stop}",
@@ -828,7 +828,7 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
-    "currentLocation": "Current Location",
+    "currentLocation": "Current location",
     "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
     "tripModes": {
@@ -968,7 +968,7 @@
       "reentryFree": "free re-entry",
       "reentryPaid": "pay again to re-enter",
       "reentryUnknown": "tap out and back in",
-      "boardToward": "Board toward the {section}",
+      "boardToward": "Board near the {section}",
       "section": {
         "front": "front",
         "middle": "middle",
@@ -980,7 +980,7 @@
         "back": "Walk to the back of the platform"
       },
       "saves": "saves {duration}",
-      "insideStation": "Inside the station",
+      "insideStation": "Through the station",
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
       "levelDown": "Down {n} level | Down {n} levels",
@@ -1034,7 +1034,7 @@
         "path": "Path",
         "quiet": "Side street",
         "road": "Unnamed road",
-        "unknown": "Unnamed way"
+        "unknown": "Unnamed path"
       },
       "climb": "{pct}% climb",
       "handoff": {
@@ -1697,16 +1697,16 @@
       "watchPedestrians": "{action}, and watch for pedestrians",
       "hazards": {
         "crosswalk": "Crosswalk ahead",
-        "uncontrolled_crossing": "Uncontrolled crossing ahead",
+        "uncontrolled_crossing": "Crossing without lights ahead",
         "rail_crossing": "Railroad crossing ahead",
         "ford": "Water crossing ahead",
         "sharp_curve": "Sharp curve ahead",
-        "steep_grade": "Steep grade ahead",
+        "steep_grade": "Steep hill ahead",
         "steps": "Stairs ahead",
         "shared_space": "Shared street ahead, watch for people walking",
         "tram_tracks": "Tram tracks in the road ahead, keep clear of the rails",
         "tram_crossing": "Tram tracks ahead, cross them square on",
-        "unlit": "Unlit stretch ahead",
+        "unlit": "No street lights ahead",
         "flood_prone": "Road ahead floods in heavy rain",
         "icy_bridge": "Bridge ahead may be icy",
         "school_zone": "School zone ahead",
@@ -2020,12 +2020,12 @@
     "hazards": {
       "crosswalk": "Crosswalk",
       "traffic_signals": "Traffic light",
-      "uncontrolled_crossing": "Uncontrolled crossing",
+      "uncontrolled_crossing": "Crossing without lights",
       "rail_crossing": "Railroad crossing",
       "tunnel": "Tunnel",
       "ford": "Water crossing",
       "ferry": "Ferry",
-      "steep_grade": "Steep grade",
+      "steep_grade": "Steep hill",
       "steps": "Stairs",
       "dismount": "Walk your bike",
       "rough_surface": "Rough surface",
@@ -2035,7 +2035,7 @@
       "give_way": "Yield sign",
       "tram_tracks": "Tram tracks",
       "tram_crossing": "Tram crossing",
-      "unlit": "Unlit",
+      "unlit": "No street lights",
       "flood_prone": "Flood-prone road",
       "icy_bridge": "Icy bridge",
       "school_zone": "School zone",
@@ -2047,7 +2047,7 @@
       "movable_bridge": "Drawbridge",
       "bike_lane_end": "Bike lane ends",
       "bike_lane_start": "Bike lane starts",
-      "bike_track_start": "Protected bike lane",
+      "bike_track_start": "Protected bike lane starts",
       "hazard": "Hazard"
     },
     "hazardCounts": {
@@ -2062,7 +2062,7 @@
       "unlock-bike": "Unlock a bike at {station}",
       "get-in-car": "Get in your car",
       "get-on-bike": "Get on your bike",
-      "continue": "Carry on",
+      "continue": "Keep going",
       "then": "then {mode} {duration}",
       "thenTo": "then {mode} {duration} to {place}",
       "modes": {
@@ -2087,7 +2087,7 @@
       },
       "departsIn": "Departs in {duration}",
       "departingNow": "Departing now",
-      "from": "from {stop}",
+      "from": "From {stop}",
       "stopsLeft": "{n} stop | {n} stops",
       "estimated": "No signal, position estimated from the timetable",
       "getOffAt": "Get off at {stop}",
@@ -2228,13 +2228,13 @@
     },
     "free": {
       "title": {
-        "driving": "Free drive",
-        "cycling": "Free ride",
-        "walking": "Free walk"
+        "driving": "Driving",
+        "cycling": "Riding",
+        "walking": "Walking"
       },
       "start": {
         "driving": "Drive",
-        "cycling": "Cycle",
+        "cycling": "Ride",
         "walking": "Walk"
       },
       "keepGoing": {

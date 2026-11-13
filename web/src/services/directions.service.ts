@@ -244,7 +244,7 @@ function directionsService() {
   }
 
   /**
-   * Names the point a current-location trip sets out from. "Current Location"
+   * Names the point a current-location trip sets out from. "Current location"
    * follows the traveller; the trip's origin is where they stood when it was planned.
    */
   async function nameCurrentLocationOrigin(response: TripsResponse) {
@@ -472,7 +472,7 @@ function directionsService() {
 
     const currentLocationPlace: Place = {
       id: CURRENT_LOCATION_ID,
-      name: { value: 'Current Location' },
+      name: { value: 'Current location' },
       geometry: {
         value: {
           type: 'point',

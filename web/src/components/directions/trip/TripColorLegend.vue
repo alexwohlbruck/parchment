@@ -16,8 +16,8 @@ const summary = computed(() => (props.colorBy ? profileSummary(stats.value, prop
 
 <template>
   <div v-if="summary || stats.length">
-    <p v-if="summary" class="text-sm font-medium text-foreground">{{ summary }}</p>
-    <div v-if="stats.length" class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+    <p v-if="summary" class="text-sm font-medium leading-tight text-foreground">{{ summary }}</p>
+    <div v-if="stats.length" class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
       <div v-for="stat in stats" :key="stat.key" class="flex items-center gap-1.5">
         <span class="size-1.5 shrink-0 rounded-full" :style="{ backgroundColor: stat.color }" />
         <span class="text-[11px] leading-none text-muted-foreground">{{ stat.percentage }}% {{ stat.label.toLowerCase() }}</span>

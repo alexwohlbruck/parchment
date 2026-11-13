@@ -1076,7 +1076,7 @@ const routeWaypoints = useRouteWaypoints(() => ({
       </SheetHeader>
 
       <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold class="pt-4">
-        <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-1 pt-1" />
+        <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-4" />
         <template #labels>
           <TripColorPicker v-model="colorBy" :segments="trip.segments" />
         </template>

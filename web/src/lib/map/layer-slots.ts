@@ -13,6 +13,7 @@
  *   bottom   above the polygons, BELOW the roads
  *   middle   above the roads, below the labels
  *   top      above the labels
+ *   poi      just under the basemap's POIs, so they win placement over the layer
  *
  * `grade`, `bridge` and `tunnel` are ours, for the thing the three cannot say:
  * which brunnel a way has. The basemap draws its bridges over the whole network
@@ -70,6 +71,14 @@ export function belowRoadsBeforeId(layers: readonly StyleLayer[]): string | unde
  */
 export function belowLabelsBeforeId(layers: readonly StyleLayer[]): string | undefined {
   return layers.find(l => isOverlay(l) || l.type === 'symbol')?.id
+}
+
+/** Just under the lowest basemap POI layer; under every label when there are none. */
+export function belowPoisBeforeId(layers: readonly StyleLayer[]): string | undefined {
+  return (
+    layers.find(l => !isOverlay(l) && l.type === 'symbol' && l['source-layer'] === 'poi')?.id ??
+    belowLabelsBeforeId(layers)
+  )
 }
 
 /**
@@ -141,6 +150,7 @@ export function slotBeforeId(
 ): string | undefined {
   if (slot === 'bottom') return belowRoadsBeforeId(layers)
   if (slot === 'middle') return belowLabelsBeforeId(layers)
+  if (slot === 'poi') return belowPoisBeforeId(layers)
   if (slot === 'route') return aboveTransitBeforeId(layers)
   if (slot === 'tunnel') return inTunnelsBeforeId(layers)
   if (slot === 'grade') return atGradeBeforeId(layers)
@@ -150,4 +160,8 @@ export function slotBeforeId(
 
 /** The nearest slot Mapbox Standard has, for the names it does not know. */
 export const mapboxSlot = (slot: string | undefined) =>
-  slot === 'tunnel' ? 'bottom' : slot === 'bridge' || slot === 'grade' || slot === 'route' ? 'middle' : slot
+  slot === 'tunnel'
+    ? 'bottom'
+    : slot === 'bridge' || slot === 'grade' || slot === 'route' || slot === 'poi'
+      ? 'middle'
+      : slot

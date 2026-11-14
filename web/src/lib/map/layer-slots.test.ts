@@ -1,6 +1,13 @@
 import { describe, test, expect } from 'vitest'
 import { ROUTE_BAND } from './route-band'
-import { belowLabelsBeforeId, belowRoadsBeforeId, routeBandLift, slotBeforeId } from './layer-slots'
+import {
+  belowLabelsBeforeId,
+  belowPoisBeforeId,
+  belowRoadsBeforeId,
+  mapboxSlot,
+  routeBandLift,
+  slotBeforeId,
+} from './layer-slots'
 
 /**
  * Both halves shipped wrong. The cycling lanes drew over the POI names and
@@ -27,6 +34,25 @@ describe('where an overlay slots into the basemap', () => {
 
   test('middle lands below the first label', () => {
     expect(belowLabelsBeforeId(STYLE)).toBe('Oneway')
+  })
+
+  test('poi lands under the lowest POI layer, above the other labels', () => {
+    const withPois = [
+      ...STYLE,
+      { id: 'POI dots', type: 'circle', 'source-layer': 'poi' },
+      { id: 'POI', type: 'symbol', 'source-layer': 'poi' },
+      { id: 'POI badges', type: 'symbol', 'source-layer': 'poi' },
+    ]
+    expect(belowPoisBeforeId(withPois)).toBe('POI')
+    expect(slotBeforeId(withPois, 'poi')).toBe('POI')
+  })
+
+  test('poi falls back to under the labels without basemap POIs', () => {
+    expect(belowPoisBeforeId(STYLE)).toBe('Oneway')
+  })
+
+  test('poi resolves to the band under the labels on Mapbox Standard', () => {
+    expect(mapboxSlot('poi')).toBe('middle')
   })
 
   test('the transit network ends the ground sooner than the labels do', () => {

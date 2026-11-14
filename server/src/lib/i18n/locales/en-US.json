@@ -365,6 +365,14 @@
     "open24Hours": "Open 24 Hours",
     "lgbtqFriendly": "LGBTQ+ Friendly"
   },
+  "placeGroups": {
+    "restrooms": "Restrooms",
+    "seating": "Seating",
+    "pizza": "Pizza",
+    "petFacilities": "Pet facilities",
+    "trashAndRecycling": "Trash & recycling",
+    "swimming": "Swimming"
+  },
   "email": {
     "verificationCode": {
       "subject": "Parchment Email Verification",

@@ -3,7 +3,8 @@ import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
 import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
-import { PLACE_ATTRIBUTES, PRESET_EXTRA_TAG_SETS } from '../lib/place-attributes'
+import { PLACE_ATTRIBUTES } from '../lib/place-attributes'
+import { PLACE_GROUPS, nameLengthBonus, withoutReplacedPresets } from '../lib/place-groups'
 import { translate } from '../lib/i18n/translate'
 import { logWarn } from '../lib/logger'
 import { placeTypeLabels } from '../lib/place-type-labels'
@@ -315,8 +316,6 @@ export class CategoryService {
         // it far better than a pin does.
         const resolved = resolvePresetIcon(presetId, rawIcon)
 
-        const extraTagSets = PRESET_EXTRA_TAG_SETS[presetId]
-
         const category: CategoryResult = {
           id: presetId,
           type: 'category',
@@ -330,7 +329,6 @@ export class CategoryService {
           iconPack: resolved.iconPack,
           iconCategory: getPlaceCategory(presetId),
           tags: tags,
-          ...(extraTagSets ? { tagSets: [tags, ...extraTagSets] } : {}),
           addTags: preset.addTags,
           geometry: preset.geometry || ['point'],
           fields: preset.fields,
@@ -389,6 +387,25 @@ export class CategoryService {
           geometry: ['point', 'area'],
           searchable: true,
           aliases: attribute.aliases,
+        })
+      }
+      for (const group of PLACE_GROUPS) {
+        const replaced = categories.find((c) => c.id === group.replaces)
+        derivedCategories.push({
+          id: group.id,
+          type: 'category',
+          name: t(`placeGroups.${group.nameKey}`),
+          icon: group.icon,
+          iconName: group.icon,
+          iconPack: 'lucide',
+          iconCategory: group.category,
+          tags: {},
+          geometry: ['point', 'area'],
+          searchable: true,
+          aliases: [
+            ...group.aliases,
+            ...(replaced ? [replaced.name, ...(replaced.aliases ?? [])] : []),
+          ],
         })
       }
       categories.unshift(...derivedCategories)
@@ -479,13 +496,12 @@ export class CategoryService {
       }
 
       if (score > 0) {
-        const lengthBonus = Math.max(0, 50 - category.name.length)
-        score += lengthBonus
+        score += nameLengthBonus(category)
         matches.push({ category, score })
       }
     }
 
-    return matches
+    return withoutReplacedPresets(matches)
       .sort((a, b) => b.score - a.score)
       .slice(0, maxResults)
   }

@@ -184,15 +184,6 @@ export const PLACE_ATTRIBUTES: PlaceAttribute[] = [
   },
 ]
 
-/**
- * Places that carry a facility as a tag, browsed alongside a schema preset for
- * the same thing: a cafe tagged `toilets=yes` answers a search for restrooms
- * just as well as a standalone `amenity=toilets`.
- */
-export const PRESET_EXTRA_TAG_SETS: Record<string, TagSet[]> = {
-  'amenity/toilets': [{ toilets: 'yes' }],
-}
-
 const attributesById = new Map(PLACE_ATTRIBUTES.map((a) => [a.id, a]))
 
 export function getPlaceAttribute(id: string): PlaceAttribute | undefined {

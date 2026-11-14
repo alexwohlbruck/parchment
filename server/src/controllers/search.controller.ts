@@ -277,7 +277,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
           'Browses places nearest-first for a preset id from `/search/categories`. Besides kinds of place, '
           + 'presets cover attributes a place has (`outdoor_seating/yes`, `wheelchair/yes`, `takeaway/yes`, …): '
           + 'those match any kind of place whose OSM tags fit one of the preset\'s `tagSets`, and leave out '
-          + 'roads, transit platforms and unnamed features.',
+          + 'roads, transit platforms and unnamed features. Group ids (`group/seating`, `group/restrooms`, …) '
+          + 'browse several kinds of place at once, merged nearest-first.',
       },
     },
   )
@@ -393,6 +394,9 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Get all categories/presets',
+        description:
+          'Schema presets, plus place attributes (`wheelchair/yes`) and groups (`group/seating`) that '
+          + 'gather several kinds of place under one need. Browse any of them with `/search/category`.',
       },
     },
   )

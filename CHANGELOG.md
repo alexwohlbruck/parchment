@@ -2,8 +2,6 @@
 
 ### Added
 
-* Premium: the Directions button on a place shows a travel time after mixed-mode trips too, using the quickest way there.
-
 ### Changed
 
 ### Fixed

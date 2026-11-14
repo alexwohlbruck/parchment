@@ -200,13 +200,15 @@ function getDropdownItemComponent(): Component {
     v-else-if="variant === 'toggle'"
     variant="outline"
     :size="size"
-    :class="cn(chipClasses, 'whitespace-nowrap data-[state=on]:bg-primary-100 data-[state=on]:text-primary-800 data-[state=on]:border-primary-300 dark:data-[state=on]:bg-primary-800 dark:data-[state=on]:text-primary-200 dark:data-[state=on]:border-primary-600 data-[state=on]:shadow-xs')"
+    :class="cn(chipClasses, 'group whitespace-nowrap data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary data-[state=on]:hover:bg-primary/90 data-[state=on]:hover:text-primary-foreground data-[state=on]:shadow-xs')"
     :disabled="disabled"
     :pressed="isPressed"
     @click="handleClick"
   >
+    <slot name="leading" />
     <component v-if="displayIcon" :is="displayIcon" class="size-3.5" />
     <span class="whitespace-nowrap">{{ displayLabel }}</span>
+    <slot name="trailing" />
   </Toggle>
 
   <!-- Dropdown/Select Chip -->

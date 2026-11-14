@@ -93,7 +93,7 @@ describe('configuration', () => {
     const integration = new OverpassIntegration()
 
     expect(await integration.searchPlaces('bakery')).toEqual([])
-    expect(await integration.searchByCategory('amenity/cafe', bounds)).toEqual([])
+    expect(await integration.searchByCategory(['amenity/cafe'], bounds)).toEqual([])
     expect(await integration.searchByCategoryInArea('way/1', ['amenity/cafe'])).toEqual([])
     expect(await integration.findContainingAreas(35, -80)).toEqual([])
     expect(http.post).not.toHaveBeenCalled()
@@ -336,7 +336,7 @@ describe('searchByCategory', () => {
   test('translates a preset into an OSM tag filter', async () => {
     http.post.mockResolvedValueOnce(elements([node()]))
 
-    const places = await configured().searchByCategory('amenity/cafe', bounds)
+    const places = await configured().searchByCategory(['amenity/cafe'], bounds)
 
     expect(places).toHaveLength(1)
     expect(queryOf()).toContain('["amenity"="cafe"]')
@@ -345,7 +345,7 @@ describe('searchByCategory', () => {
   test('queries nodes, ways and relations', async () => {
     http.post.mockResolvedValueOnce(elements([]))
 
-    await configured().searchByCategory('amenity/cafe', bounds)
+    await configured().searchByCategory(['amenity/cafe'], bounds)
 
     const query = queryOf()
     expect(query).toContain('node["amenity"="cafe"]')
@@ -357,13 +357,13 @@ describe('searchByCategory', () => {
     // Overpass corner order differs from the MapBounds field order.
     http.post.mockResolvedValueOnce(elements([]))
 
-    await configured().searchByCategory('amenity/cafe', bounds)
+    await configured().searchByCategory(['amenity/cafe'], bounds)
 
     expect(queryOf()).toContain('(35.1,-80.9,35.3,-80.7)')
   })
 
   test('skips the request for a preset with no value', async () => {
-    expect(await configured().searchByCategory('amenity', bounds)).toEqual([])
+    expect(await configured().searchByCategory(['amenity'], bounds)).toEqual([])
     expect(http.post).not.toHaveBeenCalled()
   })
 
@@ -373,7 +373,7 @@ describe('searchByCategory', () => {
     )
 
     expect(
-      await configured().searchByCategory('amenity/cafe', bounds, { limit: 2 }),
+      await configured().searchByCategory(['amenity/cafe'], bounds, { limit: 2 }),
     ).toHaveLength(2)
   })
 
@@ -381,13 +381,13 @@ describe('searchByCategory', () => {
     // One malformed element must not lose the whole result set.
     http.post.mockResolvedValueOnce(elements([node(), null]))
 
-    expect(await configured().searchByCategory('amenity/cafe', bounds)).toHaveLength(1)
+    expect(await configured().searchByCategory(['amenity/cafe'], bounds)).toHaveLength(1)
   })
 
   test('returns an empty list on a request failure', async () => {
     http.post.mockRejectedValueOnce(new Error('ECONNREFUSED'))
 
-    expect(await configured().searchByCategory('amenity/cafe', bounds)).toEqual([])
+    expect(await configured().searchByCategory(['amenity/cafe'], bounds)).toEqual([])
   })
 })
 

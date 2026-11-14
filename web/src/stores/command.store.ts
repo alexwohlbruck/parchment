@@ -11,8 +11,12 @@ import {
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
 import {
+  Building2Icon,
   ChevronsRightIcon,
   CogIcon,
+  CompassIcon,
+  DoorOpenIcon,
+  Grid2x2Icon,
   CornerUpRightIcon,
   DraftingCompassIcon,
   FrameIcon,
@@ -25,18 +29,26 @@ import {
   LibraryIcon,
   LogOutIcon,
   MapIcon,
+  MapPinIcon,
+  MountainSnowIcon,
   Move3dIcon,
   PaletteIcon,
+  PanelsTopLeftIcon,
   RouteIcon,
+  RulerIcon,
   SearchIcon,
   SettingsIcon,
+  SunIcon,
   SunMoonIcon,
+  TagIcon,
   TelescopeIcon,
   TerminalIcon,
+  TreePineIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
+import { useAppStore } from '@/stores/app.store'
 import { useMapService } from '@/services/map/map.service'
 
 import { useI18n } from 'vue-i18n'
@@ -45,7 +57,12 @@ import { PermissionId } from '@/types/auth.types'
 import {
   ControlVisibility,
   ENGINE_PROJECTIONS,
+  GridSnapMode,
   MapEngine,
+  ShadowMode,
+  UnitSystem,
+  type MapControlSettings,
+  type PoiStyleId,
 } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
@@ -63,6 +80,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import { frequentChipMeta } from '@/lib/frequents'
 import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
+import { createSearchResultsRoute } from '@/lib/search/search-result'
 import { appEventBus } from '@/lib/event-bus'
 
 import { AppRoute } from '@/router'
@@ -79,6 +97,18 @@ export enum CommandName {
   TOGGLE_CAMERA_POSITION = 'toggleCameraPosition',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
   UPDATE_LANGUAGE = 'updateLanguage',
+  TOGGLE_3D_BUILDINGS = 'toggle3dBuildings',
+  TOGGLE_3D_TERRAIN = 'toggle3dTerrain',
+  TOGGLE_3D_OBJECTS = 'toggle3dObjects',
+  MAP_SHADOWS = 'mapShadows',
+  TOGGLE_HD_ROADS = 'toggleHdRoads',
+  TOGGLE_INDOOR_MAPS = 'toggleIndoorMaps',
+  TOGGLE_MAP_LABELS = 'toggleMapLabels',
+  TOGGLE_MAP_CONTROL = 'toggleMapControl',
+  PLACE_ICON_STYLE = 'placeIconStyle',
+  TOGGLE_NORTH_UP_SNAP = 'toggleNorthUpSnap',
+  GRID_SNAP = 'gridSnap',
+  UPDATE_UNIT_SYSTEM = 'updateUnitSystem',
   SIGN_OUT = 'signOut',
 }
 
@@ -125,6 +155,20 @@ const gotoPages = (): {
   { route: AppRoute.SETTINGS, key: 'settings', icon: SettingsIcon },
 ]
 
+type MapLabel = 'poiLabels' | 'roadLabels' | 'transitLabels' | 'placeLabels'
+const MAP_LABELS: MapLabel[] = ['poiLabels', 'roadLabels', 'transitLabels', 'placeLabels']
+
+type MapControl = Exclude<keyof MapControlSettings, 'camera'>
+const MAP_CONTROLS: MapControl[] = ['zoom', 'compass', 'scale', 'streetView', 'locate', 'weather']
+
+const POI_STYLES: PoiStyleId[] = ['badge', 'glyph']
+
+const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
+  [GridSnapMode.OFF]: 'gridSnapModeOff',
+  [GridSnapMode.NORTH_UP]: 'gridSnapModeNorthUp',
+  [GridSnapMode.ALL]: 'gridSnapModeAll',
+}
+
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
   const toggleDark = useToggle(isDark)
@@ -138,6 +182,35 @@ export const useCommandStore = defineStore('command', () => {
 
   const mapStore = useMapStore()
   const { settings, controlSettings } = storeToRefs(mapStore)
+  const { unitSystem } = storeToRefs(useAppStore())
+
+  const labelToggles: Record<MapLabel, () => void> = {
+    poiLabels: mapService.togglePoiLabels,
+    roadLabels: mapService.toggleRoadLabels,
+    transitLabels: mapService.toggleTransitLabels,
+    placeLabels: mapService.togglePlaceLabels,
+  }
+
+  function shownState(shown: boolean) {
+    return t(`palette.toggleState.${shown ? 'shown' : 'hidden'}`)
+  }
+
+  function toggleCommand(
+    id: CommandName,
+    icon: Icon,
+    action: () => void,
+    engine?: MapEngine[],
+  ): Command {
+    return {
+      id,
+      name: t(`palette.commands.${id}.name`),
+      description: t(`palette.commands.${id}.description`),
+      keywords: t(`palette.commands.${id}.keywords`),
+      icon,
+      engine,
+      action,
+    }
+  }
 
   function commandIsAvailable(command: Command) {
     // Check command is compatible with map engine
@@ -222,14 +295,11 @@ export const useCommandStore = defineStore('command', () => {
             const common = COMMON_CATEGORIES.find(c => c.id === categoryId)
             const name = category?.name ?? (common ? t(common.labelKey) : undefined)
             const iconCategory = category?.iconCategory ?? common?.category
-            await router.push({
-              name: AppRoute.SEARCH_RESULTS,
-              query: {
-                categoryId,
-                ...(name ? { categoryName: name } : {}),
-                ...(iconCategory ? { categoryIconCategory: iconCategory } : {}),
-              },
-            })
+            await router.push(createSearchResultsRoute({
+              categoryId,
+              categoryName: name,
+              categoryIconCategory: iconCategory,
+            }))
           } else if (itemId.startsWith('brand:')) {
             // Payload carries the brand key + original-cased name (needed to
             // browse name-only brands, whose OSM tag value is case-sensitive).
@@ -480,6 +550,183 @@ export const useCommandStore = defineStore('command', () => {
                   name: 'Español',
                 },
               ]
+            },
+          },
+        ],
+      },
+      toggleCommand(
+        CommandName.TOGGLE_3D_BUILDINGS,
+        Building2Icon,
+        () => mapService.toggle3dBuildings(),
+      ),
+      toggleCommand(
+        CommandName.TOGGLE_3D_TERRAIN,
+        MountainSnowIcon,
+        () => mapService.toggle3dTerrain(),
+      ),
+      toggleCommand(
+        CommandName.TOGGLE_3D_OBJECTS,
+        TreePineIcon,
+        () => mapService.toggle3dObjects(),
+        [MapEngine.MAPLIBRE],
+      ),
+      {
+        id: CommandName.MAP_SHADOWS,
+        name: t('palette.commands.mapShadows.name'),
+        description: t('palette.commands.mapShadows.description'),
+        keywords: t('palette.commands.mapShadows.keywords'),
+        icon: SunIcon,
+        engine: [MapEngine.MAPLIBRE],
+        action: (mode: ShadowMode) => {
+          settings.value.shadows = mode
+        },
+        arguments: [
+          {
+            id: 'mode',
+            name: t('palette.commands.mapShadows.arguments.mode.name'),
+            type: 'string',
+            getItems() {
+              return Object.values(ShadowMode).map(mode => ({
+                value: mode,
+                name: t(`settings.mapSettings.configuration.shadows.values.${mode}`),
+              }))
+            },
+          },
+        ],
+      },
+      toggleCommand(
+        CommandName.TOGGLE_HD_ROADS,
+        RouteIcon,
+        () => mapService.toggleHdRoads(),
+      ),
+      toggleCommand(
+        CommandName.TOGGLE_INDOOR_MAPS,
+        DoorOpenIcon,
+        () => mapService.toggleIndoorMaps(),
+        [MapEngine.MAPBOX],
+      ),
+      {
+        id: CommandName.TOGGLE_MAP_LABELS,
+        name: t('palette.commands.toggleMapLabels.name'),
+        description: t('palette.commands.toggleMapLabels.description'),
+        keywords: t('palette.commands.toggleMapLabels.keywords'),
+        icon: TagIcon,
+        action: (label: MapLabel) => labelToggles[label](),
+        arguments: [
+          {
+            id: 'label',
+            name: t('palette.commands.toggleMapLabels.arguments.label.name'),
+            type: 'string',
+            getItems() {
+              return MAP_LABELS.map(label => ({
+                value: label,
+                name: t(`settings.mapSettings.configuration.${label}`),
+                description: shownState(settings.value[label]),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.TOGGLE_MAP_CONTROL,
+        name: t('palette.commands.toggleMapControl.name'),
+        description: t('palette.commands.toggleMapControl.description'),
+        keywords: t('palette.commands.toggleMapControl.keywords'),
+        icon: PanelsTopLeftIcon,
+        action: (control: MapControl) => {
+          controlSettings.value[control] =
+            controlSettings.value[control] === ControlVisibility.NEVER
+              ? ControlVisibility.ALWAYS
+              : ControlVisibility.NEVER
+        },
+        arguments: [
+          {
+            id: 'control',
+            name: t('palette.commands.toggleMapControl.arguments.control.name'),
+            type: 'string',
+            getItems() {
+              return MAP_CONTROLS.map(control => ({
+                value: control,
+                name: t(`settings.mapSettings.controls.${control}`),
+                description: shownState(
+                  controlSettings.value[control] !== ControlVisibility.NEVER,
+                ),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.PLACE_ICON_STYLE,
+        name: t('palette.commands.placeIconStyle.name'),
+        description: t('palette.commands.placeIconStyle.description'),
+        keywords: t('palette.commands.placeIconStyle.keywords'),
+        icon: MapPinIcon,
+        engine: [MapEngine.MAPLIBRE],
+        action: mapStore.setPoiStyle,
+        arguments: [
+          {
+            id: 'style',
+            name: t('palette.commands.placeIconStyle.arguments.style.name'),
+            type: 'string',
+            getItems() {
+              return POI_STYLES.map(style => ({
+                value: style,
+                name: t(
+                  `settings.mapSettings.style.poiStyle${style === 'badge' ? 'Badge' : 'Glyph'}`,
+                ),
+              }))
+            },
+          },
+        ],
+      },
+      toggleCommand(
+        CommandName.TOGGLE_NORTH_UP_SNAP,
+        CompassIcon,
+        () => mapService.toggleNorthUpSnap(),
+      ),
+      {
+        id: CommandName.GRID_SNAP,
+        name: t('palette.commands.gridSnap.name'),
+        description: t('palette.commands.gridSnap.description'),
+        keywords: t('palette.commands.gridSnap.keywords'),
+        icon: Grid2x2Icon,
+        action: (mode: GridSnapMode) => {
+          settings.value.gridSnapMode = mode
+        },
+        arguments: [
+          {
+            id: 'mode',
+            name: t('palette.commands.gridSnap.arguments.mode.name'),
+            type: 'string',
+            getItems() {
+              return Object.values(GridSnapMode).map(mode => ({
+                value: mode,
+                name: t(`settings.mapSettings.rotation.${GRID_SNAP_LABELS[mode]}`),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.UPDATE_UNIT_SYSTEM,
+        name: t('palette.commands.updateUnitSystem.name'),
+        description: t('palette.commands.updateUnitSystem.description'),
+        keywords: t('palette.commands.updateUnitSystem.keywords'),
+        icon: RulerIcon,
+        action: (system: UnitSystem) => {
+          unitSystem.value = system
+        },
+        arguments: [
+          {
+            id: 'units',
+            name: t('palette.commands.updateUnitSystem.arguments.units.name'),
+            type: 'string',
+            getItems() {
+              return Object.values(UnitSystem).map(system => ({
+                value: system,
+                name: t(`settings.behavior.units.${system}`),
+              }))
             },
           },
         ],

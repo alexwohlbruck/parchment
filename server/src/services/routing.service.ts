@@ -28,7 +28,8 @@ export class RoutingService {
     locations: Location[],
     costing: string = 'auto',
     preferences?: RoutingPreferences & { language?: Language },
-    options: { startHeading?: number; alternatives?: number } = {},
+    /** `summary` asks only for time and distance: no geometry, no instructions. */
+    options: { startHeading?: number; alternatives?: number; summary?: boolean } = {},
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -87,8 +88,8 @@ export class RoutingService {
     const request: RouteRequest = {
       waypoints,
       mode,
-      includeInstructions: true,
-      includeGeometry: true,
+      includeInstructions: !options.summary,
+      includeGeometry: !options.summary,
       startHeading: options.startHeading,
       language: preferences?.language,
       preferences: preferences

@@ -8,6 +8,7 @@ import { useLocationService } from '@/services/location.service'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
+import { useSyncFriendKeys } from '@/composables/friends/useSyncFriendKeys'
 import { appEventBus } from '@/lib/event-bus'
 import FriendCard from './FriendCard.vue'
 import { Button } from '@/components/ui/button'
@@ -76,10 +77,7 @@ async function loadLocationConfigs() {
 }
 
 
-async function handleSyncKeys() {
-  await friendsStore.syncKeys()
-  await friendLocations.fetchLocations()
-}
+const { syncKeys } = useSyncFriendKeys()
 
 async function handleToggleLocation(friendHandle: string, enabled: boolean) {
   locationSaving.value = friendHandle
@@ -195,7 +193,7 @@ onUnmounted(() => {
           :location-saving="locationSaving === friend.friendHandle"
           @remove="removeFriend"
           @toggle-location="handleToggleLocation"
-          @sync-keys="handleSyncKeys"
+          @sync-keys="syncKeys"
         />
       </div>
 

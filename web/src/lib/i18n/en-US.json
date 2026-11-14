@@ -385,6 +385,96 @@
           }
         }
       },
+      "toggle3dBuildings": {
+        "name": "Toggle 3D buildings",
+        "description": "Show or hide extruded buildings",
+        "keywords": "extrude height"
+      },
+      "toggle3dTerrain": {
+        "name": "Toggle 3D terrain",
+        "description": "Show or hide elevation relief",
+        "keywords": "hills mountains elevation relief"
+      },
+      "toggle3dObjects": {
+        "name": "Toggle 3D objects",
+        "description": "Show or hide trees and street furniture",
+        "keywords": "trees models"
+      },
+      "mapShadows": {
+        "name": "Map shadows",
+        "description": "Choose when buildings and objects cast shadows",
+        "keywords": "lighting sun",
+        "arguments": {
+          "mode": {
+            "name": "Shadows"
+          }
+        }
+      },
+      "toggleHdRoads": {
+        "name": "Toggle HD roads",
+        "description": "Show or hide lanes, crosswalks and turn arrows",
+        "keywords": "lanes crosswalks street detail"
+      },
+      "toggleIndoorMaps": {
+        "name": "Toggle indoor maps",
+        "description": "Show or hide floor plans for airports, malls and stadiums",
+        "keywords": "floor plans indoors levels"
+      },
+      "toggleMapLabels": {
+        "name": "Toggle map labels",
+        "description": "Show or hide a type of map label",
+        "keywords": "text names poi road transit place",
+        "arguments": {
+          "label": {
+            "name": "Labels"
+          }
+        }
+      },
+      "toggleMapControl": {
+        "name": "Toggle map control",
+        "description": "Show or hide a map control",
+        "keywords": "zoom compass scale street view locate weather buttons",
+        "arguments": {
+          "control": {
+            "name": "Control"
+          }
+        }
+      },
+      "placeIconStyle": {
+        "name": "Place icon style",
+        "description": "Choose how points of interest are drawn",
+        "keywords": "poi badges glyphs markers",
+        "arguments": {
+          "style": {
+            "name": "Style"
+          }
+        }
+      },
+      "toggleNorthUpSnap": {
+        "name": "Toggle snap to north",
+        "description": "Snap the map upright when rotating near north",
+        "keywords": "rotation bearing compass"
+      },
+      "gridSnap": {
+        "name": "Snap to street grid",
+        "description": "Choose how rotation snaps to city street grids",
+        "keywords": "rotation bearing grid",
+        "arguments": {
+          "mode": {
+            "name": "Mode"
+          }
+        }
+      },
+      "updateUnitSystem": {
+        "name": "Change unit system",
+        "description": "Switch between metric and imperial units",
+        "keywords": "metric imperial miles kilometers celsius fahrenheit",
+        "arguments": {
+          "units": {
+            "name": "Units"
+          }
+        }
+      },
       "signOut": {
         "name": "Sign out",
         "description": "Sign out of your account",
@@ -393,7 +483,11 @@
         "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
       }
     },
-    "noResults": "No matching commands"
+    "noResults": "No matching commands",
+    "toggleState": {
+      "shown": "Shown",
+      "hidden": "Hidden"
+    }
   },
   "messages": {
     "error": {
@@ -486,6 +580,7 @@
       "overlays": "Overlays",
       "pois": "Points of interest",
       "labels": "Labels",
+      "recentPlaces": "Recent places",
       "savedPlaces": "Show saved places",
       "showCanvases": "Show canvases",
       "placeCount": "{count} places",
@@ -1114,7 +1209,8 @@
         "mine": "My collections",
         "shared": "Shared with me"
       },
-      "archivedNotice": "This collection is archived."
+      "archivedNotice": "This collection is archived.",
+      "filterByType": "Filter by type"
     },
     "actions": {
       "addToCollection": "Add to collection",
@@ -1243,6 +1339,7 @@
         "server-key": "Make it shareable",
         "user-e2ee": "Make it private"
       },
+      "switching": "Updating privacy…",
       "switched": "Privacy updated",
       "switchFailed": "Couldn't change privacy",
       "confirm": {
@@ -1527,8 +1624,9 @@
       "removeFriend": "Remove friend",
       "removeConfirmation": "You'll stop seeing each other's location.",
       "syncKeys": "Sync keys",
-      "keysSynced": "Keys synced successfully",
-      "syncFailed": "Failed to sync keys",
+      "syncingKeys": "Syncing keys…",
+      "keysSynced": "Keys synced",
+      "syncFailed": "Couldn't sync keys",
       "removeTitle": "Remove {name}?",
       "directions": "Directions"
     }

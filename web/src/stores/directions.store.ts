@@ -1,6 +1,7 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { tripSignature } from '@/lib/directions/trip-signature'
+import { withTravelTimes, type TravelTimes } from '@/lib/directions/mode-estimates'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, TripView } from '@/types/multimodal.types'
@@ -61,6 +62,18 @@ export const useDirectionsStore = defineStore('directions', () => {
   const departureTime = ref<string | null>(null) // ISO 8601 or null for "now"
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
+
+  /** Per-mode durations by `travelTimesKey`: from full plans, and from the cheaper estimates. */
+  const plannedTimes = shallowRef(new Map<string, TravelTimes>())
+  const estimatedTimes = shallowRef(new Map<string, TravelTimes>())
+
+  function recordPlannedTimes(key: string, times: TravelTimes) {
+    plannedTimes.value = withTravelTimes(plannedTimes.value, key, times)
+  }
+
+  function recordEstimatedTimes(key: string, times: TravelTimes) {
+    estimatedTimes.value = withTravelTimes(estimatedTimes.value, key, times)
+  }
 
   function modeKeyForSelected(m: SelectedMode): ModeKey {
     // 'multi' has no single mode — use biking's slice as the representative
@@ -171,6 +184,10 @@ export const useDirectionsStore = defineStore('directions', () => {
     selectedTripId,
     timezoneWarning,
     routingPreferences,
+    plannedTimes,
+    estimatedTimes,
+    recordPlannedTimes,
+    recordEstimatedTimes,
     setDirections,
     setTrips,
     unsetDirections,

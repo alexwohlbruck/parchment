@@ -8,6 +8,7 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
+import { useSyncFriendKeys } from '@/composables/friends/useSyncFriendKeys'
 import { useAppService } from '@/services/app.service'
 import { useLocationService } from '@/services/location.service'
 import { AppRoute } from '@/router'
@@ -76,7 +77,7 @@ interface LocationConfig {
 const locationConfig = ref<LocationConfig | null>(null)
 
 const isLoading = ref(true)
-const isSyncing = ref(false)
+const { isSyncing, syncKeys } = useSyncFriendKeys()
 const isSavingConfig = ref(false)
 
 // Get the handle from props (Vue Router automatically decodes URL params)
@@ -191,20 +192,6 @@ async function toggleLocationSharing() {
     appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
   } finally {
     isSavingConfig.value = false
-  }
-}
-
-// Sync friend's keys
-async function syncKeys() {
-  isSyncing.value = true
-  try {
-    await friendsStore.syncKeys()
-    await friendLocations.fetchLocations()
-    appService.toast.success(t('friends.detail.keysSynced'))
-  } catch (error) {
-    appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
-  } finally {
-    isSyncing.value = false
   }
 }
 

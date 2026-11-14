@@ -10,20 +10,25 @@
  */
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
-import { COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID } from '@/constants/layers'
+import {
+  COLLECTION_MARKERS_SOURCE_ID,
+  RECENT_PLACES_SOURCE_ID,
+  SEARCH_RESULTS_SOURCE_ID,
+} from '@/constants/layers'
 import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'
+import { RAISED_POI_SOURCE } from '@/lib/map/basemap-poi-look'
 
-const SOURCE = 'poi-dots-raised'
+const SOURCE = RAISED_POI_SOURCE
 const KEEPER = 'poi-tiles-keeper'
 const EMPTY = { type: 'FeatureCollection', features: [] }
 
 /**
- * The app's own point overlays that take the same lift: collection markers and
- * search results. Saved places are not here because their plate is a circle
+ * The app's own point overlays that take the same lift: collection markers,
+ * search results and recent places. Saved places are not here because their plate is a circle
  * layer, which cannot be lifted, and a floating glyph over a grounded plate
  * reads worse than both on the ground.
  */
-const OVERLAY_SOURCES = [COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID]
+const OVERLAY_SOURCES = [COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID, RECENT_PLACES_SOURCE_ID]
 
 const LIFT = ['coalesce', ['get', '_elev'], 0]
 

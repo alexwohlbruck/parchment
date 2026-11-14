@@ -16,6 +16,7 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
+  createSearchResultsRoute,
 } from '@/lib/search/search-result'
 
 /**
@@ -210,14 +211,11 @@ export function recentPlaceToDisplay(
  */
 export function recentSearchRoute(entry: RecentSearchEntry): RouteLocationRaw {
   if (entry.kind === 'category' && entry.categoryId) {
-    return {
-      name: AppRoute.SEARCH_RESULTS,
-      query: {
-        categoryId: entry.categoryId,
-        ...(entry.query ? { categoryName: entry.query } : {}),
-        ...(entry.iconCategory ? { categoryIconCategory: entry.iconCategory } : {}),
-      },
-    }
+    return createSearchResultsRoute({
+      categoryId: entry.categoryId,
+      categoryName: entry.query,
+      categoryIconCategory: entry.iconCategory,
+    })
   }
   if (entry.kind === 'brand' && entry.brandKey) {
     return {

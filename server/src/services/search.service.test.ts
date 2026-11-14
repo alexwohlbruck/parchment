@@ -47,7 +47,8 @@ mock.module('./brand.service', () => ({
 }))
 
 // ── Import under test (after mocks) ──────────────────────────────────────────
-import { search, searchByCategory } from './search.service'
+import { presetBrowseFilters, search, searchByCategory } from './search.service'
+import { PLACE_GROUPS } from '../lib/place-groups'
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -126,7 +127,8 @@ describe('search service', () => {
     mockLookupPlaces.mockClear()
     mockSearchCategories.mockClear()
     mockSearchCategoriesWithScores.mockClear()
-    mockGetCategoryById.mockClear()
+    mockGetCategoryById.mockReset()
+    mockGetCategoryById.mockReturnValue(null)
     mockGetCachedIntegration.mockClear()
     mockGetConfiguredIntegrations.mockClear()
     // Safe defaults
@@ -514,23 +516,20 @@ describe('search service', () => {
       await searchByCategory('amenity/restaurant', { bounds })
 
       expect(cap.searchByCategory).toHaveBeenCalledWith(
-        'amenity/restaurant',
+        ['amenity/restaurant'],
         bounds,
         expect.objectContaining({ filterTags: undefined }),
       )
     })
 
-    test('sub-preset (3 parts): passes parent ID and diff tags as filterTags', async () => {
+    test('sub-preset: browses its primary tag, filtered on the rest', async () => {
       const cap = setupCapability()
-      // First call: full sub-preset tags
-      mockGetCategoryById.mockReturnValueOnce({ tags: { amenity: 'restaurant', cuisine: 'pizza' } })
-      // Second call: parent preset tags
-      mockGetCategoryById.mockReturnValueOnce({ tags: { amenity: 'restaurant' } })
+      mockGetCategoryById.mockReturnValue({ tags: { amenity: 'restaurant', cuisine: 'pizza' } })
 
       await searchByCategory('amenity/restaurant/pizza', { bounds })
 
       expect(cap.searchByCategory).toHaveBeenCalledWith(
-        'amenity/restaurant',
+        ['amenity/restaurant'],
         bounds,
         expect.objectContaining({ filterTags: { cuisine: 'pizza' } }),
       )
@@ -538,9 +537,7 @@ describe('search service', () => {
 
     test('sub-preset with multiple diff tags passes all extra tags', async () => {
       const cap = setupCapability()
-      mockGetCategoryById
-        .mockReturnValueOnce({ tags: { amenity: 'restaurant', cuisine: 'sushi', delivery: 'yes' } })
-        .mockReturnValueOnce({ tags: { amenity: 'restaurant' } })
+      mockGetCategoryById.mockReturnValue({ tags: { amenity: 'restaurant', cuisine: 'sushi', delivery: 'yes' } })
 
       await searchByCategory('amenity/restaurant/sushi', { bounds })
 
@@ -555,7 +552,7 @@ describe('search service', () => {
       await searchByCategory('internet_access/wlan', { bounds })
 
       expect(cap.searchByCategory).toHaveBeenCalledWith(
-        '',
+        [],
         bounds,
         expect.objectContaining({ filterTags: { internet_access: 'wlan' } }),
       )
@@ -568,10 +565,115 @@ describe('search service', () => {
       await searchByCategory('internet_access', { bounds })
 
       expect(cap.searchByCategory).toHaveBeenCalledWith(
-        'internet_access',
+        ['internet_access'],
         bounds,
         expect.objectContaining({ filterTags: undefined }),
       )
+    })
+
+    test('preset with tag sets: one tag-only browse per set', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({
+        tags: { outdoor_seating: 'yes' },
+        tagSets: [{ outdoor_seating: 'yes' }, { outdoor_seating: 'garden' }],
+      })
+
+      await searchByCategory('outdoor_seating/yes', { bounds, limit: 10 })
+
+      const calls = cap.searchByCategory.mock.calls as any[]
+      expect(calls.map((c) => [c[0], c[2].filterTags])).toEqual([
+        [[], { outdoor_seating: 'yes' }],
+        [[], { outdoor_seating: 'garden' }],
+      ])
+    })
+
+    test('preset whose id differs from its tags browses the tag value', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({ tags: { amenity: 'recycling', recycling_type: 'container' } })
+
+      await searchByCategory('amenity/recycling_container', { bounds })
+
+      expect(cap.searchByCategory).toHaveBeenCalledWith(
+        ['amenity/recycling'],
+        bounds,
+        expect.objectContaining({ filterTags: { recycling_type: 'container' } }),
+      )
+    })
+
+    describe('groups', () => {
+      const presets = require('@openstreetmap/id-tagging-schema/dist/presets.min.json')
+      const browses = (cap: ReturnType<typeof setupCapability>) =>
+        (cap.searchByCategory.mock.calls as any[]).map((c) => [c[0], c[2].filterTags])
+
+      beforeEach(() => {
+        mockGetCategoryById.mockImplementation((id: string) => presets[id] ?? null)
+      })
+
+      test('restrooms browse toilets and places tagged toilets=yes', async () => {
+        const cap = setupCapability()
+        await searchByCategory('group/restrooms', { bounds })
+        expect(browses(cap)).toEqual([
+          [['amenity/toilets'], undefined],
+          [[], { toilets: 'yes' }],
+        ])
+      })
+
+      test('members sharing a tag filter share one browse', async () => {
+        const cap = setupCapability()
+        await searchByCategory('group/seating', { bounds })
+        expect(browses(cap)).toEqual([
+          [[
+            'amenity/bench', 'leisure/picnic_table', 'tourism/picnic_site',
+            'leisure/outdoor_seating', 'leisure/bleachers', 'amenity/lounger',
+          ], undefined],
+          [['amenity/shelter'], { shelter_type: 'picnic_shelter' }],
+        ])
+      })
+
+      test('a raw tag set on a primary key browses it as a category', async () => {
+        const cap = setupCapability()
+        await searchByCategory('group/pizza', { bounds })
+        expect(browses(cap)).toEqual([[['cuisine/pizza'], undefined]])
+      })
+
+      test.each(PLACE_GROUPS.map((g) => g.id))('%s fans out to at most 3 browses', (id) => {
+        expect(presetBrowseFilters(id).length).toBeLessThanOrEqual(3)
+      })
+    })
+
+    test('preset with tag sets: merges nearest-first, dedupes, and pages', async () => {
+      const at = (id: string, lat: number) =>
+        makePlace({ id, geometry: { value: { type: 'point', center: { lat, lng: -122.415 } } } })
+      const cap = setupCapability()
+      cap.searchByCategory
+        .mockResolvedValueOnce([at('near', 37.7751), at('far', 37.79)] as any)
+        .mockResolvedValueOnce([at('mid', 37.778), at('near', 37.7751)] as any)
+      mockGetCategoryById.mockReturnValue({
+        tags: { outdoor_seating: 'yes' },
+        tagSets: [{ outdoor_seating: 'yes' }, { outdoor_seating: 'garden' }],
+      })
+
+      const page = await searchByCategory('outdoor_seating/yes', { bounds, limit: 2, offset: 1 })
+
+      expect(page.map((p) => p.id)).toEqual(['mid', 'far'])
+      for (const call of cap.searchByCategory.mock.calls as any[]) {
+        expect(call[2]).toMatchObject({ limit: 6, offset: 0 })
+      }
+    })
+
+    test('tag-only browse drops roads, routes and unnamed features', async () => {
+      const cap = setupCapability()
+      cap.searchByCategory.mockResolvedValueOnce([
+        makePlace({ id: 'footway', tags: { highway: 'footway', wheelchair: 'yes' } }),
+        makePlace({ id: 'line', tags: { type: 'route', opening_hours: '24/7' } }),
+        makePlace({ id: 'gate', name: { value: null }, tags: { barrier: 'gate' } }),
+        makePlace({ id: 'cafe', tags: { amenity: 'cafe', wheelchair: 'yes' } }),
+      ] as any)
+      mockGetCategoryById.mockReturnValue({ tags: { wheelchair: 'yes' } })
+
+      const places = await searchByCategory('wheelchair/yes', { bounds })
+
+      expect(places.map((p) => p.id)).toEqual(['cafe'])
     })
 
     test('returns empty array when no integration is configured', async () => {

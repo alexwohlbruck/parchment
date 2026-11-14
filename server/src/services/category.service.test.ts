@@ -8,6 +8,7 @@
 
 import { describe, test, expect } from 'bun:test'
 import { CategoryService } from './category.service'
+import { PLACE_GROUPS } from '../lib/place-groups'
 
 // Shared instance — loadCategories caches results so subsequent calls are fast
 const service = new CategoryService()
@@ -325,6 +326,88 @@ describe('CategoryService', () => {
 
     test('"charger" still leads with EV charging', () => {
       expect(service.searchCategories('ev charger', 'en-US')[0]?.id).toBe('amenity/charging_station')
+    })
+  })
+
+  describe('place attributes', () => {
+    test.each([
+      ['outdoor seating', 'outdoor_seating/yes'],
+      ['patio', 'outdoor_seating/yes'],
+      ['wheelchair accessible', 'wheelchair/yes'],
+      ['free wifi', 'internet_access:fee/no'],
+      ['takeout', 'takeaway/yes'],
+      ['drive thru', 'drive_through/yes'],
+      ['air conditioning', 'air_conditioning/yes'],
+      ['gluten free', 'diet:gluten_free/yes'],
+      ['open 24 hours', 'opening_hours/24_7'],
+    ])('"%s" finds %s first', (query, id) => {
+      expect(service.searchCategories(query, 'en-US')[0]?.id).toBe(id)
+    })
+
+    test('outdoor seating matches every way OSM tags it, garden included', () => {
+      const seating = service.getCategoryById('outdoor_seating/yes', 'en-US')
+      expect(seating?.tagSets).toContainEqual({ outdoor_seating: 'garden' })
+      expect(seating?.tagSets).toContainEqual({ outdoor_seating: 'yes' })
+    })
+
+    test('kinds of place still win their own name', () => {
+      expect(service.searchCategories('bar', 'en-US')[0]?.id).toBe('amenity/bar')
+    })
+
+    test('names are translated', () => {
+      expect(service.getCategoryById('outdoor_seating/yes', 'es-ES')?.name).toBe('Terraza')
+    })
+
+    test('ids do not collide with schema presets', () => {
+      const ids = service.loadCategories('en-US').map((c) => c.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+  })
+
+  describe('place groups', () => {
+    test.each([
+      ['seating', 'group/seating'],
+      ['place to sit', 'group/seating'],
+      ['pizza', 'group/pizza'],
+      ['pizzeria', 'group/pizza'],
+      ['dog poop', 'group/pet_facilities'],
+      ['garbage', 'group/trash_and_recycling'],
+      ['recycling', 'group/trash_and_recycling'],
+      ['swimming', 'group/swimming'],
+      ['restroom', 'group/restrooms'],
+      ['bathroom', 'group/restrooms'],
+      ['toilet', 'group/restrooms'],
+    ])('"%s" finds %s first', (query, id) => {
+      expect(service.searchCategories(query, 'en-US')[0]?.id).toBe(id)
+    })
+
+    test('a member keeps its own name', () => {
+      expect(service.searchCategories('bench', 'en-US')[0]?.id).toBe('amenity/bench')
+      expect(service.searchCategories('pizza restaurant', 'en-US')[0]?.id).toBe('amenity/restaurant/pizza')
+    })
+
+    test('restrooms show once, as the group', () => {
+      for (const q of ['restroom', 'toilets', 'wc']) {
+        const ids = service.searchCategories(q, 'en-US', 50).map((c) => c.id)
+        expect(ids).toContain('group/restrooms')
+        expect(ids).not.toContain('amenity/toilets')
+      }
+      expect(service.getCategoryById('amenity/toilets', 'en-US')).not.toBeNull()
+    })
+
+    test('every member is a category the server knows', () => {
+      for (const group of PLACE_GROUPS) {
+        for (const member of group.members) {
+          if (typeof member === 'string') {
+            expect(service.getCategoryById(member, 'en-US')?.id).toBe(member)
+          }
+        }
+        if (group.replaces) expect(group.members).toContain(group.replaces)
+      }
+    })
+
+    test('names are translated', () => {
+      expect(service.getCategoryById('group/restrooms', 'es-ES')?.name).toBe('Baños')
     })
   })
 })

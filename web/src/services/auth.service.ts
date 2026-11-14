@@ -340,23 +340,17 @@ function authService() {
     // With the fast path (in-band PRF), sign-in and unwrap collapse
     // into one ceremony — no toast spam, no second prompt.
     const needsSecondTap = !prefetched
-    let heads: string | number | undefined
-    if (needsSecondTap) {
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      heads = toast.info(t('auth.passkey.restoringTitle'), {
-        description: t('auth.passkey.restoringDescription'),
-        duration: 12000,
-      })
-    }
+    if (needsSecondTap) await new Promise((resolve) => setTimeout(resolve, 250))
 
     try {
-      const result = await identityStore.autoUnlockAfterSignIn(prefetched)
-      if (heads !== undefined) toast.dismiss(heads)
-      if (result === 'unlocked' && needsSecondTap) {
-        // Only toast success when we'd previously bothered the user
-        // with a second prompt — otherwise the unwrap is invisible.
-        toast.success(t('auth.passkey.restoredSuccess'))
-      }
+      const unlocking = identityStore.autoUnlockAfterSignIn(prefetched)
+      const result = needsSecondTap
+        ? await toast.promise(unlocking, {
+            loading: t('auth.passkey.restoringTitle'),
+            success: (outcome) =>
+              outcome === 'unlocked' ? t('auth.passkey.restoredSuccess') : undefined,
+          }, { description: t('auth.passkey.restoringDescription') })
+        : await unlocking
       if (result === 'failed') {
         toast.warning(t('auth.passkey.restoreFailed'), {
           id: 'identity-restore',
@@ -368,7 +362,6 @@ function authService() {
       }
       // 'not-needed' and 'cancelled' fall through silently.
     } catch {
-      if (heads !== undefined) toast.dismiss(heads)
       // Swallow — manual restore in Settings is always available.
     }
   }

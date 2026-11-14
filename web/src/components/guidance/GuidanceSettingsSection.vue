@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { computed } from 'vue'
 import { BikeIcon, CameraIcon, FastForwardIcon, GaugeIcon, ScanEyeIcon } from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
@@ -15,7 +16,7 @@ import SpeechSettings from '@/components/speech/SpeechSettings.vue'
 import MarkerSetting from './MarkerSetting.vue'
 
 const { preferences } = storeToRefs(useGuidanceStore())
-const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+const premium = usePremiumNavigation()
 </script>
 
 <template>

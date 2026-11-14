@@ -1,25 +1,7 @@
 import { Component } from 'vue'
 import { Place, TransitLineRef, TransitStopRef } from '@/types/place.types'
 
-// Category/Preset types for OSM tagging schema
-export interface CategoryResult {
-  id: string
-  type: 'category'
-  name: string
-  description?: string
-  icon?: string        // raw OSM preset icon string
-  iconName?: string    // resolved icon name ready for ItemIcon
-  iconPack?: 'lucide' | 'maki'
-  iconCategory?: string
-  color?: string
-  // OSM metadata for building Overpass queries
-  tags: Record<string, string>
-  addTags?: Record<string, string>
-  geometry: string[]
-  fields?: string[]
-  searchable: boolean
-  aliases?: string[]
-}
+export type { CategoryResult } from '@server/types/search.types'
 
 /** A brand suggestion in search results ("See all McDonald's locations"). */
 export interface BrandSearchMeta {

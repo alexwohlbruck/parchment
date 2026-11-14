@@ -10,6 +10,8 @@ export interface CategoryResult {
   color?: string
   // OSM metadata for building Overpass queries
   tags: Record<string, string>
+  /** Browsed instead of `tags` when present: a place matching any one set matches. */
+  tagSets?: Record<string, string>[]
   addTags?: Record<string, string>
   geometry: string[]
   fields?: string[]

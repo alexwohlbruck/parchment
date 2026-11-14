@@ -277,7 +277,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         // router used for weighting (derived from OSM maxspeed tag or road-class
         // default). max_speed is the OSM-tagged limit when present (often null
         // for US urban roads). Both feed the frontend Speed chart.
-        details: [
+        // Path details need points, so a summary request leaves them out.
+        details: request.includeGeometry === false ? [] : [
           'road_class',
           'surface',
           'toll',

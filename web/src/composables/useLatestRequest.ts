@@ -20,9 +20,10 @@ import { onScopeDispose, ref } from 'vue'
 /** What a call resolves to when a newer one took its place. */
 export const SUPERSEDED = Symbol('superseded')
 
-/** Cancelled, rather than failed — including our own `RouteSnapAborted`. */
+/** Cancelled, rather than failed — including our own `RouteSnapAborted` and axios's `CanceledError`. */
 function isAbort(error: unknown): boolean {
-  return !!(error as Error | undefined)?.name?.includes('Abort')
+  const name = (error as Error | undefined)?.name
+  return !!name && (name.includes('Abort') || name === 'CanceledError')
 }
 
 export function useLatestRequest(label: string) {

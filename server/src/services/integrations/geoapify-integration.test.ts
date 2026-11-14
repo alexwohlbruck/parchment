@@ -244,7 +244,7 @@ describe('searchByCategory', () => {
   test('translates the preset into a Geoapify category', async () => {
     http.get.mockResolvedValueOnce({ data: { features: [feature()] } })
 
-    const places = await configured().searchByCategory('tourism/hotel', bounds)
+    const places = await configured().searchByCategory(['tourism/hotel'], bounds)
 
     expect(places).toHaveLength(1)
     expect(http.get.mock.calls[0][0]).toBe('https://api.geoapify.com/v2/places')
@@ -253,7 +253,7 @@ describe('searchByCategory', () => {
 
   test('skips the request entirely for an unmapped preset', async () => {
     expect(
-      await configured().searchByCategory('amenity/does_not_exist', bounds),
+      await configured().searchByCategory(['amenity/does_not_exist'], bounds),
     ).toEqual([])
     expect(http.get).not.toHaveBeenCalled()
   })
@@ -261,7 +261,7 @@ describe('searchByCategory', () => {
   test('builds the rect filter as west,south,east,north', async () => {
     http.get.mockResolvedValueOnce({ data: { features: [] } })
 
-    await configured().searchByCategory('tourism/hotel', bounds)
+    await configured().searchByCategory(['tourism/hotel'], bounds)
 
     expect(paramsOf().filter).toBe('rect:-80.9,35.1,-80.7,35.3')
   })
@@ -269,7 +269,7 @@ describe('searchByCategory', () => {
   test('defaults the limit to 100', async () => {
     http.get.mockResolvedValueOnce({ data: { features: [] } })
 
-    await configured().searchByCategory('tourism/hotel', bounds)
+    await configured().searchByCategory(['tourism/hotel'], bounds)
 
     expect(paramsOf().limit).toBe(100)
   })
@@ -277,7 +277,7 @@ describe('searchByCategory', () => {
   test('honours an explicit limit', async () => {
     http.get.mockResolvedValueOnce({ data: { features: [] } })
 
-    await configured().searchByCategory('tourism/hotel', bounds, { limit: 25 })
+    await configured().searchByCategory(['tourism/hotel'], bounds, { limit: 25 })
 
     expect(paramsOf().limit).toBe(25)
   })
@@ -285,7 +285,7 @@ describe('searchByCategory', () => {
   test('returns an empty list when the response has no features', async () => {
     http.get.mockResolvedValueOnce({ data: {} })
 
-    expect(await configured().searchByCategory('tourism/hotel', bounds)).toEqual(
+    expect(await configured().searchByCategory(['tourism/hotel'], bounds)).toEqual(
       [],
     )
   })
@@ -293,7 +293,7 @@ describe('searchByCategory', () => {
   test('returns an empty list rather than throwing on a request failure', async () => {
     http.get.mockRejectedValueOnce(new Error('ECONNREFUSED'))
 
-    expect(await configured().searchByCategory('tourism/hotel', bounds)).toEqual(
+    expect(await configured().searchByCategory(['tourism/hotel'], bounds)).toEqual(
       [],
     )
   })

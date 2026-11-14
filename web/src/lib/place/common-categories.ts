@@ -26,7 +26,7 @@
 import type { PlaceCategory } from '@/types/place.types'
 
 export interface CommonCategory {
-  /** OSM preset id, e.g. 'amenity/restaurant'. Drives navigation as `category:<id>`. */
+  /** Category id, e.g. 'amenity/restaurant' or 'group/restrooms'. Drives navigation as `category:<id>`. */
   id: string
   /** i18n key for the display label. */
   labelKey: string
@@ -52,7 +52,7 @@ export const COMMON_CATEGORIES: CommonCategory[] = [
   { id: 'amenity/bar', labelKey: key('bars'), icon: 'Beer', category: 'food_and_drink' },
 
   // ── Weekly ──────────────────────────────────────────
-  { id: 'amenity/toilets', labelKey: key('restrooms'), icon: 'Toilet', category: 'commercial_services' },
+  { id: 'group/restrooms', labelKey: key('restrooms'), icon: 'Toilet', category: 'commercial_services' },
   { id: 'amenity/bank', labelKey: key('banks'), icon: 'Landmark', category: 'commercial_services' },
   { id: 'leisure/park', labelKey: key('parks'), icon: 'Trees', category: 'park' },
   { id: 'shop/convenience', labelKey: key('convenience'), icon: 'Store', category: 'store' },

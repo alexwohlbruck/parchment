@@ -7,6 +7,7 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { fetchModeEstimates } from '@/services/mode-estimates.service'
 import { useLatestRequest, SUPERSEDED } from '@/composables/useLatestRequest'
 import { useEstimatePreferences } from '@/composables/directions/useEstimatePreferences'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { travelTimeFor, travelTimesKey, type TravelTime } from '@/lib/directions/mode-estimates'
 
 const ESTIMATE_DEBOUNCE_MS = 400
@@ -26,6 +27,7 @@ export function usePlaceTravelTime(destination: MaybeRefOrGetter<{ lat: number; 
   const geo = useGeolocationService()
   const preferences = useEstimatePreferences()
   const estimating = useLatestRequest('failed to estimate travel time')
+  const premium = usePremiumNavigation()
 
   const points = computed(() => {
     const from = geo.lngLat.value
@@ -34,7 +36,7 @@ export function usePlaceTravelTime(destination: MaybeRefOrGetter<{ lat: number; 
   })
 
   const key = computed(() =>
-    points.value && isEstimateMode(selectedMode.value)
+    premium.value && points.value && isEstimateMode(selectedMode.value)
       ? travelTimesKey(points.value, null, preferences.value)
       : '')
 

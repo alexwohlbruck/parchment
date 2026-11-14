@@ -116,7 +116,7 @@ export const permissions: {
   {
     id: PermissionId.PREMIUM_NAVIGATION,
     name: 'Premium navigation',
-    description: 'Advanced routing preferences, voice guidance, and navigation features',
+    description: 'Advanced routing preferences, voice guidance, travel time previews, and navigation features',
   },
   {
     id: PermissionId.PREMIUM_LOCATION_SHARING,

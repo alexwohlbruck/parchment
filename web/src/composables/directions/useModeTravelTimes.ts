@@ -4,6 +4,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { ESTIMATE_MODES } from '@server/lib/directions/mode-estimates'
 import { useDirectionsStore, SELECTABLE_MODES } from '@/stores/directions.store'
 import { useEstimatePreferences } from '@/composables/directions/useEstimatePreferences'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { fetchModeEstimates } from '@/services/mode-estimates.service'
 import { useLatestRequest, SUPERSEDED } from '@/composables/useLatestRequest'
 import {
@@ -28,9 +29,10 @@ export function useModeTravelTimes() {
     waypoints.value.flatMap(wp => (wp.lngLat ? [{ lat: wp.lngLat.lat, lng: wp.lngLat.lng }] : [])))
 
   const preferences = useEstimatePreferences()
+  const premium = usePremiumNavigation()
 
   const key = computed(() =>
-    points.value.length >= 2 ? travelTimesKey(points.value, departureTime.value, preferences.value) : '')
+    premium.value && points.value.length >= 2 ? travelTimesKey(points.value, departureTime.value, preferences.value) : '')
 
   watch(trips, planned => {
     if (planned && key.value) {

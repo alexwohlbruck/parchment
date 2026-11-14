@@ -184,8 +184,8 @@ const ModeEstimatesSchema = t.Object({
 
 const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
 
-/** Comfort hazards are a premium feature; safety ones go to everyone. */
-async function seesPremiumHazards(userId: string | undefined): Promise<boolean> {
+/** Comfort hazards and travel time previews are premium; safety hazards go to everyone. */
+async function hasPremiumNavigation(userId: string | undefined): Promise<boolean> {
   if (!userId) return false
   return hasPermission(await getPermissions(userId), PermissionId.PREMIUM_NAVIGATION)
 }
@@ -252,7 +252,7 @@ app.post(
 
       // Plan the trip using multimodal strategy
       const result = await multimodalTripService.planTrip(request)
-      const premium = await seesPremiumHazards(user?.id)
+      const premium = await hasPremiumNavigation(user?.id)
       const departure = request.preferredDepartureTime ? new Date(request.preferredDepartureTime) : undefined
       await Promise.all([
         ...result.trips.map(candidate => attachHazards((candidate.trip?.segments ?? []) as any[], { premium, departure })),
@@ -314,20 +314,28 @@ app.post(
 
 app.post(
   '/estimates',
-  async ({ body, language }) => ({
-    estimates: await estimateModes({
-      waypoints: body.waypoints,
-      modes: body.modes,
-      routingPreferences: body.routingPreferences,
-      departureTime: body.departureTime,
-      language,
-    }),
-  }),
+  async ({ body, language, user, status, t: translate }) => {
+    if (!(await hasPremiumNavigation(user?.id))) {
+      return status(403, { message: translate('errors.auth.forbidden') })
+    }
+    return {
+      estimates: await estimateModes({
+        waypoints: body.waypoints,
+        modes: body.modes,
+        routingPreferences: body.routingPreferences,
+        departureTime: body.departureTime,
+        language,
+      }),
+    }
+  },
   {
     body: ModeEstimatesSchema,
-    response: t.Object({
-      estimates: t.Object(Object.fromEntries(ESTIMATE_MODES.map(mode => [mode, t.Optional(t.Nullable(t.Number()))]))),
-    }),
+    response: {
+      200: t.Object({
+        estimates: t.Object(Object.fromEntries(ESTIMATE_MODES.map(mode => [mode, t.Optional(t.Nullable(t.Number()))]))),
+      }),
+      403: t.Object({ message: t.String() }),
+    },
     detail: {
       summary: 'Estimate travel time per mode',
       description:
@@ -335,7 +343,7 @@ app.post(
         + 'without planning full trips: no geometry, alternatives or vehicle pickups. A mode comes back '
         + '`null` when it has no route, or is out of reach (a walk over 100 km, a ride over 300 km). '
         + 'Transit is the earliest-arriving ride departing at `departureTime`, and is only estimated '
-        + 'between two waypoints. Results are cached briefly.',
+        + 'between two waypoints. Results are cached briefly. Requires premium navigation.',
       tags: ['Trip Planning'],
     },
   },
@@ -350,7 +358,7 @@ app.post(
         set.status = 404
         return { error: 'No route found' }
       }
-      await Promise.all([attachHazards([segment], { premium: await seesPremiumHazards(user?.id) }), attachLanes([segment])])
+      await Promise.all([attachHazards([segment], { premium: await hasPremiumNavigation(user?.id) }), attachLanes([segment])])
       return { segment }
     } catch (error) {
       logError('Reroute failed', error)
@@ -377,7 +385,7 @@ app.post(
   async ({ body, language, set, user }) => {
     try {
       const alternatives = await alternativeSegments({ ...body, language })
-      await Promise.all([attachHazards(alternatives, { premium: await seesPremiumHazards(user?.id) }), attachLanes(alternatives)])
+      await Promise.all([attachHazards(alternatives, { premium: await hasPremiumNavigation(user?.id) }), attachLanes(alternatives)])
       return { alternatives }
     } catch (error) {
       logError('Route alternatives failed', error)

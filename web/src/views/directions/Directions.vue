@@ -29,6 +29,7 @@ import type { TripSort } from '@/lib/preferences/navigation-preferences'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import TravelTimeLabel from '@/components/directions/TravelTimeLabel.vue'
 import { MODE_ICONS } from '@/components/directions/mode-icons'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { useModeTravelTimes } from '@/composables/directions/useModeTravelTimes'
 import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
@@ -58,7 +59,8 @@ const { waypoints, trips, selectedMode, departureTime, sortPreference, effective
 const navigationPreferences = useNavigationPreferencesStore()
 
 const travelTimes = useModeTravelTimes()
-const showTravelTimes = computed(() => waypoints.value.filter(wp => wp.lngLat).length >= 2)
+const premiumNavigation = usePremiumNavigation()
+const showTravelTimes = computed(() => premiumNavigation.value && waypoints.value.filter(wp => wp.lngLat).length >= 2)
 
 const refreshing = ref(false)
 

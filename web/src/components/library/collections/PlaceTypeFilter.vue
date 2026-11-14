@@ -62,7 +62,10 @@ function toggle(key: string, on: boolean) {
         />
       </template>
       <template #trailing>
-        <CountBadge :count="facet.count" />
+        <CountBadge
+          :count="facet.count"
+          class="group-data-[state=on]:bg-primary-foreground/20 group-data-[state=on]:text-primary-foreground"
+        />
       </template>
     </Chip>
   </div>

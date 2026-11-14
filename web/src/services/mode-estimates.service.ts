@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { ModeEstimates, ModeEstimatesRequest } from '@server/services/mode-estimates.service'
+import type { ModeEstimates, ModeEstimatesRequest } from '@server/lib/directions/mode-estimates'
 
 export type { ModeEstimates }
 

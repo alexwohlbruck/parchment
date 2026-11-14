@@ -574,6 +574,73 @@ describe('search service', () => {
       )
     })
 
+    test('preset with tag sets: one tag-only browse per set', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({
+        tags: { outdoor_seating: 'yes' },
+        tagSets: [{ outdoor_seating: 'yes' }, { outdoor_seating: 'garden' }],
+      })
+
+      await searchByCategory('outdoor_seating/yes', { bounds, limit: 10 })
+
+      const calls = cap.searchByCategory.mock.calls as any[]
+      expect(calls.map((c) => [c[0], c[2].filterTags])).toEqual([
+        ['', { outdoor_seating: 'yes' }],
+        ['', { outdoor_seating: 'garden' }],
+      ])
+    })
+
+    test('preset with tag sets: keeps the category for a set naming one', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({
+        tags: { amenity: 'toilets' },
+        tagSets: [{ amenity: 'toilets' }, { toilets: 'yes' }],
+      })
+
+      await searchByCategory('amenity/toilets', { bounds })
+
+      const calls = cap.searchByCategory.mock.calls as any[]
+      expect(calls.map((c) => [c[0], c[2].filterTags])).toEqual([
+        ['amenity/toilets', undefined],
+        ['', { toilets: 'yes' }],
+      ])
+    })
+
+    test('preset with tag sets: merges nearest-first, dedupes, and pages', async () => {
+      const at = (id: string, lat: number) =>
+        makePlace({ id, geometry: { value: { type: 'point', center: { lat, lng: -122.415 } } } })
+      const cap = setupCapability()
+      cap.searchByCategory
+        .mockResolvedValueOnce([at('near', 37.7751), at('far', 37.79)] as any)
+        .mockResolvedValueOnce([at('mid', 37.778), at('near', 37.7751)] as any)
+      mockGetCategoryById.mockReturnValue({
+        tags: { outdoor_seating: 'yes' },
+        tagSets: [{ outdoor_seating: 'yes' }, { outdoor_seating: 'garden' }],
+      })
+
+      const page = await searchByCategory('outdoor_seating/yes', { bounds, limit: 2, offset: 1 })
+
+      expect(page.map((p) => p.id)).toEqual(['mid', 'far'])
+      for (const call of cap.searchByCategory.mock.calls as any[]) {
+        expect(call[2]).toMatchObject({ limit: 6, offset: 0 })
+      }
+    })
+
+    test('tag-only browse drops roads, routes and unnamed features', async () => {
+      const cap = setupCapability()
+      cap.searchByCategory.mockResolvedValueOnce([
+        makePlace({ id: 'footway', tags: { highway: 'footway', wheelchair: 'yes' } }),
+        makePlace({ id: 'line', tags: { type: 'route', opening_hours: '24/7' } }),
+        makePlace({ id: 'gate', name: { value: null }, tags: { barrier: 'gate' } }),
+        makePlace({ id: 'cafe', tags: { amenity: 'cafe', wheelchair: 'yes' } }),
+      ] as any)
+      mockGetCategoryById.mockReturnValue({ tags: { wheelchair: 'yes' } })
+
+      const places = await searchByCategory('wheelchair/yes', { bounds })
+
+      expect(places.map((p) => p.id)).toEqual(['cafe'])
+    })
+
     test('returns empty array when no integration is configured', async () => {
       mockGetConfiguredIntegrations.mockReturnValue([])
       expect(await searchByCategory('amenity/cafe', { bounds })).toEqual([])

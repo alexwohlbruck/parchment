@@ -21,7 +21,7 @@ import {
 import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
 import { resolvePresetIcon } from '../lib/place-categories'
-import { isPlacePermanentlyClosed } from '../lib/place-tags'
+import { isDestination, isPlacePermanentlyClosed } from '../lib/place-tags'
 import { resolveCoordinateQuery } from './coordinate-search.service'
 
 /**
@@ -512,6 +512,11 @@ const CATEGORY_TAG_KEYS = new Set([
   'club', 'gambling', 'advertising', 'cuisine',
 ])
 
+interface PresetFilter {
+  categoryId: string
+  filterTags: Record<string, string>
+}
+
 /**
  * Derive the primary Barrelman category and extra OSM tag filters from a preset ID.
  *
@@ -525,13 +530,10 @@ const CATEGORY_TAG_KEYS = new Set([
  * category at all: they come back with an empty `categoryId` and browse purely
  * on tags, which finds every cafe, library or hotel carrying the tag.
  */
-function derivePresetFilter(presetId: string): {
-  categoryId: string
-  filterTags: Record<string, string>
-} {
-  const preset = categoryService.getCategoryById(presetId)
-  const presetTags = (preset?.tags || {}) as Record<string, string>
-
+function derivePresetFilter(
+  presetId: string,
+  presetTags: Record<string, string>,
+): PresetFilter {
   const tagKeys = Object.keys(presetTags)
   if (tagKeys.length > 0 && !tagKeys.some(key => CATEGORY_TAG_KEYS.has(key))) {
     // Wildcard values can't be matched by JSONB containment. If that's all the
@@ -562,6 +564,39 @@ function derivePresetFilter(presetId: string): {
   }
 
   return { categoryId: parentId, filterTags }
+}
+
+/**
+ * One filter per way a place can match the preset. Most presets have one; a
+ * preset with `tagSets` (outdoor seating: `yes`, `garden`, `terrace`, …) has
+ * one per set, since barrelman's tag filter is exact containment.
+ */
+function derivePresetFilters(presetId: string): PresetFilter[] {
+  const preset = categoryService.getCategoryById(presetId)
+  const tagSets = preset?.tagSets?.length
+    ? preset.tagSets
+    : [(preset?.tags || {}) as Record<string, string>]
+  return tagSets.map((tags) => derivePresetFilter(presetId, tags))
+}
+
+function distanceToCenter(place: Place, bounds: MapBounds): number {
+  const center = place.geometry?.value?.center
+  if (!center) return Infinity
+  const midLat = (bounds.north + bounds.south) / 2
+  const midLng = (bounds.east + bounds.west) / 2
+  const dLng = (center.lng - midLng) * Math.cos((midLat * Math.PI) / 180)
+  return Math.hypot(center.lat - midLat, dLng)
+}
+
+/** Nearest-first union of per-filter result lists, each a place once. */
+function mergeNearest(lists: Place[][], bounds: MapBounds): Place[] {
+  const byId = new Map<string, Place>()
+  for (const place of lists.flat()) {
+    if (!byId.has(place.id)) byId.set(place.id, place)
+  }
+  return [...byId.values()].sort(
+    (a, b) => distanceToCenter(a, bounds) - distanceToCenter(b, bounds),
+  )
 }
 
 /**
@@ -600,18 +635,35 @@ export async function searchByCategory(
     )
   }
 
-  // Resolve sub-preset IDs to parent category + filter tags
-  const { categoryId, filterTags } = derivePresetFilter(presetId)
+  const filters = derivePresetFilters(presetId)
 
-  const mergedTags = { ...filterTags, ...options.tags }
+  const run = ({ categoryId, filterTags }: PresetFilter, limit?: number, offset?: number) => {
+    const mergedTags = { ...filterTags, ...options.tags }
+    return searchCapability.searchByCategory(categoryId, options.bounds, {
+      limit,
+      offset,
+      filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
+      sort: options.sort,
+      filter: options.filter,
+    })
+  }
 
-  return await searchCapability.searchByCategory(categoryId, options.bounds, {
-    limit: options.limit,
-    offset: options.offset,
-    filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
-    sort: options.sort,
-    filter: options.filter,
-  })
+  const tagOnly = filters.some((filter) => !filter.categoryId)
+  if (filters.length === 1 && !tagOnly) {
+    return run(filters[0], options.limit, options.offset)
+  }
+
+  // No filter's own page lines up with the merged one, so each fetches up to
+  // the end of the requested page. A tag-only browse also brings back roads and
+  // platforms that get dropped, so it fetches twice that.
+  const limit = options.limit ?? 20
+  const offset = options.offset ?? 0
+  const fetchCount = (offset + limit) * (tagOnly ? 2 : 1)
+  const lists = await Promise.all(filters.map(async (filter) => {
+    const places = await run(filter, fetchCount, 0)
+    return filter.categoryId ? places : places.filter(isDestination)
+  }))
+  return mergeNearest(lists, options.bounds).slice(offset, offset + limit)
 }
 
 /**

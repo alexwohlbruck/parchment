@@ -8,6 +8,8 @@ import { multimodalTripService } from '../services/trip.service'
 import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
 import { attachHazards } from '../services/route-hazards.service'
 import { attachLanes } from '../services/route-lanes.service'
+import { estimateModes } from '../services/mode-estimates.service'
+import { ESTIMATE_MODES } from '../lib/directions/mode-estimates'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { getPermissions, hasPermission } from '../services/auth.service'
 import { PermissionId } from '../types/auth.types'
@@ -168,6 +170,18 @@ const TripRequestSchema = t.Object({
   timestamp: t.Optional(t.String()),
 })
 
+const EstimateModeSchema = t.UnionEnum(ESTIMATE_MODES)
+
+const ModeEstimatesSchema = t.Object({
+  waypoints: t.Array(CoordinateSchema, { minItems: 2, maxItems: 25 }),
+  modes: t.Array(EstimateModeSchema, { minItems: 1, uniqueItems: true }),
+  routingPreferences: t.Optional(t.Object(
+    Object.fromEntries(ESTIMATE_MODES.map(mode => [mode, t.Optional(RoutingPreferencesSchema)])),
+    { description: 'Preferences per mode, as the trip plan for that mode would send them.' },
+  )),
+  departureTime: t.Optional(t.String({ format: 'date-time', description: 'Leave at this time; omit to leave now.' })),
+})
+
 const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
 
 /** Comfort hazards are a premium feature; safety ones go to everyone. */
@@ -293,6 +307,35 @@ app.post(
         + '`departureProfile`: for each catchable run of its first transit leg, when to leave, '
         + 'when it arrives through the connections on the stop boards, and the tightest '
         + 'transfer. Runs stop where the boards end; `validUntil` is the last leave time covered.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+app.post(
+  '/estimates',
+  async ({ body, language }) => ({
+    estimates: await estimateModes({
+      points: body.waypoints,
+      modes: body.modes,
+      routingPreferences: body.routingPreferences,
+      departureTime: body.departureTime,
+      language,
+    }),
+  }),
+  {
+    body: ModeEstimatesSchema,
+    response: t.Object({
+      estimates: t.Object(Object.fromEntries(ESTIMATE_MODES.map(mode => [mode, t.Optional(t.Nullable(t.Number()))]))),
+    }),
+    detail: {
+      summary: 'Estimate travel time per mode',
+      description:
+        'Rough door-to-door seconds for each requested mode between the waypoints, in order, '
+        + 'without planning full trips: no geometry, alternatives or vehicle pickups. A mode comes back '
+        + '`null` when it has no route, or is out of reach (a walk over 100 km, a ride over 300 km). '
+        + 'Transit is the earliest-arriving ride departing at `departureTime`, and is only estimated '
+        + 'between two waypoints. Results are cached briefly.',
       tags: ['Trip Planning'],
     },
   },

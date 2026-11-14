@@ -1,6 +1,4 @@
 import type { Coordinate } from '../types/unified-routing.types'
-import type { RoutingPreferences } from '../types/trip.types'
-import type { Language } from '../lib/i18n'
 import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
 import { TransitPriority } from '../lib/transit/transit-gate'
@@ -9,20 +7,12 @@ import { logWarn } from '../lib/logger'
 import { haversineMeters } from '../util/geometry-conversion'
 import {
   type EstimateMode,
+  type ModeEstimates,
+  type ModeEstimatesRequest,
   routeSeconds,
   transitSeconds,
   withinReach,
 } from '../lib/directions/mode-estimates'
-
-export interface ModeEstimatesRequest {
-  waypoints: Coordinate[]
-  modes: EstimateMode[]
-  routingPreferences?: Partial<Record<EstimateMode, RoutingPreferences>>
-  departureTime?: string
-  language?: Language
-}
-
-export type ModeEstimates = Partial<Record<EstimateMode, number | null>>
 
 function pathMeters(points: Coordinate[]): number {
   let total = 0

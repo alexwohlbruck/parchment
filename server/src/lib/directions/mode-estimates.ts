@@ -1,8 +1,20 @@
 import type { TransitItinerary } from '../../types/integration.types'
-import type { UnifiedRoute } from '../../types/unified-routing.types'
+import type { Coordinate, UnifiedRoute } from '../../types/unified-routing.types'
+import type { RoutingPreferences } from '../../types/trip.types'
+import type { Language } from '../i18n/i18n.types'
 
 export const ESTIMATE_MODES = ['walking', 'biking', 'driving', 'transit'] as const
 export type EstimateMode = (typeof ESTIMATE_MODES)[number]
+
+export interface ModeEstimatesRequest {
+  waypoints: Coordinate[]
+  modes: EstimateMode[]
+  routingPreferences?: Partial<Record<EstimateMode, RoutingPreferences>>
+  departureTime?: string
+  language?: Language
+}
+
+export type ModeEstimates = Partial<Record<EstimateMode, number | null>>
 
 /** Straight-line distance past which a mode is not worth routing at all. */
 const REACH_M: Record<EstimateMode, number> = {

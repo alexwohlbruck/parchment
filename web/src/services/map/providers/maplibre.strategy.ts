@@ -103,6 +103,7 @@ import {
   recallBarrelmanBuildings,
   rememberBarrelmanBuildings,
 } from '@/lib/map-style/barrelman-buildings'
+import { probeBasemapMaxzoom, recallBasemapMaxzoom } from '@/lib/map-style/basemap-zoom'
 import {
   OBJECT_FLAT_LAYERS,
   GOLF_PIN_LAYER,
@@ -356,7 +357,10 @@ export class MaplibreStrategy extends MapStrategy {
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
-    if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl, DETAIL_TILES)
+    if (tileServerUrl) {
+      recallBarrelmanBuildings(tileServerUrl, DETAIL_TILES)
+      recallBasemapMaxzoom(tileServerUrl)
+    }
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -431,6 +435,7 @@ export class MaplibreStrategy extends MapStrategy {
     )
 
     void this.adoptBarrelmanBuildings()
+    void this.adoptBasemapMaxzoom()
   }
 
   /**
@@ -461,6 +466,16 @@ export class MaplibreStrategy extends MapStrategy {
     // `recallBarrelmanBuildings`). Rebuilding for the same answer would throw
     // the map's tiles away and fetch them all again, in front of the user.
     if (barrelmanBuildingsTiles() !== builtOn) this.reloadStyle()
+  }
+
+  /**
+   * Check how deep the tile server renders the basemap; see `basemap-zoom.ts`.
+   * A deeper basemap waits for the next session, so only a server that has
+   * gone shallower than the style costs a rebuild.
+   */
+  private async adoptBasemapMaxzoom() {
+    if (!this.tileServerUrl) return
+    if (await probeBasemapMaxzoom(this.tileServerUrl)) this.reloadStyle()
   }
 
   addControls() {

@@ -2525,11 +2525,54 @@
                 }
               }
             }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
           }
         },
         "operationId": "postDirectionsEstimates",
         "summary": "Estimate travel time per mode",
-        "description": "Rough door-to-door seconds for each requested mode between the waypoints, in order, without planning full trips: no geometry, alternatives or vehicle pickups. A mode comes back `null` when it has no route, or is out of reach (a walk over 100 km, a ride over 300 km). Transit is the earliest-arriving ride departing at `departureTime`, and is only estimated between two waypoints. Results are cached briefly.",
+        "description": "Rough door-to-door seconds for each requested mode between the waypoints, in order, without planning full trips: no geometry, alternatives or vehicle pickups. A mode comes back `null` when it has no route, or is out of reach (a walk over 100 km, a ride over 300 km). Transit is the earliest-arriving ride departing at `departureTime`, and is only estimated between two waypoints. Results are cached briefly. Requires premium navigation.",
         "tags": [
           "Trip Planning"
         ],
@@ -15580,6 +15623,7 @@
           "Search"
         ],
         "summary": "Search by category/preset",
+        "description": "Browses places nearest-first for a preset id from `/search/categories`. Besides kinds of place, presets cover attributes a place has (`outdoor_seating/yes`, `wheelchair/yes`, `takeaway/yes`, …): those match any kind of place whose OSM tags fit one of the preset's `tagSets`, and leave out roads, transit platforms and unnamed features. Group ids (`group/seating`, `group/restrooms`, …) browse several kinds of place at once, merged nearest-first.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16116,6 +16160,7 @@
           "Search"
         ],
         "summary": "Get all categories/presets",
+        "description": "Schema presets, plus place attributes (`wheelchair/yes`) and groups (`group/seating`) that gather several kinds of place under one need. Browse any of them with `/search/category`.",
         "responses": {
           "200": {}
         }

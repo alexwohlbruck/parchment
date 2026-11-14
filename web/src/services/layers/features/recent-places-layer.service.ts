@@ -27,13 +27,9 @@ import {
 import {
   RECENT_PLACES_SOURCE_ID,
   RECENT_PLACES_LAYER_ID,
-  RECENT_PLACES_LABELS_LAYER_ID,
   RECENT_PLACES_LAYER_CONFIG,
-  RECENT_PLACES_LABELS_LAYER_CONFIG,
-  collectionLabelPaint,
+  recentPlacesPaint,
 } from '@/constants/layers'
-
-const LAYER_IDS = [RECENT_PLACES_LAYER_ID, RECENT_PLACES_LABELS_LAYER_ID]
 
 function isPlaceRoute(name: unknown): boolean {
   return [
@@ -106,8 +102,8 @@ export function useRecentPlacesLayerService() {
     if (source) (source as any).setData(buildRecentPlacesGeoJSON(drawn, isDark))
 
     const visible = drawn.length > 0
-    for (const layerId of LAYER_IDS) {
-      if (map.getLayer(layerId)) mapStrategy.toggleLayerVisibility(layerId, visible)
+    if (map.getLayer(RECENT_PLACES_LAYER_ID)) {
+      mapStrategy.toggleLayerVisibility(RECENT_PLACES_LAYER_ID, visible)
     }
 
     if (!visible) return
@@ -165,15 +161,13 @@ export function useRecentPlacesLayerService() {
     }
 
     if (!map.getLayer(RECENT_PLACES_LAYER_ID)) {
-      mapStrategy.addLayer(toLayer(RECENT_PLACES_LAYER_CONFIG))
-    }
-    if (!map.getLayer(RECENT_PLACES_LABELS_LAYER_ID)) {
-      const labels = toLayer(RECENT_PLACES_LABELS_LAYER_CONFIG)
-      labels.configuration = {
-        ...labels.configuration,
-        paint: collectionLabelPaint(useThemeStore().isDark),
+      // Built per style load, since the halo follows the theme.
+      const layer = toLayer(RECENT_PLACES_LAYER_CONFIG)
+      layer.configuration = {
+        ...layer.configuration,
+        paint: recentPlacesPaint(useThemeStore().isDark),
       }
-      mapStrategy.addLayer(labels)
+      mapStrategy.addLayer(layer)
     }
 
     if (boundMap !== map) {
@@ -202,7 +196,7 @@ export function useRecentPlacesLayerService() {
   function removeRecentPlacesLayer(mapStrategy: MapStrategy) {
     if (!mapStrategy) return
     unbindInteraction()
-    for (const layerId of LAYER_IDS) mapStrategy.removeLayer(layerId)
+    mapStrategy.removeLayer(RECENT_PLACES_LAYER_ID)
     mapStrategy.removeSource(RECENT_PLACES_SOURCE_ID)
     activeStrategy = null
     placesById = new Map()

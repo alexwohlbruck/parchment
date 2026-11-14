@@ -38,7 +38,6 @@ export const COLLECTION_LABELS_LAYER_ID = 'collection-labels-internal'
 
 export const RECENT_PLACES_SOURCE_ID = 'recent-places-source-internal'
 export const RECENT_PLACES_LAYER_ID = 'recent-places-internal'
-export const RECENT_PLACES_LABELS_LAYER_ID = 'recent-places-labels-internal'
 
 // Place polygon layer constants - these are internal and not user-modifiable
 export const PLACE_POLYGON_LAYER_ID = 'place-polygon-internal'
@@ -428,8 +427,9 @@ export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
   return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
 }
 
-// Recently viewed places: smaller and muted, fading in past city scale. They
-// take part in collision so a recent replaces the basemap POI under it.
+// Recently viewed places: smaller and muted, fading in past city scale. Marker
+// and label share one symbol so they collide as a unit, and a recent replaces
+// the basemap POI under it.
 const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13, labels: 15 }
 
 export const RECENT_PLACES_LAYER_CONFIG: Omit<
@@ -442,7 +442,7 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
   showInLayerSelector: false,
   visible: false,
   icon: null,
-  order: 9994,
+  order: 9995,
   groupId: null,
   configuration: {
     id: RECENT_PLACES_LAYER_ID,
@@ -450,42 +450,34 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
     source: RECENT_PLACES_SOURCE_ID,
     minzoom: RECENT_PLACES_ZOOM.hidden,
     layout: {
-      ...MARKER_GLYPH_PLACEMENT,
-      'icon-allow-overlap': false,
-      'icon-ignore-placement': false,
+      ...POI_LABEL_LAYOUT,
+      'icon-pitch-alignment': 'viewport',
+      'icon-rotation-alignment': 'viewport',
       'icon-image': ['get', 'markerImage'],
       'icon-size': 0.85,
-      'symbol-sort-key': ['get', 'sortKey'],
-    },
-    paint: {
-      'icon-opacity': [
-        'interpolate',
-        ['linear'],
-        ['zoom'],
-        RECENT_PLACES_ZOOM.hidden,
-        0,
-        RECENT_PLACES_ZOOM.shown,
-        0.9,
-      ],
+      'text-field': ['step', ['zoom'], '', RECENT_PLACES_ZOOM.labels, ['get', 'name']],
+      'text-size': 12,
+      'text-optional': true,
     },
   },
 }
 
-export const RECENT_PLACES_LABELS_LAYER_CONFIG: Omit<
-  Layer,
-  'id' | 'userId' | 'createdAt' | 'updatedAt'
-> = {
-  ...RECENT_PLACES_LAYER_CONFIG,
-  name: 'Recent Places Labels (Internal)',
-  order: 9995,
-  configuration: {
-    id: RECENT_PLACES_LABELS_LAYER_ID,
-    type: MapboxLayerType.SYMBOL,
-    source: RECENT_PLACES_SOURCE_ID,
-    minzoom: RECENT_PLACES_ZOOM.labels,
-    filter: ['has', 'name'],
-    layout: { ...POI_LABEL_LAYOUT, 'text-size': 12 },
-  },
+/** Lettered in the marker's muted ink, fading in with it. */
+export function recentPlacesPaint(isDark: boolean): Record<string, unknown> {
+  const fade = [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    RECENT_PLACES_ZOOM.hidden,
+    0,
+    RECENT_PLACES_ZOOM.shown,
+    0.9,
+  ]
+  return {
+    ...collectionLabelPaint(isDark),
+    'icon-opacity': fade,
+    'text-opacity': fade,
+  }
 }
 
 // Place geometry layer configurations - used for showing place boundaries and lines

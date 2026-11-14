@@ -16,6 +16,7 @@ import {
   buildCollectionMarkersGeoJSON,
   collectionMarkerSpecs,
 } from '@/lib/library/collection-markers'
+import { filterByPlaceTypes } from '@/lib/library/place-type-filter'
 import {
   COLLECTION_MARKERS_SOURCE_ID,
   COLLECTION_MARKERS_LAYER_ID,
@@ -52,7 +53,9 @@ export function useCollectionMarkersLayerService() {
   const openBookmarks = computed<Bookmark[]>(() => {
     const store = useCollectionsStore()
     const id = store.openCollectionId
-    return id ? store.getCollectionPlaces(id) : []
+    return id
+      ? filterByPlaceTypes(store.getCollectionPlaces(id), store.placeTypeFilter)
+      : []
   })
 
   function updateData(mapStrategy: MapStrategy) {

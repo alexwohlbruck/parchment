@@ -9,7 +9,7 @@ import {
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { getSearchResultCategory } from '@/lib/search/search-result'
+import { createSearchResultsRoute, getSearchResultCategory } from '@/lib/search/search-result'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
@@ -147,16 +147,11 @@ function openCategorySearch() {
   const typeName = placeType.value
   if (!presetId || !typeName) return
 
-  router.push({
-    name: AppRoute.SEARCH_RESULTS,
-    query: {
-      categoryId: presetId,
-      categoryName: typeName,
-      ...(props.place?.icon?.category
-        ? { categoryIconCategory: props.place.icon.category }
-        : {}),
-    },
-  })
+  router.push(createSearchResultsRoute({
+    categoryId: presetId,
+    categoryName: typeName,
+    categoryIconCategory: props.place?.icon?.category,
+  }))
 }
 
 const rating = computed(() => props.place?.ratings?.rating?.value || null)

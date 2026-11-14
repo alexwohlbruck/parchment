@@ -3,6 +3,9 @@ import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
 import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
+import { PLACE_ATTRIBUTES } from '../lib/place-attributes'
+import { PLACE_GROUPS, nameLengthBonus, withoutReplacedPresets } from '../lib/place-groups'
+import { translate } from '../lib/i18n/translate'
 import { logWarn } from '../lib/logger'
 import { placeTypeLabels } from '../lib/place-type-labels'
 
@@ -369,6 +372,42 @@ export class CategoryService {
           aliases: derived.aliases,
         })
       }
+      const t = translate(language)
+      for (const attribute of PLACE_ATTRIBUTES) {
+        derivedCategories.push({
+          id: attribute.id,
+          type: 'category',
+          name: t(`placeAttributes.${attribute.nameKey}`),
+          icon: attribute.icon,
+          iconName: attribute.icon,
+          iconPack: 'lucide',
+          iconCategory: attribute.category,
+          tags: attribute.tagSets[0],
+          tagSets: attribute.tagSets,
+          geometry: ['point', 'area'],
+          searchable: true,
+          aliases: attribute.aliases,
+        })
+      }
+      for (const group of PLACE_GROUPS) {
+        const replaced = categories.find((c) => c.id === group.replaces)
+        derivedCategories.push({
+          id: group.id,
+          type: 'category',
+          name: t(`placeGroups.${group.nameKey}`),
+          icon: group.icon,
+          iconName: group.icon,
+          iconPack: 'lucide',
+          iconCategory: group.category,
+          tags: {},
+          geometry: ['point', 'area'],
+          searchable: true,
+          aliases: [
+            ...group.aliases,
+            ...(replaced ? [replaced.name, ...(replaced.aliases ?? [])] : []),
+          ],
+        })
+      }
       categories.unshift(...derivedCategories)
 
       // Cache the results
@@ -457,13 +496,12 @@ export class CategoryService {
       }
 
       if (score > 0) {
-        const lengthBonus = Math.max(0, 50 - category.name.length)
-        score += lengthBonus
+        score += nameLengthBonus(category)
         matches.push({ category, score })
       }
     }
 
-    return matches
+    return withoutReplacedPresets(matches)
       .sort((a, b) => b.score - a.score)
       .slice(0, maxResults)
   }

@@ -580,6 +580,7 @@
       "overlays": "Overlays",
       "pois": "Points of interest",
       "labels": "Labels",
+      "recentPlaces": "Recent places",
       "savedPlaces": "Show saved places",
       "showCanvases": "Show canvases",
       "placeCount": "{count} places",
@@ -1208,7 +1209,8 @@
         "mine": "My collections",
         "shared": "Shared with me"
       },
-      "archivedNotice": "This collection is archived."
+      "archivedNotice": "This collection is archived.",
+      "filterByType": "Filter by type"
     },
     "actions": {
       "addToCollection": "Add to collection",

@@ -344,6 +344,35 @@
     "internet_access_paid": "Paid Wi-Fi",
     "internet_access_customers": "Wi-Fi (Customers)"
   },
+  "placeAttributes": {
+    "outdoorSeating": "Outdoor Seating",
+    "wheelchair": "Wheelchair Accessible",
+    "accessibleRestroom": "Accessible Restroom",
+    "freeWifi": "Free WiFi",
+    "takeout": "Takeout",
+    "delivery": "Delivery",
+    "driveThrough": "Drive-Thru",
+    "airConditioning": "Air Conditioning",
+    "bar": "Has a Bar",
+    "dogFriendly": "Dog Friendly",
+    "vegan": "Vegan Options",
+    "vegetarian": "Vegetarian Options",
+    "glutenFree": "Gluten-Free Options",
+    "halal": "Halal",
+    "babyChanging": "Baby Changing",
+    "liveMusic": "Live Music",
+    "reservations": "Takes Reservations",
+    "open24Hours": "Open 24 Hours",
+    "lgbtqFriendly": "LGBTQ+ Friendly"
+  },
+  "placeGroups": {
+    "restrooms": "Restrooms",
+    "seating": "Seating",
+    "pizza": "Pizza",
+    "petFacilities": "Pet facilities",
+    "trashAndRecycling": "Trash & recycling",
+    "swimming": "Swimming"
+  },
   "email": {
     "verificationCode": {
       "subject": "Parchment Email Verification",

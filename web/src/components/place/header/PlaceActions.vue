@@ -24,6 +24,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { usePlaceCollections } from '@/composables/library/usePlaceCollections'
+import { usePlaceTravelTime } from '@/composables/directions/usePlaceTravelTime'
+import { MODE_ICONS } from '@/components/directions/mode-icons'
+import { formatDurationLong } from '@/lib/time-format'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -37,6 +40,10 @@ const { t } = useI18n()
 const bookmarkId = computed(() => props.place?.bookmark?.id || null)
 
 const { collectionIds } = usePlaceCollections(() => props.place)
+
+const travel = usePlaceTravelTime(() => props.place.geometry?.value?.center)
+const travelSeconds = computed(() =>
+  travel.time.value.state === 'ready' ? travel.time.value.seconds : null)
 
 // The single collection to surface as a colored mini-badge when the
 // bookmark lives in exactly one collection. Resolved against the local
@@ -85,9 +92,19 @@ function onBookmarkDeleted() {
 <template>
   <TooltipProvider :delay-duration="200">
     <div class="flex gap-2">
-      <Button class="flex-1" @click="$emit('directions')">
-        <ArrowDownToDotIcon class="mr-2 size-4 -rotate-90" />
-        {{ t('directions.directions') }}
+      <Button
+        class="flex-1"
+        :aria-label="t('directions.directions')"
+        @click="$emit('directions')"
+      >
+        <template v-if="travelSeconds !== null">
+          <component :is="MODE_ICONS[travel.mode.value]" class="mr-2 size-4" />
+          <span class="tabular-nums">{{ formatDurationLong(travelSeconds) }}</span>
+        </template>
+        <template v-else>
+          <ArrowDownToDotIcon class="mr-2 size-4 -rotate-90" />
+          {{ t('directions.directions') }}
+        </template>
       </Button>
       <Button class="flex-1" variant="outline" @click="$emit('directionsFrom')">
         <RouteIcon class="mr-2 size-4" />

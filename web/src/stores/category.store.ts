@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { CategoryResult } from '@/types/search.types'
 import { useAppDataCache } from '@/lib/app-data-cache'
+import { nameLengthBonus, withoutReplacedPresets } from '@server/lib/place-groups'
 
 // ---------------------------------------------------------------------------
 // Scoring helpers (mirrors server/src/services/category.service.ts logic)
@@ -127,16 +128,15 @@ function scoreCategory(category: CategoryResult, query: string): number {
     }
   }
 
-  // Length bonus: shorter names are more specific/relevant
   if (score > 0) {
-    score += Math.max(0, 50 - category.name.length)
+    score += nameLengthBonus(category)
   }
 
   return score
 }
 
 // Bump when CategoryResult schema changes
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 5
 
 export const useCategoryStore = defineStore('category', () => {
   const { locale } = useI18n()
@@ -214,7 +214,7 @@ export const useCategoryStore = defineStore('category', () => {
       if (score > 0) scored.push({ category, score })
     }
 
-    return scored
+    return withoutReplacedPresets(scored)
       .sort((a, b) => b.score - a.score)
       .slice(0, maxResults)
       .map((m) => m.category)

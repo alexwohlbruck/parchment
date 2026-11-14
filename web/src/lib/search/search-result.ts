@@ -308,6 +308,7 @@ export function createSearchResultsRoute(options: {
   query?: string
   categoryId?: string
   categoryName?: string
+  categoryIconCategory?: string
   overpassQuery?: string
 }) {
   const routeQuery: Record<string, string> = {}
@@ -315,6 +316,7 @@ export function createSearchResultsRoute(options: {
   if (options.query) routeQuery.q = options.query
   if (options.categoryId) routeQuery.categoryId = options.categoryId
   if (options.categoryName) routeQuery.categoryName = options.categoryName
+  if (options.categoryIconCategory) routeQuery.categoryIconCategory = options.categoryIconCategory
   if (options.overpassQuery) routeQuery.overpassQuery = options.overpassQuery
 
   return {

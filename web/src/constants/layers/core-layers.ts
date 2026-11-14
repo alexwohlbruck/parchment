@@ -36,6 +36,9 @@ export const COLLECTION_MARKERS_SOURCE_ID = 'collection-markers-source-internal'
 export const COLLECTION_MARKERS_LAYER_ID = 'collection-markers-internal'
 export const COLLECTION_LABELS_LAYER_ID = 'collection-labels-internal'
 
+export const RECENT_PLACES_SOURCE_ID = 'recent-places-source-internal'
+export const RECENT_PLACES_LAYER_ID = 'recent-places-internal'
+
 // Place polygon layer constants - these are internal and not user-modifiable
 export const PLACE_POLYGON_LAYER_ID = 'place-polygon-internal'
 export const PLACE_POLYGON_SOURCE_ID = 'place-polygon-source-internal'
@@ -422,6 +425,57 @@ export const COLLECTION_LABELS_LAYER_CONFIG: Omit<
 /** Labels are set in their marker's glyph colour, as search results are. */
 export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
   return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
+}
+
+// Recently viewed places, drawn as basemap POIs are and slotted just under
+// them, so a real POI wins placement. The lettering here is the fallback for a
+// style with no POI layer to copy.
+const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13 }
+
+export const RECENT_PLACES_LAYER_CONFIG: Omit<
+  Layer,
+  'id' | 'userId' | 'createdAt' | 'updatedAt'
+> = {
+  name: 'Recent Places (Internal)',
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  showInLayerSelector: false,
+  visible: false,
+  icon: null,
+  order: 9995,
+  groupId: null,
+  configuration: {
+    id: RECENT_PLACES_LAYER_ID,
+    type: MapboxLayerType.SYMBOL,
+    source: RECENT_PLACES_SOURCE_ID,
+    slot: 'poi',
+    minzoom: RECENT_PLACES_ZOOM.hidden,
+    layout: {
+      ...POI_LABEL_LAYOUT,
+      'icon-pitch-alignment': 'viewport',
+      'icon-rotation-alignment': 'viewport',
+      'icon-image': ['get', 'markerImage'],
+      'text-optional': true,
+    },
+  },
+}
+
+/** Lettered in the marker's glyph colour, fading in with it. */
+export function recentPlacesPaint(isDark: boolean): Record<string, unknown> {
+  const fade = [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    RECENT_PLACES_ZOOM.hidden,
+    0,
+    RECENT_PLACES_ZOOM.shown,
+    1,
+  ]
+  return {
+    ...collectionLabelPaint(isDark),
+    'icon-opacity': fade,
+    'text-opacity': fade,
+  }
 }
 
 // Place geometry layer configurations - used for showing place boundaries and lines

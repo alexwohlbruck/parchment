@@ -720,7 +720,7 @@ describe('BarrelmanIntegration', () => {
 
     test('POSTs to /search with categories array', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
-      await integration.searchByCategory('amenity/cafe', bounds)
+      await integration.searchByCategory(['amenity/cafe'], bounds)
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'http://localhost:3100/search',
         expect.objectContaining({ categories: ['amenity/cafe'] }),
@@ -730,7 +730,7 @@ describe('BarrelmanIntegration', () => {
 
     test('computes center lat/lng from bounds midpoint', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
-      await integration.searchByCategory('amenity/cafe', bounds)
+      await integration.searchByCategory(['amenity/cafe'], bounds)
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ lat: (37.78 + 37.77) / 2, lng: (-122.41 + -122.42) / 2 }),
@@ -740,7 +740,7 @@ describe('BarrelmanIntegration', () => {
 
     test('caps radius at 50km for very large bounds', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
-      await integration.searchByCategory('amenity/cafe', { north: 90, south: -90, east: 180, west: -180 })
+      await integration.searchByCategory(['amenity/cafe'], { north: 90, south: -90, east: 180, west: -180 })
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ radius: 50000 }),
@@ -750,7 +750,7 @@ describe('BarrelmanIntegration', () => {
 
     test('passes filterTags in request body when provided', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
-      await integration.searchByCategory('amenity/restaurant', bounds, { filterTags: { cuisine: 'pizza' } })
+      await integration.searchByCategory(['amenity/restaurant'], bounds, { filterTags: { cuisine: 'pizza' } })
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ tags: { cuisine: 'pizza' } }),
@@ -760,7 +760,7 @@ describe('BarrelmanIntegration', () => {
 
     test('omits tags key when no filterTags provided', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
-      await integration.searchByCategory('amenity/cafe', bounds)
+      await integration.searchByCategory(['amenity/cafe'], bounds)
       const body = (mockAxiosPost.mock.calls[0] as any)[1]
       expect(body.tags).toBeUndefined()
     })

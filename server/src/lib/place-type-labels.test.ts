@@ -70,6 +70,20 @@ describe('placeTypeLabels', () => {
     expect(labels).toEqual({})
   })
 
+  test('ignores attributes, which describe a place rather than type it', () => {
+    const labels = placeTypeLabels([
+      { ...preset('outdoor_seating/yes', 'Outdoor Seating', 'Umbrella'), iconPack: 'lucide' },
+    ])
+    expect(labels).toEqual({})
+  })
+
+  test('ignores groups, which gather several types', () => {
+    const labels = placeTypeLabels([
+      { ...preset('group/swimming', 'Swimming', 'Waves'), iconPack: 'lucide' },
+    ])
+    expect(labels).toEqual({})
+  })
+
   test('names the common icons a saved place carries', () => {
     const labels = placeTypeLabels(new CategoryService().loadCategories('en-US'))
     expect(labels).toMatchObject({

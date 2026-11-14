@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
 import { isOfflineId } from '@/lib/sync/offline-id'
@@ -38,6 +38,12 @@ export const useCollectionsStore = defineStore('collections', () => {
 
   /** The collection whose page is open, which the map draws in full. */
   const openCollectionId = ref<string | null>(null)
+
+  /** Place types the open collection is narrowed to, by `placeTypeKey`. */
+  const placeTypeFilter = ref<string[]>([])
+  watch(openCollectionId, () => {
+    placeTypeFilter.value = []
+  })
 
   const getCollectionById = computed(() => {
     return (id: string) => {
@@ -295,6 +301,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     publicCollection,
     setLastSavedCollectionId,
     openCollectionId,
+    placeTypeFilter,
     getCollectionById,
     setCollections,
     updateCollection,

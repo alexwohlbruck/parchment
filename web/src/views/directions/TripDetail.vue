@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import {
   depCountdown,
   formatClockCompact,
@@ -724,7 +725,7 @@ const boardCards = computed(() => {
 const hoveredInstructionKey = ref<string | null>(null)
 
 const guidanceStore = useGuidanceStore()
-const detailedHazards = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+const detailedHazards = usePremiumNavigation()
 const legToStart = computed(() => (trip.value ? guidanceStore.legToStart(trip.value) : null))
 
 async function startGuidance() {

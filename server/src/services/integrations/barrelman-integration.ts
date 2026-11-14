@@ -1049,13 +1049,13 @@ export class BarrelmanIntegration
    * offset, so pages stay consistent. No total count is computed (a COUNT over a
    * broad category is itself expensive); the client paginates until a short page.
    *
-   * `presetId` is empty for an attribute browse (e.g. everywhere with WiFi),
+   * `categoryIds` is empty for an attribute browse (e.g. everywhere with WiFi),
    * which filters on `filterTags` alone. That tier-2 widen keeps a radius: with
    * no category to drive the GIN scan, dropping it would sort every tagged
    * place on the planet by distance.
    */
   async searchByCategory(
-    presetId: string,
+    categoryIds: string[],
     bounds: MapBounds,
     options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any>; language?: Language },
   ): Promise<Place[]> {
@@ -1078,7 +1078,7 @@ export class BarrelmanIntegration
     const baseBody = {
       lat,
       lng,
-      ...(presetId ? { categories: [presetId] } : {}),
+      ...(categoryIds.length ? { categories: categoryIds } : {}),
       limit,
       ...(offset ? { offset } : {}),
       ...(options?.filterTags ? { tags: options.filterTags } : {}),
@@ -1086,7 +1086,7 @@ export class BarrelmanIntegration
       ...(options?.filter ? { filter: options.filter } : {}),
     }
 
-    if (!presetId && !options?.filterTags) return []
+    if (!categoryIds.length && !options?.filterTags) return []
 
     // Tier 1: viewport-scoped (bounded radius → KNN).
     let rows: any[] = (await post({ ...baseBody, radius })).data || []
@@ -1095,7 +1095,7 @@ export class BarrelmanIntegration
     // uses the category-index scan (fast even for a thin category), or grow it
     // to metro scale for a tag-only browse, which has no such index to lean on.
     if (rows.length < minResults) {
-      const widened = presetId ? baseBody : { ...baseBody, radius: TAG_BROWSE_WIDEN_RADIUS_M }
+      const widened = categoryIds.length ? baseBody : { ...baseBody, radius: TAG_BROWSE_WIDEN_RADIUS_M }
       rows = (await post(widened)).data || []
     }
 

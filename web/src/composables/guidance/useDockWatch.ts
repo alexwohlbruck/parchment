@@ -1,4 +1,5 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -15,7 +16,7 @@ import {
 /** Polls the bike share station the leg depends on and offers a better one when it runs short. */
 export function useDockWatch() {
   const guidance = useGuidanceStore()
-  const premium = computed(() => useAuthService().hasPermission(PermissionId.PREMIUM_NAVIGATION))
+  const premium = usePremiumNavigation()
 
   const current = computed(() => {
     const route = guidance.route

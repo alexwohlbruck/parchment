@@ -80,6 +80,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import { frequentChipMeta } from '@/lib/frequents'
 import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
+import { createSearchResultsRoute } from '@/lib/search/search-result'
 import { appEventBus } from '@/lib/event-bus'
 
 import { AppRoute } from '@/router'
@@ -294,14 +295,11 @@ export const useCommandStore = defineStore('command', () => {
             const common = COMMON_CATEGORIES.find(c => c.id === categoryId)
             const name = category?.name ?? (common ? t(common.labelKey) : undefined)
             const iconCategory = category?.iconCategory ?? common?.category
-            await router.push({
-              name: AppRoute.SEARCH_RESULTS,
-              query: {
-                categoryId,
-                ...(name ? { categoryName: name } : {}),
-                ...(iconCategory ? { categoryIconCategory: iconCategory } : {}),
-              },
-            })
+            await router.push(createSearchResultsRoute({
+              categoryId,
+              categoryName: name,
+              categoryIconCategory: iconCategory,
+            }))
           } else if (itemId.startsWith('brand:')) {
             // Payload carries the brand key + original-cased name (needed to
             // browse name-only brands, whose OSM tag value is case-sensitive).

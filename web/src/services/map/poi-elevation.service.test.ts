@@ -3,7 +3,7 @@ import { attachPoiElevation } from './poi-elevation.service'
 import * as heights from '@/lib/map/poi-elevation'
 
 vi.mock('@/lib/map-style', () => ({ layerGroups: { building3d: 'buildings' } }))
-vi.mock('@/constants/layers', () => ({ COLLECTION_MARKERS_SOURCE_ID: 'collections', SEARCH_RESULTS_SOURCE_ID: 'search' }))
+vi.mock('@/constants/layers', () => ({ COLLECTION_MARKERS_SOURCE_ID: 'collections', SEARCH_RESULTS_SOURCE_ID: 'search', RECENT_PLACES_SOURCE_ID: 'recents' }))
 
 function fixture(count = 1) {
   const handlers = new Map<string, Set<(event?: any) => void>>()

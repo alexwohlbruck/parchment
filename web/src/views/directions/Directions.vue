@@ -6,20 +6,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/map/useMapListener'
 import {
-  BikeIcon,
   BusFrontIcon,
-  CarFrontIcon,
-  CarTaxiFrontIcon,
   ChartNoAxesGanttIcon,
   ClockIcon,
   ListIcon,
   ListFilterIcon,
-  FootprintsIcon,
-  ShuffleIcon,
   SlidersHorizontalIcon,
   RefreshCwIcon,
   TrainFrontIcon,
-  TrainIcon,
   XIcon,
 } from 'lucide-vue-next'
 import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store'
@@ -33,6 +27,10 @@ import TripSortSelect from '@/components/directions/preferences/TripSortSelect.v
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import type { TripSort } from '@/lib/preferences/navigation-preferences'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
+import TravelTimeLabel from '@/components/directions/TravelTimeLabel.vue'
+import { MODE_ICONS } from '@/components/directions/mode-icons'
+import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
+import { useModeTravelTimes } from '@/composables/directions/useModeTravelTimes'
 import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
@@ -59,6 +57,10 @@ const directionsStore = useDirectionsStore()
 const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 const navigationPreferences = useNavigationPreferencesStore()
+
+const travelTimes = useModeTravelTimes()
+const premiumNavigation = usePremiumNavigation()
+const showTravelTimes = computed(() => premiumNavigation.value && waypoints.value.filter(wp => wp.lngLat).length >= 2)
 
 const refreshing = ref(false)
 
@@ -160,32 +162,32 @@ onUnmounted(() => {
 const allModes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   {
     type: 'multi',
-    icon: ShuffleIcon,
+    icon: MODE_ICONS.multi,
     label: 'All modes',
   },
   {
     type: 'walking',
-    icon: FootprintsIcon,
+    icon: MODE_ICONS.walking,
     label: 'Walking',
   },
   {
     type: 'biking',
-    icon: BikeIcon,
+    icon: MODE_ICONS.biking,
     label: 'Cycling',
   },
   {
     type: 'transit',
-    icon: TrainIcon,
+    icon: MODE_ICONS.transit,
     label: 'Transit',
   },
   {
     type: 'driving',
-    icon: CarFrontIcon,
+    icon: MODE_ICONS.driving,
     label: 'Driving',
   },
   {
     type: 'rideshare',
-    icon: CarTaxiFrontIcon,
+    icon: MODE_ICONS.rideshare,
     label: 'Rideshare',
   },
 ]
@@ -247,15 +249,20 @@ useMapListener(
     <div class="space-y-3">
       <h1 class="text-2xl font-semibold">Directions</h1>
       <Tabs v-model="selectedMode">
-        <TabsList class="w-full flex">
+        <TabsList class="w-full flex" :class="showTravelTimes && 'h-auto'">
           <TabsTrigger
             v-for="(mode, i) in modes"
             :key="i"
             :value="mode.type"
-            class="grow"
+            class="grow basis-0 min-w-0"
+            :class="[
+              showTravelTimes && 'flex-col gap-1 px-1 py-1.5',
+              travelTimes[mode.type]?.state === 'none' && 'opacity-40',
+            ]"
             :title="mode.label"
           >
             <component :is="mode.icon" class="size-5" />
+            <TravelTimeLabel v-if="showTravelTimes" :time="travelTimes[mode.type] ?? { state: 'unknown' }" />
           </TabsTrigger>
         </TabsList>
       </Tabs>

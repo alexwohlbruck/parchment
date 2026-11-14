@@ -44,3 +44,16 @@ export function isPlacePermanentlyClosed(
   if (place.openingHours?.value?.isPermanentlyClosed) return true
   return isPermanentlyClosedByOsmTags(getPlaceOsmTags(place))
 }
+
+const NON_DESTINATION_TRANSIT = new Set(['platform', 'stop_position'])
+
+/**
+ * Whether a place is somewhere a person goes, rather than infrastructure that
+ * happens to carry the same tag: a footway tagged `wheelchair=yes`, a subway
+ * line tagged `opening_hours=24/7`.
+ */
+export function isDestination(place: Pick<Place, 'name' | 'tags' | 'amenities'>): boolean {
+  if (!place.name?.value) return false
+  const tags = getPlaceOsmTags(place)
+  return !tags.highway && tags.type !== 'route' && !NON_DESTINATION_TRANSIT.has(tags.public_transport)
+}

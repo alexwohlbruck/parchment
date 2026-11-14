@@ -572,6 +572,7 @@
       "overlays": "Superposiciones",
       "pois": "Puntos de interés",
       "labels": "Etiquetas",
+      "recentPlaces": "Lugares recientes",
       "savedPlaces": "Mostrar lugares guardados",
       "showCanvases": "Mostrar lienzos",
       "placeCount": "{count} lugares",
@@ -1127,7 +1128,8 @@
         "mine": "Mis colecciones",
         "shared": "Compartidas conmigo"
       },
-      "archivedNotice": "Esta colección está archivada."
+      "archivedNotice": "Esta colección está archivada.",
+      "filterByType": "Filtrar por tipo"
     },
     "actions": {
       "addToCollection": "Añadir a colección",

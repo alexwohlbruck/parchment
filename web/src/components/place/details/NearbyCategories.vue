@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
+import { createSearchResultsRoute } from '@/lib/search/search-result'
 import type { Place, NearbyCategory } from '@/types/place.types'
 import PlaceTypeChip from './PlaceTypeChip.vue'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -16,27 +16,12 @@ const router = useRouter()
 
 const categories = computed(() => props.place.nearbyCategories || [])
 
-const coordinates = computed(() => {
-  if (!props.place?.geometry) return null
-  return props.place.geometry.value.center
-})
-
 function handleCategoryClick(cat: NearbyCategory) {
-  const query: Record<string, string> = {
+  router.push(createSearchResultsRoute({
     categoryId: cat.presetId,
     categoryName: cat.name,
-  }
-
-  // Scope the search near the place's coordinates
-  if (coordinates.value) {
-    query.lat = String(coordinates.value.lat)
-    query.lng = String(coordinates.value.lng)
-  }
-
-  router.push({
-    name: AppRoute.SEARCH_RESULTS,
-    query,
-  })
+    categoryIconCategory: cat.iconCategory,
+  }))
 }
 </script>
 

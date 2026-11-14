@@ -580,6 +580,7 @@
       "overlays": "Overlays",
       "pois": "Points of interest",
       "labels": "Labels",
+      "recentPlaces": "Recent places",
       "savedPlaces": "Show saved places",
       "showCanvases": "Show canvases",
       "placeCount": "{count} places",

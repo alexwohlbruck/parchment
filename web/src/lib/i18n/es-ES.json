@@ -572,6 +572,7 @@
       "overlays": "Superposiciones",
       "pois": "Puntos de interés",
       "labels": "Etiquetas",
+      "recentPlaces": "Lugares recientes",
       "savedPlaces": "Mostrar lugares guardados",
       "showCanvases": "Mostrar lienzos",
       "placeCount": "{count} lugares",

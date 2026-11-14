@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import ItemIcon from '@/components/ui/item-icon/ItemIcon.vue'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map/map.service'
 import { basemaps } from '@/components/map/map.data'
@@ -29,6 +30,7 @@ import {
   SAVED_PLACES_GROUP_ID,
 } from '@/lib/map/saved-places-layers'
 import { canvasIdFromLayerId, CANVASES_GROUP_ID } from '@/lib/canvas/canvas-layers'
+import { RECENT_PLACES_TOGGLE_ID } from '@/lib/recents/recent-place-markers'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
@@ -51,6 +53,7 @@ const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
 const appearanceStore = useLayerAppearanceStore()
 const canvasesStore = useCanvasesStore()
+const authStore = useAuthStore()
 const { t } = useI18n()
 
 // The collapsed sheet fits the whole picker — tabs plus whatever the active
@@ -197,6 +200,18 @@ function labelsNode(): SelectorNode {
   }
 }
 
+// Recents are per user and encrypted, so there is nothing to show signed out.
+function recentPlacesNode(): SelectorNode {
+  return {
+    id: RECENT_PLACES_TOGGLE_ID,
+    name: t('layers.selector.recentPlaces'),
+    icon: 'History',
+    visible: layersStore.getLayerVisibilityOverride(RECENT_PLACES_TOGGLE_ID) ?? true,
+    onToggle: (visible: boolean) =>
+      layersStore.updateLayerVisibility(RECENT_PLACES_TOGGLE_ID, visible),
+  }
+}
+
 function groupNode(node: any): SelectorNode {
   if (node.origin === 'default' && !node.parentGroupId) return builtInLayerNode(node)
 
@@ -255,6 +270,7 @@ function builtInLayerNode(node: any): SelectorNode {
  */
 const mapLayerNodes = computed<SelectorNode[]>(() => {
   const result: SelectorNode[] = [poiNode(), labelsNode()]
+  if (authStore.me) result.push(recentPlacesNode())
 
   for (const item of mainReorderableItems.value) {
     const isGroup = !('groupId' in item)

@@ -205,8 +205,10 @@ function getDropdownItemComponent(): Component {
     :pressed="isPressed"
     @click="handleClick"
   >
+    <slot name="leading" />
     <component v-if="displayIcon" :is="displayIcon" class="size-3.5" />
     <span class="whitespace-nowrap">{{ displayLabel }}</span>
+    <slot name="trailing" />
   </Toggle>
 
   <!-- Dropdown/Select Chip -->

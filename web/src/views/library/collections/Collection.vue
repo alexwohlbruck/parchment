@@ -8,6 +8,7 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useMapService } from '@/services/map/map.service'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { collectionIcon } from '@/lib/library/collection-display'
+import { filterByPlaceTypes } from '@/lib/library/place-type-filter'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type { Bookmark } from '@/types/library.types'
@@ -17,6 +18,7 @@ import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
 import CollectionLockedNotice from '@/components/library/collections/CollectionLockedNotice.vue'
+import PlaceTypeFilter from '@/components/library/collections/PlaceTypeFilter.vue'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 // NOTE: the in-view back button was removed — the drawer (LeftSheet /
 // BottomSheet) now provides navigation controls. Route-change cleanup, if
@@ -41,6 +43,9 @@ const pointsStore = useEncryptedPointsStore()
 const isPrivate = computed(() => collection.value?.scheme === 'user-e2ee')
 
 const bookmarks = computed(() => collectionsStore.getCollectionPlaces(id))
+const shownBookmarks = computed(() =>
+  filterByPlaceTypes(bookmarks.value, collectionsStore.placeTypeFilter),
+)
 
 async function removePrivatePlace(bookmark: Bookmark) {
   const point = pointsStore.getPoints(id).find(p => p.id === bookmark.id)
@@ -171,11 +176,18 @@ function handleCollectionDelete() {
     />
     <BookmarkList
       v-else
-      :bookmarks="bookmarks"
+      :bookmarks="shownBookmarks"
       :loading="loading"
       :collection-id="id"
       :encrypted="isPrivate"
       @remove="removePrivatePlace"
-    />
+    >
+      <template #filters>
+        <PlaceTypeFilter
+          v-model="collectionsStore.placeTypeFilter"
+          :places="bookmarks"
+        />
+      </template>
+    </BookmarkList>
   </DetailPanelLayout>
 </template>

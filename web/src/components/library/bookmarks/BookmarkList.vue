@@ -162,6 +162,8 @@ async function handleRemoveFromCollection(bookmark: Bookmark) {
       </div>
     </div>
 
+    <slot name="filters" />
+
     <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <Spinner />

@@ -77,11 +77,14 @@ async function switchScheme(target: CanvasScheme) {
 
   saving.value = true
   try {
-    const updated = await canvasesService.changeScheme(props.canvas, target)
-    if (updated) {
-      appService.toast.success(t('library.privacy.switched'))
-      open.value = false
-    }
+    const updated = await appService.toast.promise(
+      canvasesService.changeScheme(props.canvas, target),
+      {
+        loading: t('library.privacy.switching'),
+        success: canvas => (canvas ? t('library.privacy.switched') : undefined),
+      },
+    )
+    if (updated) open.value = false
   } finally {
     saving.value = false
   }

@@ -88,9 +88,27 @@ function show(
   })
 }
 
-type AppToast = ShowToast & Omit<typeof sonner, 'error'> & {
-  error(message: Message, options?: ErrorToastOptions): ToastId | undefined
+type Outcome<T> = string | ((value: T) => string | undefined)
+
+export interface PromiseToastMessages<T> {
+  loading: Message
+  success?: Outcome<T>
+  error?: Outcome<unknown>
 }
+
+type AppToast = ShowToast & Omit<typeof sonner, 'error' | 'promise'> & {
+  error(message: Message, options?: ErrorToastOptions): ToastId | undefined
+  promise<T>(
+    work: Promise<T> | (() => Promise<T>),
+    messages: PromiseToastMessages<T>,
+    options?: ExternalToast,
+  ): Promise<T>
+}
+
+let promiseSequence = 0
+
+const resolveOutcome = <T>(outcome: Outcome<T> | undefined, value: T) =>
+  typeof outcome === 'function' ? outcome(value) : outcome
 
 const wrapped = Object.assign(
   (message: Message, options?: ExternalToast) => show(sonner, 'message', message, options),
@@ -113,6 +131,28 @@ wrapped.error = (message: Message, options?: ErrorToastOptions) => {
     errorToasts.set(cause, { id: rest.id, description: rest.description })
   }
   return show(sonner.error, 'error', message, rest)
+}
+
+wrapped.promise = async <T>(
+  work: Promise<T> | (() => Promise<T>),
+  messages: PromiseToastMessages<T>,
+  options: ExternalToast = {},
+): Promise<T> => {
+  const id = options.id ?? `promise:${++promiseSequence}`
+  sonner.loading(messages.loading, { ...options, id })
+  try {
+    const value = await (typeof work === 'function' ? work() : work)
+    const message = resolveOutcome(messages.success, value)
+    if (message === undefined) sonner.dismiss(id)
+    else toast.success(message, { id })
+    return value
+  } catch (error) {
+    const message = resolveOutcome(messages.error, error)
+    if (message === undefined || toast.error(message, { id, cause: error }) === undefined) {
+      sonner.dismiss(id)
+    }
+    throw error
+  }
 }
 
 export const toast = wrapped as unknown as AppToast

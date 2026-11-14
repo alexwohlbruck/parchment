@@ -4,6 +4,7 @@ import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
 import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
 import { logWarn } from '../lib/logger'
+import { placeTypeLabels } from '../lib/place-type-labels'
 
 /**
  * Custom aliases for common colloquial / alternative names not in the iD schema.
@@ -178,6 +179,7 @@ interface CachedCategoryData {
 
 // Cache by API language code (en, es) to avoid recomputing
 const categoryCache = new Map<string, CachedCategoryData>()
+const labelCache = new WeakMap<CategoryResult[], Record<string, string>>()
 
 export class CategoryService {
   /**
@@ -501,6 +503,17 @@ export class CategoryService {
   ): CategoryResult | null {
     const categories = this.loadCategories(language)
     return categories.find((cat) => cat.id === categoryId) || null
+  }
+
+  /** Place type names keyed by the icon a place is drawn with. */
+  getPlaceTypeLabels(language: Language = 'en'): Record<string, string> {
+    const categories = this.loadCategories(language)
+    let labels = labelCache.get(categories)
+    if (!labels) {
+      labels = placeTypeLabels(categories)
+      labelCache.set(categories, labels)
+    }
+    return labels
   }
 
   /**

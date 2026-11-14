@@ -170,13 +170,11 @@ onMounted(async () => {
 })
 
 async function handleRestartToUpdate() {
-  try {
-    toast.loading(t('profileMenu.updateInstalling'), { id: 'updater' })
-    await installUpdate()
-    toast.success(t('profileMenu.updateAvailable'), { id: 'updater' })
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e), { id: 'updater' })
-  }
+  await toast.promise(installUpdate, {
+    loading: t('profileMenu.updateInstalling'),
+    success: t('profileMenu.updateAvailable'),
+    error: e => (e instanceof Error ? e.message : String(e)),
+  }, { id: 'updater' }).catch(() => {})
 }
 
 // ==================== NAVIGATION ====================

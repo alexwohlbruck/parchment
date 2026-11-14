@@ -1337,6 +1337,7 @@
         "server-key": "Make it shareable",
         "user-e2ee": "Make it private"
       },
+      "switching": "Updating privacy…",
       "switched": "Privacy updated",
       "switchFailed": "Couldn't change privacy",
       "confirm": {
@@ -1621,8 +1622,9 @@
       "removeFriend": "Remove friend",
       "removeConfirmation": "You'll stop seeing each other's location.",
       "syncKeys": "Sync keys",
-      "keysSynced": "Keys synced successfully",
-      "syncFailed": "Failed to sync keys",
+      "syncingKeys": "Syncing keys…",
+      "keysSynced": "Keys synced",
+      "syncFailed": "Couldn't sync keys",
       "removeTitle": "Remove {name}?",
       "directions": "Directions"
     }

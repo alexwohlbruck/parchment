@@ -90,4 +90,21 @@ describe('toast lifecycle', () => {
     toast.info('Pulse')
     expect(animate).toHaveBeenCalledOnce()
   })
+
+  it('swaps a promise toast from loading to its outcome in one notification', async () => {
+    let finish!: () => void
+    const work = toast.promise(new Promise<void>(resolve => { finish = resolve }), {
+      loading: 'Syncing keys',
+      success: 'Keys synced',
+    })
+    await settle()
+    expect(visible()).toHaveLength(1)
+    expect(document.body.textContent).toContain('Syncing keys')
+    finish()
+    await work
+    await settle()
+    expect(visible()).toHaveLength(1)
+    expect(document.body.textContent).toContain('Keys synced')
+    expect(document.body.textContent).not.toContain('Syncing keys')
+  })
 })

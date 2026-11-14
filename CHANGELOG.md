@@ -6,6 +6,8 @@
 
 ### Changed
 
+* Syncing a friend's keys and changing a collection or canvas's privacy now show progress while they run.
+
 ### Fixed
 
 ## [0.21.4] - 2026-11-13

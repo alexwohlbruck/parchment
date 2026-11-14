@@ -33,6 +33,8 @@ import TripSortSelect from '@/components/directions/preferences/TripSortSelect.v
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import type { TripSort } from '@/lib/preferences/navigation-preferences'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
+import TravelTimeLabel from '@/components/directions/TravelTimeLabel.vue'
+import { useModeTravelTimes } from '@/composables/directions/useModeTravelTimes'
 import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
@@ -59,6 +61,9 @@ const directionsStore = useDirectionsStore()
 const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 const navigationPreferences = useNavigationPreferencesStore()
+
+const travelTimes = useModeTravelTimes()
+const showTravelTimes = computed(() => waypoints.value.filter(wp => wp.lngLat).length >= 2)
 
 const refreshing = ref(false)
 
@@ -247,15 +252,20 @@ useMapListener(
     <div class="space-y-3">
       <h1 class="text-2xl font-semibold">Directions</h1>
       <Tabs v-model="selectedMode">
-        <TabsList class="w-full flex">
+        <TabsList class="w-full flex" :class="showTravelTimes && 'h-auto'">
           <TabsTrigger
             v-for="(mode, i) in modes"
             :key="i"
             :value="mode.type"
-            class="grow"
+            class="grow basis-0 min-w-0"
+            :class="[
+              showTravelTimes && 'flex-col gap-1 px-1 py-1.5',
+              travelTimes[mode.type]?.state === 'none' && 'opacity-40',
+            ]"
             :title="mode.label"
           >
             <component :is="mode.icon" class="size-5" />
+            <TravelTimeLabel v-if="showTravelTimes" :time="travelTimes[mode.type] ?? { state: 'unknown' }" />
           </TabsTrigger>
         </TabsList>
       </Tabs>

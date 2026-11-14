@@ -1385,6 +1385,11 @@ export class BarrelmanIntegration
       requestBody.bike_suitability = { weight: bikeSuitabilityWeight(request.preferences) }
     }
 
+    if (request.includeGeometry === false) {
+      const summary = await this.getRouteSummary(requestBody, request)
+      if (summary) return summary
+    }
+
     const routing = this.routingTarget()
     if (routing) {
       try {
@@ -1413,6 +1418,30 @@ export class BarrelmanIntegration
           error instanceof Error ? error.message : 'Unknown error'
         }`,
       )
+    }
+  }
+
+  private summaryUnsupportedUntil = 0
+
+  /**
+   * Time and distance straight from GraphHopper, skipping the enrichment `/route` does
+   * along every point of the path. Null when unavailable, so the caller routes in full.
+   */
+  private async getRouteSummary(body: Record<string, any>, request: RouteRequest): Promise<UnifiedRoute | null> {
+    const target = this.routingTarget() ?? { host: this.config.host.replace(/\/$/, ''), headers: this.headers }
+    if (Date.now() < this.summaryUnsupportedUntil) return null
+    const { details: _details, bike_suitability: _suitability, locale: _locale, ...rest } = body
+    try {
+      const response = await barrelmanHttp.post(
+        `${target.host}/graphhopper/route`,
+        { ...rest, elevation: false, instructions: false, calc_points: false },
+        { headers: target.headers, timeout: 15_000 },
+      )
+      return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+    } catch (error: any) {
+      if (error.response?.status === 404) this.summaryUnsupportedUntil = Date.now() + LANES_RETRY_MS
+      else logWarn(`Barrelman route summary unavailable: ${error.response?.status ?? error.message}`)
+      return null
     }
   }
 

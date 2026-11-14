@@ -3,6 +3,8 @@ import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
 import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
+import { PLACE_ATTRIBUTES, PRESET_EXTRA_TAG_SETS } from '../lib/place-attributes'
+import { translate } from '../lib/i18n/translate'
 import { logWarn } from '../lib/logger'
 import { placeTypeLabels } from '../lib/place-type-labels'
 
@@ -313,6 +315,8 @@ export class CategoryService {
         // it far better than a pin does.
         const resolved = resolvePresetIcon(presetId, rawIcon)
 
+        const extraTagSets = PRESET_EXTRA_TAG_SETS[presetId]
+
         const category: CategoryResult = {
           id: presetId,
           type: 'category',
@@ -326,6 +330,7 @@ export class CategoryService {
           iconPack: resolved.iconPack,
           iconCategory: getPlaceCategory(presetId),
           tags: tags,
+          ...(extraTagSets ? { tagSets: [tags, ...extraTagSets] } : {}),
           addTags: preset.addTags,
           geometry: preset.geometry || ['point'],
           fields: preset.fields,
@@ -367,6 +372,23 @@ export class CategoryService {
           geometry: ['point', 'area'],
           searchable: true,
           aliases: derived.aliases,
+        })
+      }
+      const t = translate(language)
+      for (const attribute of PLACE_ATTRIBUTES) {
+        derivedCategories.push({
+          id: attribute.id,
+          type: 'category',
+          name: t(`placeAttributes.${attribute.nameKey}`),
+          icon: attribute.icon,
+          iconName: attribute.icon,
+          iconPack: 'lucide',
+          iconCategory: attribute.category,
+          tags: attribute.tagSets[0],
+          tagSets: attribute.tagSets,
+          geometry: ['point', 'area'],
+          searchable: true,
+          aliases: attribute.aliases,
         })
       }
       categories.unshift(...derivedCategories)

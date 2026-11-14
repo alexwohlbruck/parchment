@@ -344,6 +344,27 @@
     "internet_access_paid": "Wi-Fi de pago",
     "internet_access_customers": "Wi-Fi (clientes)"
   },
+  "placeAttributes": {
+    "outdoorSeating": "Terraza",
+    "wheelchair": "Accesible en silla de ruedas",
+    "accessibleRestroom": "Baño accesible",
+    "freeWifi": "Wi-Fi gratis",
+    "takeout": "Para llevar",
+    "delivery": "A domicilio",
+    "driveThrough": "Autoservicio",
+    "airConditioning": "Aire acondicionado",
+    "bar": "Con barra",
+    "dogFriendly": "Se admiten perros",
+    "vegan": "Opciones veganas",
+    "vegetarian": "Opciones vegetarianas",
+    "glutenFree": "Opciones sin gluten",
+    "halal": "Halal",
+    "babyChanging": "Cambiador de bebés",
+    "liveMusic": "Música en vivo",
+    "reservations": "Acepta reservas",
+    "open24Hours": "Abierto 24 horas",
+    "lgbtqFriendly": "LGBTQ+ friendly"
+  },
   "email": {
     "verificationCode": {
       "subject": "Verificación de correo de Parchment",

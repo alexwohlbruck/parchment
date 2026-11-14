@@ -327,4 +327,44 @@ describe('CategoryService', () => {
       expect(service.searchCategories('ev charger', 'en-US')[0]?.id).toBe('amenity/charging_station')
     })
   })
+
+  describe('place attributes', () => {
+    test.each([
+      ['outdoor seating', 'outdoor_seating/yes'],
+      ['patio', 'outdoor_seating/yes'],
+      ['wheelchair accessible', 'wheelchair/yes'],
+      ['free wifi', 'internet_access:fee/no'],
+      ['takeout', 'takeaway/yes'],
+      ['drive thru', 'drive_through/yes'],
+      ['air conditioning', 'air_conditioning/yes'],
+      ['gluten free', 'diet:gluten_free/yes'],
+      ['open 24 hours', 'opening_hours/24_7'],
+    ])('"%s" finds %s first', (query, id) => {
+      expect(service.searchCategories(query, 'en-US')[0]?.id).toBe(id)
+    })
+
+    test('outdoor seating matches every way OSM tags it, garden included', () => {
+      const seating = service.getCategoryById('outdoor_seating/yes', 'en-US')
+      expect(seating?.tagSets).toContainEqual({ outdoor_seating: 'garden' })
+      expect(seating?.tagSets).toContainEqual({ outdoor_seating: 'yes' })
+    })
+
+    test('kinds of place still win their own name', () => {
+      expect(service.searchCategories('bar', 'en-US')[0]?.id).toBe('amenity/bar')
+    })
+
+    test('restrooms also browse places tagged toilets=yes', () => {
+      const toilets = service.getCategoryById('amenity/toilets', 'en-US')
+      expect(toilets?.tagSets).toEqual([{ amenity: 'toilets' }, { toilets: 'yes' }])
+    })
+
+    test('names are translated', () => {
+      expect(service.getCategoryById('outdoor_seating/yes', 'es-ES')?.name).toBe('Terraza')
+    })
+
+    test('ids do not collide with schema presets', () => {
+      const ids = service.loadCategories('en-US').map((c) => c.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+  })
 })

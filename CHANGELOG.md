@@ -3,6 +3,10 @@
 ### Added
 
 * Toggle 3D layers, map labels, map controls, shadows, place icon style, rotation snapping and units straight from the command palette.
+* Search for what a place offers, like outdoor seating, takeout, free WiFi or wheelchair access, to find nearby places that have it.
+* The travel mode tabs in Directions show how long each way takes, so you can compare before switching.
+* Filter a collection by place type, like cafes or parks, with chips above its list. The map follows the filter.
+* Places you've recently looked up appear as small markers on the map. Turn them off under Recent places in the map layers.
 
 ### Changed
 

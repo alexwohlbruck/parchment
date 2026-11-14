@@ -40,6 +40,7 @@ import {
   type BrunnelLayer,
 } from '@/lib/map-style/brunnel'
 import { isRouteBand } from './route-band'
+import { isBasemapPoiLayer } from './basemap-poi-look'
 
 type StyleLayer = BrunnelLayer
 
@@ -76,7 +77,7 @@ export function belowLabelsBeforeId(layers: readonly StyleLayer[]): string | und
 /** Just under the lowest basemap POI layer; under every label when there are none. */
 export function belowPoisBeforeId(layers: readonly StyleLayer[]): string | undefined {
   return (
-    layers.find(l => !isOverlay(l) && l.type === 'symbol' && l['source-layer'] === 'poi')?.id ??
+    layers.find(l => !isOverlay(l) && isBasemapPoiLayer(l))?.id ??
     belowLabelsBeforeId(layers)
   )
 }

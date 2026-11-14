@@ -47,6 +47,15 @@ describe('where an overlay slots into the basemap', () => {
     expect(slotBeforeId(withPois, 'poi')).toBe('POI')
   })
 
+  test('poi still finds the POI layers once they are lifted onto the raised source', () => {
+    const raised = [
+      ...STYLE,
+      { id: 'Building 3D', type: 'fill-extrusion', 'source-layer': 'building' },
+      { id: 'POI', type: 'symbol', source: 'poi-dots-raised' },
+    ]
+    expect(belowPoisBeforeId(raised)).toBe('POI')
+  })
+
   test('poi falls back to under the labels without basemap POIs', () => {
     expect(belowPoisBeforeId(STYLE)).toBe('Oneway')
   })

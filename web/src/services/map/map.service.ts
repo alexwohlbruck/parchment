@@ -29,6 +29,7 @@ import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
 import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
 import { useCollectionMarkersLayerService } from '@/services/layers/features/collection-markers-layer.service'
+import { useRecentPlacesLayerService } from '@/services/layers/features/recent-places-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
@@ -88,6 +89,7 @@ function mapService() {
   const notesLayerService = useNotesLayerService()
   const bookmarksLayerService = useBookmarksLayerService()
   const collectionMarkersLayerService = useCollectionMarkersLayerService()
+  const recentPlacesLayerService = useRecentPlacesLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const portolanTransitService = usePortolanTransitService()
@@ -608,6 +610,11 @@ function mapService() {
       // Initialize notes layer for OSM notes overlay
       initStep('notes', () =>
         notesLayerService.initializeNotesLayer(mapStrategy),
+      )
+
+      // Under the saved places, which are added after it.
+      initStep('recent places', () =>
+        recentPlacesLayerService.initializeRecentPlacesLayer(mapStrategy),
       )
 
       // Initialize the saved places overlay (bookmarks + decrypted E2EE
@@ -1408,6 +1415,7 @@ function mapService() {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
       bookmarksLayerService.removeBookmarksLayer(mapStrategy)
       collectionMarkersLayerService.removeCollectionMarkersLayer(mapStrategy)
+      recentPlacesLayerService.removeRecentPlacesLayer(mapStrategy)
     }
 
     // Unbind the portolan renderer's map listeners and drop its layers

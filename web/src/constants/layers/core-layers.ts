@@ -36,6 +36,10 @@ export const COLLECTION_MARKERS_SOURCE_ID = 'collection-markers-source-internal'
 export const COLLECTION_MARKERS_LAYER_ID = 'collection-markers-internal'
 export const COLLECTION_LABELS_LAYER_ID = 'collection-labels-internal'
 
+export const RECENT_PLACES_SOURCE_ID = 'recent-places-source-internal'
+export const RECENT_PLACES_LAYER_ID = 'recent-places-internal'
+export const RECENT_PLACES_LABELS_LAYER_ID = 'recent-places-labels-internal'
+
 // Place polygon layer constants - these are internal and not user-modifiable
 export const PLACE_POLYGON_LAYER_ID = 'place-polygon-internal'
 export const PLACE_POLYGON_SOURCE_ID = 'place-polygon-source-internal'
@@ -422,6 +426,66 @@ export const COLLECTION_LABELS_LAYER_CONFIG: Omit<
 /** Labels are set in their marker's glyph colour, as search results are. */
 export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
   return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
+}
+
+// Recently viewed places: smaller and muted, fading in past city scale. They
+// take part in collision so a recent replaces the basemap POI under it.
+const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13, labels: 15 }
+
+export const RECENT_PLACES_LAYER_CONFIG: Omit<
+  Layer,
+  'id' | 'userId' | 'createdAt' | 'updatedAt'
+> = {
+  name: 'Recent Places (Internal)',
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  showInLayerSelector: false,
+  visible: false,
+  icon: null,
+  order: 9994,
+  groupId: null,
+  configuration: {
+    id: RECENT_PLACES_LAYER_ID,
+    type: MapboxLayerType.SYMBOL,
+    source: RECENT_PLACES_SOURCE_ID,
+    minzoom: RECENT_PLACES_ZOOM.hidden,
+    layout: {
+      ...MARKER_GLYPH_PLACEMENT,
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'icon-image': ['get', 'markerImage'],
+      'icon-size': 0.85,
+      'symbol-sort-key': ['get', 'sortKey'],
+    },
+    paint: {
+      'icon-opacity': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        RECENT_PLACES_ZOOM.hidden,
+        0,
+        RECENT_PLACES_ZOOM.shown,
+        0.9,
+      ],
+    },
+  },
+}
+
+export const RECENT_PLACES_LABELS_LAYER_CONFIG: Omit<
+  Layer,
+  'id' | 'userId' | 'createdAt' | 'updatedAt'
+> = {
+  ...RECENT_PLACES_LAYER_CONFIG,
+  name: 'Recent Places Labels (Internal)',
+  order: 9995,
+  configuration: {
+    id: RECENT_PLACES_LABELS_LAYER_ID,
+    type: MapboxLayerType.SYMBOL,
+    source: RECENT_PLACES_SOURCE_ID,
+    minzoom: RECENT_PLACES_ZOOM.labels,
+    filter: ['has', 'name'],
+    layout: { ...POI_LABEL_LAYOUT, 'text-size': 12 },
+  },
 }
 
 // Place geometry layer configurations - used for showing place boundaries and lines

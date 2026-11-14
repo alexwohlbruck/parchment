@@ -316,7 +316,7 @@ app.post(
   '/estimates',
   async ({ body, language }) => ({
     estimates: await estimateModes({
-      points: body.waypoints,
+      waypoints: body.waypoints,
       modes: body.modes,
       routingPreferences: body.routingPreferences,
       departureTime: body.departureTime,

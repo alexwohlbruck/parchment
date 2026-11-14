@@ -344,6 +344,19 @@ const searchRouter = new Elysia({ prefix: '/search' })
     },
   )
 
+  .get(
+    '/categories/place-types',
+    ({ language }) => ({ labels: categoryService.getPlaceTypeLabels(language) }),
+    {
+      detail: {
+        tags: ['Search'],
+        summary: 'Get place type names by map icon',
+        description:
+          'Maps each place icon name to the place type it stands for, in the request language. Lets clients name a saved place\'s type from its stored icon alone.',
+      },
+    },
+  )
+
   // Categories endpoint for loading OSM presets
   .get(
     '/categories',

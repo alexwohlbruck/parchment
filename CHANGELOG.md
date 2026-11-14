@@ -4,15 +4,20 @@
 
 * Toggle 3D layers, map labels, map controls, shadows, place icon style, rotation snapping and units straight from the command palette.
 * Search for what a place offers, like outdoor seating, takeout, free WiFi or wheelchair access, to find nearby places that have it.
-* The travel mode tabs in Directions show how long each way takes, so you can compare before switching.
+* With premium navigation, the travel mode tabs in Directions show how long each way takes, so you can compare before switching.
 * Filter a collection by place type, like cafes or parks, with chips above its list. The map follows the filter.
-* Places you've recently looked up appear as small markers on the map. Turn them off under Recent places in the map layers.
+* Places you've recently looked up appear on the map, so you can tap back to them. Turn them off under Recent places in the map layers.
+* Search for a need like "seating", "pizza", "trash" or "swimming" to see every kind of place that serves it.
+* Tap an amenity chip on a place, like Outdoor Seating or Restrooms, to find other places nearby that have it.
+* With premium navigation, a place's Directions button shows how long it takes to get there.
 
 ### Changed
 
 * Syncing a friend's keys and changing a collection or canvas's privacy now show progress while they run.
 
 ### Fixed
+
+* Recycling bins, dog waste bins and some transit stop categories now return results instead of an empty list.
 
 ## [0.21.4] - 2026-11-13
 

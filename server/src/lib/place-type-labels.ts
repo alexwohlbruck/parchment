@@ -1,4 +1,5 @@
 import type { CategoryResult } from '../types/search.types'
+import { getPlaceAttribute } from './place-attributes'
 
 /**
  * Presets that name an icon several unrelated presets share: a saved place
@@ -58,6 +59,7 @@ export function placeTypeLabels(
   const byIcon = new Map<string, CategoryResult[]>()
   for (const category of categories) {
     if (!category.searchable || !category.iconName) continue
+    if (getPlaceAttribute(category.id)) continue
     const presets = byIcon.get(category.iconName) ?? []
     presets.push(category)
     byIcon.set(category.iconName, presets)

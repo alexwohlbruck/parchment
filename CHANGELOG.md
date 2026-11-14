@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* The lower level of a double-deck highway, like the Brooklyn-Queens Expressway beneath the Brooklyn Bridge approach, now shows at its own height in 3D, and roads run on from their bridges without steps.
+
 ## [0.21.5] - 2026-11-13
 
 ### Added

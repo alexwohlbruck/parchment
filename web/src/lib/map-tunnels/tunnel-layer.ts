@@ -26,7 +26,7 @@ import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
 import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
-import { bedCarving, type ServedBed } from '@/lib/map-terrain/road-beds'
+import { bedCarvings, type ServedBed } from '@/lib/map-terrain/road-beds'
 import { HEADWALL as HEADWALL_DEPTH, KERB, MARGIN, headwallFrame, joinHeadwalls, portalMesh, truncate, type BoreKind, type Headwall, type ServedCut } from './tunnels'
 
 const REBASE = 1e-3
@@ -315,7 +315,9 @@ export class TunnelLayer {
     if (!close) this.origin = [center.x, center.y]
     const mesh = emptyBuilt()
     // Filled first, so a cut opening off a road bed is carved into it.
-    for (const bed of beds) mesh.footprints.set(bed.key, bedCarving(bed))
+    // Every bed's cut before any bed's fill, so where beds overlap the higher floor holds.
+    const carvings = beds.map(bed => [bed.key, bedCarvings(bed)] as const)
+    for (const fill of [false, true]) for (const [key, fs] of carvings) for (const f of fs) if (f.fill === fill) mesh.footprints.set(`${key}|${fill ? 'fill' : 'cut'}`, f)
     if (!cuts.length) return mesh
 
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1

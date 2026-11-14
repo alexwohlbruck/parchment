@@ -6,20 +6,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/map/useMapListener'
 import {
-  BikeIcon,
   BusFrontIcon,
-  CarFrontIcon,
-  CarTaxiFrontIcon,
   ChartNoAxesGanttIcon,
   ClockIcon,
   ListIcon,
   ListFilterIcon,
-  FootprintsIcon,
-  ShuffleIcon,
   SlidersHorizontalIcon,
   RefreshCwIcon,
   TrainFrontIcon,
-  TrainIcon,
   XIcon,
 } from 'lucide-vue-next'
 import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store'
@@ -34,6 +28,7 @@ import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-p
 import type { TripSort } from '@/lib/preferences/navigation-preferences'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import TravelTimeLabel from '@/components/directions/TravelTimeLabel.vue'
+import { MODE_ICONS } from '@/components/directions/mode-icons'
 import { useModeTravelTimes } from '@/composables/directions/useModeTravelTimes'
 import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
@@ -165,32 +160,32 @@ onUnmounted(() => {
 const allModes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   {
     type: 'multi',
-    icon: ShuffleIcon,
+    icon: MODE_ICONS.multi,
     label: 'All modes',
   },
   {
     type: 'walking',
-    icon: FootprintsIcon,
+    icon: MODE_ICONS.walking,
     label: 'Walking',
   },
   {
     type: 'biking',
-    icon: BikeIcon,
+    icon: MODE_ICONS.biking,
     label: 'Cycling',
   },
   {
     type: 'transit',
-    icon: TrainIcon,
+    icon: MODE_ICONS.transit,
     label: 'Transit',
   },
   {
     type: 'driving',
-    icon: CarFrontIcon,
+    icon: MODE_ICONS.driving,
     label: 'Driving',
   },
   {
     type: 'rideshare',
-    icon: CarTaxiFrontIcon,
+    icon: MODE_ICONS.rideshare,
     label: 'Rideshare',
   },
 ]

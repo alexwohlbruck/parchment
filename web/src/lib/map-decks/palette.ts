@@ -2,6 +2,7 @@ import type { FlavorId } from '@/lib/map-style/build'
 import lightTokens from '@/lib/map-style/tokens.light.json'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 import { palette } from '@/lib/palette'
+import { ROAD_COLORS } from '@/lib/map-style/road-markings'
 import { TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { DeckPalette } from './deck.types'
 
@@ -19,6 +20,15 @@ export function hsl(text: string): Rgb {
   return [0, 8, 4].map(n => light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))) as Rgb
 }
 
+/** A style colour, `#rrggbb` or `hsl(…)`, as rgb. */
+const css = (text: string): Rgb => (text.startsWith('#') ? rgb(text) : hsl(text))
+
+/** The flat roads' asphalt and paint, so a deck reads as the same road. */
+const paint = (flavor: FlavorId) => {
+  const c = ROAD_COLORS[flavor]
+  return { surface: css(c.asphalt), white: css(c.white), yellow: css(c.yellow), green: css(c.green), red: css(c.red) }
+}
+
 const TOKENS: Record<FlavorId, Record<string, string>> = { light: lightTokens, dark: darkTokens }
 
 /** The basemap's own road and path colours, which a deck takes below street zoom, for the walkways it carries and for a street deck's top beside its carriageway. */
@@ -27,38 +37,29 @@ const basemap = (flavor: FlavorId) => {
   return { lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), deck: hsl(t.path_surface) }
 }
 
-/** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */
 export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
   light: {
-    surface: [0.56, 0.57, 0.58],
     concrete: [0.84, 0.83, 0.8],
     parapet: [0.91, 0.9, 0.87],
     track: [0.78, 0.77, 0.75],
     rail: [0.5, 0.5, 0.5],
-    white: [0.98, 0.97, 0.96],
-    yellow: [0.95, 0.84, 0.17],
-    green: [0.45, 0.71, 0.58],
-    red: [0.8, 0.49, 0.44],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
     travelled: rgb(TRAVELLED_COLOR),
     travelledCasing: rgb(TRAVELLED_CASE_COLOR),
+    ...paint('light'),
     ...basemap('light'),
   },
   dark: {
-    surface: [0.24, 0.25, 0.26],
     concrete: [0.31, 0.32, 0.34],
     parapet: [0.37, 0.38, 0.4],
     track: [0.3, 0.31, 0.32],
     rail: [0.46, 0.46, 0.47],
-    white: [0.64, 0.64, 0.62],
-    yellow: [0.74, 0.66, 0.24],
-    green: [0.26, 0.4, 0.33],
-    red: [0.42, 0.27, 0.24],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
     travelled: rgb(TRAVELLED_COLOR),
     travelledCasing: rgb(TRAVELLED_CASE_COLOR),
+    ...paint('dark'),
     ...basemap('dark'),
   },
 }

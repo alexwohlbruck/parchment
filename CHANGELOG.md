@@ -7,6 +7,7 @@
 ### Fixed
 
 * The lower level of a double-deck highway, like the Brooklyn-Queens Expressway beneath the Brooklyn Bridge approach, now shows at its own height in 3D, and roads run on from their bridges without steps.
+* Bridges in 3D now have the same asphalt and paint colours as the roads on the ground, so a road keeps one colour where it goes onto a bridge.
 
 ## [0.21.5] - 2026-11-13
 

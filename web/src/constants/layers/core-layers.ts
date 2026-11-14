@@ -427,9 +427,10 @@ export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
   return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
 }
 
-// Recently viewed places: a slightly smaller POI marker, fading in past city
-// scale. Slotted under the basemap POIs so a real POI wins placement over it.
-const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13, labels: 15 }
+// Recently viewed places, drawn as basemap POIs are and slotted just under
+// them, so a real POI wins placement. The lettering here is the fallback for a
+// style with no POI layer to copy.
+const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13 }
 
 export const RECENT_PLACES_LAYER_CONFIG: Omit<
   Layer,
@@ -454,9 +455,6 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
       'icon-pitch-alignment': 'viewport',
       'icon-rotation-alignment': 'viewport',
       'icon-image': ['get', 'markerImage'],
-      'icon-size': 0.85,
-      'text-field': ['step', ['zoom'], '', RECENT_PLACES_ZOOM.labels, ['get', 'name']],
-      'text-size': 12,
       'text-optional': true,
     },
   },

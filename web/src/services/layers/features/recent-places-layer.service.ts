@@ -18,6 +18,7 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import { ensureMarkerImages } from '@/lib/map-marker'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
+import { basemapPoiLook } from '@/lib/map/basemap-poi-look'
 import {
   RECENT_PLACES_TOGGLE_ID,
   buildRecentPlacesGeoJSON,
@@ -166,11 +167,14 @@ export function useRecentPlacesLayerService() {
     }
 
     if (!map.getLayer(RECENT_PLACES_LAYER_ID)) {
-      // Built per style load, since the halo follows the theme.
+      // Built per style load: the halo follows the theme, and the lettering
+      // is copied from whatever POI layer this style draws.
+      const look = basemapPoiLook(map.getStyle()?.layers ?? [])
       const layer = toLayer(RECENT_PLACES_LAYER_CONFIG)
       layer.configuration = {
         ...layer.configuration,
-        paint: recentPlacesPaint(useThemeStore().isDark),
+        layout: { ...layer.configuration.layout, ...look?.layout },
+        paint: { ...recentPlacesPaint(useThemeStore().isDark), ...look?.paint },
       }
       mapStrategy.addLayer(layer)
     }

@@ -136,7 +136,7 @@ function scoreCategory(category: CategoryResult, query: string): number {
 }
 
 // Bump when CategoryResult schema changes
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 export const useCategoryStore = defineStore('category', () => {
   const { locale } = useI18n()

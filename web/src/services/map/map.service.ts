@@ -612,7 +612,6 @@ function mapService() {
         notesLayerService.initializeNotesLayer(mapStrategy),
       )
 
-      // Under the saved places, which are added after it.
       initStep('recent places', () =>
         recentPlacesLayerService.initializeRecentPlacesLayer(mapStrategy),
       )

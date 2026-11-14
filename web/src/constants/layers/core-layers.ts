@@ -427,9 +427,8 @@ export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
   return { ...poiLabelHalo(isDark), 'text-color': ['get', 'ink'] }
 }
 
-// Recently viewed places: smaller and muted, fading in past city scale. Marker
-// and label share one symbol so they collide as a unit, and a recent replaces
-// the basemap POI under it.
+// Recently viewed places: a slightly smaller POI marker, fading in past city
+// scale. Slotted under the basemap POIs so a real POI wins placement over it.
 const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13, labels: 15 }
 
 export const RECENT_PLACES_LAYER_CONFIG: Omit<
@@ -448,6 +447,7 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
     id: RECENT_PLACES_LAYER_ID,
     type: MapboxLayerType.SYMBOL,
     source: RECENT_PLACES_SOURCE_ID,
+    slot: 'poi',
     minzoom: RECENT_PLACES_ZOOM.hidden,
     layout: {
       ...POI_LABEL_LAYOUT,
@@ -462,7 +462,7 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
   },
 }
 
-/** Lettered in the marker's muted ink, fading in with it. */
+/** Lettered in the marker's glyph colour, fading in with it. */
 export function recentPlacesPaint(isDark: boolean): Record<string, unknown> {
   const fade = [
     'interpolate',
@@ -471,7 +471,7 @@ export function recentPlacesPaint(isDark: boolean): Record<string, unknown> {
     RECENT_PLACES_ZOOM.hidden,
     0,
     RECENT_PLACES_ZOOM.shown,
-    0.9,
+    1,
   ]
   return {
     ...collectionLabelPaint(isDark),

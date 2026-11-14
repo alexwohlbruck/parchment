@@ -1,4 +1,4 @@
-/** Recently viewed places as quiet map markers, minus anything the map already marks. */
+/** Recently viewed places as map markers, minus anything the map already marks. */
 
 import type { RecentPlaceEntry } from '@/lib/recents'
 import { isSamePlace, type ExternalIds } from '@/lib/library/external-ids'
@@ -14,8 +14,10 @@ export const RECENT_PLACES_TOGGLE_ID = 'recent-places'
 
 export const RECENT_PLACE_MARKER_LIMIT = 15
 
-const MUTED_COLOR = '#78716c'
 const FALLBACK_ICON = 'History'
+
+/** A category's marker colour, as the live palette resolves it. */
+export type CategoryColorResolver = (category: string) => string
 
 export type DrawableRecentPlace = RecentPlaceEntry & { lat: number; lng: number }
 
@@ -56,6 +58,7 @@ export function selectRecentPlaceMarkers({
 
 export function recentPlaceMarkerSpec(
   entry: RecentPlaceEntry,
+  categoryColor: CategoryColorResolver,
   isDark: boolean,
 ): MarkerImageSpec {
   const hasIcon = !!entry.icon
@@ -63,18 +66,19 @@ export function recentPlaceMarkerSpec(
     shape: 'disc',
     pack: hasIcon ? (entry.iconPack ?? 'lucide') : 'lucide',
     name: hasIcon ? entry.icon! : FALLBACK_ICON,
-    paint: markerPaint(MUTED_COLOR, 'disc', isDark),
+    paint: markerPaint(categoryColor(entry.category ?? 'default'), 'disc', isDark),
   }
 }
 
 export function buildRecentPlacesGeoJSON(
   places: DrawableRecentPlace[],
+  categoryColor: CategoryColorResolver,
   isDark: boolean,
 ) {
   return {
     type: 'FeatureCollection' as const,
     features: places.map((place, index) => {
-      const spec = recentPlaceMarkerSpec(place, isDark)
+      const spec = recentPlaceMarkerSpec(place, categoryColor, isDark)
       return {
         type: 'Feature' as const,
         geometry: {

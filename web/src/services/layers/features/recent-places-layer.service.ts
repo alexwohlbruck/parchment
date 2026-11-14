@@ -1,4 +1,4 @@
-/** Places the user recently opened, as quiet markers they can tap to get back to. */
+/** Places the user recently opened, as markers they can tap to get back to. */
 
 import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -13,6 +13,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { ensureMarkerImages } from '@/lib/map-marker'
 import { getPlaceRoute } from '@/lib/place/place-route'
@@ -95,11 +96,15 @@ export function useRecentPlacesLayerService() {
   function updateData(mapStrategy: MapStrategy) {
     const map = mapStrategy.mapInstance
     const isDark = useThemeStore().isDark
+    const palette = useCategoryPaletteStore()
+    const categoryColor = (category: string) => palette.getCategoryColor(category, isDark)
     const drawn = places.value
     placesById = new Map(drawn.map(p => [p.id, p]))
 
     const source = map.getSource(RECENT_PLACES_SOURCE_ID)
-    if (source) (source as any).setData(buildRecentPlacesGeoJSON(drawn, isDark))
+    if (source) {
+      ;(source as any).setData(buildRecentPlacesGeoJSON(drawn, categoryColor, isDark))
+    }
 
     const visible = drawn.length > 0
     if (map.getLayer(RECENT_PLACES_LAYER_ID)) {
@@ -109,7 +114,7 @@ export function useRecentPlacesLayerService() {
     if (!visible) return
     void ensureMarkerImages(
       map,
-      drawn.map(p => recentPlaceMarkerSpec(p, isDark)),
+      drawn.map(p => recentPlaceMarkerSpec(p, categoryColor, isDark)),
     ).then(() => map.triggerRepaint?.())
   }
 
@@ -185,7 +190,7 @@ export function useRecentPlacesLayerService() {
     reactivityInitialized = true
 
     watch(
-      () => [places.value, useThemeStore().isDark],
+      () => [places.value, useThemeStore().isDark, useCategoryPaletteStore().palette],
       () => {
         if (activeStrategy) updateData(activeStrategy)
       },

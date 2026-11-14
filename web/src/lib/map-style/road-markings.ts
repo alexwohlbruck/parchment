@@ -23,7 +23,7 @@ export const HD_FADE = [FROM, TO] as const
 /** Where a signal's symbol has faded out, the 3D masts at its approaches having stood in from z17. */
 const SIGNAL_UNTIL = 18.5
 
-const COLORS: Record<FlavorId, { asphalt: string; kerb: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
+export const ROAD_COLORS: Record<FlavorId, { asphalt: string; kerb: string; island: string; white: string; crosswalk: string; yellow: string; green: string; greenCasing: string; red: string; signal: string; signalHalo: string }> = {
   light: {
     asphalt: 'hsl(218, 6%, 50%)',
     kerb: 'hsl(218, 7%, 38%)',
@@ -88,7 +88,7 @@ const SHARED_DASH = [2, 1.5]
  * Where walkers share it, the green is dashed and has no casing.
  */
 export function cycleTrack(path: any, flavor: FlavorId): any[] {
-  const green = COLORS[flavor].green
+  const green = ROAD_COLORS[flavor].green
   const filter = path.filter ? ['all', path.filter, CYCLE_TRACK] : CYCLE_TRACK
   const base = {
     type: 'line',
@@ -103,7 +103,7 @@ export function cycleTrack(path: any, flavor: FlavorId): any[] {
       ...base,
       id: `${path.id} cycle track casing`,
       filter: ['all', filter, ['!', SHARED]],
-      paint: { 'line-color': COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': fadeIn },
+      paint: { 'line-color': ROAD_COLORS[flavor].greenCasing, 'line-width': metres(CYCLE_TRACK_WIDTH + 2 * CYCLE_TRACK_CASING), 'line-opacity': fadeIn },
     },
     { ...base, id: `${path.id} cycle track`, filter: ['all', filter, ['!', SHARED]], paint: fill },
     { ...base, id: `${path.id} cycle track shared`, filter: ['all', filter, SHARED], paint: { ...fill, 'line-dasharray': SHARED_DASH } },
@@ -116,7 +116,7 @@ export function cycleTrack(path: any, flavor: FlavorId): any[] {
  * over its paths.
  */
 export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
-  const asphalt = COLORS[flavor].asphalt
+  const asphalt = ROAD_COLORS[flavor].asphalt
   return layers.flatMap(layer => {
     // Over the basemap's own cycling tints of the path, which would otherwise hide it.
     const path = PATHS.find(id => layer.id === `${id}${CYCLING_SUFFIX}`)
@@ -139,7 +139,7 @@ export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
 
 /** One band of lane geometry: at grade, or on bridges. */
 export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
-  const c = COLORS[flavor]
+  const c = ROAD_COLORS[flavor]
   const band = ['==', ['coalesce', ['get', 'bridge'], false], bridge]
   const suffix = bridge ? ' bridge' : ''
   const paint = ['match', ['get', 'color'], 'yellow', c.yellow, c.white]
@@ -241,8 +241,8 @@ export function signalLayer(flavor: FlavorId): any {
       'icon-padding': 4,
     },
     paint: {
-      'icon-color': COLORS[flavor].signal,
-      'icon-halo-color': COLORS[flavor].signalHalo,
+      'icon-color': ROAD_COLORS[flavor].signal,
+      'icon-halo-color': ROAD_COLORS[flavor].signalHalo,
       'icon-halo-width': 1.5,
       'icon-opacity': ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1, SIGNAL_UNTIL - 0.5, 1, SIGNAL_UNTIL, 0],
     },

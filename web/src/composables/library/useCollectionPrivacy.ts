@@ -31,12 +31,16 @@ export function useCollectionPrivacy() {
 
     switching.value = true
     try {
-      const switched = await collectionsService.changeScheme(collection, target)
-      appService.toast.success(t('library.privacy.switched'))
-      return switched
+      return await appService.toast.promise(
+        collectionsService.changeScheme(collection, target),
+        {
+          loading: t('library.privacy.switching'),
+          success: t('library.privacy.switched'),
+          error: t('library.privacy.switchFailed'),
+        },
+      )
     } catch (err) {
       console.error('[collections] privacy switch failed', err)
-      appService.toast.error(t('library.privacy.switchFailed'), { cause: err })
       return null
     } finally {
       switching.value = false

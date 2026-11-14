@@ -1255,6 +1255,7 @@
         "server-key": "Hacerlo compartible",
         "user-e2ee": "Hacerlo privado"
       },
+      "switching": "Actualizando la privacidad…",
       "switched": "Se actualizó la privacidad",
       "switchFailed": "No se pudo cambiar la privacidad",
       "confirm": {

@@ -1337,6 +1337,7 @@
         "server-key": "Make it shareable",
         "user-e2ee": "Make it private"
       },
+      "switching": "Updating privacy…",
       "switched": "Privacy updated",
       "switchFailed": "Couldn't change privacy",
       "confirm": {

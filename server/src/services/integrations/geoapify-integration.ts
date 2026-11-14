@@ -159,13 +159,16 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   }
 
   async searchByCategory(
-    presetId: string,
+    categoryIds: string[],
     bounds: MapBounds,
     options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
-    const category = this.mapPresetToGeoapifyCategory(presetId)
+    const category = categoryIds
+      .map((id) => this.mapPresetToGeoapifyCategory(id))
+      .filter(Boolean)
+      .join(',')
     if (!category) {
       return []
     }

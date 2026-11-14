@@ -342,7 +342,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   }
 
   async searchByCategory(
-    presetId: string,
+    categoryIds: string[],
     bounds: MapBounds,
     options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
@@ -351,13 +351,15 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       return []
     }
 
-    const tags = this.mapPresetToOsmTags(presetId)
-    if (!tags) {
+    const tagSets = categoryIds
+      .map((id) => this.mapPresetToOsmTags(id))
+      .filter(Boolean) as Record<string, string>[]
+    if (!tagSets.length) {
       return []
     }
 
     try {
-      const query = this.buildCategoryQuery(tags, bounds, options?.limit)
+      const query = this.buildCategoryQuery(tagSets, bounds, options?.limit)
       const response = await axios.post(
         this.config.host,
         new URLSearchParams({ data: query }),
@@ -416,21 +418,21 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   }
 
   private buildCategoryQuery(
-    tags: Record<string, string>,
+    tagSets: Record<string, string>[],
     bounds: MapBounds,
     maxResults = 100,
   ): string {
-    const tagFilters = Object.entries(tags)
-      .map(([key, value]) => `["${key}"="${value}"]`)
-      .join('')
-
     const locationFilter = `(${bounds.south},${bounds.west},${bounds.north},${bounds.east})`
+    const unionLines = tagSets.flatMap((tags) => {
+      const tagFilters = Object.entries(tags)
+        .map(([key, value]) => `["${key}"="${value}"]`)
+        .join('')
+      return ['node', 'way', 'relation'].map((type) => `${type}${tagFilters}${locationFilter};`)
+    })
 
     return `[out:json][timeout:90];
       (
-        node${tagFilters}${locationFilter};
-        way${tagFilters}${locationFilter};
-        relation${tagFilters}${locationFilter};
+        ${unionLines.join('\n        ')}
       );
       out body geom ${maxResults};
       >;

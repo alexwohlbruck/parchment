@@ -198,13 +198,14 @@ export interface MapBounds {
 
 export interface SearchCategoryCapability {
   /**
-   * Search a POI category, nearest-first. Viewport-scoped, then widened (nearest
-   * matches within a wide area) when the viewport holds fewer than `minResults`,
-   * so a thin category still returns nearby results. Supports `offset` for scroll
-   * pagination.
+   * Search POI categories, nearest-first; a place in any of `categoryIds`
+   * matches, and an empty list browses on `filterTags` alone. Viewport-scoped,
+   * then widened (nearest matches within a wide area) when the viewport holds
+   * fewer than `minResults`, so a thin category still returns nearby results.
+   * Supports `offset` for scroll pagination.
    */
   searchByCategory(
-    presetId: string,
+    categoryIds: string[],
     bounds: MapBounds,
     options?: {
       limit?: number

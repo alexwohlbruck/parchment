@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
@@ -39,17 +39,6 @@ const emit = defineEmits<{
   toggleLocation: [friendHandle: string, enabled: boolean]
   syncKeys: []
 }>()
-
-const isSyncing = ref(false)
-
-async function handleSyncKeys() {
-  isSyncing.value = true
-  emit('syncKeys')
-  // Give a bit of time for visual feedback
-  setTimeout(() => {
-    isSyncing.value = false
-  }, 1000)
-}
 
 const alias = computed(() => {
   return props.friend.friendHandle.split('@')[0]
@@ -155,8 +144,8 @@ function openFriendDetail() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem @click="handleSyncKeys">
-            <RefreshCwIcon class="size-4" :class="{ 'animate-spin': isSyncing }" />
+          <DropdownMenuItem @click="emit('syncKeys')">
+            <RefreshCwIcon class="size-4" />
             {{ t('friends.detail.syncKeys') }}
           </DropdownMenuItem>
           <DropdownMenuItem

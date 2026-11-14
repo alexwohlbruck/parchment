@@ -1541,8 +1541,9 @@
       "removeFriend": "Eliminar amigo",
       "removeConfirmation": "¿Estás seguro de que quieres eliminar a {name} como amigo? Esto también detendrá todo el intercambio de ubicación.",
       "syncKeys": "Sincronizar claves",
-      "keysSynced": "Claves sincronizadas correctamente",
-      "syncFailed": "Error al sincronizar las claves"
+      "syncingKeys": "Sincronizando claves…",
+      "keysSynced": "Claves sincronizadas",
+      "syncFailed": "No se pudieron sincronizar las claves"
     }
   },
   "dashboard": {

@@ -98,7 +98,8 @@ function onBookmarkDeleted() {
         @click="$emit('directions')"
       >
         <template v-if="travelSeconds !== null">
-          <component :is="MODE_ICONS[travel.mode.value]" class="mr-2 size-4" />
+          <ArrowDownToDotIcon v-if="travel.mode.value === 'multi'" class="mr-2 size-4 -rotate-90" />
+          <component :is="MODE_ICONS[travel.mode.value]" v-else class="mr-2 size-4" />
           <span class="tabular-nums">{{ formatDurationLong(travelSeconds) }}</span>
         </template>
         <template v-else>

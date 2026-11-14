@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  fastestTravelTime,
   modesToEstimate,
   plannedSeconds,
   travelTimeFor,
@@ -80,5 +81,25 @@ describe('withTravelTimes', () => {
     map = withTravelTimes(map, 'a', { walking: 3 }, 2)
     map = withTravelTimes(map, 'c', { walking: 4 }, 2)
     expect([...map.keys()]).toEqual(['a', 'c'])
+  })
+})
+
+describe('fastestTravelTime', () => {
+  const all = { walking: 900, biking: 400, driving: 300, transit: 700 }
+
+  it('waits until every mode has a time', () => {
+    expect(fastestTravelTime(undefined, { walking: 900 }, true)).toEqual({ state: 'loading' })
+    expect(fastestTravelTime(undefined, { walking: 900 }, false)).toEqual({ state: 'unknown' })
+  })
+
+  it('takes the quickest mode, planned times first', () => {
+    expect(fastestTravelTime(undefined, all, false)).toEqual({ state: 'ready', seconds: 300 })
+    expect(fastestTravelTime({ biking: 200 }, all, false)).toEqual({ state: 'ready', seconds: 200 })
+  })
+
+  it('skips modes without a route', () => {
+    expect(fastestTravelTime(undefined, { ...all, driving: null }, false)).toEqual({ state: 'ready', seconds: 400 })
+    expect(fastestTravelTime(undefined, { walking: null, biking: null, driving: null, transit: null }, false))
+      .toEqual({ state: 'none' })
   })
 })

@@ -44,6 +44,18 @@ export function travelTimeFor(
   return { state: loading ? 'loading' : 'unknown' }
 }
 
+/** The quickest mode once every mode has a time, standing in for a mixed trip nobody has planned yet. */
+export function fastestTravelTime(
+  planned: TravelTimes | undefined,
+  estimated: TravelTimes | undefined,
+  loading: boolean,
+): TravelTime {
+  const known = { ...estimated, ...planned }
+  if (!ESTIMATE_MODES.every(mode => mode in known)) return { state: loading ? 'loading' : 'unknown' }
+  const seconds = ESTIMATE_MODES.flatMap(mode => known[mode] ?? [])
+  return seconds.length ? { state: 'ready', seconds: Math.min(...seconds) } : { state: 'none' }
+}
+
 /** Modes still without a time, leaving out the one a full plan is answering. */
 export function modesToEstimate(
   planning: SelectedMode,

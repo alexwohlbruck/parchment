@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.21.5] - 2026-11-13
+
+### Added
+
 * Toggle 3D layers, map labels, map controls, shadows, place icon style, rotation snapping and units straight from the command palette.
 * Search for what a place offers, like outdoor seating, takeout, free WiFi or wheelchair access, to find nearby places that have it.
 * With premium navigation, the travel mode tabs in Directions show how long each way takes, so you can compare before switching.

@@ -6,9 +6,9 @@ import { transitRoutingService } from './transit-routing.service'
 import { TransitPriority } from '../lib/transit/transit-gate'
 import { MemoCache } from '../lib/memo-cache'
 import { logWarn } from '../lib/logger'
+import { haversineMeters } from '../util/geometry-conversion'
 import {
   type EstimateMode,
-  pathMeters,
   routeSeconds,
   transitSeconds,
   withinReach,
@@ -23,6 +23,14 @@ export interface ModeEstimatesRequest {
 }
 
 export type ModeEstimates = Partial<Record<EstimateMode, number | null>>
+
+function pathMeters(points: Coordinate[]): number {
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    total += haversineMeters(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng)
+  }
+  return total
+}
 
 const COSTING: Record<Exclude<EstimateMode, 'transit'>, string> = {
   walking: 'pedestrian',

@@ -1,7 +1,5 @@
 import type { TransitItinerary } from '../../types/integration.types'
 import type { UnifiedRoute } from '../../types/unified-routing.types'
-import type { Coordinate } from '../../types/unified-routing.types'
-import { haversineMeters } from '../../util/geometry-conversion'
 
 export const ESTIMATE_MODES = ['walking', 'biking', 'driving', 'transit'] as const
 export type EstimateMode = (typeof ESTIMATE_MODES)[number]
@@ -17,14 +15,6 @@ const REACH_M: Record<EstimateMode, number> = {
 const STREET_MOTIS_MODES = new Set([
   'WALK', 'BIKE', 'BICYCLE', 'CAR', 'CAR_PARKING', 'CAR_DROPOFF', 'RENTAL', 'FLEX', 'ODM',
 ])
-
-export function pathMeters(points: Coordinate[]): number {
-  let total = 0
-  for (let i = 1; i < points.length; i++) {
-    total += haversineMeters(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng)
-  }
-  return total
-}
 
 export function withinReach(mode: EstimateMode, meters: number): boolean {
   return meters <= REACH_M[mode]

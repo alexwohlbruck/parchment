@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { pathMeters, routeSeconds, transitSeconds, withinReach } from './mode-estimates'
+import { routeSeconds, transitSeconds, withinReach } from './mode-estimates'
 import type { TransitItinerary } from '../../types/integration.types'
 import type { UnifiedRoute } from '../../types/unified-routing.types'
 
@@ -45,14 +45,5 @@ describe('withinReach', () => {
     expect(withinReach('walking', 150_000)).toBe(false)
     expect(withinReach('biking', 400_000)).toBe(false)
     expect(withinReach('driving', 2_000_000)).toBe(true)
-  })
-})
-
-describe('pathMeters', () => {
-  test('adds up each hop', () => {
-    const a = { lat: 0, lng: 0 }
-    const b = { lat: 0, lng: 1 }
-    expect(pathMeters([a, b, a])).toBeCloseTo(2 * pathMeters([a, b]), 3)
-    expect(pathMeters([a])).toBe(0)
   })
 })

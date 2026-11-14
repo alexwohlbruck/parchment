@@ -358,6 +358,7 @@ export interface DisplayChip {
   sentiment: ChipSentiment
   section?: 'diet'      // Optional: route to a specific UI section
   category?: ChipCategory // Grouping category for future UI use
+  searchId?: string     // Attribute or group id that browses places with this chip
 }
 
 export interface NearbyCategory {

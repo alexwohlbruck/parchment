@@ -1,5 +1,6 @@
 import type { DisplayChip, ChipSentiment, ChipCategory } from '../types/place.types'
 import type { TranslateFn, TranslationKey } from './i18n/i18n.types'
+import { searchIdForTag } from './searchable-tags'
 
 // ── Chip definition ──────────────────────────────────────────────────────────
 
@@ -396,6 +397,11 @@ export function resolveDisplayChips(
         consumed.add(key)
       }
     }
+  }
+
+  for (const chip of chips) {
+    const searchId = searchIdForTag(chip.key, chip.value, tags)
+    if (searchId) chip.searchId = searchId
   }
 
   // 4. Build remaining tags

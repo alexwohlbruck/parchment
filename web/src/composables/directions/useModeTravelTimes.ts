@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
 import { ESTIMATE_MODES } from '@server/lib/directions/mode-estimates'
 import { useDirectionsStore, SELECTABLE_MODES } from '@/stores/directions.store'
-import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { useEstimatePreferences } from '@/composables/directions/useEstimatePreferences'
 import { fetchModeEstimates } from '@/services/mode-estimates.service'
 import { useLatestRequest, SUPERSEDED } from '@/composables/useLatestRequest'
 import {
@@ -22,14 +22,12 @@ const ESTIMATE_DEBOUNCE_MS = 400
 export function useModeTravelTimes() {
   const store = useDirectionsStore()
   const { waypoints, departureTime, selectedMode, trips, isLoading, plannedTimes, estimatedTimes } = storeToRefs(store)
-  const { routing } = storeToRefs(useNavigationPreferencesStore())
   const estimating = useLatestRequest('failed to estimate travel times')
 
   const points = computed(() =>
     waypoints.value.flatMap(wp => (wp.lngLat ? [{ lat: wp.lngLat.lat, lng: wp.lngLat.lng }] : [])))
 
-  const preferences = computed(() =>
-    Object.fromEntries(ESTIMATE_MODES.map(mode => [mode, { ...routing.value.general, ...routing.value.mode[mode] }])))
+  const preferences = useEstimatePreferences()
 
   const key = computed(() =>
     points.value.length >= 2 ? travelTimesKey(points.value, departureTime.value, preferences.value) : '')

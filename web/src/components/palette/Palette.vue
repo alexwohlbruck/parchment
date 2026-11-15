@@ -407,6 +407,14 @@ watch(activeArgument, async newArg => {
   }
 })
 
+// The highlight otherwise stays on whichever row had it, so a query that turns
+// into an Ask question would still run a plain search on Enter.
+watch(argumentOptions, async () => {
+  if (!query.value.trim()) return
+  await nextTick()
+  commandPalette.value?.highlightFirstItem()
+})
+
 // Create a debounced function for loading search options.
 // nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
 //

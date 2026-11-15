@@ -4,9 +4,17 @@ import type { Place } from '../../types/place.types'
 const mockLookupPlaces = mock(async () => [] as Place[])
 const mockLookupPlace = mock(async () => null as Place | null)
 const mockSearchByCategory = mock(async () => [] as Place[])
+const reachGeometry = {
+  type: 'Polygon',
+  coordinates: [[[-74.01, 40.69], [-73.99, 40.69], [-73.99, 40.71], [-74.01, 40.71], [-74.01, 40.69]]],
+}
 const mockBarrelman = mock(async () =>
   Response.json({
-    features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[-74.01, 40.69], [-73.99, 40.69], [-73.99, 40.71], [-74.01, 40.69]]] } }],
+    mode: 'walk',
+    isochrones: {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', properties: {}, geometry: reachGeometry }],
+    },
   }),
 )
 
@@ -69,5 +77,22 @@ describe('tool caching', () => {
     await expect(tool('find_places').run({ query: 'flaky' }, context())).rejects.toThrow('down')
     await tool('find_places').run({ query: 'flaky' }, context())
     expect(mockLookupPlaces).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('places_within_reach', () => {
+  test('keeps only places inside the reachable area and draws it', async () => {
+    const at = (id: string, lat: number, lng: number) =>
+      ({ id, name: { value: id }, geometry: { value: { center: { lat, lng } } } }) as unknown as Place
+    mockSearchByCategory.mockResolvedValueOnce([at('inside', 40.7, -74), at('outside', 40.8, -74)])
+    const events: unknown[] = []
+
+    const result = (await tool('places_within_reach').run(
+      { mode: 'bike', minutes: 7, category_id: 'amenity/bar' },
+      { ...context(), emit: (event) => events.push(event) },
+    )) as { places: { id: string }[] }
+
+    expect(result.places.map((p) => p.id)).toEqual(['inside'])
+    expect(events).toEqual([{ type: 'reach', geometry: reachGeometry }])
   })
 })

@@ -1,5 +1,5 @@
 import { bbox, booleanPointInPolygon, circle, point } from '@turf/turf'
-import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
+import type { Feature, MultiPolygon, Polygon } from 'geojson'
 import { lookupPlacesByNameAndLocation, lookupEnrichedPlaceById } from '../place.service'
 import { searchByCategory } from '../search.service'
 import { categoryService } from '../category.service'
@@ -8,7 +8,7 @@ import { requestBarrelman } from '../barrelman.service'
 import { describePlace, openNow, summarizePlace } from '../../lib/ask/place-summary'
 import { toolCacheKey } from '../../lib/ask/tool-cache-key'
 import { MemoCache } from '../../lib/memo-cache'
-import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode } from '../../types/isochrone.types'
+import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode, type IsochroneResponse } from '../../types/isochrone.types'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { MapBounds } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
@@ -287,8 +287,8 @@ async function loadReachPolygon(
     { timeoutMs: 60_000 },
   )
   if (!response.ok) throw new AskToolError(`Could not compute reach (${response.status})`)
-  const collection = (await response.json()) as FeatureCollection<Polygon | MultiPolygon>
-  const feature = collection.features?.[0]
+  const { isochrones } = (await response.json()) as IsochroneResponse
+  const feature = isochrones?.features?.[0] as Feature<Polygon | MultiPolygon> | undefined
   if (!feature) throw new AskToolError('No reachable area')
   return feature
 }

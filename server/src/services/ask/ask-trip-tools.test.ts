@@ -341,6 +341,16 @@ describe('plan_trip', () => {
     expect(events[0]).toMatchObject({ tripIndex: 1, lines: ['5'] })
   })
 
+  test("starts from the user's own location when no start is given", async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('walking', 3)], 3)],
+    })
+    const events: AskEvent[] = []
+    const ctx = knownContext(events)
+    await tool('plan_trip').run({ to: 'home' }, ctx)
+    expect(events[0]).toMatchObject({ from: { lat: here.lat, lng: here.lng } })
+  })
+
   test('a place id a tool returned stands for that place, name and all', async () => {
     mockPlanTrip.mockResolvedValueOnce({
       trips: [candidate([segment('biking', 30)], 30)],

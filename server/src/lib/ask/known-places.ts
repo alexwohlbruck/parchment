@@ -8,7 +8,7 @@ export function knownPlaces(
   saved: AskEndpoint[] = [],
 ): Map<string, AskEndpoint> {
   const places = new Map<string, AskEndpoint>()
-  if (here) places.set(HERE, { lat: here.lat, lng: here.lng })
+  if (here) places.set(HERE, { lat: here.lat, lng: here.lng, here: true })
   for (const place of saved) {
     const key = place.name?.trim().toLowerCase()
     if (key && !places.has(key)) places.set(key, place)

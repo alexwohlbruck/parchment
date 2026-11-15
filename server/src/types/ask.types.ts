@@ -15,6 +15,8 @@ export interface AskEndpoint extends LatLng {
   name?: string
   /** The place a looked-up name resolved to. */
   placeId?: string
+  /** The user's own position, which the app shows as its current location. */
+  here?: true
 }
 
 /** A stop on the way, and how long to stay. */

@@ -41,6 +41,7 @@ import {
   pointLabel,
   clamp,
   endpoint,
+  start,
   nearSchema,
   pointSchema,
   type PointArg,
@@ -106,7 +107,7 @@ const travelTimes: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: pointSchema("Start. Defaults to the map's centre."),
+      from: pointSchema("Start. Defaults to the user's own location."),
       to: pointSchema('Destination.'),
       modes: {
         type: 'array',
@@ -121,7 +122,8 @@ const travelTimes: AskTool<{
     if (!(await hasPremiumNavigation(context.userId))) {
       throw new AskToolError('Comparing travel times needs Parchment Premium')
     }
-    const from = await centre(args.from, context)
+    const { lat, lng } = await start(args.from, context)
+    const from = { lat, lng }
     const estimates = await estimateModes({
       waypoints: [from, await centre(args.to, context)],
       modes: args.modes?.length ? args.modes : [...ESTIMATE_MODES],
@@ -150,7 +152,7 @@ const transitTrips: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: pointSchema("Start. Defaults to the map's centre."),
+      from: pointSchema("Start. Defaults to the user's own location."),
       to: pointSchema('Destination.'),
       depart_at: timeSchema,
       arrive_by: {
@@ -167,7 +169,7 @@ const transitTrips: AskTool<{
   label: () => 'Checking transit',
   detail: tripDetail,
   async run(args, context) {
-    const from = await endpoint(args.from, context)
+    const from = await start(args.from, context)
     const to = await endpoint(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
     const timing = tripTiming(args, from, to, context)
@@ -220,7 +222,7 @@ const planTrip: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: pointSchema('Start. Use "here" for the user\'s own location.'),
+      from: pointSchema("Start. Defaults to the user's own location."),
       to: pointSchema('Destination.'),
       kind: { type: 'string', enum: [...ASK_TRIP_KINDS] },
       stops: {
@@ -247,7 +249,7 @@ const planTrip: AskTool<{
   label: () => 'Planning the trip',
   detail: tripDetail,
   async run(args, context) {
-    const from = await endpoint(args.from, context)
+    const from = await start(args.from, context)
     const to = await endpoint(args.to, context)
     const stops: AskStop[] = await Promise.all(
       (args.stops ?? []).map(async ({ at, minutes }) => ({

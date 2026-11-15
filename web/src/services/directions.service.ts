@@ -490,28 +490,20 @@ function directionsService() {
     ) {
       return null
     }
+    return currentLocationWaypoint(coords.value.latitude, coords.value.longitude)
+  }
 
-    const currentLocationPlace: Place = {
+  /** The "Current location" waypoint at a position the caller already knows. */
+  function currentLocationWaypoint(lat: number, lng: number): Waypoint {
+    const place = {
       id: CURRENT_LOCATION_ID,
       name: { value: 'Current location' },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: coords.value.latitude,
-            lng: coords.value.longitude,
-          },
-        },
-      },
+      geometry: { value: { type: 'point', center: { lat, lng } } },
       externalIds: {},
       address: null,
       placeType: { value: 'current_location' },
     } as Place
-
-    return {
-      lngLat: new LngLat(coords.value.longitude, coords.value.latitude),
-      place: currentLocationPlace,
-    }
+    return { lngLat: new LngLat(lng, lat), place }
   }
 
   /**
@@ -679,6 +671,7 @@ function directionsService() {
     directionsFrom,
     directionsTo,
     getCurrentLocationWaypoint,
+    currentLocationWaypoint,
     populateOriginWithCurrentLocation,
   }
 }

@@ -17,6 +17,7 @@ export function useAskTripPreview() {
   const mapService = useMapService()
 
   function waypoint(endpoint: AskEndpoint): Waypoint {
+    if (endpoint.here) return directionsService.currentLocationWaypoint(endpoint.lat, endpoint.lng)
     const current = directionsService.getCurrentLocationWaypoint()
     const lngLat = { lng: endpoint.lng, lat: endpoint.lat }
     const isCurrent =

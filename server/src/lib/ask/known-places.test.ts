@@ -10,7 +10,7 @@ describe('knownPlaces', () => {
       { name: ' ', lat: 9, lng: 9 },
     ])
     expect([...places.keys()]).toEqual(['here', 'home'])
-    expect(places.get('here')).toEqual({ lat: 1, lng: 2 })
+    expect(places.get('here')).toEqual({ lat: 1, lng: 2, here: true })
     expect(places.get('home')).toEqual({ name: 'Home', lat: 3, lng: 4 })
   })
 

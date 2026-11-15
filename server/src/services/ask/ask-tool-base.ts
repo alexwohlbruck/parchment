@@ -173,6 +173,14 @@ export function pointLabel(
   return known ? known.name : text
 }
 
+/** Where a trip starts: the given point, else the user's own position, else the map's centre. */
+export function start(
+  value: PointArg | undefined,
+  context: AskContext,
+): Promise<AskEndpoint> {
+  return endpoint(value ?? (context.places.has(HERE) ? HERE : undefined), context)
+}
+
 export async function centre(
   value: PointArg | undefined,
   context: AskContext,

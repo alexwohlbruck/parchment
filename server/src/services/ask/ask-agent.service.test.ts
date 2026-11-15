@@ -118,7 +118,7 @@ describe('runAsk', () => {
   test('reports a failed tool to the model instead of throwing', async () => {
     mockLookupPlaces.mockRejectedValue(new Error('upstream down'))
     const { model, requests } = scriptedModel([
-      [call('find_places', { query: 'x' })],
+      [call('find_places', { query: 'unreachable' })],
       [call('answer', { text: 'Search is down.', places: [] })],
     ])
     const ctx = context()

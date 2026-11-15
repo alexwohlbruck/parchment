@@ -17,6 +17,24 @@ describe('proposedTrip', () => {
     expect(proposedTrip([ride, share, subway], 'biking')?.id).toBe('ride')
   })
 
+  it('shows the trip riding the lines Ask described, else plain transit before mixes', () => {
+    const bikeTo5 = trip('bike-5', 1, [
+      { mode: 'cycling', duration: 200 },
+      { mode: 'transit', duration: 700, lineName: '5' },
+    ])
+    const walkTo4 = trip('walk-4', 2, [
+      { mode: 'walking', duration: 200 },
+      { mode: 'transit', duration: 800, lineName: '4' },
+    ])
+    const walkTo5 = trip('walk-5', 3, [
+      { mode: 'walking', duration: 300 },
+      { mode: 'transit', duration: 700, lineName: '5' },
+    ])
+    expect(proposedTrip([bikeTo5, walkTo4, walkTo5], 'transit', ['4'])?.id).toBe('walk-4')
+    expect(proposedTrip([bikeTo5, walkTo4, walkTo5], 'transit', ['5'])?.id).toBe('walk-5')
+    expect(proposedTrip([bikeTo5, walkTo4], 'transit')?.id).toBe('walk-4')
+  })
+
   it('falls back to the best trip when none is of that kind', () => {
     expect(proposedTrip([ride, subway], 'bikeshare')?.id).toBe('subway')
   })

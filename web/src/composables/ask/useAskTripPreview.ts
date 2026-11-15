@@ -25,16 +25,26 @@ export function useAskTripPreview() {
     return isCurrent ? current : { lngLat, place: endpointPlace(endpoint) }
   }
 
+  async function planHere() {
+    await directionsService.getDirections()
+    return directionsStore.trips
+  }
+
   async function preview(index: number, trip: AskTrip) {
     directionsService.clearTrip()
-    directionsService.setWaypoints([waypoint(trip.from), waypoint(trip.to)])
+    const arriveBy = trip.time?.mode === 'arriveBy' ? trip.time.at : null
+    directionsService.setWaypoints([
+      waypoint(trip.from),
+      { ...waypoint(trip.to), ...(arriveBy && { timeConstraint: { mode: 'arriveBy', time: arriveBy } }) },
+    ])
+    directionsStore.departureTime = trip.time?.mode === 'departAfter' ? trip.time.at : null
     if (directionsStore.selectedMode !== 'multi' && directionsStore.selectedMode !== trip.kind) {
       directionsStore.selectedMode = 'multi'
     }
-    await directionsService.getDirections()
+    const trips = trip.plan ? await directionsService.showPlan(trip.plan) : await planHere()
     if (askStore.exchanges[index]?.trip !== trip) return
-    const trips = directionsStore.trips
-    const chosen = trips && proposedTrip(trips.trips, trip.kind)
+    const chosen =
+      trips && (trip.tripIndex !== undefined ? trips.trips[trip.tripIndex] : proposedTrip(trips.trips, trip.kind, trip.lines))
     askStore.setPlan(index, chosen ? { trips, tripId: chosen.id } : null)
     if (chosen) mapService.setVisibleTrips([chosen.id])
   }

@@ -31,8 +31,24 @@ function isKind(trip: TripOption, kind: AskTripKind): boolean {
   }
 }
 
-/** The best-ranked trip of the kind Ask proposed, or the best overall when the planner has none of it. */
-export function proposedTrip(trips: readonly TripOption[], kind: AskTripKind): TripOption | undefined {
+function linesOf(trip: TripOption): string[] {
+  return trip.segments.flatMap(segment => (segment.mode === 'transit' && segment.lineName ? [segment.lineName] : []))
+}
+
+const PLAIN_TRANSIT = new Set(['transit', 'transitWalking'])
+
+/**
+ * The trip Ask described: among trips riding the same lines (or all, when none
+ * do), the best-ranked plain transit trip for transit, else of its kind, else the first.
+ */
+export function proposedTrip(
+  trips: readonly TripOption[],
+  kind: AskTripKind,
+  lines: readonly string[] = [],
+): TripOption | undefined {
   const ranked = byRank(trips)
-  return ranked.find(trip => isKind(trip, kind)) ?? ranked[0]
+  const sameLines = ranked.filter(trip => lines.length && linesOf(trip).join('|') === lines.join('|'))
+  const pool = sameLines.length ? sameLines : ranked
+  const plain = kind === 'transit' ? pool.find(trip => PLAIN_TRANSIT.has(tripType(trip.segments).key)) : undefined
+  return plain ?? pool.find(trip => isKind(trip, kind)) ?? pool[0]
 }

@@ -47,6 +47,18 @@ export function useSettingsIndex() {
     })
   })
 
+  // Admin pages sit under their own heading. A user without any sees one
+  // unlabelled list, since "personal" means nothing without the contrast.
+  const pageGroups = computed<{ titleKey?: string; pages: SettingsPageDef[] }[]>(() => {
+    const personal = allowedPages.value.filter(page => !page.admin)
+    const admin = allowedPages.value.filter(page => page.admin)
+    if (admin.length === 0) return [{ pages: personal }]
+    return [
+      { titleKey: 'settings.groups.personal', pages: personal },
+      { titleKey: 'settings.groups.admin', pages: admin },
+    ]
+  })
+
   // The subscription section (nested under the account page) is hidden when
   // billing is disabled — self-hosted or not configured — so search and the
   // sub-nav don't surface a section that renders nothing.
@@ -144,6 +156,7 @@ export function useSettingsIndex() {
 
   return {
     allowedPages,
+    pageGroups,
     sectionsByPage,
     searchEntries,
     search,

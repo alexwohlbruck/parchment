@@ -327,6 +327,24 @@ function resolve(
   return value
 }
 
+/** The badge colours a basemap POI of `category` wears; its lettering takes the ink. */
+export function poiBadgeColors(
+  category: string,
+  flavor: FlavorId,
+  categoryColors?: Partial<Record<PlaceCategoryId, string>>,
+): { plate: string; ink: string; ring: string; lift: string } {
+  const tokens = tokenMap(flavor)
+  const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
+  const id = tokens[`poi_plate_${category}`] ? category : 'default'
+  const color = (token: string) => resolve(`@${token}`, tokens, categories, flavor) as string
+  return {
+    plate: color(`poi_plate_${id}`),
+    ink: color(`poi_ink_${id}`),
+    ring: color(`poi_ring_${id}`),
+    lift: color('poi_lift'),
+  }
+}
+
 const specLayers = (spec as { layers: any[] }).layers
 type LayerOverrides = Record<
   string,

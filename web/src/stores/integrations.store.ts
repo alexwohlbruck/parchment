@@ -289,6 +289,15 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     ),
   )
 
+  function hasDegradedIntegrationsIn(scope: IntegrationScope) {
+    return allIntegrations.value.some(
+      entry =>
+        entry.scope === scope &&
+        entry.config &&
+        entry.integration.id in degradedIntegrations.value,
+    )
+  }
+
   // Clear all cached data (used on sign out)
   function clearCache() {
     integrationConfigurations.value = null
@@ -324,6 +333,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     clearIntegrationDegraded,
     isIntegrationDegraded,
     hasDegradedIntegrations,
+    hasDegradedIntegrationsIn,
     clearCache,
   }
 })

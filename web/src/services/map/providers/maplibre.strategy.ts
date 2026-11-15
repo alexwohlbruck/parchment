@@ -1603,11 +1603,7 @@ export class MaplibreStrategy extends MapStrategy {
    * by the basemap are the same colour.
    */
   private categoryColors(theme: 'light' | 'dark') {
-    const store = useCategoryPaletteStore()
-    const isDark = theme === 'dark'
-    return Object.fromEntries(
-      store.palette.map(c => [c.id, isDark ? c.colors.dark : c.colors.light]),
-    )
+    return useCategoryPaletteStore().categoryColors(theme === 'dark')
   }
 
   /**

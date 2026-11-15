@@ -46,6 +46,13 @@ const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
   'Arial Unicode MS Regular': 'Geist Regular',
 }
 
+const MAPLIBRE_FONTS = new Set(Object.values(MAPBOX_TO_MAPLIBRE_FONTS))
+
+/** A Mapbox font's MapLibre face; a name that already is one, such as the basemap's own, passes through. */
+function maplibreFont(font: string): string {
+  return MAPBOX_TO_MAPLIBRE_FONTS[font] ?? (MAPLIBRE_FONTS.has(font) ? font : 'Geist Regular')
+}
+
 /**
  * Recursively strip Mapbox-only expressions that MapLibre doesn't understand.
  * - `measure-light`: resolved against the app theme; see below.
@@ -164,7 +171,7 @@ export function mapboxLayerToMaplibreLayer(
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
       const stack = maplibreConfig.layout['text-font']
         .filter((entry: unknown) => typeof entry === 'string')
-        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Geist Regular')
+        .map(maplibreFont)
       maplibreConfig.layout['text-font'] = [stack[0] ?? 'Geist Regular']
     } else if (maplibreConfig.type === 'symbol') {
       // No text-font specified — inject a known-good default so MapLibre doesn't

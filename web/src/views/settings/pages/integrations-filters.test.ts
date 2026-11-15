@@ -75,13 +75,6 @@ function filterByHosting(items: IntegrationItem[], hosting: string[]): Integrati
   )
 }
 
-function filterByScope(items: IntegrationItem[], scope: string[]): IntegrationItem[] {
-  if (scope.length === 0) return items
-  return items.filter(({ integration }) =>
-    scope.every(s => integration.scope?.includes(s as IntegrationScope)),
-  )
-}
-
 function filterByStatus(items: IntegrationItem[], status: string[]): IntegrationItem[] {
   if (status.length === 0) return items
   return items.filter(({ config }) =>
@@ -115,7 +108,7 @@ function sortItems(
 
 // -- Toggle filter helper (matches component's toggleFilter) --
 
-const exclusiveFilters = new Set(['cost', 'hosting', 'scope', 'status'])
+const exclusiveFilters = new Set(['cost', 'hosting', 'status'])
 
 function toggleFilter(filter: string, arr: string[], value: string): string[] {
   if (arr.includes(value)) return arr.filter(v => v !== value)
@@ -251,23 +244,6 @@ describe('filterByHosting', () => {
   test('filters to self-hosted integrations', () => {
     const result = filterByHosting(allItems, ['selfHosted'])
     expect(result.every(i => !i.integration.cloud)).toBe(true)
-  })
-})
-
-describe('filterByScope', () => {
-  test('returns all when empty', () => {
-    expect(filterByScope(allItems, [])).toHaveLength(3)
-  })
-
-  test('filters to user-scoped integrations', () => {
-    const result = filterByScope(allItems, ['user'])
-    expect(result).toHaveLength(1)
-    expect(result[0].integration.id).toBe(IntegrationId.FOURSQUARE)
-  })
-
-  test('filters to system-scoped integrations', () => {
-    const result = filterByScope(allItems, ['system'])
-    expect(result).toHaveLength(3)
   })
 })
 

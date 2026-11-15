@@ -20,6 +20,7 @@
 * Place cards in search results show whether each place is open now.
 * A place's buttons are down to Directions, Save, Share and More, which holds Plan route, Ask about this place and Suggest an edit.
 * During navigation, the time left now leads the bottom card, with your arrival time beside the distance.
+* Admin settings sit under their own heading, and system integrations have their own page, apart from the accounts you connect yourself.
 
 ### Fixed
 
@@ -31,6 +32,7 @@
 * Long route names like B46-SBS show in full on trip cards and timelines instead of being cut off or overlapping.
 * While you walk to your stop, the departure countdown, time to spare and arrival time follow the vehicle's live position from the start, not just in the last few minutes.
 * Switching tabs on a place no longer reloads its sections, like the places it's inside or contains.
+* Recently viewed places on the map now look exactly like the map's own places.
 
 ## [0.21.5] - 2026-11-13
 

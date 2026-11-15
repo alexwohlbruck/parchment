@@ -2677,6 +2677,10 @@
   },
   "settings": {
     "title": "Configuración",
+    "groups": {
+      "personal": "Personal",
+      "admin": "Administración"
+    },
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "search": {
       "placeholder": "Buscar configuración…",
@@ -3152,7 +3156,7 @@
     },
     "integrations": {
       "title": "Integraciones",
-      "description": "Gestionar tus conexiones a servicios externos",
+      "description": "Cuentas que conectas para ti",
       "available": "Integraciones Disponibles",
       "noConfigured": "No hay integraciones configuradas",
       "noAvailable": "No hay integraciones disponibles",
@@ -3214,7 +3218,7 @@
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios",
-        "languageModel": "Preguntar"
+        "languageModel": "Agentes"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -3267,11 +3271,11 @@
         "hint": "Las solicitudes a este servicio están fallando. Revisa su configuración de conexión.",
         "bannerTitle": "{names} no responde | Algunas integraciones no responden: {names}",
         "bannerBody": "Comprueba que el servicio esté funcionando y luego ábrelo abajo y prueba la conexión. | Comprueba que los servicios estén funcionando y luego ábrelos abajo y prueba sus conexiones."
-      },
-      "scopeLabel": {
-        "system": "Para todos",
-        "user": "Solo tú"
       }
+    },
+    "system-integrations": {
+      "title": "Integraciones del sistema",
+      "description": "Servicios que el servidor ofrece a todos"
     },
     "users": {
       "title": "Usuarios y Roles",
@@ -3284,9 +3288,6 @@
       "permissions": {
         "title": "Permisos"
       }
-    },
-    "system": {
-      "title": "Sistema"
     },
     "ask": {
       "title": "Preguntar",

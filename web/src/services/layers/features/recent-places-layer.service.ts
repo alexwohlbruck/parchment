@@ -15,14 +15,19 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { ensureMarkerImages } from '@/lib/map-marker'
+import { ensureMarkerImage, markerImageId } from '@/lib/map-marker'
+import { poiBadgeColors } from '@/lib/map-style/build'
+import { poiBadgeName } from '@/lib/map-style/poi-badge'
+import { ensureBadgeArt, spriteLoaded } from '@/lib/map-style/badge-art'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
-import { basemapPoiLook } from '@/lib/map/basemap-poi-look'
+import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
 import {
   RECENT_PLACES_TOGGLE_ID,
   buildRecentPlacesGeoJSON,
+  recentPlaceIcon,
   recentPlaceMarkerSpec,
+  type RecentPlaceMark,
   selectRecentPlaceMarkers,
   type DrawableRecentPlace,
 } from '@/lib/recents/recent-place-markers'
@@ -30,6 +35,7 @@ import {
   RECENT_PLACES_SOURCE_ID,
   RECENT_PLACES_LAYER_ID,
   RECENT_PLACES_LAYER_CONFIG,
+  RECENT_PLACES_OWN_LAYOUT,
   recentPlacesPaint,
 } from '@/constants/layers'
 
@@ -64,6 +70,9 @@ export function useRecentPlacesLayerService() {
   /** Held in a slot rather than captured: an engine switch replaces the strategy. */
   let activeStrategy: MapStrategy | null = null
   let placesById = new Map<string, DrawableRecentPlace>()
+  /** The basemap POI look this style's layer was built from. */
+  let look: BasemapPoiLook | null = null
+  let dataGeneration = 0
 
   const enabled = computed(
     () =>
@@ -94,29 +103,56 @@ export function useRecentPlacesLayerService() {
       : [],
   )
 
-  function updateData(mapStrategy: MapStrategy) {
-    const map = mapStrategy.mapInstance
+  /** Basemap badges where the style composites them, the app's own markers elsewhere. */
+  async function markPlaces(map: any, drawn: DrawableRecentPlace[]): Promise<RecentPlaceMark[]> {
     const isDark = useThemeStore().isDark
     const palette = useCategoryPaletteStore()
-    const categoryColor = (category: string) => palette.getCategoryColor(category, isDark)
-    const drawn = places.value
-    placesById = new Map(drawn.map(p => [p.id, p]))
 
+    if (look?.badges) {
+      const categoryColors = palette.categoryColors(isDark)
+      return Promise.all(
+        drawn.map(async place => {
+          const { pack, name } = recentPlaceIcon(place)
+          const art = await ensureBadgeArt(map, pack, name)
+          const colors = poiBadgeColors(place.category ?? 'default', isDark ? 'dark' : 'light', categoryColors)
+          return { image: art ? poiBadgeName({ art, ...colors }) : '', ink: colors.ink }
+        }),
+      )
+    }
+
+    const categoryColor = (category: string) => palette.getCategoryColor(category, isDark)
+    return Promise.all(
+      drawn.map(async place => {
+        const spec = recentPlaceMarkerSpec(place, categoryColor, isDark)
+        await ensureMarkerImage(map, spec)
+        return { image: markerImageId(spec), ink: spec.paint.ink }
+      }),
+    )
+  }
+
+  async function updateData(mapStrategy: MapStrategy) {
+    const map = mapStrategy.mapInstance
+    const generation = ++dataGeneration
+    const drawn = places.value
+    if (look?.badges && !spriteLoaded(map)) {
+      map.once('idle', () => {
+        if (generation === dataGeneration && activeStrategy === mapStrategy) void updateData(mapStrategy)
+      })
+      return
+    }
+    // Images are registered before the data names them; a badge is composited
+    // only when MapLibre first asks for it, and it asks once.
+    const marks = await markPlaces(map, drawn)
+    if (generation !== dataGeneration || activeStrategy !== mapStrategy) return
+
+    placesById = new Map(drawn.map(p => [p.id, p]))
     const source = map.getSource(RECENT_PLACES_SOURCE_ID)
     if (source) {
-      ;(source as any).setData(buildRecentPlacesGeoJSON(drawn, categoryColor, isDark))
+      ;(source as any).setData(buildRecentPlacesGeoJSON(drawn, marks))
     }
-
-    const visible = drawn.length > 0
     if (map.getLayer(RECENT_PLACES_LAYER_ID)) {
-      mapStrategy.toggleLayerVisibility(RECENT_PLACES_LAYER_ID, visible)
+      mapStrategy.toggleLayerVisibility(RECENT_PLACES_LAYER_ID, drawn.length > 0)
     }
-
-    if (!visible) return
-    void ensureMarkerImages(
-      map,
-      drawn.map(p => recentPlaceMarkerSpec(p, categoryColor, isDark)),
-    ).then(() => map.triggerRepaint?.())
   }
 
   function onMouseEnter() {
@@ -167,13 +203,11 @@ export function useRecentPlacesLayerService() {
     }
 
     if (!map.getLayer(RECENT_PLACES_LAYER_ID)) {
-      // Built per style load: the halo follows the theme, and the lettering
-      // is copied from whatever POI layer this style draws.
-      const look = basemapPoiLook(map.getStyle()?.layers ?? [])
+      look = basemapPoiLook(map.getStyle()?.layers ?? [])
       const layer = toLayer(RECENT_PLACES_LAYER_CONFIG)
       layer.configuration = {
         ...layer.configuration,
-        layout: { ...layer.configuration.layout, ...look?.layout },
+        layout: { ...(look?.layout ?? layer.configuration.layout), ...RECENT_PLACES_OWN_LAYOUT },
         paint: { ...recentPlacesPaint(useThemeStore().isDark), ...look?.paint },
       }
       mapStrategy.addLayer(layer)
@@ -186,7 +220,7 @@ export function useRecentPlacesLayerService() {
 
     activeStrategy = mapStrategy
     initializeReactivity()
-    updateData(mapStrategy)
+    void updateData(mapStrategy)
   }
 
   function initializeReactivity() {
@@ -196,7 +230,7 @@ export function useRecentPlacesLayerService() {
     watch(
       () => [places.value, useThemeStore().isDark, useCategoryPaletteStore().palette],
       () => {
-        if (activeStrategy) updateData(activeStrategy)
+        if (activeStrategy) void updateData(activeStrategy)
       },
     )
   }

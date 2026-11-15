@@ -2780,6 +2780,10 @@
   },
   "settings": {
     "title": "Settings",
+    "groups": {
+      "personal": "Personal",
+      "admin": "Administration"
+    },
     "search": {
       "placeholder": "Search settings…",
       "clear": "Clear search",
@@ -3297,7 +3301,7 @@
     },
     "integrations": {
       "title": "Integrations",
-      "description": "Manage your configured external service connections",
+      "description": "Accounts you connect for yourself",
       "available": "Available Integrations",
       "noConfigured": "No configured integrations",
       "noAvailable": "No available integrations",
@@ -3312,9 +3316,6 @@
         "hosting": "Hosting",
         "cloud": "Cloud",
         "selfHosted": "Self-hosted",
-        "scope": "Scope",
-        "system": "System",
-        "user": "User",
         "status": "Status",
         "connected": "Connected",
         "notConnected": "Not connected",
@@ -3382,7 +3383,7 @@
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback",
-        "languageModel": "Ask"
+        "languageModel": "Agents"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -3437,11 +3438,11 @@
         "hint": "Requests to this service are failing. Check its connection settings.",
         "bannerTitle": "{names} isn't responding | Some integrations aren't responding: {names}",
         "bannerBody": "Check that the service is running, then open it below and test the connection. | Check that the services are running, then open them below and test their connections."
-      },
-      "scopeLabel": {
-        "system": "For everyone",
-        "user": "Just you"
       }
+    },
+    "system-integrations": {
+      "title": "System integrations",
+      "description": "Services the server provides to everyone"
     },
     "users": {
       "title": "Users & Roles",
@@ -3466,9 +3467,6 @@
     },
     "role-detail": {
       "title": "Role"
-    },
-    "system": {
-      "title": "System"
     },
     "ask": {
       "title": "Ask",

@@ -75,6 +75,16 @@ describe('placeToDisplay', () => {
     expect(placeToDisplay(place(), opts).rating).toBeNull()
   })
 
+  it('evaluates regular hours against the place clock', () => {
+    const always = [0, 1, 2, 3, 4, 5, 6].map(day => ({ day, open: '00:00', close: '00:00' }))
+    const open = placeToDisplay(
+      place({ openingHours: { value: { regularHours: always } } }),
+      opts,
+    )
+    expect(open.openState).toBe('open')
+    expect(open.hoursText).toBeNull()
+  })
+
   it('reports open/closed only where the hours data states it', () => {
     expect(placeToDisplay(place(), opts).openState).toBeNull()
 

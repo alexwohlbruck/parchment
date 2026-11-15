@@ -18,7 +18,7 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import { ensureMarkerImage, markerImageId } from '@/lib/map-marker'
 import { poiBadgeColors } from '@/lib/map-style/build'
 import { poiBadgeName } from '@/lib/map-style/poi-badge'
-import { ensureBadgeArt } from '@/lib/map-style/badge-art'
+import { ensureBadgeArt, spriteLoaded } from '@/lib/map-style/badge-art'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
@@ -134,6 +134,12 @@ export function useRecentPlacesLayerService() {
     const map = mapStrategy.mapInstance
     const generation = ++dataGeneration
     const drawn = places.value
+    if (look?.badges && !spriteLoaded(map)) {
+      map.once('idle', () => {
+        if (generation === dataGeneration && activeStrategy === mapStrategy) void updateData(mapStrategy)
+      })
+      return
+    }
     // Images are registered before the data names them; a badge is composited
     // only when MapLibre first asks for it, and it asks once.
     const marks = await markPlaces(map, drawn)

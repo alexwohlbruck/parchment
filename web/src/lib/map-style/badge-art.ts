@@ -58,6 +58,11 @@ async function bakeArt(pack: MapIconPack, name: string, ratio: number) {
   return { width: side, height: side, data, pixelRatio: ratio }
 }
 
+/** Whether the sprite sheet is in yet; until it is, every maki icon looks missing. */
+export function spriteLoaded(map: Pick<BadgeArtHost, 'hasImage'>): boolean {
+  return map.hasImage('dot')
+}
+
 const pending = new Map<string, Promise<string | null>>()
 
 /**

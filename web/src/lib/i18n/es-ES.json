@@ -3156,7 +3156,6 @@
     },
     "integrations": {
       "title": "Integraciones",
-      "description": "Cuentas que conectas para ti",
       "available": "Integraciones Disponibles",
       "noConfigured": "No hay integraciones configuradas",
       "noAvailable": "No hay integraciones disponibles",
@@ -3274,8 +3273,7 @@
       }
     },
     "system-integrations": {
-      "title": "Integraciones del sistema",
-      "description": "Servicios que el servidor ofrece a todos"
+      "title": "Integraciones del sistema"
     },
     "users": {
       "title": "Usuarios y Roles",

@@ -3798,6 +3798,15 @@
       "description": "O añade tu propia clave de OpenRouter para usarlo en cualquier plan",
       "addKey": "Añadir clave"
     },
-    "notConfigured": "Preguntar no está configurado en este servidor"
+    "notConfigured": "Preguntar no está configurado en este servidor",
+    "quota": {
+      "title": "Ya usaste las preguntas de este mes",
+      "description": "Vuelve a preguntar el {date} o añade tu propia clave"
+    },
+    "usage": {
+      "questions": "Preguntas este mes",
+      "count": "{used} de {limit}",
+      "resets": "Se renueva el {date}"
+    }
   }
 }

@@ -11,6 +11,7 @@ import { useMapService } from '@/services/map/map.service'
 import { usePlaceService } from '@/services/place/place.service'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
+import { formatResetDay } from '@/lib/ask/ask-quota'
 import AskExchange from '@/components/ask/AskExchange.vue'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -23,7 +24,7 @@ const props = defineProps<{
   question?: string
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const askStore = useAskStore()
 const searchStore = useSearchStore()
@@ -38,7 +39,9 @@ const access = computed(() => askStore.access)
 async function start(question: string | undefined) {
   const text = question?.trim()
   if (!text || text === askStore.current?.question) return
-  const result = await askService.loadAccess().catch(() => null)
+  const result = await askService
+    .loadAccess({ fresh: !askStore.access?.allowed })
+    .catch(() => null)
   loadingAccess.value = false
   if (result?.allowed) askService.ask(text)
 }
@@ -108,6 +111,16 @@ onUnmounted(() => {
         :icon="MessageCircleQuestionIcon"
         :title="t('ask.notConfigured')"
       />
+      <EmptyState
+        v-else-if="access.reason === 'quota-exceeded'"
+        :icon="MessageCircleQuestionIcon"
+        :title="t('ask.quota.title')"
+        :description="t('ask.quota.description', { date: formatResetDay(access.resetsAt, locale) })"
+      >
+        <Button size="sm" @click="router.push({ name: AppRoute.INTEGRATIONS })">
+          {{ t('ask.locked.addKey') }}
+        </Button>
+      </EmptyState>
       <div v-else class="flex flex-col gap-3">
         <UpgradeBanner
           required-tier="premium"

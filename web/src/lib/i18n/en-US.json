@@ -4072,6 +4072,15 @@
       "description": "Or add your own OpenRouter key to use it on any plan",
       "addKey": "Add a key"
     },
-    "notConfigured": "Ask isn't set up on this server"
+    "notConfigured": "Ask isn't set up on this server",
+    "quota": {
+      "title": "You've used this month's questions",
+      "description": "Ask again on {date}, or add your own key"
+    },
+    "usage": {
+      "questions": "Questions this month",
+      "count": "{used} of {limit}",
+      "resets": "Resets on {date}"
+    }
   }
 }

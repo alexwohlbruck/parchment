@@ -47,6 +47,7 @@ const app = new Elysia()
             return status(429, {
               message: t('errors.ask.quotaExceeded'),
               reason: access.reason,
+              limit: access.limit,
               resetsAt: access.resetsAt,
             })
           case 'not-permitted':

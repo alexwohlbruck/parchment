@@ -4,11 +4,16 @@ import { PlaceCard } from '@/components/place/card'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { EmptyState } from '@/components/ui/empty-state'
-import { MapPinOffIcon } from 'lucide-vue-next'
+import { ArrowRightIcon, MapPinOffIcon } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { Button } from '@/components/ui/button'
+import { createSearchResultsRoute } from '@/lib/search/search-result'
+import { intentFilters } from '@/lib/search/query-intent'
 import AskSteps from './AskSteps.vue'
 import type { AskExchange } from '@/stores/ask.store'
 
-defineProps<{
+const props = defineProps<{
   exchange: AskExchange
 }>()
 
@@ -19,6 +24,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
+
+const browseRoute = computed(() => {
+  const intent = props.exchange.browse
+  if (!intent?.category) return null
+  return createSearchResultsRoute({
+    categoryId: intent.category.id,
+    categoryName: intent.category.name,
+    filters: intentFilters(intent),
+  })
+})
 </script>
 
 <template>
@@ -64,5 +80,16 @@ const { t } = useI18n()
         </p>
       </li>
     </ol>
+
+    <Button
+      v-if="exchange.status === 'done' && browseRoute"
+      variant="ghost"
+      size="sm"
+      class="self-start -ml-2 text-muted-foreground"
+      @click="router.push(browseRoute)"
+    >
+      {{ t('ask.seeAll', { name: exchange.browse!.category!.name }) }}
+      <ArrowRightIcon class="size-4" />
+    </Button>
   </section>
 </template>

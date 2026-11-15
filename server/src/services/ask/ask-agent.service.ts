@@ -13,6 +13,7 @@ import {
   type AskTool,
 } from './ask-tools'
 import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
+import { classifyQuery } from '../query-intent.service'
 
 /** Model round trips per question before the answer is forced. */
 export const MAX_STEPS = 6
@@ -145,7 +146,13 @@ export async function runAsk(
     if (answerCall) {
       const answer = groundAnswer(parseArgs(answerCall), context.seen)
       if (!answer.unknownIds.length || last) {
-        context.emit({ type: 'answer', text: answer.text, places: answer.places })
+        const intent = classifyQuery(request.question, { language: context.language })
+        context.emit({
+          type: 'answer',
+          text: answer.text,
+          places: answer.places,
+          ...(intent.category ? { browse: intent } : {}),
+        })
         return
       }
       messages.push(

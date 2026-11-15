@@ -4096,6 +4096,7 @@
       "questions": "Questions this month",
       "count": "{used} of {limit}",
       "resets": "Resets on {date}"
-    }
+    },
+    "seeAll": "More nearby: {name}"
   }
 }

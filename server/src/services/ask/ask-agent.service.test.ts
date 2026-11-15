@@ -16,6 +16,8 @@ mock.module('../place.service', () => ({
 mock.module('../search.service', () => ({ searchByCategory: mock(async () => []) }))
 mock.module('../category.service', () => ({ categoryService: { searchCategories: () => [] } }))
 mock.module('../geocoding.service', () => ({ forwardGeocode: mock(async () => ({ results: [] })) }))
+const mockClassify = mock((_query: string, _options: unknown): any => ({ intent: 'ask', residual: '' }))
+mock.module('../query-intent.service', () => ({ classifyQuery: mockClassify }))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mock(async () => new Response('{}')) }))
 
 const { runAsk, groundAnswer, MAX_STEPS } = await import('./ask-agent.service')
@@ -102,6 +104,17 @@ describe('runAsk', () => {
     expect(answer.places.map(({ place }) => place.id)).toEqual(['osm/node/2', 'osm/node/1'])
     expect(requests).toHaveLength(3)
     expect(requests[2].messages.at(-1)).toMatchObject({ role: 'tool', content: expect.stringContaining('made/up') })
+  })
+
+  test('offers the question as a category list when it names one', async () => {
+    const browse = { intent: 'ask', category: { id: 'amenity/cafe', name: 'Cafe' }, residual: 'quiet' }
+    mockClassify.mockReturnValueOnce(browse)
+    const { model } = scriptedModel([[call('answer', { text: 'None fit.', places: [] })]])
+    const ctx = context()
+
+    await runAsk(model, { question: 'quiet cafe' }, ctx)
+
+    expect(ctx.events.at(-1)).toMatchObject({ type: 'answer', browse })
   })
 
   test('forces an answer on the last step', async () => {

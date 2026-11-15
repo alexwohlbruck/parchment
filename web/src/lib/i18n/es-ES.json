@@ -3822,6 +3822,7 @@
       "questions": "Preguntas este mes",
       "count": "{used} de {limit}",
       "resets": "Se renueva el {date}"
-    }
+    },
+    "seeAll": "Más cerca: {name}"
   }
 }

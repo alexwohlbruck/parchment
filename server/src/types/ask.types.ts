@@ -1,5 +1,6 @@
 import type { Place } from './place.types'
 import type { IsochroneGeometry } from './isochrone.types'
+import type { QueryIntent } from './search.types'
 
 export interface LatLng {
   lat: number
@@ -19,7 +20,13 @@ export interface AskCitation {
 export type AskEvent =
   | { type: 'step'; id: string; label: string; status: 'running' | 'done' | 'failed' }
   | { type: 'reach'; geometry: IsochroneGeometry }
-  | { type: 'answer'; text: string; places: AskCitation[] }
+  | {
+      type: 'answer'
+      text: string
+      places: AskCitation[]
+      /** The same question as a classic category search, when it names a category. */
+      browse?: QueryIntent
+    }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

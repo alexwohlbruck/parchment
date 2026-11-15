@@ -293,6 +293,13 @@ async function loadReachPolygon(
   return feature
 }
 
+const MODE_PHRASES: Record<IsochroneMode, string> = {
+  walk: 'on foot',
+  bike: 'by bike',
+  car: 'by car',
+  transit: 'by transit',
+}
+
 const placesWithinReach: AskTool<{
   from?: LatLng
   mode: IsochroneMode
@@ -320,7 +327,7 @@ const placesWithinReach: AskTool<{
     },
     required: ['mode', 'minutes'],
   },
-  label: ({ minutes, mode }) => `Finding what's within ${minutes} min by ${mode}`,
+  label: ({ minutes, mode }) => `Finding what's within ${minutes} min ${MODE_PHRASES[mode] ?? `by ${mode}`}`,
   async run(args, context) {
     if (!args.category_id && !args.query) throw new AskToolError('Give category_id or query')
     const origin = centre(args.from, context)

@@ -8,7 +8,7 @@ import {
   h,
   type Component,
 } from 'vue'
-import { useRouter, type RouteLocationRaw } from 'vue-router'
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
@@ -17,7 +17,7 @@ import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
 import { loadWhatFreeWords } from '@server/lib/whatfreewords'
 import { mapEventBus } from '@/lib/event-bus'
-import { LngLat } from '@/types/map.types'
+import { LngLat, type MapEvents } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
@@ -71,6 +71,7 @@ import {
 import { AppRoute } from '@/router'
 
 const router = useRouter()
+const route = useRoute()
 const appService = useAppService()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
@@ -110,18 +111,28 @@ const geocodedPlaceIcon = computed<Component>(() => {
   return () => h(PlaceCategoryIcon, { place })
 })
 
+function openContextMenu(e: MapEvents['contextmenu']) {
+  if (route.meta.immersive) return
+  contextMenuPosition.value = { x: e.point.x + 52, y: e.point.y - 4 } // TODO: Fix offset (something to do with viewport width, sidebar)
+  clickedLngLat.value = e.lngLat
+  clickedPoint.value = e.point
+  showContextMenu.value = true
+}
+
 onMounted(() => {
-  mapEventBus.on('contextmenu', e => {
-    contextMenuPosition.value = { x: e.point.x + 52, y: e.point.y - 4 } // TODO: Fix offset (something to do with viewport width, sidebar)
-    clickedLngLat.value = e.lngLat
-    clickedPoint.value = e.point
-    showContextMenu.value = true
-  })
+  mapEventBus.on('contextmenu', openContextMenu)
 })
 
 onUnmounted(() => {
-  mapEventBus.off('contextmenu')
+  mapEventBus.off('contextmenu', openContextMenu)
 })
+
+watch(
+  () => route.meta.immersive,
+  immersive => {
+    if (immersive) showContextMenu.value = false
+  },
+)
 
 function copyCoordinates(lngLat: LngLat) {
   const coordString = `${lngLat.lat}, ${lngLat.lng}`

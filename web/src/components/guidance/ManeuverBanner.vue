@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import ManeuverIcon from '@/components/directions/ManeuverIcon.vue'
 import { maneuverKind } from '@/lib/directions/maneuver'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
-import { bannerTitle, stepText } from '@/lib/guidance/instructions/instruction-text'
+import { bannerHeadline, bannerRoad } from '@/lib/guidance/instructions/instruction-text'
 import type { RichInstruction } from '@/lib/guidance/instructions/instruction.types'
 import type { LanePlan } from '@/lib/guidance/lanes'
 import LaneStrip from './LaneStrip.vue'
@@ -30,19 +30,11 @@ const kind = computed(() => props.instruction?.maneuver ?? (next.value ? maneuve
 const distance = computed(() => bannerDistance(props.progress?.distanceToNext ?? 0, props.metric))
 const road = computed(() => {
   const instruction = next.value?.instruction
-  if (!instruction) return ''
-  if (kind.value === 'arrive') return props.destination || t('guidance.banner.arrive')
-  if (props.instruction) return bannerTitle(props.instruction, t)
-  return instruction.streetName || instruction.streetRef || stepText(instruction, t)
+  return instruction ? bannerRoad(instruction, kind.value, props.instruction, props.destination, t) : ''
 })
 const then = computed(() => (props.progress?.then ? maneuverKind(props.progress.then.instruction) : null))
 const offRoute = computed(() => props.progress && !props.progress.puck.snapped)
-const headline = computed(() => {
-  if (props.status === 'arrived') return t('guidance.banner.arrived')
-  if (props.status === 'away') return t('guidance.banner.away')
-  if (props.status === 'rerouting') return t('guidance.banner.rerouting')
-  return offRoute.value ? t('guidance.banner.offRoute') : null
-})
+const headline = computed(() => bannerHeadline(props.status, !!offRoute.value, t))
 const turnAround = computed(() => (headline.value ? null : props.progress?.turnAround ?? null))
 const turnAroundThen = computed(() => {
   const cue = turnAround.value

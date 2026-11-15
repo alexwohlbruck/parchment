@@ -13,17 +13,24 @@
 * Ask can save what it finds as a canvas in your library, like "make me a map of pizza and bagel spots near Union Square", with a layer for each kind of place and the trip it planned.
 * Ask keeps your conversations, end-to-end encrypted, so you can pick one up later. Open Ask from the command palette or the side nav to see them; your questions also show up in recent searches.
 * Search for something like "cafes with outdoor seating open now" to jump straight to matching places with those filters already on.
+* Leave navigation running while you look around: tap a place on the map, browse, then tap the bar at the top to jump back in.
 
 ### Changed
 
 * Place cards in search results show whether each place is open now.
 * A place's buttons are down to Directions, Save, Share and More, which holds Plan route, Ask about this place and Suggest an edit.
+* During navigation, the time left now leads the bottom card, with your arrival time beside the distance.
 
 ### Fixed
 
 * Fixed an error that could stop the map from showing a trip with stops at searched or saved places.
 * Opening a canvas now moves the map to the view it was saved with.
 * Place details no longer pick up the rating, address or reviews of a different business with a similar name.
+* If navigation thinks you missed your bus or train and then sees you riding it, your arrival time and later connections now follow the vehicle you're actually on.
+* Long-pressing the map during navigation no longer opens the map menu over your route.
+* Long route names like B46-SBS show in full on trip cards and timelines instead of being cut off or overlapping.
+* While you walk to your stop, the departure countdown, time to spare and arrival time follow the vehicle's live position from the start, not just in the last few minutes.
+* Switching tabs on a place no longer reloads its sections, like the places it's inside or contains.
 
 ## [0.21.5] - 2026-11-13
 

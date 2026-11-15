@@ -1671,6 +1671,7 @@
     "start": "Start",
     "exit": "End navigation",
     "waitingForLocation": "Waiting for your location…",
+    "resume": "Back to navigation",
     "signalLost": "GPS signal lost · estimating",
     "camera": {
       "resume": "Follow your position",

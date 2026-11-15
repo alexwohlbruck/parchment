@@ -16,6 +16,12 @@ describe('tripStrip', () => {
     expect(legs.map(l => [l.x0, l.x1, l.xEnd])).toEqual([[0, 0.2, 0.2], [0.2, 0.7, 0.8], [0.8, 1, 1]])
   })
 
+  test('spans the earliest start to the latest end when re-timing leaves legs out of order', () => {
+    const late = { ...walk, startTime: t(50), endTime: t(50) }
+    const { legs } = tripStrip([late, ride, train])
+    expect(legs.map(l => l.x0)).toEqual([1, 0, 0.2])
+  })
+
   test('draws elevation only for the legs the traveller powers', () => {
     const { profiles } = tripStrip([ride, train, walk])
     expect(profiles.map(p => p.index)).toEqual([0, 2])

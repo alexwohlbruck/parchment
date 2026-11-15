@@ -2,7 +2,11 @@
 
 ### Added
 
+* Ask for places in your own words, like "quiet cafe with outdoor seating open now". Type it in search and press Tab, and Ask finds real places on the map with a line on why each fits. Included with Premium, or with your own OpenRouter key on any plan.
+
 ### Changed
+
+* Place cards in search results show whether each place is open now.
 
 ### Fixed
 

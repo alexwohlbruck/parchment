@@ -5,10 +5,7 @@ import { earlierRun, liveRun, rankCandidates, RideObserver, vehicleVerdict, type
 import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 
-/** Close enough to the stop to look up what leaves it. */
-const LOOKUP_WALK_SEC = 180
-const WAITING_REFRESH_MS = 60_000
-const RIDING_REFRESH_MS = 30_000
+const REFRESH_MS = 30_000
 /** Soon after a run seems gone, check the feed hasn't just got it running late. */
 const MISSED_REFRESH_MS = 15_000
 /** Long enough into the ride that an unanswered question has nothing left to settle. */
@@ -142,9 +139,8 @@ export function useVehicleSwitch() {
     const estimated = guidance.rideEstimate != null && !guidance.rideEstimate.fresh
     if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
 
-    const near = stage.kind !== 'to-stop' || secondsToStop(route, stage, puck.s) < LOOKUP_WALK_SEC
-    const due = Date.now() - watched.fetchedAt > (riding ? RIDING_REFRESH_MS : stage.kind === 'missed-vehicle' ? MISSED_REFRESH_MS : WAITING_REFRESH_MS)
-    if (near && due && !watched.fetching) void refresh(watched)
+    const due = Date.now() - watched.fetchedAt > (stage.kind === 'missed-vehicle' ? MISSED_REFRESH_MS : REFRESH_MS)
+    if (due && !watched.fetching) void refresh(watched)
 
     const boardedAt = watched.observer.boardedAtMs
     if (!riding || !watched.set || boardedAt == null) return
@@ -168,7 +164,7 @@ export function useVehicleSwitch() {
 
   /** Keeps the ride estimate told where the rider's own run is, for as long as the feed places it. */
   function followVehicle(watched: Watch) {
-    if (watched.done && Date.now() - watched.fetchedAt > RIDING_REFRESH_MS && !watched.fetching) void refresh(watched)
+    if (watched.done && Date.now() - watched.fetchedAt > REFRESH_MS && !watched.fetching) void refresh(watched)
     const tripId = guidance.segments[watched.segmentIndex]?.tripId
     const position = watched.set?.candidates.find(c => c.tripId === tripId)?.position
     if (position) guidance.observeRideVehicle(watched.segmentIndex, position, position.atMs)

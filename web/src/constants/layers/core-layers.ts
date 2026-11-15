@@ -428,8 +428,8 @@ export function collectionLabelPaint(isDark: boolean): Record<string, unknown> {
 }
 
 // Recently viewed places, drawn as basemap POIs are and slotted just under
-// them, so a real POI wins placement. The lettering here is the fallback for a
-// style with no POI layer to copy.
+// them, so a real POI wins placement. The look is copied from the style's own
+// POI layer; this lettering is the fallback for a style with none to copy.
 const RECENT_PLACES_ZOOM = { hidden: 12, shown: 13 }
 
 export const RECENT_PLACES_LAYER_CONFIG: Omit<
@@ -452,12 +452,17 @@ export const RECENT_PLACES_LAYER_CONFIG: Omit<
     minzoom: RECENT_PLACES_ZOOM.hidden,
     layout: {
       ...POI_LABEL_LAYOUT,
-      'icon-pitch-alignment': 'viewport',
-      'icon-rotation-alignment': 'viewport',
       'icon-image': ['get', 'markerImage'],
       'text-optional': true,
     },
   },
+}
+
+/** Per-feature layout, laid over whichever look the layer borrows. */
+export const RECENT_PLACES_OWN_LAYOUT = {
+  'icon-image': ['get', 'markerImage'],
+  'text-field': ['get', 'name'],
+  'symbol-sort-key': ['get', 'sortKey'],
 }
 
 /** Lettered in the marker's glyph colour, fading in with it. */

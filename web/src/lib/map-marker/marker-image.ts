@@ -103,7 +103,7 @@ function platePath(
   ctx.closePath()
 }
 
-async function glyphBitmap(
+export async function glyphBitmap(
   pack: MapIconPack,
   name: string,
   color: string,

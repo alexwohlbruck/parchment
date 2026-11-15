@@ -22,6 +22,7 @@ import {
   BUILDING_3D_ROOF_LAYER,
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
+  poiBadgeColors,
 } from './build'
 import { INDOOR_SOURCE, withoutIndoorBuildings } from './indoor-layers'
 import {
@@ -2908,5 +2909,21 @@ describe('indoor colours', () => {
   test('resolves every colour token in the indoor layers', () => {
     const indoor = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l.id.startsWith('Indoor '))
     expect(JSON.stringify(indoor)).not.toMatch(/@[a-z_]+/)
+  })
+})
+
+describe('poiBadgeColors', () => {
+  const categoryColors = { education: 'hsl(30, 50%, 70%)' }
+
+  test('are the colours the basemap badges a POI of that category with', () => {
+    const education = (buildLayers({ flavor: 'dark', categoryColors }) as any[]).find(l => l.id === 'Education')
+    const { plate, ink, ring, lift } = poiBadgeColors('education', 'dark', categoryColors)
+    const image = JSON.stringify(education.layout['icon-image'])
+    for (const color of [plate, ink, ring, lift]) expect(image).toContain(JSON.stringify(color))
+    expect(JSON.stringify(education.paint['text-color'])).toContain(JSON.stringify(ink))
+  })
+
+  test('fall back to the default category', () => {
+    expect(poiBadgeColors('unknown', 'light')).toEqual(poiBadgeColors('default', 'light'))
   })
 })

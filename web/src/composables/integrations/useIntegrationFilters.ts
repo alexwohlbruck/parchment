@@ -68,10 +68,18 @@ export function useIntegrationFilters(scope: IntegrationScope) {
   const sortField = ref<SortField>('alphabetical')
   const sortAscending = ref(true)
 
-  // All capability options (used to populate the capabilities submenu),
+  const scopedIntegrations = computed(() =>
+    allIntegrations.value.filter(entry => entry.scope === scope),
+  )
+
+  // Capabilities offered on this page (used to populate the capabilities submenu),
   // alphabetized by their localized label
   const allCapabilities = computed(() =>
-    Object.values(IntegrationCapabilityId)
+    [
+      ...new Set(
+        scopedIntegrations.value.flatMap(({ integration }) => integration.capabilities),
+      ),
+    ]
       .map(id => ({
         id,
         label: t(`settings.integrations.capabilities.${id}`),
@@ -188,7 +196,7 @@ export function useIntegrationFilters(scope: IntegrationScope) {
   )
 
   const filteredIntegrations = computed(() => {
-    let items = allIntegrations.value.filter(entry => entry.scope === scope)
+    let items = [...scopedIntegrations.value]
 
     if (selectedCapabilities.value.length > 0) {
       items = items.filter(({ integration }) =>

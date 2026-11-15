@@ -4,10 +4,12 @@ import { getPermissions, hasPermission } from '../auth.service'
 import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { PermissionId } from '../../types/auth.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
+import type { AskAccess } from '../../types/ask.types'
+import { askQuota, monthlyQuestionAllowance } from '../../lib/ask/ask-usage'
+import { questionsAsked } from './ask-usage.service'
 
-export type AskModelAccess =
-  | { allowed: true; model: LanguageModelCapability; keySource: 'own' | 'system' }
-  | { allowed: false; reason: 'not-configured' | 'not-permitted' }
+type Granted<A> = A extends { allowed: true } ? A & { model: LanguageModelCapability } : A
+export type AskModelAccess = Granted<AskAccess>
 
 let envModel: LanguageModelCapability | null | undefined
 
@@ -32,8 +34,14 @@ function configuredModel(userId: string | null): LanguageModelCapability | null 
   )
 }
 
-/** A user's own key always works; the system key needs the premium permission. */
-export async function resolveAskAccess(userId: string): Promise<AskModelAccess> {
+/**
+ * A user's own key always works; the system key needs the premium permission
+ * and has a monthly question allowance.
+ */
+export async function resolveAskAccess(
+  userId: string,
+  now = new Date(),
+): Promise<AskModelAccess> {
   const own = configuredModel(userId)
   if (own) return { allowed: true, model: own, keySource: 'own' }
 
@@ -44,7 +52,12 @@ export async function resolveAskAccess(userId: string): Promise<AskModelAccess> 
     await getPermissions(userId),
     PermissionId.PREMIUM_ASK,
   )
-  return permitted
-    ? { allowed: true, model: system, keySource: 'system' }
-    : { allowed: false, reason: 'not-permitted' }
+  if (!permitted) return { allowed: false, reason: 'not-permitted' }
+
+  const limit = monthlyQuestionAllowance(process.env.ASK_MONTHLY_QUESTIONS)
+  const quota = limit ? askQuota(await questionsAsked(userId, 'system', now), limit, now) : null
+  if (quota && !quota.remaining) {
+    return { allowed: false, reason: 'quota-exceeded', resetsAt: quota.resetsAt }
+  }
+  return { allowed: true, model: system, keySource: 'system', quota }
 }

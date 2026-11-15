@@ -4,6 +4,8 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 import { logError } from '../lib/logger'
 import { resolveAskAccess } from '../services/ask/ask-model.service'
 import { runAsk } from '../services/ask/ask-agent.service'
+import { recordAskQuestion } from '../services/ask/ask-usage.service'
+import { meterModel } from '../lib/ask/ask-usage'
 import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 
@@ -21,17 +23,16 @@ const app = new Elysia()
     '/ask/access',
     async ({ user }) => {
       const access = await resolveAskAccess(user.id)
-      const result: AskAccess = access.allowed
-        ? { allowed: true, keySource: access.keySource }
-        : { allowed: false, reason: access.reason }
-      return result
+      if (!access.allowed) return access
+      const { model, ...granted } = access
+      return granted as AskAccess
     },
     {
       detail: {
         tags: ['Ask'],
         summary: 'Whether the user can use Ask',
         description:
-          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which needs the `premium:ask` permission. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user lacks the permission.',
+          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which needs the `premium:ask` permission and allows a number of questions per UTC month (`ASK_MONTHLY_QUESTIONS`, default 200, 0 for no limit). On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user lacks the permission, and `quota-exceeded` (with `resetsAt`) when this month\'s questions are used up.',
       },
     },
   )
@@ -41,10 +42,21 @@ const app = new Elysia()
     async ({ body, user, language, request, status, t }) => {
       const access = await resolveAskAccess(user.id)
       if (!access.allowed) {
-        return access.reason === 'not-permitted'
-          ? status(403, { message: t('errors.ask.notPermitted'), reason: access.reason })
-          : status(501, { message: t('errors.ask.notConfigured'), reason: access.reason })
+        switch (access.reason) {
+          case 'quota-exceeded':
+            return status(429, {
+              message: t('errors.ask.quotaExceeded'),
+              reason: access.reason,
+              resetsAt: access.resetsAt,
+            })
+          case 'not-permitted':
+            return status(403, { message: t('errors.ask.notPermitted'), reason: access.reason })
+          default:
+            return status(501, { message: t('errors.ask.notConfigured'), reason: access.reason })
+        }
       }
+
+      const meter = meterModel(access.model)
 
       const origin =
         body.lat !== undefined && body.lng !== undefined
@@ -58,7 +70,7 @@ const app = new Elysia()
           }
           try {
             await runAsk(
-              access.model,
+              meter.model,
               { question: body.question, history: body.history, origin },
               {
                 userId: user.id,
@@ -78,6 +90,9 @@ const app = new Elysia()
           }
           emit({ type: 'done' })
           controller.close()
+          recordAskQuestion(user.id, access.keySource, meter.totals).catch((error) =>
+            logError('Recording Ask usage failed', error),
+          )
         },
       })
 
@@ -108,7 +123,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Answer a question about places',
         description:
-          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first.',
+          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
       },
     },
   )

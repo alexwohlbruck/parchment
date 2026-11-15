@@ -192,7 +192,8 @@
     },
     "ask": {
       "notConfigured": "Ask isn't set up on this server",
-      "notPermitted": "Ask needs Premium or your own OpenRouter key"
+      "notPermitted": "Ask needs Premium or your own OpenRouter key",
+      "quotaExceeded": "You've used this month's Ask questions"
     }
   },
   "chips": {

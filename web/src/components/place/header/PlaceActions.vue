@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/button'
 import {
   ShareIcon,
   BookmarkPlusIcon,
+  BookmarkCheckIcon,
   RouteIcon,
   ArrowDownToDotIcon,
   PencilIcon,
+  EllipsisIcon,
 } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
@@ -22,6 +24,7 @@ import CollectionPicker from '@/components/library/collections/CollectionPicker.
 import { ItemIcon } from '@/components/ui/item-icon'
 import { collectionIcon } from '@/lib/library/collection-display'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
+import ResponsiveDropdown, { type MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import {
   Tooltip,
   TooltipContent,
@@ -32,9 +35,17 @@ import { usePlaceCollections } from '@/composables/library/usePlaceCollections'
 import { usePlaceTravelTime } from '@/composables/directions/usePlaceTravelTime'
 import { MODE_ICONS } from '@/components/directions/mode-icons'
 import { formatDurationLong } from '@/lib/time-format'
+import { isAskOffered } from '@/lib/ask/ask-access'
 
 const props = defineProps<{
   place: Partial<Place>
+}>()
+
+const emit = defineEmits<{
+  directions: []
+  directionsFrom: []
+  share: []
+  edit: []
 }>()
 
 const router = useRouter()
@@ -43,7 +54,7 @@ useAskService().loadAccess().catch(() => null)
 
 const canAsk = computed(() => {
   const access = askStore.access
-  return !!props.place.id && !!access && (access.allowed || access.reason !== 'not-configured')
+  return !!props.place.id && isAskOffered(access)
 })
 
 function askAboutPlace() {
@@ -86,6 +97,16 @@ const canEdit = computed(() => {
   return Boolean(osm && /^(node|way|relation)\//.test(osm))
 })
 
+const moreItems = computed<MenuItemDefinition[]>(() => [
+  { type: 'item', label: t('directions.planRoute'), icon: RouteIcon, onSelect: () => emit('directionsFrom') },
+  ...(canAsk.value
+    ? [{ type: 'item' as const, label: t('ask.aboutPlace.action'), icon: MessageCircleQuestionIcon, onSelect: askAboutPlace }]
+    : []),
+  ...(canEdit.value
+    ? [{ type: 'item' as const, label: t('quickEdit.editPlace'), icon: PencilIcon, onSelect: () => emit('edit') }]
+    : []),
+])
+
 // `place.collectionIds` is the source of truth for the badge; sync it
 // from each picker event without touching the bookmark identity unless
 // the bookmark itself was created or deleted. Cast through `any` —
@@ -116,7 +137,7 @@ function onBookmarkDeleted() {
       <Button
         class="flex-1"
         :aria-label="t('directions.directions')"
-        @click="$emit('directions')"
+        @click="emit('directions')"
       >
         <template v-if="travelSeconds !== null">
           <ArrowDownToDotIcon v-if="travel.mode.value === 'multi'" class="mr-2 size-4 -rotate-90" />
@@ -128,35 +149,6 @@ function onBookmarkDeleted() {
           {{ t('directions.directions') }}
         </template>
       </Button>
-      <Button class="flex-1" variant="outline" @click="$emit('directionsFrom')">
-        <RouteIcon class="mr-2 size-4" />
-        {{ t('directions.planRoute') }}
-      </Button>
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <Button size="icon" variant="outline" @click="$emit('share')">
-            <ShareIcon class="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{{ t('general.share') }}</TooltipContent>
-      </Tooltip>
-      <Tooltip v-if="canAsk">
-        <TooltipTrigger as-child>
-          <Button size="icon" variant="outline" :aria-label="t('ask.aboutPlace.action')" @click="askAboutPlace">
-            <MessageCircleQuestionIcon class="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{{ t('ask.aboutPlace.action') }}</TooltipContent>
-      </Tooltip>
-      <Tooltip v-if="canEdit">
-        <TooltipTrigger as-child>
-          <Button size="icon" variant="outline" @click="$emit('edit')">
-            <PencilIcon class="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{{ t('quickEdit.editPlace') }}</TooltipContent>
-      </Tooltip>
-
       <!-- Bookmark button — single behavior regardless of saved state.
            Always opens the picker. Saved state is communicated through
            the corner badge: count of collections (≥2), the single
@@ -174,8 +166,10 @@ function onBookmarkDeleted() {
         <template #trigger>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button size="icon" variant="outline" class="relative">
-                <BookmarkPlusIcon class="size-4" />
+              <Button variant="outline" class="relative">
+                <BookmarkCheckIcon v-if="collectionIds.length" class="mr-2 size-4" />
+                <BookmarkPlusIcon v-else class="mr-2 size-4" />
+                {{ collectionIds.length ? t('general.saved') : t('general.save') }}
 
                 <!-- Count badge: 2+ collections. Numeric, neutral
                      muted background so it stays legible across themes
@@ -218,6 +212,23 @@ function onBookmarkDeleted() {
           />
         </template>
       </ResponsivePopover>
+
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button size="icon" variant="outline" :aria-label="t('general.share')" @click="emit('share')">
+            <ShareIcon class="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('general.share') }}</TooltipContent>
+      </Tooltip>
+
+      <ResponsiveDropdown :items="moreItems" align="end" content-class="w-56">
+        <template #trigger="{ open }">
+          <Button size="icon" variant="outline" :aria-label="t('general.more')" @click="open">
+            <EllipsisIcon class="size-4" />
+          </Button>
+        </template>
+      </ResponsiveDropdown>
     </div>
   </TooltipProvider>
 </template>

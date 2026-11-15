@@ -39,6 +39,11 @@ const { t } = useI18n()
 
 const direction = computed(() => rideDirection(props.segment))
 
+/** The rail is one bullet wide: longer names get the line's mode icon there and their bullet in the title. */
+const RAIL_GLYPHS = 3
+const bulletOnRail = computed(() => !!props.segment.lineName && props.segment.lineName.length <= RAIL_GLYPHS)
+const bulletInTitle = computed(() => !!props.segment.lineName && !bulletOnRail.value && (props.segment.routeOptions?.length ?? 0) <= 1)
+
 const stopsOpen = ref(props.passed != null)
 watch(() => props.passed != null, live => {
   if (live) stopsOpen.value = true
@@ -65,9 +70,9 @@ function stopClass(index: number) {
           v-bind="segmentRail(segment)"
         />
         <RouteBullet
-          v-if="segment.lineName"
+          v-if="bulletOnRail"
           size="md"
-          class="relative z-10 max-w-[44px]"
+          class="relative z-10"
           :label="segment.lineName"
           :color="segment.lineColor"
           :text-color="segment.lineTextColor"
@@ -105,8 +110,16 @@ function stopClass(index: number) {
         v-if="(segment.routeOptions?.length ?? 0) > 1"
         class="size-3.5 text-muted-foreground shrink-0"
       />
+      <RouteBullet
+        v-if="bulletInTitle"
+        size="md"
+        class="shrink-0"
+        :label="segment.lineName"
+        :color="segment.lineColor"
+        :text-color="segment.lineTextColor"
+      />
       <span class="min-w-0 flex flex-col leading-tight">
-        <span class="text-sm font-semibold text-foreground truncate">{{ direction.label }}</span>
+        <span class="text-sm font-semibold text-foreground line-clamp-2">{{ direction.label }}</span>
         <span v-if="direction.toward" class="text-[11px] text-muted-foreground truncate">
           {{ t('directions.toward', { headsign: direction.toward }) }}
         </span>

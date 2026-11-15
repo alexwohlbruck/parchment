@@ -14,7 +14,7 @@ const BADGE = 22
 /** A route bullet's width: one or two glyphs sit in a circle, a longer name becomes a pill. */
 export function badgeWidth(segment: BarScaleSegment): number {
   const label = segment.mode === 'transit' ? segment.lineName ?? '' : ''
-  return label.length <= 2 ? BADGE : 12 + 7 * label.length
+  return label.length <= 2 ? BADGE : 10 + 8 * label.length
 }
 
 const isRide = (segment: BarScaleSegment, walkingOnly: boolean) => segment.mode !== 'walking' || walkingOnly

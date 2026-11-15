@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { HistoryIcon, MessageCircleQuestionIcon, PowerOffIcon } from 'lucide-vue-next'
+import { MessageCircleQuestionIcon, PowerOffIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { useAskStore } from '@/stores/ask.store'
 import { useSearchStore } from '@/stores/search.store'
@@ -283,17 +283,6 @@ onUnmounted(() => {
     </template>
 
     <template v-else>
-      <Button
-        v-if="askPreferences.preferences.saveHistory && askStore.exchanges.length"
-        variant="ghost"
-        size="sm"
-        class="self-start gap-1.5 -ml-2 -mb-3 text-muted-foreground"
-        @click="router.push({ name: AppRoute.ASK })"
-      >
-        <HistoryIcon class="size-4" />
-        {{ t('ask.history.all') }}
-      </Button>
-
       <AskExchange
         v-for="(exchange, index) in askStore.exchanges"
         :key="index"

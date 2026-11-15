@@ -72,3 +72,26 @@ export function savedThread(
 export function isThreadExpired(thread: Pick<AskThread, 'at'>, keepDays: AskHistoryDays, now: number): boolean {
   return keepDays > 0 && now - thread.at > keepDays * DAY_MS
 }
+
+export type ThreadGroupKey = 'today' | 'yesterday' | 'week' | 'month' | 'older'
+
+/** Threads by how long ago they were last used, in local calendar days, newest first. */
+export function threadGroups(
+  threads: readonly AskThread[],
+  now: Date,
+): { key: ThreadGroupKey; threads: AskThread[] }[] {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const groupOf = (at: number): ThreadGroupKey => {
+    if (at >= startOfToday) return 'today'
+    if (at >= startOfToday - DAY_MS) return 'yesterday'
+    if (at >= startOfToday - 6 * DAY_MS) return 'week'
+    if (at >= startOfToday - 29 * DAY_MS) return 'month'
+    return 'older'
+  }
+  const groups = new Map<ThreadGroupKey, AskThread[]>()
+  for (const thread of [...threads].sort((a, b) => b.at - a.at)) {
+    const key = groupOf(thread.at)
+    groups.set(key, [...(groups.get(key) ?? []), thread])
+  }
+  return [...groups].map(([key, list]) => ({ key, threads: list }))
+}

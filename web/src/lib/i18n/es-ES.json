@@ -3913,14 +3913,18 @@
       "action": "Activar en ajustes"
     },
     "history": {
-      "title": "Recientes",
-      "all": "Todas las conversaciones",
-      "questions": "{count} pregunta | {count} preguntas",
       "remove": "Quitar",
       "empty": "Aún no hay conversaciones",
       "off": {
         "title": "El historial está desactivado",
         "action": "Activar"
+      },
+      "groups": {
+        "today": "Hoy",
+        "yesterday": "Ayer",
+        "week": "Esta semana",
+        "month": "Este mes",
+        "older": "Antes"
       }
     },
     "placeholder": "Haz una pregunta"

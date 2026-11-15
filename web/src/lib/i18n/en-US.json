@@ -4187,14 +4187,18 @@
       "action": "Turn on in settings"
     },
     "history": {
-      "title": "Recent",
-      "all": "All conversations",
-      "questions": "{count} question | {count} questions",
       "remove": "Remove",
       "empty": "No conversations yet",
       "off": {
         "title": "History is off",
         "action": "Turn on"
+      },
+      "groups": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "week": "This week",
+        "month": "This month",
+        "older": "Earlier"
       }
     },
     "placeholder": "Ask a question"

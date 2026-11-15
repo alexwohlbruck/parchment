@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { isThreadExpired, savedThread } from './ask-threads'
+import { isThreadExpired, savedThread, threadGroups } from './ask-threads'
 import type { AskExchange } from '@/types/ask.types'
 import type { Place } from '@/types/place.types'
 
@@ -76,5 +76,24 @@ describe('isThreadExpired', () => {
 
   test('never expires with no limit', () => {
     expect(isThreadExpired({ at: 0 }, 0, 1000 * day)).toBe(false)
+  })
+})
+
+describe('threadGroups', () => {
+  const now = new Date(2026, 10, 15, 16, 0)
+  const at = (daysAgo: number, hour = 12) => new Date(2026, 10, 15 - daysAgo, hour).getTime()
+  const thread = (id: string, when: number) => ({ id, title: id, createdAt: when, at: when, exchanges: [] })
+
+  test('groups by local calendar day, newest first, leaving out empty groups', () => {
+    const groups = threadGroups(
+      [thread('old', at(40)), thread('morning', at(0, 9)), thread('late', at(0, 15)), thread('yday', at(1, 23)), thread('tue', at(5))],
+      now,
+    )
+    expect(groups.map(({ key, threads }) => [key, threads.map(t => t.id)])).toEqual([
+      ['today', ['late', 'morning']],
+      ['yesterday', ['yday']],
+      ['week', ['tue']],
+      ['older', ['old']],
+    ])
   })
 })

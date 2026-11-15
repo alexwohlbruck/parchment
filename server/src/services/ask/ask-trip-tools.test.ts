@@ -64,6 +64,7 @@ function context(): AskContext {
     origin,
     places: new Map(),
     units: 'metric',
+    vehicles: [],
     now: new Date('2026-11-20T23:00:00Z'),
     seen: new Map(),
     emit: () => {},
@@ -279,9 +280,64 @@ describe('plan_trip', () => {
       drop_off_at: 'Sterling Pl & Bedford Ave',
       minutes: 6,
     })
-    expect(events).toEqual([
-      { type: 'trip', from: here, to: home, kind: 'bikeshare' },
+    expect(events).toMatchObject([
+      { type: 'trip', from: here, to: home, kind: 'bikeshare', tripIndex: 1 },
     ])
+    expect((events[0] as any).plan.trips).toHaveLength(2)
+  })
+
+  test('an arrive-by time goes on the destination and travels with the trip', async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('transit', 30)], 30)],
+    })
+    const events: AskEvent[] = []
+    await tool('plan_trip').run(
+      { from: 'here', to: 'home', arrive_by: '2026-11-23T09:00' },
+      knownContext(events),
+    )
+    const request = mockPlanTrip.mock.calls[0][0] as any
+    expect(request.waypoints[1].arriveBy).toBe('2026-11-23T14:00:00.000Z')
+    expect(request.preferredDepartureTime).toBeUndefined()
+    expect(events[0]).toMatchObject({
+      kind: 'transit',
+      time: { mode: 'arriveBy', at: '2026-11-23T14:00:00.000Z' },
+    })
+  })
+
+  test('for transit, proposes walking to the train over cycling to it', async () => {
+    const ride = {
+      transitDetails: {
+        route: { shortName: '5' },
+        departureStop: { name: 'A' },
+        arrivalStop: { name: 'B' },
+      },
+    } as any
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [
+        candidate(
+          [
+            segment('biking', 3),
+            segment('transit', 10, ride),
+            segment('biking', 3),
+          ],
+          16,
+        ),
+        candidate(
+          [
+            segment('walking', 4),
+            segment('transit', 10, ride),
+            segment('walking', 4),
+          ],
+          18,
+        ),
+      ],
+    })
+    const events: AskEvent[] = []
+    await tool('plan_trip').run(
+      { from: 'here', to: 'home', kind: 'transit' },
+      knownContext(events),
+    )
+    expect(events[0]).toMatchObject({ tripIndex: 1, lines: ['5'] })
   })
 
   test('offers the other ways when the kind asked for is not worth it', async () => {

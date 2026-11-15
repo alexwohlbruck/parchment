@@ -1,11 +1,10 @@
 import { distance } from '@turf/turf'
 import { estimateModes } from '../mode-estimates.service'
-import { multimodalTripService } from '../trip.service'
+import { hasPremiumNavigation, planTripFor } from '../planned-trip.service'
 import { transitRoutingService } from '../transit-routing.service'
 import { requestBarrelman } from '../barrelman.service'
 import { integrationManager } from '../integrations'
 import { getWeatherOutlook } from '../weather-outlook.service'
-import { getPermissions, hasPermission } from '../auth.service'
 import { getTimezone } from '../../lib/timezone'
 import { getLanguageCode } from '../../lib/i18n'
 import { distanceText } from '../../lib/ask/distance-text'
@@ -21,11 +20,11 @@ import {
   type EstimateMode,
 } from '../../lib/directions/mode-estimates'
 import { IntegrationCapabilityId } from '../../types/integration.types'
-import { PermissionId } from '../../types/auth.types'
 import type { NearbyStation } from '../../lib/dock-alternatives'
 import {
   ASK_TRIP_KINDS,
   type AskTripKind,
+  type AskTripTime,
   type LatLng,
 } from '../../types/ask.types'
 import {
@@ -59,6 +58,25 @@ function tripTime(
   return time
 }
 
+function tripTiming(
+  args: { depart_at?: string; arrive_by?: string },
+  from: LatLng,
+  to: LatLng,
+  context: AskContext,
+): AskTripTime | undefined {
+  if (args.arrive_by)
+    return {
+      mode: 'arriveBy',
+      at: tripTime(args.arrive_by, to, context).toISOString(),
+    }
+  if (args.depart_at)
+    return {
+      mode: 'departAfter',
+      at: tripTime(args.depart_at, from, context).toISOString(),
+    }
+  return undefined
+}
+
 const travelTimes: AskTool<{
   from?: PointArg
   to: PointArg
@@ -83,12 +101,7 @@ const travelTimes: AskTool<{
   },
   label: () => 'Comparing ways to get there',
   async run(args, context) {
-    if (
-      !hasPermission(
-        await getPermissions(context.userId),
-        PermissionId.PREMIUM_NAVIGATION,
-      )
-    ) {
+    if (!(await hasPremiumNavigation(context.userId))) {
       throw new AskToolError('Comparing travel times needs Parchment Premium')
     }
     const from = await centre(args.from, context)
@@ -116,7 +129,7 @@ const transitTrips: AskTool<{
 }> = {
   name: 'transit_trips',
   description:
-    'Public transit trips between two points: when to leave, when you arrive, each line and where to change, with live delays where the agency publishes them. Give depart_at or arrive_by; to find the last trip of the night, depart late and read the latest result.',
+    'Transit timetable between two points: several departures with each line, where to change and live delays. Use it for "when is the last train" or "next few departures"; for directions, use plan_trip. Give depart_at or arrive_by.',
   parameters: {
     type: 'object',
     properties: {
@@ -136,19 +149,16 @@ const transitTrips: AskTool<{
   },
   label: () => 'Checking transit',
   async run(args, context) {
-    const from = await centre(args.from, context)
-    const to = await centre(args.to, context)
+    const from = await endpoint(args.from, context)
+    const to = await endpoint(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
-    const arriveBy = !!args.arrive_by
-    const time = tripTime(
-      args.arrive_by ?? args.depart_at,
-      arriveBy ? to : from,
-      context,
-    )
+    const timing = tripTiming(args, from, to, context)
+    const arriveBy = timing?.mode === 'arriveBy'
+    const time = timing ? new Date(timing.at) : context.now
     const response = await transitRoutingService.getIntermodalRoute(
       {
-        from,
-        to,
+        from: { lat: from.lat, lng: from.lng },
+        to: { lat: to.lat, lng: to.lng },
         time: time.toISOString(),
         arriveBy,
         numItineraries: clamp(args.count, 3, 6),
@@ -162,9 +172,18 @@ const transitTrips: AskTool<{
     )
     if (!trips.length)
       throw new AskToolError('No transit trips found at that time')
+    const summaries = trips.map((trip) => summarizeItinerary(trip, timeZone))
+    context.emit({
+      type: 'trip',
+      from,
+      to,
+      kind: 'transit',
+      ...(timing && { time: timing }),
+      lines: summaries[0].rides.map((ride) => ride.line),
+    })
     return {
       searched: `${arriveBy ? 'arrive by' : 'depart at'} ${localClock(time.toISOString(), timeZone)}`,
-      trips: trips.map((trip) => summarizeItinerary(trip, timeZone)),
+      trips: summaries,
     }
   },
 }
@@ -198,35 +217,54 @@ const planTrip: AskTool<{
     const from = await endpoint(args.from, context)
     const to = await endpoint(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
-    const result = await multimodalTripService.planTrip({
-      waypoints: [
-        { location: { lat: from.lat, lng: from.lng }, type: 'origin' },
-        { location: { lat: to.lat, lng: to.lng }, type: 'destination' },
-      ],
-      selectedMode: 'multi',
-      language: context.language,
-      ...(args.depart_at && {
-        preferredDepartureTime: tripTime(
-          args.depart_at,
-          from,
-          context,
-        ).toISOString(),
-      }),
-      ...(args.arrive_by && {
-        preferredArrivalTime: tripTime(
-          args.arrive_by,
-          to,
-          context,
-        ).toISOString(),
-      }),
-      requestId: `ask-${crypto.randomUUID()}`,
-      timestamp: context.now.toISOString(),
-    })
+    const time = tripTiming(args, from, to, context)
+    const result = await planTripFor(
+      {
+        waypoints: [
+          { location: { lat: from.lat, lng: from.lng }, type: 'origin' },
+          {
+            location: { lat: to.lat, lng: to.lng },
+            type: 'destination',
+            ...(time?.mode === 'arriveBy' && { arriveBy: time.at }),
+          },
+        ],
+        selectedMode: 'multi',
+        availableVehicles: context.vehicles,
+        language: context.language,
+        ...(time?.mode === 'departAfter' && {
+          preferredDepartureTime: time.at,
+        }),
+        requestId: `ask-${crypto.randomUUID()}`,
+        timestamp: context.now.toISOString(),
+      },
+      context.userId,
+    )
     const all = result.trips.map(({ trip }) => summarizeTrip(trip, timeZone))
     if (!all.length) throw new AskToolError('No way to get there was found')
     const wanted = all.filter((trip) => !args.kind || trip.kind === args.kind)
-    const trips = (wanted.length ? wanted : all).slice(0, 3)
-    context.emit({ type: 'trip', from, to, kind: trips[0].kind })
+    // "By transit" means walk and ride, not cycle to the train, even when that ranks higher.
+    const plain = (trip: (typeof all)[number]) =>
+      trip.steps.every(
+        (step) => step.move === 'walk' || step.move === 'ride transit',
+      )
+    const preferred =
+      args.kind === 'transit'
+        ? [...wanted.filter(plain), ...wanted.filter((trip) => !plain(trip))]
+        : wanted
+    const trips = (preferred.length ? preferred : all).slice(0, 3)
+    const lines = trips[0].steps.flatMap((step) =>
+      'line' in step && step.line ? [step.line] : [],
+    )
+    context.emit({
+      type: 'trip',
+      from,
+      to,
+      kind: trips[0].kind,
+      ...(time && { time }),
+      ...(lines.length && { lines }),
+      plan: result,
+      tripIndex: all.indexOf(trips[0]),
+    })
     return {
       ...(!wanted.length && {
         note: `No ${args.kind} trip: the planner found it not worth it here. These are the other ways.`,

@@ -5,6 +5,7 @@ import { nearbyFirst } from '../../lib/ask/nearby-match'
 import { forwardGeocode } from '../geocoding.service'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
+import type { Vehicle } from '../../types/trip.types'
 import type {
   AskEndpoint,
   AskEvent,
@@ -30,6 +31,8 @@ export interface AskContext {
   /** Points the model may name instead of giving coordinates, keyed by lower-case name ("here", "home"). */
   places: Map<string, AskEndpoint>
   units: AskUnits
+  /** The user's vehicles, so trips match what Directions plans. */
+  vehicles: Vehicle[]
   now: Date
   signal?: AbortSignal
   /** Every place a tool has returned, by id. The answer may only cite these. */
@@ -46,7 +49,7 @@ export interface AskTool<Args = any> {
 }
 
 /** Coordinates, or the name of a known place like "here" or "home". */
-export type PointArg = LatLng | string
+export type PointArg = AskEndpoint | string
 
 export function pointSchema(description: string) {
   return {
@@ -54,7 +57,11 @@ export function pointSchema(description: string) {
     anyOf: [
       {
         type: 'object',
-        properties: { lat: { type: 'number' }, lng: { type: 'number' } },
+        properties: {
+          lat: { type: 'number' },
+          lng: { type: 'number' },
+          name: { type: 'string', description: 'What to call it, e.g. the name locate returned' },
+        },
         required: ['lat', 'lng'],
       },
       { type: 'string' },

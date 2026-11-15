@@ -78,6 +78,7 @@ async function callTool(
     origin: [args.near, args.from, args.at].find((point): point is LatLng => typeof point === 'object' && point !== null),
     places: new Map(),
     units: 'metric',
+    vehicles: [],
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),

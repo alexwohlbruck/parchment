@@ -163,14 +163,15 @@ describe('summarizeTrip', () => {
       arrive: 'Fri 22:00',
       steps: [
         {
-          ride: 'Citi Bike ebike',
+          move: 'ride a Citi Bike ebike',
           pick_up_at: 'A',
           drop_off_at: 'B',
           minutes: 6,
           docks_at_drop_off: 15,
         },
         {
-          ride: 'G',
+          move: 'ride transit',
+          line: 'G',
           toward: 'Court Sq',
           board: 'Bedford-Nostrand Avs',
           alight: 'Court Sq',

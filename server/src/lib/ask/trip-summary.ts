@@ -84,12 +84,19 @@ export function tripKind(segments: TripSegment[]): AskTripKind {
   return 'walking'
 }
 
+const MOVES: Record<string, string> = {
+  walking: 'walk',
+  biking: 'cycle on your own bike',
+  driving: 'drive',
+  rideshare: 'take a ride-hail',
+}
+
 function describeSegment(segment: TripSegment, timeZone: string | null) {
   const minutes = Math.max(1, Math.round(segment.duration / 60))
   const shared = segment.details?.sharedMobilityDetails
   if (shared) {
     return {
-      ride: `${shared.provider} ${shared.vehicleType}`,
+      move: `ride a ${shared.provider} ${shared.vehicleType}`,
       pick_up_at: shared.stationName,
       drop_off_at: shared.toStationName,
       minutes,
@@ -104,7 +111,8 @@ function describeSegment(segment: TripSegment, timeZone: string | null) {
   const transit = segment.details?.transitDetails
   if (transit) {
     return {
-      ride:
+      move: 'ride transit',
+      line:
         transit.shortName ?? transit.route.shortName ?? transit.route.longName,
       ...(transit.headsign && { toward: transit.headsign }),
       board: transit.departureStop.name,
@@ -113,7 +121,7 @@ function describeSegment(segment: TripSegment, timeZone: string | null) {
       minutes,
     }
   }
-  return { [segment.mode === 'walking' ? 'walk' : segment.mode]: minutes }
+  return { move: MOVES[segment.mode] ?? segment.mode, minutes }
 }
 
 /** A planned trip as the moves a person makes, in the trip's local time. */
@@ -129,4 +137,18 @@ export function summarizeTrip(trip: TripResponse, timeZone: string | null) {
     }),
     steps: segments.map((segment) => describeSegment(segment, timeZone)),
   }
+}
+
+/** "Saturday 15 November 2026, 04:35", so "Monday 9am" resolves to a date in the user's own week. */
+export function localDateTime(date: Date, timeZone: string | null): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZone ?? 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
 }

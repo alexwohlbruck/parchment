@@ -1,6 +1,7 @@
 import type { Place } from './place.types'
 import type { IsochroneGeometry } from './isochrone.types'
 import type { QueryIntent } from './search.types'
+import type { MultimodalTripResponse, Vehicle } from './trip.types'
 
 export interface LatLng {
   lat: number
@@ -28,6 +29,15 @@ export interface AskWhere {
   here?: LatLng
   places?: AskEndpoint[]
   units?: AskUnits
+  /** The user's vehicles, as Directions sends them. */
+  vehicles?: Vehicle[]
+}
+
+/** When a trip leaves or must arrive; absent for leaving now. */
+export interface AskTripTime {
+  mode: 'departAfter' | 'arriveBy'
+  /** ISO 8601. */
+  at: string
 }
 
 export interface AskTurn {
@@ -44,7 +54,18 @@ export type AskEvent =
   | { type: 'step'; id: string; label: string; status: 'running' | 'done' | 'failed' }
   | { type: 'reach'; geometry: IsochroneGeometry }
   /** A trip the answer recommends, for the app to open in Directions. */
-  | { type: 'trip'; from: AskEndpoint; to: AskEndpoint; kind: AskTripKind }
+  | {
+      type: 'trip'
+      from: AskEndpoint
+      to: AskEndpoint
+      kind: AskTripKind
+      time?: AskTripTime
+      /** The transit lines the proposed trip rides, in order, for matching it when there is no plan. */
+      lines?: string[]
+      /** The plan the answer was written from, and which of its trips it proposes. */
+      plan?: MultimodalTripResponse
+      tripIndex?: number
+    }
   | {
       type: 'answer'
       text: string

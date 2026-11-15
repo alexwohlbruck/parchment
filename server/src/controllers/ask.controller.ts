@@ -7,8 +7,10 @@ import { runAsk } from '../services/ask/ask-agent.service'
 import { recordAskQuestion } from '../services/ask/ask-usage.service'
 import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
+import { VehicleSchema } from '../types/directions-api.types'
 import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
+import type { Vehicle } from '../types/trip.types'
 
 const encoder = new TextEncoder()
 
@@ -80,6 +82,7 @@ const app = new Elysia()
                 origin,
                 places: knownPlaces(body.here, body.places),
                 units: body.units ?? 'metric',
+                vehicles: (body.vehicles ?? []) as Vehicle[],
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
@@ -142,6 +145,9 @@ const app = new Elysia()
           ),
         ),
         units: t.Optional(t.Union([t.Literal('metric'), t.Literal('imperial')])),
+        vehicles: t.Optional(
+          t.Array(VehicleSchema, { maxItems: 20, description: 'The user\'s vehicles, so Ask plans trips the way Directions does' }),
+        ),
       }),
       detail: {
         tags: ['Ask'],

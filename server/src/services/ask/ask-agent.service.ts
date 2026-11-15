@@ -16,6 +16,8 @@ import {
 import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
+import { localDateTime } from '../../lib/ask/trip-summary'
+import { getTimezone } from '../../lib/timezone'
 import { logWarn } from '../../lib/logger'
 
 /** Model round trips per question before the answer is forced. */
@@ -32,6 +34,8 @@ export interface AskRequest {
 }
 
 function systemPrompt(context: AskContext): string {
+  const at = context.places.get(HERE) ?? context.origin
+  const zone = at ? getTimezone(at.lat, at.lng) : null
   const where = context.origin
     ? `The map is centred on ${context.origin.lat.toFixed(5)}, ${context.origin.lng.toFixed(5)}; searches look there unless given a point.`
     : 'The map position is unknown; use locate when the question names a place.'
@@ -41,14 +45,14 @@ function systemPrompt(context: AskContext): string {
     : 'The user\'s own location is unknown, so "here" means the map position.'
   return [
     'You answer questions about places and getting around for Parchment, a maps app.',
-    `It is ${context.now.toISOString()}. ${where}`,
+    `It is ${localDateTime(context.now, zone)} where the user is (${zone ?? 'UTC'}). Write tool times as that local time, e.g. "2026-11-17T09:00". ${where}`,
     known,
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
-    'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (bikeshare for Citi Bike and the like). Use transit_trips for timetables, travel_times to compare ways, and weather when it matters.',
+    'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (transit, bikeshare for Citi Bike and the like). A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. Use transit_trips only for timetables like the last train, travel_times to compare ways, and weather when it matters.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
-    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
+    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, describe the first trip the tool returned (the one the app shows), with every move it makes and none presented as optional; say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
     'Never ask for something a known place already answers. If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }
@@ -66,9 +70,10 @@ function toolMessage(call: ChatToolCall, result: unknown): ChatMessage {
   return {
     role: 'tool',
     tool_call_id: call.id,
-    content: content.length > MAX_TOOL_RESULT_CHARS
-      ? `${content.slice(0, MAX_TOOL_RESULT_CHARS)}…(truncated)`
-      : content,
+    content:
+      content.length > MAX_TOOL_RESULT_CHARS
+        ? `${content.slice(0, MAX_TOOL_RESULT_CHARS)}…(truncated)`
+        : content,
   }
 }
 
@@ -77,7 +82,8 @@ async function runTool(
   call: ChatToolCall,
   context: AskContext,
 ): Promise<ChatMessage> {
-  if (!tool) return toolMessage(call, { error: `Unknown tool ${call.function.name}` })
+  if (!tool)
+    return toolMessage(call, { error: `Unknown tool ${call.function.name}` })
   const args = parseArgs(call)
   const step = { id: call.id, label: tool.label(args) }
   context.emit({ type: 'step', ...step, status: 'running' })
@@ -86,7 +92,9 @@ async function runTool(
     context.emit({ type: 'step', ...step, status: 'done' })
     return toolMessage(call, result)
   } catch (error) {
-    logWarn(`Ask tool ${tool.name} failed: ${error instanceof Error ? error.message : error}`)
+    logWarn(
+      `Ask tool ${tool.name} failed: ${error instanceof Error ? error.message : error}`,
+    )
     context.emit({ type: 'step', ...step, status: 'failed' })
     return toolMessage(call, { error: toolErrorMessage(error) })
   }
@@ -116,7 +124,10 @@ export function groundAnswer(
     }
     if (used.has(id)) continue
     used.add(id)
-    places.push({ place, reason: typeof entry.reason === 'string' ? entry.reason : '' })
+    places.push({
+      place,
+      reason: typeof entry.reason === 'string' ? entry.reason : '',
+    })
   }
   return {
     text: typeof args.text === 'string' ? args.text.trim() : '',
@@ -142,10 +153,17 @@ export async function runAsk(
     const call: ChatToolCall = {
       id: 'subject-place',
       type: 'function',
-      function: { name: 'get_place', arguments: JSON.stringify({ id: request.placeId }) },
+      function: {
+        name: 'get_place',
+        arguments: JSON.stringify({ id: request.placeId }),
+      },
     }
     messages.push(
-      { role: 'assistant', content: 'The question is about this place.', tool_calls: [call] },
+      {
+        role: 'assistant',
+        content: 'The question is about this place.',
+        tool_calls: [call],
+      },
       await runTool(toolsByName.get('get_place'), call, context),
     )
   }
@@ -163,7 +181,11 @@ export async function runAsk(
 
     const calls = message.tool_calls ?? []
     if (!calls.length) {
-      context.emit({ type: 'answer', text: message.content?.trim() ?? '', places: [] })
+      context.emit({
+        type: 'answer',
+        text: message.content?.trim() ?? '',
+        places: [],
+      })
       return
     }
 
@@ -171,7 +193,9 @@ export async function runAsk(
     if (answerCall) {
       const answer = groundAnswer(parseArgs(answerCall), context.seen)
       if (!answer.unknownIds.length || last) {
-        const intent = classifyQuery(request.question, { language: context.language })
+        const intent = classifyQuery(request.question, {
+          language: context.language,
+        })
         context.emit({
           type: 'answer',
           text: answer.text,
@@ -182,9 +206,14 @@ export async function runAsk(
       }
       messages.push(
         ...calls.map((call) =>
-          toolMessage(call, call === answerCall
-            ? { error: `Unknown place ids ${answer.unknownIds.join(', ')}. Cite only ids returned by tools.` }
-            : { skipped: true }),
+          toolMessage(
+            call,
+            call === answerCall
+              ? {
+                  error: `Unknown place ids ${answer.unknownIds.join(', ')}. Cite only ids returned by tools.`,
+                }
+              : { skipped: true },
+          ),
         ),
       )
       continue
@@ -192,7 +221,9 @@ export async function runAsk(
 
     messages.push(
       ...(await Promise.all(
-        calls.map((call) => runTool(toolsByName.get(call.function.name), call, context)),
+        calls.map((call) =>
+          runTool(toolsByName.get(call.function.name), call, context),
+        ),
       )),
     )
   }

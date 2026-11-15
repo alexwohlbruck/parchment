@@ -56,9 +56,9 @@ describe('summarizePlace', () => {
     const summary = summarizePlace(place({ rawText: 'Mo-Su 08:00-18:00' }), {
       now: morning,
       origin: { lat: 40.7218, lng: -74.006 },
+      units: 'imperial',
     })
-    expect(summary.distanceM).toBeGreaterThan(990)
-    expect(summary.distanceM).toBeLessThan(1010)
+    expect(summary.distance).toBe('0.6 mi')
     expect(summary).toMatchObject({ name: 'Corner Café', openNow: true, hours: 'Mo-Su 08:00-18:00' })
     expect('address' in summary).toBe(false)
   })

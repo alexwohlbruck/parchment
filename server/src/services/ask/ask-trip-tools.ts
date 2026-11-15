@@ -8,6 +8,7 @@ import { getWeatherOutlook } from '../weather-outlook.service'
 import { getPermissions, hasPermission } from '../auth.service'
 import { getTimezone } from '../../lib/timezone'
 import { getLanguageCode } from '../../lib/i18n'
+import { distanceText } from '../../lib/ask/distance-text'
 import {
   localClock,
   parseTripTime,
@@ -90,9 +91,9 @@ const travelTimes: AskTool<{
     ) {
       throw new AskToolError('Comparing travel times needs Parchment Premium')
     }
-    const from = centre(args.from, context)
+    const from = await centre(args.from, context)
     const estimates = await estimateModes({
-      waypoints: [from, centre(args.to, context)],
+      waypoints: [from, await centre(args.to, context)],
       modes: args.modes?.length ? args.modes : [...ESTIMATE_MODES],
       departureTime: tripTime(args.depart_at, from, context).toISOString(),
       language: context.language,
@@ -135,8 +136,8 @@ const transitTrips: AskTool<{
   },
   label: () => 'Checking transit',
   async run(args, context) {
-    const from = centre(args.from, context)
-    const to = centre(args.to, context)
+    const from = await centre(args.from, context)
+    const to = await centre(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
     const arriveBy = !!args.arrive_by
     const time = tripTime(
@@ -194,8 +195,8 @@ const planTrip: AskTool<{
   },
   label: () => 'Planning the trip',
   async run(args, context) {
-    const from = endpoint(args.from, context)
-    const to = endpoint(args.to, context)
+    const from = await endpoint(args.from, context)
+    const to = await endpoint(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
     const result = await multimodalTripService.planTrip({
       waypoints: [
@@ -221,19 +222,17 @@ const planTrip: AskTool<{
       requestId: `ask-${crypto.randomUUID()}`,
       timestamp: context.now.toISOString(),
     })
-    const trips = result.trips
-      .map(({ trip }) => summarizeTrip(trip, timeZone))
-      .filter((trip) => !args.kind || trip.kind === args.kind)
-      .slice(0, 3)
-    if (!trips.length) {
-      throw new AskToolError(
-        args.kind
-          ? `No ${args.kind} trip found; try another kind`
-          : 'No trip found',
-      )
-    }
+    const all = result.trips.map(({ trip }) => summarizeTrip(trip, timeZone))
+    if (!all.length) throw new AskToolError('No way to get there was found')
+    const wanted = all.filter((trip) => !args.kind || trip.kind === args.kind)
+    const trips = (wanted.length ? wanted : all).slice(0, 3)
     context.emit({ type: 'trip', from, to, kind: trips[0].kind })
-    return { trips }
+    return {
+      ...(!wanted.length && {
+        note: `No ${args.kind} trip: the planner found it not worth it here. These are the other ways.`,
+      }),
+      trips,
+    }
   },
 }
 
@@ -249,7 +248,7 @@ const weather: AskTool<{ at?: PointArg }> = {
   },
   label: () => 'Checking the weather',
   async run(args, context) {
-    const { lat, lng } = centre(args.at, context)
+    const { lat, lng } = await centre(args.at, context)
     const [record] = integrationManager.getConfiguredIntegrationsByCapability(
       IntegrationCapabilityId.WEATHER,
     )
@@ -296,7 +295,7 @@ const bikeshareNearby: AskTool<{ near?: PointArg; radius_m?: number }> = {
   },
   label: () => 'Checking bike share',
   async run(args, context) {
-    const origin = centre(args.near, context)
+    const origin = await centre(args.near, context)
     const response = await requestBarrelman(
       '/gbfs/nearby-stations',
       {
@@ -312,23 +311,23 @@ const bikeshareNearby: AskTool<{ near?: PointArg; radius_m?: number }> = {
     const { stations = [] } = (await response.json()) as {
       stations?: NearbyStation[]
     }
-    return stations
+    const meters = (station: NearbyStation) =>
+      distance([origin.lng, origin.lat], [station.lon, station.lat], {
+        units: 'meters',
+      })
+    return [...stations]
+      .sort((a, b) => meters(a) - meters(b))
       .map((station) => ({
         name: station.name,
         lat: station.lat,
         lng: station.lon,
-        meters: Math.round(
-          distance([origin.lng, origin.lat], [station.lon, station.lat], {
-            units: 'meters',
-          }),
-        ),
+        distance: distanceText(meters(station), context.units),
         bikes: station.numBikesAvailable,
         ebikes: station.numEbikesAvailable ?? 0,
         docks: station.numDocksAvailable,
         renting: station.isRenting,
         returning: station.isReturning,
       }))
-      .sort((a, b) => a.meters - b.meters)
   },
 }
 

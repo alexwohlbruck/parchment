@@ -1,6 +1,8 @@
 import type { Place } from '../../types/place.types'
 import { distance, point } from '@turf/turf'
 import { isOpenAt } from '../opening-hours'
+import { distanceText } from './distance-text'
+import type { AskUnits } from '../../types/ask.types'
 
 /** What the model sees of a place: enough to judge it, small enough to list dozens. */
 export interface PlaceSummary {
@@ -10,7 +12,7 @@ export interface PlaceSummary {
   address?: string
   lat: number
   lng: number
-  distanceM?: number
+  distance?: string
   openNow?: boolean
   hours?: string
   closed?: 'permanently' | 'temporarily'
@@ -57,7 +59,11 @@ function formatAddress(place: Place): string | undefined {
 
 export function summarizePlace(
   place: Place,
-  context: { now: Date; origin?: { lat: number; lng: number } },
+  context: {
+    now: Date
+    origin?: { lat: number; lng: number }
+    units: AskUnits
+  },
 ): PlaceSummary {
   const center = place.geometry.value.center
   const hours = place.openingHours?.value
@@ -74,8 +80,15 @@ export function summarizePlace(
     address: formatAddress(place),
     lat: round(center.lat),
     lng: round(center.lng),
-    distanceM: context.origin
-      ? Math.round(distance(point([context.origin.lng, context.origin.lat]), point([center.lng, center.lat]), { units: 'meters' }))
+    distance: context.origin
+      ? distanceText(
+          distance(
+            point([context.origin.lng, context.origin.lat]),
+            point([center.lng, center.lat]),
+            { units: 'meters' },
+          ),
+          context.units,
+        )
       : undefined,
     openNow: openNow(place, context.now),
     hours: hours?.rawText,
@@ -88,10 +101,17 @@ export function summarizePlace(
 
 export function describePlace(
   place: Place,
-  context: { now: Date; origin?: { lat: number; lng: number } },
+  context: {
+    now: Date
+    origin?: { lat: number; lng: number }
+    units: AskUnits
+  },
 ): PlaceDetail {
   const amenities = Object.fromEntries(
-    Object.entries(place.amenities ?? {}).map(([key, { value }]) => [key, value]),
+    Object.entries(place.amenities ?? {}).map(([key, { value }]) => [
+      key,
+      value,
+    ]),
   )
   return dropEmpty({
     ...summarizePlace(place, context),
@@ -117,6 +137,8 @@ function round(value: number): number {
 
 function dropEmpty<T extends object>(value: T): T {
   return Object.fromEntries(
-    Object.entries(value).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+    Object.entries(value).filter(
+      ([, v]) => v !== undefined && v !== null && v !== '',
+    ),
   ) as T
 }

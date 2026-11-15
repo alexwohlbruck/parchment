@@ -24,6 +24,17 @@ mock.module('../mode-estimates.service', () => ({
 mock.module('../transit-routing.service', () => ({
   transitRoutingService: { getIntermodalRoute: mockRoute },
 }))
+const mockGeocode = mock(
+  async (_query: string, _lat?: number, _lng?: number) => ({
+    results: [
+      {
+        name: { value: 'Prospect Park' },
+        geometry: { value: { center: { lat: 40.6602, lng: -73.969 } } },
+      },
+    ],
+  }),
+)
+mock.module('../geocoding.service', () => ({ forwardGeocode: mockGeocode }))
 mock.module('../trip.service', () => ({
   multimodalTripService: { planTrip: mockPlanTrip },
 }))
@@ -183,7 +194,7 @@ test('bikeshare_nearby lists stations nearest first with live counts', async () 
     bikes: 4,
     ebikes: 2,
     docks: 3,
-    meters: 22,
+    distance: '20 m',
   })
   expect(stations[1].ebikes).toBe(0)
 })
@@ -273,10 +284,38 @@ describe('plan_trip', () => {
     ])
   })
 
-  test('an unknown name lists the ones it knows instead of guessing', async () => {
-    await expect(
-      tool('plan_trip').run({ to: 'work' }, knownContext([])),
-    ).rejects.toThrow('known: here, home')
-    expect(mockPlanTrip).not.toHaveBeenCalled()
+  test('offers the other ways when the kind asked for is not worth it', async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('walking', 6)], 6)],
+    })
+    const events: AskEvent[] = []
+    const result = (await tool('plan_trip').run(
+      { from: 'here', to: 'home', kind: 'bikeshare' },
+      knownContext(events),
+    )) as any
+    expect(result.note).toContain('No bikeshare trip')
+    expect(result.trips.map((trip: any) => trip.kind)).toEqual(['walking'])
+    expect(events[0]).toMatchObject({ kind: 'walking' })
+  })
+
+  test('takes coordinates written as text, and looks up a name near the user', async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('walking', 17)], 17)],
+    })
+    const events: AskEvent[] = []
+    await tool('plan_trip').run(
+      { from: '{"lat": 40.6662, "lng": -73.9603}', to: 'Prospect Park' },
+      knownContext(events),
+    )
+
+    expect(mockGeocode.mock.calls[0]).toEqual([
+      'Prospect Park',
+      here.lat,
+      here.lng,
+    ])
+    expect(events[0]).toMatchObject({
+      from: here,
+      to: { name: 'Prospect Park', lat: 40.6602, lng: -73.969 },
+    })
   })
 })

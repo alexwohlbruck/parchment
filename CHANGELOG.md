@@ -20,6 +20,7 @@
 * Place cards in search results show whether each place is open now.
 * A place's buttons are down to Directions, Save, Share and More, which holds Plan route, Ask about this place and Suggest an edit.
 * During navigation, the time left now leads the bottom card, with your arrival time beside the distance.
+* Admin settings sit under their own heading, and system integrations have their own page, apart from the accounts you connect yourself.
 
 ### Fixed
 

@@ -17,7 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const { isMobileScreen } = useResponsive()
 const { t } = useI18n()
-const { allowedPages, sectionsByPage, search } = useSettingsIndex()
+const { allowedPages, pageGroups, sectionsByPage, search } = useSettingsIndex()
 const { activeSectionId, navigateToSection } = useSettingsScrollTarget()
 
 const SUBNAV_EXPAND_DURATION_MS = 180
@@ -63,8 +63,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 }
 
 function selectResult(to: string, sectionId: string) {
-  const sections = allowedPages.value
-    .flatMap(p => p.sections)
+  const sections = allowedPages.value.flatMap(p => p.sections)
   const section = sections.find(s => s.id === sectionId)
   if (section?.to) {
     router.push(section.to)
@@ -106,10 +105,7 @@ function subtitleFor(pageId: string): string {
   const sections = sectionsByPage.value.get(pageId) ?? []
   if (sections.length === 0) return ''
   const pageTitle = t(`settings.${pageId}.title`)
-  if (
-    sections.length === 1 &&
-    sections[0].title.trim() === pageTitle.trim()
-  )
+  if (sections.length === 1 && sections[0].title.trim() === pageTitle.trim())
     return ''
   return sections
     .slice(0, SUBTITLE_SECTION_LIMIT)
@@ -142,7 +138,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 min-h-0 md:bg-accent/50 md:border-r md:border-border/60">
+  <div
+    class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 min-h-0 md:bg-accent/50 md:border-r md:border-border/60"
+  >
     <H3 class="ml-2">{{ t('settings.title') }}</H3>
 
     <!-- Search -->
@@ -221,96 +219,113 @@ onBeforeUnmount(() => {
         v-if="isMobileScreen"
         class="overflow-y-auto overflow-x-hidden flex flex-col gap-1 min-w-0"
       >
-        <router-link
-          v-for="page in allowedPages"
-          :key="page.pageId"
-          :to="page.to"
-          :aria-disabled="page.disabled || undefined"
-          :tabindex="page.disabled ? -1 : 0"
-          class="flex items-center gap-3 px-2 py-2.5 -mx-1 rounded-md transition-colors active:bg-foreground/5 min-w-0"
-          :class="page.disabled && 'opacity-30 pointer-events-none'"
-        >
-          <span
-            class="flex items-center justify-center size-10 rounded-md shrink-0"
-            :class="getThemeColorGhostClasses(page.iconColor)"
+        <template v-for="group in pageGroups" :key="group.titleKey ?? 'all'">
+          <Caption v-if="group.titleKey" class="px-1 pt-3 first:pt-0">
+            {{ t(group.titleKey) }}
+          </Caption>
+          <router-link
+            v-for="page in group.pages"
+            :key="page.pageId"
+            :to="page.to"
+            :aria-disabled="page.disabled || undefined"
+            :tabindex="page.disabled ? -1 : 0"
+            class="flex items-center gap-3 px-2 py-2.5 -mx-1 rounded-md transition-colors active:bg-foreground/5 min-w-0"
+            :class="page.disabled && 'opacity-30 pointer-events-none'"
           >
-            <component :is="page.icon" class="size-5" />
-          </span>
-          <span class="flex-1 min-w-0 flex flex-col gap-0.5">
             <span
-              class="text-[15px] font-semibold tracking-tight leading-tight truncate flex items-center gap-1.5"
+              class="flex items-center justify-center size-10 rounded-md shrink-0"
+              :class="getThemeColorGhostClasses(page.iconColor)"
             >
-              {{ t(`settings.${page.pageId}.title`) }}
-              <IntegrationHealthDot
-                v-if="page.pageId === 'integrations'"
-                class="shrink-0"
-              />
+              <component :is="page.icon" class="size-5" />
             </span>
-            <span
-              v-if="subtitleFor(page.pageId)"
-              class="text-xs text-muted-foreground leading-tight truncate"
-            >
-              {{ subtitleFor(page.pageId) }}
+            <span class="flex-1 min-w-0 flex flex-col gap-0.5">
+              <span
+                class="text-[15px] font-semibold tracking-tight leading-tight truncate flex items-center gap-1.5"
+              >
+                {{ t(`settings.${page.pageId}.title`) }}
+                <IntegrationHealthDot
+                  v-if="page.integrationScope"
+                  :scope="page.integrationScope"
+                  class="shrink-0"
+                />
+              </span>
+              <span
+                v-if="subtitleFor(page.pageId)"
+                class="text-xs text-muted-foreground leading-tight truncate"
+              >
+                {{ subtitleFor(page.pageId) }}
+              </span>
             </span>
-          </span>
-        </router-link>
+          </router-link>
+        </template>
       </nav>
 
       <!-- Desktop side nav -->
       <nav v-else class="overflow-y-auto flex flex-col gap-0.5 min-h-0">
-        <template v-for="page in allowedPages" :key="page.pageId">
-          <Button
-            variant="ghost"
-            class="flex px-3 justify-start gap-3 hover:bg-primary/5 hover:text-primary"
-            as-child
-            :to="page.to"
-            :class="
-              isActivePage(page.to)
-                ? 'bg-primary/5 text-primary font-medium'
-                : ''
-            "
-            :disabled="page.disabled"
-          >
-            <router-link :to="page.to">
-              <component :is="page.icon" class="size-5 shrink-0" />
-              <span class="flex-1 text-left">
-                {{ t(`settings.${page.pageId}.title`) }}
-              </span>
-              <IntegrationHealthDot
-                v-if="page.pageId === 'integrations'"
-                class="shrink-0"
-              />
-            </router-link>
-          </Button>
-
-          <!-- Sub-sections of the active page -->
-          <transition-expand
-            axis="y"
-            :duration="SUBNAV_EXPAND_DURATION_MS"
-            easing="ease-out"
-          >
-            <div
-              v-if="
-                isActivePage(page.to) && currentSubSections(page.pageId).length > 0
+        <template v-for="group in pageGroups" :key="group.titleKey ?? 'all'">
+          <Caption v-if="group.titleKey" class="px-3 pt-4 pb-1 first:pt-0">
+            {{ t(group.titleKey) }}
+          </Caption>
+          <template v-for="page in group.pages" :key="page.pageId">
+            <Button
+              variant="ghost"
+              class="flex px-3 justify-start gap-3 hover:bg-primary/5 hover:text-primary"
+              as-child
+              :to="page.to"
+              :class="
+                isActivePage(page.to)
+                  ? 'bg-primary/5 text-primary font-medium'
+                  : ''
               "
-              class="ml-4 my-0.5 border-l border-border/60 flex flex-col gap-px"
+              :disabled="page.disabled"
             >
-              <router-link
-                v-for="section in currentSubSections(page.pageId)"
-                :key="section.id"
-                :to="section.to ?? { path: page.to, hash: section.hash }"
-                class="text-left text-sm pl-4 pr-2 py-1.5 -ml-px border-l-2 transition-colors leading-tight hover:text-primary"
-                :class="
-                  isActiveSection(section)
-                    ? 'border-primary text-primary font-medium'
-                    : 'border-transparent text-muted-foreground'
-                "
-                @click.prevent="section.to ? $router.push(section.to) : navigateToSection(page.to, section.id)"
-              >
-                {{ section.title }}
+              <router-link :to="page.to">
+                <component :is="page.icon" class="size-5 shrink-0" />
+                <span class="flex-1 text-left">
+                  {{ t(`settings.${page.pageId}.title`) }}
+                </span>
+                <IntegrationHealthDot
+                  v-if="page.integrationScope"
+                  :scope="page.integrationScope"
+                  class="shrink-0"
+                />
               </router-link>
-            </div>
-          </transition-expand>
+            </Button>
+
+            <!-- Sub-sections of the active page -->
+            <transition-expand
+              axis="y"
+              :duration="SUBNAV_EXPAND_DURATION_MS"
+              easing="ease-out"
+            >
+              <div
+                v-if="
+                  isActivePage(page.to) &&
+                  currentSubSections(page.pageId).length > 0
+                "
+                class="ml-4 my-0.5 border-l border-border/60 flex flex-col gap-px"
+              >
+                <router-link
+                  v-for="section in currentSubSections(page.pageId)"
+                  :key="section.id"
+                  :to="section.to ?? { path: page.to, hash: section.hash }"
+                  class="text-left text-sm pl-4 pr-2 py-1.5 -ml-px border-l-2 transition-colors leading-tight hover:text-primary"
+                  :class="
+                    isActiveSection(section)
+                      ? 'border-primary text-primary font-medium'
+                      : 'border-transparent text-muted-foreground'
+                  "
+                  @click.prevent="
+                    section.to
+                      ? $router.push(section.to)
+                      : navigateToSection(page.to, section.id)
+                  "
+                >
+                  {{ section.title }}
+                </router-link>
+              </div>
+            </transition-expand>
+          </template>
         </template>
       </nav>
     </template>

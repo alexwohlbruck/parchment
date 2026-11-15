@@ -20,10 +20,12 @@ import { useSearchService } from '@/services/search.service'
 import { useMapStore } from '@/stores/map.store'
 import { useRecentsStore } from '@/stores/recents.store'
 import { toLngLat } from '@/lib/geo/lng-lat'
-import { prefersAsk } from '@/lib/ask/ask-intent'
+import { intentFilters, LOOKUP_INTENT } from '@/lib/search/query-intent'
+import type { QueryIntent } from '@/types/search.types'
 import { useAskService } from '@/services/ask/ask.service'
 
 export const ASK_OPTION = 'ask'
+export const BROWSE_OPTION_PREFIX = 'browse:'
 
 export async function buildSearchSuggestions(
   _query?: string,
@@ -202,12 +204,9 @@ export async function buildSearchSuggestions(
   const recentItems = recentEntries.map(r => r.option)
 
   const askAccess = useAskService().loadAccess().catch(() => null)
-  const askItem = async (
-    results: CommandArgumentOption[],
-  ): Promise<CommandArgumentOption[]> => {
+  const askItem = async (intent: QueryIntent): Promise<CommandArgumentOption[]> => {
     const access = await askAccess
     if (!access || (!access.allowed && access.reason === 'not-configured')) return []
-    const exactMatch = results.some(r => r.name.trim().toLowerCase() === q)
     return [
       {
         value: ASK_OPTION,
@@ -215,7 +214,30 @@ export async function buildSearchSuggestions(
         description: t('ask.row'),
         iconName: 'MessageCircleQuestion',
         iconColor: getCategoryColor('default', isDark.value),
-        group: prefersAsk(searchText, { exactMatch }) ? 'ask' : 'askLast',
+        group: intent.intent === 'ask' ? 'ask' : 'askLast',
+      },
+    ]
+  }
+
+  const browseItem = (intent: QueryIntent): CommandArgumentOption[] => {
+    const { category, attributes = [], openNow } = intent
+    if (intent.intent !== 'browse' || !category) return []
+    const payload = encodeURIComponent(JSON.stringify({
+      categoryId: category.id,
+      categoryName: category.name,
+      filters: intentFilters(intent),
+    }))
+    return [
+      {
+        value: `${BROWSE_OPTION_PREFIX}${payload}`,
+        name: [
+          category.name,
+          ...attributes.map(a => a.name),
+          ...(openNow ? [t('palette.commands.search.browse.openNow')] : []),
+        ].join(' · '),
+        iconName: 'ListFilter',
+        iconColor: getCategoryColor('default', isDark.value),
+        group: 'browse',
       },
     ]
   }
@@ -239,8 +261,8 @@ export async function buildSearchSuggestions(
 
     // The server returns categories and places interleaved by relevance score.
     // Trust the server's ordering — no client-side category search or re-sort.
-    const searchResults =
-      await placeSearchService.getAutocompleteSuggestions({
+    const { results: searchResults, intent } =
+      await placeSearchService.getAutocomplete({
         query: searchText,
         lat,
         lng,
@@ -344,10 +366,16 @@ export async function buildSearchSuggestions(
       .filter(r => !recentIdentities.has(r.identity))
       .map(r => r.option)
 
-    return [...(await askItem(results)), ...fullSearchItem, ...recentItems, ...results]
+    return [
+      ...browseItem(intent),
+      ...(await askItem(intent)),
+      ...fullSearchItem,
+      ...recentItems,
+      ...results,
+    ]
   } catch (error) {
     console.error('Error loading search suggestions:', error)
     // Still surface recents even when the server search fails.
-    return [...(await askItem([])), ...fullSearchItem, ...recentItems]
+    return [...(await askItem(LOOKUP_INTENT)), ...fullSearchItem, ...recentItems]
   }
 }

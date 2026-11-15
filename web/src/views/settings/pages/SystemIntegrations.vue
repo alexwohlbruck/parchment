@@ -11,6 +11,5 @@ const { t } = useI18n()
     :scope="IntegrationScope.SYSTEM"
     section-id="system-integrations"
     :title="t('settings.system-integrations.title')"
-    :description="t('settings.system-integrations.description')"
   />
 </template>

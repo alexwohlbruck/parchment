@@ -355,7 +355,6 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'integrations',
         titleKey: 'settings.integrations.title',
-        descriptionKey: 'settings.integrations.description',
         keywords: ['integration', 'connector', 'account', 'osm', 'dawarich'],
       },
     ],
@@ -377,7 +376,6 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'system-integrations',
         titleKey: 'settings.system-integrations.title',
-        descriptionKey: 'settings.system-integrations.description',
         keywords: ['integration', 'connector', 'service', 'api', 'mapbox'],
       },
     ],

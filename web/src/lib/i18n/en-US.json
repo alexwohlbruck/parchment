@@ -3301,7 +3301,6 @@
     },
     "integrations": {
       "title": "Integrations",
-      "description": "Accounts you connect for yourself",
       "available": "Available Integrations",
       "noConfigured": "No configured integrations",
       "noAvailable": "No available integrations",
@@ -3441,8 +3440,7 @@
       }
     },
     "system-integrations": {
-      "title": "System integrations",
-      "description": "Services the server provides to everyone"
+      "title": "System integrations"
     },
     "users": {
       "title": "Users & Roles",

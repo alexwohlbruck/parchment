@@ -52,7 +52,6 @@ const props = defineProps<{
   scope: IntegrationScope
   sectionId: string
   title: string
-  description: string
 }>()
 
 const { t } = useI18n()
@@ -165,7 +164,6 @@ onMounted(async () => {
       <SettingsSection
         :id="sectionId"
         :title="title"
-        :description="description"
         :frame="false"
         :shadow="false"
       >

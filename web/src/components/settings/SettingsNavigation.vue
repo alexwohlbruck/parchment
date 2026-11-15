@@ -227,10 +227,7 @@ onBeforeUnmount(() => {
             v-for="page in group.pages"
             :key="page.pageId"
             :to="page.to"
-            :aria-disabled="page.disabled || undefined"
-            :tabindex="page.disabled ? -1 : 0"
             class="flex items-center gap-3 px-2 py-2.5 -mx-1 rounded-md transition-colors active:bg-foreground/5 min-w-0"
-            :class="page.disabled && 'opacity-30 pointer-events-none'"
           >
             <span
               class="flex items-center justify-center size-10 rounded-md shrink-0"
@@ -277,7 +274,6 @@ onBeforeUnmount(() => {
                   ? 'bg-primary/5 text-primary font-medium'
                   : ''
               "
-              :disabled="page.disabled"
             >
               <router-link :to="page.to">
                 <component :is="page.icon" class="size-5 shrink-0" />

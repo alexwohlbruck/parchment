@@ -3289,9 +3289,6 @@
         "title": "Permisos"
       }
     },
-    "system": {
-      "title": "Sistema"
-    },
     "ask": {
       "title": "Preguntar",
       "saveFailed": "No se pudo guardar el ajuste",

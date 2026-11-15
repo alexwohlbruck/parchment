@@ -1,5 +1,4 @@
 import {
-  ActivityIcon,
   MessageCircleQuestionIcon,
   BlocksIcon,
   CodeIcon,
@@ -48,7 +47,6 @@ export type SettingsPageDef = {
   // it belongs to the same product, with light/dark-aware tints rendered
   // by ItemIcon.
   iconColor: ThemeColor
-  disabled?: boolean
   permissions?: PermissionRule
   admin?: boolean
   integrationScope?: IntegrationScope
@@ -415,16 +413,6 @@ export const settingsIndex: SettingsPageDef[] = [
         to: '/settings/permissions',
       },
     ],
-  },
-  {
-    pageId: 'system',
-    to: '/settings/system',
-    icon: ActivityIcon,
-    iconColor: 'parchment',
-    disabled: true,
-    admin: true,
-    permissions: PermissionId.SYSTEM_READ,
-    sections: [],
   },
   // Dev-only entry — surfaces the GPX track simulator for testing
   // location-aware features without physically moving. The whole entry

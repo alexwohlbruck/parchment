@@ -3468,9 +3468,6 @@
     "role-detail": {
       "title": "Role"
     },
-    "system": {
-      "title": "System"
-    },
     "ask": {
       "title": "Ask",
       "saveFailed": "Couldn't save that setting",

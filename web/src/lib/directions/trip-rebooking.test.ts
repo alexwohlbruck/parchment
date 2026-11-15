@@ -210,3 +210,18 @@ describe('withLeg', () => {
     expect(fresh.legIndex).toBe(1)
   })
 })
+
+describe('boarding after a missed rebook', () => {
+  it('brings the arrival back once the rider is seen riding the first run', async () => {
+    const segs = makeTrip()
+    const lookup = vi.fn(async (i: number, minMs: number) => (i === 3 ? Math.ceil((minMs - min(25)) / (15 * 60_000)) * 15 * 60_000 + min(25) : null))
+    await applyDepartureChange(segs, 1, min(19), lookup)
+    expect(ms(segs[4].endTime)).toBe(min(59))
+
+    moveBoarding(segs, 1, min(8))
+    await cascadeAfter(segs, 1, lookup)
+    expect(ms(segs[1].endTime)).toBe(min(21))
+    expect(ms(segs[3].startTime)).toBe(min(25))
+    expect(ms(segs[4].endTime)).toBe(min(44))
+  })
+})

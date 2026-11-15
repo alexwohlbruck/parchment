@@ -39,7 +39,7 @@ import {
 import { estimatedPuck, estimatedStage, RideEstimator, rideFix, VEHICLE_ACCURACY, type RideEstimate } from '@/lib/guidance/ride-estimator'
 import { AlightWatch, offLineNear } from '@/lib/guidance/alight-watch'
 import { applyDepartureChange, cascadeAfter, moveBoarding, rollupTrip, withLeg, type RebookableSegment, type RebookableTrip } from '@/lib/directions/trip-rebooking'
-import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { boardedRun, retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { earliestItinerary } from '@/lib/guidance/better-itinerary'
 import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
@@ -95,8 +95,6 @@ const HORIZON_RETRY_MS = 10_000
 const ODOMETER_MIN_SPEED = 0.5
 /** No fix for this long: the traveller can't be seen, as underground. */
 const OUT_OF_SIGHT_MS = 30_000
-/** Aboard this long before the plan's run leaves: it is an earlier run. */
-const BOARDED_EARLY_MS = 2 * 60_000
 /** A destination this close to the saved home is home. */
 const HOME_RADIUS_METERS = 75
 
@@ -119,6 +117,7 @@ type LegSegment = NavSegmentInput & TransitSegmentInput & GuidedSegment & {
   legIndex?: number
   tripId?: string
   routeType?: number
+  lineTextColor?: string
   duration?: number
   ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
@@ -559,10 +558,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
     if (boarded.has(index)) return
     boarded.add(index)
     const segment = segments.value[index]
-    const plannedMs = segment?.startTime ? new Date(segment.startTime).getTime() : NaN
-    const early = plannedMs - nowMs > BOARDED_EARLY_MS
-    if (!segment || !Number.isFinite(plannedMs) || (!early && before?.kind !== 'missed-vehicle')) return
-    if (early) segment.tripId = undefined
+    const run = segment && boardedRun(segment.startTime ? new Date(segment.startTime).getTime() : NaN, nowMs, before?.kind === 'missed-vehicle')
+    if (!segment || !run) return
+    if (run === 'earlier') segment.tripId = undefined
     moveBoarding(segments.value as unknown as RebookableSegment[], index, nowMs)
     spokenTransit.delete(`${index}:missed-vehicle`)
     await retimeAfter(index)

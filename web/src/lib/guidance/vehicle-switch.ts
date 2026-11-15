@@ -300,3 +300,16 @@ export function earlierRun(segment: RideSegment, set: CandidateSet, readyMs: num
   const soonest = (run: VehicleCandidate) => arrival(run) ?? run.departureMs
   return catchable.sort((a, b) => soonest(a) - soonest(b))[0] ?? null
 }
+
+/** Aboard this long before the plan's run leaves: it is an earlier run. */
+const BOARDED_EARLY_MS = 2 * 60_000
+
+/**
+ * How a boarding at `nowMs` squares with a ride planned to leave at `plannedMs`: an earlier run than
+ * the plan's, a run caught after the plan's was given up as missed, or null when it is the plan's.
+ */
+export function boardedRun(plannedMs: number, nowMs: number, wasMissed: boolean): 'earlier' | 'later' | null {
+  if (!Number.isFinite(plannedMs)) return null
+  if (plannedMs - nowMs > BOARDED_EARLY_MS) return 'earlier'
+  return wasMissed ? 'later' : null
+}

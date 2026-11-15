@@ -3,6 +3,7 @@ import { buildNavRoute, pointAt } from './nav-route'
 import { rideStops, type TransitSegmentInput } from './transit-progress'
 import { polyline } from './test-routes'
 import {
+  boardedRun,
   rankCandidates,
   liveRun,
   earlierRun,
@@ -219,5 +220,23 @@ describe('earlierRun', () => {
   test('the booked run running late lets an earlier-departing run win', () => {
     const late = { ...run('planned', '3', 6) }
     expect(earlierRun(segment, set([run('next', '3', 3), late]), min(1), 'S4')?.tripId).toBe('next')
+  })
+})
+
+describe('boardedRun', () => {
+  const now = Date.parse('2026-11-14T21:50:00-05:00')
+  const min = 60_000
+
+  test('aboard well before the plan has the ride leave: an earlier run', () => {
+    expect(boardedRun(now + 12 * min, now, false)).toBe('earlier')
+  })
+
+  test('aboard about when planned: the plan run', () => {
+    expect(boardedRun(now + min, now, false)).toBeNull()
+    expect(boardedRun(now - 2 * min, now, false)).toBeNull()
+  })
+
+  test('aboard after the ride was given up as missed: a later run', () => {
+    expect(boardedRun(now - 5 * min, now, true)).toBe('later')
   })
 })

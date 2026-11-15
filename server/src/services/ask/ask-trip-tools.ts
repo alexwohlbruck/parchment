@@ -167,7 +167,7 @@ const transitTrips: AskTool<{
 const weather: AskTool<{ at?: LatLng }> = {
   name: 'weather',
   description:
-    'Current weather at a point, and whether rain is due in the next few hours.',
+    'Current weather at a point, and whether rain is due in the next few hours. It knows nothing about later days.',
   parameters: {
     type: 'object',
     properties: {
@@ -197,6 +197,7 @@ const weather: AskTool<{ at?: LatLng }> = {
       getWeatherOutlook(lat, lng),
     ])
     return {
+      covers: 'now and the next few hours only',
       condition: now.conditionDescription,
       temperature_c: Math.round(now.temperature),
       feels_like_c: Math.round(now.temperatureFeelsLike),

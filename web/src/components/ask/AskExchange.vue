@@ -26,6 +26,9 @@ const props = defineProps<{
   latest?: boolean
 }>()
 
+/** Only an answer arriving now reveals itself; one reopened or scrolled back to is already read. */
+const live = props.exchange.status === 'running'
+
 const emit = defineEmits<{
   retry: []
   'place-hover': [placeId: string]
@@ -74,6 +77,7 @@ const browseRoute = computed(() => {
       v-if="exchange.text"
       :text="exchange.text"
       :places="exchange.places"
+      :animate="live"
       @place-open="emit('place-open', $event)"
       @place-hover="emit('place-hover', $event)"
       @place-leave="emit('place-leave')"

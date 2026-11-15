@@ -8,6 +8,7 @@ import type { Place } from '@/types/place.types'
 const props = defineProps<{
   text: string
   places: AskCitation[]
+  animate?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -42,15 +43,20 @@ const pieces = computed<Piece[]>(() => {
       <button
         v-if="piece.place"
         type="button"
-        class="mx-px inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/60 px-1.5 align-[1px] text-[0.92em] font-medium leading-snug hover:bg-muted transition-colors animate-[fade-in_250ms_both]"
-        :style="{ animationDelay: `${piece.delay}ms` }"
+        class="mx-px inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/60 px-1.5 align-[1px] text-[0.92em] font-medium leading-snug hover:bg-muted transition-colors"
+        :class="animate && 'animate-[fade-in_250ms_both]'"
+        :style="animate ? { animationDelay: `${piece.delay}ms` } : undefined"
         @click="emit('place-open', piece.place)"
         @mouseenter="emit('place-hover', piece.place.id)"
         @mouseleave="emit('place-leave')"
       >
         <MapPinIcon class="size-3 text-muted-foreground" />{{ piece.text }}
       </button>
-      <span v-else class="animate-[fade-in_250ms_both]" :style="{ animationDelay: `${piece.delay}ms` }">{{ piece.text }}</span>
+      <span
+        v-else
+        :class="animate && 'animate-[fade-in_250ms_both]'"
+        :style="animate ? { animationDelay: `${piece.delay}ms` } : undefined"
+      >{{ piece.text }}</span>
     </template>
   </p>
 </template>

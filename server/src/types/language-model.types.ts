@@ -32,6 +32,8 @@ export interface ChatRequest {
 export interface ChatUsage {
   promptTokens: number
   completionTokens: number
+  /** Credits (USD) the provider charged, when it reports one. */
+  cost?: number
 }
 
 export interface ChatResponse {

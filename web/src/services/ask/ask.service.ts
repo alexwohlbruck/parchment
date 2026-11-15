@@ -21,17 +21,12 @@ function requestHeaders(): Record<string, string> {
   return headers
 }
 
-async function errorMessage(response: Response): Promise<string> {
-  const body = await response.json().catch(() => null)
-  return body?.message ?? t('ask.error')
-}
-
 export function useAskService() {
   const askStore = useAskStore()
   const mapStore = useMapStore()
 
-  async function loadAccess(): Promise<AskAccess> {
-    if (askStore.access) return askStore.access
+  async function loadAccess({ fresh = false } = {}): Promise<AskAccess> {
+    if (askStore.access && !fresh) return askStore.access
     const { data } = await api.get<AskAccess>('/ask/access', { silent: true })
     askStore.access = data
     return data
@@ -62,7 +57,11 @@ export function useAskService() {
         signal,
       })
       if (!response.ok || !response.body) {
-        askStore.fail(await errorMessage(response))
+        const body = await response.json().catch(() => null)
+        if (body?.reason === 'quota-exceeded') {
+          askStore.access = { allowed: false, reason: body.reason, limit: body.limit, resetsAt: body.resetsAt }
+        }
+        askStore.fail(body?.message ?? t('ask.error'))
         return
       }
 

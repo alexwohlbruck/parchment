@@ -6,6 +6,8 @@ import { categoryService } from '../category.service'
 import { forwardGeocode } from '../geocoding.service'
 import { requestBarrelman } from '../barrelman.service'
 import { describePlace, openNow, summarizePlace } from '../../lib/ask/place-summary'
+import { toolCacheKey } from '../../lib/ask/tool-cache-key'
+import { MemoCache } from '../../lib/memo-cache'
 import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode } from '../../types/isochrone.types'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { MapBounds } from '../../types/integration.types'
@@ -35,6 +37,7 @@ export interface AskTool<Args = any> {
 }
 
 const DEFAULT_RADIUS_M = 3000
+const TOOL_CACHE_TTL_MS = 5 * 60_000
 const MAX_RADIUS_M = 50_000
 const DEFAULT_LIMIT = 15
 const MAX_LIMIT = 30
@@ -50,6 +53,43 @@ const listOptions = {
   radius_m: { type: 'number', description: `Search radius in metres, default ${DEFAULT_RADIUS_M}` },
   open_now: { type: 'boolean', description: 'Only places open right now' },
   limit: { type: 'number', description: `Max results, default ${DEFAULT_LIMIT}` },
+}
+
+const toolCache = new MemoCache<unknown>({ max: 500, ttlMs: TOOL_CACHE_TTL_MS })
+
+/** Shares lookups across steps and follow-ups, so a repeated question doesn't refetch. */
+function cached<T>(
+  tool: string,
+  args: Record<string, unknown>,
+  scope: { language: string; userId?: string },
+  load: () => Promise<T>,
+): Promise<T> {
+  return toolCache.get(toolCacheKey(tool, args, scope), load) as Promise<T>
+}
+
+function placesByName(query: string, origin: LatLng, radius: number, context: AskContext) {
+  return cached(
+    'find_places',
+    { query, origin, radius },
+    { language: context.language, userId: context.userId },
+    () =>
+      lookupPlacesByNameAndLocation(query, origin, {
+        radius,
+        userId: context.userId,
+        language: context.language,
+        signal: context.signal,
+      }),
+  )
+}
+
+function placesByCategory(
+  categoryId: string,
+  options: { bounds: MapBounds; limit: number; tags?: Record<string, string> },
+  context: AskContext,
+) {
+  return cached('browse_category', { categoryId, ...options }, { language: context.language }, () =>
+    searchByCategory(categoryId, { ...options, sort: 'distance' }),
+  )
 }
 
 function centre(near: LatLng | undefined, context: AskContext): LatLng {
@@ -108,12 +148,8 @@ const findPlaces: AskTool<ListArgs & { query: string }> = {
   label: ({ query }) => `Searching for ${query}`,
   async run(args, context) {
     const origin = centre(args.near, context)
-    const places = await lookupPlacesByNameAndLocation(args.query, origin, {
-      radius: clamp(args.radius_m, DEFAULT_RADIUS_M, MAX_RADIUS_M),
-      userId: context.userId,
-      language: context.language,
-      signal: context.signal,
-    })
+    const radius = clamp(args.radius_m, DEFAULT_RADIUS_M, MAX_RADIUS_M)
+    const places = await placesByName(args.query, origin, radius, context)
     return listPlaces(places, context, { openNow: args.open_now, limit: args.limit, origin })
   },
 }
@@ -153,13 +189,16 @@ const browseCategory: AskTool<ListArgs & { category_id: string; tags?: Record<st
   async run(args, context) {
     const origin = centre(args.near, context)
     const limit = clamp(args.limit, DEFAULT_LIMIT, MAX_LIMIT)
-    const places = await searchByCategory(args.category_id, {
-      bounds: boundsAround(origin, clamp(args.radius_m, DEFAULT_RADIUS_M, MAX_RADIUS_M)),
-      // Fetch extra so an open-now filter still leaves a full list.
-      limit: args.open_now ? MAX_LIMIT * 2 : limit,
-      sort: 'distance',
-      tags: args.tags,
-    })
+    const places = await placesByCategory(
+      args.category_id,
+      {
+        bounds: boundsAround(origin, clamp(args.radius_m, DEFAULT_RADIUS_M, MAX_RADIUS_M)),
+        // Fetch extra so an open-now filter still leaves a full list.
+        limit: args.open_now ? MAX_LIMIT * 2 : limit,
+        tags: args.tags,
+      },
+      context,
+    )
     return listPlaces(places, context, { openNow: args.open_now, limit, origin })
   },
 }
@@ -176,10 +215,16 @@ const getPlace: AskTool<{ id: string }> = {
   async run({ id }, context) {
     const parts = splitPlaceId(id)
     if (!parts) throw new Error(`Unknown place id ${id}`)
-    const place = await lookupEnrichedPlaceById(parts.source, parts.externalId, {
-      userId: context.userId,
-      language: context.language,
-    })
+    const place = await cached(
+      'get_place',
+      { id },
+      { language: context.language, userId: context.userId },
+      () =>
+        lookupEnrichedPlaceById(parts.source, parts.externalId, {
+          userId: context.userId,
+          language: context.language,
+        }),
+    )
     if (!place) throw new Error(`No place found for ${id}`)
     context.seen.set(id, { ...place, id })
     return describePlace({ ...place, id }, { now: context.now, origin: context.origin })
@@ -197,7 +242,12 @@ const locate: AskTool<{ query: string }> = {
   },
   label: ({ query }) => `Finding ${query}`,
   async run({ query }, context) {
-    const { results } = await forwardGeocode(query, context.origin?.lat, context.origin?.lng)
+    const { results } = await cached(
+      'locate',
+      { query, origin: context.origin },
+      { language: context.language },
+      () => forwardGeocode(query, context.origin?.lat, context.origin?.lng),
+    )
     return results.slice(0, 3).map((place) => ({
       name: place.name.value,
       address: place.address?.value?.formatted,
@@ -206,7 +256,18 @@ const locate: AskTool<{ query: string }> = {
   },
 }
 
-async function reachPolygon(
+function reachPolygon(
+  from: LatLng,
+  mode: IsochroneMode,
+  minutes: number,
+  context: AskContext,
+): Promise<Feature<Polygon | MultiPolygon>> {
+  return cached('reach', { from, mode, minutes }, { language: context.language }, () =>
+    loadReachPolygon(from, mode, minutes),
+  )
+}
+
+async function loadReachPolygon(
   from: LatLng,
   mode: IsochroneMode,
   minutes: number,
@@ -255,23 +316,22 @@ const placesWithinReach: AskTool<{
   async run(args, context) {
     if (!args.category_id && !args.query) throw new Error('Give category_id or query')
     const origin = centre(args.from, context)
-    const reach = await reachPolygon(origin, args.mode, args.minutes)
+    const reach = await reachPolygon(origin, args.mode, args.minutes, context)
     context.emit({ type: 'reach', geometry: reach.geometry as IsochroneGeometry })
 
     const [west, south, east, north] = bbox(reach)
     const candidates = args.category_id
-      ? await searchByCategory(args.category_id, {
-          bounds: { north, south, east, west },
-          limit: MAX_LIMIT * 2,
-          sort: 'distance',
-          tags: args.tags,
-        })
-      : await lookupPlacesByNameAndLocation(args.query!, origin, {
-          radius: Math.max(east - west, north - south) * 111_000,
-          userId: context.userId,
-          language: context.language,
-          signal: context.signal,
-        })
+      ? await placesByCategory(
+          args.category_id,
+          { bounds: { north, south, east, west }, limit: MAX_LIMIT * 2, tags: args.tags },
+          context,
+        )
+      : await placesByName(
+          args.query!,
+          origin,
+          Math.max(east - west, north - south) * 111_000,
+          context,
+        )
 
     const inside = candidates.filter((place) => {
       const { lat, lng } = place.geometry.value.center

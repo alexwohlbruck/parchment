@@ -23,6 +23,20 @@ export type AskEvent =
   | { type: 'error'; message: string }
   | { type: 'done' }
 
+export type AskKeySource = 'own' | 'system'
+
+/** This month's allowance on the system key. */
+export interface AskQuota {
+  used: number
+  limit: number
+  remaining: number
+  /** ISO time the allowance refills. */
+  resetsAt: string
+}
+
 export type AskAccess =
-  | { allowed: true; keySource: 'own' | 'system' }
+  | { allowed: true; keySource: 'own' }
+  /** `quota` is null when the system key has no monthly limit. */
+  | { allowed: true; keySource: 'system'; quota: AskQuota | null }
   | { allowed: false; reason: 'not-configured' | 'not-permitted' }
+  | { allowed: false; reason: 'quota-exceeded'; limit: number; resetsAt: string }

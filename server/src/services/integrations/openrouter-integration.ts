@@ -107,6 +107,7 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
       usage: body.usage && {
         promptTokens: body.usage.prompt_tokens ?? 0,
         completionTokens: body.usage.completion_tokens ?? 0,
+        ...(typeof body.usage.cost === 'number' ? { cost: body.usage.cost } : {}),
       },
     }
   }

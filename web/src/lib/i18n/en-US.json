@@ -4083,6 +4083,15 @@
       "action": "Connect OpenRouter",
       "connecting": "Connecting OpenRouter",
       "failed": "Couldn't connect OpenRouter"
+    },
+    "quota": {
+      "title": "You've used this month's questions",
+      "description": "Ask again on {date}, or add your own key"
+    },
+    "usage": {
+      "questions": "Questions this month",
+      "count": "{used} of {limit}",
+      "resets": "Resets on {date}"
     }
   }
 }

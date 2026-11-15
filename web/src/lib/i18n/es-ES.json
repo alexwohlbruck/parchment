@@ -3809,6 +3809,15 @@
       "action": "Conectar OpenRouter",
       "connecting": "Conectando OpenRouter",
       "failed": "No se pudo conectar OpenRouter"
+    },
+    "quota": {
+      "title": "Ya usaste las preguntas de este mes",
+      "description": "Vuelve a preguntar el {date} o añade tu propia clave"
+    },
+    "usage": {
+      "questions": "Preguntas este mes",
+      "count": "{used} de {limit}",
+      "resets": "Se renueva el {date}"
     }
   }
 }

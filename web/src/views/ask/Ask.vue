@@ -19,6 +19,7 @@ import {
   ASK_REACH_LINE_LAYER_ID,
   ASK_REACH_SOURCE_ID,
 } from '@/constants/layers'
+import { formatResetDay } from '@/lib/ask/ask-quota'
 import AskExchange from '@/components/ask/AskExchange.vue'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -31,7 +32,7 @@ const props = defineProps<{
   question?: string
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const openRouterConnect = useOpenRouterConnect()
@@ -48,7 +49,9 @@ const access = computed(() => askStore.access)
 async function start(question: string | undefined) {
   const text = question?.trim()
   if (!text || text === askStore.current?.question) return
-  const result = await askService.loadAccess().catch(() => null)
+  const result = await askService
+    .loadAccess({ fresh: !askStore.access?.allowed })
+    .catch(() => null)
   loadingAccess.value = false
   if (result?.allowed) askService.ask(text)
 }
@@ -136,7 +139,15 @@ onUnmounted(() => {
         :title="t('ask.notConfigured')"
       />
       <div v-else class="flex flex-col gap-3">
+        <EmptyState
+          v-if="access.reason === 'quota-exceeded'"
+          :icon="MessageCircleQuestionIcon"
+          :title="t('ask.quota.title')"
+          :description="t('ask.quota.description', { date: formatResetDay(access.resetsAt, locale) })"
+          variant="inline"
+        />
         <UpgradeBanner
+          v-else
           required-tier="premium"
           :title="t('ask.locked.title')"
           :description="t('ask.locked.description')"

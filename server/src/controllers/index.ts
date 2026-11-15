@@ -37,3 +37,4 @@ export { default as feedback } from './feedback.controller'
 
 export { default as speech } from './speech.controller'
 export { default as ask } from './ask.controller'
+export { default as mcp } from './mcp.controller'

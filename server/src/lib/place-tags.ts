@@ -57,3 +57,9 @@ export function isDestination(place: Pick<Place, 'name' | 'tags' | 'amenities'>)
   const tags = getPlaceOsmTags(place)
   return !tags.highway && tags.type !== 'route' && !NON_DESTINATION_TRANSIT.has(tags.public_transport)
 }
+
+/** A city, borough, neighbourhood or other area: no business has its ratings, hours or reviews. */
+export function isAreaPlace(place: Pick<Place, 'tags' | 'amenities'>): boolean {
+  const tags = getPlaceOsmTags(place)
+  return Boolean(tags.boundary || tags.place)
+}

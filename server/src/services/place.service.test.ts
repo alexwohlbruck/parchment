@@ -62,7 +62,7 @@ const mergePlaces = mock((primary: any, ...rest: any[]) =>
   Object.assign({}, primary, ...rest.filter(Boolean)),
 )
 const mergePlacesCollection = mock((places: any[]) => places)
-mock.module('./merge.service', () => ({ mergePlaces, mergePlacesCollection }))
+mock.module('./merge.service', () => ({ mergePlaces, mergePlacesCollection, shouldMergePlaces: () => true }))
 
 mock.module('../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },

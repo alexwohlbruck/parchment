@@ -1,6 +1,6 @@
 import { AskToolError, type AskTool } from './ask-tool-base'
 
-const MAX_RESULTS = 5
+const MAX_RESULTS = 3
 const MAX_TOKENS = 600
 
 const BRIEF =

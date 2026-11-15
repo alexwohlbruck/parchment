@@ -10,6 +10,7 @@ import {
 } from '../../types/integration.enums'
 import type {
   ChatCitation,
+  ChatMessage,
   ChatRequest,
   ChatResponse,
   LanguageModelCapability,
@@ -81,7 +82,7 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
       },
       body: JSON.stringify({
         model: this.config.model,
-        messages,
+        messages: this.config.model?.startsWith('anthropic/') ? withCacheBreakpoints(messages) : messages,
         ...(tools?.length ? { tools, tool_choice: toolChoice ?? 'auto' } : {}),
         ...(maxTokens ? { max_tokens: maxTokens } : {}),
         ...(webSearch
@@ -154,4 +155,20 @@ function urlCitations(annotations: unknown): ChatCitation[] {
     if (!byUrl.has(url)) byUrl.set(url, { url, title: typeof title === 'string' && title ? title : url })
   }
   return [...byUrl.values()]
+}
+
+const CACHED = { type: 'ephemeral' } as const
+
+/**
+ * Anthropic only caches up to explicit breakpoints. One after the system prompt
+ * (which follows the tool definitions) and one on the newest message let each
+ * step of an Ask question re-read everything before it at a tenth of the price.
+ */
+export function withCacheBreakpoints(messages: ChatMessage[]): unknown[] {
+  const last = messages.length - 1
+  return messages.map((message, index) => {
+    const breakpoint = (index === 0 && message.role === 'system') || index === last
+    if (!breakpoint || typeof message.content !== 'string' || !message.content) return message
+    return { ...message, content: [{ type: 'text', text: message.content, cache_control: CACHED }] }
+  })
 }

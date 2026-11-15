@@ -44,6 +44,8 @@ export interface AskContext {
   model?: LanguageModelCapability
   /** Web pages a search read, by url. */
   sources: Map<string, AskSource>
+  /** The trip plan_trip proposed, so a canvas can draw it. */
+  trip?: { name: string; path: LatLng[] }
   emit(event: AskEvent): void
 }
 

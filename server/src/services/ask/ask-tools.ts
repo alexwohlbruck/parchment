@@ -47,6 +47,7 @@ import {
 import { tripTools } from './ask-trip-tools'
 import { libraryTools } from './ask-library-tools'
 import { webTools } from './ask-web-tools'
+import { canvasTools } from './ask-canvas-tools'
 
 export {
   AskToolError,
@@ -513,6 +514,7 @@ export const askTools: AskTool[] = [
   searchAlongRoute,
   ...tripTools,
   ...libraryTools,
+  ...canvasTools,
   ...webTools,
 ]
 

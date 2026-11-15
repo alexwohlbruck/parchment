@@ -10,6 +10,7 @@
 * Ask shows each search as it runs, links the places it mentions, and suggests follow-up questions.
 * Ask can search the web for things the map doesn't know, like market days or tonight's events, and links the pages it read. With Premium it also weighs Foursquare and Google ratings, reviews and busy hours.
 * Ask settings let you turn Ask off entirely, keep it from using your location or the web, and choose how long conversations are kept. They show how many questions you've used this month.
+* Ask can save what it finds as a canvas in your library, like "make me a map of pizza and bagel spots near Union Square", with a layer for each kind of place and the trip it planned.
 * Ask keeps your conversations, end-to-end encrypted, so you can pick one up later. Open Ask from the command palette or the side nav to see them; your questions also show up in recent searches.
 * Search for something like "cafes with outdoor seating open now" to jump straight to matching places with those filters already on.
 
@@ -21,6 +22,7 @@
 ### Fixed
 
 * Fixed an error that could stop the map from showing a trip with stops at searched or saved places.
+* Opening a canvas now moves the map to the view it was saved with.
 * Place details no longer pick up the rating, address or reviews of a different business with a similar name.
 
 ## [0.21.5] - 2026-11-13

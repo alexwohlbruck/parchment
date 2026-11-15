@@ -124,6 +124,15 @@ function describeSegment(segment: TripSegment, timeZone: string | null) {
   return { move: MOVES[segment.mode] ?? segment.mode, minutes }
 }
 
+/** The path a planned trip takes, start to end, as one line. */
+export function tripPath(trip: TripResponse): { lat: number; lng: number }[] {
+  return flatSegments(trip).flatMap((segment) =>
+    Array.isArray(segment.geometry)
+      ? segment.geometry.filter((point: { lat?: unknown; lng?: unknown }) => typeof point?.lat === 'number' && typeof point?.lng === 'number')
+      : [],
+  )
+}
+
 /** A planned trip as the moves a person makes, in the trip's local time. */
 export function summarizeTrip(trip: TripResponse, timeZone: string | null) {
   const segments = flatSegments(trip)

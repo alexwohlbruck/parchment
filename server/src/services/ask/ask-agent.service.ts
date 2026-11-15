@@ -53,6 +53,7 @@ function systemPrompt(context: AskContext): string {
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review or web page says.',
+    'Call create_canvas only when the user asks for a map or canvas, after finding what goes on it.',
     'Use web_search only for what the map cannot know (events, news, menus, prices, tickets, a place that just opened or closed), then find any place it mentions with the map tools before citing it.',
     'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (transit, bikeshare for Citi Bike and the like). A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. For stops on the way (water, food, a shop), find them with search_along_route, then pass the ones you pick to plan_trip as stops, so the trip goes through them. Use transit_departures for what leaves a station soon, transit_trips only for timetables like the last train, travel_times to compare ways, and weather when it matters.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,

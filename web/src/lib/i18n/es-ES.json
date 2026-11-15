@@ -3927,6 +3927,10 @@
         "older": "Antes"
       }
     },
-    "placeholder": "Haz una pregunta"
+    "placeholder": "Haz una pregunta",
+    "canvas": {
+      "saved": "Lienzo en tu biblioteca",
+      "open": "Abrir"
+    }
   }
 }

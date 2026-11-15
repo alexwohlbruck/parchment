@@ -44,6 +44,8 @@ export interface AskExchange {
   trip?: AskTrip
   /** Undefined while Directions plans it; null when it couldn't. */
   plan?: AskTripPlan | null
+  /** A canvas the answer saved to the library. */
+  canvas?: { id: string; name: string }
   status: 'running' | 'done' | 'error'
   error?: string
 }

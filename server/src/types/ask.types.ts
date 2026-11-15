@@ -103,6 +103,8 @@ export type AskEvent =
       /** Web pages the answer drew on. */
       sources?: AskSource[]
     }
+  /** A canvas a tool saved to the user's library. */
+  | { type: 'canvas'; id: string; name: string }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

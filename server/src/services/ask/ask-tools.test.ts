@@ -59,9 +59,16 @@ mock.module('../geocoding.service', () => ({
   forwardGeocode: mock(async () => ({ results: [] })),
 }))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
+let permissions: string[] = []
 mock.module('../auth.service', () => ({
-  getPermissions: async () => [],
-  hasPermission: () => false,
+  getPermissions: async () => permissions,
+  hasPermission: (held: string[], rule: string) => held.includes(rule),
+}))
+const mockCreateCanvas = mock(async (_params: unknown) => ({ id: 'canvas-1' }))
+const mockUpdateCanvas = mock(async (_id: string, _userId: string, _updates: any) => ({}))
+mock.module('../library/canvases.service', () => ({
+  createCanvas: mockCreateCanvas,
+  updateCanvas: mockUpdateCanvas,
 }))
 
 const { askTools } = await import('./ask-tools')
@@ -208,7 +215,7 @@ describe('web_search', () => {
     }))
     ctx.model = { complete }
     const result = await tool('web_search').run({ query: 'Union Square Greenmarket days' }, ctx)
-    expect(complete.mock.calls[0][0]).toMatchObject({ webSearch: { maxResults: 5 } })
+    expect(complete.mock.calls[0][0]).toMatchObject({ webSearch: { maxResults: 3 } })
     expect(result).toEqual({
       summary: 'The market runs Mon, Wed, Fri and Sat, 8am to 6pm.',
       count: 1,
@@ -219,5 +226,34 @@ describe('web_search', () => {
 
   test('says so where there is no model to search with', async () => {
     await expect(tool('web_search').run({ query: 'x' }, context())).rejects.toThrow('not available')
+  })
+})
+
+describe('create_canvas', () => {
+  const pizza = {
+    id: 'osm/node/1',
+    name: { value: 'Joe’s Pizza' },
+    placeType: { value: 'Pizza' },
+    geometry: { value: { center: { lat: 40.7306, lng: -73.9894 } } },
+  } as any
+
+  test('saves the places a tool found as a canvas and tells the app', async () => {
+    permissions = ['library:write']
+    const events: unknown[] = []
+    const ctx = { ...context(), emit: (event: unknown) => events.push(event) } as AskContext
+    ctx.seen.set(pizza.id, pizza)
+    const result = await tool('create_canvas').run({ name: 'Pizza', layers: [{ name: 'Pizza', place_ids: [pizza.id] }] }, ctx)
+    expect(result).toEqual({ saved: true, name: 'Pizza', layers: 1 })
+    expect(mockUpdateCanvas.mock.calls.at(-1)![2].body.layers[0].data.features[0].properties.name).toBe('Joe’s Pizza')
+    expect(events).toEqual([{ type: 'canvas', id: 'canvas-1', name: 'Pizza' }])
+  })
+
+  test('refuses ids no tool returned, and users without a library', async () => {
+    permissions = ['library:write']
+    await expect(
+      tool('create_canvas').run({ name: 'x', layers: [{ name: 'x', place_ids: ['osm/node/9'] }] }, context()),
+    ).rejects.toThrow('Unknown place ids osm/node/9')
+    permissions = []
+    await expect(tool('create_canvas').run({ name: 'x' }, context())).rejects.toThrow('Basic or Premium')
   })
 })

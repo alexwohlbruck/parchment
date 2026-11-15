@@ -19,6 +19,7 @@ import {
   parseTripTime,
   summarizeItinerary,
   summarizeTrip,
+  tripPath,
 } from '../../lib/ask/trip-summary'
 import { TransitPriority } from '../../lib/transit/transit-gate'
 import {
@@ -312,6 +313,10 @@ const planTrip: AskTool<{
       plan: result,
       tripIndex: all.indexOf(trips[0]),
     })
+    context.trip = {
+      name: [from.name, to.name].filter(Boolean).join(' to ') || 'Trip',
+      path: tripPath(result.trips[all.indexOf(trips[0])].trip),
+    }
     return {
       ...(!wanted.length && {
         note: `No ${args.kind} trip: the planner found it not worth it here. These are the other ways.`,

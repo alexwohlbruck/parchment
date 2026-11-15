@@ -4,7 +4,7 @@ import { PlaceCard } from '@/components/place/card'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ArrowRightIcon, CornerUpRightIcon, MapPinOffIcon } from 'lucide-vue-next'
+import { ArrowRightIcon, CornerUpRightIcon, MapIcon, MapPinOffIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
@@ -90,8 +90,21 @@ const browseRoute = computed(() => {
       </Button>
     </template>
 
+    <div v-if="exchange.canvas" :class="ITEM_ROW_SURFACES.row" class="flex items-center gap-3 px-3 py-2.5">
+      <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+        <MapIcon class="size-4 text-muted-foreground" />
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium">{{ exchange.canvas.name }}</span>
+        <span class="block text-xs text-muted-foreground">{{ t('ask.canvas.saved') }}</span>
+      </span>
+      <Button size="sm" @click="router.push({ name: AppRoute.CANVAS_EDITOR, params: { id: exchange.canvas.id } })">
+        {{ t('ask.canvas.open') }}
+      </Button>
+    </div>
+
     <EmptyState
-      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip"
+      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip && !exchange.canvas"
       :icon="MapPinOffIcon"
       :title="t('ask.empty.title')"
       :description="t('ask.empty.description')"

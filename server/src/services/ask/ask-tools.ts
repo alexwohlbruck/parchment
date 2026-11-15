@@ -6,24 +6,14 @@ import { categoryService } from '../category.service'
 import { forwardGeocode } from '../geocoding.service'
 import { requestBarrelman } from '../barrelman.service'
 import { describePlace, openNow, summarizePlace } from '../../lib/ask/place-summary'
-import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneMode } from '../../types/isochrone.types'
+import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode } from '../../types/isochrone.types'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { MapBounds } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
 import type { Source } from '../../lib/constants'
 import type { ChatTool } from '../../types/language-model.types'
+import type { AskEvent, LatLng } from '../../types/ask.types'
 
-export interface LatLng {
-  lat: number
-  lng: number
-}
-
-export type AskEvent =
-  | { type: 'step'; id: string; label: string; status: 'running' | 'done' | 'failed' }
-  | { type: 'reach'; geometry: Polygon | MultiPolygon }
-  | { type: 'answer'; text: string; places: { place: Place; reason: string }[] }
-  | { type: 'error'; message: string }
-  | { type: 'done' }
 
 export interface AskContext {
   userId: string
@@ -266,7 +256,7 @@ const placesWithinReach: AskTool<{
     if (!args.category_id && !args.query) throw new Error('Give category_id or query')
     const origin = centre(args.from, context)
     const reach = await reachPolygon(origin, args.mode, args.minutes)
-    context.emit({ type: 'reach', geometry: reach.geometry })
+    context.emit({ type: 'reach', geometry: reach.geometry as IsochroneGeometry })
 
     const [west, south, east, north] = bbox(reach)
     const candidates = args.category_id
@@ -313,7 +303,7 @@ export const answerTool: ChatTool = {
       properties: {
         text: {
           type: 'string',
-          description: 'One or two plain sentences answering the question. No lists, no markdown.',
+          description: 'One short sentence answering the question. No lists, markdown, distances or hours.',
         },
         places: {
           type: 'array',
@@ -321,7 +311,7 @@ export const answerTool: ChatTool = {
             type: 'object',
             properties: {
               id: { type: 'string' },
-              reason: { type: 'string', description: 'Why it fits, under 12 words' },
+              reason: { type: 'string', description: 'What sets it apart for this question, under 10 words. Not its distance or hours.' },
             },
             required: ['id', 'reason'],
           },

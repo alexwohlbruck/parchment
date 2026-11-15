@@ -11,18 +11,13 @@ import {
   toChatTools,
   type AskContext,
   type AskTool,
-  type LatLng,
 } from './ask-tools'
+import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
 
 /** Model round trips per question before the answer is forced. */
 export const MAX_STEPS = 6
 const MAX_TOKENS = 1200
 const MAX_TOOL_RESULT_CHARS = 12_000
-
-export interface AskTurn {
-  role: 'user' | 'assistant'
-  content: string
-}
 
 export interface AskRequest {
   question: string
@@ -40,7 +35,8 @@ function systemPrompt(context: AskContext): string {
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
-    `Finish by calling ${ANSWER_TOOL}. If nothing fits, say what is missing and return no places.`,
+    `Finish by calling ${ANSWER_TOOL}. Its text is one short sentence; the app shows each place's distance, hours and address on a card, so never repeat them.`,
+    'If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }
 
@@ -84,7 +80,7 @@ async function runTool(
 
 export interface GroundedAnswer {
   text: string
-  places: { place: Place; reason: string }[]
+  places: AskCitation[]
   unknownIds: string[]
 }
 

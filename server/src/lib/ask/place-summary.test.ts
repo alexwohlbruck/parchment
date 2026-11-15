@@ -27,6 +27,7 @@ function place(hours: Partial<OpeningHours> | null): Place {
     timezone: 'America/New_York',
     sources: [],
     lastUpdated: '2026-11-14T00:00:00Z',
+    createdAt: '2026-11-14T00:00:00Z',
   }
 }
 

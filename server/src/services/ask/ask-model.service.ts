@@ -5,7 +5,7 @@ import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { PermissionId } from '../../types/auth.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
 
-export type AskAccess =
+export type AskModelAccess =
   | { allowed: true; model: LanguageModelCapability; keySource: 'own' | 'system' }
   | { allowed: false; reason: 'not-configured' | 'not-permitted' }
 
@@ -33,7 +33,7 @@ function configuredModel(userId: string | null): LanguageModelCapability | null 
 }
 
 /** A user's own key always works; the system key needs the premium permission. */
-export async function resolveAskAccess(userId: string): Promise<AskAccess> {
+export async function resolveAskAccess(userId: string): Promise<AskModelAccess> {
   const own = configuredModel(userId)
   if (own) return { allowed: true, model: own, keySource: 'own' }
 

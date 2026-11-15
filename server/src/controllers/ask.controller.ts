@@ -4,7 +4,7 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 import { logError } from '../lib/logger'
 import { resolveAskAccess } from '../services/ask/ask-model.service'
 import { runAsk } from '../services/ask/ask-agent.service'
-import type { AskEvent } from '../services/ask/ask-tools'
+import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 
 const encoder = new TextEncoder()
@@ -21,9 +21,10 @@ const app = new Elysia()
     '/ask/access',
     async ({ user }) => {
       const access = await resolveAskAccess(user.id)
-      return access.allowed
+      const result: AskAccess = access.allowed
         ? { allowed: true, keySource: access.keySource }
         : { allowed: false, reason: access.reason }
+      return result
     },
     {
       detail: {

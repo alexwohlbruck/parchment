@@ -19,7 +19,8 @@ mock.module('../geocoding.service', () => ({ forwardGeocode: mock(async () => ({
 mock.module('../barrelman.service', () => ({ requestBarrelman: mock(async () => new Response('{}')) }))
 
 const { runAsk, groundAnswer, MAX_STEPS } = await import('./ask-agent.service')
-import type { AskContext, AskEvent } from './ask-tools'
+import type { AskContext } from './ask-tools'
+import type { AskEvent } from '../../types/ask.types'
 
 function place(id: string, name: string): Place {
   return {
@@ -36,6 +37,7 @@ function place(id: string, name: string): Place {
     amenities: {},
     sources: [],
     lastUpdated: '2026-11-14T00:00:00Z',
+    createdAt: '2026-11-14T00:00:00Z',
   }
 }
 

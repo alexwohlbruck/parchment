@@ -1,11 +1,10 @@
 import { integrationManager } from '../integrations'
 import { OpenRouterIntegration } from '../integrations/openrouter-integration'
-import { getPermissions, hasPermission } from '../auth.service'
+import { getPermissions } from '../auth.service'
 import { IntegrationCapabilityId } from '../../types/integration.enums'
-import { PermissionId } from '../../types/auth.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
 import type { AskAccess } from '../../types/ask.types'
-import { askQuota, monthlyQuestionAllowance } from '../../lib/ask/ask-usage'
+import { askQuota, questionAllowance } from '../../lib/ask/ask-usage'
 import { questionsAsked } from './ask-usage.service'
 import { getAskPreferences } from '../user-preferences.service'
 
@@ -36,8 +35,8 @@ function configuredModel(userId: string | null): LanguageModelCapability | null 
 }
 
 /**
- * A user's own key always works; the system key needs the premium permission
- * and has a monthly question allowance.
+ * A user's own key always works; the system key gives each plan its own
+ * monthly allowance (see ASK_ALLOWANCES).
  */
 export async function resolveAskAccess(
   userId: string,
@@ -50,13 +49,9 @@ export async function resolveAskAccess(
   const system = configuredModel(null) ?? modelFromEnv()
   if (!system) return { allowed: false, reason: 'not-configured' }
 
-  const permitted = hasPermission(
-    await getPermissions(userId),
-    PermissionId.PREMIUM_ASK,
-  )
-  if (!permitted) return { allowed: false, reason: 'not-permitted' }
+  const limit = questionAllowance(await getPermissions(userId), process.env)
+  if (limit === null) return { allowed: false, reason: 'not-permitted' }
 
-  const limit = monthlyQuestionAllowance(process.env.ASK_MONTHLY_QUESTIONS)
   const quota = limit ? askQuota(await questionsAsked(userId, 'system', now), limit, now) : null
   if (quota && !quota.remaining) {
     return { allowed: false, reason: 'quota-exceeded', limit, resetsAt: quota.resetsAt }

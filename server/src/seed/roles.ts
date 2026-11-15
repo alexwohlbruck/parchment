@@ -21,6 +21,7 @@ const user: Role = {
   permissions: [
     PermissionId.LAYERS_READ,
     PermissionId.LAYERS_WRITE,
+    PermissionId.ASK_TRIAL,
   ],
 }
 
@@ -41,6 +42,7 @@ const basic: Role = {
     PermissionId.INTEGRATIONS_WRITE_USER,
     PermissionId.LAYERS_READ,
     PermissionId.LAYERS_WRITE,
+    PermissionId.ASK_BASIC,
   ],
 }
 

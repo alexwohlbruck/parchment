@@ -5,7 +5,7 @@ const ownModel: LanguageModelCapability = { complete: async () => ({ message: { 
 const systemModel: LanguageModelCapability = { complete: async () => ({ message: { role: 'assistant', content: '' } }) }
 
 let records: { userId: string | null; model: LanguageModelCapability }[] = []
-let permitted = true
+let permissions: string[] = ['premium:ask']
 const asked = new Map<string, number>()
 const mockQuestionsAsked = mock(async (userId: string, keySource: string, at: Date) =>
   asked.get(`${userId}:${keySource}:${at.toISOString().slice(0, 7)}`) ?? 0,
@@ -20,8 +20,7 @@ mock.module('../integrations', () => ({
   },
 }))
 mock.module('../auth.service', () => ({
-  getPermissions: async () => [],
-  hasPermission: () => permitted,
+  getPermissions: async () => permissions,
 }))
 mock.module('./ask-usage.service', () => ({ questionsAsked: mockQuestionsAsked }))
 let enabled = true
@@ -39,10 +38,10 @@ describe('resolveAskAccess', () => {
   beforeEach(() => {
   enabled = true
     records = [{ userId: null, model: systemModel }]
-    permitted = true
+    permissions = ['premium:ask']
     asked.clear()
     mockQuestionsAsked.mockClear()
-    delete process.env.ASK_MONTHLY_QUESTIONS
+    delete process.env.ASK_QUESTIONS_PREMIUM
   })
 
   test('an own key is never limited or counted', async () => {
@@ -60,12 +59,12 @@ describe('resolveAskAccess', () => {
       allowed: true,
       model: systemModel,
       keySource: 'system',
-      quota: { used: 38, limit: 200, remaining: 162, resetsAt: '2026-12-01T00:00:00.000Z' },
+      quota: { used: 38, limit: 1000, remaining: 962, resetsAt: '2026-12-01T00:00:00.000Z' },
     })
   })
 
   test('a used-up allowance is refused until the next month', async () => {
-    process.env.ASK_MONTHLY_QUESTIONS = '5'
+    permissions = ['ask:trial']
     asked.set('u1:system:2026-11', 5)
     expect(await resolveAskAccess('u1', NOV)).toEqual({
       allowed: false,
@@ -84,7 +83,7 @@ describe('resolveAskAccess', () => {
   })
 
   test('a zero allowance means no limit', async () => {
-    process.env.ASK_MONTHLY_QUESTIONS = '0'
+    process.env.ASK_QUESTIONS_PREMIUM = '0'
     asked.set('u1:system:2026-11', 10_000)
     const access = await resolveAskAccess('u1', NOV)
     expect(access).toMatchObject({ allowed: true, keySource: 'system', quota: null })
@@ -92,7 +91,7 @@ describe('resolveAskAccess', () => {
   })
 
   test('the permission is checked before the allowance', async () => {
-    permitted = false
+    permissions = []
     expect(await resolveAskAccess('u1', NOV)).toEqual({ allowed: false, reason: 'not-permitted' })
   })
 })

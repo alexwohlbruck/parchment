@@ -36,7 +36,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Whether the user can use Ask',
         description:
-          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which needs the `premium:ask` permission and allows a number of questions per UTC month (`ASK_MONTHLY_QUESTIONS`, default 200, 0 for no limit). On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user lacks the permission, `quota-exceeded` (with `limit` and `resetsAt`) when this month\'s questions are used up, and `turned-off` when the user switched Ask off in their settings.',
+          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which allows questions per UTC month by plan: `ask:trial` 5 (`ASK_QUESTIONS_TRIAL`), `ask:basic` 50 (`ASK_QUESTIONS_BASIC`) and `premium:ask` 1000 (`ASK_QUESTIONS_PREMIUM`), the best one held winning; 0 means no limit. On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user holds none of those permissions, `quota-exceeded` (with `limit` and `resetsAt`) when this month\'s questions are used up, and `turned-off` when the user switched Ask off in their settings.',
       },
     },
   )

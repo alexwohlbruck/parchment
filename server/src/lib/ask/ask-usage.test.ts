@@ -1,9 +1,8 @@
 import { describe, test, expect } from 'bun:test'
 import {
-  DEFAULT_MONTHLY_QUESTIONS,
   meterModel,
   monthResetsAt,
-  monthlyQuestionAllowance,
+  questionAllowance,
   usageMonth,
 } from './ask-usage'
 import type { ChatUsage } from '../../types/language-model.types'
@@ -17,15 +16,25 @@ describe('usage month', () => {
   })
 })
 
-describe('monthlyQuestionAllowance', () => {
-  test('reads a whole number, 0 included', () => {
-    expect(monthlyQuestionAllowance('50')).toBe(50)
-    expect(monthlyQuestionAllowance('0')).toBe(0)
+describe('questionAllowance', () => {
+  test('gives each plan its own allowance, the best one held winning', () => {
+    expect(questionAllowance(['ask:trial'], {})).toBe(5)
+    expect(questionAllowance(['ask:trial', 'ask:basic'], {})).toBe(50)
+    expect(questionAllowance(['ask:basic', 'premium:ask'], {})).toBe(1000)
   })
 
-  test('falls back to the default when unset or invalid', () => {
-    for (const value of [undefined, '', 'lots', '-3', '2.5']) {
-      expect(monthlyQuestionAllowance(value)).toBe(DEFAULT_MONTHLY_QUESTIONS)
+  test('no allowance without an Ask permission', () => {
+    expect(questionAllowance(['library:read'], {})).toBeNull()
+  })
+
+  test('reads each allowance from the environment, 0 as unlimited', () => {
+    expect(questionAllowance(['ask:trial'], { ASK_QUESTIONS_TRIAL: '3' })).toBe(3)
+    expect(questionAllowance(['ask:basic', 'premium:ask'], { ASK_QUESTIONS_PREMIUM: '0' })).toBe(0)
+  })
+
+  test('ignores an invalid setting', () => {
+    for (const value of ['', 'lots', '-3', '2.5']) {
+      expect(questionAllowance(['ask:basic'], { ASK_QUESTIONS_BASIC: value })).toBe(50)
     }
   })
 })

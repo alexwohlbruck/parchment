@@ -1,7 +1,6 @@
 import type { AskQuota } from '../../types/ask.types'
+import { PermissionId } from '../../types/auth.types'
 import type { ChatUsage, LanguageModelCapability } from '../../types/language-model.types'
-
-export const DEFAULT_MONTHLY_QUESTIONS = 200
 
 export interface AskUsageTotals {
   promptTokens: number
@@ -18,10 +17,27 @@ export function monthResetsAt(at: Date): Date {
   return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1))
 }
 
-/** Questions per user per month on the system key; 0 means unlimited. */
-export function monthlyQuestionAllowance(value: string | undefined): number {
+/** Monthly questions on the system key for each permission, best first. 0 is unlimited. */
+export const ASK_ALLOWANCES = [
+  { permission: PermissionId.PREMIUM_ASK, env: 'ASK_QUESTIONS_PREMIUM', questions: 1000 },
+  { permission: PermissionId.ASK_BASIC, env: 'ASK_QUESTIONS_BASIC', questions: 50 },
+  { permission: PermissionId.ASK_TRIAL, env: 'ASK_QUESTIONS_TRIAL', questions: 5 },
+] as const
+
+function readAllowance(value: string | undefined, fallback: number): number {
   const parsed = Number(value?.trim() || NaN)
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_MONTHLY_QUESTIONS
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+/** The best monthly allowance among `permissions`, 0 for unlimited, or null with none. */
+export function questionAllowance(
+  permissions: readonly string[],
+  env: Record<string, string | undefined>,
+): number | null {
+  const held = ASK_ALLOWANCES.filter(({ permission }) => permissions.includes(permission))
+  if (!held.length) return null
+  const limits = held.map(({ env: key, questions }) => readAllowance(env[key], questions))
+  return limits.includes(0) ? 0 : Math.max(...limits)
 }
 
 export function askQuota(used: number, limit: number, at: Date): AskQuota | null {

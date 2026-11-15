@@ -34,10 +34,9 @@ import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useAppStore } from '@/stores/app.store'
-import { useThemeStore } from '@/stores/theme.store'
 import { mapEventBus } from '@/lib/event-bus'
 import { useHotkeys } from '@/composables/useHotkeys'
-import { themeHslToHex, getThemeColorHex } from '@/lib/utils'
+import { useAreaLayer } from '@/composables/map/useAreaLayer'
 import { formatMeasureArea } from '@/lib/measure/measure'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { UnitSystem } from '@/types/map.types'
@@ -52,9 +51,7 @@ import {
 import {
   EMPTY_ISOCHRONE_GEOJSON,
   ISOCHRONE_FILL_LAYER_ID,
-  ISOCHRONE_FILL_LAYER_SPEC,
   ISOCHRONE_LINE_LAYER_ID,
-  ISOCHRONE_LINE_LAYER_SPEC,
   ISOCHRONE_SOURCE_ID,
 } from '@/constants/layers'
 import MeasureDot from './MeasureDot.vue'
@@ -81,7 +78,6 @@ const mapService = useMapService()
 const mapToolsStore = useMapToolsStore()
 const isochroneStore = useIsochroneStore()
 const appStore = useAppStore()
-const themeStore = useThemeStore()
 const { t, locale } = useI18n()
 
 const { unitSystem } = storeToRefs(appStore)
@@ -133,72 +129,15 @@ const errorMessage = computed(() => {
 
 // ── Map layers ──────────────────────────────────────────────────────
 
-/** Theme primary as hex, the same source the sibling measure tools draw from. */
-function getBandColor(): string {
-  return (
-    themeHslToHex(themeStore.themePrimary) ?? getThemeColorHex('text-primary')
-  )
-}
-
-/** Same hex the map paints with, so the legend swatches match the bands exactly. */
-const bandColor = computed(() => getBandColor())
-
-function getMapInstance() {
-  const map = mapService.mapStrategy?.mapInstance
-  return map && map.getStyle() ? map : null
-}
-
-function addIsochroneLayers() {
-  const map = getMapInstance()
-  if (!map || map.getSource(ISOCHRONE_SOURCE_ID)) return
-  map.addSource(ISOCHRONE_SOURCE_ID, {
-    type: 'geojson',
-    data: EMPTY_ISOCHRONE_GEOJSON,
-  })
-  map.addLayer({
-    id: ISOCHRONE_FILL_LAYER_ID,
-    ...ISOCHRONE_FILL_LAYER_SPEC,
-    paint: { ...ISOCHRONE_FILL_LAYER_SPEC.paint, 'fill-color': getBandColor() },
-  })
-  map.addLayer({
-    id: ISOCHRONE_LINE_LAYER_ID,
-    ...ISOCHRONE_LINE_LAYER_SPEC,
-    paint: { ...ISOCHRONE_LINE_LAYER_SPEC.paint, 'line-color': getBandColor() },
-  })
-}
-
-function removeIsochroneLayers() {
-  const map = getMapInstance()
-  if (!map) return
-  if (map.getLayer(ISOCHRONE_LINE_LAYER_ID))
-    map.removeLayer(ISOCHRONE_LINE_LAYER_ID)
-  if (map.getLayer(ISOCHRONE_FILL_LAYER_ID))
-    map.removeLayer(ISOCHRONE_FILL_LAYER_ID)
-  if (map.getSource(ISOCHRONE_SOURCE_ID)) map.removeSource(ISOCHRONE_SOURCE_ID)
-}
-
-function setIsochroneLayerColors() {
-  const map = getMapInstance()
-  if (!map) return
-  const color = getBandColor()
-  if (map.getLayer(ISOCHRONE_FILL_LAYER_ID)) {
-    map.setPaintProperty(ISOCHRONE_FILL_LAYER_ID, 'fill-color', color)
-  }
-  if (map.getLayer(ISOCHRONE_LINE_LAYER_ID)) {
-    map.setPaintProperty(ISOCHRONE_LINE_LAYER_ID, 'line-color', color)
-  }
-}
-
-function updateIsochroneSource() {
-  const map = getMapInstance()
-  const source = map?.getSource(ISOCHRONE_SOURCE_ID) as
-    | { setData: (data: unknown) => void }
-    | undefined
-  if (!source) return
-  source.setData(
-    bands.value.length ? bandsToGeoJson(bands.value) : EMPTY_ISOCHRONE_GEOJSON,
-  )
-}
+const { color: bandColor } = useAreaLayer(
+  {
+    source: ISOCHRONE_SOURCE_ID,
+    fill: ISOCHRONE_FILL_LAYER_ID,
+    line: ISOCHRONE_LINE_LAYER_ID,
+  },
+  () => isActive.value,
+  () => (bands.value.length ? bandsToGeoJson(bands.value) : EMPTY_ISOCHRONE_GEOJSON),
+)
 
 // ── Origin marker ───────────────────────────────────────────────────
 
@@ -251,14 +190,11 @@ function teardownClickOverride() {
 
 function activate() {
   setupClickOverride()
-  addIsochroneLayers()
-  updateIsochroneSource()
   syncOriginMarker()
 }
 
 function deactivate() {
   teardownClickOverride()
-  removeIsochroneLayers()
   removeOriginMarker()
 }
 
@@ -278,32 +214,17 @@ watch(isActive, active => (active ? activate() : deactivate()), {
   immediate: true,
 })
 
-watch(bands, () => {
-  if (isActive.value) updateIsochroneSource()
-})
-
 watch(origin, () => {
   // Re-placing the marker mid-drag would yank it out from under the cursor.
   if (isActive.value && !isDraggingOrigin.value) syncOriginMarker()
 })
 
-/** A basemap swap drops every layer we added, so put them back. */
+/** A basemap swap drops the origin marker too, so put it back. */
 function handleStyleLoad() {
-  if (!isActive.value) return
-  addIsochroneLayers()
-  updateIsochroneSource()
-  setIsochroneLayerColors()
-  syncOriginMarker()
+  if (isActive.value) syncOriginMarker()
 }
 
 mapEventBus.on('style.load', handleStyleLoad)
-
-watch(
-  () => themeStore.themePrimary,
-  () => {
-    if (isActive.value) setIsochroneLayerColors()
-  },
-)
 
 onMounted(() => {
   if (isActive.value) activate()

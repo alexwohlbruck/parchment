@@ -82,10 +82,18 @@ function sample(track: { d: number; e: number }[], d: number): number {
   return a.e + ((d - a.d) / (b.d - a.d || 1)) * (b.e - a.e)
 }
 
+/** Earliest start to latest end (epoch ms): live re-timing can leave segments out of clock order. */
+export function stripSpan(segments: Pick<StripSegment, 'startTime' | 'endTime'>[]): { start: number; end: number } {
+  return {
+    start: Math.min(...segments.map(s => new Date(s.startTime).getTime())),
+    end: Math.max(...segments.map(s => new Date(s.endTime).getTime())),
+  }
+}
+
 export function tripStrip(segments: StripSegment[]): TripStripModel {
   if (!segments.length) return { legs: [], profiles: [], markers: [] }
-  const t0 = new Date(segments[0].startTime).getTime()
-  const span = new Date(segments.at(-1)!.endTime).getTime() - t0 || 1
+  const { start: t0, end } = stripSpan(segments)
+  const span = end - t0 || 1
   const at = (date: Date | string) => (new Date(date).getTime() - t0) / span
 
   const legs: StripLeg[] = segments.map((segment, index) => {

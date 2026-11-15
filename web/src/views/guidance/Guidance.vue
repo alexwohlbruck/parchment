@@ -16,6 +16,7 @@ import { useDockWatch } from '@/composables/guidance/useDockWatch'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { guidanceRouteSource, useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
+import { showsTrip } from '@/composables/guidance/useBackgroundGuidance'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
 import { freeModeFor } from '@/lib/guidance/free-roam'
 import { getWaypointPlaceRoute } from '@/lib/place/place-route'
@@ -116,15 +117,13 @@ watch(arrivedForGood, arrived => {
 })
 onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)
-  guidance.stop()
 })
 
-// Back returns to the trip; anywhere else, the trip's lines and pins go with navigation.
+// Leaving the view keeps navigating in the background; an ended trip's lines and pins go with it.
 const route = useRoute()
 const directionsService = useDirectionsService()
 onUnmounted(() => {
-  const keepsTrip = new Set<unknown>([AppRoute.TRIP, AppRoute.DIRECTIONS, AppRoute.ROUTE_PREVIEW])
-  if (!keepsTrip.has(route.name)) directionsService.clearTrip()
+  if (!guidance.isActive && !showsTrip(route.name)) directionsService.clearTrip()
 })
 </script>
 

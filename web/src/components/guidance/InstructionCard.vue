@@ -95,6 +95,7 @@ function previewRoute() {
   const option = guidance.trip
   if (!option) return
   routePreview.open(option, guidance.legIndex)
+  guidance.stop()
   router.replace({ name: AppRoute.ROUTE_PREVIEW })
 }
 </script>

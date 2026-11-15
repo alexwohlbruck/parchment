@@ -2,9 +2,17 @@
 
 ### Added
 
+* Leave navigation running while you look around: tap a place on the map, browse, then tap the bar at the top to jump back in.
+
 ### Changed
 
+* During navigation, the time left now leads the bottom card, with your arrival time beside the distance.
+
 ### Fixed
+
+* If navigation thinks you missed your bus or train and then sees you riding it, your arrival time and later connections now follow the vehicle you're actually on.
+* Long-pressing the map during navigation no longer opens the map menu over your route.
+* Long route names like B46-SBS show in full on trip cards and timelines instead of being cut off or overlapping.
 
 ## [0.21.5] - 2026-11-13
 

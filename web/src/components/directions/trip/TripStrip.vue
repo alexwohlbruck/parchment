@@ -4,7 +4,7 @@ import { useElementSize } from '@vueuse/core'
 import TripBar from '@/components/directions/TripBar.vue'
 import { formatClock } from '@/lib/directions/trip-display'
 import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
-import { colorRuns, stripX, tripStrip, type StripSegment } from '@/lib/directions/trip-strip'
+import { colorRuns, stripSpan, stripX, tripStrip, type StripSegment } from '@/lib/directions/trip-strip'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import { tripBarScale } from '@/lib/directions/trip-bar-scale'
 import type { RouteWaypointDisplay } from '@/composables/directions/useRouteWaypoints'
@@ -33,11 +33,10 @@ const inner = ref<HTMLElement | null>(null)
 const { width } = useElementSize(inner)
 const { height: rootHeight } = useElementSize(root)
 
-const start = computed(() => new Date(props.segments[0]?.startTime ?? 0))
-const minutes = computed(() => {
-  const end = props.segments.at(-1)?.endTime
-  return end ? Math.max(1, (new Date(end).getTime() - start.value.getTime()) / 60000) : 1
-})
+const span = computed(() => stripSpan(props.segments))
+const start = computed(() => new Date(span.value.start))
+const end = computed(() => new Date(span.value.end))
+const minutes = computed(() => Math.max(1, (end.value.getTime() - start.value.getTime()) / 60000))
 const pxPerMinute = computed(() => width.value / minutes.value)
 
 const model = computed(() => tripStrip(props.segments))
@@ -86,7 +85,7 @@ const progressX = computed(() =>
 )
 
 const startLabel = computed(() => (props.segments.length ? formatClock(start.value) : ''))
-const endLabel = computed(() => (props.segments.length ? formatClock(new Date(props.segments.at(-1)!.endTime)) : ''))
+const endLabel = computed(() => (props.segments.length ? formatClock(end.value) : ''))
 </script>
 
 <template>

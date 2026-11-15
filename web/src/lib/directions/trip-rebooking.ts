@@ -141,3 +141,45 @@ export async function cascadeAfter(
   }
   return held
 }
+
+/**
+ * Ride `segmentIndex` left at `departureMs`: the rider is aboard, so unlike
+ * a chosen departure nothing is refused. The walk before it ends then.
+ */
+export function moveBoarding(segments: RebookableSegment[], segmentIndex: number, departureMs: number) {
+  const ride = segments[segmentIndex]
+  const delta = departureMs - asMs(ride.startTime)
+  const prev = segments[segmentIndex - 1]
+  if (prev && prev.mode !== 'transit') {
+    const endMs = Math.max(asMs(prev.startTime), asMs(prev.endTime) + delta)
+    const movingSec = prev.duration - (prev.waitSeconds ?? 0)
+    prev.endTime = new Date(endMs)
+    prev.duration = (endMs - asMs(prev.startTime)) / 1000
+    prev.waitSeconds = Math.max(0, prev.duration - movingSec)
+  }
+  shiftSegmentTimes(ride, delta)
+}
+
+export interface RebookableTrip<S extends RebookableSegment = RebookableSegment> {
+  segments: S[]
+  startTime: string | Date
+  endTime: string | Date
+  summary: { totalDuration: number }
+}
+
+/** Brings the trip's own times back in line with its segments. */
+export function rollupTrip(trip: RebookableTrip) {
+  const first = trip.segments[0]
+  const last = trip.segments.at(-1)
+  if (!first || !last) return
+  trip.startTime = new Date(asMs(first.startTime))
+  trip.endTime = new Date(asMs(last.endTime))
+  trip.summary.totalDuration = (asMs(trip.endTime) - asMs(trip.startTime)) / 1000
+}
+
+/** `segments` with leg `legIndex` replaced by `leg`, whose segments are tagged with it. */
+export function withLeg<S extends { legIndex?: number }>(segments: S[], legIndex: number, leg: S[]): S[] {
+  const legOf = (s: S) => s.legIndex ?? 0
+  for (const s of leg) s.legIndex = legIndex
+  return [...segments.filter(s => legOf(s) < legIndex), ...leg, ...segments.filter(s => legOf(s) > legIndex)]
+}

@@ -107,7 +107,8 @@ function restoreFiltersFromQuery() {
     const def = searchStore.activeFilterDefs.find(d => d.id === filterId)
     if (!def) continue
     if (def.type === 'toggle') {
-      searchStore.setFilter(filterId, raw === '1')
+      // A check field's filter also arrives as its tag value, `yes`.
+      searchStore.setFilter(filterId, raw === '1' || raw === 'yes')
     } else if (def.type === 'multi-select') {
       searchStore.setFilter(filterId, raw.split(',').filter(Boolean))
     } else {

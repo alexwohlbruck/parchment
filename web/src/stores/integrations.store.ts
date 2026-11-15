@@ -4,11 +4,13 @@ import { useStorage } from '@vueuse/core'
 import {
   IntegrationId,
   IntegrationCapabilityId,
+  IntegrationScope,
   type IntegrationDefinition,
   type IntegrationRecord,
   type IntegrationScheme,
 } from '@server/types/integration.types'
 import { jsonSerializer } from '@/lib/storage-serializer'
+import { recordScope } from '@/lib/integration-permissions'
 import {
   clearAllIntegrationHealth,
   clearIntegrationDegraded,
@@ -106,20 +108,23 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
-  // Unified list: each entry is { integration, config? }
-  // Configured integrations may appear multiple times (one per config record)
+  /** One entry per stored record, plus an empty one for each scope still unconfigured. */
   const allIntegrations = computed<
-    { integration: IntegrationDefinition; config?: IntegrationRecord }[]
+    {
+      integration: IntegrationDefinition
+      scope: IntegrationScope
+      config?: IntegrationRecord
+    }[]
   >(() => {
     const configs = safeConfigurationsArray()
     return safeAvailableArray().flatMap(integration => {
-      const matchingConfigs = configs.filter(
-        c => c.integrationId === integration.id,
-      )
-      if (matchingConfigs.length > 0) {
-        return matchingConfigs.map(config => ({ integration, config }))
-      }
-      return [{ integration }]
+      const configured = configs
+        .filter(c => c.integrationId === integration.id)
+        .map(config => ({ integration, config, scope: recordScope(integration, config) }))
+      const open = integration.scope
+        .filter(scope => !configured.some(entry => entry.scope === scope))
+        .map(scope => ({ integration, scope }))
+      return [...configured, ...open]
     })
   })
 

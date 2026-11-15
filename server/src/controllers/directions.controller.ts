@@ -1,18 +1,17 @@
 import { Elysia, t } from 'elysia'
+import { CoordinateSchema, VehicleSchema } from '../types/directions-api.types'
 import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { db } from '../db'
 import { plannedTrips } from '../schema/planned-trips.schema'
-import { multimodalTripService } from '../services/trip.service'
+import { hasPremiumNavigation, planTripFor } from '../services/planned-trip.service'
 import { alternativeSegments, rerouteSegment } from '../services/reroute.service'
 import { attachHazards } from '../services/route-hazards.service'
 import { attachLanes } from '../services/route-lanes.service'
 import { estimateModes } from '../services/mode-estimates.service'
 import { ESTIMATE_MODES } from '../lib/directions/mode-estimates'
 import { optionalAuth } from '../middleware/auth.middleware'
-import { getPermissions, hasPermission } from '../services/auth.service'
-import { PermissionId } from '../types/auth.types'
 import {
   TripRequest,
   SelectedMode,
@@ -26,10 +25,6 @@ import { logError } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Validation schemas for multimodal trip planning
-const CoordinateSchema = t.Object({
-  lat: t.Number(),
-  lng: t.Number(),
-})
 
 const RerouteBodySchema = t.Object({
   position: CoordinateSchema,
@@ -61,28 +56,6 @@ const WaypointSchema = t.Object({
   speed: t.Optional(t.Number({ minimum: 0, description: 'Origin only: the device speed in m/s.' })),
 })
 
-const VehicleSchema = t.Object({
-  id: t.String(),
-  type: t.Union([
-    t.Literal('car'),
-    t.Literal('bike'),
-    t.Literal('scooter'),
-    t.Literal('e-bike'),
-    t.Literal('e-scooter'),
-    t.Literal('moped'),
-    t.Literal('truck'),
-  ]),
-  energyType: t.Optional(
-    t.Union([
-      t.Literal('electric'),
-      t.Literal('gas'),
-      t.Literal('diesel'),
-      t.Literal('hybrid'),
-    ]),
-  ),
-  name: t.Optional(t.String()),
-  location: t.Optional(CoordinateSchema),
-})
 
 const AccessPointSchema = t.Object({
   osmId: t.String(),
@@ -184,12 +157,6 @@ const ModeEstimatesSchema = t.Object({
 
 const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
 
-/** Comfort hazards and travel time previews are premium; safety hazards go to everyone. */
-async function hasPremiumNavigation(userId: string | undefined): Promise<boolean> {
-  if (!userId) return false
-  return hasPermission(await getPermissions(userId), PermissionId.PREMIUM_NAVIGATION)
-}
-
 /**
  * Plan a multimodal trip (replaces original directions endpoint)
  * POST /directions/
@@ -250,16 +217,7 @@ app.post(
         }
       }
 
-      // Plan the trip using multimodal strategy
-      const result = await multimodalTripService.planTrip(request)
-      const premium = await hasPremiumNavigation(user?.id)
-      const departure = request.preferredDepartureTime ? new Date(request.preferredDepartureTime) : undefined
-      await Promise.all([
-        ...result.trips.map(candidate => attachHazards((candidate.trip?.segments ?? []) as any[], { premium, departure })),
-        attachLanes(result.trips.flatMap(candidate => (candidate.trip?.segments ?? []).flatMap(s => [s, ...(s.details?.multimodalSegments ?? [])]))),
-      ])
-
-      return result
+      return await planTripFor(request, user?.id)
     } catch (error) {
       logError('Multimodal trip planning error', error)
       throw new Error(

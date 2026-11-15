@@ -11,6 +11,7 @@ import { TransitDeparture, Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { logError, logger } from '../../lib/logger'
 import type { Language } from '../../lib/i18n'
+import { wallClockToUtc } from '../../lib/timezone'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
 
@@ -24,32 +25,6 @@ interface DepartureWithContext {
   raw: any
   serviceDate?: string
   timezone?: string
-}
-
-/**
- * Per-timezone formatter cache. `Intl.DateTimeFormat` construction is the
- * dominant cost in `toAbsoluteIso`, called once per departure (~hundreds
- * per place request). Keying by IANA zone gives us a single allocation
- * per zone for the lifetime of the process.
- */
-const formatterCache = new Map<string, Intl.DateTimeFormat>()
-
-function getTzFormatter(timezone: string): Intl.DateTimeFormat {
-  let f = formatterCache.get(timezone)
-  if (!f) {
-    f = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    })
-    formatterCache.set(timezone, f)
-  }
-  return f
 }
 
 export interface TransitlandConfig extends IntegrationConfig {
@@ -278,24 +253,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
     const wallUtcMs = Date.UTC(y, mo, d, 0, 0, 0)
       + hours * 3600_000 + minutes * 60_000 + seconds * 1000
 
-    if (!timezone) return new Date(wallUtcMs).toISOString()
-
-    // Compute the timezone's offset at that wall-clock instant by formatting
-    // it back through Intl and diffing. Formatter is memoized per zone — see
-    // `getTzFormatter` above.
-    try {
-      const parts = getTzFormatter(timezone).formatToParts(new Date(wallUtcMs))
-      const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? '0')
-      const tzWallMs = Date.UTC(
-        get('year'), get('month') - 1, get('day'),
-        get('hour') === 24 ? 0 : get('hour'),
-        get('minute'), get('second'),
-      )
-      const offsetMs = tzWallMs - wallUtcMs
-      return new Date(wallUtcMs - offsetMs).toISOString()
-    } catch {
-      return new Date(wallUtcMs).toISOString()
-    }
+    return wallClockToUtc(wallUtcMs, timezone).toISOString()
   }
 
   /**

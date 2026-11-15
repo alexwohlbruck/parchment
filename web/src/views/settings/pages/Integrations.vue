@@ -23,8 +23,8 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
-import { canConfigureIntegration } from '@/lib/integration-permissions'
-import type { IntegrationDefinition } from '@/types/integrations.types'
+import { canConfigureScope } from '@/lib/integration-permissions'
+import type { IntegrationScope } from '@/types/integrations.types'
 import {
   useIntegrationFilters,
   type SortField,
@@ -91,11 +91,8 @@ const degradedNames = computed(() => [
   ),
 ])
 
-// Write access depends on the integration's scope, not on system write alone.
-// A read-only admin role holds integrations:read:system but still configures
-// its own user-scoped integrations (OSM account, Dawarich).
-function canConfigure(integration: IntegrationDefinition): boolean {
-  return canConfigureIntegration(integration, authService.hasPermission)
+function canConfigure(scope: IntegrationScope): boolean {
+  return canConfigureScope(scope, authService.hasPermission)
 }
 
 // Handle OAuth callback query params
@@ -651,10 +648,11 @@ onMounted(async () => {
         >
           <IntegrationTile
             v-for="item in filteredIntegrations"
-            :key="item.config?.id || item.integration.id"
+            :key="item.config?.id || `${item.integration.id}:${item.scope}`"
             :integration="item.integration"
+            :scope="item.scope"
             :configuration="item.config"
-            :disabled="!canConfigure(item.integration)"
+            :disabled="!canConfigure(item.scope)"
           />
         </div>
       </SettingsSection>

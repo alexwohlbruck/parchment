@@ -1,3 +1,4 @@
+import type { FeatureCollection } from 'geojson'
 import {
   pgTable,
   text,
@@ -138,10 +139,24 @@ export interface CanvasCollectionLayer {
   iconColor?: string | null
 }
 
+/** Points, lines or shapes held inline on the canvas, drawn in one style. */
+export interface CanvasDataLayer {
+  id: string
+  kind: 'data'
+  name: string
+  visible: boolean
+  render: 'points' | 'lines' | 'shapes' | 'heatmap'
+  data: FeatureCollection
+  url?: string
+  origin?: { format: 'geojson' | 'kml' | 'gpx' | 'csv' | 'drawn'; filename?: string }
+  style?: { color?: string; size?: number; opacity?: number; labelProperty?: string | null }
+}
+
 export type CanvasLayer =
   | CanvasStyleLayer
   | CanvasLibraryLayer
   | CanvasCollectionLayer
+  | CanvasDataLayer
 
 export interface CanvasBody {
   layers: CanvasLayer[]

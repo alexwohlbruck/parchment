@@ -2,9 +2,7 @@
 // The path inside the station is estimated from the straight line until a station graph exists.
 
 import type { Coordinate } from '../../types/unified-routing.types'
-import { haversineMeters } from '../../util/geometry-conversion'
-
-const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
+import { metersBetween } from '../../util/geometry-conversion'
 
 export type EntrancePurpose = 'enter' | 'exit'
 

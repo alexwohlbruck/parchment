@@ -22,6 +22,7 @@ import ParchmentLogo from '@/assets/parchment.svg'
 import parchmentMapBg from '@/assets/img/parchment-map.png'
 import { Button } from '@/components/ui/button'
 import Chip from '@/components/ui/chip/Chip.vue'
+import { toLngLat } from '@/lib/geo/lng-lat'
 
 const props = defineProps<{
   open?: boolean
@@ -44,11 +45,7 @@ const internalOpen = computed({
 
 const feedbackUrl = computed(() => {
   const { center, zoom } = camera.value
-  const [lng, lat] = Array.isArray(center)
-    ? center
-    : 'lon' in center
-    ? [center.lon, center.lat]
-    : [center.lng, center.lat]
+  const { lng, lat } = toLngLat(center)
   return `https://apps.mapbox.com/feedback/#/${lng}/${lat}/${zoom}`
 })
 

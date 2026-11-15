@@ -403,6 +403,23 @@
       transform: translateX(100%);
     }
   }
+  @keyframes text-shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes pixel-pulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
   @keyframes fade-in {
     0% {
       opacity: 0;

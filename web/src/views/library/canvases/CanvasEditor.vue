@@ -67,6 +67,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CloudCheckIcon } from '@/components/ui/icons'
 import type { ThemeColor } from '@/lib/utils'
+import { useMapService } from '@/services/map/map.service'
 import {
   cloneCanvasBody,
   emptyCanvasBody,
@@ -139,6 +140,7 @@ watch(
   },
 )
 
+const mapService = useMapService()
 const canvas = computed(() => canvases.value.find(c => c.id === props.id))
 
 /** The working copy. Nothing here reaches the server until it is saved. */
@@ -160,6 +162,7 @@ const saving = ref(false)
 function load() {
   body.value = cloneCanvasBody(canvas.value?.body)
   saved.value = body.value
+  if (body.value.camera) mapService.flyTo(body.value.camera)
   // Nothing before the canvas was opened is undoable.
   history.reset()
 }

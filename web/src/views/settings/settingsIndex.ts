@@ -1,5 +1,6 @@
 import {
   ActivityIcon,
+  MessageCircleQuestionIcon,
   BlocksIcon,
   CodeIcon,
   CogIcon,
@@ -242,6 +243,37 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'guidance.vehicle.title',
         descriptionKey: 'guidance.vehicle.description',
         keywords: ['puck', 'arrow', 'car', 'color', 'marker'],
+      },
+    ],
+  },
+  {
+    pageId: 'ask',
+    to: '/settings/ask',
+    icon: MessageCircleQuestionIcon,
+    iconColor: 'violet',
+    sections: [
+      {
+        id: 'ask',
+        titleKey: 'settings.ask.title',
+        keywords: ['ai', 'assistant', 'turn off', 'disable', 'questions'],
+        items: [{ titleKey: 'settings.ask.enabled.title' }, { titleKey: 'settings.ask.suggest.title' }],
+      },
+      {
+        id: 'ask-data',
+        titleKey: 'settings.ask.data.title',
+        keywords: ['location', 'privacy', 'web search', 'internet'],
+        items: [{ titleKey: 'settings.ask.shareLocation.title' }, { titleKey: 'settings.ask.webSearch.title' }],
+      },
+      {
+        id: 'ask-history',
+        titleKey: 'settings.ask.history.title',
+        keywords: ['conversations', 'threads', 'delete', 'expire', 'retention'],
+        items: [{ titleKey: 'settings.ask.history.save.title' }, { titleKey: 'settings.ask.history.keep.title' }],
+      },
+      {
+        id: 'ask-key',
+        titleKey: 'settings.ask.key.title',
+        keywords: ['openrouter', 'api key', 'model'],
       },
     ],
   },

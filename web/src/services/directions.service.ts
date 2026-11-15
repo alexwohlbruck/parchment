@@ -188,38 +188,7 @@ function directionsService() {
         timeout: 30_000,
       })
 
-      // Transform response to UI format
-      const placeIds = validWaypoints.map(wp => shareableWaypointId(wp.place))
-      const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
-      const response: TripsResponse = {
-        request: {
-          waypoints: validWaypoints.map((wp, i) => {
-            const place = wp.place
-            return {
-              id: `wp-${i}`,
-              coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-              type:
-                i === 0 || i === validWaypoints.length - 1
-                  ? WaypointType.STOP
-                  : WaypointType.VIA,
-              name: (place ? getSearchResultName(place as Place) : '') || serverWaypoints[i]?.label || '',
-              // Pass through the full Place for POI rendering in the trip timeline
-              ...(place ? { place } : {}),
-            }
-          }),
-          availableVehicles: request.availableVehicles.map(v => v.type),
-          maxOptions: 5,
-          includeWalking: true,
-          preferences: { optimize: 'time', alternatives: true },
-        },
-        trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds))),
-        earliestStart:
-          data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
-        latestEnd:
-          data.trips[0]?.trip.latestEndTime ||
-          new Date(Date.now() + 3600000).toISOString(),
-        metadata: data.metadata,
-      }
+      const response = await toTripsResponse(data, validWaypoints, request)
 
       store.setTrips(response, { keepSelection: quiet })
       store.setPlanned(requestKey)
@@ -241,6 +210,58 @@ function directionsService() {
         abortController.value = null
       }
     }
+  }
+
+  /** The planner's answer for these waypoints, as the trips the panel lists. */
+  async function toTripsResponse(
+    data: any,
+    validWaypoints: Waypoint[],
+    request: ReturnType<typeof buildTripRequest>,
+  ): Promise<TripsResponse> {
+    const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
+    return {
+      request: {
+        waypoints: validWaypoints.map((wp, i) => {
+          const place = wp.place
+          return {
+            id: `wp-${i}`,
+            coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
+            type:
+              i === 0 || i === validWaypoints.length - 1
+                ? WaypointType.STOP
+                : WaypointType.VIA,
+            name: (place ? getSearchResultName(place as Place) : '') || serverWaypoints[i]?.label || '',
+            // Pass through the full Place for POI rendering in the trip timeline
+            ...(place ? { place } : {}),
+          }
+        }),
+        availableVehicles: request.availableVehicles.map(v => v.type),
+        maxOptions: 5,
+        includeWalking: true,
+        preferences: { optimize: 'time', alternatives: true },
+      },
+      trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, validWaypoints.map(wp => wp.place)))),
+      earliestStart:
+        data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
+      latestEnd:
+        data.trips[0]?.trip.latestEndTime ||
+        new Date(Date.now() + 3600000).toISOString(),
+      metadata: data.metadata,
+    }
+  }
+
+  /** Shows a plan made elsewhere (Ask) for the current waypoints, exactly as if Directions had planned it. */
+  async function showPlan(data: any): Promise<TripsResponse> {
+    const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
+    const request = buildTripRequest(validWaypoints)
+    // Claim these inputs before awaiting, so the auto-plan watcher doesn't plan them again.
+    abortController.value?.abort()
+    lastRequestKey.value = getRequestKey(validWaypoints, selectedMode.value, routingPreferences.value)
+    const response = await toTripsResponse(data, validWaypoints, request)
+    store.setTrips(response)
+    store.setPlanned(lastRequestKey.value)
+    writePlanCache(planCacheKey(request), response)
+    return response
   }
 
   /**
@@ -469,28 +490,20 @@ function directionsService() {
     ) {
       return null
     }
+    return currentLocationWaypoint(coords.value.latitude, coords.value.longitude)
+  }
 
-    const currentLocationPlace: Place = {
+  /** The "Current location" waypoint at a position the caller already knows. */
+  function currentLocationWaypoint(lat: number, lng: number): Waypoint {
+    const place = {
       id: CURRENT_LOCATION_ID,
       name: { value: 'Current location' },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: coords.value.latitude,
-            lng: coords.value.longitude,
-          },
-        },
-      },
+      geometry: { value: { type: 'point', center: { lat, lng } } },
       externalIds: {},
       address: null,
       placeType: { value: 'current_location' },
     } as Place
-
-    return {
-      lngLat: new LngLat(coords.value.longitude, coords.value.latitude),
-      place: currentLocationPlace,
-    }
+    return { lngLat: new LngLat(lng, lat), place }
   }
 
   /**
@@ -643,6 +656,8 @@ function directionsService() {
 
   return {
     getDirections,
+    showPlan,
+    collectAvailableVehicles,
     replan: () => getDirections({ quiet: true }),
     refreshCurrentLocation,
     fillWaypoint,
@@ -656,6 +671,7 @@ function directionsService() {
     directionsFrom,
     directionsTo,
     getCurrentLocationWaypoint,
+    currentLocationWaypoint,
     populateOriginWithCurrentLocation,
   }
 }

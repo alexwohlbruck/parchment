@@ -37,6 +37,8 @@ export enum AppRoute {
   GUIDANCE = 'guidance',
   ROUTE_PREVIEW = 'route-preview',
   SEARCH_RESULTS = 'search-results',
+  ASK = 'ask',
+  CONNECT_OPENROUTER = 'connect-openrouter',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
@@ -63,6 +65,7 @@ export enum AppRoute {
   PERMISSIONS_PAGE = 'permissions',
   PERMISSION_DETAIL = 'permission-detail',
   NAVIGATION_SETTINGS = 'navigation',
+  ASK_SETTINGS = 'ask-settings',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',
@@ -156,6 +159,22 @@ const router = createRouter({
             categoryId: route.query.categoryId,
             categoryName: route.query.categoryName,
             overpassQuery: route.query.overpassQuery,
+          }),
+        },
+        {
+          path: '/connect/openrouter',
+          name: AppRoute.CONNECT_OPENROUTER,
+          component: () => import('@/views/ask/ConnectOpenRouter.vue'),
+        },
+        {
+          path: '/ask',
+          name: AppRoute.ASK,
+          component: () => import('@/views/ask/Ask.vue'),
+          props: route => ({
+            question: route.query.q,
+            placeId: route.query.place,
+            placeName: route.query.name,
+            thread: route.query.thread,
           }),
         },
         {
@@ -432,6 +451,11 @@ const router = createRouter({
           path: '/settings/navigation',
           name: AppRoute.NAVIGATION_SETTINGS,
           component: () => import('@/views/settings/pages/NavigationPage.vue'),
+        },
+        {
+          path: '/settings/ask',
+          name: AppRoute.ASK_SETTINGS,
+          component: () => import('@/views/settings/pages/AskPage.vue'),
         },
         {
           path: '/settings/vehicles',

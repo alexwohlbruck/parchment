@@ -60,7 +60,7 @@ export const PLACE_ATTRIBUTES: PlaceAttribute[] = [
       { internet_access: 'wlan', 'internet_access:fee': 'no' },
       { internet_access: 'yes', 'internet_access:fee': 'no' },
     ],
-    aliases: ['free wi-fi', 'free internet', 'free wireless'],
+    aliases: ['free wi-fi', 'free internet', 'free wireless', 'wifi', 'wi-fi'],
   },
   {
     id: 'takeaway/yes',

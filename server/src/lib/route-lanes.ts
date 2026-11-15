@@ -14,6 +14,7 @@ import type {
   RouteLanes,
   RouteLanesRequest,
 } from '../types/unified-routing.types'
+import { metersBetween } from '../util/geometry-conversion'
 
 export interface LanedSegment {
   mode: string
@@ -58,15 +59,6 @@ const TURNS: Record<string, string> = {
   'u-turn': 'reverse',
 }
 
-const R = 6371000
-function haversine(a: Coordinate, b: Coordinate): number {
-  const toRad = Math.PI / 180
-  const dLat = (b.lat - a.lat) * toRad
-  const dLng = (b.lng - a.lng) * toRad
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toRad) * Math.cos(b.lat * toRad) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(s))
-}
-
 /** The modes drawn in their lanes, as barrelman's lane profiles; planned trips say biking, reroutes cycling. */
 const LANE_PROFILES: Record<string, LanesProfile> = { driving: 'car', biking: 'bike', cycling: 'bike' }
 
@@ -87,7 +79,7 @@ export function lanesRequest(segment: LanedSegment): RouteLanesRequest | null {
   if (!profile || geometry.length < 2 || ways.length === 0) return null
 
   const cumulative = [0]
-  for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + haversine(geometry[i - 1], geometry[i]))
+  for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + metersBetween(geometry[i - 1], geometry[i]))
   // Each instruction stands at a vertex of the geometry; find it in order.
   let from = 0
   const maneuvers = (segment.instructions ?? []).map(instruction => {

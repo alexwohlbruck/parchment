@@ -1,5 +1,34 @@
 import { t } from 'elysia'
 
+export const CoordinateSchema = t.Object({
+  lat: t.Number(),
+  lng: t.Number(),
+})
+
+/** A vehicle the user owns, where it is now, for trips that pick it up. */
+export const VehicleSchema = t.Object({
+  id: t.String(),
+  type: t.Union([
+    t.Literal('car'),
+    t.Literal('bike'),
+    t.Literal('scooter'),
+    t.Literal('e-bike'),
+    t.Literal('e-scooter'),
+    t.Literal('moped'),
+    t.Literal('truck'),
+  ]),
+  energyType: t.Optional(
+    t.Union([
+      t.Literal('electric'),
+      t.Literal('gas'),
+      t.Literal('diesel'),
+      t.Literal('hybrid'),
+    ]),
+  ),
+  name: t.Optional(t.String()),
+  location: t.Optional(CoordinateSchema),
+})
+
 // Route request schema for the basic directions endpoint
 export const RouteRequestSchema = t.Object({
   locations: t.Array(

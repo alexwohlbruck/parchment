@@ -7,6 +7,27 @@ export interface LatLng {
   lng: number
 }
 
+export type AskUnits = 'metric' | 'imperial'
+
+/** A point Ask can name. A saved place reaches the model only by its name, never its coordinates. */
+export interface AskEndpoint extends LatLng {
+  name?: string
+}
+
+export const ASK_TRIP_KINDS = ['bikeshare', 'transit', 'walking', 'biking', 'driving', 'rideshare'] as const
+export type AskTripKind = (typeof ASK_TRIP_KINDS)[number]
+
+/** Where the user is and what they call places, sent with each question. */
+export interface AskWhere {
+  /** The map's centre. */
+  lat?: number
+  lng?: number
+  /** The device's own position, when shared. */
+  here?: LatLng
+  places?: AskEndpoint[]
+  units?: AskUnits
+}
+
 export interface AskTurn {
   role: 'user' | 'assistant'
   content: string
@@ -20,6 +41,8 @@ export interface AskCitation {
 export type AskEvent =
   | { type: 'step'; id: string; label: string; status: 'running' | 'done' | 'failed' }
   | { type: 'reach'; geometry: IsochroneGeometry }
+  /** A trip the answer recommends, for the app to open in Directions. */
+  | { type: 'trip'; from: AskEndpoint; to: AskEndpoint; kind: AskTripKind }
   | {
       type: 'answer'
       text: string

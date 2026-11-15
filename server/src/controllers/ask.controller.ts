@@ -6,6 +6,7 @@ import { resolveAskAccess } from '../services/ask/ask-model.service'
 import { runAsk } from '../services/ask/ask-agent.service'
 import { recordAskQuestion } from '../services/ask/ask-usage.service'
 import { meterModel } from '../lib/ask/ask-usage'
+import { knownPlaces } from '../lib/ask/known-places'
 import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 
@@ -77,6 +78,8 @@ const app = new Elysia()
                 userId: user.id,
                 language,
                 origin,
+                places: knownPlaces(body.here, body.places),
+                units: body.units ?? 'metric',
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
@@ -120,14 +123,31 @@ const app = new Elysia()
         placeId: t.Optional(
           t.String({ description: 'A place the question is about, e.g. "osm/node/123". Its details and reviews are read first.' }),
         ),
-        lat: t.Optional(t.Number({ minimum: -90, maximum: 90 })),
+        lat: t.Optional(t.Number({ minimum: -90, maximum: 90, description: "The map's centre" })),
         lng: t.Optional(t.Number({ minimum: -180, maximum: 180 })),
+        here: t.Optional(
+          t.Object(
+            { lat: t.Number({ minimum: -90, maximum: 90 }), lng: t.Number({ minimum: -180, maximum: 180 }) },
+            { description: "The device's own position, when the user has shared it" },
+          ),
+        ),
+        places: t.Optional(
+          t.Array(
+            t.Object({
+              name: t.String({ minLength: 1, maxLength: 60 }),
+              lat: t.Number({ minimum: -90, maximum: 90 }),
+              lng: t.Number({ minimum: -180, maximum: 180 }),
+            }),
+            { maxItems: 10, description: 'Saved places like Home and Work, which the model may name as trip ends without seeing their coordinates' },
+          ),
+        ),
+        units: t.Optional(t.Union([t.Literal('metric'), t.Literal('imperial')])),
       }),
       detail: {
         tags: ['Ask'],
         summary: 'Answer a question about places',
         description:
-          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
+          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
       },
     },
   )

@@ -1,5 +1,6 @@
 import { distance } from '@turf/turf'
 import { estimateModes } from '../mode-estimates.service'
+import { multimodalTripService } from '../trip.service'
 import { transitRoutingService } from '../transit-routing.service'
 import { requestBarrelman } from '../barrelman.service'
 import { integrationManager } from '../integrations'
@@ -11,6 +12,7 @@ import {
   localClock,
   parseTripTime,
   summarizeItinerary,
+  summarizeTrip,
 } from '../../lib/ask/trip-summary'
 import { TransitPriority } from '../../lib/transit/transit-gate'
 import {
@@ -20,13 +22,20 @@ import {
 import { IntegrationCapabilityId } from '../../types/integration.types'
 import { PermissionId } from '../../types/auth.types'
 import type { NearbyStation } from '../../lib/dock-alternatives'
-import type { LatLng } from '../../types/ask.types'
+import {
+  ASK_TRIP_KINDS,
+  type AskTripKind,
+  type LatLng,
+} from '../../types/ask.types'
 import {
   AskToolError,
   cached,
   centre,
   clamp,
-  latLngSchema,
+  endpoint,
+  nearSchema,
+  pointSchema,
+  type PointArg,
   type AskContext,
   type AskTool,
 } from './ask-tool-base'
@@ -50,8 +59,8 @@ function tripTime(
 }
 
 const travelTimes: AskTool<{
-  from?: LatLng
-  to: LatLng
+  from?: PointArg
+  to: PointArg
   modes?: EstimateMode[]
   depart_at?: string
 }> = {
@@ -61,11 +70,8 @@ const travelTimes: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: {
-        ...latLngSchema,
-        description: "Start. Defaults to the user's map position.",
-      },
-      to: { ...latLngSchema, description: 'Destination' },
+      from: pointSchema("Start. Defaults to the map's centre."),
+      to: pointSchema('Destination.'),
       modes: {
         type: 'array',
         items: { type: 'string', enum: [...ESTIMATE_MODES] },
@@ -86,7 +92,7 @@ const travelTimes: AskTool<{
     }
     const from = centre(args.from, context)
     const estimates = await estimateModes({
-      waypoints: [from, args.to],
+      waypoints: [from, centre(args.to, context)],
       modes: args.modes?.length ? args.modes : [...ESTIMATE_MODES],
       departureTime: tripTime(args.depart_at, from, context).toISOString(),
       language: context.language,
@@ -101,8 +107,8 @@ const travelTimes: AskTool<{
 }
 
 const transitTrips: AskTool<{
-  from?: LatLng
-  to: LatLng
+  from?: PointArg
+  to: PointArg
   depart_at?: string
   arrive_by?: string
   count?: number
@@ -113,11 +119,8 @@ const transitTrips: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: {
-        ...latLngSchema,
-        description: "Start. Defaults to the user's map position.",
-      },
-      to: { ...latLngSchema, description: 'Destination' },
+      from: pointSchema("Start. Defaults to the map's centre."),
+      to: pointSchema('Destination.'),
       depart_at: timeSchema,
       arrive_by: {
         ...timeSchema,
@@ -133,17 +136,18 @@ const transitTrips: AskTool<{
   label: () => 'Checking transit',
   async run(args, context) {
     const from = centre(args.from, context)
+    const to = centre(args.to, context)
     const timeZone = getTimezone(from.lat, from.lng)
     const arriveBy = !!args.arrive_by
     const time = tripTime(
       args.arrive_by ?? args.depart_at,
-      arriveBy ? args.to : from,
+      arriveBy ? to : from,
       context,
     )
     const response = await transitRoutingService.getIntermodalRoute(
       {
         from,
-        to: args.to,
+        to,
         time: time.toISOString(),
         arriveBy,
         numItineraries: clamp(args.count, 3, 6),
@@ -164,17 +168,83 @@ const transitTrips: AskTool<{
   },
 }
 
-const weather: AskTool<{ at?: LatLng }> = {
+const planTrip: AskTool<{
+  from?: PointArg
+  to: PointArg
+  kind?: AskTripKind
+  depart_at?: string
+  arrive_by?: string
+}> = {
+  name: 'plan_trip',
+  description:
+    'Plan a door-to-door trip the way Parchment Directions does: walking, cycling, bike share (with the stations to pick up and drop off at), transit and driving. The app offers the best trip as a Directions button. Set `kind` to get only one way of travelling.',
+  parameters: {
+    type: 'object',
+    properties: {
+      from: pointSchema('Start. Use "here" for the user\'s own location.'),
+      to: pointSchema('Destination.'),
+      kind: { type: 'string', enum: [...ASK_TRIP_KINDS] },
+      depart_at: timeSchema,
+      arrive_by: {
+        ...timeSchema,
+        description: 'Arrive by this local time instead of departing at one',
+      },
+    },
+    required: ['to'],
+  },
+  label: () => 'Planning the trip',
+  async run(args, context) {
+    const from = endpoint(args.from, context)
+    const to = endpoint(args.to, context)
+    const timeZone = getTimezone(from.lat, from.lng)
+    const result = await multimodalTripService.planTrip({
+      waypoints: [
+        { location: { lat: from.lat, lng: from.lng }, type: 'origin' },
+        { location: { lat: to.lat, lng: to.lng }, type: 'destination' },
+      ],
+      selectedMode: 'multi',
+      language: context.language,
+      ...(args.depart_at && {
+        preferredDepartureTime: tripTime(
+          args.depart_at,
+          from,
+          context,
+        ).toISOString(),
+      }),
+      ...(args.arrive_by && {
+        preferredArrivalTime: tripTime(
+          args.arrive_by,
+          to,
+          context,
+        ).toISOString(),
+      }),
+      requestId: `ask-${crypto.randomUUID()}`,
+      timestamp: context.now.toISOString(),
+    })
+    const trips = result.trips
+      .map(({ trip }) => summarizeTrip(trip, timeZone))
+      .filter((trip) => !args.kind || trip.kind === args.kind)
+      .slice(0, 3)
+    if (!trips.length) {
+      throw new AskToolError(
+        args.kind
+          ? `No ${args.kind} trip found; try another kind`
+          : 'No trip found',
+      )
+    }
+    context.emit({ type: 'trip', from, to, kind: trips[0].kind })
+    return { trips }
+  },
+}
+
+const weather: AskTool<{ at?: PointArg }> = {
   name: 'weather',
   description:
     'Current weather at a point, and whether rain is due in the next few hours. It knows nothing about later days.',
   parameters: {
     type: 'object',
     properties: {
-      at: {
-        ...latLngSchema,
-        description: "Defaults to the user's map position.",
-      },
+      at: pointSchema("Defaults to the map's centre."),
     },
   },
   label: () => 'Checking the weather',
@@ -210,14 +280,14 @@ const weather: AskTool<{ at?: LatLng }> = {
   },
 }
 
-const bikeshareNearby: AskTool<{ near?: LatLng; radius_m?: number }> = {
+const bikeshareNearby: AskTool<{ near?: PointArg; radius_m?: number }> = {
   name: 'bikeshare_nearby',
   description:
     'Bike share stations near a point with live counts of bikes, e-bikes and free docks, nearest first.',
   parameters: {
     type: 'object',
     properties: {
-      near: latLngSchema,
+      near: nearSchema,
       radius_m: {
         type: 'number',
         description: 'Search radius in metres, default 500, max 2000',
@@ -263,6 +333,7 @@ const bikeshareNearby: AskTool<{ near?: LatLng; radius_m?: number }> = {
 }
 
 export const tripTools: AskTool[] = [
+  planTrip,
   travelTimes,
   transitTrips,
   weather,

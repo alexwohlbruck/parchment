@@ -1,21 +1,31 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { PermissionId } from '../../types/auth.types'
 import type { TransitItinerary } from '../../types/integration.types'
+import type { AskEvent } from '../../types/ask.types'
+import type { TripSegment } from '../../types/trip.types'
 
 const mockEstimates = mock(async (_request: unknown) => ({
   walking: 1500,
   transit: 720,
   driving: null,
 }))
-const mockRoute = mock(async (_request: unknown, _priority?: unknown) => ({ itineraries: [] as TransitItinerary[] }))
+const mockRoute = mock(async (_request: unknown, _priority?: unknown) => ({
+  itineraries: [] as TransitItinerary[],
+}))
 const mockBarrelman = mock(async () => Response.json({ stations: [] }))
 const mockPermissions = mock(async () => [] as string[])
+const mockPlanTrip = mock(async (_request: unknown) => ({
+  trips: [] as unknown[],
+}))
 
 mock.module('../mode-estimates.service', () => ({
   estimateModes: mockEstimates,
 }))
 mock.module('../transit-routing.service', () => ({
   transitRoutingService: { getIntermodalRoute: mockRoute },
+}))
+mock.module('../trip.service', () => ({
+  multimodalTripService: { planTrip: mockPlanTrip },
 }))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
 mock.module('../auth.service', () => ({
@@ -41,6 +51,8 @@ function context(): AskContext {
     userId: 'u1',
     language: 'en-US',
     origin,
+    places: new Map(),
+    units: 'metric',
     now: new Date('2026-11-20T23:00:00Z'),
     seen: new Map(),
     emit: () => {},
@@ -48,7 +60,13 @@ function context(): AskContext {
 }
 
 beforeEach(() => {
-  for (const fn of [mockEstimates, mockRoute, mockBarrelman, mockPermissions])
+  for (const fn of [
+    mockEstimates,
+    mockRoute,
+    mockBarrelman,
+    mockPermissions,
+    mockPlanTrip,
+  ])
     fn.mockClear()
 })
 
@@ -174,4 +192,91 @@ test('weather says when no provider is set up', async () => {
   await expect(tool('weather').run({}, context())).rejects.toThrow(
     'not available',
   )
+})
+
+describe('plan_trip', () => {
+  const home = { name: 'Home', lat: 40.6727, lng: -73.953 }
+  const here = { lat: 40.6662, lng: -73.9603 }
+
+  const segment = (
+    mode: string,
+    minutes: number,
+    details?: TripSegment['details'],
+  ) =>
+    ({
+      mode,
+      duration: minutes * 60,
+      startTime: '2026-11-20T23:00:00Z',
+      endTime: '2026-11-20T23:10:00Z',
+      details,
+    }) as TripSegment
+  const candidate = (segments: TripSegment[], minutes: number) => ({
+    trip: {
+      segments,
+      tripStats: { totalDuration: minutes * 60, totalDistance: 0 },
+      earliestStartTime: '2026-11-20T23:00:00Z',
+      latestEndTime: '2026-11-20T23:10:00Z',
+    },
+  })
+
+  function knownContext(events: AskEvent[]) {
+    return {
+      ...context(),
+      places: new Map([
+        ['here', here],
+        ['home', home],
+      ]),
+      emit: (event: AskEvent) => events.push(event),
+    }
+  }
+
+  test('routes between named places and offers the kind asked for in Directions', async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [
+        candidate([segment('biking', 5)], 5),
+        candidate(
+          [
+            segment('walking', 3),
+            segment('biking', 6, {
+              sharedMobilityDetails: {
+                provider: 'Citi Bike',
+                vehicleType: 'bike',
+                stationName: 'Carroll St & Franklin Ave',
+                toStationName: 'Sterling Pl & Bedford Ave',
+              },
+            }),
+            segment('walking', 1),
+          ],
+          10,
+        ),
+      ],
+    })
+    const events: AskEvent[] = []
+    const result = (await tool('plan_trip').run(
+      { from: 'here', to: 'Home', kind: 'bikeshare' },
+      knownContext(events),
+    )) as any
+
+    expect(
+      (mockPlanTrip.mock.calls[0][0] as any).waypoints.map(
+        (w: any) => w.location,
+      ),
+    ).toEqual([here, { lat: home.lat, lng: home.lng }])
+    expect(result.trips).toHaveLength(1)
+    expect(result.trips[0].steps[1]).toMatchObject({
+      pick_up_at: 'Carroll St & Franklin Ave',
+      drop_off_at: 'Sterling Pl & Bedford Ave',
+      minutes: 6,
+    })
+    expect(events).toEqual([
+      { type: 'trip', from: here, to: home, kind: 'bikeshare' },
+    ])
+  })
+
+  test('an unknown name lists the ones it knows instead of guessing', async () => {
+    await expect(
+      tool('plan_trip').run({ to: 'work' }, knownContext([])),
+    ).rejects.toThrow('known: here, home')
+    expect(mockPlanTrip).not.toHaveBeenCalled()
+  })
 })

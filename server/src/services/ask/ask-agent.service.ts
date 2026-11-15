@@ -15,6 +15,7 @@ import {
 } from './ask-tools'
 import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
+import { HERE } from '../../lib/ask/known-places'
 
 /** Model round trips per question before the answer is forced. */
 export const MAX_STEPS = 6
@@ -31,17 +32,23 @@ export interface AskRequest {
 
 function systemPrompt(context: AskContext): string {
   const where = context.origin
-    ? `The user's map is centred on ${context.origin.lat.toFixed(5)}, ${context.origin.lng.toFixed(5)}.`
-    : 'The user has not shared a location; use locate when the question names a place.'
+    ? `The map is centred on ${context.origin.lat.toFixed(5)}, ${context.origin.lng.toFixed(5)}; searches look there unless given a point.`
+    : 'The map position is unknown; use locate when the question names a place.'
+  const named = [...context.places.keys()]
+  const known = named.length
+    ? `Known places, usable by name wherever a tool takes a point: ${named.join(', ')}.${context.places.has(HERE) ? ' "here" is where the user is now; use it for "from here", "near me" and trips that start now.' : ''}`
+    : 'The user\'s own location is unknown, so "here" means the map position.'
   return [
-    'You answer questions about places for Parchment, a maps app.',
+    'You answer questions about places and getting around for Parchment, a maps app.',
     `It is ${context.now.toISOString()}. ${where}`,
+    known,
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
-    'For getting somewhere, use transit_trips, travel_times, bikeshare_nearby and weather; put the times and lines that answer the question in your text, in the local times the tools give.',
-    `Finish by calling ${ANSWER_TOOL}. Its text is short, usually one sentence; for places, the app shows each place's distance, hours and address on a card, so never repeat them.`,
-    'If nothing fits, say what is missing and return no places.',
+    'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (bikeshare for Citi Bike and the like). Use transit_trips for timetables, travel_times to compare ways, and weather when it matters.',
+    `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
+    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, say the moves that matter (where to pick up and drop off a bike, which line, when to leave); the app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
+    'Never ask for something a known place already answers. If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }
 

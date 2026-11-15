@@ -17,7 +17,9 @@ import {
   cached,
   centre,
   clamp,
-  latLngSchema,
+  nearSchema,
+  pointSchema,
+  type PointArg,
   type AskContext,
   type AskTool,
 } from './ask-tool-base'
@@ -89,7 +91,7 @@ function splitPlaceId(id: string): { source: Source; externalId: string } | null
 }
 
 interface ListArgs {
-  near?: LatLng
+  near?: PointArg
   radius_m?: number
   open_now?: boolean
   limit?: number
@@ -101,7 +103,7 @@ const findPlaces: AskTool<ListArgs & { query: string }> = {
     'Search places by name or free text ("ramen", "Blue Bottle", "dog park"). Results are ranked by relevance and distance.',
   parameters: {
     type: 'object',
-    properties: { query: { type: 'string' }, near: latLngSchema, ...listOptions },
+    properties: { query: { type: 'string' }, near: nearSchema, ...listOptions },
     required: ['query'],
   },
   label: ({ query }) => `Searching for ${query}`,
@@ -139,7 +141,7 @@ const browseCategory: AskTool<ListArgs & { category_id: string; tags?: Record<st
     properties: {
       category_id: { type: 'string', description: 'From find_categories' },
       tags: { type: 'object', additionalProperties: { type: 'string' } },
-      near: latLngSchema,
+      near: nearSchema,
       ...listOptions,
     },
     required: ['category_id'],
@@ -252,7 +254,7 @@ const MODE_PHRASES: Record<IsochroneMode, string> = {
 }
 
 const placesWithinReach: AskTool<{
-  from?: LatLng
+  from?: PointArg
   mode: IsochroneMode
   minutes: number
   category_id?: string
@@ -267,7 +269,7 @@ const placesWithinReach: AskTool<{
   parameters: {
     type: 'object',
     properties: {
-      from: { ...latLngSchema, description: "Start point. Defaults to the user's map position." },
+      from: pointSchema("Start. Defaults to the map's centre."),
       mode: { type: 'string', enum: [...ISOCHRONE_MODES] },
       minutes: { type: 'number' },
       category_id: { type: 'string' },

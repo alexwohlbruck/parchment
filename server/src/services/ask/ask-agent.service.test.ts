@@ -65,6 +65,8 @@ function context(): AskContext & { events: AskEvent[] } {
     userId: 'u1',
     language: 'en-US',
     origin: { lat: 40.7, lng: -74 },
+    places: new Map(),
+    units: 'metric',
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
     emit: (event) => events.push(event),

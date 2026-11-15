@@ -75,7 +75,9 @@ async function callTool(
   const context: AskContext = {
     userId: caller.userId,
     language: caller.language,
-    origin: (args.near ?? args.from ?? args.at) as LatLng | undefined,
+    origin: [args.near, args.from, args.at].find((point): point is LatLng => typeof point === 'object' && point !== null),
+    places: new Map(),
+    units: 'metric',
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),

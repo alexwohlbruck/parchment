@@ -47,5 +47,6 @@ export {
   type MarkerImageSpec,
   type MarkerImageData,
   type MarkerImageHost,
+  type PlaceMark,
 } from './marker-image'
 export { edgeHint, intersectRect, type EdgeHint, type Point } from './edge-hint'

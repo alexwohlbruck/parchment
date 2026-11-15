@@ -3,7 +3,7 @@
 import type { RecentPlaceEntry } from '@/lib/recents'
 import { isSamePlace, type ExternalIds } from '@/lib/library/external-ids'
 import { placeIdExternalIds } from '@/lib/search/local-search'
-import { markerPaint, type MarkerImageSpec } from '@/lib/map-marker'
+import { markerPaint, type MarkerImageSpec, type PlaceMark } from '@/lib/map-marker'
 import type { MapIconPack } from '@/lib/map/map-icon-images'
 
 /** Synthetic layer-selector row; its state lives in the layer visibility overrides. */
@@ -72,13 +72,7 @@ export function recentPlaceMarkerSpec(
   }
 }
 
-/** How a place is drawn: the map image it wears and the colour of its name. */
-export interface RecentPlaceMark {
-  image: string
-  ink: string
-}
-
-export function buildRecentPlacesGeoJSON(places: DrawableRecentPlace[], marks: RecentPlaceMark[]) {
+export function buildRecentPlacesGeoJSON(places: DrawableRecentPlace[], marks: PlaceMark[]) {
   return {
     type: 'FeatureCollection' as const,
     features: places.map((place, index) => ({

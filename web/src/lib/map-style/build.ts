@@ -226,7 +226,7 @@ export function maplibreProjection(
 
 /** Self-hosted; see `scripts/build-glyphs.mjs` and `scripts/build-sprite.mjs`. */
 const GLYPHS_PATH = '/fonts/{fontstack}/{range}.pbf'
-const SPRITE_PATH = '/sprites/parchment'
+export const SPRITE_PATH = '/sprites/parchment'
 
 /**
  * OpenStreetMap for the data, MapTiler for the cartography: the layer spec is
@@ -327,12 +327,29 @@ function resolve(
   return value
 }
 
+export interface PoiBadgeColors {
+  plate: string
+  ink: string
+  ring: string
+  lift: string
+}
+
+/** The badge colours the basemap would give a POI tinted `color`. */
+export function poiBadgeTint(color: string, flavor: FlavorId): PoiBadgeColors {
+  return {
+    plate: tintOf(color, 'plate', flavor),
+    ink: tintOf(color, 'ink', flavor),
+    ring: tintOf(color, 'ring', flavor),
+    lift: tokenMap(flavor).poi_lift,
+  }
+}
+
 /** The badge colours a basemap POI of `category` wears; its lettering takes the ink. */
 export function poiBadgeColors(
   category: string,
   flavor: FlavorId,
   categoryColors?: Partial<Record<PlaceCategoryId, string>>,
-): { plate: string; ink: string; ring: string; lift: string } {
+): PoiBadgeColors {
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
   const id = tokens[`poi_plate_${category}`] ? category : 'default'

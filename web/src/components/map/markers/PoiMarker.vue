@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, shallowRef, watchEffect } from 'vue'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
 import * as LucideIcons from 'lucide-vue-next'
 import { MapPinIcon } from 'lucide-vue-next'
 import { categoryMarkerPaint } from '@/services/place/place-colors'
 import { MARKER_HALO, markerCss, type MarkerShape } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
+import { poiBadgeColors } from '@/lib/map-style/build'
+import { poiBadgeImage, type PoiBadgeImage } from '@/lib/map-style/badge-art'
 
 const {
   iconName,
@@ -29,6 +32,23 @@ const {
 }>()
 
 const themeStore = useThemeStore()
+const paletteStore = useCategoryPaletteStore()
+
+// Plated markers wear the basemap's own badge; a bare glyph has no badge form.
+const badge = shallowRef<PoiBadgeImage | null>(null)
+watchEffect(onCleanup => {
+  if (shape === 'glyph') return
+  let stale = false
+  onCleanup(() => (stale = true))
+  const isDark = themeStore.isDark
+  const colors = poiBadgeColors(category, isDark ? 'dark' : 'light', paletteStore.categoryColors(isDark))
+  void poiBadgeImage(
+    { pack: iconPack, name: iconName, plate: shape === 'square' ? 'tile' : 'disc' },
+    colors,
+  ).then(image => {
+    if (!stale) badge.value = image
+  })
+})
 
 const paint = computed(() =>
   categoryMarkerPaint(category, themeStore.isDark, shape),
@@ -53,11 +73,25 @@ const lucideIcon = computed(() => {
 
 <template>
   <div class="relative flex flex-col items-center">
-    <div
-      class="shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
+    <img
+      v-if="badge"
+      :src="badge.url"
+      :width="badge.width"
+      :height="badge.height"
+      alt=""
+      draggable="false"
+      class="block max-w-none transition-all duration-150 ease-out cursor-pointer select-none"
       :class="[
-        { 'scale-[1.3] shadow-lg': isHovered },
-        muted && 'opacity-50 saturate-[0.35] scale-90 shadow-none',
+        { 'scale-[1.3]': isHovered },
+        muted && 'opacity-50 saturate-[0.35] scale-90',
+      ]"
+    />
+    <div
+      v-else-if="shape === 'glyph'"
+      class="transition-all duration-150 ease-out cursor-pointer select-none"
+      :class="[
+        { 'scale-[1.3]': isHovered },
+        muted && 'opacity-50 saturate-[0.35] scale-90',
       ]"
       :style="css.plate"
     >
@@ -72,7 +106,7 @@ const lucideIcon = computed(() => {
     </div>
     <span
       v-if="label"
-      class="pointer-events-none absolute top-full mt-1 w-max font-sans max-w-[7em] text-center text-[13px] font-semibold leading-[1.05]"
+      class="pointer-events-none absolute top-[calc(50%+1.1em)] w-max font-sans max-w-[7em] text-center text-[13px] font-semibold leading-[1.05]"
       :class="{ 'opacity-50': muted }"
       :style="labelCss"
     >

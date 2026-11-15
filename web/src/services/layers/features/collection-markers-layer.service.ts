@@ -9,12 +9,17 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { themeColorToHex } from '@/lib/utils'
-import { ensureMarkerImages } from '@/lib/map-marker'
+import { ensureMarkerImage, markerImageId, type PlaceMark } from '@/lib/map-marker'
+import { ensurePoiBadge, spriteLoaded } from '@/lib/map-style/badge-art'
+import { poiBadgeTint } from '@/lib/map-style/build'
+import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
 import { getPlaceRouteFromExternalIds } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   buildCollectionMarkersGeoJSON,
-  collectionMarkerSpecs,
+  collectionMarkerColor,
+  collectionMarkerSpec,
+  drawableBookmarks,
 } from '@/lib/library/collection-markers'
 import { filterByPlaceTypes } from '@/lib/library/place-type-filter'
 import {
@@ -24,6 +29,7 @@ import {
   COLLECTION_MARKERS_LAYER_CONFIG,
   COLLECTION_LABELS_LAYER_CONFIG,
   collectionLabelPaint,
+  poiLabelLayout,
 } from '@/constants/layers'
 
 const LAYER_IDS = [COLLECTION_MARKERS_LAYER_ID, COLLECTION_LABELS_LAYER_ID]
@@ -49,6 +55,9 @@ export function useCollectionMarkersLayerService() {
   /** Held in a slot rather than captured: an engine switch replaces the strategy. */
   let activeStrategy: MapStrategy | null = null
   let bookmarksById = new Map<string, Bookmark>()
+  /** The basemap POI look this style's layers were built from. */
+  let look: BasemapPoiLook | null = null
+  let dataGeneration = 0
 
   const openBookmarks = computed<Bookmark[]>(() => {
     const store = useCollectionsStore()
@@ -58,29 +67,43 @@ export function useCollectionMarkersLayerService() {
       : []
   })
 
-  function updateData(mapStrategy: MapStrategy) {
-    const map = mapStrategy.mapInstance
-    const bookmarks = openBookmarks.value
+  /** Basemap badges where the style composites them, the app's own markers elsewhere. */
+  function markPlaces(map: any, bookmarks: Bookmark[]): Promise<PlaceMark[]> {
     const isDark = useThemeStore().isDark
+    return Promise.all(
+      bookmarks.map(async bookmark => {
+        const spec = collectionMarkerSpec(bookmark, themeColorToHex, isDark)
+        if (look?.badges) {
+          const colors = poiBadgeTint(collectionMarkerColor(bookmark, themeColorToHex), isDark ? 'dark' : 'light')
+          return { image: await ensurePoiBadge(map, spec, colors), ink: colors.ink }
+        }
+        await ensureMarkerImage(map, spec)
+        return { image: markerImageId(spec), ink: spec.paint.ink }
+      }),
+    )
+  }
+
+  async function updateData(mapStrategy: MapStrategy) {
+    const map = mapStrategy.mapInstance
+    const generation = ++dataGeneration
+    const bookmarks = drawableBookmarks(openBookmarks.value)
+    if (look?.badges && !spriteLoaded(map)) {
+      map.once('idle', () => {
+        if (generation === dataGeneration && activeStrategy === mapStrategy) void updateData(mapStrategy)
+      })
+      return
+    }
+    // Images are registered before the data names them; a badge is composited
+    // only when MapLibre first asks for it, and it asks once.
+    const marks = await markPlaces(map, bookmarks)
+    if (generation !== dataGeneration || activeStrategy !== mapStrategy) return
+
     bookmarksById = new Map(bookmarks.map(b => [b.id, b]))
-
     const source = map.getSource(COLLECTION_MARKERS_SOURCE_ID)
-    if (source) {
-      ;(source as any).setData(
-        buildCollectionMarkersGeoJSON(bookmarks, themeColorToHex, isDark),
-      )
-    }
-
-    const visible = bookmarks.length > 0
+    if (source) (source as any).setData(buildCollectionMarkersGeoJSON(bookmarks, marks))
     for (const layerId of LAYER_IDS) {
-      if (map.getLayer(layerId)) mapStrategy.toggleLayerVisibility(layerId, visible)
+      if (map.getLayer(layerId)) mapStrategy.toggleLayerVisibility(layerId, bookmarks.length > 0)
     }
-
-    if (!visible) return
-    void ensureMarkerImages(
-      map,
-      collectionMarkerSpecs(bookmarks, themeColorToHex, isDark),
-    ).then(() => map.triggerRepaint?.())
   }
 
   function registerInteraction(mapStrategy: MapStrategy) {
@@ -125,14 +148,15 @@ export function useCollectionMarkersLayerService() {
     }
 
     if (!map.getLayer(COLLECTION_MARKERS_LAYER_ID)) {
+      look = basemapPoiLook(map.getStyle()?.layers ?? [])
       mapStrategy.addLayer(toLayer(COLLECTION_MARKERS_LAYER_CONFIG))
     }
     if (!map.getLayer(COLLECTION_LABELS_LAYER_ID)) {
-      // Built per style load, since the halo follows the theme.
       const labels = toLayer(COLLECTION_LABELS_LAYER_CONFIG)
       labels.configuration = {
         ...labels.configuration,
-        paint: collectionLabelPaint(useThemeStore().isDark),
+        layout: poiLabelLayout(look),
+        paint: { ...collectionLabelPaint(useThemeStore().isDark), ...look?.paint },
       }
       mapStrategy.addLayer(labels)
     }
@@ -144,7 +168,7 @@ export function useCollectionMarkersLayerService() {
 
     activeStrategy = mapStrategy
     initializeReactivity()
-    updateData(mapStrategy)
+    void updateData(mapStrategy)
   }
 
   function initializeReactivity() {
@@ -154,7 +178,7 @@ export function useCollectionMarkersLayerService() {
     watch(
       () => [openBookmarks.value, useThemeStore().isDark],
       () => {
-        if (activeStrategy) updateData(activeStrategy)
+        if (activeStrategy) void updateData(activeStrategy)
       },
     )
   }

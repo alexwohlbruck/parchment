@@ -129,6 +129,12 @@ export async function glyphBitmap(
   }
 }
 
+/** How a place feature is drawn: the map image it wears and the colour of its name. */
+export interface PlaceMark {
+  image: string
+  ink: string
+}
+
 export interface MarkerImageData {
   width: number
   height: number

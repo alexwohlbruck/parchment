@@ -3383,7 +3383,7 @@
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback",
-        "languageModel": "Ask"
+        "languageModel": "Agents"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

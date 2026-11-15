@@ -3218,7 +3218,7 @@
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios",
-        "languageModel": "Preguntar"
+        "languageModel": "Agentes"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

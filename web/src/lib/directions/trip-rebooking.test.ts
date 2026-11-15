@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { applyDepartureChange, cascadeAfter, type RebookableSegment } from './trip-rebooking'
+import { applyDepartureChange, cascadeAfter, moveBoarding, rollupTrip, withLeg, type RebookableSegment } from './trip-rebooking'
 
 const T0 = new Date('2026-06-12T14:00:00Z').getTime()
 const min = (n: number) => T0 + n * 60_000
@@ -168,5 +168,45 @@ describe('cascadeAfter', () => {
     segs[1].endTime = new Date(min(26))
     expect(await cascadeAfter(segs, 1, vi.fn(async () => min(35)))).toBe(true)
     expect(ms(segs[3].startTime)).toBe(min(35))
+  })
+})
+
+describe('moveBoarding', () => {
+  it('pulls a ride earlier even past the planned wait, ending the walk at the boarding', () => {
+    const segs = makeTrip()
+    moveBoarding(segs, 1, min(4))
+    expect(ms(segs[1].startTime)).toBe(min(4))
+    expect(ms(segs[1].endTime)).toBe(min(17))
+    expect(ms(segs[0].endTime)).toBe(min(4))
+    expect(segs[0].duration).toBe(240)
+    expect(segs[0].waitSeconds).toBe(0)
+  })
+
+  it('pushes a ride later, the extra time spent waiting', () => {
+    const segs = makeTrip()
+    moveBoarding(segs, 1, min(12))
+    expect(ms(segs[1].endTime)).toBe(min(25))
+    expect(segs[0].waitSeconds).toBe(420)
+  })
+})
+
+describe('rollupTrip', () => {
+  it('takes the trip times from its segments', () => {
+    const trip = { segments: makeTrip(), startTime: new Date(0), endTime: new Date(0), summary: { totalDuration: 0 } }
+    rollupTrip(trip)
+    expect(ms(trip.startTime)).toBe(T0)
+    expect(ms(trip.endTime)).toBe(min(44))
+    expect(trip.summary.totalDuration).toBe(44 * 60)
+  })
+})
+
+describe('withLeg', () => {
+  it('swaps one leg and keeps the others in order', () => {
+    const a = { id: 'a', legIndex: 0 }
+    const b = { id: 'b', legIndex: 1 }
+    const c = { id: 'c', legIndex: 2 }
+    const fresh: { id: string; legIndex?: number } = { id: 'fresh' }
+    expect(withLeg([a, b, c], 1, [fresh]).map(s => s.id)).toEqual(['a', 'fresh', 'c'])
+    expect(fresh.legIndex).toBe(1)
   })
 })

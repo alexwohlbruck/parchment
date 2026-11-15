@@ -4,8 +4,11 @@
 
 ### Changed
 
+* During navigation, the time left now leads the bottom card, with your arrival time beside the distance.
+
 ### Fixed
 
+* If navigation thinks you missed your bus or train and then sees you riding it, your arrival time and later connections now follow the vehicle you're actually on.
 * Long-pressing the map during navigation no longer opens the map menu over your route.
 
 ## [0.21.5] - 2026-11-13

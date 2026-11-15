@@ -15,4 +15,15 @@ describe('createSearchResultsRoute', () => {
       query: { categoryId: 'group/restrooms', categoryName: 'Restrooms' },
     })
   })
+
+  it('starts the results with the given filters applied', () => {
+    expect(createSearchResultsRoute({
+      categoryId: 'amenity/cafe',
+      filters: { openNow: '1', 'tag:outdoor_seating': 'yes' },
+    }).query).toEqual({
+      categoryId: 'amenity/cafe',
+      'f.openNow': '1',
+      'f.tag:outdoor_seating': 'yes',
+    })
+  })
 })

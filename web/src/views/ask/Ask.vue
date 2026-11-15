@@ -106,9 +106,16 @@ useAreaLayer(
 
 watch(citedPlaces, places => {
   searchStore.setSearchResults(places)
-  const bounds = boundsOfPoints(
-    places.flatMap(place => place.geometry?.value?.center ?? []),
-  )
+  const reach = askStore.current?.reach
+  const reachCorners = reach
+    ? (reach.type === 'Polygon' ? [reach.coordinates] : reach.coordinates)
+        .flatMap(polygon => polygon[0])
+        .map(([lng, lat]) => ({ lat, lng }))
+    : []
+  const bounds = boundsOfPoints([
+    ...places.flatMap(place => place.geometry?.value?.center ?? []),
+    ...reachCorners,
+  ])
   if (bounds) mapService.fitBounds(bounds, { maxZoom: 16 })
 })
 

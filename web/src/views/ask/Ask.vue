@@ -11,6 +11,12 @@ import { useMapService } from '@/services/map/map.service'
 import { usePlaceService } from '@/services/place/place.service'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
+import { useAreaLayer } from '@/composables/map/useAreaLayer'
+import {
+  ASK_REACH_FILL_LAYER_ID,
+  ASK_REACH_LINE_LAYER_ID,
+  ASK_REACH_SOURCE_ID,
+} from '@/constants/layers'
 import AskExchange from '@/components/ask/AskExchange.vue'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -67,6 +73,19 @@ function onMarkerClick(event: Event) {
 
 const citedPlaces = computed(() =>
   askStore.current?.places.map(({ place }) => place) ?? [],
+)
+
+const REACH_OPACITY = 0.12
+
+useAreaLayer(
+  { source: ASK_REACH_SOURCE_ID, fill: ASK_REACH_FILL_LAYER_ID, line: ASK_REACH_LINE_LAYER_ID },
+  () => !!askStore.current?.reach,
+  () => ({
+    type: 'FeatureCollection',
+    features: askStore.current?.reach
+      ? [{ type: 'Feature', properties: { opacity: REACH_OPACITY }, geometry: askStore.current.reach }]
+      : [],
+  }),
 )
 
 watch(citedPlaces, places => {

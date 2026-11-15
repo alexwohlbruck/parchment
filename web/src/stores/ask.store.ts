@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { AskAccess, AskCitation, AskEvent, AskTurn } from '@/types/ask.types'
+import type { IsochroneGeometry } from '@server/types/isochrone.types'
 
 export interface AskStep {
   id: string
@@ -13,6 +14,8 @@ export interface AskExchange {
   steps: AskStep[]
   text: string
   places: AskCitation[]
+  /** The travel-time area a question like "within a 10 min walk" searched. */
+  reach?: IsochroneGeometry
   status: 'running' | 'done' | 'error'
   error?: string
 }
@@ -70,6 +73,9 @@ export const useAskStore = defineStore('ask', () => {
               : [...exchange.steps, step],
           }
         })
+        break
+      case 'reach':
+        updateCurrent(exchange => ({ ...exchange, reach: event.geometry }))
         break
       case 'answer':
         updateCurrent(exchange => ({ ...exchange, text: event.text, places: event.places }))

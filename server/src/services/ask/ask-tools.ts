@@ -17,6 +17,14 @@ import type { ChatTool } from '../../types/language-model.types'
 import type { AskEvent, LatLng } from '../../types/ask.types'
 
 
+/** A failure worth showing the model or an MCP client; anything else is reported generically. */
+export class AskToolError extends Error {}
+
+/** What a caller may see of a tool failure, without upstream hosts or stack details. */
+export function toolErrorMessage(error: unknown): string {
+  return error instanceof AskToolError ? error.message : 'This search failed. Try another approach.'
+}
+
 export interface AskContext {
   userId: string
   language: Language
@@ -46,7 +54,7 @@ const latLngSchema = {
   type: 'object',
   properties: { lat: { type: 'number' }, lng: { type: 'number' } },
   required: ['lat', 'lng'],
-  description: "Centre of the search. Defaults to the user's map position.",
+  description: "Centre of the search. Defaults to the user's map position when one is known.",
 }
 
 const listOptions = {
@@ -94,7 +102,7 @@ function placesByCategory(
 
 function centre(near: LatLng | undefined, context: AskContext): LatLng {
   const target = near ?? context.origin
-  if (!target) throw new Error('No location: call locate first, or ask the user where')
+  if (!target) throw new AskToolError('No location: call locate first, or ask the user where')
   return target
 }
 
@@ -214,7 +222,7 @@ const getPlace: AskTool<{ id: string }> = {
   label: () => 'Checking details',
   async run({ id }, context) {
     const parts = splitPlaceId(id)
-    if (!parts) throw new Error(`Unknown place id ${id}`)
+    if (!parts) throw new AskToolError(`Unknown place id ${id}`)
     const place = await cached(
       'get_place',
       { id },
@@ -225,7 +233,7 @@ const getPlace: AskTool<{ id: string }> = {
           language: context.language,
         }),
     )
-    if (!place) throw new Error(`No place found for ${id}`)
+    if (!place) throw new AskToolError(`No place found for ${id}`)
     context.seen.set(id, { ...place, id })
     return describePlace({ ...place, id }, { now: context.now, origin: context.origin })
   },
@@ -278,10 +286,10 @@ async function loadReachPolygon(
     { lat: from.lat, lng: from.lng, mode, durations: seconds },
     { timeoutMs: 60_000 },
   )
-  if (!response.ok) throw new Error(`Could not compute reach (${response.status})`)
+  if (!response.ok) throw new AskToolError(`Could not compute reach (${response.status})`)
   const collection = (await response.json()) as FeatureCollection<Polygon | MultiPolygon>
   const feature = collection.features?.[0]
-  if (!feature) throw new Error('No reachable area')
+  if (!feature) throw new AskToolError('No reachable area')
   return feature
 }
 
@@ -314,7 +322,7 @@ const placesWithinReach: AskTool<{
   },
   label: ({ minutes, mode }) => `Finding what's within ${minutes} min by ${mode}`,
   async run(args, context) {
-    if (!args.category_id && !args.query) throw new Error('Give category_id or query')
+    if (!args.category_id && !args.query) throw new AskToolError('Give category_id or query')
     const origin = centre(args.from, context)
     const reach = await reachPolygon(origin, args.mode, args.minutes, context)
     context.emit({ type: 'reach', geometry: reach.geometry as IsochroneGeometry })

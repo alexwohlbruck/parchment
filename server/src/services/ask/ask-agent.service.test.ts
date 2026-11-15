@@ -149,7 +149,9 @@ describe('runAsk', () => {
     await runAsk(model, { question: 'x?' }, ctx)
 
     expect(ctx.events.some((e) => e.type === 'step' && e.status === 'failed')).toBe(true)
-    expect(requests[1].messages.at(-1)).toMatchObject({ content: expect.stringContaining('upstream down') })
+    const reported = requests[1].messages.at(-1)
+    expect(reported).toMatchObject({ role: 'tool', content: expect.stringContaining('search failed') })
+    expect(JSON.stringify(reported)).not.toContain('upstream down')
     expect(ctx.events.at(-1)).toMatchObject({ type: 'answer', places: [] })
   })
 })

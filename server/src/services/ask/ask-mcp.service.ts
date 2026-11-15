@@ -1,6 +1,6 @@
 import { version } from '../../../package.json'
 import { logError } from '../../lib/logger'
-import { askTools, type AskContext } from './ask-tools'
+import { askTools, toolErrorMessage, type AskContext } from './ask-tools'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { LatLng } from '../../types/ask.types'
 import type { Place } from '../../types/place.types'
@@ -87,7 +87,7 @@ async function callTool(
     return { content: [{ type: 'text', text: JSON.stringify(result) }] }
   } catch (error) {
     logError(`MCP tool ${tool.name} failed`, error)
-    return { content: [{ type: 'text', text: (error as Error).message }], isError: true }
+    return { content: [{ type: 'text', text: toolErrorMessage(error) }], isError: true }
   }
 }
 

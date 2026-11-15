@@ -9,6 +9,7 @@ import {
   answerTool,
   askTools,
   toChatTools,
+  toolErrorMessage,
   type AskContext,
   type AskTool,
 } from './ask-tools'
@@ -77,7 +78,7 @@ async function runTool(
     return toolMessage(call, result)
   } catch (error) {
     context.emit({ type: 'step', ...step, status: 'failed' })
-    return toolMessage(call, { error: (error as Error).message })
+    return toolMessage(call, { error: toolErrorMessage(error) })
   }
 }
 

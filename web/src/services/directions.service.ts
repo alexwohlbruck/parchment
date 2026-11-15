@@ -218,7 +218,6 @@ function directionsService() {
     validWaypoints: Waypoint[],
     request: ReturnType<typeof buildTripRequest>,
   ): Promise<TripsResponse> {
-    const placeIds = validWaypoints.map(wp => shareableWaypointId(wp.place))
     const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
     return {
       request: {
@@ -241,7 +240,7 @@ function directionsService() {
         includeWalking: true,
         preferences: { optimize: 'time', alternatives: true },
       },
-      trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, placeIds))),
+      trips: await withCuratedTripColors(data.trips.map((c: any, i: number) => mapCandidate(c, i, validWaypoints.map(wp => wp.place)))),
       earliestStart:
         data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
       latestEnd:

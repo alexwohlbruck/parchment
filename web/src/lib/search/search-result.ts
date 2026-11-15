@@ -78,18 +78,18 @@ export function getSearchResultCategory(place: Place): PlaceCategory {
  */
 export function getSearchResultName(place: Place): string {
   // Handle bookmarks - always use bookmark name over place name
-  if (place.placeType.value === 'bookmark' && place.bookmark) {
+  if (place.placeType?.value === 'bookmark' && place.bookmark) {
     return place.bookmark.name
   }
 
   // Handle current location
   if (place.id === 'current-location') {
-    return place.name.value || 'Current location'
+    return place.name?.value || 'Current location'
   }
 
   // If place has a name, use it
-  if (place.name.value) {
-    return place.name.value
+  if (place.name?.value) {
+    return place.name?.value
   }
 
   // For unnamed places, prefer the type label (e.g. "Drinking Water") over

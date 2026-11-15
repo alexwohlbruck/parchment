@@ -39,4 +39,4 @@ export type AskAccess =
   /** `quota` is null when the system key has no monthly limit. */
   | { allowed: true; keySource: 'system'; quota: AskQuota | null }
   | { allowed: false; reason: 'not-configured' | 'not-permitted' }
-  | { allowed: false; reason: 'quota-exceeded'; resetsAt: string }
+  | { allowed: false; reason: 'quota-exceeded'; limit: number; resetsAt: string }

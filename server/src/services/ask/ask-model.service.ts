@@ -57,7 +57,7 @@ export async function resolveAskAccess(
   const limit = monthlyQuestionAllowance(process.env.ASK_MONTHLY_QUESTIONS)
   const quota = limit ? askQuota(await questionsAsked(userId, 'system', now), limit, now) : null
   if (quota && !quota.remaining) {
-    return { allowed: false, reason: 'quota-exceeded', resetsAt: quota.resetsAt }
+    return { allowed: false, reason: 'quota-exceeded', limit, resetsAt: quota.resetsAt }
   }
   return { allowed: true, model: system, keySource: 'system', quota }
 }

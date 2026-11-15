@@ -65,6 +65,7 @@ describe('resolveAskAccess', () => {
     expect(await resolveAskAccess('u1', NOV)).toEqual({
       allowed: false,
       reason: 'quota-exceeded',
+      limit: 5,
       resetsAt: '2026-12-01T00:00:00.000Z',
     })
 

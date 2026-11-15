@@ -5,6 +5,7 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useLocationService } from '@/services/location.service'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { haversineMeters } from '@/lib/geo/geo-line'
 import {
   buildRelationshipId,
   encryptLocationForFriendV2,
@@ -39,23 +40,6 @@ const MIN_BROADCAST_INTERVAL_MS = 2_000
 const MIN_DISTANCE_M = 3
 const STATIONARY_REFRESH_MS = 5 * 60_000
 const HEARTBEAT_MS = 60_000
-
-/**
- * Equirectangular distance in meters between two lat/lng pairs. Accurate
- * enough at the 10 m threshold we care about and avoids the cost of a
- * full haversine. We never compare points more than a kilometer apart in
- * this code path.
- */
-function distanceMeters(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6_371_000
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const x = (toRad(b.lng) - toRad(a.lng)) * Math.cos(toRad((a.lat + b.lat) / 2))
-  const y = toRad(b.lat) - toRad(a.lat)
-  return Math.sqrt(x * x + y * y) * R
-}
 
 /**
  * Composable for broadcasting encrypted location to friends. SHARED via
@@ -142,7 +126,8 @@ function e2eeLocationBroadcastComposable() {
     if (elapsed < MIN_BROADCAST_INTERVAL_MS) return false
 
     if (elapsed >= STATIONARY_REFRESH_MS) return true
-    return distanceMeters(lastBroadcastPosition, coords) >= MIN_DISTANCE_M
+    const { lat, lng } = lastBroadcastPosition
+    return haversineMeters(lat, lng, coords.lat, coords.lng) >= MIN_DISTANCE_M
   }
 
   /**

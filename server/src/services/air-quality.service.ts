@@ -12,6 +12,7 @@
  * OpenAQ v3 API: https://docs.openaq.org/ — auth via `X-API-Key` header.
  */
 
+import { distance } from '@turf/turf'
 import { computeAirQuality, type AqiComponents } from '../lib/aqi'
 import { logWarn } from '../lib/logger'
 import { IntegrationId, type AirQuality } from '../types/integration.types'
@@ -125,24 +126,6 @@ export function assembleStation(
     airQuality: computeAirQuality(components, countryCode(loc)),
     updatedAt,
   }
-}
-
-function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2?: number,
-  lng2?: number,
-): number | null {
-  if (lat2 == null || lng2 == null) return null
-  const R = 6371
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 // ---------------------------------------------------------------------------
@@ -335,10 +318,15 @@ export async function getNearestStationAirQuality(
   )
   const locations: OpenAqLocation[] = data?.results ?? []
   const ranked = locations
-    .map((loc) => ({
-      loc,
-      d: haversineKm(lat, lng, loc.coordinates?.latitude, loc.coordinates?.longitude),
-    }))
+    .map((loc) => {
+      const c = loc.coordinates
+      return {
+        loc,
+        d: c?.latitude == null || c?.longitude == null
+          ? null
+          : distance([lng, lat], [c.longitude, c.latitude], { units: 'kilometers' }),
+      }
+    })
     .filter((x): x is { loc: OpenAqLocation; d: number } => x.d != null)
     .sort((a, b) => a.d - b.d)
     .slice(0, AGGREGATE_STATIONS)

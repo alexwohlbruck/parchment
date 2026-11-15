@@ -25,7 +25,7 @@ import { IntegrationId } from '../types/integration.enums'
 import type { OverpassIntegration } from '../services/integrations/overpass-integration'
 import { getOsmConfig } from '../config/osm.config'
 import { logError } from '../lib/logger'
-import { haversineMeters } from '../util/geometry-conversion'
+import { metersBetween } from '../util/geometry-conversion'
 
 const OSM_ELEMENT_TYPE = t.Union([
   t.Literal('node'),
@@ -230,7 +230,7 @@ publicApi.get(
             lat: center.lat,
             lng: center.lng,
             distanceM: Math.round(
-              haversineMeters(query.lat, query.lng, center.lat, center.lng),
+              metersBetween(query, center),
             ),
           }]
         }),

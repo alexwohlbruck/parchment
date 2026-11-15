@@ -10,8 +10,8 @@ import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
+import { haversineMeters } from '@/lib/geo/geo-line'
 import {
-  distanceMeters,
   circleCircumferenceMeters,
   circleAreaSquareMeters,
 } from '@/lib/measure/measure'
@@ -239,12 +239,12 @@ function syncRadiusMarkers() {
           isDraggingEdge.value = true
           setRadiusEdgePoint(newLngLat)
           const c = radiusCenter.value
-          if (c) setRadiusMeters(distanceMeters(c, newLngLat))
+          if (c) setRadiusMeters(haversineMeters(c.lat, c.lng, newLngLat.lat, newLngLat.lng))
         },
         onDragEnd: (newLngLat: LngLat) => {
           setRadiusEdgePoint(newLngLat)
           const c = radiusCenter.value
-          if (c) setRadiusMeters(distanceMeters(c, newLngLat))
+          if (c) setRadiusMeters(haversineMeters(c.lat, c.lng, newLngLat.lat, newLngLat.lng))
           isDraggingEdge.value = false
           // Don't sync here: watch will run on store change and sync once (avoids duplicate center)
         },
@@ -265,7 +265,7 @@ function handleMapClick(data: { lngLat: LngLat }) {
     return
   }
   if (radiusConfirmed.value) return
-  const meters = distanceMeters(center, data.lngLat)
+  const meters = haversineMeters(center.lat, center.lng, data.lngLat.lat, data.lngLat.lng)
   setRadiusEdgePoint(data.lngLat)
   setRadiusMeters(meters)
   confirmRadius()
@@ -290,7 +290,7 @@ function setupMouseMove() {
   mouseMoveHandler = (e: { lngLat: LngLat }) => {
     const center = radiusCenter.value
     if (!center || radiusConfirmed.value) return
-    const meters = distanceMeters(center, e.lngLat)
+    const meters = haversineMeters(center.lat, center.lng, e.lngLat.lat, e.lngLat.lng)
     setRadiusMeters(meters)
   }
   ;(map as { on: (ev: string, fn: (e: { lngLat: LngLat }) => void) => void }).on(

@@ -158,10 +158,6 @@ export function annotationMarkerSpec(
  */
 const DOODLE_TOLERANCE = 0.00002
 
-export function metersBetween(a: Position, b: Position): number {
-  return turf.distance(turf.point(a), turf.point(b), { units: 'meters' })
-}
-
 /** Web Mercator metres, where a rectangle's corners can be found with vectors. */
 const merc = (position: Position) =>
   turf.toMercator(position as [number, number]) as Position
@@ -259,7 +255,7 @@ export function constrainPosition(
     const from = positions[0]
     const bearing = turf.bearing(turf.point(from), turf.point(cursor))
     const snapped = Math.round(bearing / SNAP_DEGREES) * SNAP_DEGREES
-    const distance = metersBetween(from, cursor)
+    const distance = turf.distance(from, cursor, { units: 'meters' })
     return turf.destination(turf.point(from), distance, snapped, {
       units: 'meters',
     }).geometry.coordinates
@@ -278,7 +274,7 @@ export function constrainPosition(
 
   if (tool === 'circle' && positions.length === 1) {
     const centre = positions[0]
-    const radius = niceRadius(metersBetween(centre, cursor))
+    const radius = niceRadius(turf.distance(centre, cursor, { units: 'meters' }))
     const bearing = turf.bearing(turf.point(centre), turf.point(cursor))
     return turf.destination(turf.point(centre), radius, bearing, {
       units: 'meters',
@@ -290,7 +286,7 @@ export function constrainPosition(
     if (!from) return cursor
     const bearing = turf.bearing(turf.point(from), turf.point(cursor))
     const snapped = Math.round(bearing / SNAP_DEGREES) * SNAP_DEGREES
-    const distance = metersBetween(from, cursor)
+    const distance = turf.distance(from, cursor, { units: 'meters' })
     return turf.destination(turf.point(from), distance, snapped, {
       units: 'meters',
     }).geometry.coordinates
@@ -415,7 +411,7 @@ export function annotationFeature(
 
     case 'circle': {
       const radius =
-        annotation.radiusMeters ?? metersBetween(positions[0], positions[1])
+        annotation.radiusMeters ?? turf.distance(positions[0], positions[1], { units: 'meters' })
       if (!radius) return null
       const circle = turf.circle(positions[0], radius, {
         steps: CIRCLE_STEPS,
@@ -519,7 +515,7 @@ export function createAnnotation(
   // A circle's radius is fixed when it's drawn: keeping it as a distance
   // means the shape survives its centre being moved later.
   if (tool === 'circle' && positions.length >= 2) {
-    annotation.radiusMeters = metersBetween(positions[0], positions[1])
+    annotation.radiusMeters = turf.distance(positions[0], positions[1], { units: 'meters' })
     annotation.positions = [positions[0]]
   }
   return annotation
@@ -614,7 +610,7 @@ export function moveNode(
   to: Position,
 ): Partial<CanvasAnnotation> {
   if (node.kind === 'radius') {
-    return { radiusMeters: metersBetween(annotation.positions[0], to) }
+    return { radiusMeters: turf.distance(annotation.positions[0], to, { units: 'meters' }) }
   }
   return {
     positions: annotation.positions.map((position, index) =>

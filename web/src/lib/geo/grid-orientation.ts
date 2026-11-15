@@ -1,3 +1,4 @@
+import { distance } from '@turf/turf'
 import { GRIDDED_CITIES, type GriddedCity } from '@/lib/geo/gridded-cities'
 import { GridSnapMode } from '@/types/map.types'
 
@@ -7,25 +8,6 @@ import { GridSnapMode } from '@/types/map.types'
  * so grid snapping feels identical to the native north snap.
  */
 export const GRID_SNAP_THRESHOLD_DEG = 7
-
-const EARTH_RADIUS_KM = 6371
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180
-}
-
-/** Great-circle distance between two lng/lat points, in kilometers. */
-function distanceKm(
-  a: { lng: number; lat: number },
-  b: { lng: number; lat: number },
-): number {
-  const dLat = toRad(b.lat - a.lat)
-  const dLng = toRad(b.lng - a.lng)
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h))
-}
 
 /** Normalize an angle to the [0, 360) range. */
 function normalizeBearing(deg: number): number {
@@ -49,7 +31,7 @@ export function findGriddedCity(center: {
   let best: GriddedCity | null = null
   let bestDist = Infinity
   for (const city of GRIDDED_CITIES) {
-    const d = distanceKm(center, city.center)
+    const d = distance([center.lng, center.lat], [city.center.lng, city.center.lat], { units: 'kilometers' })
     if (d <= city.radiusKm && d < bestDist) {
       best = city
       bestDist = d

@@ -9,6 +9,7 @@ import type {
   RouteHazardKind,
   RouteInstruction,
 } from '../types/unified-routing.types'
+import { metersBetween } from '../util/geometry-conversion'
 
 export interface HazardSegment {
   mode: string
@@ -37,15 +38,6 @@ const CURVE_PROBE_METERS = 15
 const CURVE_SAMPLE_METERS = 10
 const MANEUVER_CLEARANCE_METERS = 30
 
-const R = 6371000
-function haversine(a: Coordinate, b: Coordinate): number {
-  const toRad = Math.PI / 180
-  const dLat = (b.lat - a.lat) * toRad
-  const dLng = (b.lng - a.lng) * toRad
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toRad) * Math.cos(b.lat * toRad) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(s))
-}
-
 function bearing(a: Coordinate, b: Coordinate): number {
   const toRad = Math.PI / 180
   const y = Math.sin((b.lng - a.lng) * toRad) * Math.cos(b.lat * toRad)
@@ -68,7 +60,7 @@ function search(values: number[], target: number, lo: number, hi: number, after 
 /** A polyline with lookups by distance along it. */
 function measure(geometry: Coordinate[]) {
   const cumulative = [0]
-  for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + haversine(geometry[i - 1], geometry[i]))
+  for (let i = 1; i < geometry.length; i++) cumulative.push(cumulative[i - 1] + metersBetween(geometry[i - 1], geometry[i]))
   const length = cumulative[cumulative.length - 1] ?? 0
   /** End index of the span holding distance d. */
   const spanAt = (d: number) => search(cumulative, d, 1, Math.max(1, cumulative.length - 1))
@@ -262,7 +254,7 @@ function nearestSample(samples: Coordinate[], point: Coordinate): number {
   let best = 0
   let bestGap = Infinity
   const consider = (k: number) => {
-    const gap = haversine(samples[k], point)
+    const gap = metersBetween(samples[k], point)
     if (gap < bestGap || (gap === bestGap && k < best)) {
       bestGap = gap
       best = k

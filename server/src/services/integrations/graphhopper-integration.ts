@@ -32,6 +32,7 @@ import type {
 } from '../../types/graphhopper.types'
 import { logError, logWarn, logger } from '../../lib/logger'
 import { graphHopperSigns } from '../../lib/graphhopper-signs'
+import { metersBetween } from '../../util/geometry-conversion'
 
 /**
  * GraphHopper integration for routing
@@ -829,39 +830,17 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
   }
 
   /**
-   * Build cumulative distance array from geometry coordinates (Haversine)
+   * Build cumulative distance array from geometry coordinates
    */
   private buildCumulativeDistances(geometry: Coordinate[]): number[] {
     const distances: number[] = [0]
     for (let i = 1; i < geometry.length; i++) {
       const prev = geometry[i - 1]
       const curr = geometry[i]
-      const d = this.haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng)
+      const d = metersBetween(prev, curr)
       distances.push(distances[i - 1] + d)
     }
     return distances
-  }
-
-  /**
-   * Haversine distance in meters between two coordinates
-   * TODO: Extract to a shared utility (e.g. server/src/lib/geo-utils.ts) —
-   * this duplicates logic that may also be needed by other integrations.
-   */
-  private haversineDistance(
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number,
-  ): number {
-    const R = 6371000 // Earth radius in meters
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   }
 
   /**

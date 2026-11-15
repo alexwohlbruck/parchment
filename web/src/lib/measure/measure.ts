@@ -1,6 +1,7 @@
 import * as turf from '@turf/turf'
 import convert from 'convert'
 import type { LngLat } from '@/types/map.types'
+import { haversineMeters } from '@/lib/geo/geo-line'
 
 export type UnitSystem = 'metric' | 'imperial'
 
@@ -151,21 +152,12 @@ export function formatMeasureAreaInUnit(
   }
 }
 
-/** Distance between two points in meters */
-export function distanceMeters(a: LngLat, b: LngLat): number {
-  return turf.distance(
-    [a.lng, a.lat],
-    [b.lng, b.lat],
-    { units: 'meters' },
-  )
-}
-
 /** Total path distance in meters */
 export function pathLengthMeters(points: LngLat[]): number {
   if (points.length < 2) return 0
   let sum = 0
   for (let i = 0; i < points.length - 1; i++) {
-    sum += distanceMeters(points[i], points[i + 1])
+    sum += haversineMeters(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng)
   }
   return sum
 }
@@ -174,7 +166,7 @@ export function pathLengthMeters(points: LngLat[]): number {
 export function segmentDistancesMeters(points: LngLat[]): number[] {
   const out: number[] = []
   for (let i = 0; i < points.length - 1; i++) {
-    out.push(distanceMeters(points[i], points[i + 1]))
+    out.push(haversineMeters(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng))
   }
   return out
 }

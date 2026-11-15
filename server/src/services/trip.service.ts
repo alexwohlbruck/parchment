@@ -48,7 +48,7 @@ import {
 } from '../lib/transit/entrance-choice'
 import { chosenEntrance, entranceRef, entranceWaypointLabel } from '../lib/transit/entrance-ref'
 import type { StationEntrance } from '../types/integration.types'
-import { haversineMeters } from '../util/geometry-conversion'
+import { metersBetween } from '../util/geometry-conversion'
 import { MemoCache } from '../lib/memo-cache'
 import { dropDominatedTransitTrips } from '../lib/directions/dominated-trips'
 import { activeExclusions, dropExcludedTrips } from '../lib/directions/excluded-modes'
@@ -60,8 +60,6 @@ import {
   type CoveredBoard,
 } from '../lib/directions/departure-profile'
 import { expectedMissPenaltySec } from '../lib/directions/connection-risk'
-
-const metersBetween = (a: Coordinate, b: Coordinate) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
 /** A leg that carries an already-chosen journey on to the next stop. */
 interface Continuation {

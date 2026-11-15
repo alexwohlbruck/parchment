@@ -2359,8 +2359,6 @@ describe('TripService — validateRequest', () => {
   })
 })
 
-// ── Haversine distance ──────────────────────────────────────────────────────
-
 // ── getTripMode ─────────────────────────────────────────────────────────────
 
 describe('TripService — getTripMode', () => {

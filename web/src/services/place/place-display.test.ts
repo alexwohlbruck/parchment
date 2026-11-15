@@ -181,6 +181,15 @@ describe('recentPlaceToDisplay', () => {
 })
 
 describe('recentSearchRoute', () => {
+  it('reopens an Ask question as its conversation, asking again if it has gone', () => {
+    expect(recentSearchRoute({ query: 'bagels with wifi', kind: 'ask', threadId: 't1', at: 1 })).toMatchObject({
+      query: { q: 'bagels with wifi', thread: 't1' },
+    })
+    expect(recentSearchRoute({ query: 'bagels with wifi', kind: 'ask', at: 1 })).toMatchObject({
+      query: { q: 'bagels with wifi' },
+    })
+  })
+
   it('re-runs a category as a category browse, not a text search', () => {
     const route = recentSearchRoute({
       query: 'Coffee',

@@ -232,6 +232,9 @@ export function recentSearchRoute(entry: RecentSearchEntry): RouteLocationRaw {
       },
     }
   }
+  if (entry.kind === 'ask') {
+    return { name: AppRoute.ASK, query: { q: entry.query, ...(entry.threadId ? { thread: entry.threadId } : {}) } }
+  }
   return { name: AppRoute.SEARCH_RESULTS, query: { q: entry.query } }
 }
 

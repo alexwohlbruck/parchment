@@ -1,5 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { ASK_OPTION, BROWSE_OPTION_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { recentSearchRoute } from '@/services/place/place-display'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
@@ -269,6 +270,12 @@ export const useCommandStore = defineStore('command', () => {
               name: AppRoute.SEARCH_RESULTS,
               query: { q },
             })
+            return
+          }
+
+          if (itemId.startsWith(RECENT_ASK_PREFIX)) {
+            const { q, thread } = JSON.parse(decodeURIComponent(itemId.slice(RECENT_ASK_PREFIX.length)))
+            router.push(recentSearchRoute({ kind: 'ask', query: q, threadId: thread, at: 0 }))
             return
           }
 

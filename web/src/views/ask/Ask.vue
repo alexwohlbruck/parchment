@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { MessageCircleQuestionIcon, PowerOffIcon } from 'lucide-vue-next'
@@ -90,6 +90,7 @@ const loadingAccess = ref(!askStore.access)
 const access = computed(() => askStore.access)
 
 async function start(question: string | undefined) {
+  if (props.thread) return
   const text = question?.trim()
   if (!text || text === askStore.current?.question) return
   const result = await askService
@@ -109,8 +110,14 @@ async function openThread(id: string | undefined) {
   askService.cancel()
   await Promise.all([askHistory.load(), loadAccess()])
   const thread = askHistory.find(id)
-  if (thread) askStore.restore(thread)
-  else router.replace({ name: AppRoute.ASK })
+  if (thread) {
+    askStore.restore(thread)
+    return
+  }
+  const question = props.question
+  await router.replace({ name: AppRoute.ASK, query: question ? { q: question } : {} })
+  await nextTick()
+  start(question)
 }
 
 async function showThreads() {

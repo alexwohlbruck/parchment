@@ -1,5 +1,6 @@
 import { useAskStore } from '@/stores/ask.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useRecentsStore } from '@/stores/recents.store'
 import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { askThreads, isThreadExpired, savedThread } from '@/lib/ask/ask-threads'
 import type { AskThread } from '@/types/ask.types'
@@ -9,6 +10,7 @@ export function useAskHistoryService() {
   const askStore = useAskStore()
   const authStore = useAuthStore()
   const askPreferences = useAskPreferencesStore()
+  const recentsStore = useRecentsStore()
 
   const userId = () => authStore.me?.id ?? null
 
@@ -38,6 +40,7 @@ export function useAskHistoryService() {
     )
     if (!thread) return
     askThreads.record(thread, id)
+    if (thread.exchanges.length === 1) recentsStore.recordAskSearch(thread.title, thread.id)
     publish(id)
   }
 
@@ -49,6 +52,7 @@ export function useAskHistoryService() {
     const id = userId()
     if (!id) return
     askThreads.retain(thread => thread.id !== threadId, id)
+    recentsStore.forgetAskSearches(threadId)
     publish(id)
   }
 
@@ -56,6 +60,7 @@ export function useAskHistoryService() {
     const id = userId()
     if (!id) return
     await askThreads.clear(id)
+    recentsStore.forgetAskSearches()
     askStore.threads = []
   }
 

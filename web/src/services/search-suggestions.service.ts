@@ -27,6 +27,7 @@ import { isAskOffered } from '@/lib/ask/ask-access'
 import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 
 export const ASK_OPTION = 'ask'
+export const RECENT_ASK_PREFIX = 'recent-ask:'
 export const BROWSE_OPTION_PREFIX = 'browse:'
 
 export async function buildSearchSuggestions(
@@ -87,6 +88,19 @@ export async function buildSearchSuggestions(
           iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
           iconColor: getCategoryColor('default', isDark.value),
           imageUrl: e.brandLogoUrl,
+          group: 'recents',
+        },
+      }
+    }
+    if (e.kind === 'ask') {
+      return {
+        at: e.at,
+        identity: recentSearchIdentity(e),
+        option: {
+          value: `${RECENT_ASK_PREFIX}${encodeURIComponent(JSON.stringify({ q: e.query, thread: e.threadId }))}`,
+          name: e.query,
+          iconName: 'MessageCircleQuestion',
+          iconColor: getCategoryColor('default', isDark.value),
           group: 'recents',
         },
       }

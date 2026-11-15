@@ -189,6 +189,10 @@
       "unavailable": "Los comentarios no están disponibles en este servidor",
       "fetchFailed": "No se pudieron cargar los tableros de comentarios",
       "submitFailed": "No se pudieron enviar los comentarios"
+    },
+    "ask": {
+      "notConfigured": "Preguntar no está configurado en este servidor",
+      "notPermitted": "Preguntar requiere Premium o tu propia clave de OpenRouter"
     }
   },
   "chips": {

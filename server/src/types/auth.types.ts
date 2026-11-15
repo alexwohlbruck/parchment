@@ -24,6 +24,7 @@ export enum PermissionId {
   PREMIUM_CUSTOM_MAPS = 'premium:custom_maps',
   PREMIUM_NAVIGATION = 'premium:navigation',
   PREMIUM_LOCATION_SHARING = 'premium:location_sharing',
+  PREMIUM_ASK = 'premium:ask',
   LIBRARY_READ = 'library:read',
   LIBRARY_WRITE = 'library:write',
   SOCIAL_READ = 'social:read',

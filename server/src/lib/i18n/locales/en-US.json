@@ -189,6 +189,10 @@
       "unavailable": "Feedback is not available on this server",
       "fetchFailed": "Failed to load feedback boards",
       "submitFailed": "Failed to submit feedback"
+    },
+    "ask": {
+      "notConfigured": "Ask isn't set up on this server",
+      "notPermitted": "Ask needs Premium or your own OpenRouter key"
     }
   },
   "chips": {

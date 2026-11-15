@@ -124,6 +124,11 @@ export const permissions: {
     description: 'Advanced real-time location sharing features',
   },
   {
+    id: PermissionId.PREMIUM_ASK,
+    name: 'Ask',
+    description: 'Ask for places in plain language, answered with the system language model',
+  },
+  {
     id: PermissionId.LIBRARY_READ,
     name: 'View library',
     description: 'View bookmarks, collections, and saved places',

@@ -41,6 +41,8 @@ import { emptyCanvasBody, type Canvas } from '@/types/canvas.types'
 import { LayerType } from '@/types/map.types'
 import { usePlaceService } from '@/services/place/place.service'
 import { SearchIcon } from 'lucide-vue-next'
+import GuidanceReturnBar from '@/components/guidance/GuidanceReturnBar.vue'
+import { useGuidanceStore } from '@/stores/guidance.store'
 
 const route = useRoute()
 const router = useRouter()
@@ -162,6 +164,8 @@ const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI || appStore.chromeHeld)
 // A view that takes over the whole map (turn-by-turn) replaces the sheets and the map's chrome.
 const immersive = computed(() => !!route.meta?.immersive)
+const guidance = useGuidanceStore()
+const guidingInBackground = computed(() => guidance.isActive && !immersive.value)
 
 // ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
 // Tracks whether entering street view auto-enabled the street view layer group,
@@ -502,9 +506,12 @@ defineExpose({
           <div class="flex flex-col items-end gap-2" />
           <!-- Center (top): centered within visible (unobstructed) map area -->
           <div
-            class="absolute inset-0 flex items-start justify-center pointer-events-none pt-2"
-            :style="{ paddingLeft: `${mapLeftObstruction}px` }"
+            class="absolute inset-0 flex flex-col items-center gap-2 pointer-events-none safe-area-inset"
+            :style="{ paddingLeft: `calc(${mapLeftObstruction}px + 0.5rem + env(safe-area-inset-left))` }"
           >
+            <div v-if="guidingInBackground" class="w-full md:max-w-sm">
+              <GuidanceReturnBar />
+            </div>
             <Transition
               enter-active-class="transition-all duration-200 ease-out"
               enter-from-class="opacity-0 -translate-y-2"
@@ -536,6 +543,7 @@ defineExpose({
               <div
                 v-if="isNavTransitioning"
                 class="pointer-events-auto flex gap-2 items-start transition-[padding] duration-300 ease-out"
+                :class="{ 'mt-16': guidingInBackground && isMobileScreen }"
                 :style="topLeftBufferStyle"
               >
                 <WeatherControl />

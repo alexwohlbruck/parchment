@@ -2,6 +2,8 @@
 
 ### Added
 
+* Leave navigation running while you look around: tap a place on the map, browse, then tap the bar at the top to jump back in.
+
 ### Changed
 
 * During navigation, the time left now leads the bottom card, with your arrival time beside the distance.

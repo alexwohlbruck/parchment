@@ -16,7 +16,8 @@ export interface PlaceSummary {
   openNow?: boolean
   hours?: string
   closed?: 'permanently' | 'temporarily'
-  rating?: number
+  /** Out of 5. */
+  stars?: number
   reviewCount?: number
   summary?: string
 }
@@ -26,7 +27,10 @@ export interface PlaceDetail extends PlaceSummary {
   website?: string
   phone?: string
   amenities?: Record<string, string | boolean | number>
-  reviews?: { text: string; rating?: number; date?: string }[]
+  busiestHours?: string
+  /** Where ratings and reviews come from, e.g. ["foursquare", "google"]. */
+  sources?: string[]
+  reviews?: { text: string; stars?: number; date?: string; from: string }[]
 }
 
 const MAX_REVIEWS = 5
@@ -93,7 +97,7 @@ export function summarizePlace(
     openNow: openNow(place, context.now),
     hours: hours?.rawText,
     closed,
-    rating: place.ratings?.rating.value,
+    stars: stars(place.ratings?.rating.value),
     reviewCount: place.ratings?.reviewCount.value,
     summary: place.summary ?? undefined,
   })
@@ -119,16 +123,33 @@ export function describePlace(
     website: place.contactInfo?.website?.value,
     phone: place.contactInfo?.phone?.value,
     amenities: Object.keys(amenities).length ? amenities : undefined,
+    busiestHours: place.popularHours?.value.rawText,
+    sources: thirdPartySources(place),
     reviews: place.reviews?.length
-      ? place.reviews.slice(0, MAX_REVIEWS).map(({ value }) =>
+      ? place.reviews.slice(0, MAX_REVIEWS).map(({ value, sourceId }) =>
           dropEmpty({
             text: value.text.slice(0, MAX_REVIEW_CHARS),
-            rating: value.rating,
+            stars: stars(value.rating),
             date: value.createdAt?.slice(0, 10),
+            from: sourceId,
           }),
         )
       : undefined,
   })
+}
+
+/** Ratings are stored 0–1; models and people read stars. */
+function stars(rating: number | undefined): number | undefined {
+  return rating == null ? undefined : Math.round(rating * 50) / 10
+}
+
+function thirdPartySources(place: Place): string[] | undefined {
+  const sources = new Set(
+    [place.ratings?.rating, place.popularHours, ...(place.reviews ?? [])]
+      .filter((value) => value != null)
+      .map((value) => value.sourceId),
+  )
+  return sources.size ? [...sources] : undefined
 }
 
 function round(value: number): number {

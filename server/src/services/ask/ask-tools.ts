@@ -13,6 +13,8 @@ import { samplePoints } from '../../lib/ask/route-sample'
 import { distanceText } from '../../lib/ask/distance-text'
 import type { Location } from '../../types/valhalla.types'
 import { requestBarrelman } from '../barrelman.service'
+import { getPermissions, hasPermission } from '../auth.service'
+import { PermissionId } from '../../types/auth.types'
 import {
   describePlace,
   openNow,
@@ -44,6 +46,7 @@ import {
 } from './ask-tool-base'
 import { tripTools } from './ask-trip-tools'
 import { libraryTools } from './ask-library-tools'
+import { webTools } from './ask-web-tools'
 
 export {
   AskToolError,
@@ -248,10 +251,15 @@ const browseCategory: AskTool<
   },
 }
 
+/** Third-party ratings, reviews and busy hours (Foursquare, Google) are premium. */
+async function hasPremiumData(userId: string): Promise<boolean> {
+  return hasPermission(await getPermissions(userId), PermissionId.PREMIUM_DATA_PROVIDERS)
+}
+
 const getPlace: AskTool<{ id: string }> = {
   name: 'get_place',
   description:
-    'Full details for one place: hours, amenities, website and recent reviews.',
+    'Full details for one place: hours, busiest hours, amenities, website, and ratings and reviews from Foursquare, Google and the like.',
   parameters: {
     type: 'object',
     properties: {
@@ -267,10 +275,11 @@ const getPlace: AskTool<{ id: string }> = {
       'get_place',
       { id },
       { language: context.language, userId: context.userId },
-      () =>
+      async () =>
         lookupEnrichedPlaceById(parts.source, parts.externalId, {
           userId: context.userId,
           language: context.language,
+          premiumData: await hasPremiumData(context.userId),
         }),
     )
     if (!place) throw new AskToolError(`No place found for ${id}`)
@@ -504,6 +513,7 @@ export const askTools: AskTool[] = [
   searchAlongRoute,
   ...tripTools,
   ...libraryTools,
+  ...webTools,
 ]
 
 export const ANSWER_TOOL = 'answer'

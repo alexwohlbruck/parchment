@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import type { OpeningHours, Place } from '../../types/place.types'
-import { openNow, summarizePlace } from './place-summary'
+import { describePlace, openNow, summarizePlace } from './place-summary'
 
 function place(hours: Partial<OpeningHours> | null): Place {
   return {
@@ -61,5 +61,34 @@ describe('summarizePlace', () => {
     expect(summary.distance).toBe('0.6 mi')
     expect(summary).toMatchObject({ name: 'Corner Café', openNow: true, hours: 'Mo-Su 08:00-18:00' })
     expect('address' in summary).toBe(false)
+  })
+})
+
+describe('describePlace', () => {
+  test('reads third-party ratings as stars and names where reviews came from', () => {
+    const detail = describePlace(
+      {
+        ...place(null),
+        ratings: {
+          rating: { value: 0.86, sourceId: 'foursquare' as any },
+          reviewCount: { value: 120, sourceId: 'foursquare' as any },
+        },
+        popularHours: {
+          value: { regularHours: [], isOpen24_7: false, isPermanentlyClosed: false, isTemporarilyClosed: false, rawText: 'Sa-Su 10:00-13:00' },
+          sourceId: 'foursquare' as any,
+        },
+        reviews: [
+          { value: { id: '1', text: 'Great bagels', rating: 1, createdAt: '2026-10-01T12:00:00Z' }, sourceId: 'google' as any },
+        ],
+      },
+      { now: morning, units: 'metric' },
+    )
+    expect(detail).toMatchObject({
+      stars: 4.3,
+      reviewCount: 120,
+      busiestHours: 'Sa-Su 10:00-13:00',
+      sources: ['foursquare', 'google'],
+      reviews: [{ text: 'Great bagels', stars: 5, date: '2026-10-01', from: 'google' }],
+    })
   })
 })

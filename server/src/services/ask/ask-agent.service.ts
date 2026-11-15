@@ -16,6 +16,7 @@ import {
 import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
+import { logWarn } from '../../lib/logger'
 
 /** Model round trips per question before the answer is forced. */
 export const MAX_STEPS = 6
@@ -47,7 +48,7 @@ function systemPrompt(context: AskContext): string {
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
     'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (bikeshare for Citi Bike and the like). Use transit_trips for timetables, travel_times to compare ways, and weather when it matters.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
-    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, say the moves that matter (where to pick up and drop off a bike, which line, when to leave); the app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
+    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
     'Never ask for something a known place already answers. If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }
@@ -85,6 +86,7 @@ async function runTool(
     context.emit({ type: 'step', ...step, status: 'done' })
     return toolMessage(call, result)
   } catch (error) {
+    logWarn(`Ask tool ${tool.name} failed: ${error instanceof Error ? error.message : error}`)
     context.emit({ type: 'step', ...step, status: 'failed' })
     return toolMessage(call, { error: toolErrorMessage(error) })
   }

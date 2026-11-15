@@ -3,7 +3,6 @@ import type { Feature, MultiPolygon, Polygon } from 'geojson'
 import { lookupPlacesByNameAndLocation, lookupEnrichedPlaceById } from '../place.service'
 import { searchByCategory } from '../search.service'
 import { categoryService } from '../category.service'
-import { forwardGeocode } from '../geocoding.service'
 import { requestBarrelman } from '../barrelman.service'
 import { describePlace, openNow, summarizePlace } from '../../lib/ask/place-summary'
 import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode, type IsochroneResponse } from '../../types/isochrone.types'
@@ -17,6 +16,7 @@ import {
   cached,
   centre,
   clamp,
+  geocodeResults,
   nearSchema,
   pointSchema,
   type PointArg,
@@ -80,7 +80,7 @@ function listPlaces(
   for (const place of limited) context.seen.set(place.id, place)
   return {
     count: limited.length,
-    places: limited.map((place) => summarizePlace(place, { now: context.now, origin: options.origin })),
+    places: limited.map((place) => summarizePlace(place, { now: context.now, origin: options.origin, units: context.units })),
   }
 }
 
@@ -108,7 +108,7 @@ const findPlaces: AskTool<ListArgs & { query: string }> = {
   },
   label: ({ query }) => `Searching for ${query}`,
   async run(args, context) {
-    const origin = centre(args.near, context)
+    const origin = await centre(args.near, context)
     const radius = clamp(args.radius_m, DEFAULT_RADIUS_M, MAX_RADIUS_M)
     const places = await placesByName(args.query, origin, radius, context)
     return listPlaces(places, context, { openNow: args.open_now, limit: args.limit, origin })
@@ -148,7 +148,7 @@ const browseCategory: AskTool<ListArgs & { category_id: string; tags?: Record<st
   },
   label: () => 'Finding places nearby',
   async run(args, context) {
-    const origin = centre(args.near, context)
+    const origin = await centre(args.near, context)
     const limit = clamp(args.limit, DEFAULT_LIMIT, MAX_LIMIT)
     const places = await placesByCategory(
       args.category_id,
@@ -188,14 +188,14 @@ const getPlace: AskTool<{ id: string }> = {
     )
     if (!place) throw new AskToolError(`No place found for ${id}`)
     context.seen.set(id, { ...place, id })
-    return describePlace({ ...place, id }, { now: context.now, origin: context.origin })
+    return describePlace({ ...place, id }, { now: context.now, origin: context.origin, units: context.units })
   },
 }
 
 const locate: AskTool<{ query: string }> = {
   name: 'locate',
   description:
-    'Resolve a neighbourhood, address, city or landmark name to coordinates, to search around it.',
+    'Resolve a neighbourhood, address, city or landmark name to coordinates, to search around it. Tools that take a point also accept a name directly.',
   parameters: {
     type: 'object',
     properties: { query: { type: 'string' } },
@@ -203,12 +203,7 @@ const locate: AskTool<{ query: string }> = {
   },
   label: ({ query }) => `Finding ${query}`,
   async run({ query }, context) {
-    const { results } = await cached(
-      'locate',
-      { query, origin: context.origin },
-      { language: context.language },
-      () => forwardGeocode(query, context.origin?.lat, context.origin?.lng),
-    )
+    const results = await geocodeResults(query, context)
     return results.slice(0, 3).map((place) => ({
       name: place.name.value,
       address: place.address?.value?.formatted,
@@ -283,7 +278,7 @@ const placesWithinReach: AskTool<{
   label: ({ minutes, mode }) => `Finding what's within ${minutes} min ${MODE_PHRASES[mode] ?? `by ${mode}`}`,
   async run(args, context) {
     if (!args.category_id && !args.query) throw new AskToolError('Give category_id or query')
-    const origin = centre(args.from, context)
+    const origin = await centre(args.from, context)
     const reach = await reachPolygon(origin, args.mode, args.minutes, context)
     context.emit({ type: 'reach', geometry: reach.geometry as IsochroneGeometry })
 

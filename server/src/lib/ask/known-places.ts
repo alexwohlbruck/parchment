@@ -15,3 +15,19 @@ export function knownPlaces(
   }
   return places
 }
+
+const COORDINATES =
+  /^\s*\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?\s*$/
+
+/** Coordinates a model wrote as text: `{"lat": 40.6, "lng": -73.9}` or `40.6, -73.9`. */
+export function parsePointText(text: string): LatLng | null {
+  try {
+    const value = JSON.parse(text)
+    if (typeof value?.lat === 'number' && typeof value?.lng === 'number')
+      return { lat: value.lat, lng: value.lng }
+  } catch {}
+  const match = COORDINATES.exec(text)
+  if (!match) return null
+  const [lat, lng] = [Number(match[1]), Number(match[2])]
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null
+}

@@ -1,15 +1,25 @@
 import { toolCacheKey } from '../../lib/ask/tool-cache-key'
 import { MemoCache } from '../../lib/memo-cache'
+import { HERE, parsePointText } from '../../lib/ask/known-places'
+import { nearbyFirst } from '../../lib/ask/nearby-match'
+import { forwardGeocode } from '../geocoding.service'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
-import type { AskEndpoint, AskEvent, AskUnits, LatLng } from '../../types/ask.types'
+import type {
+  AskEndpoint,
+  AskEvent,
+  AskUnits,
+  LatLng,
+} from '../../types/ask.types'
 
 /** A failure worth showing the model or an MCP client; anything else is reported generically. */
 export class AskToolError extends Error {}
 
 /** What a caller may see of a tool failure, without upstream hosts or stack details. */
 export function toolErrorMessage(error: unknown): string {
-  return error instanceof AskToolError ? error.message : 'This search failed. Try another approach.'
+  return error instanceof AskToolError
+    ? error.message
+    : 'This search failed. Try another approach.'
 }
 
 export interface AskContext {
@@ -52,7 +62,9 @@ export function pointSchema(description: string) {
   }
 }
 
-export const nearSchema = pointSchema("Centre of the search. Defaults to the map's centre.")
+export const nearSchema = pointSchema(
+  "Centre of the search. Defaults to the map's centre.",
+)
 
 const toolCache = new MemoCache<unknown>({ max: 500, ttlMs: 5 * 60_000 })
 
@@ -66,23 +78,62 @@ export function cached<T>(
   return toolCache.get(toolCacheKey(tool, args, scope), load) as Promise<T>
 }
 
-export function endpoint(value: PointArg | undefined, context: AskContext): AskEndpoint {
+/** A point from coordinates, a known place's name, coordinates written as text, or else a place name looked up near the user. */
+export async function endpoint(
+  value: PointArg | undefined,
+  context: AskContext,
+): Promise<AskEndpoint> {
   if (typeof value === 'string') {
-    const known = context.places.get(value.trim().toLowerCase())
-    if (known) return known
-    const names = [...context.places.keys()].join(', ') || 'none'
-    throw new AskToolError(`"${value}" is not a known place (known: ${names}). Use locate for addresses.`)
+    const text = value.trim()
+    return (
+      context.places.get(text.toLowerCase()) ??
+      parsePointText(text) ??
+      geocode(text, context)
+    )
   }
   const target = value ?? context.origin
-  if (!target) throw new AskToolError('No location: call locate first, or ask the user where')
+  if (!target)
+    throw new AskToolError(
+      'No location: call locate first, or ask the user where',
+    )
   return target
 }
 
-export function centre(value: PointArg | undefined, context: AskContext): LatLng {
-  const { lat, lng } = endpoint(value, context)
+export async function centre(
+  value: PointArg | undefined,
+  context: AskContext,
+): Promise<LatLng> {
+  const { lat, lng } = await endpoint(value, context)
   return { lat, lng }
 }
 
-export function clamp(value: number | undefined, fallback: number, max: number): number {
+export async function geocodeResults(query: string, context: AskContext) {
+  const near = context.places.get(HERE) ?? context.origin
+  const { results } = await cached(
+    'locate',
+    { query, origin: near },
+    { language: context.language },
+    () => forwardGeocode(query, near?.lat, near?.lng),
+  )
+  return nearbyFirst(results, query, near)
+}
+
+async function geocode(
+  query: string,
+  context: AskContext,
+): Promise<AskEndpoint> {
+  const [top] = await geocodeResults(query, context)
+  if (!top)
+    throw new AskToolError(
+      `Couldn't find "${query}". Try locate with a fuller address.`,
+    )
+  return { name: top.name.value ?? query, placeId: top.id, ...top.geometry.value.center }
+}
+
+export function clamp(
+  value: number | undefined,
+  fallback: number,
+  max: number,
+): number {
   return Math.min(Math.max(1, Math.round(value ?? fallback)), max)
 }

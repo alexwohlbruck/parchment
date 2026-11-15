@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { knownPlaces } from './known-places'
+import { knownPlaces, parsePointText } from './known-places'
 
 describe('knownPlaces', () => {
   test('names saved places case-insensitively, keeping "here" for the device', () => {
@@ -16,5 +16,17 @@ describe('knownPlaces', () => {
 
   test('has no "here" without a device position', () => {
     expect(knownPlaces(undefined, []).size).toBe(0)
+  })
+})
+
+describe('parsePointText', () => {
+  test('reads coordinates written as JSON or as a pair', () => {
+    expect(parsePointText('{"lat": 40.66, "lng": -73.96}')).toEqual({ lat: 40.66, lng: -73.96 })
+    expect(parsePointText('40.66, -73.96')).toEqual({ lat: 40.66, lng: -73.96 })
+  })
+
+  test('leaves names and impossible coordinates alone', () => {
+    expect(parsePointText('Prospect Park')).toBeNull()
+    expect(parsePointText('140, 20')).toBeNull()
   })
 })

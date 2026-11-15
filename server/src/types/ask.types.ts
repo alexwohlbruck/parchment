@@ -12,6 +12,8 @@ export type AskUnits = 'metric' | 'imperial'
 /** A point Ask can name. A saved place reaches the model only by its name, never its coordinates. */
 export interface AskEndpoint extends LatLng {
   name?: string
+  /** The place a looked-up name resolved to. */
+  placeId?: string
 }
 
 export const ASK_TRIP_KINDS = ['bikeshare', 'transit', 'walking', 'biking', 'driving', 'rideshare'] as const

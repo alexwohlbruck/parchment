@@ -30,6 +30,8 @@ import type { Place } from '@/types/place.types'
 
 const props = defineProps<{
   question?: string
+  placeId?: string
+  placeName?: string
 }>()
 
 const { t, locale } = useI18n()
@@ -65,11 +67,14 @@ function retry() {
   if (question) askService.ask(question, { followUp: askStore.exchanges.length > 1 })
 }
 
+const firstAboutPlace = computed(() => !!props.placeId && !askStore.exchanges.length)
+
 function submitFollowUp() {
   const text = followUp.value.trim()
   if (!text || askStore.isRunning) return
   followUp.value = ''
-  askService.ask(text, { followUp: true })
+  if (firstAboutPlace.value) askService.ask(text, { placeId: props.placeId })
+  else askService.ask(text, { followUp: true })
 }
 
 function openPlace(place: Place) {
@@ -109,9 +114,13 @@ watch(citedPlaces, places => {
 
 watch(() => props.question, start)
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('search-result-click', onMarkerClick)
-  if (props.question === askStore.current?.question) {
+  if (props.placeId && !props.question) {
+    askStore.reset()
+    await askService.loadAccess({ fresh: !askStore.access?.allowed }).catch(() => null)
+    loadingAccess.value = false
+  } else if (props.question === askStore.current?.question) {
     searchStore.setSearchResults(citedPlaces.value)
     loadingAccess.value = false
   } else {
@@ -177,14 +186,23 @@ onUnmounted(() => {
         @place-leave="searchStore.setHoveredPlace(null)"
       />
 
+      <h2
+        v-if="firstAboutPlace && placeName"
+        class="text-lg font-bold text-foreground tracking-tight leading-tight"
+      >
+        {{ t('ask.aboutPlace.title', { name: placeName }) }}
+      </h2>
+
       <form
-        v-if="askStore.exchanges.length"
-        class="sticky bottom-4 mt-auto flex items-center gap-2"
+        v-if="askStore.exchanges.length || firstAboutPlace"
+        class="sticky bottom-4 flex items-center gap-2"
+        :class="!firstAboutPlace && 'mt-auto'"
         @submit.prevent="submitFollowUp"
       >
         <Input
           v-model="followUp"
-          :placeholder="t('ask.followUp')"
+          :autofocus="firstAboutPlace"
+          :placeholder="firstAboutPlace ? t('ask.aboutPlace.placeholder') : t('ask.followUp')"
           :disabled="askStore.isRunning"
           class="flex-1 bg-background/85 backdrop-blur-xl"
         />

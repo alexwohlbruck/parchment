@@ -24,6 +24,8 @@ export interface AskRequest {
   question: string
   history?: AskTurn[]
   origin?: LatLng
+  /** A place the question is about, looked up before the model starts. */
+  placeId?: string
 }
 
 function systemPrompt(context: AskContext): string {
@@ -124,6 +126,18 @@ export async function runAsk(
   ]
   const toolsByName = new Map(askTools.map((tool) => [tool.name, tool]))
   const allTools = [...toChatTools(askTools), answerTool]
+
+  if (request.placeId) {
+    const call: ChatToolCall = {
+      id: 'subject-place',
+      type: 'function',
+      function: { name: 'get_place', arguments: JSON.stringify({ id: request.placeId }) },
+    }
+    messages.push(
+      { role: 'assistant', content: 'The question is about this place.', tool_calls: [call] },
+      await runTool(toolsByName.get('get_place'), call, context),
+    )
+  }
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const last = step === MAX_STEPS - 1

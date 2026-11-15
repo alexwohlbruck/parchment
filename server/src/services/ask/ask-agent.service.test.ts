@@ -117,6 +117,16 @@ describe('runAsk', () => {
     expect(ctx.events.at(-1)).toMatchObject({ type: 'answer', browse })
   })
 
+  test('reads the subject place before the model starts', async () => {
+    const { model, requests } = scriptedModel([[call('answer', { text: 'Yes.', places: [] })]])
+    const ctx = context()
+
+    await runAsk(model, { question: 'good for working?', placeId: 'osm/node/7' }, ctx)
+
+    expect(requests[0].messages.at(-1)).toMatchObject({ role: 'tool', tool_call_id: 'subject-place' })
+    expect(ctx.events[0]).toMatchObject({ type: 'step', status: 'running' })
+  })
+
   test('forces an answer on the last step', async () => {
     mockLookupPlaces.mockResolvedValue([])
     const { model, requests } = scriptedModel([[call('find_places', { query: 'x' })]])

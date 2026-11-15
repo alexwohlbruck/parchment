@@ -169,7 +169,11 @@ const router = createRouter({
           path: '/ask',
           name: AppRoute.ASK,
           component: () => import('@/views/ask/Ask.vue'),
-          props: route => ({ question: route.query.q }),
+          props: route => ({
+            question: route.query.q,
+            placeId: route.query.place,
+            placeName: route.query.name,
+          }),
         },
         {
           path: '/directions/trip/:id',

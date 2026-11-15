@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { MessageCircleQuestionIcon } from 'lucide-vue-next'
+import { AppRoute } from '@/router'
+import { useAskStore } from '@/stores/ask.store'
+import { useAskService } from '@/services/ask/ask.service'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +36,22 @@ import { formatDurationLong } from '@/lib/time-format'
 const props = defineProps<{
   place: Partial<Place>
 }>()
+
+const router = useRouter()
+const askStore = useAskStore()
+useAskService().loadAccess().catch(() => null)
+
+const canAsk = computed(() => {
+  const access = askStore.access
+  return !!props.place.id && !!access && (access.allowed || access.reason !== 'not-configured')
+})
+
+function askAboutPlace() {
+  router.push({
+    name: AppRoute.ASK,
+    query: { place: props.place.id, name: props.place.name?.value ?? undefined },
+  })
+}
 
 const collectionsStore = useCollectionsStore()
 const bookmarksService = useBookmarksService()
@@ -118,6 +139,14 @@ function onBookmarkDeleted() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>{{ t('general.share') }}</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="canAsk">
+        <TooltipTrigger as-child>
+          <Button size="icon" variant="outline" :aria-label="t('ask.aboutPlace.action')" @click="askAboutPlace">
+            <MessageCircleQuestionIcon class="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('ask.aboutPlace.action') }}</TooltipContent>
       </Tooltip>
       <Tooltip v-if="canEdit">
         <TooltipTrigger as-child>

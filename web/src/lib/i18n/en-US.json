@@ -4097,6 +4097,11 @@
       "count": "{used} of {limit}",
       "resets": "Resets on {date}"
     },
-    "seeAll": "More nearby: {name}"
+    "seeAll": "More nearby: {name}",
+    "aboutPlace": {
+      "action": "Ask about this place",
+      "title": "Ask about {name}",
+      "placeholder": "Good for working? Busy on weekends?"
+    }
   }
 }

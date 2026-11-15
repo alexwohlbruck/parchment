@@ -3823,6 +3823,11 @@
       "count": "{used} de {limit}",
       "resets": "Se renueva el {date}"
     },
-    "seeAll": "Más cerca: {name}"
+    "seeAll": "Más cerca: {name}",
+    "aboutPlace": {
+      "action": "Preguntar sobre este lugar",
+      "title": "Pregunta sobre {name}",
+      "placeholder": "¿Bueno para trabajar? ¿Lleno los fines de semana?"
+    }
   }
 }

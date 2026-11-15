@@ -37,7 +37,10 @@ export function useAskService() {
     controller = null
   }
 
-  async function ask(question: string, { followUp = false } = {}) {
+  async function ask(
+    question: string,
+    { followUp = false, placeId }: { followUp?: boolean; placeId?: string } = {},
+  ) {
     cancel()
     const history = followUp ? askStore.history : []
     askStore.start(question, { followUp })
@@ -52,6 +55,7 @@ export function useAskService() {
         body: JSON.stringify({
           question,
           history,
+          placeId,
           ...toLngLat(mapStore.mapCamera.center),
         }),
         signal,

@@ -9,6 +9,7 @@ import {
   IntegrationCapabilityId,
 } from '../../types/integration.enums'
 import type {
+  ChatCitation,
   ChatRequest,
   ChatResponse,
   LanguageModelCapability,
@@ -63,6 +64,7 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
     tools,
     toolChoice,
     maxTokens,
+    webSearch,
     signal,
   }: ChatRequest): Promise<ChatResponse> {
     if (!this.initialized) {
@@ -82,6 +84,9 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
         messages,
         ...(tools?.length ? { tools, tool_choice: toolChoice ?? 'auto' } : {}),
         ...(maxTokens ? { max_tokens: maxTokens } : {}),
+        ...(webSearch
+          ? { plugins: [{ id: 'web', max_results: webSearch.maxResults }] }
+          : {}),
       }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
@@ -98,12 +103,14 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
     const message = body?.choices?.[0]?.message
     if (!message) throw new Error('OpenRouter returned no message')
 
+    const citations = urlCitations(message.annotations)
     return {
       message: {
         role: 'assistant',
         content: message.content ?? null,
         ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
       },
+      ...(citations.length ? { citations } : {}),
       usage: body.usage && {
         promptTokens: body.usage.prompt_tokens ?? 0,
         completionTokens: body.usage.completion_tokens ?? 0,
@@ -136,4 +143,15 @@ export class OpenRouterIntegration implements Integration<OpenRouterConfig> {
       }
     }
   }
+}
+
+function urlCitations(annotations: unknown): ChatCitation[] {
+  if (!Array.isArray(annotations)) return []
+  const byUrl = new Map<string, ChatCitation>()
+  for (const annotation of annotations) {
+    const { url, title } = annotation?.url_citation ?? {}
+    if (annotation?.type !== 'url_citation' || typeof url !== 'string') continue
+    if (!byUrl.has(url)) byUrl.set(url, { url, title: typeof title === 'string' && title ? title : url })
+  }
+  return [...byUrl.values()]
 }

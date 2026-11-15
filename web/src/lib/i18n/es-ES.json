@@ -3839,6 +3839,7 @@
       "minutes": "{count} min"
     },
     "followUps": "Para seguir",
+    "sources": "Fuentes",
     "trace": {
       "searchedFor": "Buscó durante {seconds} s",
       "found": "{count} encontrado | {count} encontrados"

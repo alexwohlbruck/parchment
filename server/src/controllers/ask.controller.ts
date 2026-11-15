@@ -86,6 +86,8 @@ const app = new Elysia()
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
+                model: meter.model,
+                sources: new Map(),
                 emit,
               },
             )

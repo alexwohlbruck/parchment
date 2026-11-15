@@ -51,7 +51,8 @@ function systemPrompt(context: AskContext): string {
     known,
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
-    'Results carry openNow and hours from the map data. Trust them over anything a review says.',
+    'Results carry openNow and hours from the map data. Trust them over anything a review or web page says.',
+    'Use web_search only for what the map cannot know (events, news, menus, prices, tickets, a place that just opened or closed), then find any place it mentions with the map tools before citing it.',
     'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (transit, bikeshare for Citi Bike and the like). A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. For stops on the way (water, food, a shop), find them with search_along_route, then pass the ones you pick to plan_trip as stops, so the trip goes through them. Use transit_departures for what leaves a station soon, transit_trips only for timetables like the last train, travel_times to compare ways, and weather when it matters.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
     `Finish by calling ${ANSWER_TOOL}. Keep its text to at most two short sentences, about 40 words; the cards carry the rest. For a trip, describe the first trip the tool returned (the one the app shows), with every move it makes and none presented as optional; say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
@@ -223,6 +224,7 @@ export async function runAsk(
           text: answer.text,
           places: answer.places,
           ...(answer.followUps.length && { followUps: answer.followUps }),
+          ...(context.sources.size && { sources: [...context.sources.values()] }),
           ...(intent.category ? { browse: intent } : {}),
         })
         return

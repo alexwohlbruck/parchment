@@ -18,6 +18,7 @@ import {
   TimerIcon,
   TrainFrontIcon,
   XIcon,
+  GlobeIcon,
 } from 'lucide-vue-next'
 import { Spinner } from '@/components/ui/spinner'
 import AskLoader from './AskLoader.vue'
@@ -48,6 +49,7 @@ const TOOL_ICONS: Record<string, Component> = {
   bikeshare_nearby: BikeIcon,
   saved_places: BookmarkIcon,
   my_vehicles: CarIcon,
+  web_search: GlobeIcon,
 }
 
 const open = ref(false)

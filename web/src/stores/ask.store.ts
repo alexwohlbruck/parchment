@@ -1,6 +1,6 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
-import type { AskAccess, AskCitation, AskEvent, AskTurn } from '@/types/ask.types'
+import type { AskAccess, AskCitation, AskEvent, AskSource, AskTurn } from '@/types/ask.types'
 
 export type AskTrip = Omit<Extract<AskEvent, { type: 'trip' }>, 'type'>
 
@@ -24,6 +24,7 @@ export interface AskExchange {
   reach?: IsochroneGeometry
   browse?: QueryIntent
   followUps?: string[]
+  sources?: AskSource[]
   /** When the question was sent and answered, for "Searched for 6s". */
   startedAt: number
   finishedAt?: number
@@ -106,6 +107,7 @@ export const useAskStore = defineStore('ask', () => {
           places: event.places,
           browse: event.browse,
           followUps: event.followUps,
+          sources: event.sources,
         }))
         break
       case 'error':

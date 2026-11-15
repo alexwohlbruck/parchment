@@ -7,9 +7,11 @@ import { forwardGeocode } from '../geocoding.service'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
 import type { Vehicle } from '../../types/trip.types'
+import type { LanguageModelCapability } from '../../types/language-model.types'
 import type {
   AskEndpoint,
   AskEvent,
+  AskSource,
   AskUnits,
   LatLng,
 } from '../../types/ask.types'
@@ -38,6 +40,10 @@ export interface AskContext {
   signal?: AbortSignal
   /** Every place a tool has returned, by id. The answer may only cite these. */
   seen: Map<string, Place>
+  /** Answers web searches; absent where the caller has its own (MCP). */
+  model?: LanguageModelCapability
+  /** Web pages a search read, by url. */
+  sources: Map<string, AskSource>
   emit(event: AskEvent): void
 }
 

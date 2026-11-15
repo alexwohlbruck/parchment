@@ -55,6 +55,12 @@ export interface AskCitation {
   reason: string
 }
 
+/** A web page Ask read to answer. */
+export interface AskSource {
+  url: string
+  title: string
+}
+
 export type AskEvent =
   | {
       type: 'step'
@@ -92,6 +98,8 @@ export type AskEvent =
       browse?: QueryIntent
       /** Questions the user might ask next. */
       followUps?: string[]
+      /** Web pages the answer drew on. */
+      sources?: AskSource[]
     }
   | { type: 'error'; message: string }
   | { type: 'done' }

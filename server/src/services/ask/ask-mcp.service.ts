@@ -1,6 +1,7 @@
 import { version } from '../../../package.json'
 import { logError } from '../../lib/logger'
 import { askTools, toolErrorMessage, type AskContext } from './ask-tools'
+import { webTools } from './ask-web-tools'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { LatLng } from '../../types/ask.types'
 import type { Place } from '../../types/place.types'
@@ -31,7 +32,9 @@ export interface McpCaller {
 const INSTRUCTIONS =
   'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures and alerts, travel times by mode, bike share availability, weather and air quality, plus the user\'s saved places and vehicles. Tools need a location: pass coordinates, a place id a tool returned, or a place name. Times are local to the trip.'
 
-const toolsByName = new Map(askTools.map((tool) => [tool.name, tool]))
+/** MCP clients search the web themselves, and Parchment has no model to do it with here. */
+const mcpTools = askTools.filter((tool) => !webTools.includes(tool))
+const toolsByName = new Map(mcpTools.map((tool) => [tool.name, tool]))
 
 class RpcError extends Error {
   constructor(readonly code: number, message: string) {
@@ -44,7 +47,7 @@ export function rpcError(id: JsonRpcId, code: number, message: string): JsonRpcR
 }
 
 export function listMcpTools(): McpTool[] {
-  return askTools.map(({ name, description, parameters }) => ({
+  return mcpTools.map(({ name, description, parameters }) => ({
     name,
     description,
     inputSchema: parameters,
@@ -82,6 +85,7 @@ async function callTool(
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),
+    sources: new Map(),
     emit: () => {},
   }
 

@@ -8,6 +8,7 @@
 * Ask how to get somewhere, like "home on Citi Bike from here" or "work by transit, Monday 9am", and it plans the trip, draws it on the map and shows it as a card you can open in Directions. It knows where you are and your saved Home and Work.
 * Ask can plan rides with stops along the way, like water fountains or a hot dog cart, and check live departures, service alerts, air quality, your saved places and where you parked.
 * Ask shows each search as it runs, links the places it mentions, and suggests follow-up questions.
+* Ask can search the web for things the map doesn't know, like market days or tonight's events, and links the pages it read. With Premium it also weighs Foursquare and Google ratings, reviews and busy hours.
 * Premium includes 200 Ask questions a month, and Account settings shows how many you've used. Your own OpenRouter key has no limit.
 * Search for something like "cafes with outdoor seating open now" to jump straight to matching places with those filters already on.
 

@@ -26,7 +26,14 @@ export interface ChatRequest {
   /** Force a tool call (`required`) or leave it to the model (`auto`). */
   toolChoice?: 'auto' | 'required'
   maxTokens?: number
+  /** Let the model read the web first, citing up to this many pages. */
+  webSearch?: { maxResults: number }
   signal?: AbortSignal
+}
+
+export interface ChatCitation {
+  url: string
+  title: string
 }
 
 export interface ChatUsage {
@@ -38,6 +45,8 @@ export interface ChatUsage {
 
 export interface ChatResponse {
   message: Extract<ChatMessage, { role: 'assistant' }>
+  /** Pages a web search read, when the request asked for one. */
+  citations?: ChatCitation[]
   usage?: ChatUsage
 }
 

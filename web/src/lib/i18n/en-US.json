@@ -4113,6 +4113,7 @@
       "minutes": "{count} min"
     },
     "followUps": "Follow-ups",
+    "sources": "Sources",
     "trace": {
       "searchedFor": "Searched for {seconds}s",
       "found": "{count} found | {count} found"

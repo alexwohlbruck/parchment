@@ -4,6 +4,7 @@ export type {
   AskEndpoint,
   AskStop,
   AskEvent,
+  AskSource,
   AskTripKind,
   AskTurn,
   AskUnits,

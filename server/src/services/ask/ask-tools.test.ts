@@ -59,9 +59,14 @@ mock.module('../geocoding.service', () => ({
   forwardGeocode: mock(async () => ({ results: [] })),
 }))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
+mock.module('../auth.service', () => ({
+  getPermissions: async () => [],
+  hasPermission: () => false,
+}))
 
 const { askTools } = await import('./ask-tools')
 import type { AskContext } from './ask-tools'
+import type { ChatRequest } from '../../types/language-model.types'
 
 const tool = (name: string) => askTools.find((t) => t.name === name)!
 
@@ -75,6 +80,7 @@ function context(userId = 'u1'): AskContext {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    sources: new Map(),
     emit: () => {},
   }
 }
@@ -190,5 +196,28 @@ describe('search_along_route', () => {
       detour_minutes: 2,
     })
     expect(ctx.seen.has('osm/node/9')).toBe(true)
+  })
+})
+
+describe('web_search', () => {
+  test('keeps the pages it read as sources for the answer', async () => {
+    const ctx = context()
+    const complete = mock(async (_request: ChatRequest) => ({
+      message: { role: 'assistant' as const, content: 'The market runs Mon, Wed, Fri and Sat, 8am to 6pm.' },
+      citations: [{ url: 'https://www.grownyc.org/greenmarket/manhattan-union-square', title: 'Union Square Greenmarket' }],
+    }))
+    ctx.model = { complete }
+    const result = await tool('web_search').run({ query: 'Union Square Greenmarket days' }, ctx)
+    expect(complete.mock.calls[0][0]).toMatchObject({ webSearch: { maxResults: 5 } })
+    expect(result).toEqual({
+      summary: 'The market runs Mon, Wed, Fri and Sat, 8am to 6pm.',
+      count: 1,
+      pages: [{ title: 'Union Square Greenmarket', site: 'grownyc.org' }],
+    })
+    expect([...ctx.sources.keys()]).toEqual(['https://www.grownyc.org/greenmarket/manhattan-union-square'])
+  })
+
+  test('says so where there is no model to search with', async () => {
+    await expect(tool('web_search').run({ query: 'x' }, context())).rejects.toThrow('not available')
   })
 })

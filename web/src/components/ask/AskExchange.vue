@@ -13,6 +13,7 @@ import { intentFilters } from '@/lib/search/query-intent'
 import AskTrace from './AskTrace.vue'
 import AskAnswer from './AskAnswer.vue'
 import AskFollowUps from './AskFollowUps.vue'
+import AskSources from './AskSources.vue'
 import AskTripCard from './AskTripCard.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
@@ -122,6 +123,8 @@ const browseRoute = computed(() => {
       {{ t('ask.seeAll', { name: exchange.browse!.category!.name }) }}
       <ArrowRightIcon class="size-4" />
     </Button>
+
+    <AskSources v-if="exchange.sources?.length" :sources="exchange.sources" />
 
     <AskFollowUps
       v-if="latest && exchange.status === 'done' && exchange.followUps?.length"

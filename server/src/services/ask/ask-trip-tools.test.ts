@@ -67,6 +67,7 @@ function context(): AskContext {
     vehicles: [],
     now: new Date('2026-11-20T23:00:00Z'),
     seen: new Map(),
+    sources: new Map(),
     emit: () => {},
   }
 }

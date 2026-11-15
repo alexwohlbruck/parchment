@@ -62,10 +62,10 @@ describe('MCP endpoint', () => {
     expect(response.status).toBe(202)
   })
 
-  test('lists every Ask tool with its schema and no answer tool', async () => {
+  test('lists every Ask tool with its schema, but not web search or the answer tool', async () => {
     const { body } = await rpc('tools/list')
     expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
-      askTools.map((tool) => tool.name),
+      askTools.map((tool) => tool.name).filter((name) => name !== 'web_search'),
     )
     expect(body.result.tools[0].inputSchema).toEqual(askTools[0].parameters)
   })

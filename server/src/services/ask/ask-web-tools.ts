@@ -15,7 +15,7 @@ const webSearch: AskTool<{ query: string }> = {
     properties: {
       query: {
         type: 'string',
-        description: 'A full web query, with the city, e.g. "Union Square Greenmarket hours November 2026 New York"',
+        description: 'A full web query naming the neighbourhood or city, never coordinates, e.g. "Union Square Greenmarket hours November 2026 New York"',
       },
     },
     required: ['query'],

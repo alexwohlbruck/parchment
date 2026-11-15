@@ -202,7 +202,8 @@
           "categories": "Categorías",
           "places": "Lugares",
           "ask": "Preguntar",
-          "askLast": "Preguntar"
+          "askLast": "Preguntar",
+          "browse": "Explorar"
         },
         "commonCategories": {
           "restaurants": "Restaurantes",
@@ -276,6 +277,9 @@
           "bikeRepair": "Reparación de bicis",
           "postBoxes": "Buzones",
           "defibrillators": "Desfibriladores"
+        },
+        "browse": {
+          "openNow": "Abierto ahora"
         },
         "brand": {
           "seeAll": "Ver todas las ubicaciones",

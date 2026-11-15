@@ -5,6 +5,7 @@
 * Ask for places in your own words, like "quiet cafe with outdoor seating open now". Type it in search and press Tab, and Ask finds real places on the map with a line on why each fits. Included with Premium, or with your own OpenRouter key on any plan.
 * Search Parchment's places from Claude, ChatGPT and other AI assistants by connecting them to your server's MCP endpoint. Included with Premium.
 * Premium includes 200 Ask questions a month, and Account settings shows how many you've used. Your own OpenRouter key has no limit.
+* Search for something like "cafes with outdoor seating open now" to jump straight to matching places with those filters already on.
 
 ### Changed
 

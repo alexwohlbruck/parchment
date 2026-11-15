@@ -151,6 +151,7 @@ const filteredArgumentOptions = computed(() => {
 })
 
 const SEARCH_GROUP_ORDER = [
+  'browse',
   'ask',
   'frequents',
   'suggestedCategories',

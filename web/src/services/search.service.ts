@@ -8,7 +8,9 @@ import {
   SearchResponse,
   AutocompleteResult,
   AutocompleteResponse,
+  QueryIntent,
 } from '@/types/search.types'
+import { LOOKUP_INTENT } from '@/lib/search/query-intent'
 import type { Place } from '@/types/place.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
@@ -91,7 +93,7 @@ function searchService() {
   async function requestSearch(
     options: SearchOptions,
     signal?: AbortSignal,
-  ): Promise<SearchResult[] | AutocompleteResult[]> {
+  ): Promise<SearchResponse | AutocompleteResponse> {
     const {
       query = '',
       lat,
@@ -127,7 +129,7 @@ function searchService() {
       : await api.get<SearchResponse>('/search', { params, signal })
 
     suggestions.value = response.data.results
-    return response.data.results
+    return response.data
   }
 
   async function search(
@@ -138,7 +140,7 @@ function searchService() {
     error.value = null
 
     try {
-      return await requestSearch(options, signal)
+      return (await requestSearch(options, signal)).results
     } catch (err) {
       if (axios.isCancel(err)) return []
       console.error('Error in search:', err)
@@ -177,28 +179,38 @@ function searchService() {
   }
 
   /**
-   * Server autocomplete, answered from local data instead when the device is
-   * offline or the server can't be reached, so search keeps working.
+   * Server autocomplete and what the query is after, answered from local data
+   * instead when the device is offline or the server can't be reached, so
+   * search keeps working.
    */
-  async function getAutocompleteSuggestions(
+  async function getAutocomplete(
     options: SearchOptions,
     signal?: AbortSignal,
-  ): Promise<AutocompleteResult[]> {
-    if (isOffline.value) return searchLocally(options)
+  ): Promise<{ results: AutocompleteResult[]; intent: QueryIntent }> {
+    const local = async () => ({ results: await searchLocally(options), intent: LOOKUP_INTENT })
+    if (isOffline.value) return local()
 
     loading.value = true
     error.value = null
     try {
-      return (await requestSearch({ ...options, autocomplete: true }, signal)) as AutocompleteResult[]
+      const data = (await requestSearch({ ...options, autocomplete: true }, signal)) as AutocompleteResponse
+      return { results: data.results, intent: data.intent ?? LOOKUP_INTENT }
     } catch (err) {
-      if (axios.isCancel(err)) return []
+      if (axios.isCancel(err)) return { results: [], intent: LOOKUP_INTENT }
       error.value = err instanceof Error ? err.message : 'Unknown error occurred'
-      if (isRetriableNetworkError(getNetworkErrorKind(err))) return searchLocally(options)
+      if (isRetriableNetworkError(getNetworkErrorKind(err))) return local()
       console.error('Error in search:', err)
-      return []
+      return { results: [], intent: LOOKUP_INTENT }
     } finally {
       loading.value = false
     }
+  }
+
+  async function getAutocompleteSuggestions(
+    options: SearchOptions,
+    signal?: AbortSignal,
+  ): Promise<AutocompleteResult[]> {
+    return (await getAutocomplete(options, signal)).results
   }
 
   async function searchByCategory(
@@ -326,6 +338,7 @@ function searchService() {
     suggestions,
     error,
     lastAdvancedResults,
+    getAutocomplete,
     getAutocompleteSuggestions,
     search,
     searchLocally,

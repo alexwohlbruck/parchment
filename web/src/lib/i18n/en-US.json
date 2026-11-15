@@ -204,7 +204,8 @@
           "categories": "Categories",
           "places": "Places",
           "ask": "Ask",
-          "askLast": "Ask"
+          "askLast": "Ask",
+          "browse": "Browse"
         },
         "commonCategories": {
           "restaurants": "Restaurants",
@@ -278,6 +279,9 @@
           "bikeRepair": "Bike repair",
           "postBoxes": "Post boxes",
           "defibrillators": "Defibrillators"
+        },
+        "browse": {
+          "openNow": "Open now"
         },
         "brand": {
           "seeAll": "See all locations",

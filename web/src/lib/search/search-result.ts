@@ -310,6 +310,8 @@ export function createSearchResultsRoute(options: {
   categoryName?: string
   categoryIconCategory?: string
   overpassQuery?: string
+  /** Results filters to start with, by filter id. */
+  filters?: Record<string, string>
 }) {
   const routeQuery: Record<string, string> = {}
 
@@ -318,6 +320,9 @@ export function createSearchResultsRoute(options: {
   if (options.categoryName) routeQuery.categoryName = options.categoryName
   if (options.categoryIconCategory) routeQuery.categoryIconCategory = options.categoryIconCategory
   if (options.overpassQuery) routeQuery.overpassQuery = options.overpassQuery
+  for (const [id, value] of Object.entries(options.filters ?? {})) {
+    routeQuery[`f.${id}`] = value
+  }
 
   return {
     name: AppRoute.SEARCH_RESULTS,

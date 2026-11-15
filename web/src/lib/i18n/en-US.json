@@ -2455,7 +2455,11 @@
     "submittedDescription": "We'll let you know when there's an update.",
     "viewPost": "View",
     "submitFailed": "Couldn't submit your feedback. Please try again.",
-    "loadFailed": "Couldn't load the feedback boards."
+    "loadFailed": "Couldn't load the feedback boards.",
+    "attachImages": "Attach images",
+    "removeImage": "Remove image",
+    "imageTooLarge": "Images must be 10 MB or smaller.",
+    "tooManyImages": "You can attach up to {count} images."
   },
   "profileMenu": {
     "shortcuts": "Shortcuts",

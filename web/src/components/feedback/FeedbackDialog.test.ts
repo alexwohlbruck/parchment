@@ -42,6 +42,8 @@ vi.mock('@/composables/integrations/useFeedback', () => ({
 }))
 
 vi.mock('@/services/feedback.service', () => ({
+  MAX_FEEDBACK_IMAGES: 2,
+  MAX_FEEDBACK_IMAGE_BYTES: 8,
   submitFeedback: (...args: unknown[]) => submitFeedback(...args),
   createFeedbackPortalLogin: (...args: unknown[]) =>
     createFeedbackPortalLogin(...args),
@@ -267,5 +269,88 @@ describe('FeedbackDialog portal login', () => {
       'https://feedback.example.com/b/ideas/posts/post_5',
     )
     open.mockRestore()
+  })
+})
+
+describe('FeedbackDialog images', () => {
+  const image = (name = 'shot.png', bytes = 4) =>
+    new File([new Uint8Array(bytes)], name, { type: 'image/png' })
+
+  async function pick(w: ReturnType<typeof mount>, files: File[]) {
+    const input = w.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: files,
+      configurable: true,
+    })
+    await input.trigger('change')
+  }
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => `blob:${Math.random()}`)
+    URL.revokeObjectURL = vi.fn()
+    submitFeedback.mockReset()
+    submitFeedback.mockResolvedValue({ id: 'post_1', url: null })
+  })
+
+  it('submits the picked images', async () => {
+    const w = await mountOpen()
+    const shot = image()
+    await pick(w, [shot])
+    await w.find('#feedback-title').setValue('A title')
+    await w.find('form').trigger('submit')
+    await nextTick()
+
+    expect(w.findAll('img')).toHaveLength(1)
+    expect(submitFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ images: [shot] }),
+    )
+  })
+
+  it('attaches an image pasted into the details', async () => {
+    const w = await mountOpen()
+    const shot = image()
+    await w.find('#feedback-content').trigger('paste', {
+      clipboardData: { files: [shot] },
+    })
+
+    expect(w.findAll('img')).toHaveLength(1)
+  })
+
+  it('removes an image', async () => {
+    const w = await mountOpen()
+    await pick(w, [image()])
+    await w.find('button[aria-label="feedback.removeImage"]').trigger('click')
+
+    expect(w.findAll('img')).toHaveLength(0)
+    expect(URL.revokeObjectURL).toHaveBeenCalled()
+  })
+
+  it('stops at the limit and says so', async () => {
+    const w = await mountOpen()
+    await pick(w, [image('a.png'), image('b.png'), image('c.png')])
+
+    expect(w.findAll('img')).toHaveLength(2)
+    expect(w.text()).toContain('feedback.tooManyImages')
+    expect(w.find('button[aria-label="feedback.attachImages"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('skips an oversized image', async () => {
+    const w = await mountOpen()
+    await pick(w, [image('big.png', 64)])
+
+    expect(w.findAll('img')).toHaveLength(0)
+    expect(w.text()).toContain('feedback.imageTooLarge')
+  })
+
+  it('clears the images when reopened', async () => {
+    const w = await mountOpen()
+    await pick(w, [image()])
+    await w.setProps({ open: false })
+    await w.setProps({ open: true })
+    await nextTick()
+
+    expect(w.findAll('img')).toHaveLength(0)
   })
 })

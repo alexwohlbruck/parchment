@@ -25,11 +25,25 @@ export async function createFeedbackPortalLogin(
   return data
 }
 
+/** Matches the server's limits on attachments. */
+export const MAX_FEEDBACK_IMAGES = 4
+export const MAX_FEEDBACK_IMAGE_BYTES = 10 * 1024 * 1024
+
 export async function submitFeedback(input: {
   boardId: string
   title: string
   content: string
+  images?: File[]
 }): Promise<SubmittedFeedback> {
-  const { data } = await api.post<SubmittedFeedback>('/feedback', input)
+  const { images = [], ...fields } = input
+  if (!images.length) {
+    const { data } = await api.post<SubmittedFeedback>('/feedback', fields)
+    return data
+  }
+
+  const form = new FormData()
+  for (const [key, value] of Object.entries(fields)) form.append(key, value)
+  for (const image of images) form.append('images', image)
+  const { data } = await api.post<SubmittedFeedback>('/feedback', form)
   return data
 }

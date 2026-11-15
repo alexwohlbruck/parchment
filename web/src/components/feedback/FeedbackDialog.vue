@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ImagePlusIcon, XIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { toast } from '@/lib/toast'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
@@ -14,6 +15,8 @@ import { isTauri } from '@/lib/api'
 import {
   createFeedbackPortalLogin,
   submitFeedback,
+  MAX_FEEDBACK_IMAGES,
+  MAX_FEEDBACK_IMAGE_BYTES,
 } from '@/services/feedback.service'
 import { useFeedback } from '@/composables/integrations/useFeedback'
 
@@ -44,6 +47,8 @@ const openingPortal = ref(false)
 const boardId = ref<string>('')
 const title = ref('')
 const content = ref('')
+const images = ref<{ file: File; preview: string }[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
@@ -54,10 +59,56 @@ const canSubmit = computed(
   () => Boolean(boardId.value) && title.value.trim().length > 0,
 )
 
+function clearImages() {
+  for (const image of images.value) URL.revokeObjectURL(image.preview)
+  images.value = []
+}
+
 function reset() {
   title.value = ''
   content.value = ''
+  clearImages()
   error.value = null
+}
+
+onBeforeUnmount(clearImages)
+
+function addImages(files: Iterable<File>) {
+  error.value = null
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue
+    if (images.value.length >= MAX_FEEDBACK_IMAGES) {
+      error.value = t('feedback.tooManyImages', { count: MAX_FEEDBACK_IMAGES })
+      break
+    }
+    if (file.size > MAX_FEEDBACK_IMAGE_BYTES) {
+      error.value = t('feedback.imageTooLarge')
+      continue
+    }
+    images.value.push({ file, preview: URL.createObjectURL(file) })
+  }
+}
+
+function removeImage(index: number) {
+  const [removed] = images.value.splice(index, 1)
+  if (removed) URL.revokeObjectURL(removed.preview)
+}
+
+function handleFileInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  addImages(input.files ?? [])
+  // Clear it so picking the same file again still fires `change`.
+  input.value = ''
+}
+
+/** Pasting a screenshot into the details attaches it; text pastes as usual. */
+function handlePaste(event: ClipboardEvent) {
+  const files = [...(event.clipboardData?.files ?? [])].filter(file =>
+    file.type.startsWith('image/'),
+  )
+  if (!files.length) return
+  event.preventDefault()
+  addImages(files)
 }
 
 // Re-probe on open so a board added upstream shows up without a reload.
@@ -107,6 +158,7 @@ async function handleSubmit() {
       boardId: boardId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: images.value.map(image => image.file),
     })
 
     isOpen.value = false
@@ -190,8 +242,52 @@ async function handleSubmit() {
               id="feedback-content"
               v-model="content"
               :placeholder="t('feedback.contentPlaceholder')"
-              maxlength="10000"
+              maxlength="9500"
               rows="5"
+              @paste="handlePaste"
+            />
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <div
+              v-for="(image, index) in images"
+              :key="image.preview"
+              class="relative size-16 overflow-hidden rounded-md border"
+            >
+              <img
+                :src="image.preview"
+                :alt="image.file.name"
+                class="size-full object-cover"
+              />
+              <button
+                type="button"
+                class="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-background/80 text-foreground hover:bg-background"
+                :aria-label="t('feedback.removeImage')"
+                @click="removeImage(index)"
+              >
+                <XIcon class="size-3" />
+              </button>
+            </div>
+
+            <Button
+              v-if="images.length < MAX_FEEDBACK_IMAGES"
+              type="button"
+              variant="outline"
+              :size="images.length ? 'icon' : 'sm'"
+              :class="images.length ? 'size-16' : ''"
+              :aria-label="t('feedback.attachImages')"
+              @click="fileInput?.click()"
+            >
+              <ImagePlusIcon class="size-4" />
+              <span v-if="!images.length">{{ t('feedback.attachImages') }}</span>
+            </Button>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              multiple
+              class="hidden"
+              @change="handleFileInput"
             />
           </div>
         </template>

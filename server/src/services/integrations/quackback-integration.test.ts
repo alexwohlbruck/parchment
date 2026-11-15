@@ -182,6 +182,97 @@ describe('QuackbackIntegration', () => {
 
       expect(result.url).toBeNull()
     })
+
+    describe('images', () => {
+      const images = [
+        { url: 'https://api.test/feedback/images/a' },
+        { url: 'https://api.test/feedback/images/b' },
+      ]
+
+      test('embeds them after the text', async () => {
+        await configured().submitFeedback({
+          boardId: 'board_1',
+          title: 'Title',
+          content: 'Broken',
+          author: { email: 'ada@example.com' },
+          images,
+        })
+
+        expect(mockPost).toHaveBeenCalledWith(
+          '/posts',
+          expect.objectContaining({
+            content:
+              'Broken\n\n![](https://api.test/feedback/images/a)\n\n![](https://api.test/feedback/images/b)',
+          }),
+        )
+      })
+
+      test('needs no text to embed them', async () => {
+        await configured().submitFeedback({
+          boardId: 'board_1',
+          title: 'Title',
+          content: '',
+          author: { email: 'ada@example.com' },
+          images: images.slice(0, 1),
+        })
+
+        expect(mockPost).toHaveBeenCalledWith(
+          '/posts',
+          expect.objectContaining({
+            content: '![](https://api.test/feedback/images/a)',
+          }),
+        )
+      })
+
+      test('reports them copied once the post points elsewhere', async () => {
+        mockPost.mockImplementation((url: string) =>
+          url === '/users/identify'
+            ? Promise.resolve({ data: { data: {} } })
+            : Promise.resolve({
+                data: {
+                  data: {
+                    id: 'post_5',
+                    content: '![](/api/storage/post-images/1.webp)',
+                  },
+                },
+              }),
+        )
+        const result = await configured().submitFeedback({
+          boardId: 'board_1',
+          title: 'Title',
+          content: '',
+          author: { email: 'ada@example.com' },
+          images,
+        })
+
+        expect(result.imagesCopied).toBe(true)
+      })
+
+      test('reports them uncopied while the post still links any of them', async () => {
+        mockPost.mockImplementation((url: string) =>
+          url === '/users/identify'
+            ? Promise.resolve({ data: { data: {} } })
+            : Promise.resolve({
+                data: {
+                  data: {
+                    id: 'post_5',
+                    content:
+                      '![](/api/storage/post-images/1.webp)\n\n![](https://api.test/feedback/images/b)',
+                  },
+                },
+              }),
+        )
+        const result = await configured().submitFeedback({
+          boardId: 'board_1',
+          title: 'Title',
+          content: '',
+          author: { email: 'ada@example.com' },
+          images,
+        })
+
+        expect(result.imagesCopied).toBe(false)
+      })
+    })
   })
 
   describe('portal login', () => {

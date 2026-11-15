@@ -188,7 +188,10 @@
     "feedback": {
       "unavailable": "Los comentarios no están disponibles en este servidor",
       "fetchFailed": "No se pudieron cargar los tableros de comentarios",
-      "submitFailed": "No se pudieron enviar los comentarios"
+      "submitFailed": "No se pudieron enviar los comentarios",
+      "invalidImage": "Uno de los adjuntos no es una imagen compatible",
+      "imageTooLarge": "Las imágenes deben pesar 10 MB o menos",
+      "tooManyImages": "Adjunta como máximo 4 imágenes"
     }
   },
   "chips": {

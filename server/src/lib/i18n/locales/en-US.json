@@ -188,7 +188,10 @@
     "feedback": {
       "unavailable": "Feedback is not available on this server",
       "fetchFailed": "Failed to load feedback boards",
-      "submitFailed": "Failed to submit feedback"
+      "submitFailed": "Failed to submit feedback",
+      "invalidImage": "One of the attachments isn't a supported image",
+      "imageTooLarge": "Images must be 10 MB or smaller",
+      "tooManyImages": "Attach at most 4 images"
     }
   },
   "chips": {

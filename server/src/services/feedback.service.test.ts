@@ -22,7 +22,12 @@ import {
   feedbackErrorMessage,
   isFeedbackPortalLoginEnabled,
   createFeedbackPortalLogin,
+  readFeedbackImage,
+  InvalidFeedbackImageError,
 } from './feedback.service'
+import sharp from 'sharp'
+import { unlink } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 const PROVIDER = { capabilities: { feedback: { listBoards, submitFeedback } } }
 
@@ -91,6 +96,88 @@ describe('feedback.service', () => {
         url: 'https://x.test/b/bugs/posts/post_5',
       })
       expect(submitFeedback).toHaveBeenCalledWith(input)
+    })
+
+    describe('images', () => {
+      const input = {
+        boardId: 'board_1',
+        title: 'Title',
+        content: 'Body',
+        author: { email: 'ada@example.com' },
+      }
+      const staged = () =>
+        submitFeedback.mock.calls[0]![0].images.map((image: any) =>
+          image.url.split('/').pop(),
+        ) as string[]
+
+      async function photo() {
+        const bytes = await sharp({
+          create: { width: 3000, height: 1000, channels: 3, background: '#f00' },
+        })
+          .jpeg()
+          .withExif({ IFD0: { Make: 'TestPhone' } })
+          .toBuffer()
+        return new File([bytes], 'photo.jpg', { type: 'image/jpeg' })
+      }
+
+      test('stages each image behind a public url', async () => {
+        submitFeedback.mockImplementation(() =>
+          Promise.resolve({ id: 'post_5', url: null, imagesCopied: false }),
+        )
+        await serviceSubmitFeedback(input, [await photo(), await photo()])
+
+        const ids = staged()
+        expect(ids).toHaveLength(2)
+        expect(submitFeedback.mock.calls[0]![0].images[0].url).toBe(
+          `${process.env.SERVER_ORIGIN ?? ''}/feedback/images/${ids[0]}`,
+        )
+        const image = await readFeedbackImage(ids[0]!)
+        const metadata = await sharp(image!).metadata()
+        expect(metadata.format).toBe('webp')
+        expect(metadata.width).toBe(2400)
+        expect(metadata.exif).toBeUndefined()
+
+        // Kept, since the provider didn't copy them; tidy up after ourselves.
+        await Promise.all(
+          ids.map((id) =>
+            unlink(resolve(__dirname, `../../data/uploads/feedback/${id}.webp`)),
+          ),
+        )
+      })
+
+      test('drops the staged copies once the provider has its own', async () => {
+        submitFeedback.mockImplementation(() =>
+          Promise.resolve({ id: 'post_5', url: null, imagesCopied: true }),
+        )
+        await serviceSubmitFeedback(input, [await photo()])
+
+        expect(await readFeedbackImage(staged()[0]!)).toBeNull()
+      })
+
+      test('drops the staged copies when the submission fails', async () => {
+        submitFeedback.mockImplementation(() =>
+          Promise.reject(new Error('upstream down')),
+        )
+        await expect(
+          serviceSubmitFeedback(input, [await photo()]),
+        ).rejects.toThrow('upstream down')
+
+        expect(await readFeedbackImage(staged()[0]!)).toBeNull()
+      })
+
+      test('rejects a file that is not really an image', async () => {
+        const fake = new File(['<svg onload=alert(1)>'], 'x.png', {
+          type: 'image/png',
+        })
+        await expect(serviceSubmitFeedback(input, [fake])).rejects.toThrow(
+          InvalidFeedbackImageError,
+        )
+        expect(submitFeedback).not.toHaveBeenCalled()
+      })
+
+      test('serves nothing for an id outside the staging format', async () => {
+        expect(await readFeedbackImage('../../package')).toBeNull()
+      })
     })
 
     test('reports the missing provider rather than calling through', async () => {

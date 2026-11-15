@@ -45,7 +45,7 @@ function readCapabilityQuery(value: unknown): string[] {
     .filter((s) => validIds.has(s))
 }
 
-export function useIntegrationFilters() {
+export function useIntegrationFilters(scope: IntegrationScope) {
   const { t } = useI18n()
   const route = useRoute()
   const integrationStore = useIntegrationsStore()
@@ -61,7 +61,6 @@ export function useIntegrationFilters() {
   )
   const costFilter = ref<string[]>([])
   const hostingFilter = ref<string[]>([])
-  const scopeFilter = ref<string[]>([])
   const statusFilter = ref<string[]>([])
   const encryptionFilter = ref<string[]>([])
 
@@ -85,7 +84,6 @@ export function useIntegrationFilters() {
     capability: selectedCapabilities,
     cost: costFilter,
     hosting: hostingFilter,
-    scope: scopeFilter,
     status: statusFilter,
     encryption: encryptionFilter,
   }
@@ -94,7 +92,6 @@ export function useIntegrationFilters() {
   const exclusiveFilters = new Set([
     'cost',
     'hosting',
-    'scope',
     'status',
     'encryption',
   ])
@@ -140,16 +137,6 @@ export function useIntegrationFilters() {
             : t('settings.integrations.filter.selfHosted'),
       })
     }
-    for (const v of scopeFilter.value) {
-      chips.push({
-        key: `scope:${v}`,
-        category: 'scope',
-        label:
-          v === 'system'
-            ? t('settings.integrations.filter.system')
-            : t('settings.integrations.filter.user'),
-      })
-    }
     for (const v of statusFilter.value) {
       chips.push({
         key: `status:${v}`,
@@ -184,7 +171,6 @@ export function useIntegrationFilters() {
   function clearAllFilters() {
     costFilter.value = []
     hostingFilter.value = []
-    scopeFilter.value = []
     statusFilter.value = []
     encryptionFilter.value = []
     selectedCapabilities.value = []
@@ -202,7 +188,7 @@ export function useIntegrationFilters() {
   )
 
   const filteredIntegrations = computed(() => {
-    let items = [...allIntegrations.value]
+    let items = allIntegrations.value.filter(entry => entry.scope === scope)
 
     if (selectedCapabilities.value.length > 0) {
       items = items.filter(({ integration }) =>
@@ -226,10 +212,6 @@ export function useIntegrationFilters() {
           v === 'cloud' ? integration.cloud : !integration.cloud,
         ),
       )
-    }
-
-    if (scopeFilter.value.length > 0) {
-      items = items.filter(({ scope }) => scopeFilter.value.includes(scope))
     }
 
     if (statusFilter.value.length > 0) {
@@ -296,7 +278,6 @@ export function useIntegrationFilters() {
     selectedCapabilities,
     costFilter,
     hostingFilter,
-    scopeFilter,
     statusFilter,
     encryptionFilter,
     // Sort state

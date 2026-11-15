@@ -4,8 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import {
   CloudIcon,
-  HardDriveIcon,
-  UserIcon,
   LogOutIcon,
   TriangleAlertIcon,
 } from 'lucide-vue-next'
@@ -436,17 +434,6 @@ const icon = computed(() => {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger as-child>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold flex items-center gap-0.5">
-                <UserIcon v-if="scope === IntegrationScope.USER" class="size-3" />
-                <HardDriveIcon v-else class="size-3" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" :side-offset="4">
-              {{ t(`settings.integrations.filter.${scope}`) }}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger as-child>
               <span
                 class="size-2 rounded-full border-[1.75px]"
                 :style="{
@@ -465,9 +452,6 @@ const icon = computed(() => {
     <div class="px-4 flex-1">
       <h4 class="font-medium">
         {{ integration.name }}
-        <span v-if="integration.scope.length > 1" class="text-muted-foreground font-normal">
-          · {{ t(`settings.integrations.scopeLabel.${scope}`) }}
-        </span>
       </h4>
       <p class="text-sm text-muted-foreground line-clamp-2">
         {{

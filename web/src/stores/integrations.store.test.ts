@@ -28,6 +28,21 @@ function makeRecord(overrides: Partial<IntegrationRecord> = {}): IntegrationReco
   } as IntegrationRecord
 }
 
+function makeDef(overrides: Partial<import('@server/types/integration.types').IntegrationDefinition> = {}) {
+  return {
+    id: 'test' as IntegrationId,
+    name: 'Test',
+    description: '',
+    color: '#000',
+    capabilities: [],
+    paid: false,
+    cloud: false,
+    configSchema: 'apiKeySchema',
+    scope: [IntegrationScope.SYSTEM],
+    ...overrides,
+  } as import('@server/types/integration.types').IntegrationDefinition
+}
+
 describe('useIntegrationsStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -245,21 +260,6 @@ describe('useIntegrationsStore', () => {
   })
 
   describe('allIntegrations', () => {
-    function makeDef(overrides: Partial<import('@server/types/integration.types').IntegrationDefinition> = {}) {
-      return {
-        id: 'test' as IntegrationId,
-        name: 'Test',
-        description: '',
-        color: '#000',
-        capabilities: [],
-        paid: false,
-        cloud: false,
-        configSchema: 'apiKeySchema',
-        scope: [IntegrationScope.SYSTEM],
-        ...overrides,
-      } as import('@server/types/integration.types').IntegrationDefinition
-    }
-
     test('returns unconfigured integrations with no config', () => {
       const store = useIntegrationsStore()
       store.availableIntegrations = [
@@ -384,6 +384,20 @@ describe('useIntegrationsStore', () => {
         makeRecord({ integrationId: IntegrationId.DAWARICH }),
       ]
       expect(store.hasDegradedIntegrations).toBe(true)
+    })
+
+    test('hasDegradedIntegrationsIn only counts that scope', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.DAWARICH, scope: [IntegrationScope.USER] }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ integrationId: IntegrationId.DAWARICH }),
+      ]
+      store.markIntegrationDegraded(IntegrationId.DAWARICH)
+
+      expect(store.hasDegradedIntegrationsIn(IntegrationScope.USER)).toBe(true)
+      expect(store.hasDegradedIntegrationsIn(IntegrationScope.SYSTEM)).toBe(false)
     })
 
     test('clearCache resets degraded flags', () => {

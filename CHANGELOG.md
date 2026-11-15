@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Long-pressing the map during navigation no longer opens the map menu over your route.
+
 ## [0.21.5] - 2026-11-13
 
 ### Added

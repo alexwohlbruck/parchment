@@ -3801,9 +3801,14 @@
     "retry": "Reintentar",
     "locked": {
       "title": "Preguntar es parte de Premium",
-      "description": "O añade tu propia clave de OpenRouter para usarlo en cualquier plan",
-      "addKey": "Añadir clave"
+      "description": "O usa tu propia cuenta de OpenRouter en cualquier plan",
+      "addKey": "Pegar una clave"
     },
-    "notConfigured": "Preguntar no está configurado en este servidor"
+    "notConfigured": "Preguntar no está configurado en este servidor",
+    "connect": {
+      "action": "Conectar OpenRouter",
+      "connecting": "Conectando OpenRouter",
+      "failed": "No se pudo conectar OpenRouter"
+    }
   }
 }

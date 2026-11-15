@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowUpIcon, MessageCircleQuestionIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { useAskStore } from '@/stores/ask.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useAskService } from '@/services/ask/ask.service'
+import { useOpenRouterConnect } from '@/services/ask/openrouter-connect.service'
+import { isTauri } from '@/lib/api'
 import { useMapService } from '@/services/map/map.service'
 import { usePlaceService } from '@/services/place/place.service'
 import { getPlaceRoute } from '@/lib/place/place-route'
@@ -31,6 +33,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
+const openRouterConnect = useOpenRouterConnect()
 const askStore = useAskStore()
 const searchStore = useSearchStore()
 const askService = useAskService()
@@ -47,6 +51,10 @@ async function start(question: string | undefined) {
   const result = await askService.loadAccess().catch(() => null)
   loadingAccess.value = false
   if (result?.allowed) askService.ask(text)
+}
+
+function connectOpenRouter() {
+  openRouterConnect.start(route.fullPath)
 }
 
 function retry() {
@@ -133,13 +141,17 @@ onUnmounted(() => {
           :title="t('ask.locked.title')"
           :description="t('ask.locked.description')"
         />
-        <Button
-          variant="outline"
-          class="self-start"
-          @click="router.push({ name: AppRoute.INTEGRATIONS })"
-        >
-          {{ t('ask.locked.addKey') }}
-        </Button>
+        <div class="flex items-center gap-2">
+          <Button v-if="!isTauri" @click="connectOpenRouter">
+            {{ t('ask.connect.action') }}
+          </Button>
+          <Button
+            variant="outline"
+            @click="router.push({ name: AppRoute.INTEGRATIONS })"
+          >
+            {{ t('ask.locked.addKey') }}
+          </Button>
+        </div>
       </div>
     </template>
 

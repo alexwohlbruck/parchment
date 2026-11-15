@@ -4075,9 +4075,14 @@
     "retry": "Try again",
     "locked": {
       "title": "Ask is part of Premium",
-      "description": "Or add your own OpenRouter key to use it on any plan",
-      "addKey": "Add a key"
+      "description": "Or use your own OpenRouter account on any plan",
+      "addKey": "Paste a key"
     },
-    "notConfigured": "Ask isn't set up on this server"
+    "notConfigured": "Ask isn't set up on this server",
+    "connect": {
+      "action": "Connect OpenRouter",
+      "connecting": "Connecting OpenRouter",
+      "failed": "Couldn't connect OpenRouter"
+    }
   }
 }

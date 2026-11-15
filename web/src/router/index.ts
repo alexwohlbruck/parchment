@@ -38,6 +38,7 @@ export enum AppRoute {
   ROUTE_PREVIEW = 'route-preview',
   SEARCH_RESULTS = 'search-results',
   ASK = 'ask',
+  CONNECT_OPENROUTER = 'connect-openrouter',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
@@ -158,6 +159,11 @@ const router = createRouter({
             categoryName: route.query.categoryName,
             overpassQuery: route.query.overpassQuery,
           }),
+        },
+        {
+          path: '/connect/openrouter',
+          name: AppRoute.CONNECT_OPENROUTER,
+          component: () => import('@/views/ask/ConnectOpenRouter.vue'),
         },
         {
           path: '/ask',

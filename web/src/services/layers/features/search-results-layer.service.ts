@@ -20,7 +20,9 @@ import {
   SEARCH_RESULTS_LAYER_CONFIG,
   EMPTY_SEARCH_RESULTS_GEOJSON,
   searchResultLabelPaint,
+  poiLabelLayout,
 } from '@/constants/layers'
+import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
 
 export function useSearchResultsLayerService() {
   // State tracking
@@ -32,21 +34,25 @@ export function useSearchResultsLayerService() {
   // LAYER CREATION
   // ============================================================================
 
-  function createSearchResultsLayer(): Layer {
+  function createSearchResultsLayer(look: BasemapPoiLook | null = null): Layer {
     const theme = useThemeStore()
     const palette = useCategoryPaletteStore()
     return {
       ...SEARCH_RESULTS_LAYER_CONFIG,
       configuration: {
         ...SEARCH_RESULTS_LAYER_CONFIG.configuration,
+        layout: poiLabelLayout(look),
         // Resolved here rather than in the config, since it follows the theme
         // and the live palette. Both are read fresh on every style.load, which
         // is what a theme switch triggers.
-        paint: searchResultLabelPaint({
-          isDark: theme.isDark,
-          categories: palette.palette.map(c => c.id),
-          categoryColor: category => palette.getCategoryColor(category, theme.isDark),
-        }),
+        paint: {
+          ...searchResultLabelPaint({
+            isDark: theme.isDark,
+            categories: palette.palette.map(c => c.id),
+            categoryColor: category => palette.getCategoryColor(category, theme.isDark),
+          }),
+          ...look?.paint,
+        },
       },
       id: SEARCH_RESULTS_LAYER_ID,
       userId: '',
@@ -98,7 +104,7 @@ export function useSearchResultsLayerService() {
     // (e.g. Mapbox → MapLibre font translation) are applied automatically.
     // Source is already present so the strategy's source-existence check passes.
     if (!mapInstance.getLayer(SEARCH_RESULTS_LABELS_LAYER_ID)) {
-      const layer = createSearchResultsLayer()
+      const layer = createSearchResultsLayer(basemapPoiLook(mapInstance.getStyle()?.layers ?? []))
       layer.visible = currentResults.length > 0
       mapStrategy.addLayer(layer)
     }

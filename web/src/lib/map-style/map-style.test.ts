@@ -23,6 +23,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
   poiBadgeColors,
+  poiBadgeTint,
 } from './build'
 import { INDOOR_SOURCE, withoutIndoorBuildings } from './indoor-layers'
 import {
@@ -2921,6 +2922,12 @@ describe('poiBadgeColors', () => {
     const image = JSON.stringify(education.layout['icon-image'])
     for (const color of [plate, ink, ring, lift]) expect(image).toContain(JSON.stringify(color))
     expect(JSON.stringify(education.paint['text-color'])).toContain(JSON.stringify(ink))
+  })
+
+  test('match tinting the category colour directly', () => {
+    for (const flavor of ['light', 'dark'] as const) {
+      expect(poiBadgeTint(categoryColors.education, flavor)).toEqual(poiBadgeColors('education', flavor, categoryColors))
+    }
   })
 
   test('fall back to the default category', () => {

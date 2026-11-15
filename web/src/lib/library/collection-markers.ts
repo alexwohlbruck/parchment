@@ -2,16 +2,17 @@
 
 import type { Bookmark } from '@/types/library.types'
 import { frequentChipMeta } from '@/lib/frequents'
-import {
-  markerImageId,
-  markerPaint,
-  type MarkerImageSpec,
-} from '@/lib/map-marker'
+import { markerPaint, type MarkerImageSpec, type PlaceMark } from '@/lib/map-marker'
 
 export type ColorResolver = (color: string) => string
 
 function isDrawable(bookmark: Bookmark): boolean {
   return Number.isFinite(bookmark.lat) && Number.isFinite(bookmark.lng)
+}
+
+/** The colour a place is tinted, resolved from its list row's look. */
+export function collectionMarkerColor(bookmark: Bookmark, resolveColor: ColorResolver): string {
+  return resolveColor(frequentChipMeta(bookmark).color)
 }
 
 export function collectionMarkerSpec(
@@ -24,45 +25,32 @@ export function collectionMarkerSpec(
     shape: 'disc',
     pack: look.iconPack,
     name: look.icon,
-    paint: markerPaint(resolveColor(look.color), 'disc', isDark),
+    paint: markerPaint(collectionMarkerColor(bookmark, resolveColor), 'disc', isDark),
   }
 }
 
-export function collectionMarkerSpecs(
-  bookmarks: Bookmark[],
-  resolveColor: ColorResolver,
-  isDark: boolean,
-): MarkerImageSpec[] {
-  return bookmarks
-    .filter(isDrawable)
-    .map(bookmark => collectionMarkerSpec(bookmark, resolveColor, isDark))
+export function drawableBookmarks(bookmarks: Bookmark[]): Bookmark[] {
+  return bookmarks.filter(isDrawable)
 }
 
-export function buildCollectionMarkersGeoJSON(
-  bookmarks: Bookmark[],
-  resolveColor: ColorResolver,
-  isDark: boolean,
-) {
+/** One point per place; `marks` lines up with `bookmarks`, which must already be drawable. */
+export function buildCollectionMarkersGeoJSON(bookmarks: Bookmark[], marks: PlaceMark[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: bookmarks.filter(isDrawable).map((bookmark, index) => {
-      const spec = collectionMarkerSpec(bookmark, resolveColor, isDark)
-      return {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [bookmark.lng, bookmark.lat],
-        },
-        properties: {
-          id: bookmark.id,
-          name: bookmark.name,
-          markerImage: markerImageId(spec),
-          // A POI label is set in its marker's glyph colour.
-          ink: spec.paint.ink,
-          // List order wins label collisions.
-          sortKey: index,
-        },
-      }
-    }),
+    features: bookmarks.map((bookmark, index) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [bookmark.lng, bookmark.lat],
+      },
+      properties: {
+        id: bookmark.id,
+        name: bookmark.name,
+        markerImage: marks[index].image,
+        ink: marks[index].ink,
+        // List order wins label collisions.
+        sortKey: index,
+      },
+    })),
   }
 }

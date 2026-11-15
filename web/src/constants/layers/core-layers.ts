@@ -1,3 +1,4 @@
+import type { BasemapPoiLook } from '@/lib/map/basemap-poi-look'
 import {
   LayerType,
   MapEngine,
@@ -420,6 +421,13 @@ export const COLLECTION_LABELS_LAYER_CONFIG: Omit<
     filter: ['has', 'name'],
     layout: POI_LABEL_LAYOUT,
   },
+}
+
+/** A label layer's layout: the basemap POIs' own lettering when the style has any. */
+export function poiLabelLayout(look: BasemapPoiLook | null): Record<string, unknown> {
+  return look
+    ? { ...look.layout, 'text-field': ['get', 'name'], 'symbol-sort-key': ['get', 'sortKey'] }
+    : POI_LABEL_LAYOUT
 }
 
 /** Labels are set in their marker's glyph colour, as search results are. */

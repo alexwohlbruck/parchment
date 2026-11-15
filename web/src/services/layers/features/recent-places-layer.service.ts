@@ -15,10 +15,9 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { ensureMarkerImage, markerImageId } from '@/lib/map-marker'
+import { ensureMarkerImage, markerImageId, type PlaceMark } from '@/lib/map-marker'
 import { poiBadgeColors } from '@/lib/map-style/build'
-import { poiBadgeName } from '@/lib/map-style/poi-badge'
-import { ensureBadgeArt, spriteLoaded } from '@/lib/map-style/badge-art'
+import { ensurePoiBadge, spriteLoaded } from '@/lib/map-style/badge-art'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
@@ -27,7 +26,6 @@ import {
   buildRecentPlacesGeoJSON,
   recentPlaceIcon,
   recentPlaceMarkerSpec,
-  type RecentPlaceMark,
   selectRecentPlaceMarkers,
   type DrawableRecentPlace,
 } from '@/lib/recents/recent-place-markers'
@@ -104,7 +102,7 @@ export function useRecentPlacesLayerService() {
   )
 
   /** Basemap badges where the style composites them, the app's own markers elsewhere. */
-  async function markPlaces(map: any, drawn: DrawableRecentPlace[]): Promise<RecentPlaceMark[]> {
+  async function markPlaces(map: any, drawn: DrawableRecentPlace[]): Promise<PlaceMark[]> {
     const isDark = useThemeStore().isDark
     const palette = useCategoryPaletteStore()
 
@@ -112,10 +110,8 @@ export function useRecentPlacesLayerService() {
       const categoryColors = palette.categoryColors(isDark)
       return Promise.all(
         drawn.map(async place => {
-          const { pack, name } = recentPlaceIcon(place)
-          const art = await ensureBadgeArt(map, pack, name)
           const colors = poiBadgeColors(place.category ?? 'default', isDark ? 'dark' : 'light', categoryColors)
-          return { image: art ? poiBadgeName({ art, ...colors }) : '', ink: colors.ink }
+          return { image: await ensurePoiBadge(map, recentPlaceIcon(place), colors), ink: colors.ink }
         }),
       )
     }

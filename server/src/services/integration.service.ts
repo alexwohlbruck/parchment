@@ -349,6 +349,20 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.OPENROUTER,
+    name: 'OpenRouter',
+    description:
+      'The language model behind Ask. Set system-wide to offer Ask to premium members, or add your own key to use it on any plan.',
+    color: '#6467F2',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.OPENROUTER)
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'openrouterSchema',
+    scope: [IntegrationScope.SYSTEM, IntegrationScope.USER],
+  },
+  {
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:

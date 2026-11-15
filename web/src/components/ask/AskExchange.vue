@@ -11,7 +11,10 @@ import { Button } from '@/components/ui/button'
 import { createSearchResultsRoute } from '@/lib/search/search-result'
 import { intentFilters } from '@/lib/search/query-intent'
 import AskSteps from './AskSteps.vue'
-import type { AskExchange, AskTrip } from '@/stores/ask.store'
+import AskTripCard from './AskTripCard.vue'
+import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
+import { AppRoute } from '@/router'
+import type { AskExchange } from '@/stores/ask.store'
 
 const props = defineProps<{
   exchange: AskExchange
@@ -19,7 +22,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: []
-  directions: [trip: AskTrip]
   'place-hover': [placeId: string]
   'place-leave': []
 }>()
@@ -59,14 +61,16 @@ const browseRoute = computed(() => {
       {{ exchange.text }}
     </p>
 
-    <Button
-      v-if="exchange.status === 'done' && exchange.trip"
-      class="self-start"
-      @click="emit('directions', exchange.trip)"
-    >
-      <CornerUpRightIcon class="size-4" />
-      {{ exchange.trip.to.name ? t('ask.trip.directionsTo', { name: exchange.trip.to.name }) : t('ask.trip.directions') }}
-    </Button>
+    <template v-if="exchange.trip">
+      <AskTripCard v-if="exchange.plan" :plan="exchange.plan" />
+      <div v-else-if="exchange.plan === undefined" :class="ITEM_ROW_SURFACES.row" class="py-6">
+        <DirectionsLoading />
+      </div>
+      <Button v-else class="self-start" @click="router.push({ name: AppRoute.DIRECTIONS })">
+        <CornerUpRightIcon class="size-4" />
+        {{ exchange.trip.to.name ? t('ask.trip.directionsTo', { name: exchange.trip.to.name }) : t('ask.trip.directions') }}
+      </Button>
+    </template>
 
     <EmptyState
       v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip"

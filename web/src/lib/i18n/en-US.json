@@ -4105,7 +4105,8 @@
     },
     "trip": {
       "directions": "Directions",
-      "directionsTo": "Directions to {name}"
+      "directionsTo": "Directions to {name}",
+      "allWays": "All ways to get there"
     }
   }
 }

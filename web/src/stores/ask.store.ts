@@ -3,8 +3,15 @@ import { defineStore } from 'pinia'
 import type { AskAccess, AskCitation, AskEvent, AskTurn } from '@/types/ask.types'
 
 export type AskTrip = Omit<Extract<AskEvent, { type: 'trip' }>, 'type'>
+
+/** The proposed trip as Directions planned it, for the card and the map. */
+export interface AskTripPlan {
+  trips: TripsResponse
+  tripId: string
+}
 import type { IsochroneGeometry } from '@server/types/isochrone.types'
 import type { QueryIntent } from '@/types/search.types'
+import type { TripsResponse } from '@/types/directions.types'
 
 export interface AskStep {
   id: string
@@ -22,6 +29,8 @@ export interface AskExchange {
   browse?: QueryIntent
   /** The trip the answer recommends, to open in Directions. */
   trip?: AskTrip
+  /** Undefined while Directions plans it; null when it couldn't. */
+  plan?: AskTripPlan | null
   status: 'running' | 'done' | 'error'
   error?: string
 }
@@ -108,6 +117,11 @@ export const useAskStore = defineStore('ask', () => {
     }
   }
 
+  function setPlan(index: number, plan: AskTripPlan | null) {
+    if (!exchanges.value[index]) return
+    exchanges.value = exchanges.value.map((exchange, i) => (i === index ? { ...exchange, plan } : exchange))
+  }
+
   function fail(message: string) {
     updateCurrent(exchange => ({ ...exchange, status: 'error', error: message }))
   }
@@ -116,5 +130,5 @@ export const useAskStore = defineStore('ask', () => {
     exchanges.value = []
   }
 
-  return { access, exchanges, current, isRunning, history, start, apply, fail, reset }
+  return { access, exchanges, current, isRunning, history, start, apply, setPlan, fail, reset }
 })

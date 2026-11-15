@@ -3831,7 +3831,8 @@
     },
     "trip": {
       "directions": "Cómo llegar",
-      "directionsTo": "Cómo llegar a {name}"
+      "directionsTo": "Cómo llegar a {name}",
+      "allWays": "Todas las formas de llegar"
     }
   }
 }

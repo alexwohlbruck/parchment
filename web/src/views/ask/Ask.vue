@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
-import { distance } from '@turf/turf'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ArrowUpIcon, MessageCircleQuestionIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
-import { useAskStore, type AskTrip } from '@/stores/ask.store'
-import { useDirectionsStore } from '@/stores/directions.store'
-import { useDirectionsService } from '@/services/directions.service'
+import { useAskStore } from '@/stores/ask.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useAskService } from '@/services/ask/ask.service'
 import { useOpenRouterConnect } from '@/services/ask/openrouter-connect.service'
@@ -18,6 +15,7 @@ import { getPlaceRoute } from '@/lib/place/place-route'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { useAreaLayer } from '@/composables/map/useAreaLayer'
 import { useAskContext } from '@/composables/ask/useAskContext'
+import { useAskTripPreview } from '@/composables/ask/useAskTripPreview'
 import {
   ASK_REACH_FILL_LAYER_ID,
   ASK_REACH_LINE_LAYER_ID,
@@ -31,8 +29,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import type { Place } from '@/types/place.types'
-import type { Waypoint } from '@/types/map.types'
-import type { AskEndpoint } from '@/types/ask.types'
 
 const props = defineProps<{
   question?: string
@@ -50,28 +46,20 @@ const askService = useAskService()
 const mapService = useMapService()
 const { setPartialPlace } = usePlaceService()
 const askContext = useAskContext()
-const directionsService = useDirectionsService()
-const directionsStore = useDirectionsStore()
+const tripPreview = useAskTripPreview()
 
-const SAME_SPOT_KM = 0.05
+watch(
+  () => askStore.current?.trip,
+  trip => {
+    if (trip) tripPreview.preview(askStore.exchanges.length - 1, trip)
+  },
+)
 
-function tripWaypoint(point: AskEndpoint): Waypoint {
-  const current = directionsService.getCurrentLocationWaypoint()
-  const lngLat = { lng: point.lng, lat: point.lat }
-  if (current?.lngLat && distance([lngLat.lng, lngLat.lat], [current.lngLat.lng, current.lngLat.lat]) < SAME_SPOT_KM) {
-    return current
-  }
-  return { lngLat }
-}
+const TRIP_ROUTES: unknown[] = [AppRoute.DIRECTIONS, AppRoute.TRIP]
 
-async function openTrip(trip: AskTrip) {
-  directionsService.clearTrip()
-  await directionsService.directionsFrom(tripWaypoint(trip.from))
-  await directionsService.directionsTo(tripWaypoint(trip.to))
-  // Bike share trips have no tab of their own; they rank among every mode's.
-  directionsStore.selectedMode = trip.kind === 'bikeshare' ? 'multi' : trip.kind
-  router.push({ name: AppRoute.DIRECTIONS })
-}
+onBeforeRouteLeave(to => {
+  if (!TRIP_ROUTES.includes(to.name)) tripPreview.clear()
+})
 
 const followUp = ref('')
 const loadingAccess = ref(!askStore.access)
@@ -218,7 +206,6 @@ onUnmounted(() => {
         :exchange="exchange"
         :class="index < askStore.exchanges.length - 1 && 'opacity-60'"
         @retry="retry"
-        @directions="openTrip"
         @place-hover="searchStore.setHoveredPlace($event)"
         @place-leave="searchStore.setHoveredPlace(null)"
       />

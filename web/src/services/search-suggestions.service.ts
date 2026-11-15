@@ -19,6 +19,11 @@ import { useCommandService } from '@/services/command.service'
 import { useSearchService } from '@/services/search.service'
 import { useMapStore } from '@/stores/map.store'
 import { useRecentsStore } from '@/stores/recents.store'
+import { toLngLat } from '@/lib/geo/lng-lat'
+import { prefersAsk } from '@/lib/ask/ask-intent'
+import { useAskService } from '@/services/ask/ask.service'
+
+export const ASK_OPTION = 'ask'
 
 export async function buildSearchSuggestions(
   _query?: string,
@@ -196,6 +201,25 @@ export async function buildSearchSuggestions(
   const recentIdentities = new Set(recentEntries.map(r => r.identity))
   const recentItems = recentEntries.map(r => r.option)
 
+  const askAccess = useAskService().loadAccess().catch(() => null)
+  const askItem = async (
+    results: CommandArgumentOption[],
+  ): Promise<CommandArgumentOption[]> => {
+    const access = await askAccess
+    if (!access || (!access.allowed && access.reason === 'not-configured')) return []
+    const exactMatch = results.some(r => r.name.trim().toLowerCase() === q)
+    return [
+      {
+        value: ASK_OPTION,
+        name: searchText,
+        description: t('ask.row'),
+        iconName: 'MessageCircleQuestion',
+        iconColor: getCategoryColor('default', isDark.value),
+        group: prefersAsk(searchText, { exactMatch }) ? 'ask' : 'askLast',
+      },
+    ]
+  }
+
   const fullSearchItem = searchText.trim()
     ? [
         {
@@ -211,20 +235,7 @@ export async function buildSearchSuggestions(
   try {
     // Get map center for location-aware search
     const mapStore = useMapStore()
-    const center = mapStore.mapCamera.center
-
-    let lng, lat
-    if (Array.isArray(center)) {
-      ;[lng, lat] = center
-    } else if (typeof center === 'object') {
-      lng =
-        'lng' in center
-          ? center.lng
-          : 'lon' in center
-          ? center.lon
-          : 0
-      lat = center.lat || 0
-    }
+    const { lng, lat } = toLngLat(mapStore.mapCamera.center)
 
     // The server returns categories and places interleaved by relevance score.
     // Trust the server's ordering — no client-side category search or re-sort.
@@ -333,10 +344,10 @@ export async function buildSearchSuggestions(
       .filter(r => !recentIdentities.has(r.identity))
       .map(r => r.option)
 
-    return [...fullSearchItem, ...recentItems, ...results]
+    return [...(await askItem(results)), ...fullSearchItem, ...recentItems, ...results]
   } catch (error) {
     console.error('Error loading search suggestions:', error)
     // Still surface recents even when the server search fails.
-    return [...fullSearchItem, ...recentItems]
+    return [...(await askItem([])), ...fullSearchItem, ...recentItems]
   }
 }

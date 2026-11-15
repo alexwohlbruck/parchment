@@ -37,6 +37,7 @@ export enum AppRoute {
   GUIDANCE = 'guidance',
   ROUTE_PREVIEW = 'route-preview',
   SEARCH_RESULTS = 'search-results',
+  ASK = 'ask',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
@@ -157,6 +158,12 @@ const router = createRouter({
             categoryName: route.query.categoryName,
             overpassQuery: route.query.overpassQuery,
           }),
+        },
+        {
+          path: '/ask',
+          name: AppRoute.ASK,
+          component: () => import('@/views/ask/Ask.vue'),
+          props: route => ({ question: route.query.q }),
         },
         {
           path: '/directions/trip/:id',

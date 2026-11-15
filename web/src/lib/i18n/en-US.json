@@ -202,7 +202,9 @@
           "recents": "Recents",
           "brands": "Brands",
           "categories": "Categories",
-          "places": "Places"
+          "places": "Places",
+          "ask": "Ask",
+          "askLast": "Ask"
         },
         "commonCategories": {
           "restaurants": "Restaurants",
@@ -4052,5 +4054,24 @@
   "myLocation": {
     "title": "My location",
     "accuracy": "Within {distance}"
+  },
+  "ask": {
+    "title": "Ask",
+    "row": "Ask for places that fit",
+    "starting": "Reading your question",
+    "searches": "1 search | {count} searches",
+    "followUp": "Ask a follow-up",
+    "empty": {
+      "title": "Nothing fits that yet",
+      "description": "Try a wider area or fewer details"
+    },
+    "error": "Couldn't answer that",
+    "retry": "Try again",
+    "locked": {
+      "title": "Ask is part of Premium",
+      "description": "Or add your own OpenRouter key to use it on any plan",
+      "addKey": "Add a key"
+    },
+    "notConfigured": "Ask isn't set up on this server"
   }
 }

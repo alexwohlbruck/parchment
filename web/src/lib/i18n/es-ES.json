@@ -200,7 +200,9 @@
           "recents": "Recientes",
           "brands": "Marcas",
           "categories": "Categorías",
-          "places": "Lugares"
+          "places": "Lugares",
+          "ask": "Preguntar",
+          "askLast": "Preguntar"
         },
         "commonCategories": {
           "restaurants": "Restaurantes",
@@ -3778,5 +3780,24 @@
   "myLocation": {
     "title": "Mi ubicación",
     "accuracy": "Precisión de {distance}"
+  },
+  "ask": {
+    "title": "Preguntar",
+    "row": "Busca lugares que encajen",
+    "starting": "Leyendo tu pregunta",
+    "searches": "1 búsqueda | {count} búsquedas",
+    "followUp": "Haz otra pregunta",
+    "empty": {
+      "title": "Nada encaja todavía",
+      "description": "Prueba una zona más amplia o menos detalles"
+    },
+    "error": "No se pudo responder",
+    "retry": "Reintentar",
+    "locked": {
+      "title": "Preguntar es parte de Premium",
+      "description": "O añade tu propia clave de OpenRouter para usarlo en cualquier plan",
+      "addKey": "Añadir clave"
+    },
+    "notConfigured": "Preguntar no está configurado en este servidor"
   }
 }

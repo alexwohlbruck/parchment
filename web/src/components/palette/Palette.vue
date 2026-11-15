@@ -42,6 +42,8 @@ import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
+import { ASK_OPTION } from '@/services/search-suggestions.service'
+import { useAskStore } from '@/stores/ask.store'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -83,6 +85,7 @@ const { t } = useI18n()
 const route = useRoute()
 const commandStore = useCommandStore()
 const appStore = useAppStore()
+const askStore = useAskStore()
 const router = useRouter()
 const {
   activeCommand,
@@ -148,6 +151,7 @@ const filteredArgumentOptions = computed(() => {
 })
 
 const SEARCH_GROUP_ORDER = [
+  'ask',
   'frequents',
   'suggestedCategories',
   'fullSearch',
@@ -155,6 +159,7 @@ const SEARCH_GROUP_ORDER = [
   'brands',
   'categories',
   'places',
+  'askLast',
 ] as const
 
 /**
@@ -307,6 +312,14 @@ onClickOutside(container as any, event => {
   closePalette()
   resetCommand()
 })
+
+function onTab(event: KeyboardEvent) {
+  if (!isSearch.value || !query.value.trim()) return
+  const access = askStore.access
+  if (!access || (!access.allowed && access.reason === 'not-configured')) return
+  event.preventDefault()
+  onArgumentSelected(ASK_OPTION)
+}
 
 function onBackspace() {
   if (query.value === '') {
@@ -480,6 +493,7 @@ const filterFunction = computed(() => {
         :placeholder="placeholder"
         @focus="inputFocused($event)"
         @keydown.backspace="onBackspace()"
+        @keydown.tab="onTab"
       >
         <template v-slot:prefix>
           <component :is="icon" class="size-4! shrink-0 opacity-50" />

@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { ASK_OPTION, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
@@ -268,6 +268,15 @@ export const useCommandStore = defineStore('command', () => {
             router.push({
               name: AppRoute.SEARCH_RESULTS,
               query: { q },
+            })
+            return
+          }
+
+          if (itemId === ASK_OPTION) {
+            const { currentSearchQuery } = useCommandService()
+            router.push({
+              name: AppRoute.ASK,
+              query: { q: currentSearchQuery.value },
             })
             return
           }

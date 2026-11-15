@@ -13,6 +13,7 @@
 * If navigation thinks you missed your bus or train and then sees you riding it, your arrival time and later connections now follow the vehicle you're actually on.
 * Long-pressing the map during navigation no longer opens the map menu over your route.
 * Long route names like B46-SBS show in full on trip cards and timelines instead of being cut off or overlapping.
+* While you walk to your stop, the departure countdown, time to spare and arrival time follow the vehicle's live position from the start, not just in the last few minutes.
 
 ## [0.21.5] - 2026-11-13
 

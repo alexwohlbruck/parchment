@@ -1,44 +1,15 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
-import type { AskAccess, AskCitation, AskEvent, AskSource, AskTurn } from '@/types/ask.types'
-
-export type AskTrip = Omit<Extract<AskEvent, { type: 'trip' }>, 'type'>
-
-/** The proposed trip as Directions planned it, for the card and the map. */
-export interface AskTripPlan {
-  trips: TripsResponse
-  tripId: string
-}
-import type { IsochroneGeometry } from '@server/types/isochrone.types'
-import type { QueryIntent } from '@/types/search.types'
-import type { TripsResponse } from '@/types/directions.types'
-
-export type AskStep = Omit<Extract<AskEvent, { type: 'step' }>, 'type'>
-
-export interface AskExchange {
-  question: string
-  steps: AskStep[]
-  text: string
-  places: AskCitation[]
-  /** The travel-time area a question like "within a 10 min walk" searched. */
-  reach?: IsochroneGeometry
-  browse?: QueryIntent
-  followUps?: string[]
-  sources?: AskSource[]
-  /** When the question was sent and answered, for "Searched for 6s". */
-  startedAt: number
-  finishedAt?: number
-  /** The trip the answer recommends, to open in Directions. */
-  trip?: AskTrip
-  /** Undefined while Directions plans it; null when it couldn't. */
-  plan?: AskTripPlan | null
-  status: 'running' | 'done' | 'error'
-  error?: string
-}
+import type { AskAccess, AskEvent, AskExchange, AskThread, AskTripPlan, AskTurn } from '@/types/ask.types'
 
 export const useAskStore = defineStore('ask', () => {
   const access = ref<AskAccess | null>(null)
   const exchanges = shallowRef<AskExchange[]>([])
+  /** The open thread, as history knows it. */
+  const threadId = ref<string | null>(null)
+  const threadCreatedAt = ref(0)
+  /** Saved threads, newest first. */
+  const threads = shallowRef<AskThread[]>([])
 
   const current = computed(() => exchanges.value.at(-1) ?? null)
   const isRunning = computed(() => current.value?.status === 'running')
@@ -74,7 +45,18 @@ export const useAskStore = defineStore('ask', () => {
       startedAt: Date.now(),
       status: 'running',
     }
+    if (!followUp || !threadId.value) {
+      threadId.value = crypto.randomUUID()
+      threadCreatedAt.value = exchange.startedAt
+    }
     exchanges.value = followUp ? [...exchanges.value, exchange] : [exchange]
+  }
+
+  /** Reopens a thread from history; its trips are planned again when opened. */
+  function restore(thread: AskThread) {
+    threadId.value = thread.id
+    threadCreatedAt.value = thread.createdAt
+    exchanges.value = thread.exchanges
   }
 
   function apply(event: AskEvent) {
@@ -132,7 +114,23 @@ export const useAskStore = defineStore('ask', () => {
 
   function reset() {
     exchanges.value = []
+    threadId.value = null
   }
 
-  return { access, exchanges, current, isRunning, history, start, apply, setPlan, fail, reset }
+  return {
+    access,
+    exchanges,
+    threadId,
+    threadCreatedAt,
+    threads,
+    current,
+    isRunning,
+    history,
+    start,
+    restore,
+    apply,
+    setPlan,
+    fail,
+    reset,
+  }
 })

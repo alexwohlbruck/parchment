@@ -6,7 +6,7 @@ import { MapPinIcon } from 'lucide-vue-next'
 import TripsList from '@/components/directions/TripsList.vue'
 import { useTripNavigation } from '@/composables/directions/useTripNavigation'
 import { AppRoute } from '@/router'
-import type { AskTripPlan } from '@/stores/ask.store'
+import type { AskTripPlan } from '@/types/ask.types'
 import type { AskStop } from '@/types/ask.types'
 
 const props = defineProps<{ plan: AskTripPlan; stops?: AskStop[] }>()

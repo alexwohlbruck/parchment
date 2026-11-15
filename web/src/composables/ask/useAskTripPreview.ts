@@ -1,10 +1,10 @@
 import { distance } from '@turf/turf'
-import { useAskStore, type AskTrip } from '@/stores/ask.store'
+import { useAskStore } from '@/stores/ask.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { endpointPlace, proposedTrip } from '@/lib/ask/ask-trip'
-import type { AskEndpoint } from '@/types/ask.types'
+import type { AskEndpoint, AskTrip } from '@/types/ask.types'
 import type { Waypoint } from '@/types/map.types'
 
 const SAME_SPOT_KM = 0.05

@@ -44,6 +44,7 @@ import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrol
 import { Spinner } from '@/components/ui/spinner'
 import { ASK_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
+import { isAskOffered } from '@/lib/ask/ask-access'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -317,7 +318,7 @@ onClickOutside(container as any, event => {
 function onTab(event: KeyboardEvent) {
   if (!isSearch.value || !query.value.trim()) return
   const access = askStore.access
-  if (!access || (!access.allowed && access.reason === 'not-configured')) return
+  if (!isAskOffered(access)) return
   event.preventDefault()
   onArgumentSelected(ASK_OPTION)
 }

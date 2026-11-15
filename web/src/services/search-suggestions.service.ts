@@ -23,6 +23,8 @@ import { toLngLat } from '@/lib/geo/lng-lat'
 import { intentFilters, LOOKUP_INTENT } from '@/lib/search/query-intent'
 import type { QueryIntent } from '@/types/search.types'
 import { useAskService } from '@/services/ask/ask.service'
+import { isAskOffered } from '@/lib/ask/ask-access'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 
 export const ASK_OPTION = 'ask'
 export const BROWSE_OPTION_PREFIX = 'browse:'
@@ -206,15 +208,14 @@ export async function buildSearchSuggestions(
   const askAccess = useAskService().loadAccess().catch(() => null)
   const askItem = async (intent: QueryIntent): Promise<CommandArgumentOption[]> => {
     const access = await askAccess
-    if (!access || (!access.allowed && access.reason === 'not-configured')) return []
+    if (!isAskOffered(access)) return []
     return [
       {
         value: ASK_OPTION,
         name: searchText,
-        description: t('ask.row'),
         iconName: 'MessageCircleQuestion',
         iconColor: getCategoryColor('default', isDark.value),
-        group: intent.intent === 'ask' ? 'ask' : 'askLast',
+        group: intent.intent === 'ask' && useAskPreferencesStore().preferences.suggest ? 'ask' : 'askLast',
       },
     ]
   }

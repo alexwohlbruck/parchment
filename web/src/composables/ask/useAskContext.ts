@@ -2,6 +2,7 @@ import { useI18n } from 'vue-i18n'
 import { useMapStore } from '@/stores/map.store'
 import { useAppStore } from '@/stores/app.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { frequentChipMeta } from '@/lib/frequents'
@@ -14,6 +15,7 @@ export function useAskContext() {
   const mapStore = useMapStore()
   const appStore = useAppStore()
   const bookmarksStore = useBookmarksStore()
+  const askPreferences = useAskPreferencesStore()
   const geolocation = useGeolocationService()
   const directionsService = useDirectionsService()
 
@@ -31,10 +33,11 @@ export function useAskContext() {
   }
 
   return function askContext(): AskWhere {
+    const shareLocation = askPreferences.preferences.shareLocation
     return {
       ...toLngLat(mapStore.mapCamera.center),
-      here: geolocation.lngLat.value ?? undefined,
-      places: savedPlaces(),
+      here: shareLocation ? (geolocation.lngLat.value ?? undefined) : undefined,
+      places: shareLocation ? savedPlaces() : [],
       units: appStore.unitSystem,
       vehicles: directionsService.collectAvailableVehicles(),
     }

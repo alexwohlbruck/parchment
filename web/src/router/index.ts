@@ -65,6 +65,7 @@ export enum AppRoute {
   PERMISSIONS_PAGE = 'permissions',
   PERMISSION_DETAIL = 'permission-detail',
   NAVIGATION_SETTINGS = 'navigation',
+  ASK_SETTINGS = 'ask-settings',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',
@@ -173,6 +174,7 @@ const router = createRouter({
             question: route.query.q,
             placeId: route.query.place,
             placeName: route.query.name,
+            thread: route.query.thread,
           }),
         },
         {
@@ -449,6 +451,11 @@ const router = createRouter({
           path: '/settings/navigation',
           name: AppRoute.NAVIGATION_SETTINGS,
           component: () => import('@/views/settings/pages/NavigationPage.vue'),
+        },
+        {
+          path: '/settings/ask',
+          name: AppRoute.ASK_SETTINGS,
+          component: () => import('@/views/settings/pages/AskPage.vue'),
         },
         {
           path: '/settings/vehicles',

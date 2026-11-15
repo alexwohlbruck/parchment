@@ -56,6 +56,8 @@ export interface RecentsStore<T> {
   record(item: T, userId: string): void
   /** Current in-memory snapshot, newest-first. */
   list(): T[]
+  /** Keep only the entries `keep` accepts, saving the rest away when any go. */
+  retain(keep: (item: T) => boolean, userId: string): void
   /** Wipe locally and on the server. */
   clear(userId: string): Promise<void>
   /** Force any pending flush now (e.g. from a beforeunload handler). */
@@ -213,6 +215,15 @@ export function createRecentsStore<T>(
     }
   }
 
+  function retain(keep: (item: T) => boolean, userId: string): void {
+    if (loadedForUserId !== userId || !cache) return
+    const kept = cache.filter(keep)
+    if (kept.length === cache.length) return
+    cache = kept
+    writeLocal(userId)
+    scheduleFlush(userId)
+  }
+
   async function clear(userId: string): Promise<void> {
     cache = []
     loadedForUserId = userId
@@ -247,5 +258,5 @@ export function createRecentsStore<T>(
     pendingUserId = null
   }
 
-  return { hydrate, record, list: snapshot, clear, flush, _resetForTest }
+  return { hydrate, record, list: snapshot, retain, clear, flush, _resetForTest }
 }

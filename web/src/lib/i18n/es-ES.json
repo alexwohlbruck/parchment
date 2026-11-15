@@ -62,7 +62,8 @@
     "collapse": "Contraer",
     "archive": "Archivar",
     "unarchive": "Desarchivar",
-    "undo": "Deshacer"
+    "undo": "Deshacer",
+    "saved": "Guardado"
   },
   "weather": {
     "title": "Condiciones del tiempo",
@@ -481,6 +482,11 @@
         "keywords": "logout salir cuenta usuario",
         "confirmTitle": "¿Cerrar sesión?",
         "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
+      },
+      "ask": {
+        "name": "Preguntar",
+        "description": "Haz una pregunta o abre una anterior",
+        "keywords": "ia asistente pregunta chat conversación historial"
       }
     },
     "toggleState": {
@@ -3280,6 +3286,65 @@
     },
     "system": {
       "title": "Sistema"
+    },
+    "ask": {
+      "title": "Preguntar",
+      "saveFailed": "No se pudo guardar el ajuste",
+      "enabled": {
+        "title": "Usar Preguntar",
+        "description": "Desactivado, Preguntar no aparece"
+      },
+      "suggest": {
+        "title": "Intro para preguntar",
+        "description": "Cuando una búsqueda parece una pregunta"
+      },
+      "data": {
+        "title": "Qué puede usar Preguntar"
+      },
+      "shareLocation": {
+        "title": "Tu ubicación",
+        "description": "Dónde estás, Casa y Trabajo"
+      },
+      "webSearch": {
+        "title": "Búsqueda web",
+        "description": "Eventos, menús, precios"
+      },
+      "history": {
+        "title": "Historial",
+        "save": {
+          "title": "Guardar conversaciones",
+          "description": "Con cifrado de extremo a extremo en tu cuenta"
+        },
+        "keep": {
+          "title": "Conservar durante",
+          "description": "Desde la última vez que la abriste",
+          "options": {
+            "1": "1 día",
+            "7": "1 semana",
+            "30": "30 días",
+            "90": "90 días",
+            "365": "1 año",
+            "0": "Hasta que las borres"
+          }
+        },
+        "clear": {
+          "title": "Conversaciones guardadas",
+          "description": "Ninguna guardada | 1 guardada | {count} guardadas",
+          "action": "Borrar historial",
+          "confirmTitle": "¿Borrar el historial de Preguntar?",
+          "confirmDescription": "Se borran todas las conversaciones guardadas en todos tus dispositivos."
+        },
+        "see": "Ver todas"
+      },
+      "key": {
+        "title": "Clave y modelo",
+        "item": "OpenRouter",
+        "description": "Usa tu propia clave o elige el modelo",
+        "action": "Gestionar"
+      },
+      "usage": {
+        "title": "Este mes"
+      }
     }
   },
   "notes": {
@@ -3793,7 +3858,6 @@
   },
   "ask": {
     "title": "Preguntar",
-    "row": "Busca lugares que encajen",
     "starting": "Leyendo tu pregunta",
     "searches": "1 búsqueda | {count} búsquedas",
     "followUp": "Haz otra pregunta",
@@ -3804,7 +3868,6 @@
     "error": "No se pudo responder",
     "retry": "Reintentar",
     "locked": {
-      "title": "Preguntar es parte de Premium",
       "description": "O usa tu propia cuenta de OpenRouter en cualquier plan",
       "addKey": "Pegar una clave"
     },
@@ -3816,12 +3879,13 @@
     },
     "quota": {
       "title": "Ya usaste las preguntas de este mes",
-      "description": "Vuelve a preguntar el {date} o añade tu propia clave"
+      "description": "Vuelve a preguntar el {date} o añade tu propia clave",
+      "upgrade": "Más preguntas cada mes, o usa tu propia clave de OpenRouter"
     },
     "usage": {
       "questions": "Preguntas este mes",
-      "count": "{used} de {limit}",
-      "resets": "Se renueva el {date}"
+      "resets": "Se renueva el {date}",
+      "of": "de {limit} preguntas"
     },
     "seeAll": "Más cerca: {name}",
     "aboutPlace": {
@@ -3843,6 +3907,22 @@
     "trace": {
       "searchedFor": "Buscó durante {seconds} s",
       "found": "{count} encontrado | {count} encontrados"
-    }
+    },
+    "off": {
+      "title": "Preguntar está desactivado",
+      "action": "Activar en ajustes"
+    },
+    "history": {
+      "title": "Recientes",
+      "all": "Todas las conversaciones",
+      "questions": "{count} pregunta | {count} preguntas",
+      "remove": "Quitar",
+      "empty": "Aún no hay conversaciones",
+      "off": {
+        "title": "El historial está desactivado",
+        "action": "Activar"
+      }
+    },
+    "placeholder": "Haz una pregunta"
   }
 }

@@ -22,7 +22,7 @@ import {
 } from 'lucide-vue-next'
 import { Spinner } from '@/components/ui/spinner'
 import AskLoader from './AskLoader.vue'
-import type { AskStep } from '@/stores/ask.store'
+import type { AskStep } from '@/types/ask.types'
 
 const props = defineProps<{
   steps: AskStep[]

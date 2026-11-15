@@ -17,7 +17,7 @@ import AskSources from './AskSources.vue'
 import AskTripCard from './AskTripCard.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
-import type { AskExchange } from '@/stores/ask.store'
+import type { AskExchange } from '@/types/ask.types'
 import type { Place } from '@/types/place.types'
 
 const props = defineProps<{

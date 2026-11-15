@@ -15,7 +15,6 @@ import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
 import IdentitySettings from '@/components/identity/IdentitySettings.vue'
 import Billing from '@/components/subscription/BillingSection.vue'
-import AskUsageSection from '@/components/ask/AskUsageSection.vue'
 
 const authService = useAuthService()
 const authStore = useAuthStore()
@@ -167,8 +166,6 @@ async function saveName() {
       </SettingsSection>
 
       <Billing />
-
-      <AskUsageSection />
 
       <IdentitySettings />
 

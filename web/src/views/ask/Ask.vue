@@ -2,11 +2,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { MessageCircleQuestionIcon } from 'lucide-vue-next'
+import { HistoryIcon, MessageCircleQuestionIcon, PowerOffIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { useAskStore } from '@/stores/ask.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useAskService } from '@/services/ask/ask.service'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { useAskHistoryService } from '@/services/ask/ask-history.service'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { useOpenRouterConnect } from '@/services/ask/openrouter-connect.service'
 import { isTauri } from '@/lib/api'
 import { useMapService } from '@/services/map/map.service'
@@ -24,6 +28,7 @@ import {
 import { formatResetDay } from '@/lib/ask/ask-quota'
 import AskExchange from '@/components/ask/AskExchange.vue'
 import AskComposer from '@/components/ask/AskComposer.vue'
+import AskThreadList from '@/components/ask/AskThreadList.vue'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
@@ -34,6 +39,7 @@ const props = defineProps<{
   question?: string
   placeId?: string
   placeName?: string
+  thread?: string
 }>()
 
 const { t, locale } = useI18n()
@@ -47,6 +53,16 @@ const mapService = useMapService()
 const { setPartialPlace } = usePlaceService()
 const askContext = useAskContext()
 const tripPreview = useAskTripPreview()
+const askHistory = useAskHistoryService()
+const askPreferences = useAskPreferencesStore()
+
+const authService = useAuthService()
+const upgradeTier = computed(() => {
+  if (authService.hasPermission(PermissionId.PREMIUM_ASK)) return null
+  return authService.hasPermission(PermissionId.ASK_BASIC) ? 'premium' : 'basic'
+})
+
+const showHistory = computed(() => !props.question && !props.placeId && !props.thread)
 
 watch(
   () => askStore.current?.trip,
@@ -62,6 +78,14 @@ onBeforeRouteLeave(to => {
 })
 
 const followUp = ref('')
+const newQuestion = ref('')
+
+function askNew() {
+  const text = newQuestion.value.trim()
+  if (!text) return
+  newQuestion.value = ''
+  router.push({ name: AppRoute.ASK, query: { q: text } })
+}
 const loadingAccess = ref(!askStore.access)
 const access = computed(() => askStore.access)
 
@@ -73,6 +97,31 @@ async function start(question: string | undefined) {
     .catch(() => null)
   loadingAccess.value = false
   if (result?.allowed) askService.ask(text, askContext())
+}
+
+async function loadAccess() {
+  await askService.loadAccess({ fresh: !askStore.access?.allowed }).catch(() => null)
+  loadingAccess.value = false
+}
+
+async function openThread(id: string | undefined) {
+  if (!id || id === askStore.threadId) return
+  askService.cancel()
+  await Promise.all([askHistory.load(), loadAccess()])
+  const thread = askHistory.find(id)
+  if (thread) askStore.restore(thread)
+  else router.replace({ name: AppRoute.ASK })
+}
+
+async function showThreads() {
+  askService.cancel()
+  askStore.reset()
+  tripPreview.clear()
+  await Promise.all([askHistory.load(), loadAccess()])
+}
+
+function openSettings() {
+  router.push({ name: AppRoute.ASK_SETTINGS })
 }
 
 function connectOpenRouter() {
@@ -141,10 +190,18 @@ watch(citedPlaces, places => {
 })
 
 watch(() => props.question, start)
+watch(() => props.thread, openThread)
+watch(showHistory, show => {
+  if (show) showThreads()
+})
 
 onMounted(async () => {
   document.addEventListener('search-result-click', onMarkerClick)
-  if (props.placeId && !props.question) {
+  if (props.thread) {
+    openThread(props.thread)
+  } else if (showHistory.value) {
+    showThreads()
+  } else if (props.placeId && !props.question) {
     askStore.reset()
     await askService.loadAccess({ fresh: !askStore.access?.allowed }).catch(() => null)
     loadingAccess.value = false
@@ -175,6 +232,13 @@ onUnmounted(() => {
         :icon="MessageCircleQuestionIcon"
         :title="t('ask.notConfigured')"
       />
+      <EmptyState
+        v-else-if="access.reason === 'turned-off'"
+        :icon="PowerOffIcon"
+        :title="t('ask.off.title')"
+      >
+        <Button variant="outline" @click="openSettings">{{ t('ask.off.action') }}</Button>
+      </EmptyState>
       <div v-else class="flex flex-col gap-3">
         <EmptyState
           v-if="access.reason === 'quota-exceeded'"
@@ -184,10 +248,9 @@ onUnmounted(() => {
           variant="inline"
         />
         <UpgradeBanner
-          v-else
-          required-tier="premium"
-          :title="t('ask.locked.title')"
-          :description="t('ask.locked.description')"
+          v-if="upgradeTier"
+          :required-tier="upgradeTier"
+          :description="access.reason === 'quota-exceeded' ? t('ask.quota.upgrade') : t('ask.locked.description')"
         />
         <div class="flex items-center gap-2">
           <Button v-if="!isTauri" @click="connectOpenRouter">
@@ -203,7 +266,34 @@ onUnmounted(() => {
       </div>
     </template>
 
+    <template v-else-if="showHistory">
+      <AskComposer
+        v-model="newQuestion"
+        autofocus
+        :placeholder="t('ask.placeholder')"
+        @submit="askNew"
+      />
+      <AskThreadList
+        :threads="askStore.threads"
+        :saving="askPreferences.preferences.saveHistory"
+        @open="router.push({ name: AppRoute.ASK, query: { thread: $event } })"
+        @remove="askHistory.remove"
+        @settings="openSettings"
+      />
+    </template>
+
     <template v-else>
+      <Button
+        v-if="askPreferences.preferences.saveHistory && askStore.exchanges.length"
+        variant="ghost"
+        size="sm"
+        class="self-start gap-1.5 -ml-2 -mb-3 text-muted-foreground"
+        @click="router.push({ name: AppRoute.ASK })"
+      >
+        <HistoryIcon class="size-4" />
+        {{ t('ask.history.all') }}
+      </Button>
+
       <AskExchange
         v-for="(exchange, index) in askStore.exchanges"
         :key="index"

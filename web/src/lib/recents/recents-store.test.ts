@@ -213,6 +213,29 @@ describe('recents-store debounced flush', () => {
     expect(savedBlobs.u1?.[0].entries[0].query).toBe('burgers')
   })
 
+  test('retain drops entries and saves the rest', async () => {
+    const store = makeStore()
+    await store.hydrate('u1')
+    store.record({ query: 'old', at: 1 }, 'u1')
+    store.record({ query: 'new', at: 2 }, 'u1')
+    await vi.advanceTimersByTimeAsync(1500)
+    store.retain(entry => entry.at > 1, 'u1')
+    expect(store.list().map(e => e.query)).toEqual(['new'])
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(savedBlobs.u1?.at(-1).entries.map((e: Entry) => e.query)).toEqual(['new'])
+  })
+
+  test('retain that keeps everything saves nothing', async () => {
+    const store = makeStore()
+    await store.hydrate('u1')
+    store.record({ query: 'kept', at: 1 }, 'u1')
+    await vi.advanceTimersByTimeAsync(1500)
+    const saves = savedBlobs.u1.length
+    store.retain(() => true, 'u1')
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(savedBlobs.u1.length).toBe(saves)
+  })
+
   test('keeps mirrored entries when the server cannot be reached', async () => {
     const store = makeStore()
     await store.hydrate('u1')

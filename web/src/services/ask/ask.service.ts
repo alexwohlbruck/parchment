@@ -2,6 +2,7 @@ import { api } from '@/lib/api'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { createSseParser } from '@/lib/ask/sse-events'
 import { useAskStore } from '@/stores/ask.store'
+import { useAskHistoryService } from '@/services/ask/ask-history.service'
 import type { AskAccess, AskEvent, AskWhere } from '@/types/ask.types'
 
 let controller: AbortController | null = null
@@ -21,6 +22,7 @@ function requestHeaders(): Record<string, string> {
 
 export function useAskService() {
   const askStore = useAskStore()
+  const askHistory = useAskHistoryService()
 
   async function loadAccess({ fresh = false } = {}): Promise<AskAccess> {
     if (askStore.access && !fresh) return askStore.access
@@ -75,6 +77,7 @@ export function useAskService() {
         feed(value)
       }
       askStore.apply({ type: 'done' })
+      askHistory.record()
     } catch (error) {
       if (!signal.aborted) askStore.fail(t('ask.error'))
     }

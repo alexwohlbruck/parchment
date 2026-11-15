@@ -75,7 +75,7 @@ export function summarizePlace(
 
   return dropEmpty({
     id: place.id,
-    name: place.name.value ?? 'Unnamed place',
+    name: place.name.value ?? place.placeType?.value ?? 'Unnamed place',
     type: place.placeType?.value,
     address: formatAddress(place),
     lat: round(center.lat),

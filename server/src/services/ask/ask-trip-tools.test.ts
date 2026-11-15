@@ -340,6 +340,50 @@ describe('plan_trip', () => {
     expect(events[0]).toMatchObject({ tripIndex: 1, lines: ['5'] })
   })
 
+  test('a place id a tool returned stands for that place, name and all', async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('biking', 30)], 30)],
+    })
+    const events: AskEvent[] = []
+    const ctx = knownContext(events)
+    ctx.seen.set('osm/relation/1', {
+      id: 'osm/relation/1',
+      name: { value: 'Central Park' },
+      geometry: { value: { center: { lat: 40.78, lng: -73.97 } } },
+    } as any)
+    await tool('plan_trip').run({ from: 'here', to: 'osm/relation/1' }, ctx)
+    expect(
+      (mockPlanTrip.mock.calls[0][0] as any).waypoints[1].location,
+    ).toEqual({ lat: 40.78, lng: -73.97 })
+    expect(events[0]).toMatchObject({
+      to: { name: 'Central Park', placeId: 'osm/relation/1' },
+    })
+  })
+
+  test("a stop given as copied coordinates takes the found place's name or kind", async () => {
+    mockPlanTrip.mockResolvedValueOnce({
+      trips: [candidate([segment('biking', 30)], 30)],
+    })
+    const events: AskEvent[] = []
+    const ctx = knownContext(events)
+    ctx.seen.set('osm/node/7', {
+      id: 'osm/node/7',
+      name: { value: null },
+      placeType: { value: 'Drinking Water' },
+      geometry: { value: { center: { lat: 40.7801, lng: -73.9701 } } },
+    } as any)
+    await tool('plan_trip').run(
+      {
+        to: 'home',
+        stops: [{ at: { lat: 40.78012, lng: -73.97008 }, minutes: 2 }],
+      },
+      ctx,
+    )
+    expect(events[0]).toMatchObject({
+      stops: [{ name: 'Drinking Water', placeId: 'osm/node/7', minutes: 2 }],
+    })
+  })
+
   test('offers the other ways when the kind asked for is not worth it', async () => {
     mockPlanTrip.mockResolvedValueOnce({
       trips: [candidate([segment('walking', 6)], 6)],

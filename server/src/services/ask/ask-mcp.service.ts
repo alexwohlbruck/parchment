@@ -29,7 +29,7 @@ export interface McpCaller {
 }
 
 const INSTRUCTIONS =
-  'Search Parchment for real places, and plan how to reach them: transit trips with live delays, travel times by mode, bike share availability and weather. Tools need a location: pass coordinates, or resolve a place name with `locate` first. Times are local to the trip.'
+  'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures and alerts, travel times by mode, bike share availability, weather and air quality, plus the user\'s saved places and vehicles. Tools need a location: pass coordinates, a place id a tool returned, or a place name. Times are local to the trip.'
 
 const toolsByName = new Map(askTools.map((tool) => [tool.name, tool]))
 

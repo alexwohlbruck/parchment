@@ -21,7 +21,9 @@ describe('knownPlaces', () => {
 
 describe('parsePointText', () => {
   test('reads coordinates written as JSON or as a pair', () => {
-    expect(parsePointText('{"lat": 40.66, "lng": -73.96}')).toEqual({ lat: 40.66, lng: -73.96 })
+    expect(
+      parsePointText('{"lat": 40.66, "lng": -73.96, "name": "Prospect Park"}'),
+    ).toEqual({ lat: 40.66, lng: -73.96, name: 'Prospect Park' })
     expect(parsePointText('40.66, -73.96')).toEqual({ lat: 40.66, lng: -73.96 })
   })
 

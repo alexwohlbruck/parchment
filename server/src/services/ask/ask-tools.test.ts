@@ -6,7 +6,15 @@ const mockLookupPlace = mock(async () => null as Place | null)
 const mockSearchByCategory = mock(async () => [] as Place[])
 const reachGeometry = {
   type: 'Polygon',
-  coordinates: [[[-74.01, 40.69], [-73.99, 40.69], [-73.99, 40.71], [-74.01, 40.71], [-74.01, 40.69]]],
+  coordinates: [
+    [
+      [-74.01, 40.69],
+      [-73.99, 40.69],
+      [-73.99, 40.71],
+      [-74.01, 40.71],
+      [-74.01, 40.69],
+    ],
+  ],
 }
 const mockBarrelman = mock(async () =>
   Response.json({
@@ -22,9 +30,34 @@ mock.module('../place.service', () => ({
   lookupPlacesByNameAndLocation: mockLookupPlaces,
   lookupEnrichedPlaceById: mockLookupPlace,
 }))
-mock.module('../search.service', () => ({ searchByCategory: mockSearchByCategory }))
-mock.module('../category.service', () => ({ categoryService: { searchCategories: () => [] } }))
-mock.module('../geocoding.service', () => ({ forwardGeocode: mock(async () => ({ results: [] })) }))
+mock.module('../search.service', () => ({
+  searchByCategory: mockSearchByCategory,
+  searchAlongRoute: mock(async () => []),
+}))
+const mockGetRoute = mock(async (_locations: unknown, _costing: string) => ({
+  routes: [
+    {
+      geometry: [
+        { lat: 40.7, lng: -74 },
+        { lat: 40.75, lng: -73.98 },
+        { lat: 40.78, lng: -73.97 },
+      ],
+    },
+  ],
+}))
+mock.module('../routing.service', () => ({
+  routingService: { getRoute: mockGetRoute },
+}))
+const mockAlongRoute = mock(async (_request: any) => [] as any[])
+mock.module('../route-search.service', () => ({
+  searchAlongNavRoute: mockAlongRoute,
+}))
+mock.module('../category.service', () => ({
+  categoryService: { searchCategories: () => [] },
+}))
+mock.module('../geocoding.service', () => ({
+  forwardGeocode: mock(async () => ({ results: [] })),
+}))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
 
 const { askTools } = await import('./ask-tools')
@@ -47,7 +80,13 @@ function context(userId = 'u1'): AskContext {
 }
 
 beforeEach(() => {
-  for (const fn of [mockLookupPlaces, mockLookupPlace, mockSearchByCategory, mockBarrelman]) fn.mockClear()
+  for (const fn of [
+    mockLookupPlaces,
+    mockLookupPlace,
+    mockSearchByCategory,
+    mockBarrelman,
+  ])
+    fn.mockClear()
 })
 
 describe('tool caching', () => {
@@ -61,9 +100,15 @@ describe('tool caching', () => {
   })
 
   test('place details are cached per user', async () => {
-    await tool('get_place').run({ id: 'osm/node/1' }, context('u1')).catch(() => {})
-    await tool('get_place').run({ id: 'osm/node/1' }, context('u1')).catch(() => {})
-    await tool('get_place').run({ id: 'osm/node/1' }, context('u2')).catch(() => {})
+    await tool('get_place')
+      .run({ id: 'osm/node/1' }, context('u1'))
+      .catch(() => {})
+    await tool('get_place')
+      .run({ id: 'osm/node/1' }, context('u1'))
+      .catch(() => {})
+    await tool('get_place')
+      .run({ id: 'osm/node/1' }, context('u2'))
+      .catch(() => {})
     expect(mockLookupPlace).toHaveBeenCalledTimes(2)
   })
 
@@ -77,7 +122,9 @@ describe('tool caching', () => {
 
   test('a failed lookup is retried rather than cached', async () => {
     mockLookupPlaces.mockRejectedValueOnce(new Error('down'))
-    await expect(tool('find_places').run({ query: 'flaky' }, context())).rejects.toThrow('down')
+    await expect(
+      tool('find_places').run({ query: 'flaky' }, context()),
+    ).rejects.toThrow('down')
     await tool('find_places').run({ query: 'flaky' }, context())
     expect(mockLookupPlaces).toHaveBeenCalledTimes(2)
   })
@@ -86,8 +133,15 @@ describe('tool caching', () => {
 describe('places_within_reach', () => {
   test('keeps only places inside the reachable area and draws it', async () => {
     const at = (id: string, lat: number, lng: number) =>
-      ({ id, name: { value: id }, geometry: { value: { center: { lat, lng } } } }) as unknown as Place
-    mockSearchByCategory.mockResolvedValueOnce([at('inside', 40.7, -74), at('outside', 40.8, -74)])
+      ({
+        id,
+        name: { value: id },
+        geometry: { value: { center: { lat, lng } } },
+      }) as unknown as Place
+    mockSearchByCategory.mockResolvedValueOnce([
+      at('inside', 40.7, -74),
+      at('outside', 40.8, -74),
+    ])
     const events: unknown[] = []
 
     const result = (await tool('places_within_reach').run(
@@ -97,5 +151,44 @@ describe('places_within_reach', () => {
 
     expect(result.places.map((p) => p.id)).toEqual(['inside'])
     expect(events).toEqual([{ type: 'reach', geometry: reachGeometry }])
+  })
+})
+
+describe('search_along_route', () => {
+  test('searches the routed line through the stops, reporting distance along and detour', async () => {
+    const water = {
+      id: 'osm/node/9',
+      name: { value: 'Fountain' },
+      geometry: {
+        value: { type: 'point', center: { lat: 40.75, lng: -73.98 } },
+      },
+    } as unknown as Place
+    mockAlongRoute.mockResolvedValueOnce([
+      { place: water, alongDistance: 4200, detourSeconds: 90 },
+    ])
+    const ctx = { ...context(), units: 'imperial' as const }
+    const result = (await tool('search_along_route').run(
+      {
+        from: { lat: 40.7, lng: -74 },
+        to: { lat: 40.78, lng: -73.97 },
+        stops: ['40.75, -73.98'],
+        mode: 'cycling',
+        category_ids: ['amenity/drinking_water'],
+      },
+      ctx,
+    )) as any
+
+    expect((mockGetRoute.mock.calls[0][0] as any[]).length).toBe(3)
+    expect(mockGetRoute.mock.calls[0][1]).toBe('bicycle')
+    expect(mockAlongRoute.mock.calls[0][0]).toMatchObject({
+      mode: 'cycling',
+      categories: ['amenity/drinking_water'],
+    })
+    expect(result.places[0]).toMatchObject({
+      name: 'Fountain',
+      along_route: '2.6 mi',
+      detour_minutes: 2,
+    })
+    expect(ctx.seen.has('osm/node/9')).toBe(true)
   })
 })

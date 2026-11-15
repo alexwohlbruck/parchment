@@ -24,7 +24,7 @@ mock.module('../services/place.service', () => ({
   lookupPlacesByNameAndLocation,
   lookupEnrichedPlaceById: async () => null,
 }))
-mock.module('../services/search.service', () => ({ searchByCategory: async () => [] }))
+mock.module('../services/search.service', () => ({ searchByCategory: async () => [], searchAlongRoute: async () => [] }))
 mock.module('../services/category.service', () => ({ categoryService: { searchCategories: () => [] } }))
 mock.module('../services/geocoding.service', () => ({ forwardGeocode: async () => ({ results: [] }) }))
 mock.module('../services/barrelman.service', () => ({ requestBarrelman: async () => new Response('{}') }))

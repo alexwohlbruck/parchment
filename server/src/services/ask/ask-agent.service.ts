@@ -19,10 +19,12 @@ import { HERE } from '../../lib/ask/known-places'
 import { localDateTime } from '../../lib/ask/trip-summary'
 import { getTimezone } from '../../lib/timezone'
 import { logWarn } from '../../lib/logger'
+import { foundCount } from '../../lib/ask/tool-result'
 
 /** Model round trips per question before the answer is forced. */
 export const MAX_STEPS = 6
 const MAX_TOKENS = 1200
+const MAX_FOLLOW_UPS = 3
 const MAX_TOOL_RESULT_CHARS = 12_000
 
 export interface AskRequest {
@@ -50,10 +52,10 @@ function systemPrompt(context: AskContext): string {
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
-    'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (transit, bikeshare for Citi Bike and the like). A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. Use transit_trips only for timetables like the last train, travel_times to compare ways, and weather when it matters.',
+    'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling (transit, bikeshare for Citi Bike and the like). A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. For stops on the way (water, food, a shop), find them with search_along_route, then pass the ones you pick to plan_trip as stops, so the trip goes through them. Use transit_departures for what leaves a station soon, transit_trips only for timetables like the last train, travel_times to compare ways, and weather when it matters.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
-    `Finish by calling ${ANSWER_TOOL}. Keep its text to one or two short sentences. For a trip, describe the first trip the tool returned (the one the app shows), with every move it makes and none presented as optional; say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
-    'Never ask for something a known place already answers. If nothing fits, say what is missing and return no places.',
+    `Finish by calling ${ANSWER_TOOL}. Keep its text to at most two short sentences, about 40 words; the cards carry the rest. For a trip, describe the first trip the tool returned (the one the app shows), with every move it makes and none presented as optional; say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
+    'Never write coordinates or place ids in your text; call an unnamed place by what it is and where ("the drinking fountain on Broadway"). Never ask for something a known place already answers. If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }
 
@@ -85,11 +87,23 @@ async function runTool(
   if (!tool)
     return toolMessage(call, { error: `Unknown tool ${call.function.name}` })
   const args = parseArgs(call)
-  const step = { id: call.id, label: tool.label(args) }
+  const detail = tool.detail?.(args, context)
+  const step = {
+    id: call.id,
+    tool: tool.name,
+    label: tool.label(args),
+    ...(detail && { detail }),
+  }
   context.emit({ type: 'step', ...step, status: 'running' })
   try {
     const result = await tool.run(args, context)
-    context.emit({ type: 'step', ...step, status: 'done' })
+    const found = foundCount(result)
+    context.emit({
+      type: 'step',
+      ...step,
+      status: 'done',
+      ...(found !== undefined && { found }),
+    })
     return toolMessage(call, result)
   } catch (error) {
     logWarn(
@@ -103,12 +117,13 @@ async function runTool(
 export interface GroundedAnswer {
   text: string
   places: AskCitation[]
+  followUps: string[]
   unknownIds: string[]
 }
 
 /** Keep only places a tool actually returned, so the model cannot invent one. */
 export function groundAnswer(
-  args: { text?: unknown; places?: unknown },
+  args: { text?: unknown; places?: unknown; follow_ups?: unknown },
   seen: Map<string, Place>,
 ): GroundedAnswer {
   const cited = Array.isArray(args.places) ? args.places : []
@@ -132,6 +147,13 @@ export function groundAnswer(
   return {
     text: typeof args.text === 'string' ? args.text.trim() : '',
     places,
+    followUps: (Array.isArray(args.follow_ups) ? args.follow_ups : [])
+      .filter(
+        (question): question is string =>
+          typeof question === 'string' && !!question.trim(),
+      )
+      .map((question) => question.trim())
+      .slice(0, MAX_FOLLOW_UPS),
     unknownIds,
   }
 }
@@ -200,6 +222,7 @@ export async function runAsk(
           type: 'answer',
           text: answer.text,
           places: answer.places,
+          ...(answer.followUps.length && { followUps: answer.followUps }),
           ...(intent.category ? { browse: intent } : {}),
         })
         return

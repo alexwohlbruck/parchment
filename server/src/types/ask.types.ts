@@ -17,6 +17,11 @@ export interface AskEndpoint extends LatLng {
   placeId?: string
 }
 
+/** A stop on the way, and how long to stay. */
+export interface AskStop extends AskEndpoint {
+  minutes?: number
+}
+
 export const ASK_TRIP_KINDS = ['bikeshare', 'transit', 'walking', 'biking', 'driving', 'rideshare'] as const
 export type AskTripKind = (typeof ASK_TRIP_KINDS)[number]
 
@@ -51,7 +56,18 @@ export interface AskCitation {
 }
 
 export type AskEvent =
-  | { type: 'step'; id: string; label: string; status: 'running' | 'done' | 'failed' }
+  | {
+      type: 'step'
+      id: string
+      /** The tool that ran, for its icon. */
+      tool: string
+      label: string
+      /** What it looked for, e.g. the search text. */
+      detail?: string
+      status: 'running' | 'done' | 'failed'
+      /** How many things it found, once done. */
+      found?: number
+    }
   | { type: 'reach'; geometry: IsochroneGeometry }
   /** A trip the answer recommends, for the app to open in Directions. */
   | {
@@ -59,6 +75,8 @@ export type AskEvent =
       from: AskEndpoint
       to: AskEndpoint
       kind: AskTripKind
+      /** Places the trip stops at on the way, in order. */
+      stops?: AskStop[]
       time?: AskTripTime
       /** The transit lines the proposed trip rides, in order, for matching it when there is no plan. */
       lines?: string[]
@@ -72,6 +90,8 @@ export type AskEvent =
       places: AskCitation[]
       /** The same question as a classic category search, when it names a category. */
       browse?: QueryIntent
+      /** Questions the user might ask next. */
+      followUps?: string[]
     }
   | { type: 'error'; message: string }
   | { type: 'done' }

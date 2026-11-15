@@ -9,6 +9,12 @@ import { getTimezone } from '../../lib/timezone'
 import { getLanguageCode } from '../../lib/i18n'
 import { distanceText } from '../../lib/ask/distance-text'
 import {
+  summarizeBoards,
+  type BoardAlert,
+  type DepartureBoard,
+} from '../../lib/ask/departure-board'
+import { getNearestStationAirQuality } from '../air-quality.service'
+import {
   localClock,
   parseTripTime,
   summarizeItinerary,
@@ -24,6 +30,7 @@ import type { NearbyStation } from '../../lib/dock-alternatives'
 import {
   ASK_TRIP_KINDS,
   type AskTripKind,
+  type AskStop,
   type AskTripTime,
   type LatLng,
 } from '../../types/ask.types'
@@ -31,6 +38,7 @@ import {
   AskToolError,
   cached,
   centre,
+  pointLabel,
   clamp,
   endpoint,
   nearSchema,
@@ -75,6 +83,15 @@ function tripTiming(
       at: tripTime(args.depart_at, from, context).toISOString(),
     }
   return undefined
+}
+
+/** "here → Home" when the model named both ends; coordinates say nothing to a reader. */
+function tripDetail(
+  { from, to }: { from?: PointArg; to: PointArg },
+  context: AskContext,
+): string | undefined {
+  const end = pointLabel(to, context)
+  return end && `${pointLabel(from, context) ?? 'here'} → ${end}`
 }
 
 const travelTimes: AskTool<{
@@ -148,6 +165,7 @@ const transitTrips: AskTool<{
     required: ['to'],
   },
   label: () => 'Checking transit',
+  detail: tripDetail,
   async run(args, context) {
     const from = await endpoint(args.from, context)
     const to = await endpoint(args.to, context)
@@ -192,6 +210,7 @@ const planTrip: AskTool<{
   from?: PointArg
   to: PointArg
   kind?: AskTripKind
+  stops?: { at: PointArg; minutes?: number }[]
   depart_at?: string
   arrive_by?: string
 }> = {
@@ -204,6 +223,19 @@ const planTrip: AskTool<{
       from: pointSchema('Start. Use "here" for the user\'s own location.'),
       to: pointSchema('Destination.'),
       kind: { type: 'string', enum: [...ASK_TRIP_KINDS] },
+      stops: {
+        type: 'array',
+        description:
+          'Places to stop on the way, in order, e.g. a water fountain or a cafe found with search_along_route',
+        items: {
+          type: 'object',
+          properties: {
+            at: pointSchema('The stop.'),
+            minutes: { type: 'number', description: 'Time to spend there' },
+          },
+          required: ['at'],
+        },
+      },
       depart_at: timeSchema,
       arrive_by: {
         ...timeSchema,
@@ -213,15 +245,27 @@ const planTrip: AskTool<{
     required: ['to'],
   },
   label: () => 'Planning the trip',
+  detail: tripDetail,
   async run(args, context) {
     const from = await endpoint(args.from, context)
     const to = await endpoint(args.to, context)
+    const stops: AskStop[] = await Promise.all(
+      (args.stops ?? []).map(async ({ at, minutes }) => ({
+        ...(await endpoint(at, context)),
+        ...(minutes && { minutes: Math.round(minutes) }),
+      })),
+    )
     const timeZone = getTimezone(from.lat, from.lng)
     const time = tripTiming(args, from, to, context)
     const result = await planTripFor(
       {
         waypoints: [
           { location: { lat: from.lat, lng: from.lng }, type: 'origin' },
+          ...stops.map((stop) => ({
+            location: { lat: stop.lat, lng: stop.lng },
+            type: 'via' as const,
+            ...(stop.minutes && { dwellTime: stop.minutes }),
+          })),
           {
             location: { lat: to.lat, lng: to.lng },
             type: 'destination',
@@ -260,6 +304,7 @@ const planTrip: AskTool<{
       from,
       to,
       kind: trips[0].kind,
+      ...(stops.length && { stops }),
       ...(time && { time }),
       ...(lines.length && { lines }),
       plan: result,
@@ -274,10 +319,89 @@ const planTrip: AskTool<{
   },
 }
 
+const transitDepartures: AskTool<{
+  at?: PointArg
+  station?: string
+  lines?: string[]
+  depart_at?: string
+  count?: number
+}> = {
+  name: 'transit_departures',
+  description:
+    'Live departure board at a station or stop: next runs per line with where they head, minutes away, delays and cancellations, plus service alerts on those lines. Give the station name, or a point near it.',
+  parameters: {
+    type: 'object',
+    properties: {
+      station: {
+        type: 'string',
+        description: 'Station or stop name, e.g. "14 St-Union Sq"',
+      },
+      at: pointSchema('Near this point when no station is named.'),
+      lines: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Only these lines, e.g. ["4", "5"]',
+      },
+      depart_at: timeSchema,
+      count: {
+        type: 'number',
+        description: 'Departures per station, default 6, max 12',
+      },
+    },
+  },
+  label: () => 'Checking departures',
+  detail: ({ station, lines }) =>
+    [station, lines?.join(' ')].filter(Boolean).join(' · ') || undefined,
+  async run(args, context) {
+    const point = await centre(args.at ?? args.station, context)
+    const perBoard = clamp(args.count, 6, 12)
+    const response = await requestBarrelman(
+      '/transit/departures',
+      {
+        lat: point.lat,
+        lng: point.lng,
+        n: perBoard * 3,
+        complex: 'true',
+        ...(args.station && { name: args.station }),
+        ...(args.lines?.length && { routeShortNames: args.lines.join(',') }),
+        ...(args.depart_at && {
+          time: tripTime(args.depart_at, point, context).toISOString(),
+        }),
+      },
+      { cacheControl: 'no-cache' },
+    )
+    if (!response.ok) throw new AskToolError('Departures are unavailable here')
+    const boards = (await response.json()) as DepartureBoard[]
+    if (!Array.isArray(boards) || !boards.length)
+      throw new AskToolError('No transit stops found there')
+    const alerts = await Promise.all(
+      boards.slice(0, 3).map(async ({ stop, departures }) => {
+        const alertsResponse = await requestBarrelman(
+          '/transit/alerts',
+          {
+            feedId: stop.feedId,
+            routeIds: [
+              ...new Set(departures.map((departure) => departure.route.id)),
+            ].join(','),
+            stopIds: stop.stopId,
+          },
+          { cacheControl: 'no-cache' },
+        ).catch(() => null)
+        if (!alertsResponse?.ok) return []
+        const { alerts = [] } = (await alertsResponse.json()) as {
+          alerts?: BoardAlert[]
+        }
+        return alerts
+      }),
+    )
+    return summarizeBoards(boards, alerts.flat(), context.now, perBoard)
+  },
+}
+
 const weather: AskTool<{ at?: PointArg }> = {
   name: 'weather',
   description:
-    'Current weather at a point, and whether rain is due in the next few hours. It knows nothing about later days.',
+    'Current weather and air quality at a point, and whether rain is due in the next few hours. It knows nothing about later days.',
   parameters: {
     type: 'object',
     properties: {
@@ -297,11 +421,12 @@ const weather: AskTool<{ at?: PointArg }> = {
     if (!capability)
       throw new AskToolError('Weather is not available on this server')
     const key = { lat: lat.toFixed(2), lng: lng.toFixed(2) }
-    const [now, outlook] = await Promise.all([
+    const [now, outlook, air] = await Promise.all([
       cached('weather', key, { language: context.language }, () =>
         capability.getWeather(lat, lng, getLanguageCode(context.language)),
       ),
       getWeatherOutlook(lat, lng),
+      getNearestStationAirQuality(lat, lng).catch(() => null),
     ])
     return {
       covers: 'now and the next few hours only',
@@ -312,6 +437,14 @@ const weather: AskTool<{ at?: PointArg }> = {
       ...(outlook && {
         rain_in_next_hours: outlook.rain,
         low_c: Math.round(outlook.minTemperature),
+      }),
+      ...(air && {
+        air_quality: {
+          index: air.airQuality.index,
+          standard: air.airQuality.standard,
+          severity_1_to_6: air.airQuality.severity,
+          station: air.airQuality.stationName,
+        },
       }),
     }
   },
@@ -371,6 +504,7 @@ const bikeshareNearby: AskTool<{ near?: PointArg; radius_m?: number }> = {
 
 export const tripTools: AskTool[] = [
   planTrip,
+  transitDepartures,
   travelTimes,
   transitTrips,
   weather,

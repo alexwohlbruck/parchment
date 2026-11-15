@@ -6,73 +6,34 @@ import { categoryService } from '../category.service'
 import { forwardGeocode } from '../geocoding.service'
 import { requestBarrelman } from '../barrelman.service'
 import { describePlace, openNow, summarizePlace } from '../../lib/ask/place-summary'
-import { toolCacheKey } from '../../lib/ask/tool-cache-key'
-import { MemoCache } from '../../lib/memo-cache'
 import { ISOCHRONE_MODES, maxDurationForMode, type IsochroneGeometry, type IsochroneMode, type IsochroneResponse } from '../../types/isochrone.types'
-import type { Language } from '../../lib/i18n/i18n.types'
 import type { MapBounds } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
 import type { Source } from '../../lib/constants'
 import type { ChatTool } from '../../types/language-model.types'
-import type { AskEvent, LatLng } from '../../types/ask.types'
+import type { LatLng } from '../../types/ask.types'
+import {
+  AskToolError,
+  cached,
+  centre,
+  clamp,
+  latLngSchema,
+  type AskContext,
+  type AskTool,
+} from './ask-tool-base'
+import { tripTools } from './ask-trip-tools'
 
-
-/** A failure worth showing the model or an MCP client; anything else is reported generically. */
-export class AskToolError extends Error {}
-
-/** What a caller may see of a tool failure, without upstream hosts or stack details. */
-export function toolErrorMessage(error: unknown): string {
-  return error instanceof AskToolError ? error.message : 'This search failed. Try another approach.'
-}
-
-export interface AskContext {
-  userId: string
-  language: Language
-  origin?: LatLng
-  now: Date
-  signal?: AbortSignal
-  /** Every place a tool has returned, by id. The answer may only cite these. */
-  seen: Map<string, Place>
-  emit(event: AskEvent): void
-}
-
-export interface AskTool<Args = any> {
-  name: string
-  description: string
-  parameters: Record<string, unknown>
-  label(args: Args): string
-  run(args: Args, context: AskContext): Promise<unknown>
-}
+export { AskToolError, toolErrorMessage, type AskContext, type AskTool } from './ask-tool-base'
 
 const DEFAULT_RADIUS_M = 3000
-const TOOL_CACHE_TTL_MS = 5 * 60_000
 const MAX_RADIUS_M = 50_000
 const DEFAULT_LIMIT = 15
 const MAX_LIMIT = 30
-
-const latLngSchema = {
-  type: 'object',
-  properties: { lat: { type: 'number' }, lng: { type: 'number' } },
-  required: ['lat', 'lng'],
-  description: "Centre of the search. Defaults to the user's map position when one is known.",
-}
 
 const listOptions = {
   radius_m: { type: 'number', description: `Search radius in metres, default ${DEFAULT_RADIUS_M}` },
   open_now: { type: 'boolean', description: 'Only places open right now' },
   limit: { type: 'number', description: `Max results, default ${DEFAULT_LIMIT}` },
-}
-
-const toolCache = new MemoCache<unknown>({ max: 500, ttlMs: TOOL_CACHE_TTL_MS })
-
-/** Shares lookups across steps and follow-ups, so a repeated question doesn't refetch. */
-function cached<T>(
-  tool: string,
-  args: Record<string, unknown>,
-  scope: { language: string; userId?: string },
-  load: () => Promise<T>,
-): Promise<T> {
-  return toolCache.get(toolCacheKey(tool, args, scope), load) as Promise<T>
 }
 
 function placesByName(query: string, origin: LatLng, radius: number, context: AskContext) {
@@ -100,19 +61,9 @@ function placesByCategory(
   )
 }
 
-function centre(near: LatLng | undefined, context: AskContext): LatLng {
-  const target = near ?? context.origin
-  if (!target) throw new AskToolError('No location: call locate first, or ask the user where')
-  return target
-}
-
 function boundsAround({ lat, lng }: LatLng, radiusM: number): MapBounds {
   const [west, south, east, north] = bbox(circle([lng, lat], radiusM / 1000, { steps: 8 }))
   return { north, south, east, west }
-}
-
-function clamp(value: number | undefined, fallback: number, max: number): number {
-  return Math.min(Math.max(1, Math.round(value ?? fallback)), max)
 }
 
 function listPlaces(
@@ -363,6 +314,7 @@ export const askTools: AskTool[] = [
   getPlace,
   locate,
   placesWithinReach,
+  ...tripTools,
 ]
 
 export const ANSWER_TOOL = 'answer'
@@ -378,7 +330,7 @@ export const answerTool: ChatTool = {
       properties: {
         text: {
           type: 'string',
-          description: 'One short sentence answering the question. No lists, markdown, distances or hours.',
+          description: 'A short answer, usually one sentence, without lists or markdown. Give trip times and lines when asked how to get somewhere; never repeat a place\'s distance or hours.',
         },
         places: {
           type: 'array',

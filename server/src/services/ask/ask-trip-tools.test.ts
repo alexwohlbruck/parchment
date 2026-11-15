@@ -1,0 +1,177 @@
+import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { PermissionId } from '../../types/auth.types'
+import type { TransitItinerary } from '../../types/integration.types'
+
+const mockEstimates = mock(async (_request: unknown) => ({
+  walking: 1500,
+  transit: 720,
+  driving: null,
+}))
+const mockRoute = mock(async (_request: unknown, _priority?: unknown) => ({ itineraries: [] as TransitItinerary[] }))
+const mockBarrelman = mock(async () => Response.json({ stations: [] }))
+const mockPermissions = mock(async () => [] as string[])
+
+mock.module('../mode-estimates.service', () => ({
+  estimateModes: mockEstimates,
+}))
+mock.module('../transit-routing.service', () => ({
+  transitRoutingService: { getIntermodalRoute: mockRoute },
+}))
+mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
+mock.module('../auth.service', () => ({
+  getPermissions: mockPermissions,
+  hasPermission: (granted: string[], id: string) => granted.includes(id),
+}))
+mock.module('../weather-outlook.service', () => ({
+  getWeatherOutlook: async () => null,
+}))
+mock.module('../integrations', () => ({
+  integrationManager: { getConfiguredIntegrationsByCapability: () => [] },
+}))
+
+const { tripTools } = await import('./ask-trip-tools')
+import type { AskContext } from './ask-tool-base'
+
+const tool = (name: string) => tripTools.find((t) => t.name === name)!
+const origin = { lat: 40.7484, lng: -73.9857 }
+const to = { lat: 40.7472, lng: -73.9455 }
+
+function context(): AskContext {
+  return {
+    userId: 'u1',
+    language: 'en-US',
+    origin,
+    now: new Date('2026-11-20T23:00:00Z'),
+    seen: new Map(),
+    emit: () => {},
+  }
+}
+
+beforeEach(() => {
+  for (const fn of [mockEstimates, mockRoute, mockBarrelman, mockPermissions])
+    fn.mockClear()
+})
+
+describe('travel_times', () => {
+  test('needs premium navigation, like the estimates endpoint', async () => {
+    await expect(tool('travel_times').run({ to }, context())).rejects.toThrow(
+      'Premium',
+    )
+    expect(mockEstimates).not.toHaveBeenCalled()
+  })
+
+  test('reports whole minutes per mode, departing at local time', async () => {
+    mockPermissions.mockResolvedValueOnce([PermissionId.PREMIUM_NAVIGATION])
+    const result = await tool('travel_times').run(
+      { to, depart_at: '2026-11-20T18:30' },
+      context(),
+    )
+    expect(result).toEqual({ walking: 25, transit: 12, driving: null })
+    expect(mockEstimates.mock.calls[0][0]).toMatchObject({
+      waypoints: [origin, to],
+      departureTime: '2026-11-20T23:30:00.000Z',
+    })
+  })
+})
+
+describe('transit_trips', () => {
+  const ride = (startTime: string, transitLeg: boolean) => ({
+    duration: 1200,
+    startTime,
+    endTime: startTime,
+    walkTime: 0,
+    transitTime: 0,
+    waitingTime: 0,
+    walkDistance: 0,
+    transfers: 0,
+    legs: [
+      {
+        mode: transitLeg ? 'SUBWAY' : 'WALK',
+        transitLeg,
+        from: { name: 'A', lat: 0, lng: 0 },
+        to: { name: 'B', lat: 0, lng: 0 },
+        startTime,
+        endTime: startTime,
+        duration: 1200,
+        distance: 0,
+      },
+    ],
+  })
+
+  test('reads arrive_by at the destination and drops walk-only results', async () => {
+    mockRoute.mockResolvedValueOnce({
+      itineraries: [
+        ride('2026-11-21T02:00:00Z', false),
+        ride('2026-11-21T02:10:00Z', true),
+      ] as TransitItinerary[],
+    })
+    const result = (await tool('transit_trips').run(
+      { to, arrive_by: '2026-11-20T22:00' },
+      context(),
+    )) as any
+    expect(mockRoute.mock.calls[0][0]).toMatchObject({
+      arriveBy: true,
+      time: '2026-11-21T03:00:00.000Z',
+    })
+    expect(result.searched).toBe('arrive by Fri 22:00')
+    expect(result.trips).toHaveLength(1)
+    expect(result.trips[0].leave).toBe('Fri 21:10')
+  })
+
+  test('says so when nothing runs', async () => {
+    await expect(tool('transit_trips').run({ to }, context())).rejects.toThrow(
+      'No transit trips',
+    )
+  })
+
+  test('rejects an unreadable time instead of guessing', async () => {
+    await expect(
+      tool('transit_trips').run({ to, depart_at: 'later' }, context()),
+    ).rejects.toThrow('Unreadable time')
+  })
+})
+
+test('bikeshare_nearby lists stations nearest first with live counts', async () => {
+  mockBarrelman.mockResolvedValueOnce(
+    Response.json({
+      stations: [
+        {
+          stationId: 'far',
+          name: 'Far',
+          lat: 40.752,
+          lon: -73.9857,
+          numBikesAvailable: 1,
+          numDocksAvailable: 9,
+          isRenting: true,
+          isReturning: true,
+        },
+        {
+          stationId: 'near',
+          name: 'Near',
+          lat: 40.7486,
+          lon: -73.9857,
+          numBikesAvailable: 4,
+          numEbikesAvailable: 2,
+          numDocksAvailable: 3,
+          isRenting: true,
+          isReturning: true,
+        },
+      ],
+    }),
+  )
+  const stations = (await tool('bikeshare_nearby').run({}, context())) as any[]
+  expect(stations.map((s) => s.name)).toEqual(['Near', 'Far'])
+  expect(stations[0]).toMatchObject({
+    bikes: 4,
+    ebikes: 2,
+    docks: 3,
+    meters: 22,
+  })
+  expect(stations[1].ebikes).toBe(0)
+})
+
+test('weather says when no provider is set up', async () => {
+  await expect(tool('weather').run({}, context())).rejects.toThrow(
+    'not available',
+  )
+})

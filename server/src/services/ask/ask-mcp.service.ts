@@ -29,7 +29,7 @@ export interface McpCaller {
 }
 
 const INSTRUCTIONS =
-  'Search Parchment for real places. Searches need a location: pass `near`/`from` coordinates, or resolve a place name with `locate` first.'
+  'Search Parchment for real places, and plan how to reach them: transit trips with live delays, travel times by mode, bike share availability and weather. Tools need a location: pass coordinates, or resolve a place name with `locate` first. Times are local to the trip.'
 
 const toolsByName = new Map(askTools.map((tool) => [tool.name, tool]))
 
@@ -75,7 +75,7 @@ async function callTool(
   const context: AskContext = {
     userId: caller.userId,
     language: caller.language,
-    origin: (args.near ?? args.from) as LatLng | undefined,
+    origin: (args.near ?? args.from ?? args.at) as LatLng | undefined,
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),

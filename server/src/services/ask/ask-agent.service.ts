@@ -39,7 +39,8 @@ function systemPrompt(context: AskContext): string {
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review says.',
-    `Finish by calling ${ANSWER_TOOL}. Its text is one short sentence; the app shows each place's distance, hours and address on a card, so never repeat them.`,
+    'For getting somewhere, use transit_trips, travel_times, bikeshare_nearby and weather; put the times and lines that answer the question in your text, in the local times the tools give.',
+    `Finish by calling ${ANSWER_TOOL}. Its text is short, usually one sentence; for places, the app shows each place's distance, hours and address on a card, so never repeat them.`,
     'If nothing fits, say what is missing and return no places.',
   ].join('\n')
 }

@@ -8,6 +8,7 @@ import { recordAskQuestion } from '../services/ask/ask-usage.service'
 import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
 import { VehicleSchema } from '../types/directions-api.types'
+import { getAskPreferences } from '../services/user-preferences.service'
 import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 import type { Vehicle } from '../types/trip.types'
@@ -35,7 +36,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Whether the user can use Ask',
         description:
-          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which needs the `premium:ask` permission and allows a number of questions per UTC month (`ASK_MONTHLY_QUESTIONS`, default 200, 0 for no limit). On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user lacks the permission, and `quota-exceeded` (with `limit` and `resetsAt`) when this month\'s questions are used up.',
+          'Ask runs on the user\'s own OpenRouter key when they have one, otherwise on the system key, which needs the `premium:ask` permission and allows a number of questions per UTC month (`ASK_MONTHLY_QUESTIONS`, default 200, 0 for no limit). On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user lacks the permission, `quota-exceeded` (with `limit` and `resetsAt`) when this month\'s questions are used up, and `turned-off` when the user switched Ask off in their settings.',
       },
     },
   )
@@ -55,12 +56,15 @@ const app = new Elysia()
             })
           case 'not-permitted':
             return status(403, { message: t('errors.ask.notPermitted'), reason: access.reason })
+          case 'turned-off':
+            return status(403, { message: t('errors.ask.turnedOff'), reason: access.reason })
           default:
             return status(501, { message: t('errors.ask.notConfigured'), reason: access.reason })
         }
       }
 
       const meter = meterModel(access.model)
+      const preferences = await getAskPreferences(user.id)
 
       const origin =
         body.lat !== undefined && body.lng !== undefined
@@ -80,13 +84,13 @@ const app = new Elysia()
                 userId: user.id,
                 language,
                 origin,
-                places: knownPlaces(body.here, body.places),
+                places: preferences.shareLocation ? knownPlaces(body.here, body.places) : new Map(),
                 units: body.units ?? 'metric',
                 vehicles: (body.vehicles ?? []) as Vehicle[],
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
-                model: meter.model,
+                model: preferences.webSearch ? meter.model : undefined,
                 sources: new Map(),
                 emit,
               },

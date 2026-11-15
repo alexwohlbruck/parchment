@@ -7,6 +7,7 @@ import type { LanguageModelCapability } from '../../types/language-model.types'
 import type { AskAccess } from '../../types/ask.types'
 import { askQuota, monthlyQuestionAllowance } from '../../lib/ask/ask-usage'
 import { questionsAsked } from './ask-usage.service'
+import { getAskPreferences } from '../user-preferences.service'
 
 type Granted<A> = A extends { allowed: true } ? A & { model: LanguageModelCapability } : A
 export type AskModelAccess = Granted<AskAccess>
@@ -42,6 +43,7 @@ export async function resolveAskAccess(
   userId: string,
   now = new Date(),
 ): Promise<AskModelAccess> {
+  if (!(await getAskPreferences(userId)).enabled) return { allowed: false, reason: 'turned-off' }
   const own = configuredModel(userId)
   if (own) return { allowed: true, model: own, keySource: 'own' }
 

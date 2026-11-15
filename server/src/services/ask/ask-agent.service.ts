@@ -13,6 +13,7 @@ import {
   type AskContext,
   type AskTool,
 } from './ask-tools'
+import { webTools } from './ask-web-tools'
 import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
@@ -169,8 +170,9 @@ export async function runAsk(
     ...(request.history ?? []),
     { role: 'user', content: request.question },
   ]
-  const toolsByName = new Map(askTools.map((tool) => [tool.name, tool]))
-  const allTools = [...toChatTools(askTools), answerTool]
+  const tools = context.model ? askTools : askTools.filter((tool) => !webTools.includes(tool))
+  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
+  const allTools = [...toChatTools(tools), answerTool]
 
   if (request.placeId) {
     const call: ChatToolCall = {

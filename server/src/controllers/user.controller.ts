@@ -39,6 +39,8 @@ import {
 } from '../services/user-preferences.service'
 import { toPreferencesResponse } from '../lib/user-preferences'
 import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
+import { ASK_HISTORY_DAYS, type AskHistoryDays } from '../types/ask-preferences.types'
+import type { TLiteral } from '@sinclair/typebox'
 import { SORT_PREFERENCES } from '../types/trip.types'
 import { createInitialCollection } from '../services/library/collections.service'
 import {
@@ -1225,10 +1227,25 @@ const NavigationPreferencesSchema = t.Object(
   { additionalProperties: false },
 )
 
+const AskPreferencesSchema = t.Object(
+  {
+    enabled: t.Boolean({ description: 'Off hides Ask everywhere and refuses /ask and /mcp.' }),
+    suggest: t.Boolean({ description: 'Select Ask first when a search reads like a question.' }),
+    shareLocation: t.Boolean({ description: 'Send where the user is and their Home and Work with each question.' }),
+    webSearch: t.Boolean({ description: 'Let Ask search the web.' }),
+    saveHistory: t.Boolean({ description: 'Keep Ask threads, end-to-end encrypted, on the account.' }),
+    keepDays: t.Union(ASK_HISTORY_DAYS.map((days) => t.Literal(days)) as unknown as [TLiteral<AskHistoryDays>], {
+      description: 'Days a thread is kept after it was last used; 0 keeps it until deleted.',
+    }),
+  },
+  { additionalProperties: false },
+)
+
 const UserPreferencesSchema = t.Object({
   language: t.String(),
   unitSystem: t.String(),
   navigation: t.Partial(NavigationPreferencesSchema),
+  ask: AskPreferencesSchema,
 })
 
 /**
@@ -1242,7 +1259,7 @@ app.use(requireAuth).get(
     detail: {
       tags: ['Users'],
       description:
-        'Get current user preferences: language, unit system and navigation. ' +
+        'Get current user preferences: language, unit system, navigation and Ask. ' +
         'Each navigation section (excludedModes, sortPreference, routing, speech, ' +
         'guidance) is absent until first saved.',
     },
@@ -1259,6 +1276,7 @@ app.use(requireAuth).put(
     if (body.language !== undefined) updates.language = body.language
     if (body.unitSystem !== undefined) updates.unitSystem = body.unitSystem
     if (body.navigation !== undefined) updates.navigation = body.navigation
+    if (body.ask !== undefined) updates.ask = body.ask
     const prefs = Object.keys(updates).length
       ? await updateUserPreferences(user.id, updates)
       : await getOrCreateUserPreferences(user.id)
@@ -1271,13 +1289,15 @@ app.use(requireAuth).put(
         t.Union([t.Literal('metric'), t.Literal('imperial')]),
       ),
       navigation: t.Optional(t.Partial(NavigationPreferencesSchema)),
+      ask: t.Optional(t.Partial(AskPreferencesSchema)),
     }),
     response: UserPreferencesSchema,
     detail: {
       tags: ['Users'],
       description:
         'Update current user preferences. Each navigation section sent ' +
-        'replaces the stored one; sections left out are kept.',
+        'replaces the stored one; sections left out are kept. Ask settings ' +
+        'sent are merged into the stored ones.',
     },
   },
 )

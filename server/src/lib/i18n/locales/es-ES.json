@@ -193,7 +193,8 @@
     "ask": {
       "notConfigured": "Preguntar no está configurado en este servidor",
       "notPermitted": "Preguntar requiere Premium o tu propia clave de OpenRouter",
-      "quotaExceeded": "Ya usaste las preguntas de este mes en Preguntar"
+      "quotaExceeded": "Ya usaste las preguntas de este mes en Preguntar",
+      "turnedOff": "Preguntar está desactivado en tu configuración"
     }
   },
   "chips": {

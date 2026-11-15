@@ -3,6 +3,8 @@ import { userPreferences, type UserPreferences, type NewUserPreferences } from '
 import { eq, sql } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE, LANGUAGES, type Language } from '../lib/i18n/i18n.types'
 import type { NavigationPreferencesPatch } from '../types/navigation-preferences.types'
+import type { AskPreferences } from '../types/ask-preferences.types'
+import { resolveAskPreferences } from '../lib/ask/ask-preferences'
 
 const DEFAULT_UNIT_SYSTEM = 'metric'
 
@@ -63,6 +65,7 @@ export async function updateUserPreferences(
   userId: string,
   updates: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> & {
     navigation?: NavigationPreferencesPatch
+    ask?: Partial<AskPreferences>
   },
 ): Promise<UserPreferences> {
   const allowed: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> = {}
@@ -72,7 +75,8 @@ export async function updateUserPreferences(
     updates.navigation && Object.keys(updates.navigation).length > 0
       ? updates.navigation
       : undefined
-  if (Object.keys(allowed).length === 0 && !navigation) {
+  const ask = updates.ask && Object.keys(updates.ask).length > 0 ? updates.ask : undefined
+  if (Object.keys(allowed).length === 0 && !navigation && !ask) {
     const prefs = await getOrCreateUserPreferences(userId)
     return prefs
   }
@@ -83,6 +87,9 @@ export async function updateUserPreferences(
       ...allowed,
       ...(navigation && {
         navigation: sql`coalesce(${userPreferences.navigation}, '{}'::jsonb) || ${JSON.stringify(navigation)}::jsonb`,
+      }),
+      ...(ask && {
+        ask: sql`coalesce(${userPreferences.ask}, '{}'::jsonb) || ${JSON.stringify(ask)}::jsonb`,
       }),
       updatedAt: new Date(),
     })
@@ -99,8 +106,14 @@ export async function updateUserPreferences(
       language: allowed.language ?? DEFAULT_LANGUAGE,
       unitSystem: allowed.unitSystem ?? DEFAULT_UNIT_SYSTEM,
       ...(navigation && { navigation }),
+      ...(ask && { ask }),
     })
     .returning()
   if (!inserted) throw new Error('Failed to create user preferences')
   return inserted
+}
+
+/** A user's Ask settings, defaults included. */
+export async function getAskPreferences(userId: string): Promise<AskPreferences> {
+  return resolveAskPreferences((await getUserPreferences(userId))?.ask)
 }

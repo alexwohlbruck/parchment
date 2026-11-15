@@ -121,5 +121,6 @@ export type AskAccess =
   | { allowed: true; keySource: 'own' }
   /** `quota` is null when the system key has no monthly limit. */
   | { allowed: true; keySource: 'system'; quota: AskQuota | null }
-  | { allowed: false; reason: 'not-configured' | 'not-permitted' }
+  /** `turned-off`: the user switched Ask off in settings. */
+  | { allowed: false; reason: 'not-configured' | 'not-permitted' | 'turned-off' }
   | { allowed: false; reason: 'quota-exceeded'; limit: number; resetsAt: string }

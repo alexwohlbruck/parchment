@@ -24,6 +24,10 @@ mock.module('../auth.service', () => ({
   hasPermission: () => permitted,
 }))
 mock.module('./ask-usage.service', () => ({ questionsAsked: mockQuestionsAsked }))
+let enabled = true
+mock.module('../user-preferences.service', () => ({
+  getAskPreferences: async () => ({ enabled }),
+}))
 
 delete process.env.OPENROUTER_API_KEY
 const { resolveAskAccess } = await import('./ask-model.service')
@@ -33,6 +37,7 @@ const DEC = new Date('2026-12-01T00:00:00Z')
 
 describe('resolveAskAccess', () => {
   beforeEach(() => {
+  enabled = true
     records = [{ userId: null, model: systemModel }]
     permitted = true
     asked.clear()
@@ -89,5 +94,13 @@ describe('resolveAskAccess', () => {
   test('the permission is checked before the allowance', async () => {
     permitted = false
     expect(await resolveAskAccess('u1', NOV)).toEqual({ allowed: false, reason: 'not-permitted' })
+  })
+})
+
+describe('resolveAskAccess when Ask is turned off', () => {
+  test('refuses even an own key', async () => {
+    records = [{ userId: 'u1', model: ownModel }]
+    enabled = false
+    expect(await resolveAskAccess('u1')).toEqual({ allowed: false, reason: 'turned-off' })
   })
 })

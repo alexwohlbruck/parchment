@@ -10,6 +10,11 @@ mock.module('../services/auth.service', () => ({
   hasPermission: (perms: string[], rule: string) => perms.includes(rule),
 }))
 
+let askEnabled = true
+mock.module('../services/user-preferences.service', () => ({
+  getAskPreferences: async () => ({ enabled: askEnabled }),
+}))
+
 const place = {
   id: 'osm/node/1',
   name: { value: 'Blue Bottle', sourceId: 'osm' },
@@ -42,6 +47,7 @@ const callTool = (name: string, args: Record<string, unknown>) =>
 beforeEach(() => {
   resetAuth()
   permitted = true
+  askEnabled = true
   lookupPlacesByNameAndLocation.mockClear()
 })
 
@@ -110,6 +116,13 @@ describe('MCP endpoint', () => {
     const forbidden = await rpc('tools/list')
     expect(forbidden.status).toBe(403)
     expect(forbidden.body.error.code).toBe(-32003)
+  })
+
+  test('refuses a user who turned Ask off', async () => {
+    askEnabled = false
+    const { status, body } = await rpc('tools/list')
+    expect(status).toBe(403)
+    expect(body.error.code).toBe(-32003)
   })
 
   test('offers no event stream or sessions', async () => {

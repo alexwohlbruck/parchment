@@ -3828,6 +3828,10 @@
       "action": "Preguntar sobre este lugar",
       "title": "Pregunta sobre {name}",
       "placeholder": "¿Bueno para trabajar? ¿Lleno los fines de semana?"
+    },
+    "trip": {
+      "directions": "Cómo llegar",
+      "directionsTo": "Cómo llegar a {name}"
     }
   }
 }

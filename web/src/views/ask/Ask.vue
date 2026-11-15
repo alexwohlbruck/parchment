@@ -2,9 +2,12 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { distance } from '@turf/turf'
 import { ArrowUpIcon, MessageCircleQuestionIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
-import { useAskStore } from '@/stores/ask.store'
+import { useAskStore, type AskTrip } from '@/stores/ask.store'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsService } from '@/services/directions.service'
 import { useSearchStore } from '@/stores/search.store'
 import { useAskService } from '@/services/ask/ask.service'
 import { useOpenRouterConnect } from '@/services/ask/openrouter-connect.service'
@@ -14,6 +17,7 @@ import { usePlaceService } from '@/services/place/place.service'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { useAreaLayer } from '@/composables/map/useAreaLayer'
+import { useAskContext } from '@/composables/ask/useAskContext'
 import {
   ASK_REACH_FILL_LAYER_ID,
   ASK_REACH_LINE_LAYER_ID,
@@ -27,6 +31,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import type { Place } from '@/types/place.types'
+import type { Waypoint } from '@/types/map.types'
+import type { AskEndpoint } from '@/types/ask.types'
 
 const props = defineProps<{
   question?: string
@@ -43,6 +49,29 @@ const searchStore = useSearchStore()
 const askService = useAskService()
 const mapService = useMapService()
 const { setPartialPlace } = usePlaceService()
+const askContext = useAskContext()
+const directionsService = useDirectionsService()
+const directionsStore = useDirectionsStore()
+
+const SAME_SPOT_KM = 0.05
+
+function tripWaypoint(point: AskEndpoint): Waypoint {
+  const current = directionsService.getCurrentLocationWaypoint()
+  const lngLat = { lng: point.lng, lat: point.lat }
+  if (current?.lngLat && distance([lngLat.lng, lngLat.lat], [current.lngLat.lng, current.lngLat.lat]) < SAME_SPOT_KM) {
+    return current
+  }
+  return { lngLat }
+}
+
+async function openTrip(trip: AskTrip) {
+  directionsService.clearTrip()
+  await directionsService.directionsFrom(tripWaypoint(trip.from))
+  await directionsService.directionsTo(tripWaypoint(trip.to))
+  // Bike share trips have no tab of their own; they rank among every mode's.
+  directionsStore.selectedMode = trip.kind === 'bikeshare' ? 'multi' : trip.kind
+  router.push({ name: AppRoute.DIRECTIONS })
+}
 
 const followUp = ref('')
 const loadingAccess = ref(!askStore.access)
@@ -55,7 +84,7 @@ async function start(question: string | undefined) {
     .loadAccess({ fresh: !askStore.access?.allowed })
     .catch(() => null)
   loadingAccess.value = false
-  if (result?.allowed) askService.ask(text)
+  if (result?.allowed) askService.ask(text, askContext())
 }
 
 function connectOpenRouter() {
@@ -64,7 +93,7 @@ function connectOpenRouter() {
 
 function retry() {
   const question = askStore.current?.question
-  if (question) askService.ask(question, { followUp: askStore.exchanges.length > 1 })
+  if (question) askService.ask(question, askContext(), { followUp: askStore.exchanges.length > 1 })
 }
 
 const firstAboutPlace = computed(() => !!props.placeId && !askStore.exchanges.length)
@@ -73,8 +102,8 @@ function submitFollowUp() {
   const text = followUp.value.trim()
   if (!text || askStore.isRunning) return
   followUp.value = ''
-  if (firstAboutPlace.value) askService.ask(text, { placeId: props.placeId })
-  else askService.ask(text, { followUp: true })
+  if (firstAboutPlace.value) askService.ask(text, askContext(), { placeId: props.placeId })
+  else askService.ask(text, askContext(), { followUp: true })
 }
 
 function openPlace(place: Place) {
@@ -189,6 +218,7 @@ onUnmounted(() => {
         :exchange="exchange"
         :class="index < askStore.exchanges.length - 1 && 'opacity-60'"
         @retry="retry"
+        @directions="openTrip"
         @place-hover="searchStore.setHoveredPlace($event)"
         @place-leave="searchStore.setHoveredPlace(null)"
       />

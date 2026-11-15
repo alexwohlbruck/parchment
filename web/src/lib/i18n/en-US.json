@@ -4102,6 +4102,10 @@
       "action": "Ask about this place",
       "title": "Ask about {name}",
       "placeholder": "Good for working? Busy on weekends?"
+    },
+    "trip": {
+      "directions": "Directions",
+      "directionsTo": "Directions to {name}"
     }
   }
 }

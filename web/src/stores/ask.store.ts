@@ -1,6 +1,8 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { AskAccess, AskCitation, AskEvent, AskTurn } from '@/types/ask.types'
+
+export type AskTrip = Omit<Extract<AskEvent, { type: 'trip' }>, 'type'>
 import type { IsochroneGeometry } from '@server/types/isochrone.types'
 import type { QueryIntent } from '@/types/search.types'
 
@@ -18,6 +20,8 @@ export interface AskExchange {
   /** The travel-time area a question like "within a 10 min walk" searched. */
   reach?: IsochroneGeometry
   browse?: QueryIntent
+  /** The trip the answer recommends, to open in Directions. */
+  trip?: AskTrip
   status: 'running' | 'done' | 'error'
   error?: string
 }
@@ -78,6 +82,12 @@ export const useAskStore = defineStore('ask', () => {
         break
       case 'reach':
         updateCurrent(exchange => ({ ...exchange, reach: event.geometry }))
+        break
+      case 'trip':
+        updateCurrent(exchange => {
+          const { type, ...trip } = event
+          return { ...exchange, trip }
+        })
         break
       case 'answer':
         updateCurrent(exchange => ({

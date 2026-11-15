@@ -4,14 +4,14 @@ import { PlaceCard } from '@/components/place/card'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ArrowRightIcon, MapPinOffIcon } from 'lucide-vue-next'
+import { ArrowRightIcon, CornerUpRightIcon, MapPinOffIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { createSearchResultsRoute } from '@/lib/search/search-result'
 import { intentFilters } from '@/lib/search/query-intent'
 import AskSteps from './AskSteps.vue'
-import type { AskExchange } from '@/stores/ask.store'
+import type { AskExchange, AskTrip } from '@/stores/ask.store'
 
 const props = defineProps<{
   exchange: AskExchange
@@ -19,6 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: []
+  directions: [trip: AskTrip]
   'place-hover': [placeId: string]
   'place-leave': []
 }>()
@@ -58,8 +59,17 @@ const browseRoute = computed(() => {
       {{ exchange.text }}
     </p>
 
+    <Button
+      v-if="exchange.status === 'done' && exchange.trip"
+      class="self-start"
+      @click="emit('directions', exchange.trip)"
+    >
+      <CornerUpRightIcon class="size-4" />
+      {{ exchange.trip.to.name ? t('ask.trip.directionsTo', { name: exchange.trip.to.name }) : t('ask.trip.directions') }}
+    </Button>
+
     <EmptyState
-      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text"
+      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip"
       :icon="MapPinOffIcon"
       :title="t('ask.empty.title')"
       :description="t('ask.empty.description')"

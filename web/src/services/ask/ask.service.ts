@@ -1,10 +1,8 @@
 import { api } from '@/lib/api'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { createSseParser } from '@/lib/ask/sse-events'
-import { toLngLat } from '@/lib/geo/lng-lat'
 import { useAskStore } from '@/stores/ask.store'
-import { useMapStore } from '@/stores/map.store'
-import type { AskAccess, AskEvent } from '@/types/ask.types'
+import type { AskAccess, AskEvent, AskWhere } from '@/types/ask.types'
 
 let controller: AbortController | null = null
 
@@ -23,7 +21,6 @@ function requestHeaders(): Record<string, string> {
 
 export function useAskService() {
   const askStore = useAskStore()
-  const mapStore = useMapStore()
 
   async function loadAccess({ fresh = false } = {}): Promise<AskAccess> {
     if (askStore.access && !fresh) return askStore.access
@@ -39,6 +36,7 @@ export function useAskService() {
 
   async function ask(
     question: string,
+    where: AskWhere,
     { followUp = false, placeId }: { followUp?: boolean; placeId?: string } = {},
   ) {
     cancel()
@@ -56,7 +54,7 @@ export function useAskService() {
           question,
           history,
           placeId,
-          ...toLngLat(mapStore.mapCamera.center),
+          ...where,
         }),
         signal,
       })

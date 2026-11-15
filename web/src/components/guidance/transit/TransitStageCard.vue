@@ -9,6 +9,7 @@ import { formatDurationCompact } from '@/lib/time-format'
 import { minutesUntil, type TransitStage } from '@/lib/guidance/transit-progress'
 import type { RideCertainty } from '@/lib/guidance/ride-estimator'
 import { afterRide } from '@/lib/guidance/after-ride'
+import { alightText, departureText } from '@/lib/guidance/transit-stage-text'
 import AfterRide from './AfterRide.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import BoardingHint from '@/components/transit/trip/BoardingHint.vue'
@@ -38,19 +39,13 @@ const toward = computed(() => segment.value?.directionLabel || segment.value?.he
 
 const countdown = computed(() => {
   const stage = props.stage
-  if (stage.kind !== 'wait') return null
-  const sec = (stage.departureMs - props.nowMs) / 1000
-  return sec < 30 ? t('guidance.transit.departingNow') : t('guidance.transit.departsIn', { duration: formatDurationCompact(sec) })
+  return stage.kind === 'wait' ? departureText(stage.departureMs, props.nowMs, t) : null
 })
 
 const ride = computed(() => {
   const stage = props.stage
   if (stage.kind !== 'riding') return null
-  const headline = stage.alighting
-    ? t('guidance.transit.getOffNow')
-    : stage.stopsLeft === 1
-      ? t('guidance.transit.getOffNext')
-      : t('guidance.transit.getOffAt', { stop: stage.alight })
+  const headline = alightText(stage, t)
   const stops = t('guidance.transit.stopsLeft', { n: stage.stopsLeft }, stage.stopsLeft)
   const minutes = minutesUntil(stage.arrivalMs, props.nowMs)
   return {

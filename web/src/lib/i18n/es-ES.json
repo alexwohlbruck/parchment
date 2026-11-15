@@ -2373,7 +2373,11 @@
     "submittedDescription": "Te avisaremos cuando haya novedades.",
     "viewPost": "Ver",
     "submitFailed": "No se pudieron enviar tus comentarios. Inténtalo de nuevo.",
-    "loadFailed": "No se pudieron cargar los tableros de comentarios."
+    "loadFailed": "No se pudieron cargar los tableros de comentarios.",
+    "attachImages": "Adjuntar imágenes",
+    "removeImage": "Quitar imagen",
+    "imageTooLarge": "Las imágenes deben pesar 10 MB o menos.",
+    "tooManyImages": "Puedes adjuntar hasta {count} imágenes."
   },
   "profileMenu": {
     "shortcuts": "Atajos",

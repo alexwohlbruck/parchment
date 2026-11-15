@@ -12,10 +12,23 @@ mock.module('../middleware/auth.middleware', () => authMockModule())
 mock.module('../middleware/rate-limit.middleware', () => ({
   makeUserRateLimit: () => (app: unknown) => app,
 }))
+const submitFeedback = mock(async (_input: unknown, _files?: File[]) => ({
+  id: 'post_5',
+  url: null,
+  imagesCopied: true,
+}))
+const readFeedbackImage = mock(async (_id: string): Promise<Buffer | null> =>
+  null,
+)
+class InvalidFeedbackImageError extends Error {}
 mock.module('../services/feedback.service', () => ({
   isFeedbackConfigured: () => true,
   listBoards: async () => [],
-  submitFeedback: async () => ({}),
+  submitFeedback,
+  readFeedbackImage,
+  InvalidFeedbackImageError,
+  MAX_FEEDBACK_IMAGES: 2,
+  MAX_FEEDBACK_IMAGE_BYTES: 8,
   isFeedbackPortalLoginEnabled: () => enabled,
   createFeedbackPortalLogin: createPortalLogin,
   feedbackErrorMessage: () => null,
@@ -24,6 +37,7 @@ const app = createTestApp((await import('./feedback.controller')).default)
 
 beforeEach(() => {
   resetAuth()
+  submitFeedback.mockClear()
   enabled = true
   createPortalLogin.mockClear()
   createPortalLogin.mockResolvedValue({
@@ -90,5 +104,77 @@ describe('POST /feedback/portal-login', () => {
     })
     expect(response.status).toBe(422)
     expect(createPortalLogin).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /feedback with images', () => {
+  const user = { id: 'u1', email: 'ada@example.com', alias: 'ada' }
+  function form(...images: File[]) {
+    const body = new FormData()
+    body.append('boardId', 'board_1')
+    body.append('title', 'Broken')
+    for (const image of images) body.append('images', image)
+    return body
+  }
+  const png = (bytes = 4) =>
+    new File([new Uint8Array(bytes)], 'shot.png', { type: 'image/png' })
+  const post = (body: FormData) =>
+    app.handle(
+      new Request('http://localhost/feedback', { method: 'POST', body }),
+    )
+
+  test('hands the files to the service, without internal fields', async () => {
+    setAuthUser(user)
+    const response = await post(form(png()))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: 'post_5', url: null })
+    expect(submitFeedback.mock.calls[0]![1]).toHaveLength(1)
+  })
+
+  test('refuses more images than the limit', async () => {
+    setAuthUser(user)
+    expect((await post(form(png(), png(), png()))).status).toBe(400)
+    expect(submitFeedback).not.toHaveBeenCalled()
+  })
+
+  test('refuses an oversized image', async () => {
+    setAuthUser(user)
+    expect((await post(form(png(64)))).status).toBe(400)
+    expect(submitFeedback).not.toHaveBeenCalled()
+  })
+
+  test('refuses a file that does not claim to be an image', async () => {
+    setAuthUser(user)
+    const text = new File(['hi'], 'notes.txt', { type: 'text/plain' })
+    expect((await post(form(text))).status).toBe(400)
+    expect(submitFeedback).not.toHaveBeenCalled()
+  })
+
+  test('reports an image the service could not decode', async () => {
+    setAuthUser(user)
+    submitFeedback.mockImplementationOnce(async () => {
+      throw new InvalidFeedbackImageError()
+    })
+    expect((await post(form(png()))).status).toBe(400)
+  })
+})
+
+describe('GET /feedback/images/:id', () => {
+  test('serves a staged image without a session', async () => {
+    setAuthUser(null)
+    readFeedbackImage.mockResolvedValueOnce(Buffer.from('webp'))
+    const response = await app.handle(
+      new Request('http://localhost/feedback/images/abc'),
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/webp')
+  })
+
+  test('404s an unknown image', async () => {
+    setAuthUser(null)
+    const response = await app.handle(
+      new Request('http://localhost/feedback/images/abc'),
+    )
+    expect(response.status).toBe(404)
   })
 })

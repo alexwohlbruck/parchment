@@ -556,17 +556,29 @@ export interface FeedbackPortalLogin {
   url: string
 }
 
+/** An image attached to a post, staged where the provider can fetch it. */
+export interface FeedbackImage {
+  url: string
+}
+
 export interface FeedbackSubmission {
   boardId: string
   title: string
   content: string
   author: FeedbackAuthor
+  images?: FeedbackImage[]
 }
 
 export interface SubmittedFeedback {
   id: string
   /** Link to the post on the provider's portal, when one can be built. */
   url: string | null
+  /**
+   * Whether the provider stored its own copy of every attached image, so the
+   * staged originals can be dropped. Absent or false means the post still
+   * points at them.
+   */
+  imagesCopied?: boolean
 }
 
 /** Collect user feedback — boards, and filing a post against one. */

@@ -8,6 +8,7 @@ import type {
   FeedbackCapability,
   FeedbackBoard,
   FeedbackSubmission,
+  FeedbackImage,
   SubmittedFeedback,
   FeedbackIdentity,
   FeedbackPortalLogin,
@@ -202,6 +203,7 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     title,
     content,
     author,
+    images = [],
   }: FeedbackSubmission): Promise<SubmittedFeedback> {
     const api = this.client()
 
@@ -214,11 +216,17 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     const { data: created } = await api.post('/posts', {
       boardId,
       title,
-      content,
+      content: QuackbackIntegration.withImages(content, images),
       ...(authorPrincipalId ? { authorPrincipalId } : {}),
     })
 
     const id = created?.data?.id
+    // Quackback fetches every external image on save and rewrites its src to
+    // its own storage, but keeps the original src for any it couldn't fetch.
+    // The returned content shows which happened.
+    const stored: string = created?.data?.content ?? ''
+    const imagesCopied =
+      images.length > 0 && images.every((image) => !stored.includes(image.url))
     const slug = (await this.listBoards()).find(
       (board) => board.id === boardId,
     )?.slug
@@ -226,7 +234,14 @@ export class QuackbackIntegration implements Integration<QuackbackConfig> {
     return {
       id,
       url: slug && id ? `${this.config.url}/b/${slug}/posts/${id}` : null,
+      ...(images.length ? { imagesCopied } : {}),
     }
+  }
+
+  /** Images go in the post body as markdown, after the user's text. */
+  private static withImages(content: string, images: FeedbackImage[]): string {
+    const embeds = images.map((image) => `![](${image.url})`)
+    return [content, ...embeds].filter(Boolean).join('\n\n')
   }
 
   async testConnection(

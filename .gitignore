@@ -25,3 +25,6 @@ web/e2e/.auth/
 
 # Preview tooling writes this per worktree
 .env.preview
+
+# User uploads: avatars and staged feedback images
+server/data/uploads/

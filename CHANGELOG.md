@@ -14,6 +14,7 @@
 * Long-pressing the map during navigation no longer opens the map menu over your route.
 * Long route names like B46-SBS show in full on trip cards and timelines instead of being cut off or overlapping.
 * While you walk to your stop, the departure countdown, time to spare and arrival time follow the vehicle's live position from the start, not just in the last few minutes.
+* Switching tabs on a place no longer reloads its sections, like the places it's inside or contains.
 
 ## [0.21.5] - 2026-11-13
 

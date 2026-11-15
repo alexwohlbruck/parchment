@@ -3202,7 +3202,8 @@
         "tts": "Síntesis de voz",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
-        "feedback": "Comentarios"
+        "feedback": "Comentarios",
+        "languageModel": "Preguntar"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -3229,7 +3230,8 @@
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
         "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
-        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios"
+        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
+        "openrouter": "El modelo de lenguaje detrás de Preguntar"
       },
       "scheme": {
         "endToEnd": {
@@ -3254,6 +3256,10 @@
         "hint": "Las solicitudes a este servicio están fallando. Revisa su configuración de conexión.",
         "bannerTitle": "{names} no responde | Algunas integraciones no responden: {names}",
         "bannerBody": "Comprueba que el servicio esté funcionando y luego ábrelo abajo y prueba la conexión. | Comprueba que los servicios estén funcionando y luego ábrelos abajo y prueba sus conexiones."
+      },
+      "scopeLabel": {
+        "system": "Para todos",
+        "user": "Solo tú"
       }
     },
     "users": {

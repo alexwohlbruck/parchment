@@ -100,7 +100,7 @@ async function autoConfigureFree() {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <div
         v-for="item in sortedIntegrations"
-        :key="item.config?.id || item.integration.id"
+        :key="item.config?.id || `${item.integration.id}:${item.scope}`"
         :class="[
           'rounded-xl transition-shadow',
           isFree(item.integration.id) ? 'ring-1 ring-primary/30' : '',
@@ -108,6 +108,7 @@ async function autoConfigureFree() {
       >
         <IntegrationTile
           :integration="item.integration"
+          :scope="item.scope"
           :configuration="item.config"
         />
       </div>

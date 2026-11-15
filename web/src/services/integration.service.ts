@@ -4,6 +4,7 @@ import type {
   IntegrationRecord,
   IntegrationDefinition,
   IntegrationScheme,
+  IntegrationScope,
 } from '@server/types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -64,6 +65,7 @@ export function useIntegrationService() {
     config: Record<string, any>,
     capabilities?: IntegrationCapability[],
     scheme: IntegrationScheme = 'server-key',
+    scope?: IntegrationScope,
   ) {
     isLoading.value = true
     error.value = null
@@ -112,6 +114,7 @@ export function useIntegrationService() {
     const requestData: any = {
       integrationId,
       config,
+      scope,
     }
 
     if (capabilities) {

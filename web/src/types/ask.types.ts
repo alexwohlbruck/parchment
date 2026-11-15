@@ -2,6 +2,7 @@ export type {
   AskAccess,
   AskCitation,
   AskEndpoint,
+  AskStop,
   AskEvent,
   AskTripKind,
   AskTurn,

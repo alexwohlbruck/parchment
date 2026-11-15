@@ -10,20 +10,27 @@ import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { createSearchResultsRoute } from '@/lib/search/search-result'
 import { intentFilters } from '@/lib/search/query-intent'
-import AskSteps from './AskSteps.vue'
+import AskTrace from './AskTrace.vue'
+import AskAnswer from './AskAnswer.vue'
+import AskFollowUps from './AskFollowUps.vue'
 import AskTripCard from './AskTripCard.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
 import type { AskExchange } from '@/stores/ask.store'
+import type { Place } from '@/types/place.types'
 
 const props = defineProps<{
   exchange: AskExchange
+  /** Only the latest exchange offers follow-ups. */
+  latest?: boolean
 }>()
 
 const emit = defineEmits<{
   retry: []
   'place-hover': [placeId: string]
   'place-leave': []
+  'place-open': [place: Place]
+  'follow-up': [question: string]
 }>()
 
 const { t } = useI18n()
@@ -46,7 +53,12 @@ const browseRoute = computed(() => {
       {{ exchange.question }}
     </h2>
 
-    <AskSteps :steps="exchange.steps" :running="exchange.status === 'running'" />
+    <AskTrace
+      :steps="exchange.steps"
+      :running="exchange.status === 'running'"
+      :started-at="exchange.startedAt"
+      :finished-at="exchange.finishedAt"
+    />
 
     <ErrorMessage
       v-if="exchange.status === 'error'"
@@ -57,12 +69,17 @@ const browseRoute = computed(() => {
       @action="emit('retry')"
     />
 
-    <p v-if="exchange.text" class="text-sm text-foreground leading-relaxed">
-      {{ exchange.text }}
-    </p>
+    <AskAnswer
+      v-if="exchange.text"
+      :text="exchange.text"
+      :places="exchange.places"
+      @place-open="emit('place-open', $event)"
+      @place-hover="emit('place-hover', $event)"
+      @place-leave="emit('place-leave')"
+    />
 
     <template v-if="exchange.trip">
-      <AskTripCard v-if="exchange.plan" :plan="exchange.plan" />
+      <AskTripCard v-if="exchange.plan" :plan="exchange.plan" :stops="exchange.trip.stops" />
       <div v-else-if="exchange.plan === undefined" :class="ITEM_ROW_SURFACES.row" class="py-6">
         <DirectionsLoading />
       </div>
@@ -105,5 +122,11 @@ const browseRoute = computed(() => {
       {{ t('ask.seeAll', { name: exchange.browse!.category!.name }) }}
       <ArrowRightIcon class="size-4" />
     </Button>
+
+    <AskFollowUps
+      v-if="latest && exchange.status === 'done' && exchange.followUps?.length"
+      :questions="exchange.followUps"
+      @ask="emit('follow-up', $event)"
+    />
   </section>
 </template>

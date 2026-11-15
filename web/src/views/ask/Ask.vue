@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { ArrowUpIcon, MessageCircleQuestionIcon } from 'lucide-vue-next'
+import { MessageCircleQuestionIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { useAskStore } from '@/stores/ask.store'
 import { useSearchStore } from '@/stores/search.store'
@@ -23,10 +23,10 @@ import {
 } from '@/constants/layers'
 import { formatResetDay } from '@/lib/ask/ask-quota'
 import AskExchange from '@/components/ask/AskExchange.vue'
+import AskComposer from '@/components/ask/AskComposer.vue'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import type { Place } from '@/types/place.types'
 
@@ -85,6 +85,10 @@ function retry() {
 }
 
 const firstAboutPlace = computed(() => !!props.placeId && !askStore.exchanges.length)
+
+function askFollowUp(question: string) {
+  if (!askStore.isRunning) askService.ask(question, askContext(), { followUp: true })
+}
 
 function submitFollowUp() {
   const text = followUp.value.trim()
@@ -204,8 +208,11 @@ onUnmounted(() => {
         v-for="(exchange, index) in askStore.exchanges"
         :key="index"
         :exchange="exchange"
+        :latest="index === askStore.exchanges.length - 1"
         :class="index < askStore.exchanges.length - 1 && 'opacity-60'"
         @retry="retry"
+        @place-open="openPlace"
+        @follow-up="askFollowUp"
         @place-hover="searchStore.setHoveredPlace($event)"
         @place-leave="searchStore.setHoveredPlace(null)"
       />
@@ -217,28 +224,16 @@ onUnmounted(() => {
         {{ t('ask.aboutPlace.title', { name: placeName }) }}
       </h2>
 
-      <form
+      <AskComposer
         v-if="askStore.exchanges.length || firstAboutPlace"
-        class="sticky bottom-4 flex items-center gap-2"
+        v-model="followUp"
+        class="sticky bottom-4"
         :class="!firstAboutPlace && 'mt-auto'"
-        @submit.prevent="submitFollowUp"
-      >
-        <Input
-          v-model="followUp"
-          :autofocus="firstAboutPlace"
-          :placeholder="firstAboutPlace ? t('ask.aboutPlace.placeholder') : t('ask.followUp')"
-          :disabled="askStore.isRunning"
-          class="flex-1 bg-background/85 backdrop-blur-xl"
-        />
-        <Button
-          type="submit"
-          size="icon"
-          :disabled="askStore.isRunning || !followUp.trim()"
-          :aria-label="t('ask.followUp')"
-        >
-          <ArrowUpIcon class="size-4" />
-        </Button>
-      </form>
+        :autofocus="firstAboutPlace"
+        :placeholder="firstAboutPlace ? t('ask.aboutPlace.placeholder') : t('ask.followUp')"
+        :disabled="askStore.isRunning"
+        @submit="submitFollowUp"
+      />
     </template>
   </div>
 </template>

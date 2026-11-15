@@ -4106,7 +4106,16 @@
     "trip": {
       "directions": "Directions",
       "directionsTo": "Directions to {name}",
-      "allWays": "All ways to get there"
+      "allWays": "All ways to get there",
+      "open": "Open trip",
+      "via": "Via",
+      "stop": "Stop",
+      "minutes": "{count} min"
+    },
+    "followUps": "Follow-ups",
+    "trace": {
+      "searchedFor": "Searched for {seconds}s",
+      "found": "{count} found | {count} found"
     }
   }
 }

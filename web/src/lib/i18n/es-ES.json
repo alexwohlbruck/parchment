@@ -3832,7 +3832,16 @@
     "trip": {
       "directions": "Cómo llegar",
       "directionsTo": "Cómo llegar a {name}",
-      "allWays": "Todas las formas de llegar"
+      "allWays": "Todas las formas de llegar",
+      "open": "Abrir viaje",
+      "via": "Pasando por",
+      "stop": "Parada",
+      "minutes": "{count} min"
+    },
+    "followUps": "Para seguir",
+    "trace": {
+      "searchedFor": "Buscó durante {seconds} s",
+      "found": "{count} encontrado | {count} encontrados"
     }
   }
 }

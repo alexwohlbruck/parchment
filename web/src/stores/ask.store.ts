@@ -13,11 +13,7 @@ import type { IsochroneGeometry } from '@server/types/isochrone.types'
 import type { QueryIntent } from '@/types/search.types'
 import type { TripsResponse } from '@/types/directions.types'
 
-export interface AskStep {
-  id: string
-  label: string
-  status: 'running' | 'done' | 'failed'
-}
+export type AskStep = Omit<Extract<AskEvent, { type: 'step' }>, 'type'>
 
 export interface AskExchange {
   question: string
@@ -27,6 +23,10 @@ export interface AskExchange {
   /** The travel-time area a question like "within a 10 min walk" searched. */
   reach?: IsochroneGeometry
   browse?: QueryIntent
+  followUps?: string[]
+  /** When the question was sent and answered, for "Searched for 6s". */
+  startedAt: number
+  finishedAt?: number
   /** The trip the answer recommends, to open in Directions. */
   trip?: AskTrip
   /** Undefined while Directions plans it; null when it couldn't. */
@@ -70,6 +70,7 @@ export const useAskStore = defineStore('ask', () => {
       steps: [],
       text: '',
       places: [],
+      startedAt: Date.now(),
       status: 'running',
     }
     exchanges.value = followUp ? [...exchanges.value, exchange] : [exchange]
@@ -104,6 +105,7 @@ export const useAskStore = defineStore('ask', () => {
           text: event.text,
           places: event.places,
           browse: event.browse,
+          followUps: event.followUps,
         }))
         break
       case 'error':
@@ -111,7 +113,7 @@ export const useAskStore = defineStore('ask', () => {
         break
       case 'done':
         updateCurrent(exchange =>
-          exchange.status === 'running' ? { ...exchange, status: 'done' } : exchange,
+          exchange.status === 'running' ? { ...exchange, status: 'done', finishedAt: Date.now() } : exchange,
         )
         break
     }
@@ -123,7 +125,7 @@ export const useAskStore = defineStore('ask', () => {
   }
 
   function fail(message: string) {
-    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message }))
+    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message, finishedAt: Date.now() }))
   }
 
   function reset() {

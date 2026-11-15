@@ -35,6 +35,10 @@ export function useAskTripPreview() {
     const arriveBy = trip.time?.mode === 'arriveBy' ? trip.time.at : null
     directionsService.setWaypoints([
       waypoint(trip.from),
+      ...(trip.stops ?? []).map(stop => ({
+        ...waypoint(stop),
+        ...(stop.minutes && { timeConstraint: { mode: 'departAfter' as const, dwellTime: stop.minutes } }),
+      })),
       { ...waypoint(trip.to), ...(arriveBy && { timeConstraint: { mode: 'arriveBy', time: arriveBy } }) },
     ])
     directionsStore.departureTime = trip.time?.mode === 'departAfter' ? trip.time.at : null

@@ -8,8 +8,8 @@ describe('ask store', () => {
   it('builds the current exchange from the stream, trip included', () => {
     const store = useAskStore()
     store.start('how do I get home on citibike', { followUp: false })
-    store.apply({ type: 'step', id: 's1', label: 'Planning the trip', status: 'running' })
-    store.apply({ type: 'step', id: 's1', label: 'Planning the trip', status: 'done' })
+    store.apply({ type: 'step', id: 's1', tool: 'plan_trip', label: 'Planning the trip', status: 'running' })
+    store.apply({ type: 'step', id: 's1', tool: 'plan_trip', label: 'Planning the trip', status: 'done' })
     store.apply({
       type: 'trip',
       from: { lat: 40.666, lng: -73.96 },

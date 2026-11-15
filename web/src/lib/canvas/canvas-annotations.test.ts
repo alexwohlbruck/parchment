@@ -18,7 +18,6 @@ import {
   guideFeature,
   insertNode,
   isComplete,
-  metersBetween,
   moveNode,
   removeNode,
   TOOL_AUTOCOMPLETES,
@@ -213,12 +212,6 @@ describe('tool rules', () => {
     expect(isComplete('polygon', TOOL_MINIMUM.polygon)).toBe(true)
     expect(isComplete('polygon', TOOL_MINIMUM.polygon - 1)).toBe(false)
   })
-
-  it('measures a radius in metres', () => {
-    // ~0.01° of longitude at the equator is a bit over a kilometre.
-    expect(metersBetween([0, 0], [0.01, 0])).toBeGreaterThan(1000)
-    expect(metersBetween([0, 0], [0.01, 0])).toBeLessThan(1200)
-  })
 })
 
 describe('guideFeature', () => {
@@ -334,8 +327,8 @@ describe('constrainPosition', () => {
     ]
     const constrained = constrainPosition('rectangle', positions, [0.008, 0.004])
 
-    const baseline = metersBetween(positions[0], positions[1])
-    const depth = metersBetween(positions[1], constrained)
+    const baseline = turf.distance(positions[0], positions[1], { units: 'meters' })
+    const depth = turf.distance(positions[1], constrained, { units: 'meters' })
     expect(depth).toBeCloseTo(baseline, 0)
   })
 
@@ -362,7 +355,7 @@ describe('constrainPosition', () => {
       units: 'meters',
     }).geometry.coordinates
     const constrained = constrainPosition('circle', [centre], rough)
-    expect(metersBetween(centre, constrained)).toBeCloseTo(500, 0)
+    expect(turf.distance(centre, constrained, { units: 'meters' })).toBeCloseTo(500, 0)
   })
 
   it('leaves a pin exactly where it was put', () => {
@@ -384,7 +377,7 @@ describe('reshaping a mark', () => {
       annotation({ tool: 'circle', positions: [[0, 0]], radiusMeters: 500 }),
     )
     expect(nodes.map(node => node.kind)).toEqual(['vertex', 'radius'])
-    expect(metersBetween([0, 0], nodes[1].position)).toBeCloseTo(500, 0)
+    expect(turf.distance([0, 0], nodes[1].position, { units: 'meters' })).toBeCloseTo(500, 0)
   })
 
   it('resizes a circle rather than moving its centre', () => {

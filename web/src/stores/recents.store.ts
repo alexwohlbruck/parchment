@@ -170,6 +170,23 @@ export const useRecentsStore = defineStore('recents', () => {
     searches.value = recentSearches.list()
   }
 
+  /** Record a question asked in Ask, so it reopens that conversation. */
+  function recordAskSearch(question: string, threadId: string) {
+    const userId = currentUserId()
+    const query = question.trim()
+    if (!userId || !query) return
+    recentSearches.record({ query, kind: 'ask', threadId, iconName: 'MessageCircleQuestion', at: Date.now() }, userId)
+    searches.value = recentSearches.list()
+  }
+
+  /** Forget Ask questions, all of them or one conversation's. */
+  function forgetAskSearches(threadId?: string) {
+    const userId = currentUserId()
+    if (!userId) return
+    recentSearches.retain(e => e.kind !== 'ask' || (threadId !== undefined && e.threadId !== threadId), userId)
+    searches.value = recentSearches.list()
+  }
+
   function recordPlace(place: Partial<Place>) {
     const userId = currentUserId()
     if (!userId) return
@@ -206,6 +223,8 @@ export const useRecentsStore = defineStore('recents', () => {
     ensureSearchesHydrated,
     ensurePlacesHydrated,
     recordSearch,
+    recordAskSearch,
+    forgetAskSearches,
     recordCategorySearch,
     recordBrandSearch,
     recordPlace,

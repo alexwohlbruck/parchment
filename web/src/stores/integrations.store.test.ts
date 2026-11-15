@@ -12,7 +12,7 @@ import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { clearAllIntegrationHealth } from '@/lib/integration-health'
-import { IntegrationId, IntegrationCapabilityId } from '@server/types/integration.types'
+import { IntegrationId, IntegrationCapabilityId, IntegrationScope } from '@server/types/integration.types'
 import type { IntegrationRecord } from '@server/types/integration.types'
 
 function makeRecord(overrides: Partial<IntegrationRecord> = {}): IntegrationRecord {
@@ -255,7 +255,7 @@ describe('useIntegrationsStore', () => {
         paid: false,
         cloud: false,
         configSchema: 'apiKeySchema',
-        scope: [],
+        scope: [IntegrationScope.SYSTEM],
         ...overrides,
       } as import('@server/types/integration.types').IntegrationDefinition
     }
@@ -268,7 +268,10 @@ describe('useIntegrationsStore', () => {
       store.integrationConfigurations = []
 
       expect(store.allIntegrations).toEqual([
-        { integration: expect.objectContaining({ id: IntegrationId.MAPBOX }) },
+        {
+          integration: expect.objectContaining({ id: IntegrationId.MAPBOX }),
+          scope: IntegrationScope.SYSTEM,
+        },
       ])
       expect(store.allIntegrations[0].config).toBeUndefined()
     })
@@ -298,6 +301,24 @@ describe('useIntegrationsStore', () => {
 
       expect(store.allIntegrations).toHaveLength(2)
       expect(store.allIntegrations.map(i => i.config?.id)).toEqual(['rec-1', 'rec-2'])
+    })
+
+    test('offers the unconfigured scope of an integration available at both', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({
+          id: IntegrationId.OPENROUTER,
+          scope: [IntegrationScope.SYSTEM, IntegrationScope.USER],
+        }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ id: 'rec-sys', integrationId: IntegrationId.OPENROUTER, userId: null }),
+      ]
+
+      expect(store.allIntegrations.map(i => [i.scope, i.config?.id])).toEqual([
+        [IntegrationScope.SYSTEM, 'rec-sys'],
+        [IntegrationScope.USER, undefined],
+      ])
     })
 
     test('returns empty array when data is null (not loaded)', () => {

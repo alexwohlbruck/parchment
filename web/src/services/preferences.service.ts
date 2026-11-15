@@ -5,11 +5,13 @@ import type { Locale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
+import type { AskPreferences } from '@/types/ask.types'
 
 export interface UserPreferences {
   language: string
   unitSystem: string
   navigation: NavigationPreferences
+  ask: AskPreferences
 }
 
 const SUPPORTED_LOCALES: Locale[] = ['en-US', 'es-ES']
@@ -45,6 +47,12 @@ export async function saveNavigationPreferences(
   navigation: Partial<NavigationPreferences>,
 ): Promise<void> {
   await api.put('/users/me/preferences', { navigation })
+}
+
+/** Settings sent are merged into the account's; the rest are kept. */
+export async function saveAskPreferences(ask: Partial<AskPreferences>): Promise<AskPreferences> {
+  const { data } = await api.put<UserPreferences>('/users/me/preferences', { ask })
+  return data.ask
 }
 
 /**

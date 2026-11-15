@@ -1,4 +1,5 @@
 // The planner's scored candidates as the trips the UI shows.
+import { shareableWaypointId } from './directions-url'
 
 function normalizeMode(mode: string): string {
   const map: Record<string, string> = {
@@ -90,8 +91,8 @@ function mapSegment(seg: any, id: string, legIndex: number) {
   }
 }
 
-/** Map one scored backend candidate to the flattened UI trip; `placeIds` holds each waypoint's place, by index. */
-export function mapCandidate(candidate: any, idx: number, placeIds: (string | undefined)[] = []): any {
+/** Map one scored backend candidate to the flattened UI trip; `places` holds each waypoint's place, by index. */
+export function mapCandidate(candidate: any, idx: number, places: WaypointPlace[] = []): any {
   const stats = candidate.trip.tripStats
   return {
     id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
@@ -104,7 +105,7 @@ export function mapCandidate(candidate: any, idx: number, placeIds: (string | un
       hasHighways: false,
       hasFerries: false,
     },
-    segments: withLegEndPlaces(flattenSegments(candidate.trip.segments), placeIds),
+    segments: withLegEndPlaces(flattenSegments(candidate.trip.segments), places),
     startTime: new Date(candidate.trip.earliestStartTime),
     endTime: new Date(candidate.trip.latestEndTime),
     isRecommended: candidate.rank === 1,
@@ -118,13 +119,15 @@ export function mapCandidate(candidate: any, idx: number, placeIds: (string | un
   }
 }
 
+type WaypointPlace = { id?: string } | null | undefined
+
 /** Gives each leg's last segment the place of the waypoint it ends at, which the planner only knows by coordinates. */
-function withLegEndPlaces(segments: any[], placeIds: (string | undefined)[]): any[] {
+function withLegEndPlaces(segments: any[], places: WaypointPlace[]): any[] {
   return segments.map((seg, i) => {
-    const id = placeIds[seg.legIndex + 1]
+    const place = places[seg.legIndex + 1]
     const lastOfLeg = segments[i + 1]?.legIndex !== seg.legIndex
-    if (!id || !lastOfLeg || seg.end?.place) return seg
-    return { ...seg, end: { ...seg.end, place: { id } } }
+    if (!shareableWaypointId(place) || !lastOfLeg || seg.end?.place) return seg
+    return { ...seg, end: { ...seg.end, place } }
   })
 }
 

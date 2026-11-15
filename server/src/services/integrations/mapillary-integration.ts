@@ -1,3 +1,4 @@
+import { distance } from '@turf/turf'
 import {
   IntegrationConfig,
   IntegrationTestResult,
@@ -13,25 +14,6 @@ export interface MapillaryConfig extends IntegrationConfig {
 
 /** Mapillary image radius search caps the radius at 50 m. */
 const MAX_RADIUS_METERS = 50
-
-/**
- * Great-circle distance in metres between two coordinates.
- */
-function haversineMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371000
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLng = toRad(lng2 - lng1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(a))
-}
 
 export class MapillaryIntegration implements Integration<MapillaryConfig> {
   private initialized = false
@@ -161,7 +143,7 @@ export class MapillaryIntegration implements Integration<MapillaryConfig> {
       compassAngle: image.compass_angle,
       lat: imgLat,
       lng: imgLng,
-      distanceMeters: Math.round(haversineMeters(lat, lng, imgLat, imgLng)),
+      distanceMeters: Math.round(distance([lng, lat], [imgLng, imgLat], { units: 'meters' })),
     }
   }
 }

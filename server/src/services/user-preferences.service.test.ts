@@ -27,6 +27,7 @@ const existingRow: UserPreferences = {
   language: 'es-ES',
   unitSystem: 'imperial',
   navigation: null,
+  ask: null,
   createdAt: null,
   updatedAt: null,
 }

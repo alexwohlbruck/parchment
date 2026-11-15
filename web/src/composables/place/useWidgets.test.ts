@@ -6,7 +6,7 @@ import type { Place, WidgetDescriptor } from '@/types/place.types'
 import { WidgetDataType, WidgetType } from '@/types/place.types'
 import { useWidgets } from './useWidgets'
 
-const get = vi.fn(async () => ({ data: { data: { value: {} } } }))
+const get = vi.fn(async (..._args: unknown[]) => ({ data: { data: { value: {} } } }))
 vi.mock('@/lib/api', () => ({ api: { get: (...args: unknown[]) => get(...args) } }))
 
 const descriptor = {

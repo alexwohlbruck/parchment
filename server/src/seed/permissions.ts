@@ -124,6 +124,21 @@ export const permissions: {
     description: 'Advanced real-time location sharing features',
   },
   {
+    id: PermissionId.PREMIUM_ASK,
+    name: 'Ask',
+    description: 'Ask on the system model with the Premium allowance (ASK_QUESTIONS_PREMIUM)',
+  },
+  {
+    id: PermissionId.ASK_BASIC,
+    name: 'Ask (Basic)',
+    description: 'Ask on the system model with the Basic allowance (ASK_QUESTIONS_BASIC)',
+  },
+  {
+    id: PermissionId.ASK_TRIAL,
+    name: 'Ask (Free)',
+    description: 'Ask on the system model with the free allowance (ASK_QUESTIONS_TRIAL)',
+  },
+  {
     id: PermissionId.LIBRARY_READ,
     name: 'View library',
     description: 'View bookmarks, collections, and saved places',

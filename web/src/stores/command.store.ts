@@ -1,5 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { recentSearchRoute } from '@/services/place/place-display'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
@@ -44,6 +45,7 @@ import {
   TelescopeIcon,
   TerminalIcon,
   TreePineIcon,
+  MessageCircleQuestionIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
@@ -85,9 +87,12 @@ import { appEventBus } from '@/lib/event-bus'
 
 import { AppRoute } from '@/router'
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
+import { useAskStore } from '@/stores/ask.store'
+import { isAskOffered } from '@/lib/ask/ask-access'
 
 export enum CommandName {
   SEARCH = 'search',
+  ASK = 'ask',
   GOTO = 'goto',
   TOGGLE_THEME = 'toggleTheme',
   UPDATE_THEME_COLOR = 'updateThemeColor',
@@ -213,12 +218,8 @@ export const useCommandStore = defineStore('command', () => {
   }
 
   function commandIsAvailable(command: Command) {
-    // Check command is compatible with map engine
-    if (!command.engine || command.engine?.includes(settings.value.engine)) {
-      return true
-    }
-
-    return false
+    if (command.isAvailable && !command.isAvailable()) return false
+    return !command.engine || command.engine.includes(settings.value.engine)
   }
 
   function getCommand(id: CommandName) {
@@ -269,6 +270,28 @@ export const useCommandStore = defineStore('command', () => {
               name: AppRoute.SEARCH_RESULTS,
               query: { q },
             })
+            return
+          }
+
+          if (itemId.startsWith(RECENT_ASK_PREFIX)) {
+            const { q, thread } = JSON.parse(decodeURIComponent(itemId.slice(RECENT_ASK_PREFIX.length)))
+            router.push(recentSearchRoute({ kind: 'ask', query: q, threadId: thread, at: 0 }))
+            return
+          }
+
+          if (itemId === ASK_OPTION) {
+            const { currentSearchQuery } = useCommandService()
+            router.push({
+              name: AppRoute.ASK,
+              query: { q: currentSearchQuery.value },
+            })
+            return
+          }
+
+          if (itemId.startsWith(BROWSE_OPTION_PREFIX)) {
+            await router.push(createSearchResultsRoute(
+              JSON.parse(decodeURIComponent(itemId.slice(BROWSE_OPTION_PREFIX.length))),
+            ))
             return
           }
 
@@ -353,6 +376,15 @@ export const useCommandStore = defineStore('command', () => {
             getItems: buildSearchSuggestions,
           },
         ],
+      },
+      {
+        id: CommandName.ASK,
+        name: t('palette.commands.ask.name'),
+        description: t('palette.commands.ask.description'),
+        keywords: t('palette.commands.ask.keywords'),
+        icon: MessageCircleQuestionIcon,
+        isAvailable: () => isAskOffered(useAskStore().access),
+        action: () => router.push({ name: AppRoute.ASK }),
       },
       {
         id: CommandName.GOTO,

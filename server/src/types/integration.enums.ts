@@ -33,6 +33,8 @@ export enum IntegrationId {
   FIRMS = 'firms',
   /** Quackback — backend for the in-app feedback form. System-only, config-only. */
   QUACKBACK = 'quackback',
+  /** OpenRouter — the language model behind Ask. System key or a user's own. */
+  OPENROUTER = 'openrouter',
 }
 
 export enum IntegrationCapabilityId {
@@ -59,4 +61,5 @@ export enum IntegrationCapabilityId {
   RIDESHARE_ESTIMATE = 'rideshareEstimate',
   FEEDBACK = 'feedback',
   TTS = 'tts',
+  LANGUAGE_MODEL = 'languageModel',
 }

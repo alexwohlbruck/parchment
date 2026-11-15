@@ -33,6 +33,19 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  openrouterSchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API key',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
+      model: {
+        label: 'Model',
+        description: 'Any OpenRouter model id that supports tools',
+        inputProps: { placeholder: 'anthropic/claude-haiku-5.5' },
+      },
+    },
+  },
   quackbackSchema: {
     fieldConfig: {
       widgetSecret: {
@@ -138,6 +151,11 @@ export const configSchemas: Record<
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url('Please enter a valid URL').optional(),
+  }),
+
+  openrouterSchema: z.object({
+    apiKey: z.string().min(1, 'API key is required'),
+    model: z.string().optional(),
   }),
 
   quackbackSchema: z.object({

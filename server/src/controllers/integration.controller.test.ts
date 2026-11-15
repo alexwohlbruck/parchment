@@ -550,3 +550,64 @@ describe('GET /integrations/available', () => {
     expect(getAvailableIntegrations).toHaveBeenCalled()
   })
 })
+
+describe('integrations offered at both scopes', () => {
+  const systemKey = {
+    id: 'sys-or',
+    integrationId: 'openrouter',
+    userId: null,
+    scheme: 'server-key',
+    config: { apiKey: 'system-key' },
+    capabilities: [],
+    encryptedConfig: null,
+  }
+
+  beforeEach(() => {
+    definitions.openrouter = {
+      name: 'OpenRouter',
+      scope: ['system', 'user'],
+      configFields: [{ key: 'apiKey' }],
+    }
+    lookup['sys-or'] = systemKey
+  })
+
+  test('never hands the system key to a caller with only user write', async () => {
+    permissions = [WRITE_USER]
+
+    const res = await req(app).get('/integrations/sys-or')
+
+    expect(res.status).toBe(403)
+  })
+
+  test('a user with user write adds their own key', async () => {
+    permissions = [WRITE_USER]
+
+    const res = await req(app).post('/integrations', {
+      body: { integrationId: 'openrouter', config: { apiKey: 'mine' } },
+    })
+
+    expect(res.status).toBeLessThan(400)
+    expect(createIntegration.mock.calls.at(-1)?.[0]).toBe(TEST_USER.id)
+  })
+
+  test('an admin asks for the system scope explicitly', async () => {
+    permissions = [WRITE_SYSTEM]
+
+    const res = await req(app).post('/integrations', {
+      body: { integrationId: 'openrouter', config: { apiKey: 'k' }, scope: 'system' },
+    })
+
+    expect(res.status).toBeLessThan(400)
+    expect(createIntegration.mock.calls.at(-1)?.[0]).toBeUndefined()
+  })
+
+  test('user write alone cannot create the system key', async () => {
+    permissions = [WRITE_USER]
+
+    const res = await req(app).post('/integrations', {
+      body: { integrationId: 'openrouter', config: { apiKey: 'k' }, scope: 'system' },
+    })
+
+    expect(res.status).toBe(403)
+  })
+})

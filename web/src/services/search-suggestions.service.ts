@@ -19,6 +19,16 @@ import { useCommandService } from '@/services/command.service'
 import { useSearchService } from '@/services/search.service'
 import { useMapStore } from '@/stores/map.store'
 import { useRecentsStore } from '@/stores/recents.store'
+import { toLngLat } from '@/lib/geo/lng-lat'
+import { intentFilters, LOOKUP_INTENT } from '@/lib/search/query-intent'
+import type { QueryIntent } from '@/types/search.types'
+import { useAskService } from '@/services/ask/ask.service'
+import { isAskOffered } from '@/lib/ask/ask-access'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
+
+export const ASK_OPTION = 'ask'
+export const RECENT_ASK_PREFIX = 'recent-ask:'
+export const BROWSE_OPTION_PREFIX = 'browse:'
 
 export async function buildSearchSuggestions(
   _query?: string,
@@ -78,6 +88,19 @@ export async function buildSearchSuggestions(
           iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
           iconColor: getCategoryColor('default', isDark.value),
           imageUrl: e.brandLogoUrl,
+          group: 'recents',
+        },
+      }
+    }
+    if (e.kind === 'ask') {
+      return {
+        at: e.at,
+        identity: recentSearchIdentity(e),
+        option: {
+          value: `${RECENT_ASK_PREFIX}${encodeURIComponent(JSON.stringify({ q: e.query, thread: e.threadId }))}`,
+          name: e.query,
+          iconName: 'MessageCircleQuestion',
+          iconColor: getCategoryColor('default', isDark.value),
           group: 'recents',
         },
       }
@@ -196,6 +219,44 @@ export async function buildSearchSuggestions(
   const recentIdentities = new Set(recentEntries.map(r => r.identity))
   const recentItems = recentEntries.map(r => r.option)
 
+  const askAccess = useAskService().loadAccess().catch(() => null)
+  const askItem = async (intent: QueryIntent): Promise<CommandArgumentOption[]> => {
+    const access = await askAccess
+    if (!isAskOffered(access)) return []
+    return [
+      {
+        value: ASK_OPTION,
+        name: searchText,
+        iconName: 'MessageCircleQuestion',
+        iconColor: getCategoryColor('default', isDark.value),
+        group: intent.intent === 'ask' && useAskPreferencesStore().preferences.suggest ? 'ask' : 'askLast',
+      },
+    ]
+  }
+
+  const browseItem = (intent: QueryIntent): CommandArgumentOption[] => {
+    const { category, attributes = [], openNow } = intent
+    if (intent.intent !== 'browse' || !category) return []
+    const payload = encodeURIComponent(JSON.stringify({
+      categoryId: category.id,
+      categoryName: category.name,
+      filters: intentFilters(intent),
+    }))
+    return [
+      {
+        value: `${BROWSE_OPTION_PREFIX}${payload}`,
+        name: [
+          category.name,
+          ...attributes.map(a => a.name),
+          ...(openNow ? [t('palette.commands.search.browse.openNow')] : []),
+        ].join(' · '),
+        iconName: 'ListFilter',
+        iconColor: getCategoryColor('default', isDark.value),
+        group: 'browse',
+      },
+    ]
+  }
+
   const fullSearchItem = searchText.trim()
     ? [
         {
@@ -211,25 +272,12 @@ export async function buildSearchSuggestions(
   try {
     // Get map center for location-aware search
     const mapStore = useMapStore()
-    const center = mapStore.mapCamera.center
-
-    let lng, lat
-    if (Array.isArray(center)) {
-      ;[lng, lat] = center
-    } else if (typeof center === 'object') {
-      lng =
-        'lng' in center
-          ? center.lng
-          : 'lon' in center
-          ? center.lon
-          : 0
-      lat = center.lat || 0
-    }
+    const { lng, lat } = toLngLat(mapStore.mapCamera.center)
 
     // The server returns categories and places interleaved by relevance score.
     // Trust the server's ordering — no client-side category search or re-sort.
-    const searchResults =
-      await placeSearchService.getAutocompleteSuggestions({
+    const { results: searchResults, intent } =
+      await placeSearchService.getAutocomplete({
         query: searchText,
         lat,
         lng,
@@ -333,10 +381,16 @@ export async function buildSearchSuggestions(
       .filter(r => !recentIdentities.has(r.identity))
       .map(r => r.option)
 
-    return [...fullSearchItem, ...recentItems, ...results]
+    return [
+      ...browseItem(intent),
+      ...(await askItem(intent)),
+      ...fullSearchItem,
+      ...recentItems,
+      ...results,
+    ]
   } catch (error) {
     console.error('Error loading search suggestions:', error)
     // Still surface recents even when the server search fails.
-    return [...fullSearchItem, ...recentItems]
+    return [...(await askItem(LOOKUP_INTENT)), ...fullSearchItem, ...recentItems]
   }
 }

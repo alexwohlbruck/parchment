@@ -25,6 +25,7 @@ import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
 import { logger } from '../lib/logger'
+import { canWriteRecord, canWriteScope, resolveCreateScope } from '../lib/integration-scope'
 import { refreshObservability } from '../services/observability.config'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import { publish } from '../services/realtime/event-bus.service'
@@ -178,22 +179,12 @@ app.get(
           return false
         }
 
-        // If integration has SYSTEM scope
-        if (integration.scope.includes(IntegrationScope.SYSTEM)) {
-          // If it's already configured, show to users with read permissions
-          if (configuredIntegrationIds.has(integration.id)) {
-            return canReadSystem
-          }
-          // If not configured, only show to users with write permissions
-          return canWriteSystem
-        }
-
-        // If integration has USER scope, user needs read user permissions
-        if (integration.scope.includes(IntegrationScope.USER)) {
-          return canReadUser
-        }
-
-        return false
+        const systemVisible =
+          integration.scope.includes(IntegrationScope.SYSTEM) &&
+          (configuredIntegrationIds.has(integration.id) ? canReadSystem : canWriteSystem)
+        const userVisible =
+          integration.scope.includes(IntegrationScope.USER) && canReadUser
+        return systemVisible || userVisible
       },
     )
 
@@ -226,29 +217,15 @@ app.get(
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
-    // First try user-specific integration
-    let integration = await getIntegration(id, user.id)
-
-    // If not found, try system-wide integration
-    if (!integration) {
-      integration = await getIntegration(id)
-    }
-
+    const integration = await getIntegration(id, user.id)
     if (!integration) {
       return status(404, { message: t('errors.notFound.integration') })
     }
-
-    // Check if user has write permission for this integration's scope
-    const definition = getIntegrationDefinition(integration.integrationId)
-    if (!definition) {
+    if (!getIntegrationDefinition(integration.integrationId)) {
       return status(404, { message: t('errors.notFound.integrationDefinition') })
     }
 
-    const hasWriteAccess =
-      (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
-      (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
-
-    if (!hasWriteAccess) {
+    if (!canWriteRecord(integration, user.id, { canWriteUser, canWriteSystem })) {
       return status(403, {
         message: t('errors.auth.insufficientPermissions'),
       })
@@ -287,7 +264,7 @@ app.post(
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
-    const { integrationId, config, capabilities, scheme } = body
+    const { integrationId, config, capabilities, scheme, scope: requestedScope } = body
     const effectiveScheme: IntegrationScheme =
       (scheme as IntegrationScheme | undefined) ?? 'server-key'
 
@@ -316,21 +293,17 @@ app.post(
       })
     }
 
-    // Check permissions based on integration scope
-    if (definition.scope.includes(IntegrationScope.SYSTEM)) {
-      if (!canWriteSystem) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
-    } else if (definition.scope.includes(IntegrationScope.USER)) {
-      if (!canWriteUser) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
-    } else {
+    const scope = resolveCreateScope(
+      definition.scope,
+      requestedScope as IntegrationScope | undefined,
+    )
+    if (!scope) {
       return status(400, { message: t('errors.integration.invalidScope') })
+    }
+    if (!canWriteScope(scope, { canWriteUser, canWriteSystem })) {
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
+      })
     }
 
     // Enforce system prerequisite
@@ -354,13 +327,7 @@ app.post(
           }))
         : undefined
 
-      // Determine userId based on scope and permissions
-      let userId: string | undefined
-      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
-        userId = undefined // System-wide
-      } else {
-        userId = user.id // User-specific
-      }
+      const userId = scope === IntegrationScope.SYSTEM ? undefined : user.id
 
       const integration = await createIntegration(
         userId,
@@ -409,6 +376,12 @@ app.post(
         ),
       ),
       scheme: t.Optional(t.String()),
+      scope: t.Optional(
+        t.Union([t.Literal(IntegrationScope.SYSTEM), t.Literal(IntegrationScope.USER)], {
+          description:
+            'For integrations offered at both scopes, whether this is the system-wide one or your own. Defaults to your own.',
+        }),
+      ),
     }),
     detail: {
       tags: ['Integrations'],
@@ -443,38 +416,18 @@ app.put(
 
     try {
       // First, check if this is a system-wide integration
-      const systemIntegration = await getIntegration(id)
-      const userIntegration = await getIntegration(id, user.id)
-
-      if (!systemIntegration && !userIntegration) {
+      const integration = await getIntegration(id, user.id)
+      if (!integration) {
         return status(404, { message: t('errors.notFound.integration') })
       }
 
-      const integration = systemIntegration || userIntegration
-      const definition = getIntegrationDefinition(integration!.integrationId)
-
-      if (!definition) {
-        return status(400, {
-          message: t('errors.notFound.integrationDefinition'),
+      if (!canWriteRecord(integration, user.id, { canWriteUser, canWriteSystem })) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
 
-      // Check permissions based on integration scope
-      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
-        if (!canWriteSystem) {
-          return status(403, {
-            message: t('errors.auth.insufficientPermissions'),
-          })
-        }
-      } else if (definition.scope.includes(IntegrationScope.USER)) {
-        if (!canWriteUser) {
-          return status(403, {
-            message: t('errors.auth.insufficientPermissions'),
-          })
-        }
-      }
-
-      const userId: string | undefined = systemIntegration ? undefined : user.id
+      const userId = integration.userId ?? undefined
 
       // Convert capabilities array if provided
       const updates = {
@@ -491,11 +444,11 @@ app.put(
 
       // Apply logging config live (enable/disable, token/dataset change) so the
       // Axiom integration takes effect without a server restart.
-      if (integration!.integrationId === IntegrationId.AXIOM) {
+      if (integration.integrationId === IntegrationId.AXIOM) {
         await refreshObservability()
       }
 
-      emitIntegrationUpdated(userId, integration!.integrationId)
+      emitIntegrationUpdated(userId, integration.integrationId)
       return updatedIntegration
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -559,19 +512,10 @@ app.get(
     // Permission must match the row's actual scope. Without this, a regular
     // user with WRITE_USER could enumerate system-integration dependents,
     // leaking which users configured the dependent (e.g. OSM accounts).
-    const isSystem = integration.userId === null
-    if (isSystem) {
-      if (!canWriteSystem) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
-    } else {
-      if (!canWriteUser) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
+    if (!canWriteRecord(integration, user.id, { canWriteUser, canWriteSystem })) {
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
+      })
     }
 
     const dependents = await getDependentIntegrations(
@@ -622,47 +566,27 @@ app.delete(
 
     try {
       // First, check if this is a system-wide integration
-      const systemIntegration = await getIntegration(id)
-      const userIntegration = await getIntegration(id, user.id)
-
-      if (!systemIntegration && !userIntegration) {
+      const integration = await getIntegration(id, user.id)
+      if (!integration) {
         return status(404, { message: t('errors.notFound.integration') })
       }
 
-      const integration = systemIntegration || userIntegration
-      const definition = getIntegrationDefinition(integration!.integrationId)
-
-      if (!definition) {
-        return status(400, {
-          message: t('errors.notFound.integrationDefinition'),
+      if (!canWriteRecord(integration, user.id, { canWriteUser, canWriteSystem })) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
 
-      // Check permissions based on integration scope
-      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
-        if (!canWriteSystem) {
-          return status(403, {
-            message: t('errors.auth.insufficientPermissions'),
-          })
-        }
-      } else if (definition.scope.includes(IntegrationScope.USER)) {
-        if (!canWriteUser) {
-          return status(403, {
-            message: t('errors.auth.insufficientPermissions'),
-          })
-        }
-      }
-
-      const userId: string | undefined = systemIntegration ? undefined : user.id
+      const userId = integration.userId ?? undefined
 
       await deleteIntegration(id, userId)
 
       // Stop live log export when the Axiom integration is removed.
-      if (integration!.integrationId === IntegrationId.AXIOM) {
+      if (integration.integrationId === IntegrationId.AXIOM) {
         await refreshObservability()
       }
 
-      emitIntegrationUpdated(userId, integration!.integrationId)
+      emitIntegrationUpdated(userId, integration.integrationId)
       set.status = 204
       return null
     } catch (err: unknown) {
@@ -723,20 +647,10 @@ app.post(
     }
 
     // Check permissions based on integration scope
-    if (definition.scope.includes(IntegrationScope.SYSTEM)) {
-      if (!canWriteSystem) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
-    } else if (definition.scope.includes(IntegrationScope.USER)) {
-      if (!canWriteUser) {
-        return status(403, {
-          message: t('errors.auth.insufficientPermissions'),
-        })
-      }
-    } else {
-      return status(400, { message: t('errors.integration.invalidScope') })
+    if (!definition.scope.some((scope) => canWriteScope(scope, { canWriteUser, canWriteSystem }))) {
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
+      })
     }
 
     try {

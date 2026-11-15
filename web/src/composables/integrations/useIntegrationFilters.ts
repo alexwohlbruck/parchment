@@ -229,11 +229,7 @@ export function useIntegrationFilters() {
     }
 
     if (scopeFilter.value.length > 0) {
-      items = items.filter(({ integration }) =>
-        scopeFilter.value.every(s =>
-          integration.scope?.includes(s as IntegrationScope),
-        ),
-      )
+      items = items.filter(({ scope }) => scopeFilter.value.includes(scope))
     }
 
     if (statusFilter.value.length > 0) {

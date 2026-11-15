@@ -1,4 +1,6 @@
 import type { UserPreferences } from '../schema/user-preferences.schema'
+import type { AskPreferences } from '../types/ask-preferences.types'
+import { resolveAskPreferences } from './ask/ask-preferences'
 import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import {
   SORT_PREFERENCES,
@@ -10,6 +12,7 @@ export interface UserPreferencesResponse {
   language: string
   unitSystem: string
   navigation: NavigationPreferences
+  ask: AskPreferences
 }
 
 type Blob = Record<string, unknown>
@@ -44,11 +47,12 @@ export function normalizeNavigationPreferences(stored: unknown): NavigationPrefe
 }
 
 export function toPreferencesResponse(
-  prefs: Pick<UserPreferences, 'language' | 'unitSystem' | 'navigation'>,
+  prefs: Pick<UserPreferences, 'language' | 'unitSystem' | 'navigation' | 'ask'>,
 ): UserPreferencesResponse {
   return {
     language: prefs.language,
     unitSystem: prefs.unitSystem,
     navigation: normalizeNavigationPreferences(prefs.navigation),
+    ask: resolveAskPreferences(prefs.ask),
   }
 }

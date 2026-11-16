@@ -263,11 +263,14 @@ export default defineConfig({
       ignored: ['**/src-tauri/target/**'],
     },
   },
-  // envPrefix: ['VITE_', 'TAURI_ENV_*'],
-  // build: {
-  //   target:
-  //     process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
-  //   minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
-  //   sourcemap: !!process.env.TAURI_ENV_DEBUG,
-  // },
+  build: {
+    rollupOptions: {
+      // Each of these names every importer, one line per chunk; Netlify's build
+      // log fails outright on the volume.
+      onwarn(warning, warn) {
+        if (warning.message.includes('dynamic import will not move module')) return
+        warn(warning)
+      },
+    },
+  },
 })

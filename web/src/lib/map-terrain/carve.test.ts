@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import type { Point } from '@/lib/map-decks/decks'
-import { carveTile, carvedAt, footprint, tileUnder, type Elevation } from './carve'
+import { EASE_PX, carveTile, carvedAt, footprint, tileUnder, type Elevation } from './carve'
 
 // About a metre in mercator units at New York's latitude.
 const M = 1 / 30400000
@@ -66,6 +66,15 @@ describe('carveTile', () => {
     expect(carveTile(t, id(at(20)), [over])).toBe(true)
     expect(Math.max(...t.data)).toBe(25)
     expect(Math.min(...t.data)).toBe(20)
+  })
+
+  test('eases a fill\'s edge down to the ground around over a few pixels, rather than stepping', () => {
+    const t = tile()
+    const over = footprint([at(0), at(40)], [25, 25], [[25, 25], [25, 25]], [4, 4], [4, 4], [4, 4], true)
+    carveTile(t, id(at(20)), [over])
+    const between = t.data.filter(h => h > 20.5 && h < 24.5)
+    expect(between.length).toBeGreaterThan(0)
+    expect(t.data.filter(h => h === 25).length).toBeGreaterThan(between.length / EASE_PX)
   })
 
   test('never raises the ground', () => {

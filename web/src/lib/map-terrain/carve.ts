@@ -19,6 +19,9 @@ type Sides = [number, number]
 /** How steeply the ground banks up from a wall's shoulder, in metres per metre. */
 export const BANK = 1
 
+/** Pixels past a footprint's reach over which the carved ground eases back to the ground around, so the terrain's mesh, a few pixels a cell, slopes across the edge rather than stepping in teeth. */
+export const EASE_PX = 6
+
 /** One tile's elevation pixels, `dim` a side, each at its top-left corner, with `border` more around them. */
 export type Elevation = { dim: number; border: number; get: (x: number, y: number) => number; set: (x: number, y: number, metres: number) => void }
 
@@ -74,7 +77,8 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
   for (const f of footprints) {
     const pts = f.points.map(toPixel)
     const metres = metresPerUnit(f.points[0][1]) / (n * dim)
-    const reach = Math.max(...f.outer) / metres
+    const ease = EASE_PX * metres
+    const reach = Math.max(...f.outer) / metres + EASE_PX
     const xs = pts.map(p => p[0])
     const ys = pts.map(p => p[1])
     const [x0, x1] = [clamp(Math.floor(Math.min(...xs) - reach)), clamp(Math.ceil(Math.max(...xs) + reach))]
@@ -83,6 +87,7 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
     const w = x1 - x0 + 1
     const best = new Float32Array(w * (y1 - y0 + 1)).fill(Infinity)
     const height = new Float32Array(best.length)
+    const fade = new Float32Array(best.length)
     const [s0, s1, e0, e1] = [pts[0], pts[1], pts[pts.length - 1], pts[pts.length - 2]]
     for (let i = 0; i < pts.length - 1; i++) {
       const [ax, ay] = pts[i]
@@ -105,9 +110,11 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
           const k = (y - y0) * w + (x - x0)
           if (off >= best[k]) continue
           const side = dx * -ey + dy * ex >= 0 ? 0 : 1
-          if (off > f.outer[side]) continue
+          const past = off - f.outer[side]
+          if (past > ease) continue
           best[k] = off
-          height[k] = heightAt(f, i, t, off, side)
+          height[k] = heightAt(f, i, t, Math.min(off, f.outer[side]), side)
+          fade[k] = past > 0 ? past / ease : 0
         }
     }
     for (let y = y0; y <= y1; y++)
@@ -115,8 +122,9 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
         const k = (y - y0) * w + (x - x0)
         if (best[k] === Infinity) continue
         const ground = tile.get(x, y)
-        if (f.fill ? height[k] <= ground : height[k] >= ground) continue
-        tile.set(x, y, height[k])
+        const h = height[k] + (ground - height[k]) * fade[k]
+        if (f.fill ? h <= ground : h >= ground) continue
+        tile.set(x, y, h)
         changed = true
       }
   }

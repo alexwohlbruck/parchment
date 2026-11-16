@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.22.0] - 2026-11-15
+
+### Added
+
 * Ask for places in your own words, like "quiet cafe with outdoor seating open now". Type it in search and press Tab, and Ask finds real places on the map with a line on why each fits. Free accounts get 5 questions a month, Basic 50 and Premium 1,000; your own OpenRouter key has no limit.
 * Search Parchment's places from MCP clients like Claude Code by connecting them to your server's /mcp endpoint. Included with Premium.
 * Ask and MCP clients can also plan how to get there: transit trips with live delays, travel times by mode, bike share availability and the weather.

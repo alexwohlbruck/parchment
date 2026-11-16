@@ -72,7 +72,7 @@ describe('carveTile', () => {
     const t = tile()
     const over = footprint([at(0), at(40)], [25, 25], [[25, 25], [25, 25]], [4, 4], [4, 4], [4, 4], true)
     carveTile(t, id(at(20)), [over])
-    const between = t.data.filter(h => h > 20.5 && h < 24.5)
+    const between = t.data.filter(h => h > 20.1 && h < 24.9)
     expect(between.length).toBeGreaterThan(0)
     expect(t.data.filter(h => h === 25).length).toBeGreaterThan(between.length / EASE_PX)
   })

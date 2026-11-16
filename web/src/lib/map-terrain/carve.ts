@@ -21,6 +21,8 @@ export const BANK = 1
 
 /** Pixels past a footprint's reach over which the carved ground eases back to the ground around, so the terrain's mesh, a few pixels a cell, slopes across the edge rather than stepping in teeth. */
 export const EASE_PX = 6
+/** Metres the easing reaches at most, so on a coarse tile it does not spill over the roads alongside. */
+export const EASE_MAX = 3
 
 /** One tile's elevation pixels, `dim` a side, each at its top-left corner, with `border` more around them. */
 export type Elevation = { dim: number; border: number; get: (x: number, y: number) => number; set: (x: number, y: number, metres: number) => void }
@@ -77,8 +79,8 @@ export function carveTile(tile: Elevation, [z, tx, ty]: [number, number, number]
   for (const f of footprints) {
     const pts = f.points.map(toPixel)
     const metres = metresPerUnit(f.points[0][1]) / (n * dim)
-    const ease = EASE_PX * metres
-    const reach = Math.max(...f.outer) / metres + EASE_PX
+    const ease = Math.min(EASE_PX * metres, EASE_MAX)
+    const reach = (Math.max(...f.outer) + ease) / metres
     const xs = pts.map(p => p[0])
     const ys = pts.map(p => p[1])
     const [x0, x1] = [clamp(Math.floor(Math.min(...xs) - reach)), clamp(Math.ceil(Math.max(...xs) + reach))]

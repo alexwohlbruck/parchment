@@ -2,6 +2,8 @@
 
 ### Added
 
+* Right-click or long-press anywhere on the map and choose "Ask about this spot" to ask about that place, address or point.
+
 ### Changed
 
 ### Fixed

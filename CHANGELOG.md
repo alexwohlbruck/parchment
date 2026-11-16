@@ -2,11 +2,15 @@
 
 ### Added
 
-* Right-click or long-press anywhere on the map and choose "Ask about this spot" to ask about that place, address or point.
-
 ### Changed
 
 ### Fixed
+
+## [0.22.1] - 2026-11-15
+
+### Added
+
+* Right-click or long-press anywhere on the map and choose "Ask about this spot" to ask about that place, address or point.
 
 ## [0.22.0] - 2026-11-15
 

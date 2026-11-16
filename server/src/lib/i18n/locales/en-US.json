@@ -381,9 +381,9 @@
   },
   "email": {
     "verificationCode": {
-      "subject": "Parchment Email Verification",
+      "subject": "Your Parchment verification code",
       "heading": "Sign in to Parchment",
-      "body": "Enter this code to verify your identity.",
+      "body": "Your verification code is:",
       "expiry": "This code expires in 15 minutes.",
       "ignore": "If you didn't request this, you can safely ignore this email."
     },

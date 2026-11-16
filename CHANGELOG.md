@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
+
 ### Fixed
 
 ## [0.22.1] - 2026-11-15

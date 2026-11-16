@@ -381,9 +381,9 @@
   },
   "email": {
     "verificationCode": {
-      "subject": "Verificación de correo de Parchment",
+      "subject": "Tu código de verificación de Parchment",
       "heading": "Inicia sesión en Parchment",
-      "body": "Introduce este código para verificar tu identidad.",
+      "body": "Tu código de verificación es:",
       "expiry": "Este código caduca en 15 minutos.",
       "ignore": "Si no has solicitado esto, puedes ignorar este correo."
     },

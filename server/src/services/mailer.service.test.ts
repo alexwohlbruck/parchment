@@ -42,6 +42,7 @@ mock.module('../config/mailer.config', () => ({
 
 mock.module('../config/origins.config', () => ({
   serverOrigin: 'https://api.parchment.test',
+  clientOrigin: 'https://app.parchment.test',
 }))
 
 const warn = mock((..._args: unknown[]) => undefined)
@@ -87,7 +88,7 @@ describe('sendMail', () => {
     expect(sendMailImpl.mock.calls[0][0]).toMatchObject({
       from: 'Parchment <no-reply@parchment.test>',
       to: 'user@parchment.test',
-      subject: 'Parchment Email Verification',
+      subject: 'Your Parchment verification code',
     })
   })
 
@@ -100,7 +101,7 @@ describe('sendMail', () => {
     })
 
     expect(sendMailImpl.mock.calls[0][0].subject).toBe(
-      'Verificación de correo de Parchment',
+      'Tu código de verificación de Parchment',
     )
   })
 
@@ -178,5 +179,33 @@ describe('with SMTP unconfigured', () => {
     // `isEmailConfigured` is read at module load; this file's transport exists.
     // The unconfigured build is covered in mailer.service.unconfigured.test.ts.
     expect(createTransport).toHaveBeenCalled()
+  })
+})
+
+describe('OTP email compatibility', () => {
+  test('sends localized plain text and metadata for the client origin', async () => {
+    await sendMail({
+      to: 'user@parchment.test',
+      template: 'verification-code',
+      data: { code: '00123456' },
+      language: 'es-ES',
+    })
+
+    const { headers, text } = sendMailImpl.mock.calls[0][0]
+    expect(headers).toEqual({
+      'OTP-Token': '"00123456"; origin="https://app.parchment.test"',
+    })
+    expect(text).toContain('Tu código de verificación es: 00123456')
+    expect(text).toContain('15 minutos')
+  })
+
+  test('does not attach OTP metadata to invitations', async () => {
+    await sendMail({
+      to: 'user@parchment.test',
+      template: 'invitation',
+      data: { appUrl: 'https://app.parchment.test' },
+    })
+
+    expect(sendMailImpl.mock.calls[0][0].headers).toBeUndefined()
   })
 })

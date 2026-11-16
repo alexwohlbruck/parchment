@@ -3,7 +3,7 @@ import { i18n, storedLocale } from '@/lib/i18n'
 import { createSseParser } from '@/lib/ask/sse-events'
 import { useAskStore } from '@/stores/ask.store'
 import { useAskHistoryService } from '@/services/ask/ask-history.service'
-import type { AskAccess, AskEvent, AskWhere } from '@/types/ask.types'
+import type { AskAccess, AskEvent, AskPoint, AskWhere } from '@/types/ask.types'
 
 let controller: AbortController | null = null
 
@@ -39,7 +39,7 @@ export function useAskService() {
   async function ask(
     question: string,
     where: AskWhere,
-    { followUp = false, placeId }: { followUp?: boolean; placeId?: string } = {},
+    { followUp = false, placeId, point }: { followUp?: boolean; placeId?: string; point?: AskPoint } = {},
   ) {
     cancel()
     const history = followUp ? askStore.history : []
@@ -56,6 +56,7 @@ export function useAskService() {
           question,
           history,
           placeId,
+          point,
           ...where,
         }),
         signal,

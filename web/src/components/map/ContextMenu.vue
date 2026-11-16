@@ -23,6 +23,9 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useAskStore } from '@/stores/ask.store'
+import { useAskService } from '@/services/ask/ask.service'
+import { isAskOffered } from '@/lib/ask/ask-access'
 import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 import { encode } from 'pluscodes'
@@ -53,6 +56,7 @@ import {
   RadarIcon,
   CrosshairIcon,
   CarFrontIcon,
+  MessageCircleQuestionIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -79,6 +83,8 @@ const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
 const isochroneStore = useIsochroneStore()
 const vehiclesStore = useVehiclesStore()
+const askStore = useAskStore()
+const askService = useAskService()
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
 
@@ -213,6 +219,19 @@ function openPlaceAtLocation() {
   }
 }
 
+function askAboutPoint() {
+  const lngLat = clickedLngLat.value
+  if (!lngLat) return
+  const osm = geocodedPlace.value?.externalIds?.osm
+  const name = geocodedPlaceName.value || geocodedAddress.value || undefined
+  router.push({
+    name: AppRoute.ASK,
+    query: osm
+      ? { place: `osm/${osm}`, name }
+      : { lat: lngLat.lat.toString(), lng: lngLat.lng.toString(), name },
+  })
+}
+
 function openCoordinateDetail() {
   if (!clickedLngLat.value) return
   router.push({
@@ -228,6 +247,7 @@ function openCoordinateDetail() {
 watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
   if (isOpen && lngLat) {
     void loadWhat3words(lngLat)
+    askService.loadAccess().catch(() => null)
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
@@ -396,6 +416,16 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       label: t('directions.addStop'),
       icon: PlusIcon,
       onSelect: fillWaypoint,
+    })
+  }
+
+  if (isAskOffered(askStore.access)) {
+    items.push({
+      type: 'item',
+      id: 'ask',
+      label: t('ask.aboutPoint'),
+      icon: MessageCircleQuestionIcon,
+      onSelect: askAboutPoint,
     })
   }
 

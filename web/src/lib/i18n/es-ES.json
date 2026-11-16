@@ -3888,6 +3888,7 @@
       "of": "de {limit} preguntas"
     },
     "seeAll": "Más cerca: {name}",
+    "aboutPoint": "Preguntar sobre este lugar",
     "aboutPlace": {
       "action": "Preguntar sobre este lugar",
       "title": "Pregunta sobre {name}",

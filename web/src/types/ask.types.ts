@@ -9,6 +9,7 @@ export type {
   AskEndpoint,
   AskStop,
   AskEvent,
+  AskPoint,
   AskSource,
   AskTripKind,
   AskTurn,

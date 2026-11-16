@@ -34,11 +34,14 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { Place } from '@/types/place.types'
+import type { AskPoint } from '@/types/ask.types'
 
 const props = defineProps<{
   question?: string
   placeId?: string
   placeName?: string
+  lat?: string
+  lng?: string
   thread?: string
 }>()
 
@@ -62,7 +65,16 @@ const upgradeTier = computed(() => {
   return authService.hasPermission(PermissionId.ASK_BASIC) ? 'premium' : 'basic'
 })
 
-const showHistory = computed(() => !props.question && !props.placeId && !props.thread)
+const point = computed<AskPoint | undefined>(() => {
+  if (props.placeId || props.lat === undefined || props.lng === undefined) return undefined
+  const lat = Number(props.lat)
+  const lng = Number(props.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined
+  return { lat, lng, name: props.placeName }
+})
+const hasSubject = computed(() => !!props.placeId || !!point.value)
+
+const showHistory = computed(() => !props.question && !hasSubject.value && !props.thread)
 
 watch(
   () => askStore.current?.trip,
@@ -140,7 +152,7 @@ function retry() {
   if (question) askService.ask(question, askContext(), { followUp: askStore.exchanges.length > 1 })
 }
 
-const firstAboutPlace = computed(() => !!props.placeId && !askStore.exchanges.length)
+const firstAboutPlace = computed(() => hasSubject.value && !askStore.exchanges.length)
 
 function askFollowUp(question: string) {
   if (!askStore.isRunning) askService.ask(question, askContext(), { followUp: true })
@@ -150,7 +162,7 @@ function submitFollowUp() {
   const text = followUp.value.trim()
   if (!text || askStore.isRunning) return
   followUp.value = ''
-  if (firstAboutPlace.value) askService.ask(text, askContext(), { placeId: props.placeId })
+  if (firstAboutPlace.value) askService.ask(text, askContext(), { placeId: props.placeId, point: point.value })
   else askService.ask(text, askContext(), { followUp: true })
 }
 
@@ -208,7 +220,7 @@ onMounted(async () => {
     openThread(props.thread)
   } else if (showHistory.value) {
     showThreads()
-  } else if (props.placeId && !props.question) {
+  } else if (hasSubject.value && !props.question) {
     askStore.reset()
     await askService.loadAccess({ fresh: !askStore.access?.allowed }).catch(() => null)
     loadingAccess.value = false

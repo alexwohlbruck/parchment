@@ -1,5 +1,6 @@
 import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
+import type { LanguageModelCapability } from './language-model.types'
 import type { StationGuidance } from './station-guidance.types'
 import type { TransitPriority } from '../lib/transit/transit-gate'
 import type { StopBoard } from '../lib/transit/route-options'
@@ -734,6 +735,7 @@ export interface IntegrationCapabilities {
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
   feedback?: FeedbackCapability
+  languageModel?: LanguageModelCapability
 }
 
 /**

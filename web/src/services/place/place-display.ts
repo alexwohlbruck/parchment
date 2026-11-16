@@ -9,6 +9,7 @@ import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute } from '@/lib/place/place-route'
 import { formatAddress } from '@/lib/place/place-details'
+import { resolveOpeningStatus } from '@/lib/place/place-hours'
 import { getCategoryColor } from '@/services/place/place-colors'
 import { frequentChipMeta } from '@/lib/frequents'
 import {
@@ -108,22 +109,27 @@ const UNINFORMATIVE_PLACE_TYPES = new Set([
 ])
 
 
-/** Open/closed state, but only where the hours data actually states it. */
+/** Open/closed against the place's own clock, wherever its hours can be evaluated. */
 function resolveHours(
   place: Place,
   t: TFn,
 ): { openState: 'open' | 'closed' | null; hoursText: string | null } {
-  const hours = place.openingHours?.value
-  if (!hours) return { openState: null, hoursText: null }
-
-  if (hours.isPermanentlyClosed)
-    return { openState: 'closed', hoursText: t('place.hours.permanentlyClosed') }
-  if (hours.isTemporarilyClosed)
-    return { openState: 'closed', hoursText: t('place.hours.temporarilyClosed') }
-  if (hours.isOpen24_7)
-    return { openState: 'open', hoursText: t('place.hours.open24hours') }
-
-  return { openState: null, hoursText: null }
+  const status = resolveOpeningStatus(place.openingHours?.value, place.timezone)
+  switch (status?.state) {
+    case 'permanentlyClosed':
+      return { openState: 'closed', hoursText: t('place.hours.permanentlyClosed') }
+    case 'temporarilyClosed':
+      return { openState: 'closed', hoursText: t('place.hours.temporarilyClosed') }
+    case 'open24_7':
+      return { openState: 'open', hoursText: t('place.hours.open24hours') }
+    case 'open':
+      return { openState: 'open', hoursText: null }
+    case 'opensLater':
+    case 'closed':
+      return { openState: 'closed', hoursText: null }
+    default:
+      return { openState: null, hoursText: null }
+  }
 }
 
 export function placeToDisplay(
@@ -225,6 +231,9 @@ export function recentSearchRoute(entry: RecentSearchEntry): RouteLocationRaw {
         ...(entry.brandName ? { brandName: entry.brandName } : {}),
       },
     }
+  }
+  if (entry.kind === 'ask') {
+    return { name: AppRoute.ASK, query: { q: entry.query, ...(entry.threadId ? { thread: entry.threadId } : {}) } }
   }
   return { name: AppRoute.SEARCH_RESULTS, query: { q: entry.query } }
 }

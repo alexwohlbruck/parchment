@@ -9,7 +9,7 @@
  * so the full line always renders. Interpolation is linear (lng/lat) — fine
  * at these distances and only adds collinear points, never changing the path.
  */
-import { haversineMeters } from './geo-line'
+import { distance } from '@turf/turf'
 
 export function densifyLine(
   coordinates: [number, number][],
@@ -20,7 +20,7 @@ export function densifyLine(
   for (let i = 1; i < coordinates.length; i++) {
     const [lng1, lat1] = coordinates[i - 1]
     const [lng2, lat2] = coordinates[i]
-    const meters = haversineMeters(lat1, lng1, lat2, lng2)
+    const meters = distance(coordinates[i - 1], coordinates[i], { units: 'meters' })
     if (meters > maxMeters) {
       const steps = Math.ceil(meters / maxMeters)
       for (let s = 1; s < steps; s++) {

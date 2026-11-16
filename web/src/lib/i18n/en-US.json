@@ -63,7 +63,8 @@
     "collapse": "Collapse",
     "archive": "Archive",
     "unarchive": "Unarchive",
-    "undo": "Undo"
+    "undo": "Undo",
+    "saved": "Saved"
   },
   "weather": {
     "title": "Weather",
@@ -202,7 +203,10 @@
           "recents": "Recents",
           "brands": "Brands",
           "categories": "Categories",
-          "places": "Places"
+          "places": "Places",
+          "ask": "Ask",
+          "askLast": "Ask",
+          "browse": "Browse"
         },
         "commonCategories": {
           "restaurants": "Restaurants",
@@ -276,6 +280,9 @@
           "bikeRepair": "Bike repair",
           "postBoxes": "Post boxes",
           "defibrillators": "Defibrillators"
+        },
+        "browse": {
+          "openNow": "Open now"
         },
         "brand": {
           "seeAll": "See all locations",
@@ -481,6 +488,11 @@
         "keywords": "logout exit account user",
         "confirmTitle": "Sign out?",
         "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
+      },
+      "ask": {
+        "name": "Ask",
+        "description": "Ask a question or open a past one",
+        "keywords": "ai assistant question chat conversation history"
       }
     },
     "noResults": "No matching commands",
@@ -1659,6 +1671,7 @@
     "start": "Start",
     "exit": "End navigation",
     "waitingForLocation": "Waiting for your location…",
+    "resume": "Back to navigation",
     "signalLost": "GPS signal lost · estimating",
     "camera": {
       "resume": "Follow your position",
@@ -2767,6 +2780,10 @@
   },
   "settings": {
     "title": "Settings",
+    "groups": {
+      "personal": "Personal",
+      "admin": "Administration"
+    },
     "search": {
       "placeholder": "Search settings…",
       "clear": "Clear search",
@@ -3284,7 +3301,6 @@
     },
     "integrations": {
       "title": "Integrations",
-      "description": "Manage your configured external service connections",
       "available": "Available Integrations",
       "noConfigured": "No configured integrations",
       "noAvailable": "No available integrations",
@@ -3299,9 +3315,6 @@
         "hosting": "Hosting",
         "cloud": "Cloud",
         "selfHosted": "Self-hosted",
-        "scope": "Scope",
-        "system": "System",
-        "user": "User",
         "status": "Status",
         "connected": "Connected",
         "notConnected": "Not connected",
@@ -3368,7 +3381,8 @@
         "tts": "Speech synthesis",
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
-        "feedback": "Feedback"
+        "feedback": "Feedback",
+        "languageModel": "Agents"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -3396,7 +3410,8 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
-        "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
+        "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
+        "openrouter": "The language model behind Ask"
       },
       "scheme": {
         "endToEnd": {
@@ -3424,6 +3439,9 @@
         "bannerBody": "Check that the service is running, then open it below and test the connection. | Check that the services are running, then open them below and test their connections."
       }
     },
+    "system-integrations": {
+      "title": "System integrations"
+    },
     "users": {
       "title": "Users & Roles",
       "users": {
@@ -3448,8 +3466,64 @@
     "role-detail": {
       "title": "Role"
     },
-    "system": {
-      "title": "System"
+    "ask": {
+      "title": "Ask",
+      "saveFailed": "Couldn't save that setting",
+      "enabled": {
+        "title": "Use Ask",
+        "description": "Off hides Ask everywhere"
+      },
+      "suggest": {
+        "title": "Press Enter to ask",
+        "description": "When a search reads like a question"
+      },
+      "data": {
+        "title": "What Ask can use"
+      },
+      "shareLocation": {
+        "title": "Your location",
+        "description": "Where you are, Home and Work"
+      },
+      "webSearch": {
+        "title": "Web search",
+        "description": "Events, menus, prices"
+      },
+      "history": {
+        "title": "History",
+        "save": {
+          "title": "Save conversations",
+          "description": "End-to-end encrypted on your account"
+        },
+        "keep": {
+          "title": "Keep for",
+          "description": "Since last opened",
+          "options": {
+            "1": "1 day",
+            "7": "1 week",
+            "30": "30 days",
+            "90": "90 days",
+            "365": "1 year",
+            "0": "Until you delete them"
+          }
+        },
+        "clear": {
+          "title": "Saved conversations",
+          "description": "None saved | 1 saved | {count} saved",
+          "action": "Clear history",
+          "confirmTitle": "Clear Ask history?",
+          "confirmDescription": "Every saved conversation is deleted from all your devices."
+        },
+        "see": "See all"
+      },
+      "key": {
+        "title": "Key and model",
+        "item": "OpenRouter",
+        "description": "Use your own key or choose the model",
+        "action": "Manage"
+      },
+      "usage": {
+        "title": "This month"
+      }
     }
   },
   "notes": {
@@ -4052,5 +4126,82 @@
   "myLocation": {
     "title": "My location",
     "accuracy": "Within {distance}"
+  },
+  "ask": {
+    "title": "Ask",
+    "starting": "Reading your question",
+    "searches": "1 search | {count} searches",
+    "followUp": "Ask a follow-up",
+    "empty": {
+      "title": "Nothing fits that yet",
+      "description": "Try a wider area or fewer details"
+    },
+    "error": "Couldn't answer that",
+    "retry": "Try again",
+    "locked": {
+      "description": "Or use your own OpenRouter account on any plan",
+      "addKey": "Paste a key"
+    },
+    "notConfigured": "Ask isn't set up on this server",
+    "connect": {
+      "action": "Connect OpenRouter",
+      "connecting": "Connecting OpenRouter",
+      "failed": "Couldn't connect OpenRouter"
+    },
+    "quota": {
+      "title": "You've used this month's questions",
+      "description": "Ask again on {date}, or add your own key",
+      "upgrade": "More questions every month, or use your own OpenRouter key"
+    },
+    "usage": {
+      "questions": "Questions this month",
+      "resets": "Resets on {date}",
+      "of": "of {limit} questions"
+    },
+    "seeAll": "More nearby: {name}",
+    "aboutPlace": {
+      "action": "Ask about this place",
+      "title": "Ask about {name}",
+      "placeholder": "Good for working? Busy on weekends?"
+    },
+    "trip": {
+      "directions": "Directions",
+      "directionsTo": "Directions to {name}",
+      "allWays": "All ways to get there",
+      "open": "Open trip",
+      "via": "Via",
+      "stop": "Stop",
+      "minutes": "{count} min"
+    },
+    "followUps": "Follow-ups",
+    "sources": "Sources",
+    "trace": {
+      "searchedFor": "Searched for {seconds}s",
+      "found": "{count} found | {count} found"
+    },
+    "off": {
+      "title": "Ask is off",
+      "action": "Turn on in settings"
+    },
+    "history": {
+      "remove": "Remove",
+      "empty": "No conversations yet",
+      "off": {
+        "title": "History is off",
+        "action": "Turn on"
+      },
+      "groups": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "week": "This week",
+        "month": "This month",
+        "older": "Earlier"
+      }
+    },
+    "placeholder": "Ask a question",
+    "canvas": {
+      "saved": "Canvas in your library",
+      "open": "Open"
+    }
   }
 }

@@ -34,7 +34,7 @@ describe('basemapPoiLook', () => {
     },
   ]
 
-  test('copies the lettering and sizing of the first labelled POI layer', () => {
+  test('copies everything but the per-feature properties of the first labelled POI layer', () => {
     expect(basemapPoiLook(layers)).toEqual({
       layout: {
         'icon-size': 1,
@@ -42,9 +42,16 @@ describe('basemapPoiLook', () => {
         'text-size': SIZE,
         'text-offset': [0, 0.9],
         'text-anchor': 'top',
+        'symbol-height-offset': ['get', '_elev'],
       },
       paint: { 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
+      badges: false,
     })
+  })
+
+  test('knows when the style composites badges', () => {
+    const food = { ...layers[2], layout: { ...layers[2].layout, 'icon-image': ['concat', 'poi|', ['get', 'class']] } }
+    expect(basemapPoiLook([food])?.badges).toBe(true)
   })
 
   test('is null for a style with no POI labels', () => {

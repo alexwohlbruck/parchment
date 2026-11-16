@@ -3,11 +3,8 @@
 import type { RecentPlaceEntry } from '@/lib/recents'
 import { isSamePlace, type ExternalIds } from '@/lib/library/external-ids'
 import { placeIdExternalIds } from '@/lib/search/local-search'
-import {
-  markerImageId,
-  markerPaint,
-  type MarkerImageSpec,
-} from '@/lib/map-marker'
+import { markerPaint, type MarkerImageSpec, type PlaceMark } from '@/lib/map-marker'
+import type { MapIconPack } from '@/lib/map/map-icon-images'
 
 /** Synthetic layer-selector row; its state lives in the layer visibility overrides. */
 export const RECENT_PLACES_TOGGLE_ID = 'recent-places'
@@ -56,44 +53,42 @@ export function selectRecentPlaceMarkers({
   return result
 }
 
+/** The glyph a place is drawn with, falling back to a clock face. */
+export function recentPlaceIcon(entry: RecentPlaceEntry): { pack: MapIconPack; name: string } {
+  return entry.icon
+    ? { pack: entry.iconPack ?? 'lucide', name: entry.icon }
+    : { pack: 'lucide', name: FALLBACK_ICON }
+}
+
 export function recentPlaceMarkerSpec(
   entry: RecentPlaceEntry,
   categoryColor: CategoryColorResolver,
   isDark: boolean,
 ): MarkerImageSpec {
-  const hasIcon = !!entry.icon
   return {
     shape: 'disc',
-    pack: hasIcon ? (entry.iconPack ?? 'lucide') : 'lucide',
-    name: hasIcon ? entry.icon! : FALLBACK_ICON,
+    ...recentPlaceIcon(entry),
     paint: markerPaint(categoryColor(entry.category ?? 'default'), 'disc', isDark),
   }
 }
 
-export function buildRecentPlacesGeoJSON(
-  places: DrawableRecentPlace[],
-  categoryColor: CategoryColorResolver,
-  isDark: boolean,
-) {
+export function buildRecentPlacesGeoJSON(places: DrawableRecentPlace[], marks: PlaceMark[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: places.map((place, index) => {
-      const spec = recentPlaceMarkerSpec(place, categoryColor, isDark)
-      return {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [place.lng, place.lat],
-        },
-        properties: {
-          id: place.id,
-          name: place.title,
-          markerImage: markerImageId(spec),
-          ink: spec.paint.ink,
-          // The most recent wins collisions.
-          sortKey: index,
-        },
-      }
-    }),
+    features: places.map((place, index) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [place.lng, place.lat],
+      },
+      properties: {
+        id: place.id,
+        name: place.title,
+        markerImage: marks[index].image,
+        ink: marks[index].ink,
+        // The most recent wins collisions.
+        sortKey: index,
+      },
+    })),
   }
 }

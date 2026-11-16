@@ -108,10 +108,13 @@ export const EMPTY_ISOCHRONE_GEOJSON = {
   features: [] as GeoJSON.Feature[],
 }
 
-/** Band fill spec; paint['fill-color'] set by IsochroneTool from theme */
-export const ISOCHRONE_FILL_LAYER_SPEC = {
+export const ASK_REACH_SOURCE_ID = 'ask-reach'
+export const ASK_REACH_FILL_LAYER_ID = 'ask-reach-fill-layer'
+export const ASK_REACH_LINE_LAYER_ID = 'ask-reach-line-layer'
+
+/** Area fill; source and paint['fill-color'] are set by useAreaLayer */
+export const AREA_FILL_LAYER_SPEC = {
   type: 'fill' as const,
-  source: ISOCHRONE_SOURCE_ID,
   paint: {
     // Data-driven so one layer can shade every band from its own property.
     'fill-opacity': ['get', 'opacity'],
@@ -119,10 +122,9 @@ export const ISOCHRONE_FILL_LAYER_SPEC = {
   },
 } as const
 
-/** Band outline spec; paint['line-color'] set by IsochroneTool from theme */
-export const ISOCHRONE_LINE_LAYER_SPEC = {
+/** Area outline; source and paint['line-color'] are set by useAreaLayer */
+export const AREA_LINE_LAYER_SPEC = {
   type: 'line' as const,
-  source: ISOCHRONE_SOURCE_ID,
   layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
   paint: {
     'line-width': 1.5,

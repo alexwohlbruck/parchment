@@ -35,6 +35,10 @@
       "description": "Search endpoints"
     },
     {
+      "name": "Ask",
+      "description": "Questions about places, answered by a language model over search"
+    },
+    {
       "name": "Geocoding",
       "description": "Geocoding and reverse geocoding"
     },
@@ -88,6 +92,662 @@
     }
   ],
   "paths": {
+    "/ask/access": {
+      "get": {
+        "operationId": "getAskAccess",
+        "tags": [
+          "Ask"
+        ],
+        "summary": "Whether the user can use Ask",
+        "description": "Ask runs on the user's own OpenRouter key when they have one, otherwise on the system key, which allows questions per UTC month by plan: `ask:trial` 5 (`ASK_QUESTIONS_TRIAL`), `ask:basic` 50 (`ASK_QUESTIONS_BASIC`) and `premium:ask` 1000 (`ASK_QUESTIONS_PREMIUM`), the best one held winning; 0 means no limit. On the system key, `quota` carries `used`, `limit`, `remaining` and `resetsAt`, or is null without a limit. `reason` is `not-configured` when no key exists at all, `not-permitted` when only the system key exists and the user holds none of those permissions, `quota-exceeded` (with `limit` and `resetsAt`) when this month's questions are used up, and `turned-off` when the user switched Ask off in their settings.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/ask": {
+      "post": {
+        "parameters": [],
+        "operationId": "postAsk",
+        "tags": [
+          "Ask"
+        ],
+        "summary": "Answer a question about places",
+        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "history": {
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "anyOf": [
+                            {
+                              "const": "user",
+                              "type": "string"
+                            },
+                            {
+                              "const": "assistant",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "content": {
+                          "maxLength": 4000,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "content"
+                      ]
+                    }
+                  },
+                  "placeId": {
+                    "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
+                    "type": "string"
+                  },
+                  "lat": {
+                    "minimum": -90,
+                    "maximum": 90,
+                    "description": "The map's centre",
+                    "type": "number"
+                  },
+                  "lng": {
+                    "minimum": -180,
+                    "maximum": 180,
+                    "type": "number"
+                  },
+                  "here": {
+                    "description": "The device's own position, when the user has shared it",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "places": {
+                    "maxItems": 10,
+                    "description": "Saved places like Home and Work, which the model may name as trip ends without seeing their coordinates",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "minLength": 1,
+                          "maxLength": 60,
+                          "type": "string"
+                        },
+                        "lat": {
+                          "minimum": -90,
+                          "maximum": 90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "minimum": -180,
+                          "maximum": 180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "const": "metric",
+                        "type": "string"
+                      },
+                      {
+                        "const": "imperial",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "vehicles": {
+                    "maxItems": 20,
+                    "description": "The user's vehicles, so Ask plans trips the way Directions does",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "anyOf": [
+                            {
+                              "const": "car",
+                              "type": "string"
+                            },
+                            {
+                              "const": "bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "moped",
+                              "type": "string"
+                            },
+                            {
+                              "const": "truck",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "energyType": {
+                          "anyOf": [
+                            {
+                              "const": "electric",
+                              "type": "string"
+                            },
+                            {
+                              "const": "gas",
+                              "type": "string"
+                            },
+                            {
+                              "const": "diesel",
+                              "type": "string"
+                            },
+                            {
+                              "const": "hybrid",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "lat": {
+                              "type": "number"
+                            },
+                            "lng": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "lat",
+                            "lng"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "question"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "history": {
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "anyOf": [
+                            {
+                              "const": "user",
+                              "type": "string"
+                            },
+                            {
+                              "const": "assistant",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "content": {
+                          "maxLength": 4000,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "content"
+                      ]
+                    }
+                  },
+                  "placeId": {
+                    "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
+                    "type": "string"
+                  },
+                  "lat": {
+                    "minimum": -90,
+                    "maximum": 90,
+                    "description": "The map's centre",
+                    "type": "number"
+                  },
+                  "lng": {
+                    "minimum": -180,
+                    "maximum": 180,
+                    "type": "number"
+                  },
+                  "here": {
+                    "description": "The device's own position, when the user has shared it",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "places": {
+                    "maxItems": 10,
+                    "description": "Saved places like Home and Work, which the model may name as trip ends without seeing their coordinates",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "minLength": 1,
+                          "maxLength": 60,
+                          "type": "string"
+                        },
+                        "lat": {
+                          "minimum": -90,
+                          "maximum": 90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "minimum": -180,
+                          "maximum": 180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "const": "metric",
+                        "type": "string"
+                      },
+                      {
+                        "const": "imperial",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "vehicles": {
+                    "maxItems": 20,
+                    "description": "The user's vehicles, so Ask plans trips the way Directions does",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "anyOf": [
+                            {
+                              "const": "car",
+                              "type": "string"
+                            },
+                            {
+                              "const": "bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "moped",
+                              "type": "string"
+                            },
+                            {
+                              "const": "truck",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "energyType": {
+                          "anyOf": [
+                            {
+                              "const": "electric",
+                              "type": "string"
+                            },
+                            {
+                              "const": "gas",
+                              "type": "string"
+                            },
+                            {
+                              "const": "diesel",
+                              "type": "string"
+                            },
+                            {
+                              "const": "hybrid",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "lat": {
+                              "type": "number"
+                            },
+                            "lng": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "lat",
+                            "lng"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "question"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "history": {
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "anyOf": [
+                            {
+                              "const": "user",
+                              "type": "string"
+                            },
+                            {
+                              "const": "assistant",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "content": {
+                          "maxLength": 4000,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "content"
+                      ]
+                    }
+                  },
+                  "placeId": {
+                    "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
+                    "type": "string"
+                  },
+                  "lat": {
+                    "minimum": -90,
+                    "maximum": 90,
+                    "description": "The map's centre",
+                    "type": "number"
+                  },
+                  "lng": {
+                    "minimum": -180,
+                    "maximum": 180,
+                    "type": "number"
+                  },
+                  "here": {
+                    "description": "The device's own position, when the user has shared it",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "places": {
+                    "maxItems": 10,
+                    "description": "Saved places like Home and Work, which the model may name as trip ends without seeing their coordinates",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "minLength": 1,
+                          "maxLength": 60,
+                          "type": "string"
+                        },
+                        "lat": {
+                          "minimum": -90,
+                          "maximum": 90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "minimum": -180,
+                          "maximum": 180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "lat",
+                        "lng"
+                      ]
+                    }
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "const": "metric",
+                        "type": "string"
+                      },
+                      {
+                        "const": "imperial",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "vehicles": {
+                    "maxItems": 20,
+                    "description": "The user's vehicles, so Ask plans trips the way Directions does",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "anyOf": [
+                            {
+                              "const": "car",
+                              "type": "string"
+                            },
+                            {
+                              "const": "bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-bike",
+                              "type": "string"
+                            },
+                            {
+                              "const": "e-scooter",
+                              "type": "string"
+                            },
+                            {
+                              "const": "moped",
+                              "type": "string"
+                            },
+                            {
+                              "const": "truck",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "energyType": {
+                          "anyOf": [
+                            {
+                              "const": "electric",
+                              "type": "string"
+                            },
+                            {
+                              "const": "gas",
+                              "type": "string"
+                            },
+                            {
+                              "const": "diesel",
+                              "type": "string"
+                            },
+                            {
+                              "const": "hybrid",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "lat": {
+                              "type": "number"
+                            },
+                            "lng": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "lat",
+                            "lng"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "question"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/auth/verify": {
       "post": {
         "parameters": [],
@@ -7311,6 +7971,19 @@
                   },
                   "scheme": {
                     "type": "string"
+                  },
+                  "scope": {
+                    "description": "For integrations offered at both scopes, whether this is the system-wide one or your own. Defaults to your own.",
+                    "anyOf": [
+                      {
+                        "const": "system",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user",
+                        "type": "string"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -7352,6 +8025,19 @@
                   },
                   "scheme": {
                     "type": "string"
+                  },
+                  "scope": {
+                    "description": "For integrations offered at both scopes, whether this is the system-wide one or your own. Defaults to your own.",
+                    "anyOf": [
+                      {
+                        "const": "system",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user",
+                        "type": "string"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -7393,6 +8079,19 @@
                   },
                   "scheme": {
                     "type": "string"
+                  },
+                  "scope": {
+                    "description": "For integrations offered at both scopes, whether this is the system-wide one or your own. Defaults to your own.",
+                    "anyOf": [
+                      {
+                        "const": "system",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user",
+                        "type": "string"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -13206,6 +13905,155 @@
         }
       }
     },
+    "/mcp": {
+      "post": {
+        "parameters": [],
+        "operationId": "postMcp",
+        "tags": [
+          "Ask"
+        ],
+        "summary": "Model Context Protocol endpoint",
+        "description": "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's place search tools to MCP clients such as Claude or ChatGPT: `find_places`, `find_categories`, `browse_category`, `get_place`, `locate` and `places_within_reach`. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0",
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "jsonrpc"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0",
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "jsonrpc"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0",
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {}
+                    }
+                  }
+                },
+                "required": [
+                  "jsonrpc"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      },
+      "get": {
+        "operationId": "getMcp",
+        "tags": [
+          "Ask"
+        ],
+        "summary": "MCP event stream (not offered)",
+        "description": "The MCP server is stateless and sends no server-initiated messages, so this always answers 405.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "operationId": "deleteMcp",
+        "tags": [
+          "Ask"
+        ],
+        "summary": "End an MCP session (not offered)",
+        "description": "The MCP server keeps no sessions, so this always answers 405.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/notes/": {
       "get": {
         "parameters": [
@@ -15113,7 +15961,7 @@
           "Search"
         ],
         "summary": "Search for places",
-        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.",
+        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\nWith `autocomplete=true` the response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. \"cafes with outdoor seating open now\"), or `ask` for a query that needs judgement, such as \"quiet cafe for a date\" or a question.",
         "responses": {
           "200": {}
         }
@@ -18818,12 +19666,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               },
@@ -18923,12 +19835,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               },
@@ -19028,12 +20004,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               }
@@ -19044,7 +20084,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Get current user preferences: language, unit system and navigation. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) is absent until first saved."
+        "description": "Get current user preferences: language, unit system, navigation and Ask. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) is absent until first saved."
       },
       "put": {
         "parameters": [],
@@ -19147,12 +20187,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               },
@@ -19252,12 +20356,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               },
@@ -19357,12 +20525,76 @@
                           "properties": {}
                         }
                       }
+                    },
+                    "ask": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                          "type": "boolean"
+                        },
+                        "suggest": {
+                          "description": "Select Ask first when a search reads like a question.",
+                          "type": "boolean"
+                        },
+                        "shareLocation": {
+                          "description": "Send where the user is and their Home and Work with each question.",
+                          "type": "boolean"
+                        },
+                        "webSearch": {
+                          "description": "Let Ask search the web.",
+                          "type": "boolean"
+                        },
+                        "saveHistory": {
+                          "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                          "type": "boolean"
+                        },
+                        "keepDays": {
+                          "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                          "anyOf": [
+                            {
+                              "const": 1,
+                              "type": "number"
+                            },
+                            {
+                              "const": 7,
+                              "type": "number"
+                            },
+                            {
+                              "const": 30,
+                              "type": "number"
+                            },
+                            {
+                              "const": 90,
+                              "type": "number"
+                            },
+                            {
+                              "const": 365,
+                              "type": "number"
+                            },
+                            {
+                              "const": 0,
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "suggest",
+                        "shareLocation",
+                        "webSearch",
+                        "saveHistory",
+                        "keepDays"
+                      ]
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
-                    "navigation"
+                    "navigation",
+                    "ask"
                   ]
                 }
               }
@@ -19373,7 +20605,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Update current user preferences. Each navigation section sent replaces the stored one; sections left out are kept.",
+        "description": "Update current user preferences. Each navigation section sent replaces the stored one; sections left out are kept. Ask settings sent are merged into the stored ones.",
         "requestBody": {
           "required": true,
           "content": {
@@ -19497,6 +20729,61 @@
                         "description": "Turn-by-turn guidance settings, at most 64 keys.",
                         "type": "object",
                         "properties": {}
+                      }
+                    }
+                  },
+                  "ask": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                        "type": "boolean"
+                      },
+                      "suggest": {
+                        "description": "Select Ask first when a search reads like a question.",
+                        "type": "boolean"
+                      },
+                      "shareLocation": {
+                        "description": "Send where the user is and their Home and Work with each question.",
+                        "type": "boolean"
+                      },
+                      "webSearch": {
+                        "description": "Let Ask search the web.",
+                        "type": "boolean"
+                      },
+                      "saveHistory": {
+                        "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                        "type": "boolean"
+                      },
+                      "keepDays": {
+                        "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                        "anyOf": [
+                          {
+                            "const": 1,
+                            "type": "number"
+                          },
+                          {
+                            "const": 7,
+                            "type": "number"
+                          },
+                          {
+                            "const": 30,
+                            "type": "number"
+                          },
+                          {
+                            "const": 90,
+                            "type": "number"
+                          },
+                          {
+                            "const": 365,
+                            "type": "number"
+                          },
+                          {
+                            "const": 0,
+                            "type": "number"
+                          }
+                        ]
                       }
                     }
                   }
@@ -19625,6 +20912,61 @@
                         "properties": {}
                       }
                     }
+                  },
+                  "ask": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                        "type": "boolean"
+                      },
+                      "suggest": {
+                        "description": "Select Ask first when a search reads like a question.",
+                        "type": "boolean"
+                      },
+                      "shareLocation": {
+                        "description": "Send where the user is and their Home and Work with each question.",
+                        "type": "boolean"
+                      },
+                      "webSearch": {
+                        "description": "Let Ask search the web.",
+                        "type": "boolean"
+                      },
+                      "saveHistory": {
+                        "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                        "type": "boolean"
+                      },
+                      "keepDays": {
+                        "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                        "anyOf": [
+                          {
+                            "const": 1,
+                            "type": "number"
+                          },
+                          {
+                            "const": 7,
+                            "type": "number"
+                          },
+                          {
+                            "const": 30,
+                            "type": "number"
+                          },
+                          {
+                            "const": 90,
+                            "type": "number"
+                          },
+                          {
+                            "const": 365,
+                            "type": "number"
+                          },
+                          {
+                            "const": 0,
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
                   }
                 }
               }
@@ -19749,6 +21091,61 @@
                         "description": "Turn-by-turn guidance settings, at most 64 keys.",
                         "type": "object",
                         "properties": {}
+                      }
+                    }
+                  },
+                  "ask": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "description": "Off hides Ask everywhere and refuses /ask and /mcp.",
+                        "type": "boolean"
+                      },
+                      "suggest": {
+                        "description": "Select Ask first when a search reads like a question.",
+                        "type": "boolean"
+                      },
+                      "shareLocation": {
+                        "description": "Send where the user is and their Home and Work with each question.",
+                        "type": "boolean"
+                      },
+                      "webSearch": {
+                        "description": "Let Ask search the web.",
+                        "type": "boolean"
+                      },
+                      "saveHistory": {
+                        "description": "Keep Ask threads, end-to-end encrypted, on the account.",
+                        "type": "boolean"
+                      },
+                      "keepDays": {
+                        "description": "Days a thread is kept after it was last used; 0 keeps it until deleted.",
+                        "anyOf": [
+                          {
+                            "const": 1,
+                            "type": "number"
+                          },
+                          {
+                            "const": 7,
+                            "type": "number"
+                          },
+                          {
+                            "const": 30,
+                            "type": "number"
+                          },
+                          {
+                            "const": 90,
+                            "type": "number"
+                          },
+                          {
+                            "const": 365,
+                            "type": "number"
+                          },
+                          {
+                            "const": 0,
+                            "type": "number"
+                          }
+                        ]
                       }
                     }
                   }

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import axios, { type AxiosInstance } from 'axios'
+import { distance } from '@turf/turf'
 import {
   IntegrationConfig,
   IntegrationTestResult,
@@ -239,7 +240,7 @@ export class DawarichIntegration
 
     // Filter to visits whose place coordinate is within radius of the
     // target. Bbox is rectangular so corners can be ~1.4× the radius;
-    // Haversine refines that to a circle. We deliberately don't pick
+    // the distance check refines that to a circle. We deliberately don't pick
     // a single `place_id` — Dawarich often splits visits at the same
     // physical spot across multiple place IDs (GPS drift, re-detection),
     // and the user mentally treats them as one location.
@@ -247,7 +248,7 @@ export class DawarichIntegration
       const lat = v.place?.latitude
       const lng = v.place?.longitude
       if (typeof lat !== 'number' || typeof lng !== 'number') return false
-      return haversineMeters(request.lat, request.lng, lat, lng) <= radiusM
+      return distance([request.lng, request.lat], [lng, lat], { units: 'meters' }) <= radiusM
     })
     if (ownVisits.length === 0) return empty()
 
@@ -449,8 +450,8 @@ function computePlaceRadius(request: PlaceVisitHistoryRequest): number {
   }
   if (request.bounds) {
     const { minLat, minLng, maxLat, maxLng } = request.bounds
-    const widthM = haversineMeters(minLat, minLng, minLat, maxLng)
-    const heightM = haversineMeters(minLat, minLng, maxLat, minLng)
+    const widthM = distance([minLng, minLat], [maxLng, minLat], { units: 'meters' })
+    const heightM = distance([minLng, minLat], [minLng, maxLat], { units: 'meters' })
     const halfDiagonalM = Math.sqrt(widthM * widthM + heightM * heightM) / 2
     const fromBounds = halfDiagonalM + BOUNDS_RADIUS_PADDING_M
     return Math.min(
@@ -461,22 +462,6 @@ function computePlaceRadius(request: PlaceVisitHistoryRequest): number {
   return DEFAULT_PLACE_RADIUS_M
 }
 
-/** Haversine distance in meters. */
-function haversineMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371000
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLng = toRad(lng2 - lng1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(a))
-}
 
 function hashInstanceUrl(url: string): string {
   // Match the adapter's hashing — same 16-char SHA-256 truncation. Lets the

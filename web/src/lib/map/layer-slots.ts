@@ -13,7 +13,8 @@
  *   bottom   above the polygons, BELOW the roads
  *   middle   above the roads, below the labels
  *   top      above the labels
- *   poi      just under the basemap's POIs, so they win placement over the layer
+ *   poi      just under the basemap's POI badges and over their dots, so a
+ *            basemap POI wins placement over the layer
  *
  * `grade`, `bridge` and `tunnel` are ours, for the thing the three cannot say:
  * which brunnel a way has. The basemap draws its bridges over the whole network
@@ -40,7 +41,7 @@ import {
   type BrunnelLayer,
 } from '@/lib/map-style/brunnel'
 import { isRouteBand } from './route-band'
-import { isBasemapPoiLayer } from './basemap-poi-look'
+import { isBasemapPoiBadgeLayer } from './basemap-poi-look'
 
 type StyleLayer = BrunnelLayer
 
@@ -74,10 +75,10 @@ export function belowLabelsBeforeId(layers: readonly StyleLayer[]): string | und
   return layers.find(l => isOverlay(l) || l.type === 'symbol')?.id
 }
 
-/** Just under the lowest basemap POI layer; under every label when there are none. */
+/** Just under the lowest basemap POI badge layer; under every label when there are none. */
 export function belowPoisBeforeId(layers: readonly StyleLayer[]): string | undefined {
   return (
-    layers.find(l => !isOverlay(l) && isBasemapPoiLayer(l))?.id ??
+    layers.find(l => !isOverlay(l) && isBasemapPoiBadgeLayer(l))?.id ??
     belowLabelsBeforeId(layers)
   )
 }

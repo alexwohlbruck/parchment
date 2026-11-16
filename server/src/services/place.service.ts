@@ -1,7 +1,7 @@
 import type { Place } from '../types/place.types'
 import { DEFAULT_LANGUAGE, type Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
-import { mergePlacesCollection, mergePlaces } from './merge.service'
+import { mergePlacesCollection, mergePlaces, shouldMergePlaces } from './merge.service'
 import type { PlaceRelation } from '../types/place.types'
 import { Source, SOURCE } from '../lib/constants'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
@@ -15,7 +15,7 @@ import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
-import { getPlaceOsmTags } from '../lib/place-tags'
+import { getPlaceOsmTags, isAreaPlace } from '../lib/place-tags'
 import { reverseGeocode } from './geocoding.service'
 import { isTappedPlace } from '../lib/tapped-place'
 import { logError, logWarn, logger } from '../lib/logger'
@@ -322,6 +322,8 @@ export async function lookupPlaceByNameAndLocation(
     radius?: number
     sourceBlacklist?: Source[]
     language?: Language
+    /** Only return a result that is this same place, not merely the top hit for its name. */
+    sameAs?: Place
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
@@ -334,16 +336,18 @@ export async function lookupPlaceByNameAndLocation(
       sourceBlacklist = [],
       autocomplete = false,
       language,
+      sameAs,
     } = options || {}
 
     // Get all places matching the name and coordinates from all providers
     const searchStart = Date.now()
-    const places = await lookupPlacesByNameAndLocation(name, coordinates, {
+    const found = await lookupPlacesByNameAndLocation(name, coordinates, {
       radius,
       sourceBlacklist,
       autocomplete,
       language,
     })
+    const places = sameAs ? found.filter((candidate) => shouldMergePlaces(sameAs, candidate)) : found
     const searchTime = Date.now() - searchStart
     logger.debug(`[PERF] Multi-provider search: ${searchTime}ms (found ${places.length} places)`)
 
@@ -726,8 +730,9 @@ export async function lookupEnrichedPlaceById(
     }
 
     // Step 2: Look up from other sources and merge (premium only)
-    // Skip third-party search for transit stops to avoid overriding authoritative transit data
-    const skipThirdPartySearch = !premiumData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
+    // Transit stops keep their authoritative transit data; areas have no business data to find
+    const businessData = premiumData && !isAreaPlace(place)
+    const skipThirdPartySearch = !businessData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
 
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
@@ -740,6 +745,7 @@ export async function lookupEnrichedPlaceById(
           radius: 500,
           sourceBlacklist: [source], // Exclude the original source
           language,
+          sameAs: place,
         },
       )
       const step2Time = Date.now() - step2Start
@@ -752,7 +758,7 @@ export async function lookupEnrichedPlaceById(
         logger.debug(`[PERF] Step 2b - Place merge: ${mergeTime}ms`)
       }
     } else if (skipThirdPartySearch) {
-      logger.debug(`[PERF] Step 2 - Skipped third party search for Transitland transit stop`)
+      logger.debug(`[PERF] Step 2 - Skipped third party search`)
     }
 
     // Step 3 & 4: Enrich with Wiki data and address data in parallel
@@ -763,7 +769,7 @@ export async function lookupEnrichedPlaceById(
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
       enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
-        premiumData,
+        premiumData: businessData,
         language,
       }),
     ])

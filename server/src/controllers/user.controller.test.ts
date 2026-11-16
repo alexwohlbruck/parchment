@@ -12,6 +12,7 @@
  * identity reset needs its literal confirmation string.
  */
 
+import { DEFAULT_ASK_PREFERENCES } from '../types/ask-preferences.types'
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import {
   authMockModule,
@@ -599,6 +600,7 @@ describe('preferences', () => {
       language: 'en-US',
       unitSystem: 'metric',
       navigation: {},
+      ask: DEFAULT_ASK_PREFERENCES,
     })
   })
 

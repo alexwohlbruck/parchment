@@ -103,7 +103,7 @@ function platePath(
   ctx.closePath()
 }
 
-async function glyphBitmap(
+export async function glyphBitmap(
   pack: MapIconPack,
   name: string,
   color: string,
@@ -127,6 +127,12 @@ async function glyphBitmap(
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+/** How a place feature is drawn: the map image it wears and the colour of its name. */
+export interface PlaceMark {
+  image: string
+  ink: string
 }
 
 export interface MarkerImageData {

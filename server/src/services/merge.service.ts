@@ -300,7 +300,7 @@ function mergeAttributedRecord<T>(
 /**
  * Determines if two places should be merged based on name, address, and distance similarity
  */
-function shouldMergePlaces(place1: Place, place2: Place): boolean {
+export function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Pelias dedupes its own output, so two geocoder rows are distinct: a street
   // and an address on it sit side by side under near-identical names.
   if (place1.externalIds?.[SOURCE.PELIAS] && place2.externalIds?.[SOURCE.PELIAS]) return false

@@ -8,6 +8,7 @@ import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
@@ -126,7 +127,9 @@ function authService() {
 
   async function syncPreferences() {
     const preferences = await syncPreferencesFromBackend()
-    if (preferences) useNavigationPreferencesStore().adopt(preferences.navigation)
+    if (!preferences) return
+    useNavigationPreferencesStore().adopt(preferences.navigation)
+    if (preferences.ask) useAskPreferencesStore().adopt(preferences.ask)
   }
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {

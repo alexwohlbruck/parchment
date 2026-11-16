@@ -1,7 +1,9 @@
 import { Component } from 'vue'
 import { Place, TransitLineRef, TransitStopRef } from '@/types/place.types'
 
-export type { CategoryResult } from '@server/types/search.types'
+import type { QueryIntent } from '@server/types/search.types'
+
+export type { CategoryResult, QueryIntent } from '@server/types/search.types'
 
 /** A brand suggestion in search results ("See all McDonald's locations"). */
 export interface BrandSearchMeta {
@@ -112,6 +114,8 @@ export interface AutocompleteResponse {
   query: string
   results: AutocompleteResult[]
   totalCount: number
+  /** Absent from servers older than query intent. */
+  intent?: QueryIntent
 }
 
 // Legacy types for compatibility

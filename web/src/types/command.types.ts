@@ -25,6 +25,8 @@ export type PaletteItem = {
 export type Command = PaletteItem & {
   id: CommandName
   engine?: MapEngine[]
+  /** Hides the command while this says no, e.g. a feature the user turned off. */
+  isAvailable?: () => boolean
   hotkey?: Hotkey
   action?: Function
   arguments?: CommandArgument[]

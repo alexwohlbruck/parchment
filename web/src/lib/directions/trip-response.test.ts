@@ -32,12 +32,14 @@ test('flattens multimodal segments and reads transit details', () => {
 })
 
 test("ends each leg at its waypoint's place", () => {
+  const cafe = { id: 'osm/node/1', name: { value: 'Cafe' }, placeType: { value: 'Cafe' } }
   const trip = mapCandidate(candidate([
     segment({ segmentIndex: 0, legIndex: 0, end: { label: 'Parking' } }),
     segment({ segmentIndex: 1, legIndex: 0, end: { label: 'Cafe' } }),
     segment({ segmentIndex: 2, legIndex: 1, end: { label: 'Home', place: { id: 'osm/way/9' } } }),
-  ]), 0, [undefined, 'osm/node/1', 'osm/node/2'])
+  ]), 0, [undefined, cafe, { id: 'osm/node/2' }])
   expect(trip.segments.map((s: any) => s.end.place?.id)).toEqual([undefined, 'osm/node/1', 'osm/way/9'])
+  expect(trip.segments[1].end.place).toBe(cafe)
 })
 
 test('carries the departure profile through', () => {

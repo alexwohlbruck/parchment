@@ -47,7 +47,7 @@ export function useWidgets(place: Ref<Partial<Place> | null>) {
   watch(
     // The URL's own params are part of the request, so a change to them has to
     // refetch even when the place has not moved.
-    () => [place.value?.widgets, route.query.complex] as const,
+    [() => place.value?.widgets, () => route.query.complex],
     async ([widgets]) => {
       // Abort any in-flight widget requests from the previous place
       controller.abort()

@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   buildCollectionMarkersGeoJSON,
   collectionMarkerSpec,
-  collectionMarkerSpecs,
+  drawableBookmarks,
 } from './collection-markers'
-import { markerImageId, markerPaint } from '@/lib/map-marker'
+import { markerPaint } from '@/lib/map-marker'
 import { FREQUENT_META } from '@/lib/frequents'
 import type { Bookmark } from '@/types/library.types'
 
@@ -58,17 +58,17 @@ describe('collectionMarkerSpec', () => {
 })
 
 describe('buildCollectionMarkersGeoJSON', () => {
-  it('names the baked marker image each feature draws with', () => {
-    const [feature] = buildCollectionMarkersGeoJSON([bookmark()], identity, false).features
-    const spec = collectionMarkerSpec(bookmark(), identity, false)
-    expect(feature.properties.markerImage).toBe(markerImageId(spec))
-    expect(feature.properties.ink).toBe(spec.paint.ink)
+  it('draws each place with its mark, in list order', () => {
+    const marks = [{ image: 'poi|badge-coffee|#a|#b|#c|#d', ink: '#b' }]
+    const [feature] = buildCollectionMarkersGeoJSON([bookmark()], marks).features
+    expect(feature.properties).toMatchObject({ markerImage: marks[0].image, ink: '#b', sortKey: 0 })
     expect(feature.geometry.coordinates).toEqual([-80.8, 35.2])
   })
+})
 
+describe('drawableBookmarks', () => {
   it('skips places without coordinates', () => {
     const places = [bookmark(), bookmark({ id: 'bm-2', lat: NaN })]
-    expect(buildCollectionMarkersGeoJSON(places, identity, false).features).toHaveLength(1)
-    expect(collectionMarkerSpecs(places, identity, false)).toHaveLength(1)
+    expect(drawableBookmarks(places)).toHaveLength(1)
   })
 })

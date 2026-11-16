@@ -5,7 +5,6 @@
 
 import { describe, test, expect } from 'vitest'
 import {
-  distanceMeters,
   pathLengthMeters,
   polygonAreaSquareMeters,
   circleCircumferenceMeters,
@@ -17,24 +16,16 @@ import {
   formatMeasureArea,
 } from '@/lib/measure/measure'
 import type { LngLat } from '@/types/map.types'
+import { haversineMeters } from '@/lib/geo/geo-line'
 import type { Point2D } from '@/lib/measure/measure'
 
 describe('measure', () => {
-  describe('distanceMeters', () => {
-    test('is symmetric and returns positive distance for distinct points', () => {
-      const a: LngLat = { lng: -122.4194, lat: 37.7749 }
-      const b: LngLat = { lng: -122.4094, lat: 37.7849 }
-      expect(distanceMeters(a, b)).toBe(distanceMeters(b, a))
-      expect(distanceMeters(a, b)).toBeGreaterThan(0)
-    })
-  })
-
   describe('pathLengthMeters', () => {
     test('sums segment lengths for multiple points', () => {
       const a: LngLat = { lng: 0, lat: 0 }
       const b: LngLat = { lng: 0.001, lat: 0 }
       const c: LngLat = { lng: 0.001, lat: 0.001 }
-      const expected = distanceMeters(a, b) + distanceMeters(b, c)
+      const expected = haversineMeters(a.lat, a.lng, b.lat, b.lng) + haversineMeters(b.lat, b.lng, c.lat, c.lng)
       expect(pathLengthMeters([a, b, c])).toBeCloseTo(expected, 5)
     })
   })

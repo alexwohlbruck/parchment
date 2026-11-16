@@ -38,8 +38,8 @@ import {
 } from '@/lib/guidance/transit-progress'
 import { estimatedPuck, estimatedStage, RideEstimator, rideFix, VEHICLE_ACCURACY, type RideEstimate } from '@/lib/guidance/ride-estimator'
 import { AlightWatch, offLineNear } from '@/lib/guidance/alight-watch'
-import { applyDepartureChange, cascadeAfter, type RebookableSegment } from '@/lib/directions/trip-rebooking'
-import { retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
+import { applyDepartureChange, cascadeAfter, moveBoarding, rollupTrip, withLeg, type RebookableSegment, type RebookableTrip } from '@/lib/directions/trip-rebooking'
+import { boardedRun, retargetedRide, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { earliestItinerary } from '@/lib/guidance/better-itinerary'
 import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
@@ -117,6 +117,7 @@ type LegSegment = NavSegmentInput & TransitSegmentInput & GuidedSegment & {
   legIndex?: number
   tripId?: string
   routeType?: number
+  lineTextColor?: string
   duration?: number
   ownership?: string
   end?: { label?: string; location?: { lat: number; lng: number }; place?: { id?: string } | null }
@@ -163,6 +164,9 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let rides: (RideStop[] | null)[] = []
   /** Transit events already spoken, keyed by segment and event. */
   let spokenTransit = new Set<string>()
+  /** Rides whose boarding has been squared with the plan, and the stage each was last seen in. */
+  let boarded = new Set<number>()
+  let lastStage: TransitStage | null = null
   /** Furthest snapped distance reached; boarding and alighting don't undo. */
   let furthestS = 0
   /** Where on the ride the rider is reckoned to be, for when fixes can't say. */
@@ -379,7 +383,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const nowMs = guidanceClock.now()
     const progressed = { ...puck, s: Math.max(puck.s, furthestS) }
     const stage = trackRide(navRoute, transitStage(navRoute, segments.value, rides, progressed, nowMs), progressed, nowMs)
+    const before = lastStage?.segmentIndex === stage?.segmentIndex ? lastStage : null
+    lastStage = stage
     transit.value = stage
+    if (stage?.kind === 'riding' && puck.snapped && rideEstimate.value?.fresh !== false) void board(stage.segmentIndex, before, nowMs)
     const event = stage && stageEvent(stage)
     if (!stage || !event) return
     const key = `${stage.segmentIndex}:${event}`
@@ -515,6 +522,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
       segments.value[stage.segmentIndex].tripId = undefined
       segments.value = [...segments.value]
       if (route.value) placeRides(route.value)
+      commitPlan()
       spokenTransit = new Set([...spokenTransit].filter(key => !key.startsWith(`${stage.segmentIndex}:`)))
       return true
     } finally {
@@ -539,6 +547,28 @@ export const useGuidanceStore = defineStore('guidance', () => {
 
   async function rideRun(index: number, segment: LegSegment, candidate: VehicleCandidate, known: string[]) {
     Object.assign(segment, retargetedRide(segment, candidate, known))
+    await retimeAfter(index)
+  }
+
+  /**
+   * The rider is aboard ride `index`. Caught before the plan has it leaving, or after it was
+   * given up as missed, they are on another run than the plan's: it left now.
+   */
+  async function board(index: number, before: TransitStage | null, nowMs: number) {
+    if (boarded.has(index)) return
+    boarded.add(index)
+    const segment = segments.value[index]
+    const run = segment && boardedRun(segment.startTime ? new Date(segment.startTime).getTime() : NaN, nowMs, before?.kind === 'missed-vehicle')
+    if (!segment || !run) return
+    if (run === 'earlier') segment.tripId = undefined
+    moveBoarding(segments.value as unknown as RebookableSegment[], index, nowMs)
+    spokenTransit.delete(`${index}:missed-vehicle`)
+    await retimeAfter(index)
+  }
+
+  /** Re-times everything after ride `index` from when it now gets in, replanning when a connection is lost. */
+  async function retimeAfter(index: number) {
+    const segment = segments.value[index]
     const all = (trip.value?.segments ?? []) as unknown as (RebookableSegment & LineRun)[]
     const at = all.indexOf(segment as unknown as RebookableSegment & LineRun)
     const timed = at >= 0 ? all : (segments.value as unknown as (RebookableSegment & LineRun)[])
@@ -546,7 +576,17 @@ export const useGuidanceStore = defineStore('guidance', () => {
     segments.value = [...segments.value]
     if (route.value) placeRides(route.value)
     leaveRide()
+    commitPlan()
     if (!held) await replanAfter(index)
+  }
+
+  /** Writes the leg as guided back into the trip, so the trip page and later legs read the plan being followed. */
+  function commitPlan() {
+    const option = trip.value as unknown as RebookableTrip<LegSegment & RebookableSegment> | null
+    if (!option || continuation.value) return
+    const leg = [...passedSegments.value, ...segments.value] as (LegSegment & RebookableSegment)[]
+    if (leg.some(s => !option.segments.includes(s))) option.segments = withLeg(option.segments, legIndex.value, leg)
+    rollupTrip(option)
   }
 
   /** Replans the rest of the leg from where ride `index` gets off, keeping the ride itself. */
@@ -629,8 +669,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     settledHandoffs = new Set()
     handoff.value = null
     furthestS = 0
+    boarded = new Set()
+    lastStage = null
     leaveRide()
     placeRides(navRoute)
+    commitPlan()
   }
 
   /** Follows another route for the rest of the segment the traveller is on. */
@@ -813,6 +856,8 @@ export const useGuidanceStore = defineStore('guidance', () => {
     slowSec = 0
     transit.value = null
     spokenTransit = new Set()
+    boarded = new Set()
+    lastStage = null
     stationGuide.value = null
     finishedGuides = new Set()
     furthestS = 0

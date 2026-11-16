@@ -4,8 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import {
   CloudIcon,
-  HardDriveIcon,
-  UserIcon,
   LogOutIcon,
   TriangleAlertIcon,
 } from 'lucide-vue-next'
@@ -48,6 +46,7 @@ const integrationService = useIntegrationService()
 
 const props = defineProps<{
   integration: IntegrationDefinition
+  scope: IntegrationScope
   configuration?: IntegrationRecord
   disabled?: boolean
 }>()
@@ -236,6 +235,7 @@ async function handleClick() {
             formData.config,
             formData.capabilities,
             activeScheme.value,
+            props.scope,
           )
         }
         return true // Indicate success
@@ -432,23 +432,6 @@ const icon = computed(() => {
               {{ t('settings.integrations.filter.cloud') }}
             </TooltipContent>
           </Tooltip>
-          <Tooltip v-if="integration.scope">
-            <TooltipTrigger as-child>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold flex items-center gap-0.5">
-                <UserIcon
-                  v-if="integration.scope.includes(IntegrationScope.USER)"
-                  class="size-3"
-                />
-                <HardDriveIcon
-                  v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
-                  class="size-3"
-                />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" :side-offset="4">
-              {{ integration.scope.map(s => t(`settings.integrations.filter.${s}`)).join(', ') }}
-            </TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger as-child>
               <span
@@ -467,7 +450,9 @@ const icon = computed(() => {
       </TooltipProvider>
     </div>
     <div class="px-4 flex-1">
-      <h4 class="font-medium">{{ integration.name }}</h4>
+      <h4 class="font-medium">
+        {{ integration.name }}
+      </h4>
       <p class="text-sm text-muted-foreground line-clamp-2">
         {{
           t(

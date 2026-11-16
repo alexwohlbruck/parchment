@@ -58,5 +58,12 @@ export const useCategoryPaletteStore = defineStore('categoryPalette', () => {
     return isDark ? entry.colors.dark : entry.colors.light
   }
 
-  return { palette, loadPalette, getCategoryColor }
+  /** Every category's colour for one theme, keyed by category id. */
+  function categoryColors(isDark: boolean): Record<string, string> {
+    return Object.fromEntries(
+      palette.value.map(c => [c.id, isDark ? c.colors.dark : c.colors.light]),
+    )
+  }
+
+  return { palette, loadPalette, getCategoryColor, categoryColors }
 })

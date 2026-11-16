@@ -19,8 +19,10 @@ export interface RecentSearchEntry {
   /** Display text: the typed query, the category's human name, or the brand name. */
   query: string
   at: number // epoch ms
-  /** 'text' (default), 'category', or 'brand'. A category/brand recent re-runs that browse. */
-  kind?: 'text' | 'category' | 'brand'
+  /** 'text' (default), 'category', 'brand' or 'ask'. A category/brand recent re-runs that browse; an ask reopens its conversation. */
+  kind?: 'text' | 'category' | 'brand' | 'ask'
+  /** Present when kind === 'ask' — the saved conversation the question started. */
+  threadId?: string
   /** Present when kind === 'category' — the category id to re-run (e.g. "amenity/bicycle_parking"). */
   categoryId?: string
   /** Present when kind === 'brand' — the brand key to re-run (QID or "name:<lower>"). */
@@ -65,6 +67,7 @@ export interface RecentPlaceEntry {
 export function recentSearchIdentity(e: RecentSearchEntry): string {
   if (e.kind === 'category' && e.categoryId) return `category:${e.categoryId}`
   if (e.kind === 'brand' && e.brandKey) return `brand:${e.brandKey}`
+  if (e.kind === 'ask') return `ask:${e.query.trim().toLowerCase()}`
   return `text:${e.query.trim().toLowerCase()}`
 }
 

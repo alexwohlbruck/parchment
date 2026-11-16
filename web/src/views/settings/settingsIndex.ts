@@ -1,7 +1,8 @@
 import {
-  ActivityIcon,
+  MessageCircleQuestionIcon,
   BlocksIcon,
   CodeIcon,
+  ServerCogIcon,
   CogIcon,
   Contact2Icon,
   PaintbrushIcon,
@@ -11,6 +12,7 @@ import {
 import { PermissionId, type PermissionRule } from '@/types/auth.types'
 import type { Icon } from '@/types/app.types'
 import type { ThemeColor } from '@/lib/utils'
+import { IntegrationScope } from '@/types/integrations.types'
 
 // The settings index drives the in-page sub-navigation, the cross-tab
 // settings search, the sidebar's top-level tabs, and the command palette
@@ -45,8 +47,9 @@ export type SettingsPageDef = {
   // it belongs to the same product, with light/dark-aware tints rendered
   // by ItemIcon.
   iconColor: ThemeColor
-  disabled?: boolean
   permissions?: PermissionRule
+  admin?: boolean
+  integrationScope?: IntegrationScope
   sections: SettingsSectionDef[]
 }
 
@@ -246,6 +249,37 @@ export const settingsIndex: SettingsPageDef[] = [
     ],
   },
   {
+    pageId: 'ask',
+    to: '/settings/ask',
+    icon: MessageCircleQuestionIcon,
+    iconColor: 'violet',
+    sections: [
+      {
+        id: 'ask',
+        titleKey: 'settings.ask.title',
+        keywords: ['ai', 'assistant', 'turn off', 'disable', 'questions'],
+        items: [{ titleKey: 'settings.ask.enabled.title' }, { titleKey: 'settings.ask.suggest.title' }],
+      },
+      {
+        id: 'ask-data',
+        titleKey: 'settings.ask.data.title',
+        keywords: ['location', 'privacy', 'web search', 'internet'],
+        items: [{ titleKey: 'settings.ask.shareLocation.title' }, { titleKey: 'settings.ask.webSearch.title' }],
+      },
+      {
+        id: 'ask-history',
+        titleKey: 'settings.ask.history.title',
+        keywords: ['conversations', 'threads', 'delete', 'expire', 'retention'],
+        items: [{ titleKey: 'settings.ask.history.save.title' }, { titleKey: 'settings.ask.history.keep.title' }],
+      },
+      {
+        id: 'ask-key',
+        titleKey: 'settings.ask.key.title',
+        keywords: ['openrouter', 'api key', 'model'],
+      },
+    ],
+  },
+  {
     pageId: 'appearance',
     to: '/settings/appearance',
     icon: PaintbrushIcon,
@@ -315,26 +349,34 @@ export const settingsIndex: SettingsPageDef[] = [
     to: '/settings/integrations',
     icon: BlocksIcon,
     iconColor: 'amber',
+    integrationScope: IntegrationScope.USER,
+    permissions: PermissionId.INTEGRATIONS_READ_USER,
+    sections: [
+      {
+        id: 'integrations',
+        titleKey: 'settings.integrations.title',
+        keywords: ['integration', 'connector', 'account', 'osm', 'dawarich'],
+      },
+    ],
+  },
+  {
+    pageId: 'system-integrations',
+    to: '/settings/system-integrations',
+    icon: ServerCogIcon,
+    iconColor: 'amber',
+    admin: true,
+    integrationScope: IntegrationScope.SYSTEM,
     permissions: {
       any: [
-        PermissionId.INTEGRATIONS_READ_USER,
         PermissionId.INTEGRATIONS_READ_SYSTEM,
         PermissionId.INTEGRATIONS_WRITE_SYSTEM,
       ],
     },
     sections: [
       {
-        id: 'integrations',
-        titleKey: 'settings.integrations.title',
-        descriptionKey: 'settings.integrations.description',
-        keywords: [
-          'integration',
-          'connector',
-          'service',
-          'api',
-          'osm',
-          'mapbox',
-        ],
+        id: 'system-integrations',
+        titleKey: 'settings.system-integrations.title',
+        keywords: ['integration', 'connector', 'service', 'api', 'mapbox'],
       },
     ],
   },
@@ -343,6 +385,7 @@ export const settingsIndex: SettingsPageDef[] = [
     to: '/settings/users',
     icon: Contact2Icon,
     iconColor: 'sky',
+    admin: true,
     permissions: {
       any: [
         PermissionId.USERS_READ,
@@ -369,15 +412,6 @@ export const settingsIndex: SettingsPageDef[] = [
       },
     ],
   },
-  {
-    pageId: 'system',
-    to: '/settings/system',
-    icon: ActivityIcon,
-    iconColor: 'parchment',
-    disabled: true,
-    permissions: PermissionId.SYSTEM_READ,
-    sections: [],
-  },
   // Dev-only entry — surfaces the GPX track simulator for testing
   // location-aware features without physically moving. The whole entry
   // is omitted from the array in production builds, so the page never
@@ -389,6 +423,7 @@ export const settingsIndex: SettingsPageDef[] = [
           to: '/settings/developer',
           icon: CodeIcon,
           iconColor: 'iris' as const,
+          admin: true,
           sections: [
             {
               id: 'gpx-simulator',

@@ -36,10 +36,10 @@ describe('where an overlay slots into the basemap', () => {
     expect(belowLabelsBeforeId(STYLE)).toBe('Oneway')
   })
 
-  test('poi lands under the lowest POI layer, above the other labels', () => {
+  test('poi lands under the lowest POI badge layer, above its dots and the other labels', () => {
     const withPois = [
       ...STYLE,
-      { id: 'POI dots', type: 'circle', 'source-layer': 'poi' },
+      { id: 'POI dots', type: 'symbol', 'source-layer': 'poi' },
       { id: 'POI', type: 'symbol', 'source-layer': 'poi' },
       { id: 'POI badges', type: 'symbol', 'source-layer': 'poi' },
     ]

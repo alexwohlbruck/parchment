@@ -38,6 +38,7 @@ import {
   HistoryIcon,
   LayoutDashboardIcon,
   TelescopeIcon,
+  MessageCircleQuestionIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import SyncStatus from '@/components/sync/SyncStatus.vue'
@@ -54,6 +55,10 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
 import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 import { useFeedback } from '@/composables/integrations/useFeedback'
+import { useAskStore } from '@/stores/ask.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useAskService } from '@/services/ask/ask.service'
+import { isAskOffered } from '@/lib/ask/ask-access'
 
 const router = useRouter()
 const route = useRoute()
@@ -188,6 +193,17 @@ interface NavItem {
   onClick?: () => void
 }
 
+const askStore = useAskStore()
+const askService = useAskService()
+const authStore = useAuthStore()
+watch(
+  () => authStore.me?.id,
+  id => {
+    if (id) askService.loadAccess({ fresh: true }).catch(() => null)
+  },
+  { immediate: true },
+)
+
 const items = computed<NavItem[]>(() => [
   {
     label: t('palette.commands.search.name'),
@@ -197,6 +213,7 @@ const items = computed<NavItem[]>(() => [
   },
   { label: t('dashboard.title'), icon: LayoutDashboardIcon, to: '/dashboard' },
   { label: t('directions.title'), icon: CornerUpRightIcon, to: '/directions' },
+  ...(isAskOffered(askStore.access) ? [{ label: t('ask.title'), icon: MessageCircleQuestionIcon, to: '/ask' }] : []),
   { label: capitalize(t('library.title')), icon: LibraryIcon, to: '/library' },
   { label: 'Lookout', icon: TelescopeIcon, to: '/lookout' },
   { label: t('timeline.title'), icon: HistoryIcon, to: '/timeline' },

@@ -13,6 +13,7 @@ export default {
       { name: 'Layers', description: 'Map layers and style management' },
       { name: 'Places', description: 'Places and points of interest' },
       { name: 'Search', description: 'Search endpoints' },
+      { name: 'Ask', description: 'Questions about places, answered by a language model over search' },
       { name: 'Geocoding', description: 'Geocoding and reverse geocoding' },
       { name: 'Trip Planning', description: 'Directions and trip planning' },
       { name: 'Location', description: 'User location and history' },

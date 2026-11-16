@@ -1,4 +1,6 @@
 /** The basemap's POI symbol layers, and the look an overlay borrows to pass for one. */
+import { POI_DOTS_LAYER } from '@/lib/map-style/poi-dots'
+import { POI_BADGE_PREFIX } from '@/lib/map-style/poi-badge'
 
 /** The GeoJSON source the POI layers move onto once they are lifted to roof height. */
 export const RAISED_POI_SOURCE = 'poi-dots-raised'
@@ -19,37 +21,41 @@ export function isBasemapPoiLayer(layer: StyleLayer): boolean {
   )
 }
 
-const LAYOUT_KEYS = [
-  'icon-size',
-  'icon-padding',
-  'text-font',
-  'text-size',
-  'text-offset',
-  'text-anchor',
-  'text-justify',
-  'text-variable-anchor',
-  'text-radial-offset',
-  'text-max-width',
-  'text-letter-spacing',
-  'text-line-height',
-  'text-padding',
-  'text-transform',
-  'text-optional',
-]
-
-const PAINT_KEYS = ['text-halo-color', 'text-halo-width', 'text-halo-blur']
-
-function pick(from: Record<string, unknown> | undefined, keys: string[]) {
-  const out: Record<string, unknown> = {}
-  for (const key of keys) if (from?.[key] !== undefined) out[key] = from[key]
-  return out
+/** A POI layer that draws badges and names, rather than the dots under them. */
+export function isBasemapPoiBadgeLayer(layer: StyleLayer): boolean {
+  return isBasemapPoiLayer(layer) && layer.id !== POI_DOTS_LAYER
 }
 
-/** Lettering and sizing of the first labelled basemap POI layer, or null when the style has none. */
-export function basemapPoiLook(
-  layers: readonly StyleLayer[],
-): { layout: Record<string, unknown>; paint: Record<string, unknown> } | null {
-  const poi = layers.find(l => isBasemapPoiLayer(l) && l.layout?.['text-field'] !== undefined)
+/** Per-feature or per-overlay properties, which the overlay sets itself. */
+const OWN_KEYS = new Set([
+  'icon-image',
+  'text-field',
+  'text-color',
+  'symbol-sort-key',
+  'icon-opacity',
+  'text-opacity',
+  'visibility',
+])
+
+function omitOwn(from: Record<string, unknown> | undefined) {
+  return Object.fromEntries(Object.entries(from ?? {}).filter(([key]) => !OWN_KEYS.has(key)))
+}
+
+export interface BasemapPoiLook {
+  layout: Record<string, unknown>
+  paint: Record<string, unknown>
+  /** The style composites `poi|` badges, so an overlay can name one per feature. */
+  badges: boolean
+}
+
+/** Layout and paint of the first labelled basemap POI layer, or null when the style has none. */
+export function basemapPoiLook(layers: readonly StyleLayer[]): BasemapPoiLook | null {
+  const poi = layers.find(l => isBasemapPoiBadgeLayer(l) && l.layout?.['text-field'] !== undefined)
   if (!poi) return null
-  return { layout: pick(poi.layout, LAYOUT_KEYS), paint: pick(poi.paint, PAINT_KEYS) }
+  const image = poi.layout?.['icon-image']
+  return {
+    layout: omitOwn(poi.layout),
+    paint: omitOwn(poi.paint),
+    badges: Array.isArray(image) && image[0] === 'concat' && image[1] === POI_BADGE_PREFIX,
+  }
 }

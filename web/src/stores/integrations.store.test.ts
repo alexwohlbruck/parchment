@@ -12,7 +12,7 @@ import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { clearAllIntegrationHealth } from '@/lib/integration-health'
-import { IntegrationId, IntegrationCapabilityId } from '@server/types/integration.types'
+import { IntegrationId, IntegrationCapabilityId, IntegrationScope } from '@server/types/integration.types'
 import type { IntegrationRecord } from '@server/types/integration.types'
 
 function makeRecord(overrides: Partial<IntegrationRecord> = {}): IntegrationRecord {
@@ -26,6 +26,21 @@ function makeRecord(overrides: Partial<IntegrationRecord> = {}): IntegrationReco
     updatedAt: new Date(),
     ...overrides,
   } as IntegrationRecord
+}
+
+function makeDef(overrides: Partial<import('@server/types/integration.types').IntegrationDefinition> = {}) {
+  return {
+    id: 'test' as IntegrationId,
+    name: 'Test',
+    description: '',
+    color: '#000',
+    capabilities: [],
+    paid: false,
+    cloud: false,
+    configSchema: 'apiKeySchema',
+    scope: [IntegrationScope.SYSTEM],
+    ...overrides,
+  } as import('@server/types/integration.types').IntegrationDefinition
 }
 
 describe('useIntegrationsStore', () => {
@@ -245,21 +260,6 @@ describe('useIntegrationsStore', () => {
   })
 
   describe('allIntegrations', () => {
-    function makeDef(overrides: Partial<import('@server/types/integration.types').IntegrationDefinition> = {}) {
-      return {
-        id: 'test' as IntegrationId,
-        name: 'Test',
-        description: '',
-        color: '#000',
-        capabilities: [],
-        paid: false,
-        cloud: false,
-        configSchema: 'apiKeySchema',
-        scope: [],
-        ...overrides,
-      } as import('@server/types/integration.types').IntegrationDefinition
-    }
-
     test('returns unconfigured integrations with no config', () => {
       const store = useIntegrationsStore()
       store.availableIntegrations = [
@@ -268,7 +268,10 @@ describe('useIntegrationsStore', () => {
       store.integrationConfigurations = []
 
       expect(store.allIntegrations).toEqual([
-        { integration: expect.objectContaining({ id: IntegrationId.MAPBOX }) },
+        {
+          integration: expect.objectContaining({ id: IntegrationId.MAPBOX }),
+          scope: IntegrationScope.SYSTEM,
+        },
       ])
       expect(store.allIntegrations[0].config).toBeUndefined()
     })
@@ -298,6 +301,24 @@ describe('useIntegrationsStore', () => {
 
       expect(store.allIntegrations).toHaveLength(2)
       expect(store.allIntegrations.map(i => i.config?.id)).toEqual(['rec-1', 'rec-2'])
+    })
+
+    test('offers the unconfigured scope of an integration available at both', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({
+          id: IntegrationId.OPENROUTER,
+          scope: [IntegrationScope.SYSTEM, IntegrationScope.USER],
+        }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ id: 'rec-sys', integrationId: IntegrationId.OPENROUTER, userId: null }),
+      ]
+
+      expect(store.allIntegrations.map(i => [i.scope, i.config?.id])).toEqual([
+        [IntegrationScope.SYSTEM, 'rec-sys'],
+        [IntegrationScope.USER, undefined],
+      ])
     })
 
     test('returns empty array when data is null (not loaded)', () => {
@@ -363,6 +384,20 @@ describe('useIntegrationsStore', () => {
         makeRecord({ integrationId: IntegrationId.DAWARICH }),
       ]
       expect(store.hasDegradedIntegrations).toBe(true)
+    })
+
+    test('hasDegradedIntegrationsIn only counts that scope', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.DAWARICH, scope: [IntegrationScope.USER] }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ integrationId: IntegrationId.DAWARICH }),
+      ]
+      store.markIntegrationDegraded(IntegrationId.DAWARICH)
+
+      expect(store.hasDegradedIntegrationsIn(IntegrationScope.USER)).toBe(true)
+      expect(store.hasDegradedIntegrationsIn(IntegrationScope.SYSTEM)).toBe(false)
     })
 
     test('clearCache resets degraded flags', () => {

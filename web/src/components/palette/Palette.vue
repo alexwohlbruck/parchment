@@ -42,6 +42,9 @@ import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
+import { ASK_OPTION } from '@/services/search-suggestions.service'
+import { useAskStore } from '@/stores/ask.store'
+import { isAskOffered } from '@/lib/ask/ask-access'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -83,6 +86,7 @@ const { t } = useI18n()
 const route = useRoute()
 const commandStore = useCommandStore()
 const appStore = useAppStore()
+const askStore = useAskStore()
 const router = useRouter()
 const {
   activeCommand,
@@ -148,6 +152,8 @@ const filteredArgumentOptions = computed(() => {
 })
 
 const SEARCH_GROUP_ORDER = [
+  'browse',
+  'ask',
   'frequents',
   'suggestedCategories',
   'fullSearch',
@@ -155,6 +161,7 @@ const SEARCH_GROUP_ORDER = [
   'brands',
   'categories',
   'places',
+  'askLast',
 ] as const
 
 /**
@@ -308,6 +315,14 @@ onClickOutside(container as any, event => {
   resetCommand()
 })
 
+function onTab(event: KeyboardEvent) {
+  if (!isSearch.value || !query.value.trim()) return
+  const access = askStore.access
+  if (!isAskOffered(access)) return
+  event.preventDefault()
+  onArgumentSelected(ASK_OPTION)
+}
+
 function onBackspace() {
   if (query.value === '') {
     resetCommand()
@@ -391,6 +406,14 @@ watch(activeArgument, async newArg => {
   } else {
     argumentOptions.value = []
   }
+})
+
+// The highlight otherwise stays on whichever row had it, so a query that turns
+// into an Ask question would still run a plain search on Enter.
+watch(argumentOptions, async () => {
+  if (!query.value.trim()) return
+  await nextTick()
+  commandPalette.value?.highlightFirstItem()
 })
 
 // Create a debounced function for loading search options.
@@ -480,6 +503,7 @@ const filterFunction = computed(() => {
         :placeholder="placeholder"
         @focus="inputFocused($event)"
         @keydown.backspace="onBackspace()"
+        @keydown.tab="onTab"
       >
         <template v-slot:prefix>
           <component :is="icon" class="size-4! shrink-0 opacity-50" />

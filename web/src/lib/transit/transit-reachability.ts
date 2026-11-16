@@ -12,7 +12,7 @@
  */
 
 import type { LngLat } from '@/types/map.types'
-import { distanceMeters } from '@/lib/measure/measure'
+import { haversineMeters } from '@/lib/geo/geo-line'
 
 /** Walking pace assumed when the plan carries no usable distance. */
 const DEFAULT_WALK_SPEED_MPS = 1.35
@@ -61,7 +61,7 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
     const planPace = walk.distanceM ? walk.distanceM / planned : DEFAULT_WALK_SPEED_MPS
     const pace = walk.ridden ? planPace : clamp(planPace, MIN_WALK_SPEED_MPS, MAX_WALK_SPEED_MPS)
     const remaining =
-      (distanceMeters(walk.position, walk.stop) * DETOUR_FACTOR) / pace
+      (haversineMeters(walk.position.lat, walk.position.lng, walk.stop.lat, walk.stop.lng) * DETOUR_FACTOR) / pace
     return clamp(remaining, 0, planned)
   }
 
@@ -135,6 +135,6 @@ const RIDING_CLEAR_M = 400
 /** Whether the rider looks to be on the run rather than to have missed it. */
 export function seemsAboard(here: LngLat | null | undefined, stop: LngLat | undefined, start: LngLat | undefined): boolean {
   if (!here || !stop) return false
-  const away = (p?: LngLat) => !p || distanceMeters(here, p) > RIDING_CLEAR_M
+  const away = (p?: LngLat) => !p || haversineMeters(here.lat, here.lng, p.lat, p.lng) > RIDING_CLEAR_M
   return away(stop) && away(start)
 }

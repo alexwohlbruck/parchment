@@ -62,7 +62,8 @@
     "collapse": "Contraer",
     "archive": "Archivar",
     "unarchive": "Desarchivar",
-    "undo": "Deshacer"
+    "undo": "Deshacer",
+    "saved": "Guardado"
   },
   "weather": {
     "title": "Condiciones del tiempo",
@@ -200,7 +201,10 @@
           "recents": "Recientes",
           "brands": "Marcas",
           "categories": "Categorías",
-          "places": "Lugares"
+          "places": "Lugares",
+          "ask": "Preguntar",
+          "askLast": "Preguntar",
+          "browse": "Explorar"
         },
         "commonCategories": {
           "restaurants": "Restaurantes",
@@ -274,6 +278,9 @@
           "bikeRepair": "Reparación de bicis",
           "postBoxes": "Buzones",
           "defibrillators": "Desfibriladores"
+        },
+        "browse": {
+          "openNow": "Abierto ahora"
         },
         "brand": {
           "seeAll": "Ver todas las ubicaciones",
@@ -475,6 +482,11 @@
         "keywords": "logout salir cuenta usuario",
         "confirmTitle": "¿Cerrar sesión?",
         "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
+      },
+      "ask": {
+        "name": "Preguntar",
+        "description": "Haz una pregunta o abre una anterior",
+        "keywords": "ia asistente pregunta chat conversación historial"
       }
     },
     "toggleState": {
@@ -1577,6 +1589,7 @@
     "start": "Iniciar",
     "exit": "Finalizar navegación",
     "waitingForLocation": "Esperando tu ubicación…",
+    "resume": "Volver a la navegación",
     "signalLost": "Sin señal GPS · estimando",
     "camera": {
       "resume": "Seguir tu posición",
@@ -2664,6 +2677,10 @@
   },
   "settings": {
     "title": "Configuración",
+    "groups": {
+      "personal": "Personal",
+      "admin": "Administración"
+    },
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "search": {
       "placeholder": "Buscar configuración…",
@@ -3139,7 +3156,6 @@
     },
     "integrations": {
       "title": "Integraciones",
-      "description": "Gestionar tus conexiones a servicios externos",
       "available": "Integraciones Disponibles",
       "noConfigured": "No hay integraciones configuradas",
       "noAvailable": "No hay integraciones disponibles",
@@ -3200,7 +3216,8 @@
         "tts": "Síntesis de voz",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
-        "feedback": "Comentarios"
+        "feedback": "Comentarios",
+        "languageModel": "Agentes"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -3227,7 +3244,8 @@
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
         "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
-        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios"
+        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
+        "openrouter": "El modelo de lenguaje detrás de Preguntar"
       },
       "scheme": {
         "endToEnd": {
@@ -3254,6 +3272,9 @@
         "bannerBody": "Comprueba que el servicio esté funcionando y luego ábrelo abajo y prueba la conexión. | Comprueba que los servicios estén funcionando y luego ábrelos abajo y prueba sus conexiones."
       }
     },
+    "system-integrations": {
+      "title": "Integraciones del sistema"
+    },
     "users": {
       "title": "Usuarios y Roles",
       "users": {
@@ -3266,8 +3287,64 @@
         "title": "Permisos"
       }
     },
-    "system": {
-      "title": "Sistema"
+    "ask": {
+      "title": "Preguntar",
+      "saveFailed": "No se pudo guardar el ajuste",
+      "enabled": {
+        "title": "Usar Preguntar",
+        "description": "Desactivado, Preguntar no aparece"
+      },
+      "suggest": {
+        "title": "Intro para preguntar",
+        "description": "Cuando una búsqueda parece una pregunta"
+      },
+      "data": {
+        "title": "Qué puede usar Preguntar"
+      },
+      "shareLocation": {
+        "title": "Tu ubicación",
+        "description": "Dónde estás, Casa y Trabajo"
+      },
+      "webSearch": {
+        "title": "Búsqueda web",
+        "description": "Eventos, menús, precios"
+      },
+      "history": {
+        "title": "Historial",
+        "save": {
+          "title": "Guardar conversaciones",
+          "description": "Con cifrado de extremo a extremo en tu cuenta"
+        },
+        "keep": {
+          "title": "Conservar durante",
+          "description": "Desde la última vez que la abriste",
+          "options": {
+            "1": "1 día",
+            "7": "1 semana",
+            "30": "30 días",
+            "90": "90 días",
+            "365": "1 año",
+            "0": "Hasta que las borres"
+          }
+        },
+        "clear": {
+          "title": "Conversaciones guardadas",
+          "description": "Ninguna guardada | 1 guardada | {count} guardadas",
+          "action": "Borrar historial",
+          "confirmTitle": "¿Borrar el historial de Preguntar?",
+          "confirmDescription": "Se borran todas las conversaciones guardadas en todos tus dispositivos."
+        },
+        "see": "Ver todas"
+      },
+      "key": {
+        "title": "Clave y modelo",
+        "item": "OpenRouter",
+        "description": "Usa tu propia clave o elige el modelo",
+        "action": "Gestionar"
+      },
+      "usage": {
+        "title": "Este mes"
+      }
     }
   },
   "notes": {
@@ -3778,5 +3855,82 @@
   "myLocation": {
     "title": "Mi ubicación",
     "accuracy": "Precisión de {distance}"
+  },
+  "ask": {
+    "title": "Preguntar",
+    "starting": "Leyendo tu pregunta",
+    "searches": "1 búsqueda | {count} búsquedas",
+    "followUp": "Haz otra pregunta",
+    "empty": {
+      "title": "Nada encaja todavía",
+      "description": "Prueba una zona más amplia o menos detalles"
+    },
+    "error": "No se pudo responder",
+    "retry": "Reintentar",
+    "locked": {
+      "description": "O usa tu propia cuenta de OpenRouter en cualquier plan",
+      "addKey": "Pegar una clave"
+    },
+    "notConfigured": "Preguntar no está configurado en este servidor",
+    "connect": {
+      "action": "Conectar OpenRouter",
+      "connecting": "Conectando OpenRouter",
+      "failed": "No se pudo conectar OpenRouter"
+    },
+    "quota": {
+      "title": "Ya usaste las preguntas de este mes",
+      "description": "Vuelve a preguntar el {date} o añade tu propia clave",
+      "upgrade": "Más preguntas cada mes, o usa tu propia clave de OpenRouter"
+    },
+    "usage": {
+      "questions": "Preguntas este mes",
+      "resets": "Se renueva el {date}",
+      "of": "de {limit} preguntas"
+    },
+    "seeAll": "Más cerca: {name}",
+    "aboutPlace": {
+      "action": "Preguntar sobre este lugar",
+      "title": "Pregunta sobre {name}",
+      "placeholder": "¿Bueno para trabajar? ¿Lleno los fines de semana?"
+    },
+    "trip": {
+      "directions": "Cómo llegar",
+      "directionsTo": "Cómo llegar a {name}",
+      "allWays": "Todas las formas de llegar",
+      "open": "Abrir viaje",
+      "via": "Pasando por",
+      "stop": "Parada",
+      "minutes": "{count} min"
+    },
+    "followUps": "Para seguir",
+    "sources": "Fuentes",
+    "trace": {
+      "searchedFor": "Buscó durante {seconds} s",
+      "found": "{count} encontrado | {count} encontrados"
+    },
+    "off": {
+      "title": "Preguntar está desactivado",
+      "action": "Activar en ajustes"
+    },
+    "history": {
+      "remove": "Quitar",
+      "empty": "Aún no hay conversaciones",
+      "off": {
+        "title": "El historial está desactivado",
+        "action": "Activar"
+      },
+      "groups": {
+        "today": "Hoy",
+        "yesterday": "Ayer",
+        "week": "Esta semana",
+        "month": "Este mes",
+        "older": "Antes"
+      }
+    },
+    "placeholder": "Haz una pregunta",
+    "canvas": {
+      "saved": "Lienzo en tu biblioteca",
+      "open": "Abrir"
+    }
   }
 }

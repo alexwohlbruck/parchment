@@ -1,19 +1,12 @@
 import { describe, it, expect } from 'vitest'
+import { distance } from '@turf/turf'
 import { densifyLine } from './geo-densify'
 
 /** Largest gap (m) between consecutive points. */
 function maxGapMeters(coords: [number, number][]): number {
-  const R = 6371000
   let max = 0
   for (let i = 1; i < coords.length; i++) {
-    const [lng1, lat1] = coords[i - 1]
-    const [lng2, lat2] = coords[i]
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-    max = Math.max(max, 2 * R * Math.asin(Math.sqrt(a)))
+    max = Math.max(max, distance(coords[i - 1], coords[i], { units: 'meters' }))
   }
   return max
 }

@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import { normalizeNavigationPreferences, toPreferencesResponse } from './user-preferences'
 import type { NavigationPreferences } from '../types/navigation-preferences.types'
+import { DEFAULT_ASK_PREFERENCES } from '../types/ask-preferences.types'
 
 describe('normalizeNavigationPreferences', () => {
   test('leaves never-saved sections absent', () => {
@@ -55,11 +56,12 @@ describe('normalizeNavigationPreferences', () => {
 describe('toPreferencesResponse', () => {
   test('exposes only the public fields', () => {
     expect(
-      toPreferencesResponse({ language: 'es-ES', unitSystem: 'imperial', navigation: null }),
+      toPreferencesResponse({ language: 'es-ES', unitSystem: 'imperial', navigation: null, ask: { webSearch: false } }),
     ).toEqual({
       language: 'es-ES',
       unitSystem: 'imperial',
       navigation: {},
+      ask: { ...DEFAULT_ASK_PREFERENCES, webSearch: false },
     })
   })
 })

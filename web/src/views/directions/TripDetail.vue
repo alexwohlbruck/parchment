@@ -10,7 +10,7 @@ import {
 } from '@/lib/directions/trip-display'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
-import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
+import { applyDepartureChange, rollupTrip } from '@/lib/directions/trip-rebooking'
 import { sameArrivalDepartAt, walksToFirstStop } from '@/lib/directions/trip-advice'
 import { nextRunAfter } from '@/services/transit/transit-departures.service'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -501,10 +501,7 @@ async function chooseDeparture(segmentIndex: number, departureMs: number): Promi
     )
     if (!changed) return false
 
-    // Trip-level rollup
-    t.startTime = new Date(asMs(segs[0].startTime))
-    t.endTime = new Date(asMs(segs[segs.length - 1].endTime))
-    t.summary.totalDuration = (asMs(t.endTime) - asMs(t.startTime)) / 1000
+    rollupTrip(t)
 
     // Refresh chips in the background — the rebooking math is already
     // applied from the cached schedule, so the UI updates instantly.

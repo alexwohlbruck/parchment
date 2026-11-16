@@ -4,7 +4,7 @@ import {
   recentPlaceMarkerSpec,
   selectRecentPlaceMarkers,
 } from './recent-place-markers'
-import { markerImageId, markerPaint } from '@/lib/map-marker'
+import { markerPaint } from '@/lib/map-marker'
 import type { RecentPlaceEntry } from '@/lib/recents'
 
 function recent(id: string, overrides: Partial<RecentPlaceEntry> = {}): RecentPlaceEntry {
@@ -89,19 +89,19 @@ describe('recentPlaceMarkerSpec', () => {
 
 describe('buildRecentPlacesGeoJSON', () => {
   it('builds one point per place, ranked newest first', () => {
-    const places = [
-      recent('osm/node/1', { lng: -73.9, category: 'park', icon: 'park', iconPack: 'maki' }),
-      recent('osm/node/2'),
+    const places = [recent('osm/node/1', { lng: -73.9 }), recent('osm/node/2')]
+    const marks = [
+      { image: 'poi|badge-park|#a|#b|#c|#d', ink: '#b' },
+      { image: 'poi|badge-lucide:History|#e|#f|#g|#d', ink: '#f' },
     ]
-    const { features } = buildRecentPlacesGeoJSON(places as any, categoryColor, true)
-    const spec = recentPlaceMarkerSpec(places[0], categoryColor, true)
+    const { features } = buildRecentPlacesGeoJSON(places as any, marks)
     expect(features).toHaveLength(2)
     expect(features[0].geometry.coordinates).toEqual([-73.9, 40.7])
     expect(features[0].properties).toEqual({
       id: 'osm/node/1',
       name: 'osm/node/1',
-      markerImage: markerImageId(spec),
-      ink: spec.paint.ink,
+      markerImage: marks[0].image,
+      ink: '#b',
       sortKey: 0,
     })
     expect(features[1].properties.sortKey).toBe(1)

@@ -112,8 +112,21 @@ export interface SearchResponse {
   totalCount: number
 }
 
+/** What a typed query is after: a name to look up, a filtered browse, or a question. */
+export interface QueryIntent {
+  intent: 'lookup' | 'browse' | 'ask'
+  category?: { id: string; name: string }
+  /** The place attributes the query asks for, in the order typed. */
+  attributes?: Array<{ id: string; name: string }>
+  tags?: Record<string, string>
+  openNow?: boolean
+  /** Words no rule or category accounted for. */
+  residual: string
+}
+
 export interface AutocompleteResponse {
   query: string
   results: AutocompleteResult[]
   totalCount: number
+  intent: QueryIntent
 }

@@ -16,7 +16,7 @@ import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
 const router = useRouter()
 
 function navigateToIntegrations() {
-  router.push({ name: AppRoute.INTEGRATIONS })
+  router.push({ name: AppRoute.SYSTEM_INTEGRATIONS })
 }
 </script>
 

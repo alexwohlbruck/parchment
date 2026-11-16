@@ -12,6 +12,7 @@ import type { Language } from '../lib/i18n/i18n.types'
 import { searchBookmarks as searchBookmarksService } from './library/bookmarks.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import { categoryService } from './category.service'
+import { classifyQuery } from './query-intent.service'
 import {
   IntegrationCapabilityId,
   IntegrationId,
@@ -470,6 +471,10 @@ export async function search(
       query,
       results: autocompleteResults,
       totalCount: allResults.length,
+      intent: classifyQuery(query, {
+        language,
+        resultTitles: limitedResults.map((r) => r.title),
+      }),
     } as AutocompleteResponse
   }
 

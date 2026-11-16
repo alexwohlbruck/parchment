@@ -127,6 +127,11 @@ export function parseBadgeName(name: string): BadgeParts | null {
   return { art, plate, ink, ring: ring || ink, lift: lift ?? 'rgba(0,0,0,0)' }
 }
 
+/** The image name for a badge, as the style builds one per feature. */
+export function poiBadgeName({ art, plate, ink, ring, lift }: BadgeParts): string {
+  return POI_BADGE_PREFIX + [art, plate, ink, ring, lift].join('|')
+}
+
 // ---------------------------------------------------------------------------
 // Colour
 // ---------------------------------------------------------------------------

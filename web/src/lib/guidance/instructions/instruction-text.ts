@@ -161,6 +161,27 @@ export function bannerTitle(instruction: RichInstruction, t: TFn): string {
   return target?.kind === 'named' && !OWN_TITLE.has(action.kind) ? target.name : maneuverText(instruction, t)
 }
 
+/** What the banner names under the distance: the destination on arrival, else the road or the maneuver. */
+export function bannerRoad(
+  step: RouteInstruction,
+  kind: ManeuverKind,
+  rich: RichInstruction | null | undefined,
+  destination: string | null,
+  t: TFn,
+): string {
+  if (kind === 'arrive') return destination || t('guidance.banner.arrive')
+  if (rich) return bannerTitle(rich, t)
+  return step.streetName || step.streetRef || stepText(step, t)
+}
+
+/** What the banner says in place of a maneuver while there is none to give. */
+export function bannerHeadline(status: string, offRoute: boolean, t: TFn): string | null {
+  if (status === 'arrived') return t('guidance.banner.arrived')
+  if (status === 'away') return t('guidance.banner.away')
+  if (status === 'rerouting') return t('guidance.banner.rerouting')
+  return offRoute ? t('guidance.banner.offRoute') : null
+}
+
 function maneuverText(instruction: RichInstruction, t: TFn): string {
   const { action, maneuver, target, toward, leadsTo } = instruction
   const road = target && roadText(target, t)

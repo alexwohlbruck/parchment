@@ -4159,6 +4159,7 @@
       "of": "of {limit} questions"
     },
     "seeAll": "More nearby: {name}",
+    "aboutPoint": "Ask about this spot",
     "aboutPlace": {
       "action": "Ask about this place",
       "title": "Ask about {name}",

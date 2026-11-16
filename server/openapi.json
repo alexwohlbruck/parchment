@@ -159,6 +159,31 @@
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
                     "type": "string"
                   },
+                  "point": {
+                    "description": "A spot on the map the question is about, such as an address, when it has no placeId",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "name": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
                   "lat": {
                     "minimum": -90,
                     "maximum": 90,
@@ -367,6 +392,31 @@
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
                     "type": "string"
                   },
+                  "point": {
+                    "description": "A spot on the map the question is about, such as an address, when it has no placeId",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "name": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
+                  },
                   "lat": {
                     "minimum": -90,
                     "maximum": 90,
@@ -574,6 +624,31 @@
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
                     "type": "string"
+                  },
+                  "point": {
+                    "description": "A spot on the map the question is about, such as an address, when it has no placeId",
+                    "type": "object",
+                    "properties": {
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "name": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "lat",
+                      "lng"
+                    ]
                   },
                   "lat": {
                     "minimum": -90,

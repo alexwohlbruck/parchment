@@ -202,6 +202,23 @@ describe('runAsk', () => {
     expect(ctx.events[0]).toMatchObject({ type: 'step', status: 'running' })
   })
 
+  test('names the subject spot in the question', async () => {
+    const { model, requests } = scriptedModel([
+      [call('answer', { text: 'Yes.', places: [] })],
+    ])
+
+    await runAsk(
+      model,
+      { question: 'safe to park?', point: { lat: 40.71234, lng: -74.01, name: '12 Main St' } },
+      context(),
+    )
+
+    expect(requests[0].messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'safe to park?\n\nThe question is about 12 Main St, at 40.71234, -74.01000.',
+    })
+  })
+
   test('forces an answer on the last step', async () => {
     mockLookupPlaces.mockResolvedValue([])
     const { model, requests } = scriptedModel([

@@ -79,7 +79,7 @@ const app = new Elysia()
           try {
             await runAsk(
               meter.model,
-              { question: body.question, history: body.history, origin, placeId: body.placeId },
+              { question: body.question, history: body.history, origin, placeId: body.placeId, point: body.point },
               {
                 userId: user.id,
                 language,
@@ -131,6 +131,16 @@ const app = new Elysia()
         ),
         placeId: t.Optional(
           t.String({ description: 'A place the question is about, e.g. "osm/node/123". Its details and reviews are read first.' }),
+        ),
+        point: t.Optional(
+          t.Object(
+            {
+              lat: t.Number({ minimum: -90, maximum: 90 }),
+              lng: t.Number({ minimum: -180, maximum: 180 }),
+              name: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
+            },
+            { description: 'A spot on the map the question is about, such as an address, when it has no placeId' },
+          ),
         ),
         lat: t.Optional(t.Number({ minimum: -90, maximum: 90, description: "The map's centre" })),
         lng: t.Optional(t.Number({ minimum: -180, maximum: 180 })),

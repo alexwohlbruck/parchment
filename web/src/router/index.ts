@@ -175,6 +175,8 @@ const router = createRouter({
             question: route.query.q,
             placeId: route.query.place,
             placeName: route.query.name,
+            lat: route.query.lat,
+            lng: route.query.lng,
             thread: route.query.thread,
           }),
         },

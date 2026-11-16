@@ -14,7 +14,7 @@ import {
   type AskTool,
 } from './ask-tools'
 import { webTools } from './ask-web-tools'
-import type { AskCitation, AskTurn, LatLng } from '../../types/ask.types'
+import type { AskCitation, AskPoint, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
 import { localDateTime } from '../../lib/ask/trip-summary'
@@ -34,6 +34,13 @@ export interface AskRequest {
   origin?: LatLng
   /** A place the question is about, looked up before the model starts. */
   placeId?: string
+  point?: AskPoint
+}
+
+function subjectQuestion({ question, point }: AskRequest): string {
+  if (!point) return question
+  const at = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
+  return `${question}\n\nThe question is about ${point.name ? `${point.name}, at ${at}` : `the spot at ${at}`}.`
 }
 
 function systemPrompt(context: AskContext): string {
@@ -169,7 +176,7 @@ export async function runAsk(
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt(context) },
     ...(request.history ?? []),
-    { role: 'user', content: request.question },
+    { role: 'user', content: subjectQuestion(request) },
   ]
   const tools = context.model ? askTools : askTools.filter((tool) => !webTools.includes(tool))
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))

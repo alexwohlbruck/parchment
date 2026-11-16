@@ -8,6 +8,11 @@ export interface LatLng {
   lng: number
 }
 
+/** A spot on the map a question is about, when it has no place to look up. */
+export interface AskPoint extends LatLng {
+  name?: string
+}
+
 export type AskUnits = 'metric' | 'imperial'
 
 /** A point Ask can name. A saved place reaches the model only by its name, never its coordinates. */

@@ -24,6 +24,8 @@ import { SIDEBAR_ROW } from './scale'
 const props = withDefaults(
   defineProps<{
     label: string
+    /** A muted second line under the label. */
+    description?: string
     icon?: Icon
     /** Makes the row a link. A path string marks the row active for its whole subtree. */
     to?: RouteLocationRaw
@@ -78,6 +80,7 @@ const shortcutProps = computed(() =>
           :class="
             cn(
               SIDEBAR_ROW,
+              description && 'h-12',
               'relative w-full flex items-center cursor-pointer no-underline',
               'focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
               'text-foreground',
@@ -86,7 +89,8 @@ const shortcutProps = computed(() =>
           "
           @click="$emit('click', $event)"
         >
-          <span v-if="$slots.icon" class="flex items-center justify-center shrink-0 size-5">
+          <!-- Up to 28px, overhanging the 20px column evenly so it stays centred in the rail. -->
+          <span v-if="$slots.icon" class="flex items-center justify-center shrink-0 size-5 mr-1">
             <slot name="icon" />
           </span>
           <span v-else-if="icon" class="relative shrink-0">
@@ -103,10 +107,16 @@ const shortcutProps = computed(() =>
             </span>
           </span>
           <span
-            class="flex-1 min-w-0 truncate text-left transition-opacity duration-150"
+            class="flex-1 min-w-0 flex flex-col text-left transition-opacity duration-150"
             :class="collapsed ? 'opacity-0' : 'opacity-100'"
           >
-            {{ label }}
+            <span class="truncate">{{ label }}</span>
+            <span
+              v-if="description"
+              class="truncate text-xs font-normal text-muted-foreground"
+            >
+              {{ description }}
+            </span>
           </span>
           <Kbd
             v-if="hasShortcut"

@@ -58,15 +58,11 @@ const { peekRef: libraryRef } = useSheetPeek()
 const paletteRef = ref<InstanceType<typeof Palette> | null>(null)
 const paletteFocused = ref(false)
 
-function onPaletteInputFocused() {
-  paletteFocused.value = true
-  emit('update:palette-focused', true)
-  expandSheet()
-}
+defineExpose({ exitSearch: () => paletteRef.value?.resetPalette() })
 
-function onPaletteClosed() {
-  paletteFocused.value = false
-  emit('update:palette-focused', false)
+function onPaletteResults(visible: boolean) {
+  paletteFocused.value = visible
+  emit('update:palette-focused', visible)
 }
 
 const handlePaletteFocus = () => {
@@ -230,8 +226,8 @@ function navigateToRoute(routeName: AppRoute) {
           ref="paletteRef"
           search-on-open
           fill
-          @input-focused="onPaletteInputFocused"
-          @update:open="val => { if (!val) onPaletteClosed() }"
+          @input-focused="expandSheet"
+          @update:results="onPaletteResults"
         />
       </div>
 

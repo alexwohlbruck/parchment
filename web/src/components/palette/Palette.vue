@@ -50,6 +50,7 @@ import { isAskOffered } from '@/lib/ask/ask-access'
 const emit = defineEmits<{
   (e: 'inputFocused'): void
   (e: 'update:open', value: boolean): void
+  (e: 'update:results', value: boolean): void
 }>()
 
 const props = withDefaults(
@@ -104,6 +105,8 @@ const commandOpen = computed({
   set: value => emit('update:open', value),
 })
 const showResults = ref(false)
+// `open` drops on the press outside, but the results stay up until its click.
+watch(showResults, value => emit('update:results', value))
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })

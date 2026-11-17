@@ -54,6 +54,8 @@ watch(
   <bottom-sheet
     open
     :peek-height="PEEK_HEIGHT"
+    dynamic-peek
+    :dynamic-peek-index="1"
     :dismissable="false"
     :z-index-offset="-10"
     v-model:active-snap-point="activeSnapPoint"

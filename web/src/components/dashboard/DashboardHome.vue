@@ -30,6 +30,7 @@ import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.
 import { appEventBus } from '@/lib/event-bus'
 import { findScrollAncestor } from '@/lib/scroll'
 import { recentSubtitle } from '@/lib/recents/recent-subtitle'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { PlaceCard } from '@/components/place/card'
 import { SectionHeader } from '@/components/ui/section-header'
 import {
@@ -52,6 +53,8 @@ const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 const expandSheet = inject<() => void>('expandMobileSheet', () => {})
 const emit = defineEmits<{ 'update:palette-focused': [value: boolean] }>()
 
+// The home sheet's middle detent rests just below the library.
+const { peekRef: libraryRef } = useSheetPeek()
 const paletteRef = ref<InstanceType<typeof Palette> | null>(null)
 const paletteFocused = ref(false)
 
@@ -234,7 +237,7 @@ function navigateToRoute(routeName: AppRoute) {
 
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Library Section -->
-      <div>
+      <div ref="libraryRef">
         <SectionHeader size="lg" :title="t('library.title')" class="mb-1.5 px-1" />
 
         <div class="grid grid-cols-2 gap-2">

@@ -119,6 +119,30 @@ describe('resolveSnapPoints', () => {
     ).toEqual(['140px', `${VH / 2 + 20}px`])
   })
 
+  test('swaps a measured detent into the middle slot', () => {
+    expect(
+      resolveSnapPoints({
+        base: ['65px', 0.5, 1],
+        measuredPeekPx: 450,
+        measuredIndex: 1,
+        viewportHeight: VH,
+        insets: { top: 0, bottom: 30 },
+      }),
+    ).toEqual(['95px', '450px', 1])
+  })
+
+  test('keeps a measured middle detent between its neighbours', () => {
+    const resolve = (measuredPeekPx: number) =>
+      resolveSnapPoints({
+        base: ['65px', 0.5, 1],
+        measuredPeekPx,
+        measuredIndex: 1,
+        viewportHeight: VH,
+      })[1]
+    expect(resolve(900)).toBe('776px')
+    expect(resolve(40)).toBe('89px')
+  })
+
   test('handles an empty list', () => {
     expect(resolveSnapPoints({ base: [], viewportHeight: VH })).toEqual([])
   })

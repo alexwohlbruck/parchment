@@ -177,6 +177,12 @@ const props = withDefaults(
      */
     dynamicPeek?: boolean
     /**
+     * Which detent the measured peek sizes. Above the first, the pinned footer
+     * is in view at that detent, so its height is added to keep the peek
+     * content clear of it.
+     */
+    dynamicPeekIndex?: number
+    /**
      * An inset card resting above the bottom edge, rounded on every corner.
      * It grows from its bottom edge as it is dragged, rather than sliding a
      * full-height panel, and the last detent is the height of the card.
@@ -194,6 +200,7 @@ const props = withDefaults(
     peekHeight: '125px',
     obstructingKey: 'bottom-sheet',
     defaultSnapPointIndex: 0,
+    dynamicPeekIndex: 0,
     adjustMapPadding: false,
     zIndexOffset: 0,
     respectSafeArea: true,
@@ -564,12 +571,21 @@ function measureDynamicPeek() {
   if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
   const top = contentEl.getBoundingClientRect().top
   const bottom = peekEl.value.getBoundingClientRect().bottom
-  const h = bottom - top + (props.floating ? 0 : DYNAMIC_PEEK_BUFFER)
+  const h =
+    bottom - top + (props.floating ? 0 : DYNAMIC_PEEK_BUFFER) + footerAllowance()
   if (h <= 0) return
 
   // `clampPeek` keeps the result below the next detent once the footer
   // allowance has been folded in.
   dynamicPeekPx.value = Math.round(h)
+}
+
+// The first detent gets the home-indicator inset from `adjustForSafeArea`, with
+// the footer parked below it. A higher one shows the footer, which carries
+// that inset itself.
+function footerAllowance() {
+  if (props.dynamicPeekIndex === 0) return 0
+  return hasFooter.value ? footerHeight.value : safeAreaInsetBottom.value
 }
 
 // Re-measure whenever the peek content resizes, the registered element
@@ -584,6 +600,7 @@ watch(
     () => showChromeBar.value,
     () => safeAreaInsetBottom.value,
     () => props.dynamicPeek,
+    footerHeight,
     // Re-measure when the sheet returns to the top, picking up any content
     // resize that was skipped while scrolled.
     () => isAtTop.value,
@@ -609,6 +626,7 @@ const userSnapPoints = computed<SnapPoint[]>(() =>
   resolveSnapPoints({
     base: baseSnapPoints.value,
     measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    measuredIndex: props.dynamicPeekIndex,
     viewportHeight: windowHeight.value,
     insets: null,
   }),
@@ -618,6 +636,7 @@ const snapPoints = computed<SnapPoint[]>(() =>
   resolveSnapPoints({
     base: baseSnapPoints.value,
     measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    measuredIndex: props.dynamicPeekIndex,
     viewportHeight: windowHeight.value,
     insets: props.respectSafeArea
       ? {

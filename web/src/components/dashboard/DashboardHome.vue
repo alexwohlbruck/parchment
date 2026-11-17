@@ -29,8 +29,7 @@ import Palette from '@/components/palette/Palette.vue'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
 import { appEventBus } from '@/lib/event-bus'
 import { findScrollAncestor } from '@/lib/scroll'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
+import { recentSubtitle } from '@/lib/recents/recent-subtitle'
 import { PlaceCard } from '@/components/place/card'
 import { SectionHeader } from '@/components/ui/section-header'
 import {
@@ -38,8 +37,6 @@ import {
   recentSearchToDisplay,
   type PlaceDisplay,
 } from '@/services/place/place-display'
-
-dayjs.extend(relativeTime)
 
 const router = useRouter()
 const { t } = useI18n()
@@ -214,11 +211,6 @@ function navigateTo(path: string) {
 function navigateToRoute(routeName: AppRoute) {
   minimizeSheet()
   router.push({ name: routeName })
-}
-
-/** A recent's own subtitle, with how long ago it happened appended. */
-function recentSubtitle(subtitle: string | null | undefined, at: number): string {
-  return [subtitle, at && dayjs(at).fromNow()].filter(Boolean).join(' · ')
 }
 </script>
 

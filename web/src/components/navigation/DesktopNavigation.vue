@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/sidebar'
 import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import SidebarRecents from '@/components/navigation/SidebarRecents.vue'
 import {
   CornerUpRightIcon,
   SettingsIcon,
@@ -335,6 +336,8 @@ defineExpose({
           @click="item.to ? handleNavClick($event, item.to) : item.onClick?.()"
         />
       </SidebarMenu>
+
+      <SidebarRecents />
     </SidebarContent>
 
     <!-- Slot for custom banner alerts. Default: the Tauri update banner. -->

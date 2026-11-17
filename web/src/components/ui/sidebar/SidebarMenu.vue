@@ -4,7 +4,8 @@ import { useMutationObserver, useResizeObserver } from '@vueuse/core'
 import { cn } from '@/lib/utils'
 
 /**
- * A menu list, plus the one raised chip that marks the current row.
+ * A menu list, plus the one raised chip that marks the current row. Rows
+ * animate in, out and to new positions as the list changes.
  *
  * The chip is a single element that slides between rows rather than a
  * background on each row, so moving between destinations reads as one
@@ -41,17 +42,25 @@ useMutationObserver(listRef, measure, {
 </script>
 
 <template>
-  <ul
-    ref="listRef"
-    :class="cn('relative flex flex-col gap-0.5', props.class)"
-  >
-    <li
+  <!-- The chip sits outside the group: a move animation would fight its own slide. -->
+  <div ref="listRef" class="relative">
+    <div
       v-if="chip"
       aria-hidden="true"
       class="absolute inset-x-0 rounded-md bg-card dark:bg-foreground/[0.07] depth pointer-events-none"
       :class="settled && 'motion-safe:transition-[top,height] duration-200 ease-out'"
       :style="{ top: `${chip.top}px`, height: `${chip.height}px` }"
     />
-    <slot />
-  </ul>
+    <TransitionGroup
+      tag="ul"
+      :class="cn('flex flex-col gap-0.5', props.class)"
+      enter-active-class="motion-safe:transition-[opacity,transform] motion-safe:duration-300 motion-safe:ease-out"
+      enter-from-class="opacity-0 -translate-x-2"
+      leave-active-class="absolute inset-x-0 motion-safe:transition-opacity motion-safe:duration-200"
+      leave-to-class="opacity-0"
+      move-class="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
+    >
+      <slot />
+    </TransitionGroup>
+  </div>
 </template>

@@ -689,7 +689,9 @@ export class BakedBridgeLayer {
     let timedOut = false
     const timer = setTimeout(() => { timedOut = true; controller.abort() }, LOAD_TIMEOUT_MS)
     try {
-      const response = await fetch(url, { signal: controller.signal, credentials: 'include', priority })
+      const get = (cache?: RequestCache) => fetch(url, { signal: controller.signal, credentials: 'include', priority, cache })
+      // A private tab's memory cache refuses a mesh of several MB and fails the whole request (ERR_CACHE_WRITE_FAILURE).
+      const response = await get().catch(error => (controller.signal.aborted ? Promise.reject(error) : get('no-store')))
       if (!response.ok) throw new Error(`Bridge mesh: ${response.status}`)
       const mesh = await decodeMesh(await response.arrayBuffer())
       if (!this.map || controller.signal.aborted) return

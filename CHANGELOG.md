@@ -2,13 +2,15 @@
 
 ### Added
 
-* The desktop sidebar lists your recent places and searches under the main links, as icons when collapsed.
+* The desktop sidebar lists your recent places and searches under the main links, with where and when, as icons when collapsed.
 
 ### Changed
 
 * Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
 
 ### Fixed
+
+* Every place you open now shows up in your recents, including ones opened offline.
 
 ## [0.22.1] - 2026-11-15
 

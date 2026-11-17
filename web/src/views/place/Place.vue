@@ -11,6 +11,7 @@ import { useConnectivity } from '@/composables/useConnectivity'
 import Place from '@/components/place/PlacePanel.vue'
 import OffscreenMarkerHint from '@/components/map/markers/OffscreenMarkerHint.vue'
 import { AppRoute } from '@/router'
+import { useRecentsStore } from '@/stores/recents.store'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,6 +21,7 @@ const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMap
 const { nextSignal } = useAbortController()
 const { onReconnected } = useConnectivity()
 const markerLngLat = shallowRef<LngLat | null>(null)
+const recentsStore = useRecentsStore()
 
 /**
  * Shows what the device knows about the place straight away, then keeps it
@@ -151,6 +153,13 @@ async function loadPlace() {
   console.error('Invalid route parameters for place lookup')
 }
 
+/** Loads the place and, unless the user has since moved on, saves it to recents — fallbacks included. */
+async function showPlace() {
+  const path = route.path
+  await loadPlace()
+  if (route.path === path && currentPlace.value) recentsStore.recordPlace(currentPlace.value)
+}
+
 function handlePlaceResult(place: any) {
   // Add marker when place loads
   if (place && place.geometry) {
@@ -193,9 +202,7 @@ function returnToPlace() {
   if (currentPlace.value?.geometry) framePlace(currentPlace.value)
 }
 
-onMounted(async () => {
-  await loadPlace()
-})
+onMounted(showPlace)
 
 // Watch route.path (not route.params): all place-identity params live in the
 // path, while the active tab lives in route.query. vue-router 4 hands a fresh
@@ -204,13 +211,11 @@ onMounted(async () => {
 // and rebuilding the marker, polygon, and camera.
 watch(
   () => route.path,
-  async () => {
-    await loadPlace()
-  },
+  showPlace,
 )
 
 onReconnected(() => {
-  if (!currentPlace.value) loadPlace()
+  if (!currentPlace.value) showPlace()
 })
 
 onUnmounted(() => {
@@ -221,6 +226,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Place :place="currentPlace" :loading="loading" @retry="loadPlace" />
+  <Place :place="currentPlace" :loading="loading" @retry="showPlace" />
   <OffscreenMarkerHint :lng-lat="markerLngLat" @select="returnToPlace" />
 </template>

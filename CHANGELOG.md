@@ -8,10 +8,12 @@
 
 * Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
 * Entering a recovery key now opens as a compact card on phones, with clearer wording and a plain error when the key doesn't match.
+* The home sheet's middle position now opens just far enough to show your library.
 
 ### Fixed
 
 * Every place you open now shows up in your recents, including ones opened offline.
+* Dragging the home sheet by its search bar no longer opens the keyboard.
 
 ## [0.22.1] - 2026-11-15
 

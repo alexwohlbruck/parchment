@@ -2943,6 +2943,12 @@
       "shakeForFeedback": {
         "title": "Agitar para enviar comentarios",
         "description": "Agita el teléfono para abrir el formulario de comentarios. Requiere acceso al movimiento."
+      },
+      "homeScreen": {
+        "title": "Pantalla de inicio",
+        "sheetStart": "La hoja se abre en",
+        "search": "Barra de búsqueda",
+        "library": "Biblioteca"
       }
     },
     "appearance": {

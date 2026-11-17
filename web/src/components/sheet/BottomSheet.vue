@@ -144,6 +144,8 @@ const props = withDefaults(
     showCloseButton?: boolean
     activeSnapPoint?: number | string | null
     defaultSnapPointIndex?: number
+    /** Detent to rest on once the sheet has first opened. */
+    initialSnapPointIndex?: number
     customSnapPoints?: (number | string)[]
     obstructingKey?: string
     /**
@@ -177,6 +179,12 @@ const props = withDefaults(
      */
     dynamicPeek?: boolean
     /**
+     * Which detent the measured peek sizes. Above the first, the pinned footer
+     * is in view at that detent, so its height is added to keep the peek
+     * content clear of it.
+     */
+    dynamicPeekIndex?: number
+    /**
      * An inset card resting above the bottom edge, rounded on every corner.
      * It grows from its bottom edge as it is dragged, rather than sliding a
      * full-height panel, and the last detent is the height of the card.
@@ -194,6 +202,7 @@ const props = withDefaults(
     peekHeight: '125px',
     obstructingKey: 'bottom-sheet',
     defaultSnapPointIndex: 0,
+    dynamicPeekIndex: 0,
     adjustMapPadding: false,
     zIndexOffset: 0,
     respectSafeArea: true,
@@ -450,6 +459,7 @@ watch(
 function onPointerDown(e: PointerEvent) {
   const target = e.target as HTMLElement | null
   if (!target || !target.closest('[data-vaul-drawer]')) return
+  pressStart = { x: e.clientX, y: e.clientY }
   isDragging.value = true
   startLiveTracking()
 }
@@ -459,6 +469,24 @@ function onPointerEnd() {
   // keeps ticking until @animation-end.
   isDragging.value = false
 }
+
+// A drag that ends over a control must not press it. Keyboard clicks
+// (detail 0) carry no pointer position and always go through.
+const TAP_SLOP_PX = 10
+let pressStart: { x: number; y: number } | null = null
+useEventListener(
+  sheet,
+  'click',
+  (e: MouseEvent) => {
+    if (!pressStart || e.detail === 0) return
+    const moved =
+      Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > TAP_SLOP_PX
+    if (!moved) return
+    e.preventDefault()
+    e.stopPropagation()
+  },
+  { capture: true },
+)
 
 onMounted(() => {
   window.addEventListener('pointerdown', onPointerDown, true)
@@ -564,12 +592,21 @@ function measureDynamicPeek() {
   if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
   const top = contentEl.getBoundingClientRect().top
   const bottom = peekEl.value.getBoundingClientRect().bottom
-  const h = bottom - top + (props.floating ? 0 : DYNAMIC_PEEK_BUFFER)
+  const h =
+    bottom - top + (props.floating ? 0 : DYNAMIC_PEEK_BUFFER) + footerAllowance()
   if (h <= 0) return
 
   // `clampPeek` keeps the result below the next detent once the footer
   // allowance has been folded in.
   dynamicPeekPx.value = Math.round(h)
+}
+
+// The first detent gets the home-indicator inset from `adjustForSafeArea`, with
+// the footer parked below it. A higher one shows the footer, which carries
+// that inset itself.
+function footerAllowance() {
+  if (props.dynamicPeekIndex === 0) return 0
+  return hasFooter.value ? footerHeight.value : safeAreaInsetBottom.value
 }
 
 // Re-measure whenever the peek content resizes, the registered element
@@ -584,6 +621,7 @@ watch(
     () => showChromeBar.value,
     () => safeAreaInsetBottom.value,
     () => props.dynamicPeek,
+    footerHeight,
     // Re-measure when the sheet returns to the top, picking up any content
     // resize that was skipped while scrolled.
     () => isAtTop.value,
@@ -609,6 +647,7 @@ const userSnapPoints = computed<SnapPoint[]>(() =>
   resolveSnapPoints({
     base: baseSnapPoints.value,
     measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    measuredIndex: props.dynamicPeekIndex,
     viewportHeight: windowHeight.value,
     insets: null,
   }),
@@ -618,6 +657,7 @@ const snapPoints = computed<SnapPoint[]>(() =>
   resolveSnapPoints({
     base: baseSnapPoints.value,
     measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    measuredIndex: props.dynamicPeekIndex,
     viewportHeight: windowHeight.value,
     insets: props.respectSafeArea
       ? {
@@ -859,11 +899,26 @@ function handleTouchEnd() {
   isScrollingUp = false
 }
 
+// Vaul opens on the first detent and writes it back as the open animation
+// ends, so the initial detent is applied on the frame after.
+let placedInitially = false
+function placeInitially() {
+  if (placedInitially) return
+  placedInitially = true
+  const index = props.initialSnapPointIndex
+  if (!index) return
+  requestAnimationFrame(() => {
+    snapIndex.value = index
+    activeSnapPoint.value = snapPoints.value[index] ?? null
+  })
+}
+
 function handleAnimationEnd(open: boolean) {
   // Clear the animation flag so obstructing bounds switch back to the
   // target snap point (flyTo callers can read stable padding again).
   isAnimating.value = false
   stopLiveTracking()
+  if (open) placeInitially()
 
   // Only a sheet that really closed goes back to its default detent. Vaul
   // also reports an animation end for an outside interaction that was

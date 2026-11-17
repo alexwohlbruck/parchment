@@ -42,6 +42,7 @@ import {
   LayersIcon,
   CompassIcon,
   Grid2x2,
+  PanelBottom,
 } from 'lucide-vue-next'
 
 const appStore = useAppStore()
@@ -49,7 +50,8 @@ const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { unitSystem, floorNumbering, shakeForFeedback } = storeToRefs(appStore)
+const { unitSystem, floorNumbering, shakeForFeedback, homeSheetStart } =
+  storeToRefs(appStore)
 const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 
@@ -350,6 +352,33 @@ watch(
               </SelectItem>
               <SelectItem :value="UnitSystem.IMPERIAL">
                 {{ $t('settings.behavior.units.imperial') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <SettingsSection
+      v-if="isMobileScreen"
+      id="home-screen"
+      :title="$t('settings.behavior.homeScreen.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.behavior.homeScreen.sheetStart')"
+        :icon="PanelBottom"
+      >
+        <Select v-model="homeSheetStart">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="search">
+                {{ $t('settings.behavior.homeScreen.search') }}
+              </SelectItem>
+              <SelectItem value="library">
+                {{ $t('settings.behavior.homeScreen.library') }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>

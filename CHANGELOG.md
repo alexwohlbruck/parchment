@@ -3,15 +3,20 @@
 ### Added
 
 * The desktop sidebar lists your recent places and searches under the main links, with where and when, as icons when collapsed.
+* Choose whether the home sheet opens to the search bar or your library, in Settings → Behavior.
 
 ### Changed
 
 * Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
 * Entering a recovery key now opens as a compact card on phones, with clearer wording and a plain error when the key doesn't match.
+* The home sheet's middle position now stops just below your library.
 
 ### Fixed
 
 * Every place you open now shows up in your recents, including ones opened offline.
+* Dragging the home sheet by its search bar no longer opens the keyboard.
+* Dragging a sheet no longer presses the button your finger lands on.
+* Search results and your library no longer show at once while you click away from search.
 
 ## [0.22.1] - 2026-11-15
 

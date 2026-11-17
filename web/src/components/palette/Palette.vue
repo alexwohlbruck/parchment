@@ -38,6 +38,7 @@ import { makePlaceDisplay } from '@/services/place/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
+import { useTapToFocus } from '@/composables/sheet/useTapToFocus'
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
@@ -49,6 +50,7 @@ import { isAskOffered } from '@/lib/ask/ask-access'
 const emit = defineEmits<{
   (e: 'inputFocused'): void
   (e: 'update:open', value: boolean): void
+  (e: 'update:results', value: boolean): void
 }>()
 
 const props = withDefaults(
@@ -103,6 +105,8 @@ const commandOpen = computed({
   set: value => emit('update:open', value),
 })
 const showResults = ref(false)
+// `open` drops on the press outside, but the results stay up until its click.
+watch(showResults, value => emit('update:results', value))
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })
@@ -116,6 +120,7 @@ const { nextSignal } = useAbortController()
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
+useTapToFocus(() => input.value?.inputElement)
 const { escape } = useMagicKeys()
 
 const filteredCommands = computed(() => {

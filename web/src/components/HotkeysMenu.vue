@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import fuzzysort from 'fuzzysort'
 import {
   Dialog,
@@ -9,16 +10,27 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useCommandService } from '@/services/command.service'
-import { CommandName, useCommandStore } from '@/stores/command.store'
+import { useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
-import type { Command } from '@/types/command.types'
-import { useHotkeys } from '@/composables/useHotkeys'
+import {
+  HOTKEY_CATEGORIES,
+  type Hotkey,
+  type HotkeyCategory,
+} from '@/types/command.types'
 import { appEventBus } from '@/lib/event-bus'
 
-const commandService = useCommandService()
+type HotkeyEntry = {
+  id: string
+  name: string
+  description?: string
+  keywords?: string
+  hotkey: Hotkey
+  category: HotkeyCategory
+}
+
+const { t } = useI18n()
 const commandStore = useCommandStore()
 const hotkeyStore = useHotkeyStore()
 
@@ -37,24 +49,23 @@ onUnmounted(() => {
   appEventBus.off('hotkeys:open', openHotkeysMenu)
 })
 
-// Combine command hotkeys and ephemeral hotkeys
-const hotkeys = computed(() => {
-  const commandHotkeys: Array<Command & { id: string }> = commandStore.commands
-    .filter(command => !!command.hotkey)
-    .map(command => ({
-      ...command,
-      id: command.id,
-    }))
-
-  const ephemeralHotkeys = hotkeyStore.getAllEphemeralHotkeys().map(hotkey => ({
-    id: hotkey.id,
-    name: hotkey.name,
-    description: hotkey.description,
-    hotkey: hotkey.hotkey,
-  }))
-
-  return [...commandHotkeys, ...ephemeralHotkeys]
-})
+const hotkeys = computed<HotkeyEntry[]>(() => [
+  ...commandStore.commands.flatMap(command =>
+    command.hotkey
+      ? [
+          {
+            id: command.id,
+            name: command.name,
+            description: command.description,
+            keywords: command.keywords,
+            hotkey: command.hotkey,
+            category: command.hotkeyCategory ?? 'general',
+          },
+        ]
+      : [],
+  ),
+  ...hotkeyStore.ephemeralHotkeysList,
+])
 
 const searchResults = computed(() => {
   if (!query.value) return hotkeys.value
@@ -65,46 +76,57 @@ const searchResults = computed(() => {
     .map(result => result.obj)
 })
 
+const groups = computed(() =>
+  HOTKEY_CATEGORIES.map(category => ({
+    category,
+    hotkeys: searchResults.value.filter(hotkey => hotkey.category === category),
+  })).filter(group => group.hotkeys.length),
+)
+
 watch(open, value => {
   if (!value) query.value = ''
 })
-
-useHotkeys([
-  {
-    id: 'open-hotkeys-menu',
-    key: ['h'],
-    name: 'Open hotkeys menu',
-    description: 'Open the hotkeys menu',
-    handler: openHotkeysMenu,
-  },
-])
 </script>
 
 <template>
   <Dialog v-model:open="open">
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>Keyboard shortcuts</DialogTitle>
+        <DialogTitle>{{
+          t('palette.commands.openHotkeysMenu.name')
+        }}</DialogTitle>
         <DialogDescription>
-          View all the keyboard shortcuts available in the app.
+          {{ t('palette.commands.openHotkeysMenu.description') }}
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex flex-col gap-4">
-        <Input v-model="query" placeholder="Search..." />
+      <div class="flex flex-col gap-6">
+        <Input v-model="query" :placeholder="t('hotkeys.search')" />
 
-        <div v-for="command in searchResults" :key="command.id">
-          <template v-if="command.hotkey">
-            <div class="flex justify-between items-center">
-              <div class="flex flex-col">
-                <Span class="font-medium text-sm">{{ command.name }}</Span>
-                <Span class="text-sm">{{ command.description }}</Span>
-              </div>
+        <section
+          v-for="group in groups"
+          :key="group.category"
+          class="flex flex-col gap-3"
+        >
+          <Span class="text-xs font-medium text-muted-foreground">
+            {{ t(`hotkeys.categories.${group.category}`) }}
+          </Span>
 
-              <Kbd :hotkey="command.hotkey" />
+          <div
+            v-for="hotkey in group.hotkeys"
+            :key="hotkey.id"
+            class="flex justify-between items-center gap-4"
+          >
+            <div class="flex flex-col">
+              <Span class="font-medium text-sm">{{ hotkey.name }}</Span>
+              <Span class="text-sm text-muted-foreground">
+                {{ hotkey.description }}
+              </Span>
             </div>
-          </template>
-        </div>
+
+            <Kbd :hotkey="hotkey.hotkey" />
+          </div>
+        </section>
       </div>
     </DialogContent>
   </Dialog>

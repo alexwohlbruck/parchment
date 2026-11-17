@@ -400,6 +400,7 @@ useHotkeys([
       }
     },
     id: 'measure-undo',
+    category: 'tools',
     name: 'Measure undo',
     description: 'Undo last measure point change',
   },
@@ -411,6 +412,7 @@ useHotkeys([
       }
     },
     id: 'measure-redo',
+    category: 'tools',
     name: 'Measure redo',
     description: 'Redo measure point change',
   },
@@ -422,6 +424,7 @@ useHotkeys([
       }
     },
     id: 'measure-close',
+    category: 'tools',
     name: 'Close measure tool',
     description: 'Close the measure tool',
   },

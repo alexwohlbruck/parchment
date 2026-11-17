@@ -469,6 +469,7 @@ export const useCommandStore = defineStore('command', () => {
       },
       {
         id: CommandName.CHOOSE_MAP_ENGINE,
+        hotkeyCategory: 'map',
         name: t('palette.commands.chooseMapEngine.name'),
         description: t('palette.commands.chooseMapEngine.description'),
         icon: CogIcon,
@@ -508,6 +509,7 @@ export const useCommandStore = defineStore('command', () => {
       },
       {
         id: CommandName.MAP_PROJECTION,
+        hotkeyCategory: 'map',
         name: t('palette.commands.mapProjection.name'),
         description: t('palette.commands.mapProjection.description'),
         icon: GlobeIcon,
@@ -534,6 +536,7 @@ export const useCommandStore = defineStore('command', () => {
       },
       {
         id: CommandName.TOGGLE_CAMERA_POSITION,
+        hotkeyCategory: 'map',
         name: t('palette.commands.toggleCameraPosition.name'),
         description: t('palette.commands.toggleCameraPosition.description'),
         keywords: t('palette.commands.toggleCameraPosition.keywords'),

@@ -501,6 +501,14 @@
       "hidden": "Hidden"
     }
   },
+  "hotkeys": {
+    "search": "Search shortcuts",
+    "categories": {
+      "general": "General",
+      "map": "Map",
+      "tools": "Tools"
+    }
+  },
   "messages": {
     "error": {
       "network": {

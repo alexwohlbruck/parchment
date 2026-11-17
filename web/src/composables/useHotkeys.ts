@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted, getCurrentInstance } from 'vue'
 import mousetrap from 'mousetrap'
-import { type Hotkey } from '@/types/command.types'
+import type { Hotkey, HotkeyCategory } from '@/types/command.types'
 import { useHotkeyStore, type AllowInInput } from '@/stores/hotkey.store'
 
 // Re-export for convenience
@@ -12,6 +12,7 @@ interface HotkeyBinding {
   id?: string
   name?: string // Required if id is provided
   description?: string // Required if id is provided
+  category?: HotkeyCategory
   // Whether to call event.preventDefault() before invoking the handler.
   // Defaults to true for backwards compatibility, but should be set to
   // false for keys whose default behaviour we want to preserve when our
@@ -90,6 +91,7 @@ export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
         id,
         name,
         description,
+        category,
         preventDefault = true,
         allowInInput,
       }) => {
@@ -103,6 +105,7 @@ export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
           componentName,
           preventDefault,
           allowInInput,
+          category,
         )
 
         // One mousetrap callback per key, dispatching to every component that

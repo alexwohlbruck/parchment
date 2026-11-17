@@ -494,6 +494,14 @@
       "hidden": "Oculto"
     }
   },
+  "hotkeys": {
+    "search": "Buscar atajos",
+    "categories": {
+      "general": "General",
+      "map": "Mapa",
+      "tools": "Herramientas"
+    }
+  },
   "messages": {
     "error": {
       "network": {

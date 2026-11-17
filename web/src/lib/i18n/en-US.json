@@ -3087,6 +3087,12 @@
       "shakeForFeedback": {
         "title": "Shake to send feedback",
         "description": "Give your phone a shake to open the feedback form. Needs motion access."
+      },
+      "homeScreen": {
+        "title": "Home screen",
+        "sheetStart": "Sheet opens to",
+        "search": "Search bar",
+        "library": "Library"
       }
     },
     "appearance": {

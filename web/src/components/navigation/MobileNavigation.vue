@@ -2,6 +2,7 @@
 import { computed, ref, watch, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
+import { useAppStore } from '@/stores/app.store'
 import { Card } from '@/components/ui/card'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
@@ -10,24 +11,26 @@ import SyncStatus from '@/components/sync/SyncStatus.vue'
 import { SheetFooter } from '@/components/sheet'
 
 const route = useRoute()
+const appStore = useAppStore()
 const activeSnapPoint = ref<number | string | null>(null)
 const activeSnapPointIndex = ref<number>(-1)
 const cardRef = ref<InstanceType<typeof Card>>()
+const dashboardRef = ref<InstanceType<typeof DashboardHome>>()
 const paletteFocused = ref(false)
 const PEEK_HEIGHT = '65px'
-
-const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
 
 function minimizeSheet() {
   activeSnapPoint.value = PEEK_HEIGHT
 }
 
 provide('minimizeMobileSheet', minimizeSheet)
+
 provide('expandMobileSheet', () => {
   activeSnapPoint.value = 1
 })
 
-watch(activeSnapPointIndex, () => {
+watch(activeSnapPointIndex, index => {
+  if (index === 0) dashboardRef.value?.exitSearch()
   const el = (cardRef.value as any)?.$el as HTMLElement | undefined
   const scrollParent = el?.parentElement
   if (scrollParent) {
@@ -40,6 +43,12 @@ const isMapSubview = computed(
     route.matched.length > 1 &&
     route.name !== AppRoute.MAP &&
     !route.meta.dialog,
+)
+
+// The middle detent is sized to the library. A routed view opened cold keeps
+// the sheet down beneath it.
+const startIndex = computed(() =>
+  appStore.homeSheetStart === 'library' && !isMapSubview.value ? 1 : 0,
 )
 
 watch(
@@ -58,6 +67,7 @@ watch(
     :dynamic-peek-index="1"
     :dismissable="false"
     :z-index-offset="-10"
+    :initial-snap-point-index="startIndex"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"
     class="w-full md:w-104 h-full"
@@ -66,7 +76,7 @@ watch(
       ref="cardRef"
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0"
     >
-      <DashboardHome @update:palette-focused="v => paletteFocused = v" />
+      <DashboardHome ref="dashboardRef" @update:palette-focused="v => paletteFocused = v" />
     </Card>
 
     <!-- The recents list below is endless, so the account row is pinned rather

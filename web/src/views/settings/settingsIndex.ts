@@ -180,6 +180,11 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'settings.behavior.units.title',
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
       },
+      {
+        id: 'home-screen',
+        titleKey: 'settings.behavior.homeScreen.title',
+        keywords: ['sheet', 'drawer', 'library', 'peek'],
+      },
     ],
   },
   {

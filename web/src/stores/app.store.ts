@@ -11,6 +11,8 @@ export interface ManualBounds {
   height: number
 }
 
+export type HomeSheetStart = 'search' | 'library'
+
 export const useAppStore = defineStore('app', () => {
   const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
   const manualBoundsMap = ref<Map<string, ManualBounds>>(new Map())
@@ -298,6 +300,9 @@ export const useAppStore = defineStore('app', () => {
   // access, and turning it on is the user gesture iOS requires to ask for it.
   const shakeForFeedback = useStorage<boolean>('shake-for-feedback', false)
 
+  // Where the mobile home sheet rests when the app opens.
+  const homeSheetStart = useStorage<HomeSheetStart>('home-sheet-start', 'search')
+
   // Shared hidden state for the desktop LeftSheet so DesktopNavigation can
   // open the drawer when a nav link is clicked while it is collapsed.
   const leftSheetHidden = ref(false)
@@ -335,6 +340,7 @@ export const useAppStore = defineStore('app', () => {
     unitSystem,
     floorNumbering,
     shakeForFeedback,
+    homeSheetStart,
     leftSheetButtonColumnWidth,
     leftSheetOverlayWidth,
     leftSheetHidden,

@@ -2,6 +2,8 @@
 
 ### Added
 
+* The desktop sidebar lists your recent places and searches under the main links, as icons when collapsed.
+
 ### Changed
 
 * Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.

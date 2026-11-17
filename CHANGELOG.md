@@ -7,6 +7,7 @@
 ### Changed
 
 * Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
+* Entering a recovery key now opens as a compact card on phones, with clearer wording and a plain error when the key doesn't match.
 
 ### Fixed
 

@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -21,8 +21,8 @@ import { Code } from '@/components/ui/code'
 import CopyButton from '@/components/CopyButton.vue'
 import {
   Key,
+  KeyRound,
   Check,
-  Download,
   AtSign,
   Fingerprint,
   Smartphone,
@@ -76,6 +76,16 @@ const showTransferDialog = ref(false)
 const recoveryKeySetupRef = ref<InstanceType<typeof RecoveryKeySetupContent> | null>(null)
 
 const dismissWithCompletion = useDialogCompletion(isOpen, emit)
+
+function showTypeKeyStep() {
+  error.value = null
+  importStep.value = 'type-key'
+}
+
+function showChooseStep() {
+  error.value = null
+  importStep.value = 'choose'
+}
 
 function openTransferDialog() {
   showTransferDialog.value = true
@@ -143,7 +153,7 @@ async function handleImport() {
     importStep.value = 'complete'
     dismissWithCompletion()
   } else {
-    error.value = result.error || t('settings.identity.recoveryKey.import.invalidKey')
+    error.value = t('settings.identity.recoveryKey.import.invalidKey')
   }
 }
 
@@ -191,7 +201,7 @@ function handleClose() {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-md">
+    <DialogContent class="sm:max-w-md" :compact="mode === 'import'">
       <!-- Setup Mode -->
       <template v-if="mode === 'setup'">
         <!-- Main recovery-key display + confirm step -->
@@ -259,11 +269,12 @@ function handleClose() {
 
       <!-- Import Mode -->
       <template v-else-if="mode === 'import'">
-        <!-- Primary path: unlock with passkey if slots exist -->
         <template v-if="importStep === 'choose'">
-          <DialogHeader>
-            <DialogTitle class="flex items-center gap-2">
-              <Fingerprint class="h-5 w-5" />
+          <DialogHeader class="items-center sm:text-center">
+            <div class="flex size-11 items-center justify-center rounded-full bg-muted">
+              <Fingerprint class="size-5 text-muted-foreground" />
+            </div>
+            <DialogTitle>
               {{ t('settings.identity.recoveryKey.import.chooseTitle') }}
             </DialogTitle>
             <DialogDescription>
@@ -271,45 +282,38 @@ function handleClose() {
             </DialogDescription>
           </DialogHeader>
 
-          <div class="flex flex-col gap-4 py-4">
-            <Alert v-if="error" variant="destructive">
-              <AlertDescription>{{ error }}</AlertDescription>
-            </Alert>
-          </div>
+          <p v-if="error" class="text-sm text-destructive text-center">{{ error }}</p>
 
-          <DialogFooter class="gap-2 sm:flex-col">
+          <div class="flex flex-col gap-2">
             <Button
               class="w-full"
               :disabled="isLoading"
               @click="handleUnlockWithPasskey"
             >
-              <Spinner v-if="isLoading" class="h-4 w-4 mr-2" />
-              <Fingerprint v-else class="h-4 w-4 mr-2" />
+              <Spinner v-if="isLoading" class="size-4 mr-2" />
+              <Fingerprint v-else class="size-4 mr-2" />
               {{ t('settings.identity.recoveryKey.import.unlockWithPasskey') }}
             </Button>
-            <Button
-              variant="outline"
-              class="w-full"
-              @click="openTransferDialog"
-            >
-              <Smartphone class="h-4 w-4 mr-2" />
+            <Button variant="outline" class="w-full" @click="openTransferDialog">
+              <Smartphone class="size-4 mr-2" />
               {{ t('settings.identity.recoveryKey.import.pairWithOtherDevice') }}
             </Button>
-            <Button
-              variant="ghost"
-              class="w-full"
-              @click="importStep = 'type-key'"
-            >
+            <Button variant="ghost" class="w-full" @click="showTypeKeyStep">
               {{ t('settings.identity.recoveryKey.import.useRecoveryKeyInstead') }}
             </Button>
-          </DialogFooter>
+          </div>
         </template>
 
-        <!-- Fallback path: typed recovery key -->
-        <template v-else-if="importStep === 'type-key'">
-          <DialogHeader>
-            <DialogTitle class="flex items-center gap-2">
-              <Download class="h-5 w-5" />
+        <form
+          v-else-if="importStep === 'type-key'"
+          class="flex flex-col gap-5"
+          @submit.prevent="handleImport"
+        >
+          <DialogHeader class="items-center sm:text-center">
+            <div class="flex size-11 items-center justify-center rounded-full bg-muted">
+              <KeyRound class="size-5 text-muted-foreground" />
+            </div>
+            <DialogTitle>
               {{ t('settings.identity.recoveryKey.import.typeKeyTitle') }}
             </DialogTitle>
             <DialogDescription>
@@ -317,49 +321,52 @@ function handleClose() {
             </DialogDescription>
           </DialogHeader>
 
-          <div class="flex flex-col gap-4 py-4">
-            <div class="flex flex-col gap-2">
-              <Label for="recoveryKey">{{ t('settings.identity.recoveryKey.import.recoveryKeyLabel') }}</Label>
-              <Input
-                id="recoveryKey"
-                v-model="recoveryKeyInput"
-                :placeholder="t('settings.identity.recoveryKey.import.recoveryKeyPlaceholder')"
-                :disabled="isLoading"
-              />
-            </div>
-
-            <Alert v-if="error" variant="destructive">
-              <AlertDescription>{{ error }}</AlertDescription>
-            </Alert>
+          <div class="flex flex-col gap-1.5">
+            <Textarea
+              v-model="recoveryKeyInput"
+              rows="2"
+              :aria-label="t('settings.identity.recoveryKey.import.recoveryKeyLabel')"
+              :aria-invalid="!!error"
+              :placeholder="t('settings.identity.recoveryKey.import.recoveryKeyPlaceholder')"
+              :readonly="isLoading"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              class="min-h-0 resize-none break-all font-mono text-sm placeholder:font-sans"
+              :class="error && 'border-destructive focus-visible:ring-destructive'"
+              @input="error = null"
+              @keydown.enter.exact.prevent="handleImport"
+            />
+            <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
           </div>
 
-          <DialogFooter class="gap-2 sm:flex-col">
-            <div class="flex w-full gap-2 justify-end">
-              <Button
-                v-if="hasAnyPasskeySlot"
-                variant="ghost"
-                @click="importStep = 'choose'"
-              >
-                {{ t('general.back') }}
-              </Button>
-              <Button variant="outline" @click="handleClose"> {{ t('general.cancel') }} </Button>
-              <Button
-                :disabled="!recoveryKeyInput.trim() || isLoading"
-                @click="handleImport"
-              >
-                <Spinner v-if="isLoading" class="h-4 w-4 mr-2" />
-                {{ t('settings.identity.recoveryKey.import.importAction') }}
-              </Button>
-            </div>
+          <Button
+            type="submit"
+            class="w-full"
+            :disabled="!recoveryKeyInput.trim() || isLoading"
+          >
+            <Spinner v-if="isLoading" class="size-4 mr-2" />
+            {{ t('settings.identity.recoveryKey.import.importAction') }}
+          </Button>
+
+          <div class="flex justify-center gap-5 text-sm text-muted-foreground">
+            <button
+              v-if="hasAnyPasskeySlot"
+              type="button"
+              class="hover:text-foreground"
+              @click="showChooseStep"
+            >
+              {{ t('settings.identity.recoveryKey.import.usePasskeyInstead') }}
+            </button>
             <button
               type="button"
-              class="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 text-center w-full pt-2"
+              class="hover:text-destructive"
               @click="handleResetIdentity"
             >
               {{ t('settings.identity.recoveryKey.import.lostKeyLink') }}
             </button>
-          </DialogFooter>
-        </template>
+          </div>
+        </form>
 
         <!-- Complete -->
         <template v-else-if="importStep === 'complete'">

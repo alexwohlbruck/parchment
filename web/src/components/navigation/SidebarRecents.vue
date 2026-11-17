@@ -13,12 +13,13 @@ import {
   recentSearchToDisplay,
 } from '@/services/place/place-display'
 import { useScrollFade } from '@/composables/useScrollFade'
-import { SidebarMenu, SidebarMenuItem, SidebarSeparator } from '@/components/ui/sidebar'
+import { SidebarMenu, SidebarMenuItem, SidebarSeparator, useSidebar } from '@/components/ui/sidebar'
 import { ItemIcon } from '@/components/ui/item-icon'
 
 const RECENTS_LIMIT = 30
 
 const isDark = useDark()
+const { collapsed } = useSidebar()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const recentsStore = useRecentsStore()
@@ -85,7 +86,8 @@ const items = computed(() =>
               size="sm"
               variant="solid"
               shape="circle"
-              class="!size-7"
+              class="transition-[width,height] duration-200"
+              :class="collapsed ? '!size-6' : '!size-7'"
             />
           </template>
         </SidebarMenuItem>

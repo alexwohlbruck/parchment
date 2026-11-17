@@ -80,7 +80,8 @@ const shortcutProps = computed(() =>
           :class="
             cn(
               SIDEBAR_ROW,
-              description && 'h-12',
+              description && !collapsed && 'h-12',
+              description && 'transition-[height,color,background-color] duration-200',
               'relative w-full flex items-center cursor-pointer no-underline',
               'focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
               'text-foreground',

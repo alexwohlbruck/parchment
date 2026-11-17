@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
@@ -25,8 +25,8 @@ const props = withDefaults(
   defineProps<{
     label: string
     icon?: Icon
-    /** Makes the row a link. */
-    to?: string
+    /** Makes the row a link. A path string marks the row active for its whole subtree. */
+    to?: RouteLocationRaw
     /** Overrides the route-derived active state. */
     active?: boolean
     hotkey?: Hotkey
@@ -41,11 +41,15 @@ const props = withDefaults(
 defineEmits<{ (e: 'click', event: MouseEvent): void }>()
 
 const route = useRoute()
+const router = useRouter()
 const { collapsed } = useSidebar()
 
-const isActive = computed(() =>
-  props.active ?? (props.to ? route.path.startsWith(props.to) : false),
-)
+const isActive = computed(() => {
+  if (props.active !== undefined) return props.active
+  if (!props.to) return false
+  if (typeof props.to === 'string') return route.path.startsWith(props.to)
+  return router.resolve(props.to).path === route.path
+})
 
 const hasShortcut = computed(
   () => !!(props.hotkey || props.hotkeyId || props.commandId),
@@ -82,7 +86,10 @@ const shortcutProps = computed(() =>
           "
           @click="$emit('click', $event)"
         >
-          <span v-if="icon" class="relative shrink-0">
+          <span v-if="$slots.icon" class="flex items-center justify-center shrink-0 size-5">
+            <slot name="icon" />
+          </span>
+          <span v-else-if="icon" class="relative shrink-0">
             <component
               :is="icon"
               class="size-5 transition-colors"
@@ -96,7 +103,7 @@ const shortcutProps = computed(() =>
             </span>
           </span>
           <span
-            class="flex-1 text-left whitespace-nowrap transition-opacity duration-150"
+            class="flex-1 min-w-0 truncate text-left transition-opacity duration-150"
             :class="collapsed ? 'opacity-0' : 'opacity-100'"
           >
             {{ label }}

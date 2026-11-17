@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.22.2] - 2026-11-17
+
+### Added
+
 * The desktop sidebar lists your recent places and searches under the main links, with where and when, as icons when collapsed.
 * Choose whether the home sheet opens to the search bar or your library, in Settings → Behavior.
 

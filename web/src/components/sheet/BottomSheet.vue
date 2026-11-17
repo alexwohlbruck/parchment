@@ -144,6 +144,8 @@ const props = withDefaults(
     showCloseButton?: boolean
     activeSnapPoint?: number | string | null
     defaultSnapPointIndex?: number
+    /** Detent to rest on once the sheet has first opened. */
+    initialSnapPointIndex?: number
     customSnapPoints?: (number | string)[]
     obstructingKey?: string
     /**
@@ -457,6 +459,7 @@ watch(
 function onPointerDown(e: PointerEvent) {
   const target = e.target as HTMLElement | null
   if (!target || !target.closest('[data-vaul-drawer]')) return
+  pressStart = { x: e.clientX, y: e.clientY }
   isDragging.value = true
   startLiveTracking()
 }
@@ -466,6 +469,24 @@ function onPointerEnd() {
   // keeps ticking until @animation-end.
   isDragging.value = false
 }
+
+// A drag that ends over a control must not press it. Keyboard clicks
+// (detail 0) carry no pointer position and always go through.
+const TAP_SLOP_PX = 10
+let pressStart: { x: number; y: number } | null = null
+useEventListener(
+  sheet,
+  'click',
+  (e: MouseEvent) => {
+    if (!pressStart || e.detail === 0) return
+    const moved =
+      Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > TAP_SLOP_PX
+    if (!moved) return
+    e.preventDefault()
+    e.stopPropagation()
+  },
+  { capture: true },
+)
 
 onMounted(() => {
   window.addEventListener('pointerdown', onPointerDown, true)
@@ -878,11 +899,26 @@ function handleTouchEnd() {
   isScrollingUp = false
 }
 
+// Vaul opens on the first detent and writes it back as the open animation
+// ends, so the initial detent is applied on the frame after.
+let placedInitially = false
+function placeInitially() {
+  if (placedInitially) return
+  placedInitially = true
+  const index = props.initialSnapPointIndex
+  if (!index) return
+  requestAnimationFrame(() => {
+    snapIndex.value = index
+    activeSnapPoint.value = snapPoints.value[index] ?? null
+  })
+}
+
 function handleAnimationEnd(open: boolean) {
   // Clear the animation flag so obstructing bounds switch back to the
   // target snap point (flyTo callers can read stable padding again).
   isAnimating.value = false
   stopLiveTracking()
+  if (open) placeInitially()
 
   // Only a sheet that really closed goes back to its default detent. Vaul
   // also reports an animation end for an outside interaction that was

@@ -38,6 +38,7 @@ import { makePlaceDisplay } from '@/services/place/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
+import { useTapToFocus } from '@/composables/sheet/useTapToFocus'
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
@@ -116,6 +117,7 @@ const { nextSignal } = useAbortController()
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
+useTapToFocus(() => input.value?.inputElement)
 const { escape } = useMagicKeys()
 
 const filteredCommands = computed(() => {

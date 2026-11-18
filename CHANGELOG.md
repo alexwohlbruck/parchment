@@ -3,6 +3,7 @@
 ### Added
 
 * The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
+* Battery saver in Behavior settings turns off 3D and checks your location less often; Extreme shows only roads on black. Either can turn on by itself when your battery is low.
 
 ### Changed
 

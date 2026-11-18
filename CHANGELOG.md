@@ -6,6 +6,7 @@
 
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
 * The bottom of the home sheet fades into your account row instead of cutting off.
+* 3D trees, street furniture and landmark models download in a fraction of the requests and size.
 
 ### Fixed
 

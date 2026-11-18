@@ -120,7 +120,8 @@ import {
   forestFloorColor,
   woodColorOf,
 } from '@/lib/map-style/detail-layers'
-import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import type { GlbModel } from '@/lib/map-objects/glb.mjs'
+import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
@@ -143,7 +144,7 @@ type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
-  OBJECT_MODELS,
+  OBJECT_MODEL_PACK,
   OBJECT_PALETTE,
   OBJECT_SOLID,
   OBJECT_SPECS,
@@ -1106,9 +1107,7 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
 
-    this.objectModels ??= this.firstTilesLaidOut().then(() => Promise.all(
-      Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
-    )).then(entries => Object.fromEntries(entries))
+    this.objectModels ??= this.firstTilesLaidOut().then(() => loadModelPack(OBJECT_MODEL_PACK))
 
     let models: Record<string, GlbModel>
     try {

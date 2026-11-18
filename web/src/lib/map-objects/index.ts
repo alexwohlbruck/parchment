@@ -9,6 +9,7 @@
 import type { FlavorId } from '@/lib/map-style/build'
 import { type ObjectPalette, type ObjectSourceSpec } from './object-layer'
 import models from './models.json'
+import pack from './model-pack.json'
 import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
 import { SPORT_MODELS, SPORT_OBJECTS } from './sports'
@@ -44,6 +45,9 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
 export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
   Object.keys(models).filter(name => !(name in INDOOR_FLIGHT_MODELS)).map(name => [name, `/models/${name}.glb`]),
 )
+
+/** All of `OBJECT_MODELS` in one file; see `model-pack.mjs`. */
+export const OBJECT_MODEL_PACK = `/models/${pack.file}`
 
 /**
  * Which models are solids, and may therefore be drawn with back faces culled.

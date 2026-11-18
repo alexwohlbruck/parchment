@@ -879,7 +879,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-height',
-        replaceablePaint('fill-extrusion', 'fill-extrusion-height', 0),
+        // Still a zoom curve: a feature state written before the tiles are laid out again is read through the old one's shape.
+        replaceablePaint('fill-extrusion', 'fill-extrusion-height', ['interpolate', ['linear'], ['zoom'], 14, 0, 14.4, 0]),
       )
       this.mapInstance.setPaintProperty(
         buildingLayerId,

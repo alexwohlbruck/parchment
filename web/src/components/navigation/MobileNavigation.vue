@@ -18,6 +18,9 @@ const cardRef = ref<InstanceType<typeof Card>>()
 const dashboardRef = ref<InstanceType<typeof DashboardHome>>()
 const paletteFocused = ref(false)
 const PEEK_HEIGHT = '65px'
+const snapPoints = computed(() =>
+  paletteFocused.value ? [PEEK_HEIGHT, 1] : [PEEK_HEIGHT, 0.5, 1],
+)
 
 function minimizeSheet() {
   activeSnapPoint.value = PEEK_HEIGHT
@@ -63,7 +66,8 @@ watch(
   <bottom-sheet
     open
     :peek-height="PEEK_HEIGHT"
-    dynamic-peek
+    :custom-snap-points="snapPoints"
+    :dynamic-peek="!paletteFocused"
     :dynamic-peek-index="1"
     :dismissable="false"
     :z-index-offset="-10"

@@ -728,9 +728,14 @@ watch(activeSnapPoint, val => {
 // flush: 'post' ensures we run after vaul's internal updates
 watch(
   snapPoints,
-  points => {
+  (points, oldPoints) => {
     // A detent that moves mid-drag must not yank the sheet from under the finger.
     if (!props.open || snapIndex.value < 0 || isDragging.value) return
+    // A sheet resting fully open stays fully open when detents are added or removed.
+    if (oldPoints && snapIndex.value === oldPoints.length - 1) {
+      snapIndex.value = points.length - 1
+    }
+    snapIndex.value = Math.min(snapIndex.value, points.length - 1)
     const target = points[snapIndex.value]
     if (target && activeSnapPoint.value !== target) {
       activeSnapPoint.value = target

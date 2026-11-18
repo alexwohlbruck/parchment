@@ -82,8 +82,10 @@ import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
+import { usePowerStore } from '@/stores/power.store'
 import {
   buildMapStyle,
+  buildRoadsOnlyStyle,
   buildSatelliteStyle,
   layerGroups,
   maplibreProjection,
@@ -1621,6 +1623,19 @@ export class MaplibreStrategy extends MapStrategy {
     this.reloadStyle()
   }
 
+  /** The value the current style was built with; see `setRoadsOnly`. */
+  private builtRoadsOnly?: boolean
+
+  private roadsOnly(): boolean {
+    this.builtRoadsOnly = usePowerStore().saver === 'extreme'
+    return this.builtRoadsOnly
+  }
+
+  override setRoadsOnly(value: boolean) {
+    if (this.builtRoadsOnly === undefined || this.builtRoadsOnly === value) return
+    this.reloadStyle()
+  }
+
   /**
    * The live transform, which is where everything the camera API does not
    * reach lives.
@@ -1776,6 +1791,7 @@ export class MaplibreStrategy extends MapStrategy {
     const styleOpts = this.styleOptions(this.tileServerUrl)
 
     const style = (() => {
+      if (this.roadsOnly()) return buildRoadsOnlyStyle(styleOpts)
       switch (this.currentBasemap) {
         case 'satellite':
           return buildSatelliteStyle({ ...styleOpts, hybrid: false })

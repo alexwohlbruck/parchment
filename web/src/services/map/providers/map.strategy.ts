@@ -209,6 +209,8 @@ export class MapStrategy {
   setBasemap(basemap: Basemap) {}
   setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
+  /** Extreme battery saver's black, roads-only basemap. MapLibre only. */
+  setRoadsOnly(value: boolean) {}
   setIndoorMaps(value: boolean) {}
   /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
   setIndoorLevel(level: number | null) {}

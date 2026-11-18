@@ -10,6 +10,7 @@
 export {
   buildMapStyle,
   buildSatelliteStyle,
+  buildRoadsOnlyStyle,
   buildLayers,
   maplibreProjection,
   layerGroups,

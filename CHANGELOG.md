@@ -4,6 +4,9 @@
 
 ### Changed
 
+* While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
+* The bottom of the home sheet fades into your account row instead of cutting off.
+
 ### Fixed
 
 ## [0.22.2] - 2026-11-17

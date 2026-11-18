@@ -138,7 +138,10 @@ const HEIGHT_ATTRS = `
   attribute float a_base_f;
   attribute vec2 a_base_v;
   uniform float u_bt;
-  ${FE}`;
+  ${FE}
+  // PARCHMENT: a negative height hides a building a landmark stands in for (see landmarks.ts).
+  #define HIDDEN (FE(a_height_f, a_height_v, u_ht) < 0.0)
+  #define OFFSCREEN vec4(2.0, 2.0, 2.0, 1.0)`;
 
 // ── Buildings (plan E): geometry AO + directional lighting ─────────
 const BUILD_VS = `
@@ -195,6 +198,7 @@ const BUILD_VS = `
   varying vec3 v_ambient;
   varying float v_facing;
   void main() {
+    if (HIDDEN) { gl_Position = OFFSCREEN; return; }
     float t = mod(a_normal_ed.x, 2.0);
     float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
     float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
@@ -338,6 +342,7 @@ const SUN_VS = `
   ${HEIGHT_ATTRS}
   ${TERRAIN}
   void main() {
+    if (HIDDEN) { gl_Position = OFFSCREEN; return; }
     float t = mod(a_normal_ed.x, 2.0);
     float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
@@ -357,6 +362,7 @@ const SHAD_VS = `
   ${HEIGHT_ATTRS}
   ${TERRAIN}
   void main() {
+    if (HIDDEN) { gl_Position = OFFSCREEN; return; }
     float t = mod(a_normal_ed.x, 2.0);
     // Roof (t=1) shears by height, wall bottoms (t=0) by fill-extrusion-base,
     // so floating slabs (render_min_height) don't cast full-height shadows.
@@ -374,8 +380,12 @@ const SHAD_FS = `
 const SEED_VS = `
   uniform mat4 u_matrix;
   attribute vec2 a_pos;
+  ${HEIGHT_ATTRS}
   ${TERRAIN}
-  void main() { gl_Position = u_matrix * vec4(a_pos, get_elevation(a_pos), 1.0); }`; // PARCHMENT
+  void main() {
+    if (HIDDEN) { gl_Position = OFFSCREEN; return; }
+    gl_Position = u_matrix * vec4(a_pos, get_elevation(a_pos), 1.0); // PARCHMENT
+  }`;
 const SEED_FS = `
   precision highp float;
   uniform vec2 u_res;
@@ -625,6 +635,7 @@ export class WallShadowLayer {
     // `_casterShadows`. A live collection, so callers can come and go without
     // the layer being rebuilt.
     this.shadowCasters = opts.shadowCasters ?? new Set();
+    this.buildingsVersion = 0; // PARCHMENT: bumped when the buildings hidden by feature state change
 
     // PARCHMENT: how the ground effects fade in and out — see `groundOpacity`.
     this.fadeZoom = opts.fadeZoom ?? 1.2;
@@ -657,7 +668,7 @@ export class WallShadowLayer {
       ['u_matrix', 'u_shadowOff', 'u_heightScale', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
 
     this._seedProg = linkProgram(gl, SEED_VS, SEED_FS);
-    this._uSeed = uniformLocs(gl, this._seedProg, ['u_matrix', 'u_res', ...TERRAIN_UNIFORMS]);
+    this._uSeed = uniformLocs(gl, this._seedProg, ['u_matrix', 'u_res', 'u_ht', ...TERRAIN_UNIFORMS]);
 
     this._jfaProg = linkProgram(gl, JFA_VS, JFA_FS);
     this._uJfa = uniformLocs(gl, this._jfaProg, ['u_tex', 'u_stride', 'u_texel']);
@@ -998,6 +1009,7 @@ export class WallShadowLayer {
     // A caster without a version cannot say when it changed, and NaN never
     // matches, so its presence simply turns the cache off.
     for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
+    key.push(this.buildingsVersion); // PARCHMENT: a building hidden by feature state keeps its bucket
     // Casters are drawn with the camera matrix, not per tile, so it has to be
     // in the key too or their shadows stay put while the view moves.
     if (this.shadowCasters.size && this._mainMatrix) for (let i = 0; i < 16; i++) key.push(this._mainMatrix[i]);
@@ -1063,10 +1075,11 @@ export class WallShadowLayer {
     gl.useProgram(this._seedProg);
     gl.uniform2f(U.u_res, this._sdfRes, this._sdfRes);
 
-    for (const { coord, bucket, matrix } of tiles) {
+    for (const { coord, bucket, matrix, zf } of tiles) {
       const sg = this._segVaos(gl, bucket);
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1); // PARCHMENT: for HIDDEN
       this._bindTerrain(gl, U, coord); // PARCHMENT
       this._drawSegs(gl, sg);
     }
@@ -1301,6 +1314,7 @@ export class WallShadowLayer {
       if (dem) key.push(dem.texture ? bucketId(dem.texture) : 0, dem.u_terrain_exaggeration ?? 0, ...(dem.u_terrain_matrix ?? []));
     }
     for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
+    key.push(this.buildingsVersion); // PARCHMENT: a building hidden by feature state keeps its bucket
     for (const caster of this.shadowCasters) caster.receiveSun?.(frame);
     if (sameKey(key, this._sunKey)) return frame;
     this._sunKey = key;

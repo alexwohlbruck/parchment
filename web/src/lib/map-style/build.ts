@@ -3,6 +3,7 @@ import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
+import { hidingReplaced } from '@/lib/map-objects/landmarks'
 import spec from './spec.json'
 import {
   detailSources,
@@ -24,6 +25,7 @@ import {
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
+  PROMOTED_REFS,
   DETAIL_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
@@ -876,6 +878,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
               tiles: [buildTileUrl(tileServerUrl, BUILDING_3D_TILES)],
               minzoom: 14,
               maxzoom: 16,
+              promoteId: PROMOTED_REFS,
             },
           }
         : {}),
@@ -884,7 +887,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     },
     state: indoorState(),
     sky: SKY[flavor],
-    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }),
+    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }).map(hidingReplaced),
   } as StyleSpecification
 }
 

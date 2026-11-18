@@ -88,8 +88,11 @@ watch(
          own account was never going to work. -->
     <SheetFooter
       v-if="!paletteFocused"
-      class="bg-muted border-t border-border/60 px-3 py-2"
+      class="relative bg-muted border-t border-border/60 px-3 py-2"
     >
+      <div
+        class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-gradient-to-t from-muted to-transparent"
+      />
       <div class="mb-1.5 empty:hidden">
         <SyncStatus />
       </div>

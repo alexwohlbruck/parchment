@@ -228,6 +228,9 @@ const SURFACE_ONLY = [
   true,
 ] as any
 
+/** The source-layers whose `id` property, an OSM ref, MapLibre takes as the feature id, so a landmark can mark what it replaces by ref. */
+export const PROMOTED_REFS = { [BUILDING_3D_TILES]: 'id', [COASTER_TRACK_TILES]: 'id' }
+
 export function detailSources(tileUrl: (source: string) => string) {
   return {
     /**
@@ -251,6 +254,7 @@ export function detailSources(tileUrl: (source: string) => string) {
       tiles: [tileUrl(DETAIL_TILES)],
       minzoom: 9,
       maxzoom: 16,
+      promoteId: PROMOTED_REFS,
     },
     [GOLF_PIN_SOURCE]: {
       type: 'geojson' as const,

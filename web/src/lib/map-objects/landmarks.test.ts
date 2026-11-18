@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialEmission, materialRole, paletteFor, ROLE, isWindow, MAX_ENTRANCES, parseLandmark, polygonRings,
-  REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
+  REPLACEABLE_SOURCE_LAYERS, hidingReplaced, replacedIds, unlessReplaced,
 } from './landmarks'
-import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
+import { coasterTrackLayers, PROMOTED_REFS } from '@/lib/map-style/detail-layers'
+import { buildMapStyle } from '@/lib/map-style/build'
+import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 import { parseGlb, poseGlb, sampleChannel } from './glb.mjs'
 import { planCoverage } from './landmark-coverage'
@@ -181,41 +183,71 @@ describe('insideFootprint', () => {
   })
 })
 
-describe('withoutReplaced', () => {
-  it('leaves the filter alone when nothing is replaced', () => {
-    expect(withoutReplaced(['!has', 'hide_3d'], 'building', [])).toEqual(['!has', 'hide_3d'])
+describe('unlessReplaced', () => {
+  const REPLACED = ['boolean', ['feature-state', 'replaced'], false]
+
+  it('gives the hidden value for a replaced feature', () => {
+    expect(unlessReplaced(0.3, 0)).toEqual(['case', REPLACED, 0, 0.3])
   })
 
-  it('converts the legacy filter, since a style cannot mix the two syntaxes', () => {
-    expect(withoutReplaced(['!has', 'hide_3d'], 'building', [], [33574370])).toEqual([
-      'all',
-      ['!', ['has', 'hide_3d']],
-      ['!', ['in', ['id'], ['literal', [33574370]]]],
-    ])
+  it('keeps a zoom curve on top, as the style spec requires, and wraps its outputs', () => {
+    expect(unlessReplaced(['interpolate', ['linear'], ['zoom'], 14, 0, 14.4, ['get', 'render_height']], -1)).toEqual(
+      ['interpolate', ['linear'], ['zoom'], 14, ['case', REPLACED, -1, 0], 14.4, ['case', REPLACED, -1, ['get', 'render_height']]],
+    )
+    expect(unlessReplaced(['step', ['zoom'], 1, 16, 2], 0)).toEqual(['step', ['zoom'], ['case', REPLACED, 0, 1], 16, ['case', REPLACED, 0, 2]])
+    expect(unlessReplaced({ base: 1.4, stops: [[14, 1], [18, 4]] }, 0)).toEqual(
+      ['interpolate', ['exponential', 1.4], ['zoom'], 14, ['case', REPLACED, 0, 1], 18, ['case', REPLACED, 0, 4]],
+    )
   })
 
+  it('wraps a curve over anything but zoom whole', () => {
+    const byHeight = ['interpolate', ['linear'], ['get', 'height'], 0, 1, 100, 2]
+    expect(unlessReplaced(byHeight, 0)).toEqual(['case', REPLACED, 0, byHeight])
+  })
+
+  it('does not stack', () => {
+    const once = unlessReplaced(0.3, 0)
+    expect(unlessReplaced(once, 0)).toBe(once)
+  })
+})
+
+describe('hidingReplaced', () => {
+  const style = buildMapStyle({ tileServerUrl: 'https://example.test/tiles', theme: 'light', hdRoads: true } as any)
+
+  it('has every layer of a replaceable source-layer read the mark, in a style that still validates', () => {
+    // The fork's own layout properties are unknown to the published validator.
+    expect(validateStyleMin(style as any).filter(e => e.message.includes('.paint.'))).toEqual([])
+    const replaceable = (style.layers as any[]).filter(l => REPLACEABLE_SOURCE_LAYERS.includes(l['source-layer']))
+    expect(replaceable.length).toBeGreaterThan(3)
+    for (const layer of replaceable) expect(JSON.stringify(layer.paint), layer.id).toContain('"feature-state","replaced"')
+  })
+
+  it('hides an extrusion by a negative height, which the shaders drop', () => {
+    const extrusion = (style.layers as any[]).find(l => l.type === 'fill-extrusion' && l['source-layer'] === 'building')
+    expect(JSON.stringify(extrusion.paint['fill-extrusion-height'])).toContain('["boolean",["feature-state","replaced"],false],-1,')
+  })
+
+  it('leaves other layers as they are', () => {
+    const road = { id: 'Highway', type: 'line', 'source-layer': 'transportation', paint: { 'line-width': 2 } }
+    expect(hidingReplaced(road)).toBe(road)
+  })
+})
+
+describe('replacedIds', () => {
   it('never turns a ref into a basemap id, since those ids are merged', () => {
     // way/229651145 would be 2296511452 — which on the basemap can be the id
     // of every building of that height in the tile.
-    expect(withoutReplaced(null, 'building', ['way/229651145'])).toBeNull()
+    expect(replacedIds('building', ['way/229651145'])).toEqual([])
+    expect(replacedIds('building', ['way/229651145'], [33574370])).toEqual([33574370])
   })
 
-  it('matches Barrelman’s buildings by the ref they carry', () => {
-    expect(withoutReplaced(null, 'buildings_3d', ['way/1'])).toEqual(
-      ['!', ['in', ['get', 'id'], ['literal', ['way/1']]]],
-    )
+  it('matches Barrelman’s buildings and coaster tracks by the ref they carry, never by footprint', () => {
+    expect(replacedIds('buildings_3d', ['way/1'], [2296511452])).toEqual(['way/1'])
+    expect(replacedIds('coaster_tracks', ['way/543823785', 'way/670967416'], [2296511452])).toEqual(['way/543823785', 'way/670967416'])
   })
 
-  it('matches coaster tracks by ref, the way it matches Barrelman’s buildings', () => {
-    expect(withoutReplaced(null, 'coaster_tracks', ['way/543823785', 'way/670967416'])).toEqual(
-      ['!', ['in', ['get', 'id'], ['literal', ['way/543823785', 'way/670967416']]]],
-    )
-    // And hands the track back when the model goes.
-    expect(withoutReplaced(null, 'coaster_tracks', [])).toBeNull()
-  })
-
-  it('ignores footprint ids on the tracks, which are matched by ref alone', () => {
-    expect(withoutReplaced(null, 'coaster_tracks', [], [2296511452])).toBeNull()
+  it('has MapLibre take those refs as feature ids', () => {
+    for (const layer of REPLACEABLE_SOURCE_LAYERS.filter(l => l !== 'building')) expect(PROMOTED_REFS, layer).toHaveProperty(layer, 'id')
   })
 })
 

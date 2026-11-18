@@ -120,11 +120,12 @@ import {
   forestFloorColor,
   woodColorOf,
 } from '@/lib/map-style/detail-layers'
-import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import type { GlbModel } from '@/lib/map-objects/glb.mjs'
+import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
-import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
+import { isFlatBridge, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { TerrainCarver, cutCarving } from '@/lib/map-terrain/carver'
 import { roofCuts } from '@/lib/map-decks/roofs'
@@ -143,13 +144,13 @@ type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
-  OBJECT_MODELS,
+  OBJECT_MODEL_PACK,
   OBJECT_PALETTE,
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
-import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, withoutReplaced } from '@/lib/map-objects/landmarks'
+import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
@@ -342,11 +343,11 @@ export class MaplibreStrategy extends MapStrategy {
   /** Set when a click opened a venue's floor plan, so it opens nothing else. */
   private indoorClaimedClick = false
   private objectModels: Promise<Record<string, GlbModel>> | null = null
-  /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
   /** What the tunnels and the landmarks carve into the terrain, together. */
   private terrainCarver = new TerrainCarver(() => this.mapInstance, (areas, owner) => fineTerrain.focus(areas, owner))
-  private buildingFilters = new Map<string, unknown>()
+  /** The ids marked replaced, by `source|source-layer`. */
+  private replacedFeatures = new Map<string, Set<string | number>>()
 
   constructor(
     container: string | HTMLElement,
@@ -536,8 +537,6 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       // The old decks' labels are not this style's to leave out.
-      this.mutedBridgeLabels.clear()
-      this.bridgeFootprint = null
       this.bridgeLabelKey = null
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -565,7 +564,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelLayer = null
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
-      this.buildingFilters.clear()
+      this.replacedFeatures.clear()
       this.fadedSurface.clear()
       // After the basemap rather than with it: a city's landmark models run to
       // megabytes, and placing them reads every building in view, all of it
@@ -869,7 +868,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-height',
-        BUILDING_HEIGHT_EXPRESSION,
+        replaceablePaint('fill-extrusion', 'fill-extrusion-height', BUILDING_HEIGHT_EXPRESSION),
       )
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -880,7 +879,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-height',
-        0,
+        replaceablePaint('fill-extrusion', 'fill-extrusion-height', 0),
       )
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -984,30 +983,32 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * Take the buildings a landmark replaces out of every layer that draws
-   * them — the extrusion, its roof-colour twin, the roof edge and the flat
-   * footprint — so nothing of the old building shows through the model. A
-   * coaster's track ways are among its refs, so the same pass takes them out
-   * of the track and its casing.
-   *
-   * All of them, and with the same filter, for a reason beyond tidiness: the
-   * roof-colour layer only works while it shares the extrusion's bucket, and
-   * MapLibre only shares a bucket between layers whose filters match.
+   * Mark the buildings a landmark replaces, in every source that holds them,
+   * so nothing of the old building shows through the model: the extrusion,
+   * its roof-colour twin, the roof edge and the flat footprint all read the
+   * mark (see `hidingReplaced`). A coaster's track ways are among its refs, so
+   * the same pass takes them out of the track and its casing.
    */
   private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
     const map = this.mapInstance
+    const held = new Map<string, { source: string; sourceLayer: string }>()
     // By id, not `getStyle()`: that serialises the whole style, and landmarks report on every pan.
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
-      const sourceLayer = layer?.sourceLayer
-      if (!layer || !sourceLayer || !REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
-      if (!this.buildingFilters.has(id))
-        this.buildingFilters.set(id, layer.filter ?? null)
-      map.setFilter(
-        id,
-        withoutReplaced(this.buildingFilters.get(id), sourceLayer, refs, featureIds) as any,
-      )
+      if (layer?.sourceLayer && REPLACEABLE_SOURCE_LAYERS.includes(layer.sourceLayer)) held.set(`${layer.source}|${layer.sourceLayer}`, { source: layer.source, sourceLayer: layer.sourceLayer })
     }
+    let changed = false
+    for (const [key, { source, sourceLayer }] of held) {
+      const before = this.replacedFeatures.get(key) ?? new Set()
+      const now = new Set(replacedIds(sourceLayer, refs, featureIds))
+      for (const id of now) if (!before.has(id)) map.setFeatureState({ source, sourceLayer, id }, { [REPLACED_STATE]: true })
+      for (const id of before) if (!now.has(id)) map.removeFeatureState({ source, sourceLayer, id }, REPLACED_STATE)
+      changed ||= now.size !== before.size || [...now].some(id => !before.has(id))
+      this.replacedFeatures.set(key, now)
+    }
+    // The shade layer keeps its shadows while the buckets it read are the same ones.
+    const shade = liveBuildingShade() as { buildingsVersion: number } | null
+    if (changed && shade) shade.buildingsVersion++
   }
 
   /**
@@ -1106,9 +1107,7 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
 
-    this.objectModels ??= this.firstTilesLaidOut().then(() => Promise.all(
-      Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
-    )).then(entries => Object.fromEntries(entries))
+    this.objectModels ??= this.firstTilesLaidOut().then(() => loadModelPack(OBJECT_MODEL_PACK))
 
     let models: Record<string, GlbModel>
     try {
@@ -1152,13 +1151,9 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   private deckLayer: BakedBridgeLayer | null = null
-  /** Flat bridge layers muted under the decks, with the opacity each had. */
-  private mutedBridges = new Map<string, { property: any; value: unknown }>()
-  /** Road symbol layers filtered off the bridges under the decks, with the filter each had. */
-  private mutedBridgeLabels = new Set<string>()
-  /** Where decks are drawn, so the flat bridges' labels under them are left out; null while they are not. */
-  private bridgeFootprint: GeoJSON.MultiPolygon | null = null
-  /** The deck version the road labels were last filtered for. */
+  /** Flat bridge layers left undrawn under the decks. */
+  private mutedBridges = new Set<string>()
+  /** The deck version the road labels were last clipped to. */
   private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
   private deckListeners = new Set<() => void>()
@@ -1269,26 +1264,17 @@ export class MaplibreStrategy extends MapStrategy {
     if (tiles && tiles !== detail!.tiles![0]) detail!.setTiles!([tiles])
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
-    const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
-    if (footprint || !covered) this.bridgeFootprint = covered ? footprint : null
-    for (const layer of map.getStyle()?.layers ?? []) {
-      // The labels' filter is the basemap's, with the ways on decks left out; one writer keeps the two from undoing each other.
-      if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && isFlatBridgeLabel(layer as any)) {
-        if (covered) this.mutedBridgeLabels.add(layer.id)
-        else this.mutedBridgeLabels.delete(layer.id)
-        this.applyBasemapFilter(layer.id)
-      }
-      const property = flatBridgeOpacity(layer as any) as any
-      if (!property) continue
-      if (covered && !this.mutedBridges.has(layer.id)) {
-        this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
-        map.setPaintProperty(layer.id, property, 0)
-      } else if (!covered && this.mutedBridges.has(layer.id)) {
-        map.setPaintProperty(layer.id, property, this.mutedBridges.get(layer.id)!.value as any)
-        this.mutedBridges.delete(layer.id)
-      }
-    }
+    // By id, not `getStyle()`, which serialises the whole style on every deck that arrives.
+    const layers = map.getLayersOrder().map(id => map.getLayer(id)).filter(layer => !!layer).map(layer => ({ id: layer.id, type: layer.type, 'source-layer': layer.sourceLayer }))
+    // A name or arrow placed along a bridge would lie on the ground under its deck.
+    if (labelKey !== this.bridgeLabelKey) map.setSymbolClip(layers.filter(isFlatBridgeLabel).map(l => l.id), covered ? this.deckLayer!.footprints() : null)
     this.bridgeLabelKey = labelKey
+    for (const { id } of layers.filter(isFlatBridge)) {
+      if (covered === this.mutedBridges.has(id)) continue
+      map.setLayerMuted(id, covered)
+      if (covered) this.mutedBridges.add(id)
+      else this.mutedBridges.delete(id)
+    }
     this.terrainCarver.set(ROOFED_DECKS, new Map([...roofCuts(this.deckLayer?.standing() ?? [])].map(([key, f]) => [key, cutCarving(f)])), { rank: 2, focus: true })
     this.terrainCarver.carveTiles()
     this.muteFlatTunnels()
@@ -1518,9 +1504,8 @@ export class MaplibreStrategy extends MapStrategy {
         ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ])
-    const footprint = this.mutedBridgeLabels.has(id) && this.bridgeFootprint
     // Validating a filter serialises the whole style; these are built here and known good.
-    this.mapInstance.setFilter(id, (footprint && flatBridgeLabelFilter({ id, type: layer.type, 'source-layer': layer.sourceLayer, filter }, footprint)) || filter, { validate: false })
+    this.mapInstance.setFilter(id, filter, { validate: false })
   }
 
   /** A new style brings its own filters, so ours are rebuilt on top of them. */

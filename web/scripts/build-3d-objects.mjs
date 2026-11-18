@@ -29,16 +29,21 @@
  *
  * Run with: bun run build:models
  */
-import { mkdir, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import POWER from '../src/lib/map-objects/power-structures.json' with { type: 'json' }
+import { packModels } from '../src/lib/map-objects/model-pack.mjs'
 import { FLIGHT_MIDDLE, FLIGHT_MODEL_HEIGHT } from '../src/lib/indoor/indoor-sizes.mjs'
 import { CROSSBUCK_POST, CROSSING_POLE, FIXTURE_HEIGHTS, GATE_PIVOT, LANE_WIDTH, SIGNAL_ARM, SIGNAL_POLE, gateArm } from '../src/lib/map-objects/fixture-sizes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(HERE, '../public/models')
 const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
+const PACK_MANIFEST = resolve(HERE, '../src/lib/map-objects/model-pack.json')
+/** Models loaded on their own, by the indoor flights, and so left out of the object layer's pack. */
+const UNPACKED = /^(escalator|stairs)(-far)?$/
 
 /** Suffix on the cheap variant of every model. */
 export const FAR_SUFFIX = '-far'
@@ -2353,6 +2358,15 @@ async function main() {
   // to cull its back faces — see `isSolid`.
   const sorted = Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)))
   await writeFile(MANIFEST, `${JSON.stringify(sorted, null, 2)}\n`)
+
+  // The object layer's models as one file, named by its contents so a cached copy is never a stale one.
+  const packed = []
+  for (const name of Object.keys(sorted)) if (!UNPACKED.test(name)) packed.push([name, new Uint8Array(await readFile(join(OUT, `${name}.glb`)))])
+  const pack = packModels(packed)
+  const file = `objects.${createHash('sha256').update(pack).digest('hex').slice(0, 12)}.pack`
+  for (const old of await readdir(OUT)) if (/^objects\.[0-9a-f]+\.pack$/.test(old) && old !== file) await rm(join(OUT, old))
+  await writeFile(join(OUT, file), pack)
+  await writeFile(PACK_MANIFEST, `${JSON.stringify({ file }, null, 2)}\n`)
 
   for (const line of written) console.log(line)
   const loose = Object.values(manifest).filter(s => !s).length

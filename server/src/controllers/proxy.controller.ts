@@ -311,17 +311,22 @@ const martinInflight = new Map<string, Promise<MartinFetch>>()
 const LANDMARK_MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
 const TILE_COORD_RE = /^\d{1,10}$/
 
-async function proxyLandmarks(path: string): Promise<Response> {
+async function proxyLandmarks(path: string, acceptEncoding?: string): Promise<Response> {
   const config = resolveLandmarksConfig()
   if (!config?.host) return new Response('Landmarks not configured', { status: 501 })
   try {
+    // Compressed as the upstream sent it, never unzipped here to be sent on plain: a model is a third the size gzipped.
     const response = await fetch(new URL(`/tiles/landmarks/${path}`, config.host), {
-      headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
-    })
+      headers: {
+        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+        'Accept-Encoding': acceptsGzip(acceptEncoding) ? 'gzip' : 'identity',
+      },
+      decompress: false,
+    } as BunFetchRequestInit & { decompress: false })
     // Passed on as they came: a 204 is an empty tile, and the upstream's
     // cache-control is already right for each kind of answer.
-    const headers: Record<string, string> = {}
-    for (const name of ['content-type', 'cache-control', 'content-length'])
+    const headers: Record<string, string> = { ...PUBLIC_TILE_CORS, vary: 'accept-encoding' }
+    for (const name of ['content-type', 'cache-control', 'content-length', 'content-encoding'])
       if (response.headers.has(name)) headers[name] = response.headers.get(name)!
     if (!response.ok) logError(`Landmarks proxy: ${response.status} for ${path}`)
     return new Response(response.ok ? response.body : null, { status: response.status, headers })
@@ -333,19 +338,19 @@ async function proxyLandmarks(path: string): Promise<Response> {
 
 app.get(
   '/barrelman/landmarks/:z/:x/:y',
-  ({ params: { z, x, y } }) => {
+  ({ params: { z, x, y }, headers }) => {
     if (![z, x, y].every(v => TILE_COORD_RE.test(v)))
       return new Response('Invalid tile coordinates', { status: 400 })
-    return proxyLandmarks(`${z}/${x}/${y}`)
+    return proxyLandmarks(`${z}/${x}/${y}`, headers['accept-encoding'])
   },
   { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark placement tiles' } },
 )
 
 app.get(
   '/barrelman/landmarks/models/:file',
-  ({ params: { file } }) => {
+  ({ params: { file }, headers }) => {
     if (!LANDMARK_MODEL_RE.test(file)) return new Response('Not found', { status: 404 })
-    return proxyLandmarks(`models/${file}`)
+    return proxyLandmarks(`models/${file}`, headers['accept-encoding'])
   },
   { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark models' } },
 )

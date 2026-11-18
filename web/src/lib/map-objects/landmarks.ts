@@ -213,54 +213,94 @@ export function parseLandmark(feature: any): Landmark | null {
 }
 
 /**
- * A legacy filter as an expression, for the two forms the building layers
- * use. A style filter is either all-legacy or all-expression, so the one we
- * extend has to be converted before an expression can be added beside it.
- */
-function asExpression(filter: any): any {
-  if (!Array.isArray(filter)) return true
-  if (filter[0] === '!has' && typeof filter[1] === 'string') return ['!', ['has', filter[1]]]
-  if (filter[0] === 'has' && typeof filter[1] === 'string' && filter.length === 2) return ['has', filter[1]]
-  return filter
-}
-
-/**
  * The source-layers a landmark can take features out of, by `replaces`.
  *
  * The buildings, and the coaster tracks: a coaster model draws its own track,
  * so the flat line under it has to go too or it shows through the gaps
- * between the supports. Tracks are filtered by ref only, like `buildings_3d`,
+ * between the supports. Tracks are matched by ref only, like `buildings_3d`,
  * and never by footprint (`buildingSources` in the strategy leaves them out).
  * Coasters cross and run alongside one another, and a smaller ride's track
  * lying under a big coaster's would vanish with no model drawn for it.
  */
 export const REPLACEABLE_SOURCE_LAYERS: readonly string[] = ['building', BUILDING_3D_TILES, COASTER_TRACK_TILES]
 
+/** The feature state a replaced building or track carries. */
+export const REPLACED_STATE = 'replaced'
+
+const REPLACED = ['boolean', ['feature-state', REPLACED_STATE], false]
+
 /**
- * A building layer's filter with the replaced buildings taken out.
- *
- * The two building sources are filtered differently, because only one of
- * them can be trusted with an id:
+ * The paint property that takes a replaced feature out of each layer type, the
+ * value that does it, and the property's default. By feature state and not by
+ * filter, which would have MapLibre lay out every tile of the source again
+ * each time a landmark arrived. A negative extrusion height is dropped in the
+ * vertex shader, by the fork's and by the building shade layer's.
+ */
+const HIDING: Record<string, [property: string, hidden: number, shown: number]> = {
+  'fill-extrusion': ['fill-extrusion-height', -1, 0],
+  fill: ['fill-opacity', 0, 1],
+  line: ['line-width', 0, 1],
+}
+
+const ZOOM_CURVES = ['interpolate', 'interpolate-hcl', 'interpolate-lab', 'step']
+
+const readsReplaced = (value: unknown) => JSON.stringify(value ?? null).includes(`"feature-state","${REPLACED_STATE}"`)
+
+/**
+ * A paint value that gives `hidden` for a replaced feature. A zoom curve
+ * keeps the top of the expression, as the style spec requires, and each of
+ * its outputs is wrapped instead.
+ */
+export function unlessReplaced(value: any, hidden: number): any {
+  if (readsReplaced(value)) return value
+  const wrap = (v: any) => ['case', REPLACED, hidden, v]
+  if (value && !Array.isArray(value) && typeof value === 'object' && Array.isArray(value.stops))
+    return ['interpolate', ['exponential', value.base ?? 1], ['zoom'], ...value.stops.flatMap(([zoom, v]: [number, any]) => [zoom, wrap(v)])]
+  if (Array.isArray(value) && ZOOM_CURVES.includes(value[0])) {
+    const input = value[0] === 'step' ? 1 : 2
+    if (JSON.stringify(value[input]) === '["zoom"]') return value.map((v, i) => (i > input && (i - input) % 2 === (value[0] === 'step' ? 1 : 0) ? wrap(v) : v))
+  }
+  return wrap(value)
+}
+
+/**
+ * A style layer that leaves out whatever a landmark has replaced, if it draws
+ * a replaceable source-layer. All of them, the roof-colour twin included,
+ * since it shares the extrusion's bucket and so its heights.
+ */
+export function hidingReplaced<T extends { type: string; 'source-layer'?: string; paint?: any }>(layer: T): T {
+  const hiding = HIDING[layer.type]
+  if (!hiding || !REPLACEABLE_SOURCE_LAYERS.includes(layer['source-layer'] ?? '')) return layer
+  const [property, hidden, shown] = hiding
+  return { ...layer, paint: { ...layer.paint, [property]: unlessReplaced(layer.paint?.[property] ?? shown, hidden) } }
+}
+
+/**
+ * The value for a replaceable layer's hiding property, set after the style
+ * was built, that still hides what is replaced.
+ */
+export function replaceablePaint(type: string, property: string, value: any): any {
+  const hiding = HIDING[type]
+  return hiding?.[0] === property ? unlessReplaced(value, hiding[1]) : value
+}
+
+/**
+ * The ids to mark replaced in a source-layer. The two building sources go
+ * differently, because only one of them can be trusted with an id:
  *
  *   buildings_3d  Barrelman's, one feature per OSM element with the ref as
- *                 `id`. The catalog's `replaces` matches it exactly.
- *   coaster_tracks  Barrelman's too, with the same `id`, so the same filter.
+ *                 `id`, promoted to the feature's id. The catalog's
+ *                 `replaces` matches it exactly.
+ *   coaster_tracks  Barrelman's too, with the same `id`.
  *   building      The basemap's. Its feature ids are not OSM ids to rely on:
  *                 Planetiler merges every building of one height in a z14
  *                 tile into a single multipolygon under one member's id, so
  *                 an id derived from a ref can stand for a whole district.
- *                 Only ids found by footprint (`featureIds`) are filtered —
+ *                 Only ids found by footprint (`featureIds`) are marked —
  *                 ones whose every loaded piece lies inside a landmark.
- *
- * `base` is the layer's filter as the style defined it, so repeated calls do
- * not stack.
  */
-export function withoutReplaced(base: any, sourceLayer: string, refs: string[], featureIds: number[] = []): any {
-  const exclude = sourceLayer === 'building'
-    ? featureIds.length ? ['!', ['in', ['id'], ['literal', featureIds]]] : null
-    : refs.length ? ['!', ['in', ['get', 'id'], ['literal', refs]]] : null
-  if (!exclude) return base ?? null
-  return base ? ['all', asExpression(base), exclude] : exclude
+export function replacedIds(sourceLayer: string, refs: string[], featureIds: number[] = []): Array<string | number> {
+  return sourceLayer === 'building' ? featureIds : refs
 }
 
 /** A model's plan extent, in its own metres: glTF x east, z south. */

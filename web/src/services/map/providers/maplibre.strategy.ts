@@ -1536,14 +1536,6 @@ export class MaplibreStrategy extends MapStrategy {
   private basemapHiders = new Map<string, Set<string>>()
   private transitPoisHidden = false
 
-  getBasemapFromTheme() {
-    if (!this.tileServerUrl) {
-      // Fallback: minimal empty style when no tile server is configured
-      return { version: 8 as const, sources: {}, layers: [] }
-    }
-    return buildMapStyle(this.styleOptions(this.tileServerUrl))
-  }
-
   private styleOptions(tileServerUrl: string) {
     const theme = this.options.theme === 'dark' ? 'dark' : 'light'
     return {

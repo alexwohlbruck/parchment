@@ -18,6 +18,9 @@ const cardRef = ref<InstanceType<typeof Card>>()
 const dashboardRef = ref<InstanceType<typeof DashboardHome>>()
 const paletteFocused = ref(false)
 const PEEK_HEIGHT = '65px'
+const snapPoints = computed(() =>
+  paletteFocused.value ? [PEEK_HEIGHT, 1] : [PEEK_HEIGHT, 0.5, 1],
+)
 
 function minimizeSheet() {
   activeSnapPoint.value = PEEK_HEIGHT
@@ -63,7 +66,8 @@ watch(
   <bottom-sheet
     open
     :peek-height="PEEK_HEIGHT"
-    dynamic-peek
+    :custom-snap-points="snapPoints"
+    :dynamic-peek="!paletteFocused"
     :dynamic-peek-index="1"
     :dismissable="false"
     :z-index-offset="-10"
@@ -84,8 +88,11 @@ watch(
          own account was never going to work. -->
     <SheetFooter
       v-if="!paletteFocused"
-      class="bg-muted border-t border-border/60 px-3 py-2"
+      class="relative bg-muted border-t border-border/60 px-3 py-2"
     >
+      <div
+        class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-gradient-to-t from-muted to-transparent"
+      />
       <div class="mb-1.5 empty:hidden">
         <SyncStatus />
       </div>

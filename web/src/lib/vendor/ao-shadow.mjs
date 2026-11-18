@@ -42,7 +42,7 @@ import {
 import { shadowStrength } from '@/lib/map/shadow-mode'; // PARCHMENT
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
-const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10, a_facade: 11, a_facade4: 12 };
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10, a_facade: 11, a_facade4: 12, a_anchor: 13 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
 const CENTROID_STRIDE = 4; // bytes per vertex in MapLibre's centroid buffer
 
@@ -89,19 +89,11 @@ const TERRAIN = `
     return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y) * u_terrain_exaggeration;
   }
 
-  // PARCHMENT: mirrors the fill-extrusion shader patched by
-  // scripts/patch-maplibre-terrain.mjs, so every pass stands where MapLibre's buildings do.
-  float anchor_elevation(vec2 a) {
-    vec2 sc = floor(a / 8.0) * 8.0;
-    vec2 code = a - sc;
-    vec2 ext = vec2(code.x < 0.5 ? 0.0 : 8.0 * exp2(code.x), code.y < 0.5 ? 0.0 : 8.0 * exp2(code.y));
-    float e = get_elevation(sc);
-    e = min(e, get_elevation(sc + ext));
-    e = min(e, get_elevation(sc - ext));
-    e = min(e, get_elevation(sc + vec2(ext.x, -ext.y)));
-    e = min(e, get_elevation(sc + vec2(-ext.x, ext.y)));
-    return e;
-  }
+  // PARCHMENT: the ground under the building, which the engine works out once per DEM into a
+  // buffer (FillExtrusionBucket.updateAnchorElevations), so every pass stands where its buildings do
+  // without sampling the DEM for each vertex.
+  attribute float a_anchor;
+  float anchor_elevation() { return u_terrain_on < 0.5 ? 0.0 : a_anchor; }
 
   attribute vec2 a_centroid;`;
 
@@ -143,6 +135,15 @@ const HEIGHT_ATTRS = `
   #define HIDDEN (FE(a_height_f, a_height_v, u_ht) < 0.0)
   #define OFFSCREEN vec4(2.0, 2.0, 2.0, 1.0)`;
 
+// PARCHMENT: where a building vertex stands: on the ground the engine found for it, with a basement
+// below a ground-floor wall for the terrain to bury.
+const BUILDING_POSITION = `
+  float building_elevation(float t, float base, float h) {
+    float top = anchor_elevation();
+    float basement = (u_terrain_on < 0.5 || base > 0.0) ? 0.0 : 10.0;
+    return mix(base, h, t) + mix(top - basement, top, t);
+  }`;
+
 // ── Buildings (plan E): geometry AO + directional lighting ─────────
 const BUILD_VS = `
   uniform mat4 u_matrix;
@@ -170,6 +171,8 @@ const BUILD_VS = `
   uniform float u_facade_on;
   ${HEIGHT_ATTRS}
   ${TERRAIN}
+  ${BUILDING_POSITION}
+  uniform float u_sunOn;
   varying vec3 v_color;
   varying float v_dark;
   uniform vec2 u_viewport;   // PARCHMENT
@@ -230,11 +233,11 @@ const BUILD_VS = `
     //
     // Applied after wallRatio, which is a fraction of the wall and would be
     // skewed by the basement if it were measured against the offset values.
-    float groundTop = anchor_elevation(a_centroid);
+    float groundTop = anchor_elevation();
     float basement = (u_terrain_on < 0.5 || base > 0.0) ? 0.0 : 10.0;
     float groundBase = groundTop - basement;
-    float ground = mix(groundBase, groundTop, t);
-    elev += ground;
+    float placed = building_elevation(t, base, h);
+    gl_Position = u_matrix * vec4(a_pos, placed, 1.0);
 
     // exp(-3) = 0.0498, 1 / (1 - exp(-3)) = 1.0524
     float dark = (wallRatio < 0.0 || wallRatio >= u_band) ? 0.0
@@ -254,8 +257,9 @@ const BUILD_VS = `
     // under it — so it fades out as the wall approaches the border's own size
     // and the far side of a view stays clean.
     v_ratio = wallRatio;
-    vec4 pTop = u_matrix * vec4(a_pos, h + groundTop, 1.0);
-    vec4 pBot = u_matrix * vec4(a_pos, base + groundBase, 1.0);
+    // PARCHMENT: the wall's top and foot differ from this vertex only in height, which the matrix's third column carries.
+    vec4 pTop = gl_Position + (h + groundTop - placed) * u_matrix[2];
+    vec4 pBot = gl_Position + (base + groundBase - placed) * u_matrix[2];
     float wallPx = (pTop.w > 0.001 && pBot.w > 0.001)
       ? length((pTop.xy / pTop.w - pBot.xy / pBot.w) * 0.5 * u_viewport)
       : 0.0;
@@ -280,8 +284,7 @@ const BUILD_VS = `
     v_color = clamp(color.rgb * directional * mix(u_skyTint, u_sunTint, lit) * rise, 0.0, 1.0);
     v_ambient = clamp(color.rgb * (1.0 - u_lightintensity) * u_skyTint * rise, 0.0, 1.0);
     v_facing = dot(n, normalize(u_lightpos));
-    v_sun = u_sunTile * vec4(a_pos, elev, 1.0);
-    gl_Position = u_matrix * vec4(a_pos, elev, 1.0);
+    v_sun = u_sunOn > 0.0 ? u_sunTile * vec4(a_pos, placed, 1.0) : vec4(0.0);
   }`;
 
 // PARCHMENT: the roofline edge.
@@ -346,7 +349,7 @@ const SUN_VS = `
     float t = mod(a_normal_ed.x, 2.0);
     float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
-    gl_Position = u_matrix * vec4(a_pos, mix(base, h, t) + anchor_elevation(a_centroid), 1.0);
+    gl_Position = u_matrix * vec4(a_pos, mix(base, h, t) + anchor_elevation(), 1.0);
   }`;
 const SUN_FS = `
   precision mediump float;
@@ -785,7 +788,10 @@ export class WallShadowLayer {
   // (fixed attribute locations make this possible).
   _segVaos(gl, bucket) {
     const key = '_wshVao';
-    if (bucket[key]) return bucket[key];
+    // PARCHMENT: built again if the engine's anchor buffer arrives or goes, as terrain is turned on or off.
+    const anchor = bucket._wshAnchor ?? null;
+    if (bucket[key] && bucket[key].anchor === anchor) return bucket[key];
+    for (const { vao } of bucket[key]?.list ?? []) gl.deleteVertexArray(vao);
     const configs = bucket.programConfigurations?.programConfigurations;
     const cfg = configs?.[this._layerId];
     // PARCHMENT: the roof colour rides on a second layer sharing this bucket, so
@@ -825,12 +831,13 @@ export class WallShadowLayer {
       // to its own draw only when it is; we bind it always and let
       // `u_terrain_on` decide, so a terrain toggle needs no VAO rebuild.
       point(LOC.a_centroid, bucket.centroidVertexBuffer?.buffer, 2, gl.SHORT, CENTROID_STRIDE, seg.vertexOffset * CENTROID_STRIDE);
+      point(LOC.a_anchor, anchor, 1, gl.FLOAT, 4, seg.vertexOffset * 4); // PARCHMENT
       for (const d of [hD, bD, cD, rD, fD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
       list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
     }
     this._vao.bind(null);
-    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp, fComp: fD.comp });
+    return (bucket[key] = { anchor, list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp, fComp: fD.comp });
   }
 
   _drawSegs(gl, sg) {
@@ -872,6 +879,9 @@ export class WallShadowLayer {
     // a landmark standing in open ground, or in a region the basemap has no
     // buildings for.
     if (!tiles.length && !this.shadowCasters.size) return;
+    // PARCHMENT: each bucket's ground elevations, current for the DEM its tile is drawn with.
+    const terrain = this._terrain();
+    for (const { bucket, coord } of tiles) bucket._wshAnchor = terrain?.getAnchorElevations?.(bucket, coord)?.buffer ?? null;
 
     const ctx = this._map.painter.context; // PARCHMENT
     const saved = saveGlState(ctx);
@@ -884,6 +894,7 @@ export class WallShadowLayer {
     gl.vertexAttrib1f(LOC.a_base_f, B); gl.vertexAttrib2f(LOC.a_base_v, B, B);
     gl.vertexAttrib2f(LOC.a_color, W, W);
     gl.vertexAttrib2f(LOC.a_centroid, 0, 0); // PARCHMENT
+    gl.vertexAttrib1f(LOC.a_anchor, 0); // PARCHMENT
     gl.vertexAttrib4f(LOC.a_color4, W, W, W, W);
     // PARCHMENT: never read unless `u_roof_on`, which is only set when the
     // buffer behind them exists — pinned anyway, since an unset attribute

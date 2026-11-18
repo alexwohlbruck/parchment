@@ -75,10 +75,11 @@ describe('roof colour', () => {
 })
 
 describe('terrain-aware building shade', () => {
-  test('every geometry pass samples the DEM', () => {
-    // Buildings stand on their footprint's lowest ground, as MapLibre's do.
+  test('every geometry pass stands on the ground the engine worked out, without sampling the DEM for it', () => {
+    // Buildings stand on their footprint's lowest ground, as MapLibre's do: from its buffer, one value a vertex.
     expect(source).not.toContain('get_elevation(a_centroid)')
-    expect(source.match(/anchor_elevation\(a_centroid\)/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(source.match(/anchor_elevation\(\)/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(source).toContain('getAnchorElevations')
   })
 
   test('ground shadow and occlusion lie on the ground beneath each vertex', () => {

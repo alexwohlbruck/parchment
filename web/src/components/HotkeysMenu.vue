@@ -14,11 +14,8 @@ import { useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
-import {
-  HOTKEY_CATEGORIES,
-  type Hotkey,
-  type HotkeyCategory,
-} from '@/types/command.types'
+import type { CommandCategory, Hotkey } from '@/types/command.types'
+import { groupByCategory } from '@/lib/command/group-by-category'
 import { appEventBus } from '@/lib/event-bus'
 
 type HotkeyEntry = {
@@ -27,7 +24,7 @@ type HotkeyEntry = {
   description?: string
   keywords?: string
   hotkey: Hotkey
-  category: HotkeyCategory
+  category: CommandCategory
 }
 
 const { t } = useI18n()
@@ -59,7 +56,7 @@ const hotkeys = computed<HotkeyEntry[]>(() => [
             description: command.description,
             keywords: command.keywords,
             hotkey: command.hotkey,
-            category: command.hotkeyCategory ?? 'general',
+            category: command.category ?? 'general',
           },
         ]
       : [],
@@ -77,10 +74,7 @@ const searchResults = computed(() => {
 })
 
 const groups = computed(() =>
-  HOTKEY_CATEGORIES.map(category => ({
-    category,
-    hotkeys: searchResults.value.filter(hotkey => hotkey.category === category),
-  })).filter(group => group.hotkeys.length),
+  groupByCategory(searchResults.value, !!query.value),
 )
 
 watch(open, value => {
@@ -109,11 +103,11 @@ watch(open, value => {
           class="flex flex-col gap-3"
         >
           <Span class="text-xs font-medium text-muted-foreground">
-            {{ t(`hotkeys.categories.${group.category}`) }}
+            {{ t(`palette.categories.${group.category}`) }}
           </Span>
 
           <div
-            v-for="hotkey in group.hotkeys"
+            v-for="hotkey in group.items"
             :key="hotkey.id"
             class="flex justify-between items-center gap-4"
           >

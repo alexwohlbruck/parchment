@@ -46,6 +46,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ASK_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
 import { isAskOffered } from '@/lib/ask/ask-access'
+import { groupByCategory } from '@/lib/command/group-by-category'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -132,6 +133,10 @@ const filteredCommands = computed(() => {
     ? filterFunction.value(availableCommands, query.value)
     : availableCommands
 })
+
+const commandGroups = computed(() =>
+  groupByCategory(filteredCommands.value, !!query.value),
+)
 
 // --- Settings entries in the palette ---------------------------------------
 // The settings index drives a "Settings" group in the palette so users can
@@ -550,9 +555,13 @@ const filterFunction = computed(() => {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument" :style="listStyle">
-          <CommandGroup v-if="filteredCommands.length" heading="Commands">
+          <CommandGroup
+            v-for="group in commandGroups"
+            :key="group.category"
+            :heading="t(`palette.categories.${group.category}`)"
+          >
             <CommandItem
-              v-for="command in filteredCommands"
+              v-for="command in group.items"
               :key="command.id"
               :value="command"
               class="flex gap-2"

@@ -6,8 +6,11 @@
 
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
 * The bottom of the home sheet fades into your account row instead of cutting off.
+* The 3D map finishes loading several times sooner where landmarks and bridges are in view.
 
 ### Fixed
+
+* Road names no longer lie on the ground beneath a bridge drawn in 3D.
 
 ## [0.22.2] - 2026-11-17
 

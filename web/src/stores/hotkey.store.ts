@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, shallowReactive } from 'vue'
-import type { Hotkey, HotkeyCategory } from '@/types/command.types'
+import type { Hotkey, CommandCategory } from '@/types/command.types'
 
 export enum HotkeyId {
   TOGGLE_NAV_MINI = 'toggle-nav-mini',
@@ -14,7 +14,7 @@ export interface EphemeralHotkey {
   name: string
   description: string
   hotkey: Hotkey
-  category: HotkeyCategory
+  category: CommandCategory
   component?: string // Optional: track which component registered it
   registeredAt: number // Timestamp of registration
 }
@@ -77,7 +77,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     hotkey: Hotkey,
     name: string,
     description: string,
-    category: HotkeyCategory = 'general',
+    category: CommandCategory = 'general',
     component?: string,
   ) {
     if (!name || !description) {
@@ -117,7 +117,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     component?: string,
     preventDefault?: boolean,
     allowInInput?: AllowInInput,
-    category?: HotkeyCategory,
+    category?: CommandCategory,
   ): string {
     // Convert to array format for storage
     const hotkeyArray: Hotkey = Array.isArray(key)

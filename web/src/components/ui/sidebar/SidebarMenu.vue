@@ -25,9 +25,10 @@ function measure() {
   const list = listRef.value
   if (!list) return
   const active = list.querySelector<HTMLElement>('[data-active="true"]')
-  chip.value = active
-    ? { top: active.offsetTop, height: active.offsetHeight }
-    : null
+  const next = active ? { top: active.offsetTop, height: active.offsetHeight } : null
+  // TransitionGroup probes each update by inserting a clone into the list, which
+  // this observer sees; re-rendering on an unchanged chip would loop forever.
+  if (next?.top !== chip.value?.top || next?.height !== chip.value?.height) chip.value = next
   if (!settled.value) nextTick(() => (settled.value = true))
 }
 

@@ -499,7 +499,16 @@
     "toggleState": {
       "shown": "Shown",
       "hidden": "Hidden"
+    },
+    "categories": {
+      "general": "General",
+      "appearance": "Appearance",
+      "map": "Map",
+      "tools": "Tools"
     }
+  },
+  "hotkeys": {
+    "search": "Search shortcuts"
   },
   "messages": {
     "error": {

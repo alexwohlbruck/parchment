@@ -2,12 +2,17 @@
 
 ### Added
 
+* The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
+
 ### Changed
 
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
 * The bottom of the home sheet fades into your account row instead of cutting off.
 
 ### Fixed
+
+* Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
+
 
 ## [0.22.2] - 2026-11-17
 

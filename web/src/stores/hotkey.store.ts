@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { computed } from 'vue'
-import { type Hotkey } from '@/types/command.types'
-import { CommandName } from '@/stores/command.store'
+import { computed, shallowReactive } from 'vue'
+import type { Hotkey, CommandCategory } from '@/types/command.types'
 
 export enum HotkeyId {
   TOGGLE_NAV_MINI = 'toggle-nav-mini',
@@ -15,6 +14,7 @@ export interface EphemeralHotkey {
   name: string
   description: string
   hotkey: Hotkey
+  category: CommandCategory
   component?: string // Optional: track which component registered it
   registeredAt: number // Timestamp of registration
 }
@@ -55,7 +55,7 @@ function hotkeyStringToArray(key: string): Hotkey {
 
 export const useHotkeyStore = defineStore('hotkey', () => {
   // Registry of all ephemeral hotkeys with metadata
-  const ephemeralHotkeys = new Map<string, EphemeralHotkey>()
+  const ephemeralHotkeys = shallowReactive(new Map<string, EphemeralHotkey>())
 
   /**
    * Active bindings, several per key.
@@ -77,6 +77,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     hotkey: Hotkey,
     name: string,
     description: string,
+    category: CommandCategory = 'general',
     component?: string,
   ) {
     if (!name || !description) {
@@ -91,6 +92,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
       name,
       description,
       hotkey,
+      category,
       component,
       registeredAt: Date.now(),
     })
@@ -115,6 +117,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     component?: string,
     preventDefault?: boolean,
     allowInInput?: AllowInInput,
+    category?: CommandCategory,
   ): string {
     // Convert to array format for storage
     const hotkeyArray: Hotkey = Array.isArray(key)
@@ -126,7 +129,14 @@ export const useHotkeyStore = defineStore('hotkey', () => {
 
     // Register ephemeral hotkey if ID is provided
     if (id && name && description) {
-      registerEphemeralHotkey(id, hotkeyArray, name, description, component)
+      registerEphemeralHotkey(
+        id,
+        hotkeyArray,
+        name,
+        description,
+        category,
+        component,
+      )
     }
 
     // Newest first: the view opened most recently is the one that should get

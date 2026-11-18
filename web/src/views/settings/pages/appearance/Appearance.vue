@@ -33,6 +33,7 @@ import {
   type ColorScheme,
 } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
+import { usePowerStore } from '@/stores/power.store'
 import { useMapService } from '@/services/map/map.service'
 import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
@@ -51,6 +52,7 @@ const { setColorScheme, setAccentColor, setRadius } = themeStore
 
 // Map store
 const mapStore = useMapStore()
+const power = usePowerStore()
 const mapService = useMapService()
 const { settings } = storeToRefs(mapStore)
 
@@ -157,6 +159,7 @@ const handleColorChange = (value: any) => {
     <SettingsSection
       id="configuration"
       :title="$t('settings.mapSettings.configuration.title')"
+      :description="power.saving ? $t('settings.mapSettings.configuration.batterySaverNote') : undefined"
     >
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.3dBuildings')"

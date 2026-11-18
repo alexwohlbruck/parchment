@@ -3102,6 +3102,21 @@
         "sheetStart": "Sheet opens to",
         "search": "Search bar",
         "library": "Library"
+      },
+      "batterySaver": {
+        "title": "Battery saver",
+        "level": "Battery saver",
+        "levelDescription": "On turns off 3D and checks your location less often. Extreme shows only roads, on black, with no animations.",
+        "lowBattery": "On for now because your battery is low",
+        "values": {
+          "off": "Off",
+          "normal": "On",
+          "extreme": "Extreme"
+        },
+        "auto": "Turn on when battery is low",
+        "autoDescription": "Only while your phone isn't charging",
+        "normalAt": "Battery saver at",
+        "extremeAt": "Extreme at"
       }
     },
     "appearance": {
@@ -3166,7 +3181,8 @@
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
-        "placeLabels": "Place labels"
+        "placeLabels": "Place labels",
+        "batterySaverNote": "Battery saver has 3D off for now"
       },
       "controls": {
         "title": "Map controls",

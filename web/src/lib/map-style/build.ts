@@ -48,7 +48,6 @@ import {
   indoorUndergroundLayer,
   indoorFootprintLayer,
   indoorState,
-  withoutIndoorBuildings,
   withoutIndoorPlaces,
 } from './indoor-layers'
 import { trackLayers, racewayLayer } from './track-layers'
@@ -588,8 +587,7 @@ const INDOOR_PLACE_TILES = ['poi', 'aeroway']
 /** Floor plans before the buildings, so faded towers show a basement through them; labels on top, placed first. */
 function spliceIndoorLayers(layers: any[], flavor: FlavorId, labels: any[], fixtures: any): any[] {
   const out = layers.map(l =>
-    l['source-layer'] === BUILDING_3D_TILES ? { ...l, filter: withoutIndoorBuildings(l.filter) }
-    : l.type === 'symbol' && l.source === SOURCE && INDOOR_PLACE_TILES.includes(l['source-layer']) ? { ...l, filter: withoutIndoorPlaces(l.filter) }
+    l.type === 'symbol' && l.source === SOURCE && INDOOR_PLACE_TILES.includes(l['source-layer']) ? { ...l, filter: withoutIndoorPlaces(l.filter) }
     : l)
   const isBuilding = (l: any) => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES
   const firstBuilding = out.findIndex(isBuilding)

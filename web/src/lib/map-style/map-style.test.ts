@@ -25,7 +25,8 @@ import {
   poiBadgeColors,
   poiBadgeTint,
 } from './build'
-import { INDOOR_SOURCE, withoutIndoorBuildings } from './indoor-layers'
+import { INDOOR_SOURCE } from './indoor-layers'
+import { hidingReplaced } from '@/lib/map-objects/landmarks'
 import {
   DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
   GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER,
@@ -1075,7 +1076,7 @@ describe('assembled styles', () => {
     })
 
     test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
-      for (const l of extrusions()) expect(l.filter, l.id).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
+      for (const l of extrusions()) expect(l.filter, l.id).toEqual(['!has', 'hide_3d'])
     })
 
     /**
@@ -1121,7 +1122,7 @@ describe('assembled styles', () => {
         .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
       expect(edge.source).toBe(DETAIL_SOURCE)
       expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
-      expect(edge.filter).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
+      expect(edge.filter).toEqual(['!has', 'hide_3d'])
     })
 
     test('trees still stand above the buildings, both layers of them', () => {
@@ -2884,7 +2885,7 @@ describe('indoor layers', () => {
     const layers = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l['source-layer'] === BUILDING_3D_TILES)
     setBarrelmanBuildingsReady(null)
     expect(layers.length).toBeGreaterThan(0)
-    for (const l of layers) expect(JSON.stringify(l.filter), l.id).toContain('indoorBuildings')
+    for (const l of layers) expect(JSON.stringify(hidingReplaced(l).paint), l.id).toContain('"feature-state","inside"')
   })
   test('leaves the gates and places a floor plan draws to it', () => {
     const layers = (buildLayers({ flavor: 'light' }) as any[])

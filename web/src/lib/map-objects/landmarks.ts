@@ -227,7 +227,10 @@ export const REPLACEABLE_SOURCE_LAYERS: readonly string[] = ['building', BUILDIN
 /** The feature state a replaced building or track carries. */
 export const REPLACED_STATE = 'replaced'
 
-const REPLACED = ['boolean', ['feature-state', REPLACED_STATE], false]
+/** The feature state of a building a floor plan is showing the inside of. */
+export const INSIDE_STATE = 'inside'
+
+const REPLACED = ['any', ['boolean', ['feature-state', REPLACED_STATE], false], ['boolean', ['feature-state', INSIDE_STATE], false]]
 
 /**
  * The paint property that takes a replaced feature out of each layer type, the

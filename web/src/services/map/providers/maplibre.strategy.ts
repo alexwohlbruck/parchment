@@ -150,7 +150,7 @@ import {
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
-import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
+import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
@@ -348,6 +348,8 @@ export class MaplibreStrategy extends MapStrategy {
   private terrainCarver = new TerrainCarver(() => this.mapInstance, (areas, owner) => fineTerrain.focus(areas, owner))
   /** The ids marked replaced, by `source|source-layer`. */
   private replacedFeatures = new Map<string, Set<string | number>>()
+  /** The ids marked as shown from inside, likewise. */
+  private insideFeatures = new Map<string, Set<string | number>>()
 
   constructor(
     container: string | HTMLElement,
@@ -519,6 +521,7 @@ export class MaplibreStrategy extends MapStrategy {
       },
       buildings: refs => {
         this.indoorBuildings = refs
+        this.hideIndoorBuildings(refs)
         this.landmarkLayer?.setIndoorBuildings(refs)
       },
       clickable: () => {
@@ -565,6 +568,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
       this.replacedFeatures.clear()
+      this.insideFeatures.clear()
       this.fadedSurface.clear()
       // After the basemap rather than with it: a city's landmark models run to
       // megabytes, and placing them reads every building in view, all of it
@@ -991,6 +995,16 @@ export class MaplibreStrategy extends MapStrategy {
    * the same pass takes them out of the track and its casing.
    */
   private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
+    this.markFeatures(REPLACED_STATE, this.replacedFeatures, sourceLayer => replacedIds(sourceLayer, refs, featureIds))
+  }
+
+  /** Mark the buildings a floor plan is showing the inside of, which the same layers leave out. */
+  private hideIndoorBuildings(refs: string[]) {
+    this.markFeatures(INSIDE_STATE, this.insideFeatures, sourceLayer => (sourceLayer === BUILDING_3D_TILES ? refs : []))
+  }
+
+  /** Set a feature state on the ids each replaceable source-layer should carry it on, and clear it from those it held before. */
+  private markFeatures(state: string, marked: Map<string, Set<string | number>>, idsIn: (sourceLayer: string) => Array<string | number>) {
     const map = this.mapInstance
     const held = new Map<string, { source: string; sourceLayer: string }>()
     // By id, not `getStyle()`: that serialises the whole style, and landmarks report on every pan.
@@ -1000,12 +1014,12 @@ export class MaplibreStrategy extends MapStrategy {
     }
     let changed = false
     for (const [key, { source, sourceLayer }] of held) {
-      const before = this.replacedFeatures.get(key) ?? new Set()
-      const now = new Set(replacedIds(sourceLayer, refs, featureIds))
-      for (const id of now) if (!before.has(id)) map.setFeatureState({ source, sourceLayer, id }, { [REPLACED_STATE]: true })
-      for (const id of before) if (!now.has(id)) map.removeFeatureState({ source, sourceLayer, id }, REPLACED_STATE)
+      const before = marked.get(key) ?? new Set()
+      const now = new Set(idsIn(sourceLayer))
+      for (const id of now) if (!before.has(id)) map.setFeatureState({ source, sourceLayer, id }, { [state]: true })
+      for (const id of before) if (!now.has(id)) map.removeFeatureState({ source, sourceLayer, id }, state)
       changed ||= now.size !== before.size || [...now].some(id => !before.has(id))
-      this.replacedFeatures.set(key, now)
+      marked.set(key, now)
     }
     // The shade layer keeps its shadows while the buckets it read are the same ones.
     const shade = liveBuildingShade() as { buildingsVersion: number } | null

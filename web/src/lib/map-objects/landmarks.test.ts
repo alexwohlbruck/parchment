@@ -184,7 +184,7 @@ describe('insideFootprint', () => {
 })
 
 describe('unlessReplaced', () => {
-  const REPLACED = ['boolean', ['feature-state', 'replaced'], false]
+  const REPLACED = ['any', ['boolean', ['feature-state', 'replaced'], false], ['boolean', ['feature-state', 'inside'], false]]
 
   it('gives the hidden value for a replaced feature', () => {
     expect(unlessReplaced(0.3, 0)).toEqual(['case', REPLACED, 0, 0.3])
@@ -224,7 +224,7 @@ describe('hidingReplaced', () => {
 
   it('hides an extrusion by a negative height, which the shaders drop', () => {
     const extrusion = (style.layers as any[]).find(l => l.type === 'fill-extrusion' && l['source-layer'] === 'building')
-    expect(JSON.stringify(extrusion.paint['fill-extrusion-height'])).toContain('["boolean",["feature-state","replaced"],false],-1,')
+    expect(JSON.stringify(extrusion.paint['fill-extrusion-height'])).toContain('["boolean",["feature-state","inside"],false]],-1,')
   })
 
   it('leaves other layers as they are', () => {

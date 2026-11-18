@@ -13,7 +13,7 @@
  */
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
-import { along, boundsOf, holds, meets, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
+import { along, holds, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { cutCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
@@ -42,8 +42,6 @@ const CUT_ZOOM = 14
 const CUT_PAD = 0.15
 /** Cut tiles kept once read. */
 const CUT_TILES = 64
-/** Metres past its line a cut's walls and carving reach. */
-const CUT_REACH = 30
 
 /** Stencil marks: a cut's lid, and a mouth, through which alone the bore is drawn. */
 const [LID, MOUTH] = [1, 2]
@@ -288,18 +286,14 @@ export class TunnelLayer {
     this.options.terrain?.release()
   }
 
-  /** The cuts and road beds in the cut tiles read for the view, one copy each. */
+  /** The cuts and road beds of every cut tile in view, one copy each: by the tile, so turning the camera within them changes nothing. */
   private served(): { cuts: ServedCut[]; beds: ServedBed[] } {
-    // Past the view by a quarter of it, so a pan does not drop and re-carve the cuts at its edges.
-    const v = this.view()
-    const [dx, dy] = [(v.maxX - v.minX) / 4, (v.maxY - v.minY) / 4]
-    const view = { minX: v.minX - dx, minY: v.minY - dy, maxX: v.maxX + dx, maxY: v.maxY + dy }
     const cuts = new Map<string, ServedCut>()
     const beds = new Map<string, ServedBed>()
     for (const key of this.cutTilesInView()) {
       const tile = this.cutTiles.get(key)
-      for (const cut of tile?.cuts ?? []) if (meets(boundsOf(cut.points, CUT_REACH), view)) cuts.set(cut.key, cut)
-      for (const bed of tile?.beds ?? []) if (meets(boundsOf(bed.points, CUT_REACH), view)) beds.set(bed.key, bed)
+      for (const cut of tile?.cuts ?? []) cuts.set(cut.key, cut)
+      for (const bed of tile?.beds ?? []) beds.set(bed.key, bed)
     }
     return { cuts: [...cuts.values()], beds: [...beds.values()] }
   }

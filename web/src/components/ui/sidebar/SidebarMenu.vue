@@ -54,14 +54,44 @@ useMutationObserver(listRef, measure, {
     />
     <TransitionGroup
       tag="ul"
+      name="sidebar-row"
       :class="cn('flex flex-col gap-0.5', props.class)"
-      enter-active-class="motion-safe:transition-[opacity,transform] motion-safe:duration-300 motion-safe:ease-out"
-      enter-from-class="opacity-0 -translate-x-2"
-      leave-active-class="absolute inset-x-0 motion-safe:transition-opacity motion-safe:duration-200"
-      leave-to-class="opacity-0"
-      move-class="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
     >
       <slot />
     </TransitionGroup>
   </div>
 </template>
+
+<!--
+  Plain CSS, not utilities: tailwindcss-animate makes `duration-*` set an animation
+  duration too, and Vue then treats the move as an animation and skips it.
+  Unscoped because the rows belong to the slot's owner.
+-->
+<style>
+.sidebar-row-enter-from {
+  opacity: 0;
+  transform: translateX(-0.5rem);
+}
+
+.sidebar-row-leave-active {
+  position: absolute;
+  inset-inline: 0;
+}
+
+.sidebar-row-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar-row-enter-active,
+  .sidebar-row-move {
+    transition:
+      opacity 300ms ease-out,
+      transform 300ms ease-out;
+  }
+
+  .sidebar-row-leave-active {
+    transition: opacity 200ms ease-out;
+  }
+}
+</style>

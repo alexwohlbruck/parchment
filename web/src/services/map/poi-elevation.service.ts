@@ -8,6 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import {
@@ -51,7 +52,7 @@ function footprintReader() {
     const previous = byTile
     byTile = new Map()
     let read = 0
-    for (const f of map.querySourceFeatures(layer.source, { sourceLayer: layer.sourceLayer })) {
+    for (const f of sourceFeatures(map, layer.source, layer.sourceLayer)) {
       if (++read % 64 === 0) yield
       const tile = `${layer.source}/${layer.sourceLayer}/${f._z}/${f._x}/${f._y}`
       const known = previous.get(tile)
@@ -210,7 +211,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const positions: string[] = []
     const nextElevations = new Map<string, number>()
     let read = 0
-    for (const f of map.querySourceFeatures(tiles, { sourceLayer: 'poi' })) {
+    for (const f of sourceFeatures(map, tiles, 'poi')) {
       if (++read % 32 === 0) yield
       const point = f.geometry?.coordinates as [number, number]
       if (!point) continue

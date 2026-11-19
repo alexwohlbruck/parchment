@@ -112,7 +112,7 @@
   "devDependencies": {
     "@fontsource/roboto": "^5.3.0",
     "@mapbox/shelf-pack": "^3.2.0",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.1.12",
     "@tauri-apps/cli": "^2.10.0",
     "@types/mapbox-gl": "^2.7.21",

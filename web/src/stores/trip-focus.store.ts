@@ -16,7 +16,10 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
+import { fetchVehiclesOnRoutes, VEHICLE_POLL_MS } from '@/lib/transit/transit-vehicle-fetch'
+import { usePowerStore } from '@/stores/power.store'
+import { createPoller } from '@/lib/power/poller'
+import { pollInterval } from '@/lib/power/power-saver'
 import {
   focusedLegs,
   routeIdsByFeed,
@@ -24,9 +27,6 @@ import {
   type FocusedLeg,
 } from '@/lib/transit/transit-focus'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
-
-/** Matches the route panel's cadence, so the two pages animate alike. */
-const VEHICLE_POLL_MS = 5_000
 
 export const useTripFocusStore = defineStore('trip-focus', () => {
   const directionsStore = useDirectionsStore()
@@ -91,7 +91,6 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
   const visibleVehicleIds = emphasizedVehicleIds
 
   // ── polling ──────────────────────────────────────────────────────
-  let pollTimer: ReturnType<typeof setInterval> | null = null
   /** Bumps on every leg change, so a slow feed's answer for a trip the
    *  rider has already left never lands. */
   let fetchGeneration = 0
@@ -115,12 +114,9 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
     vehicles.value = next
   }
 
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-  }
+  const power = usePowerStore()
+  const poller = createPoller(fetchVehicles, () => pollInterval(VEHICLE_POLL_MS, power.saver))
+  watch(() => power.saver, poller.retime)
 
   // Keyed on the lines rather than the trip: switching between two
   // itineraries that ride the same trains should not blank the map.
@@ -131,13 +127,12 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
       .join('|'),
     (key) => {
       fetchGeneration++
-      stopPolling()
+      poller.stop()
       if (!key) {
         vehicles.value = new Map()
         return
       }
-      void fetchVehicles()
-      pollTimer = setInterval(fetchVehicles, VEHICLE_POLL_MS)
+      poller.start()
     },
     { immediate: true },
   )

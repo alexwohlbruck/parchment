@@ -315,6 +315,7 @@ useHotkeys([
       if (isActive.value) closeRadius()
     },
     id: 'radius-close',
+    category: 'tools',
     name: 'Close radius tool',
     description: 'Close the radius tool',
   },

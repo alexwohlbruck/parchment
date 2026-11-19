@@ -492,7 +492,16 @@
     "toggleState": {
       "shown": "Visible",
       "hidden": "Oculto"
+    },
+    "categories": {
+      "general": "General",
+      "appearance": "Apariencia",
+      "map": "Mapa",
+      "tools": "Herramientas"
     }
+  },
+  "hotkeys": {
+    "search": "Buscar atajos"
   },
   "messages": {
     "error": {

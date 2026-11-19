@@ -2,6 +2,8 @@
 
 ### Added
 
+* The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
+
 ### Changed
 
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
@@ -9,10 +11,12 @@
 * The 3D map finishes loading several times sooner where landmarks and bridges are in view.
 * 3D trees, street furniture and landmark models download in a fraction of the requests and size.
 * Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
+* Recents in the sidebar slide into place as they're added, reordered or removed.
 
 ### Fixed
 
 * Road names no longer lie on the ground beneath a bridge drawn in 3D.
+* Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
 
 ## [0.22.2] - 2026-11-17
 

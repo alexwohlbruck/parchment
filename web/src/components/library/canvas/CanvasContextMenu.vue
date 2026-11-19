@@ -18,12 +18,10 @@ import { Switch } from '@/components/ui/switch'
 import { useAppService } from '@/services/app.service'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { currentMapSettings } from '@/composables/canvas/useCanvasMapSettings'
-import {
-  canvasCollection,
-  geoJsonBlob,
-  geoJsonFilename,
-} from '@/lib/canvas/geo-export'
-import { saveFile } from '@/lib/file-save'
+import { canvasCollection } from '@/lib/canvas/canvas-geo'
+import { exportGeoFile } from '@/lib/geo-file/geo-write'
+import type { GeoFormat } from '@/lib/geo-file/geo-format'
+import { geoExportItems } from '@/components/geo-file/geo-export-items'
 import { themeColorToHex } from '@/lib/utils'
 import {
   ArchiveIcon,
@@ -98,11 +96,12 @@ function set(key: keyof CanvasMapSettings, value: boolean) {
   emit('update:mapSettings', { ...props.mapSettings, [key]: value })
 }
 
-function exportFile() {
+function exportFile(format: GeoFormat) {
   const body = props.body ?? props.canvas.body ?? emptyCanvasBody()
-  saveFile(
-    geoJsonBlob(canvasCollection(body, themeColorToHex)),
-    geoJsonFilename(canvasesService.displayName(props.canvas)),
+  exportGeoFile(
+    canvasCollection(body, themeColorToHex),
+    canvasesService.displayName(props.canvas),
+    format,
   )
 }
 
@@ -176,11 +175,11 @@ const menuItems = computed<MenuItemDefinition[]>(() => [
     onSelect: () => emit('edit'),
   },
   {
-    type: 'item',
+    type: 'submenu',
     id: 'export',
-    label: t('canvases.actions.export'),
+    label: t('geoFile.export'),
     icon: markRaw(DownloadIcon),
-    onSelect: exportFile,
+    items: geoExportItems(t, exportFile),
   },
   {
     type: 'item',

@@ -3,10 +3,10 @@ import type { Feature, FeatureCollection } from 'geojson'
 import {
   annotationExportFeature,
   canvasCollection,
-  geoJsonFilename,
   splitAnnotations,
-} from './geo-export'
-import { parseGeoData } from './geo-import'
+} from './canvas-geo'
+import { parseGeoData } from '@/lib/geo-file/geo-read'
+import { toKml } from '@/lib/geo-file/geo-write'
 import { createAnnotation } from './canvas-annotations'
 import type { CanvasAnnotation, CanvasDataLayer } from '@/types/canvas.types'
 
@@ -55,6 +55,15 @@ describe('canvas GeoJSON round trip', () => {
     expect(rest.features).toHaveLength(0)
     expect(annotations.map(withoutId)).toEqual(marks.map(withoutId))
     expect(annotations.every((a, i) => a.id !== marks[i].id)).toBe(true)
+  })
+
+  it('survives a trip through KML, which carries the record as text', () => {
+    const pin = { ...createAnnotation('pin', [[1, 2]]), label: 'Here', color: 'rose' }
+    const kml = toKml(canvasCollection({ annotations: [pin], layers: [] }))
+
+    const { annotations } = splitAnnotations(parseGeoData(kml, 'c.kml').collection)
+
+    expect(annotations.map(withoutId)).toEqual([withoutId(pin)])
   })
 
   it('leaves features from other tools as data', () => {
@@ -109,12 +118,5 @@ describe('canvasCollection', () => {
 
   it('skips a mark with too few positions to draw', () => {
     expect(annotationExportFeature(createAnnotation('line', [[0, 0]]))).toBeNull()
-  })
-})
-
-describe('geoJsonFilename', () => {
-  it('slugs a name and falls back when nothing is left', () => {
-    expect(geoJsonFilename('Café run · Brooklyn')).toBe('cafe-run-brooklyn.geojson')
-    expect(geoJsonFilename('—')).toBe('parchment.geojson')
   })
 })

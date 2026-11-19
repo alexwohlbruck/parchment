@@ -3,9 +3,9 @@ import {
   parseGeoData,
   parseDelimited,
   collectPropertyNames,
-  formatFromFilename,
   GeoImportError,
-} from './geo-import'
+} from './geo-read'
+import { formatFromFilename } from './geo-format'
 
 /**
  * Import is where other people's files meet the canvas, so the interesting

@@ -1,8 +1,8 @@
 /**
- * Writing canvas marks out as GeoJSON, and reading them back in.
+ * Canvas marks as GeoJSON features, and back.
  *
- * Each mark carries its own record under a `parchment` property, so a file
- * exported here imports as the same marks rather than as anonymous data. The
+ * Each mark carries its own record under a `parchment` property, so an
+ * exported file imports as the same marks rather than as anonymous data. The
  * simplestyle keys ride alongside for every other tool that opens the file.
  */
 
@@ -92,9 +92,19 @@ function outerPolygon(geometry: Geometry): Position[][] | null {
   return null
 }
 
+/** KML and CSV carry the record as text; GeoJSON as an object. */
+function readRecord(value: unknown): Partial<StoredAnnotation> | null {
+  if (typeof value !== 'string') return (value as Partial<StoredAnnotation>) ?? null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
 /** The mark a feature was exported from, or null for anyone else's data. */
 export function annotationFromFeature(feature: Feature): CanvasAnnotation | null {
-  const record = feature.properties?.parchment as Partial<StoredAnnotation> | undefined
+  const record = readRecord(feature.properties?.parchment)
   if (!record || !isTool(record.tool) || !Array.isArray(record.positions)) {
     return null
   }
@@ -126,18 +136,4 @@ export function splitAnnotations(collection: FeatureCollection): {
     else rest.push(feature)
   }
   return { annotations, rest: { type: 'FeatureCollection', features: rest } }
-}
-
-export function geoJsonFilename(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  return `${slug || 'parchment'}.geojson`
-}
-
-export function geoJsonBlob(collection: FeatureCollection): Blob {
-  return new Blob([JSON.stringify(collection)], { type: 'application/geo+json' })
 }

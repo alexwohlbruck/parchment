@@ -16,13 +16,12 @@
 
 import { kml as kmlToGeoJson, gpx as gpxToGeoJson } from '@tmcw/togeojson'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
-
-/** Formats we can read. Shapefiles need a binary reader and are not here yet. */
-export type GeoImportFormat = 'geojson' | 'kml' | 'gpx' | 'csv'
+import { formatFromFilename, type GeoFormat } from '@/lib/geo-file/geo-format'
+import { fromWkt } from '@/lib/geo-file/wkt'
 
 export interface GeoImportResult {
   collection: FeatureCollection
-  format: GeoImportFormat
+  format: GeoFormat
   filename: string
   /** Property names present on the features, for choosing a label. */
   properties: string[]
@@ -40,23 +39,6 @@ export class GeoImportError extends Error {
  * and every save ships the whole thing again.
  */
 export const MAX_IMPORT_BYTES = 4 * 1024 * 1024
-
-const EXTENSION_FORMATS: Record<string, GeoImportFormat> = {
-  json: 'geojson',
-  geojson: 'geojson',
-  kml: 'kml',
-  gpx: 'gpx',
-  csv: 'csv',
-  tsv: 'csv',
-}
-
-/** File extensions the picker should offer. */
-export const ACCEPTED_EXTENSIONS = '.geojson,.json,.kml,.gpx,.csv,.tsv'
-
-export function formatFromFilename(filename: string): GeoImportFormat | null {
-  const extension = filename.split('.').pop()?.toLowerCase() ?? ''
-  return EXTENSION_FORMATS[extension] ?? null
-}
 
 function isFeatureCollection(value: unknown): value is FeatureCollection {
   return (
@@ -97,6 +79,7 @@ function parseXml(text: string, error: string): Document {
 /** Column names that mean latitude / longitude, in the order we prefer them. */
 const LAT_KEYS = ['latitude', 'lat', 'y']
 const LNG_KEYS = ['longitude', 'lng', 'lon', 'long', 'x']
+const WKT_KEYS = ['wkt', 'geometry', 'geom', 'the_geom']
 
 /**
  * A small RFC-4180 reader: quoted fields, doubled quotes inside them, and
@@ -152,6 +135,15 @@ function findColumn(headers: string[], candidates: string[]): number {
   return -1
 }
 
+function pointFrom(latText = '', lngText = ''): Geometry | null {
+  if (!latText.trim() || !lngText.trim()) return null
+  const lat = Number(latText)
+  const lng = Number(lngText)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  return { type: 'Point', coordinates: [lng, lat] }
+}
+
 function csvToCollection(text: string, delimiter: string): FeatureCollection {
   const rows = parseDelimited(text, delimiter)
   if (rows.length < 2) throw new GeoImportError('csvEmpty')
@@ -159,31 +151,30 @@ function csvToCollection(text: string, delimiter: string): FeatureCollection {
   const [headers, ...body] = rows
   const latIndex = findColumn(headers, LAT_KEYS)
   const lngIndex = findColumn(headers, LNG_KEYS)
-  if (latIndex === -1 || lngIndex === -1) {
+  const wktIndex = findColumn(headers, WKT_KEYS)
+  const hasPoints = latIndex !== -1 && lngIndex !== -1
+  if (!hasPoints && wktIndex === -1) {
     throw new GeoImportError('csvNoCoordinates')
   }
+  const geometryColumns = [latIndex, lngIndex, wktIndex]
 
   const features: Feature[] = []
   for (const cells of body) {
-    const lat = Number(cells[latIndex])
-    const lng = Number(cells[lngIndex])
     // A row with an unreadable or out-of-range coordinate is skipped rather
     // than failing the import — one bad line shouldn't lose the other 900.
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
-    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) continue
+    const geometry =
+      (wktIndex !== -1 && cells[wktIndex]?.trim() && fromWkt(cells[wktIndex])) ||
+      (hasPoints && pointFrom(cells[latIndex], cells[lngIndex]))
+    if (!geometry) continue
 
     const properties: Record<string, string> = {}
     headers.forEach((header, index) => {
-      if (index === latIndex || index === lngIndex) return
+      if (geometryColumns.includes(index)) return
       const key = header.trim()
       if (key) properties[key] = cells[index] ?? ''
     })
 
-    features.push({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [lng, lat] },
-      properties,
-    })
+    features.push({ type: 'Feature', geometry, properties })
   }
 
   if (!features.length) throw new GeoImportError('csvNoRows')
@@ -217,7 +208,7 @@ function withGeometry(collection: FeatureCollection): FeatureCollection {
 export function parseGeoData(
   text: string,
   filename: string,
-  format?: GeoImportFormat,
+  format?: GeoFormat,
 ): GeoImportResult {
   const resolved = format ?? formatFromFilename(filename)
   if (!resolved) throw new GeoImportError('unsupportedFormat')

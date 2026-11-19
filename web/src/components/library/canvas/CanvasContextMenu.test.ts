@@ -83,9 +83,9 @@ function render(mapSettings?: CanvasMapSettings) {
 }
 
 describe('what the menu offers', () => {
-  it('carries appearance, rename, archive and delete', () => {
+  it('carries appearance, rename, export, archive and delete', () => {
     const ids = render().items().map(i => i.id).filter(Boolean)
-    expect(ids).toEqual(['appearance', 'edit', 'archive', 'delete'])
+    expect(ids).toEqual(['appearance', 'edit', 'export', 'archive', 'delete'])
   })
 
   it('marks the appearance submenu when the canvas is dressing the map', () => {

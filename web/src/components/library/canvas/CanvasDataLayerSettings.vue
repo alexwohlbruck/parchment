@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { DATA_RENDERS, defaultStyleFor } from '@/lib/canvas/data-presets'
-import { collectPropertyNames } from '@/lib/canvas/geo-import'
+import { collectPropertyNames } from '@/lib/geo-file/geo-read'
 import type { CanvasDataLayer, CanvasDataRender } from '@/types/canvas.types'
 import {
   CircleDotIcon,

@@ -19,7 +19,7 @@ defineEmits<{ close: [] }>()
 </script>
 
 <template>
-  <div class="pointer-events-auto shrink-0" :class="widthClass ?? 'max-w-96'">
+  <div class="pointer-events-auto shrink-0" :class="[widthClass ?? 'max-w-96', 'max-md:w-full max-md:max-w-none']">
     <Card
       class="rounded-xl border-border/60 bg-background/90 backdrop-blur-sm shadow-sm"
     >
@@ -35,7 +35,7 @@ defineEmits<{ close: [] }>()
           <Button
             variant="ghost"
             size="icon"
-            class="size-7 shrink-0"
+            class="size-7 shrink-0 max-md:size-9"
             :aria-label="closeLabel"
             @click="$emit('close')"
           >

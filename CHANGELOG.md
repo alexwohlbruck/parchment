@@ -13,6 +13,7 @@
 ### Fixed
 
 * The measure, circle and travel-time tools draw their lines and areas on the map again.
+* On phones, the measuring panels span the screen with the map buttons above them, and their export menu opens.
 
 ## [0.22.3] - 2026-11-19
 

@@ -27,7 +27,7 @@ const OPTIONS = [
       :value="option.value"
       :aria-label="t(option.label)"
       variant="ghost"
-      class="h-6 min-w-0 rounded-[5px] px-2 py-0 text-[11px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground active:translate-y-0 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs"
+      class="h-6 min-w-0 rounded-[5px] px-2 py-0 max-md:h-8 max-md:px-3 max-md:text-[13px] text-[11px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground active:translate-y-0 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs"
     >
       {{ t(option.short) }}
     </ToggleGroupItem>

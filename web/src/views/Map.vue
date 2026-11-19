@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, watch, computed, type CSSProperties } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
@@ -227,8 +228,19 @@ const streetPeekStyle = computed<CSSProperties>(() => {
 
 // 4.5rem = the cluster's resting offset (overlay p-2 + mb-16); min() keeps
 // the transform from pushing the buttons down when the sheet sits below it.
+const toolPanel = ref<HTMLElement | null>(null)
+const { height: toolPanelHeight } = useElementSize(toolPanel)
+
+/** A measuring panel spans a phone's width, so the controls ride above it. */
+const toolLiftStyle = computed<CSSProperties>(() =>
+  isMobileScreen.value && toolPanel.value && toolPanelHeight.value
+    ? { transform: `translateY(-${Math.round(toolPanelHeight.value) + 8}px)` }
+    : {},
+)
+
 const mapFabsLiftStyle = computed<CSSProperties>(() => {
   if (!isMobileScreen.value) return {}
+  if (toolPanel.value) return toolLiftStyle.value
   const sheet = appStore.componentDimensions.get('map-content-sheet')
   if (!sheet) return {}
   const visible = Math.round(window.innerHeight - sheet.y)
@@ -565,8 +577,9 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto mt-auto flex items-center gap-2"
+                class="pointer-events-auto mt-auto flex items-center gap-2 transition-transform duration-300"
                 :class="{ 'mb-16': isMobileScreen }"
+                :style="toolLiftStyle"
               >
                 <AttributionControl />
                 <CameraPositionControl />
@@ -607,7 +620,12 @@ defineExpose({
 
           <!-- Center (bottom): same padding/safe area as left/right -->
           <div
-            class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center justify-end pointer-events-none p-2 safe-area-inset"
+            class="absolute top-0 bottom-0 flex flex-col justify-end pointer-events-none p-2 safe-area-inset"
+            :class="
+              isMobileScreen
+                ? 'inset-x-0 items-stretch'
+                : 'left-1/2 -translate-x-1/2 items-center'
+            "
           >
             <TransitionSlide
               appear
@@ -617,6 +635,7 @@ defineExpose({
             >
               <div
                 v-if="mapToolsStore.activeTool === 'measure'"
+                ref="toolPanel"
                 class="pointer-events-auto flex flex-col gap-2"
                 :class="{ 'mb-16': isMobileScreen }"
               >
@@ -624,6 +643,7 @@ defineExpose({
               </div>
               <div
                 v-else-if="mapToolsStore.activeTool === 'radius'"
+                ref="toolPanel"
                 class="pointer-events-auto flex flex-col gap-2"
                 :class="{ 'mb-16': isMobileScreen }"
               >
@@ -631,6 +651,7 @@ defineExpose({
               </div>
               <div
                 v-else-if="mapToolsStore.activeTool === 'isochrone'"
+                ref="toolPanel"
                 class="pointer-events-auto flex flex-col gap-2"
                 :class="{ 'mb-16': isMobileScreen }"
               >

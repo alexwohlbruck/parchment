@@ -64,7 +64,7 @@ const exportItems = computed(() => geoExportItems(t, exportFile))
     <Button
       v-if="signedIn"
       size="sm"
-      class="h-8 flex-1 gap-1.5"
+      class="h-8 flex-1 gap-1.5 max-md:h-10"
       :disabled="saving"
       @click="saveToCanvas"
     >
@@ -73,12 +73,13 @@ const exportItems = computed(() => geoExportItems(t, exportFile))
       {{ t('measure.saveToCanvas') }}
     </Button>
     <ResponsiveDropdown :items="exportItems" align="end" :title="t('geoFile.export')">
-      <template #trigger>
+      <template #trigger="{ open }">
         <Button
           variant="outline"
           size="sm"
-          class="h-8 gap-1 pr-2"
+          class="h-8 gap-1 pr-2 max-md:h-10"
           :class="{ 'flex-1': !signedIn }"
+          @click="open"
         >
           {{ t('geoFile.export') }}
           <ChevronDownIcon class="size-3.5 text-muted-foreground" />

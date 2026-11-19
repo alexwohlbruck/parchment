@@ -284,7 +284,7 @@ function closeTool() {
             :value="option.id"
             variant="outline"
             :aria-label="t(option.labelKey)"
-            class="h-8 w-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+            class="h-8 w-full max-md:h-10 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <component :is="option.icon" class="size-4 shrink-0" />
           </ToggleGroupItem>
@@ -304,7 +304,7 @@ function closeTool() {
             :key="direction"
             :value="direction"
             variant="outline"
-            class="h-7 w-full text-[12px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+            class="h-7 w-full text-[12px] max-md:h-9 max-md:text-[13px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             {{ t(direction === 'from' ? 'isochrone.fromHere' : 'isochrone.toHere') }}
           </ToggleGroupItem>
@@ -356,7 +356,7 @@ function closeTool() {
               :value="String(count)"
               variant="outline"
               :aria-label="t('isochrone.bandsCount', { count })"
-              class="h-7 w-8 text-[12px] tabular-nums data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              class="h-7 w-8 text-[12px] tabular-nums max-md:h-9 max-md:w-10 max-md:text-[13px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {{ count }}
             </ToggleGroupItem>
@@ -371,13 +371,13 @@ function closeTool() {
              slider nudge is more disorienting than a moment of staleness. -->
         <template v-if="bands.length">
           <div
-            class="flex flex-col gap-1.5 transition-opacity"
+            class="grid grid-cols-3 gap-x-3 gap-y-2.5 transition-opacity"
             :class="{ 'opacity-50': status === 'loading' }"
           >
             <div
               v-for="band in bands"
               :key="band.bucket"
-              class="flex items-baseline justify-between gap-4"
+              class="flex min-w-0 flex-col gap-0.5"
             >
               <span class="flex min-w-0 items-center gap-2">
                 <span
@@ -394,7 +394,7 @@ function closeTool() {
                 </Label>
               </span>
               <span
-                class="text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums"
+                class="truncate text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums"
               >
                 {{ formatArea(band.reachableAreaSquareMeters) }}
               </span>

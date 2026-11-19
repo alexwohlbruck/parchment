@@ -1146,17 +1146,22 @@ export class LandmarkLayer {
   /**
    * The ground a placed model was built on: flat, or the terrain. Read off
    * the DEM under its contacts, raw and unfilled — the map's heights come
-   * exaggerated — and kept once all of them have loaded.
+   * exaggerated — and kept once all of them have loaded at full detail.
    */
   private modelGround(landmark: Landmark, model: Model, ground: { unfilled: (point: [number, number]) => number }): ModelGround {
     const key = `${landmark.id} ${landmark.model} ${landmark.lng} ${landmark.lat} ${landmark.bearing} ${landmark.scale}`
     const known = this.grounds.get(key)
     if (known) return known
     const contacts = model.contacts ?? []
-    const raw = contacts.map(([x, , z]) => ground.unfilled(modelToLngLat(landmark, x, z)))
-    const fitted = modelGround(contacts, raw, landmark.scale)
-    if (contacts.length && raw.every(Number.isFinite)) this.grounds.set(key, fitted)
-    return fitted
+    const points = contacts.map(([x, , z]) => modelToLngLat(landmark, x, z))
+    // Kept only from the detailed DEM: the drawn terrain is coarse far from the eye, and read there it can make a model built on the terrain look flat.
+    const bare = points.map(point => this.bareAt(point))
+    if (contacts.length && bare.every(Number.isFinite)) {
+      const fitted = modelGround(contacts, bare, landmark.scale)
+      this.grounds.set(key, fitted)
+      return fitted
+    }
+    return modelGround(contacts, points.map(ground.unfilled), landmark.scale)
   }
 
   /**

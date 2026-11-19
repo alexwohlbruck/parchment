@@ -1,3 +1,4 @@
+import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
 import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
@@ -67,7 +68,6 @@ import {
   ShadowMode,
   UnitSystem,
   type MapControlSettings,
-  type PoiStyleId,
 } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
@@ -169,8 +169,6 @@ const MAP_LABELS: MapLabel[] = ['poiLabels', 'roadLabels', 'transitLabels', 'pla
 
 type MapControl = Exclude<keyof MapControlSettings, 'camera'>
 const MAP_CONTROLS: MapControl[] = ['zoom', 'compass', 'scale', 'streetView', 'locate', 'weather']
-
-const POI_STYLES: PoiStyleId[] = ['badge', 'glyph']
 
 const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
   [GridSnapMode.OFF]: 'gridSnapModeOff',

@@ -58,5 +58,15 @@ export const useLayerAppearanceStore = defineStore('layer-appearance', () => {
     for (const layerId of Object.keys(LAYER_APPEARANCES)) await apply(layerId, mapStrategy)
   }
 
-  return { appearanceOf, setAppearance, setLayerVisible, applyAll }
+  /** Takes the appearances chosen on the account, keeping this device's for layers it has none for. */
+  async function adopt(remote: Record<string, unknown>, mapStrategy?: MapStrategy) {
+    const known = Object.entries(remote).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === 'string' && !!LAYER_APPEARANCES[entry[0]]?.some(a => a.id === entry[1]),
+    )
+    chosen.value = { ...chosen.value, ...Object.fromEntries(known) }
+    await applyAll(mapStrategy)
+  }
+
+  return { chosen, appearanceOf, setAppearance, setLayerVisible, applyAll, adopt }
 })

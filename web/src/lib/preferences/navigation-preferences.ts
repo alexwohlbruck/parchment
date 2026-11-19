@@ -110,19 +110,6 @@ export function withModeEnabled(
   return TRIP_MODE_TOKENS.filter(t => (t === token ? !enabled : excluded.includes(t)))
 }
 
-const NAVIGATION_SECTIONS = [
-  'excludedModes',
-  'sortPreference',
-  'routing',
-  'speech',
-  'guidance',
-] as const satisfies ReadonlyArray<keyof NavigationPreferences>
-
-/** Sections the account has never saved, which a device should seed from its own values. */
-export function unsavedSections(remote: NavigationPreferences): Array<keyof NavigationPreferences> {
-  return NAVIGATION_SECTIONS.filter(section => remote[section] === undefined)
-}
-
 export const mergeSpeechPreferences = (stored: unknown): SpeechPreferences => ({
   ...DEFAULT_SPEECH_PREFERENCES,
   ...(isObject(stored) ? stored : {}),

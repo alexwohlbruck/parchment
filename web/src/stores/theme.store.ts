@@ -91,7 +91,6 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function setAccentColor(color: Theme['name']) {
-    console.log('color changed')
     config.value.accentColor = color
   }
 

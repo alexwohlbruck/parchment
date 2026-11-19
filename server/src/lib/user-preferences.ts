@@ -1,6 +1,7 @@
 import type { UserPreferences } from '../schema/user-preferences.schema'
 import type { AskPreferences } from '../types/ask-preferences.types'
 import { resolveAskPreferences } from './ask/ask-preferences'
+import { APP_PREFERENCE_SECTIONS, type AppPreferences } from '../types/app-preferences.types'
 import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import {
   SORT_PREFERENCES,
@@ -13,6 +14,7 @@ export interface UserPreferencesResponse {
   unitSystem: string
   navigation: NavigationPreferences
   ask: AskPreferences
+  app: AppPreferences
 }
 
 type Blob = Record<string, unknown>
@@ -46,13 +48,25 @@ export function normalizeNavigationPreferences(stored: unknown): NavigationPrefe
   }
 }
 
+/** Keeps the sections that were saved as objects, leaving the rest absent. */
+export function normalizeAppPreferences(stored: unknown): AppPreferences {
+  const raw = isBlob(stored) ? stored : {}
+  return Object.fromEntries(
+    APP_PREFERENCE_SECTIONS.flatMap((section) => {
+      const value = raw[section]
+      return isBlob(value) ? [[section, value]] : []
+    }),
+  )
+}
+
 export function toPreferencesResponse(
-  prefs: Pick<UserPreferences, 'language' | 'unitSystem' | 'navigation' | 'ask'>,
+  prefs: Pick<UserPreferences, 'language' | 'unitSystem' | 'navigation' | 'ask' | 'app'>,
 ): UserPreferencesResponse {
   return {
     language: prefs.language,
     unitSystem: prefs.unitSystem,
     navigation: normalizeNavigationPreferences(prefs.navigation),
     ask: resolveAskPreferences(prefs.ask),
+    app: normalizeAppPreferences(prefs.app),
   }
 }

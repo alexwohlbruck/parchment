@@ -51,7 +51,7 @@ export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
   // Well into the night map's blue, or a stone tower glows among its neighbours, but with its own hue still showing.
   dark: {
     palette: [hsl(darkTokens.building_3d_fill_extrusion_color)],
-    harmony: { building: 0.5, other: 0.3 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 },
+    harmony: { building: 0.5, other: 0.55 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 },
     facade: FACADE_FLAVOR.dark,
   },
 }

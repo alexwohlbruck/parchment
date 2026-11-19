@@ -42,6 +42,10 @@ describe('landmarkPools', () => {
     expect([low[5], low[6]]).toEqual([0, 0])
   })
 
+  it('throws nothing on the ground from a sign near the top of a tower', () => {
+    expect(landmarkPools([], [sign(100, 3)])).toHaveLength(0)
+  })
+
   it('glows round every bulb, however high', () => {
     const glows = landmarkGlows([primitive('lamp', [[0.5, 6, 0], [40.5, 40, 0]]), primitive('stone', [[0, 4, 0]])])
     expect(glows.length / FLOATS).toBe(2)

@@ -18,8 +18,10 @@ export const LANDMARK_LIGHT = {
   glowReach: 1.6, glowColor: [0.16, 0.115, 0.06], maxGlows: 4096,
   /** A sign's pool reaches its own half-width, this, and this share of its height over the ground, within metres [min, max]. */
   signReach: 4, signRise: 0.6, minReach: 6, maxReach: 45,
-  /** How bright the pool under a sign a metre across is, the metres across at which it is full, and the metres up at which it is half. */
-  signLight: 0.5, signFull: 3, signHalf: 20,
+  /** How bright the pool under a sign a metre across is, the metres across at which it is full, and the metres up at which it is half, falling off with the square of height. */
+  signLight: 0.5, signFull: 3, signHalf: 12,
+  /** The share of a sign's light below which its pool is left out. */
+  signLeast: 0.03,
   /** More pools than any model's lamps and signs; the rest go without. */
   max: 512,
 }
@@ -66,7 +68,9 @@ export function landmarkPools(primitives: GlbPrimitive[], halos: Halo[]): Float3
     const half = Math.hypot(...h.u)
     const height = Math.max(h.centre[1], 0)
     const reach = Math.min(L.maxReach, Math.max(L.minReach, half + L.signReach + height * L.signRise))
-    const light = L.signLight * h.strength * Math.min(1, (half * 2) / L.signFull) / (1 + height / L.signHalf)
+    const reaching = 1 / (1 + (height / L.signHalf) ** 2)
+    if (reaching < L.signLeast) continue
+    const light = L.signLight * h.strength * Math.min(1, (half * 2) / L.signFull) * reaching
     pools.push(...h.centre, reach, ...h.color.map(c => Math.pow(c, 2.2) * light))
   }
   return new Float32Array(pools.slice(0, L.max * FLOATS))

@@ -1563,8 +1563,7 @@ export class LandmarkLayer {
     if (!placements.length || this.opacity <= 0) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
-    const painter = this.map.painter
-    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
+    const range: [number, number] | undefined = args?.depthRangeFor3D
     const light = this.light()
     const { program, u } = this.draw
 
@@ -1644,7 +1643,7 @@ export class LandmarkLayer {
     if (this.options.flavor.facade.night) {
       this.drawEntrances(gl, matrix, seen)
       this.drawHalos(gl, matrix, seen)
-      this.drawLampGlows(gl, matrix, seen)
+      this.drawLampGlows(gl, matrix, seen, args.fov)
     }
     gl.bindVertexArray(null)
     this.restore()
@@ -1767,8 +1766,8 @@ export class LandmarkLayer {
   }
 
   /** The glow round every lamp, as the signs' glow is. */
-  private drawLampGlows(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[]) {
-    const billboard = billboardScale(this.map.painter.transform)
+  private drawLampGlows(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[], fov: number) {
+    const billboard = billboardScale({ zoom: this.map.getZoom(), fov, width: gl.drawingBufferWidth, height: gl.drawingBufferHeight })
     gl.disable(gl.CULL_FACE)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE)

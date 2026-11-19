@@ -102,13 +102,17 @@ const shared = new WeakMap<WebGL2RenderingContext, Shared>()
 
 const IDENTITY3 = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1])
 
+/** MapLibre's world size at zoom 0, in pixels. */
+const WORLD_SIZE = 512
+
 /**
  * Clip units a mercator unit spans across the view, whatever its depth: the camera sees one pixel per pixel at
- * its distance to the centre, so a length facing it scales by that distance alone.
+ * its distance to the centre, so a length facing it scales by that distance alone. `fov` is the vertical field
+ * of view in radians; `width` and `height` are the drawing buffer's.
  */
-export function billboardScale(transform: { worldSize: number; cameraToCenterDistance: number; width: number; height: number }): [number, number] {
-  const k = 2 * transform.worldSize * transform.cameraToCenterDistance
-  return [k / transform.width, k / transform.height]
+export function billboardScale(view: { zoom: number; fov: number; width: number; height: number }): [number, number] {
+  const k = (WORLD_SIZE * 2 ** view.zoom) / Math.tan(view.fov / 2)
+  return [(k * view.height) / view.width, k]
 }
 
 /** Pools of light on the ground, as soft discs drawn from overhead into the lamplight. */

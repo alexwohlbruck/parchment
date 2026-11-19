@@ -45,7 +45,7 @@
       "endpointNotFound": "Este endpoint no existe"
     },
     "rateLimit": {
-      "exceeded": "Se superó el límite de solicitudes"
+      "exceeded": "Demasiados intentos. Espera un poco y vuelve a intentarlo"
     },
     "integration": {
       "failed": "La solicitud al servicio externo falló",

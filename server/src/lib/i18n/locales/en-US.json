@@ -45,7 +45,7 @@
       "endpointNotFound": "This endpoint does not exist"
     },
     "rateLimit": {
-      "exceeded": "Rate limit exceeded"
+      "exceeded": "Too many tries. Wait a bit and try again"
     },
     "integration": {
       "failed": "External service request failed",

@@ -1,12 +1,18 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { frameTask } from './frame-task'
+import { frameTask, setFrameTaskBudget } from './frame-task'
+
+/** Milliseconds the clock moves each time it is read. */
+let tick = 5
 
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(0), 16))
+  // Every callback of one frame is handed the same time, as a browser hands them.
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 16))
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
   let now = 0
-  vi.spyOn(performance, 'now').mockImplementation(() => now += 5)
+  tick = 5
+  vi.spyOn(performance, 'now').mockImplementation(() => now += tick)
+  setFrameTaskBudget(4)
 })
 
 afterEach(() => {
@@ -54,4 +60,21 @@ it('keeps one pending frame when work requests another pass synchronously', () =
   vi.advanceTimersByTime(100)
   expect(requests).toBe(2)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('shares a frame between tasks, each taking at least a step', () => {
+  tick = 1
+  const steps = { a: 0, b: 0 }
+  const endless = (name: 'a' | 'b') => frameTask(function* () { for (;;) { steps[name]++; yield } })
+  const [a, b] = [endless('a'), endless('b')]
+  a.request()
+  b.request()
+  vi.advanceTimersByTime(16)
+  // The first task spends the frame's four milliseconds; the second still has its one step.
+  expect(steps).toEqual({ a: 4, b: 1 })
+  setFrameTaskBudget(1)
+  vi.advanceTimersByTime(16)
+  expect(steps).toEqual({ a: 5, b: 2 })
+  a.cancel()
+  b.cancel()
 })

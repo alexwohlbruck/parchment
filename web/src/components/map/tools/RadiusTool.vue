@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { withEmissive } from '@/lib/map/mapbox-style-compat'
+import { drawnOverlayLayer, withGroundProfiles } from '@/lib/map-elevation/over-buildings'
 import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import * as turf from '@turf/turf'
@@ -101,7 +101,7 @@ function setRadiusCircleSource(
   const source = map.getSource(RADIUS_SOURCE_ID) as { setData: (d: unknown) => void }
   if (!source) return
   if (feature && feature.geometry.coordinates[0].length >= 3) {
-    source.setData(feature)
+    source.setData(withGroundProfiles(feature))
   } else {
     source.setData(EMPTY_RADIUS_GEOJSON)
   }
@@ -142,7 +142,7 @@ function addRadiusLayers() {
     type: 'geojson',
     data: EMPTY_RADIUS_GEOJSON,
   })
-  map.addLayer(withEmissive({
+  map.addLayer(drawnOverlayLayer({
     id: RADIUS_FILL_LAYER_ID,
     ...RADIUS_FILL_LAYER_SPEC,
     paint: {
@@ -150,7 +150,7 @@ function addRadiusLayers() {
       'fill-color': getRadiusLineColor(),
     },
   }, mapStore.settings.engine))
-  map.addLayer(withEmissive({
+  map.addLayer(drawnOverlayLayer({
     id: RADIUS_LINE_LAYER_ID,
     ...RADIUS_LINE_LAYER_SPEC,
     paint: {

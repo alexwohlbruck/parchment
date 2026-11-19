@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { withEmissive } from '@/lib/map/mapbox-style-compat'
+import { drawnOverlayLayer, withGroundProfiles } from '@/lib/map-elevation/over-buildings'
 import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import { useMapService } from '@/services/map/map.service'
@@ -111,11 +111,13 @@ function setLineSourceData(coords: number[][]) {
   const source = map.getSource(MEASURE_SOURCE_ID) as any
   if (!source) return
   if (coords.length >= 2) {
-    source.setData({
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: coords },
-    })
+    source.setData(
+      withGroundProfiles({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: coords },
+      } as GeoJSON.Feature),
+    )
   } else {
     source.setData(EMPTY_MEASURE_LINE_GEOJSON)
   }
@@ -218,7 +220,7 @@ function addMeasureLayers() {
     type: 'geojson',
     data: EMPTY_MEASURE_FILL_GEOJSON,
   })
-  map.addLayer(withEmissive({
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_FILL_LAYER_ID,
     ...MEASURE_FILL_LAYER_SPEC,
     paint: {
@@ -226,7 +228,7 @@ function addMeasureLayers() {
       'fill-color': getMeasureLineColor(),
     },
   }, mapStore.settings.engine))
-  map.addLayer(withEmissive({
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_LINE_CASE_LAYER_ID,
     ...MEASURE_LINE_CASE_LAYER_SPEC,
     paint: {
@@ -234,7 +236,7 @@ function addMeasureLayers() {
       'line-color': getMeasureLineCasingColor(),
     },
   }, mapStore.settings.engine))
-  map.addLayer(withEmissive({
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_LAYER_ID,
     ...MEASURE_LINE_LAYER_SPEC,
     paint: {

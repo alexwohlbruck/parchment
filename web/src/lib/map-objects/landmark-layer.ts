@@ -108,6 +108,8 @@ const CARVER_OWNER = 'landmarks'
 
 /** Metres under the sampled ground still seeded, where the terrain mesh dips between samples. */
 const SEED_BELOW = 0.5
+/** Metres up to which a part closes in the ground under it in full, and from which it does not: a span high over the water. */
+const SEED_REACH = [6, 20]
 
 /**
  * Model metres over which a landmark goes from following the ground to
@@ -482,7 +484,7 @@ const SEED_FS = `#version 300 es
   void main() {
     if (v_above < -${SEED_BELOW.toFixed(1)}) discard;
     cut();
-    fragColor = vec4(1.0);
+    fragColor = vec4(1.0 - smoothstep(${SEED_REACH[0].toFixed(1)}, ${SEED_REACH[1].toFixed(1)}, v_above));
   }`
 
 /** Metres a door may sit under the flat map's ground and still glow: doors are set on it. */
@@ -1526,6 +1528,9 @@ export class LandmarkLayer {
     const { program, u } = this.seed
     gl.useProgram(program)
     gl.disable(gl.CULL_FACE)
+    // The lowest part over a point of the ground is the one that closes it in.
+    gl.enable(gl.BLEND)
+    gl.blendEquation(gl.MAX)
     for (const p of placements) {
       const model = this.drawnModel(p)
       if (!model?.batches) continue
@@ -1536,6 +1541,8 @@ export class LandmarkLayer {
       this.groundUniforms(gl, u, p)
       this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
     }
+    gl.blendEquation(gl.FUNC_ADD)
+    gl.disable(gl.BLEND)
     gl.bindVertexArray(null)
   }
 

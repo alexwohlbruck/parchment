@@ -27,6 +27,13 @@ describe('landmarkPools', () => {
     expect(landmarkPools([primitive('stone', [[0, 4, 0]]), primitive('lamp', [[0, 4, 0]], 2)], [])).toHaveLength(0)
   })
 
+  it('throws nothing on the ground from a lamp far over it, as one on a bridge cable', () => {
+    const pools = landmarkPools([primitive('lamp', [[0.5, 6, 0], [20.5, 14, 0], [40.5, 40, 0]])], [])
+    expect(pools.length / FLOATS).toBe(2)
+    expect(pools[4]).toBe(LANDMARK_LIGHT.lampColor[0])
+    expect(pools[FLOATS + 4]).toBeCloseTo(LANDMARK_LIGHT.lampColor[0] / 2)
+  })
+
   it('throws a higher sign wider and dimmer, in its own colour', () => {
     const [low, high] = [sign(4, 3), sign(40, 3)].map(h => landmarkPools([], [h]))
     expect(high[3]).toBeGreaterThan(low[3])

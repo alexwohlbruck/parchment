@@ -12,6 +12,8 @@ export const LANDMARK_LIGHT = {
   lampColor: [0.5, 0.36, 0.19],
   /** Metres apart under which a lamp's bulbs are one lamp. */
   lampGrid: 2,
+  /** Metres up to which a lamp is on a post, lighting the ground in full, and from which it is on a deck or a cable, lighting none of it. */
+  lampPost: 10, lampAloft: 18,
   /** A sign's pool reaches its own half-width, this, and this share of its height over the ground, within metres [min, max]. */
   signReach: 4, signRise: 0.6, minReach: 6, maxReach: 45,
   /** How bright the pool under a sign a metre across is, the metres across at which it is full, and the metres up at which it is half. */
@@ -39,7 +41,10 @@ export function landmarkPools(primitives: GlbPrimitive[], halos: Halo[]): Float3
       cell[3]++
       cells.set(key, cell)
     }
-    for (const [x, y, z, n] of cells.values()) pools.push(x / n, y / n, z / n, L.lampReach, ...L.lampColor)
+    for (const [x, y, z, n] of cells.values()) {
+      const share = Math.min(1, (L.lampAloft - y / n) / (L.lampAloft - L.lampPost))
+      if (share > 0) pools.push(x / n, y / n, z / n, L.lampReach, ...L.lampColor.map(c => c * share))
+    }
   }
   for (const h of halos) {
     const half = Math.hypot(...h.u)

@@ -59,6 +59,12 @@ export function bindLights(gl: WebGL2RenderingContext, u: Record<string, WebGLUn
   gl.activeTexture(gl.TEXTURE0)
 }
 
+/** The share of a lamp's pool that reaches the ground from a deck `raised` metres over it: the deck is in the way. */
+export function groundShare(raised: number): number {
+  const t = Math.min(1, Math.max(0, (raised - 1) / 3))
+  return 1 - t * t * (3 - 2 * t)
+}
+
 const POOL_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;

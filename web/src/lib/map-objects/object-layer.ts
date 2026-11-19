@@ -38,7 +38,7 @@ import type { GlbModel } from './glb.mjs'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
-import { billboardScale, bindLights, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
+import { billboardScale, bindLights, groundShare, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -422,6 +422,8 @@ type Batch = {
   count: number
   /** Whether any instance sets a `length`, which scales by this model's own length. */
   stretched: boolean
+  /** Metres each lamp's deck is over the ground, where any is. */
+  raised?: Float32Array
   /** Its tallest instance, in mercator units, worked out when first cast into the sun's map. */
   tallest?: number
   /**
@@ -457,6 +459,8 @@ export type Placed = {
   /** Ground slope, east and south; see `groundPlane`. */
   gx: number
   gy: number
+  /** Metres the deck it stands on is over the ground. */
+  raised?: number
 }
 
 /**
@@ -935,7 +939,11 @@ export class ObjectLayer {
           placed.z = plane.elevation * perMetre
           placed.gx = plane.gx
           placed.gy = plane.gy
-        } else if (terrain) placed.z = (deckAt(lng, lat) ?? terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        } else if (terrain) {
+          const deck = deckAt(lng, lat)
+          if (deck !== null) placed.raised = deck - heightAt(lng, lat)
+          placed.z = (deck ?? terrain.queryTerrainElevation([lng, lat]) ?? 0) * placed.perMetre
+        }
         if (instance.rise && instance.length) {
           const run = instance.rise / instance.length
           placed.gx += run * Math.cos(instance.heading)
@@ -1010,7 +1018,8 @@ export class ObjectLayer {
         slope[i * 2 + 1] = gy
       }
       const stretched = group.some(p => p.instance.length !== undefined)
-      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, stretched, buffers: null })
+      const raised = LAMPS[nearOf(model)] && group.some(p => p.raised) ? Float32Array.from(group, p => p.raised ?? 0) : undefined
+      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, stretched, raised, buffers: null })
     }
   }
 
@@ -1276,7 +1285,8 @@ export class ObjectLayer {
       const height = this.modelHeight(batch.model)
       for (let i = 0; i < batch.count; i++) {
         const [x, y, z] = [batch.offset[i * 3], batch.offset[i * 3 + 1], batch.offset[i * 3 + 2]]
-        pools.push(x, y, 0, lamp.reach * perMetre, ...lamp.color)
+        const share = groundShare(batch.raised?.[i] ?? 0)
+        if (share > 0) pools.push(x, y, 0, lamp.reach * perMetre, ...lamp.color.map(c => c * share))
         glows.push(x, y, z + height * lamp.head * batch.shape[i * 4], lamp.glow * perMetre, ...lamp.color.map(c => c * LAMP_GLOW))
       }
     }

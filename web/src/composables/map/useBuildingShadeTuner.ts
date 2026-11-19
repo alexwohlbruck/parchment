@@ -61,7 +61,6 @@ export const SHADE_GROUPS: Array<{
   },
   {
     title: 'Walls',
-    toggle: { key: 'wallShade', label: 'Wall shading' },
     levers: [
       { key: 'strength', label: 'Contact strength', min: 0, max: 1, step: 0.01, format: PERCENT },
       { key: 'band', label: 'Contact height', min: 0.05, max: 1, step: 0.01, format: PERCENT },
@@ -77,7 +76,6 @@ export const SHADE_GROUPS: Array<{
     toggle: { key: 'groundFx', label: 'Ground effects' },
     levers: [
       { key: 'shadowAlpha', label: 'Darkness at noon', min: 0, max: 1, step: 0.01, format: PERCENT },
-      { key: 'shadowBlur', label: 'Softness', min: 0, max: 20, step: 0.5, format: NUM },
       { key: 'fadeZoom', label: 'Fade-in zooms', min: 0.1, max: 4, step: 0.1, format: NUM },
       { key: 'topDownOpacity', label: 'Top-down opacity', min: 0, max: 1, step: 0.01, format: PERCENT },
     ],
@@ -88,7 +86,6 @@ export const SHADE_GROUPS: Array<{
       { key: 'aoIntensity', label: 'Intensity', min: 0, max: 2, step: 0.01, format: NUM },
       { key: 'aoRadiusMin', label: 'Radius min', min: 0, max: 200, step: 1 },
       { key: 'aoRadiusMax', label: 'Radius max', min: 0, max: 400, step: 1 },
-      { key: 'aoZ', label: 'Falloff', min: -20, max: 20, step: 0.5, format: NUM },
     ],
   },
   {
@@ -107,7 +104,7 @@ export function useBuildingShadeTuner() {
   const map = ref<any>(null)
   const state = reactive<Record<string, number>>({})
   const toggles = reactive<Record<string, boolean>>({
-    enabled: true, wallShade: true, groundFx: true, followSun: true,
+    enabled: true, groundFx: true, followSun: true,
   })
 
   /** Flatten the layer's nested options into the flat scalars sliders bind to. */
@@ -122,13 +119,11 @@ export function useBuildingShadeTuner() {
       edge: pick('edge', d.edge),
       edgeWidth: pick('edgeWidth', d.edgeWidth),
       shadowAlpha: pick('shadowAlpha', d.shadowAlpha),
-      shadowBlur: pick('shadowBlur', d.shadowBlur),
       fadeZoom: pick('fadeZoom', d.fadeZoom),
       topDownOpacity: pick('topDownOpacity', d.topDownOpacity),
       aoIntensity: pick('aoIntensity', d.aoIntensity),
       aoRadiusMin: pick('aoRadiusMin', d.aoRadiusMin),
       aoRadiusMax: pick('aoRadiusMax', d.aoRadiusMax),
-      aoZ: source?.aoOffset?.[2] ?? d.aoOffset[2],
       tint: d.tint,
       // Seed the manual sun from wherever the real one is, so releasing the
       // toggle starts from today's sky rather than from an arbitrary angle.
@@ -148,23 +143,20 @@ export function useBuildingShadeTuner() {
   }
 
   function apply() {
-    const layer = liveBuildingShade() as any
+    const layer = liveBuildingShade()
     if (!layer) return
     layer.enabled = toggles.enabled
-    layer.wallShade = toggles.wallShade
-    layer.groundFx = toggles.groundFx
+    layer.sunShadows = layer.groundOcclusion = toggles.groundFx
     layer.strength = state.strength
     layer.band = state.band
     layer.edge = state.edge
     layer.edgeWidth = state.edgeWidth
     layer.shadowAlpha = state.shadowAlpha
-    layer.shadowBlur = state.shadowBlur
     layer.aoIntensity = state.aoIntensity
     layer.aoRadiusMin = state.aoRadiusMin
     layer.aoRadiusMax = state.aoRadiusMax
     layer.fadeZoom = state.fadeZoom
     layer.topDownOpacity = state.topDownOpacity
-    layer.aoOffset = [0, state.aoZ / 2, state.aoZ]
 
     setShadeLightIntensity(state.intensity)
     setSunOverride(
@@ -182,11 +174,10 @@ export function useBuildingShadeTuner() {
       // pointing wherever it currently is.
       const { lng, lat } = map.value.getCenter()
       const sun = sunShadow(new Date(), lat, lng)
-      const layerAny = layer as any
       // The override changes direction and length too, not just the light.
-      layerAny.shadowOffset = sun.offset
-      layerAny._heightScale = sun.heightScale
-      layerAny.shadowAlpha = state.shadowAlpha * sun.daylight
+      layer.shadowOffset = sun.offset
+      layer.heightScale = sun.heightScale
+      layer.shadowAlpha = state.shadowAlpha * sun.daylight
       map.value.setLight(shadeLight(sun.offset, sun.altitude))
 
       if (map.value.getLayer?.(layerGroups.building3d)) {
@@ -233,7 +224,7 @@ export function useBuildingShadeTuner() {
     delete state.sunAzimuth
     delete state.sunAltitude
     loadFrom(buildingShadeDefaults(flavor.value))
-    Object.assign(toggles, { enabled: true, wallShade: true, groundFx: true, followSun: true })
+    Object.assign(toggles, { enabled: true, groundFx: true, followSun: true })
     apply()
   }
 
@@ -241,7 +232,7 @@ export function useBuildingShadeTuner() {
     const f = flavor.value
     const n = (v: number) => Number(v.toFixed(3))
     const snippet = [
-      `// ${f} flavor — paste into TUNING in src/lib/building-shade.ts`,
+      `// ${f} flavor — paste into TUNING in src/lib/map/building-shade.ts`,
       `${f}: { shadowAlpha: ${n(state.shadowAlpha)}, aoIntensity: ${n(state.aoIntensity)}, `
         + `strength: ${n(state.strength)}, edge: ${n(state.edge)} },`,
       '',
@@ -254,12 +245,10 @@ export function useBuildingShadeTuner() {
       '// shared across flavors — SHAPE and the constants beside it',
       `EDGE_WIDTH_CSS_PX = ${n(state.edgeWidth / (devicePixelRatio || 1))}`,
       `band = ${n(state.band)}`,
-      `shadowBlur = ${n(state.shadowBlur)}`,
       `fadeZoom = ${n(state.fadeZoom)}`,
       `topDownOpacity = ${n(state.topDownOpacity)}`,
       `aoRadiusMin = ${n(state.aoRadiusMin)}`,
       `aoRadiusMax = ${n(state.aoRadiusMax)}`,
-      `aoOffset = [0, ${n(state.aoZ / 2)}, ${n(state.aoZ)}]`,
       '',
       '// BUILDING_TINT in src/lib/map-style/building-color.mjs',
       `${f}: ${n(state.tint)}`,

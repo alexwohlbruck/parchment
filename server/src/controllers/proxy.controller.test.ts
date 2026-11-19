@@ -434,6 +434,37 @@ describe('GET /proxy/transitland/...', () => {
  * default. Nothing about the basemap drew. Tests now name the same fields the
  * integration actually stores.
  */
+describe('GET /proxy/barrelman/landmarks/models/:file', () => {
+  test('passes a model on gzipped as the upstream sent it, for any origin', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } }]
+    const upstream = new Uint8Array(Bun.gzipSync(new Uint8Array(4096).fill(0x42)))
+    fetchResponses = [new Response(upstream, { headers: { 'content-type': 'model/gltf-binary', 'content-encoding': 'gzip' } })]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/landmarks/models/eiffel-tower.e33ae5cc890d.glb', {
+        headers: { 'accept-encoding': 'gzip', origin: 'https://preview.test' },
+      }),
+    )
+
+    expect(fetchDecompress.at(-1)).toBe(false)
+    expect(fetchHeaders.at(-1)!['Accept-Encoding']).toBe('gzip')
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+    expect(res.headers.get('vary')).toBe('accept-encoding')
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(upstream)
+  })
+
+  test('asks for a plain model when the caller cannot read gzip', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: { host: 'http://barrelman.test' } }]
+    fetchResponses = [new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'model/gltf-binary' } })]
+
+    const res = await app.handle(new Request('http://localhost/proxy/barrelman/landmarks/models/eiffel-tower.e33ae5cc890d.glb'))
+
+    expect(fetchHeaders.at(-1)!['Accept-Encoding']).toBe('identity')
+    expect(res.headers.get('content-encoding')).toBeNull()
+  })
+})
+
 describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
   test('proxies to the Barrelman host under /tiles', async () => {
     configuredIntegrations = [

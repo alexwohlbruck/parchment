@@ -42,12 +42,24 @@ export type GroundFill = { cols: number; rows: number; inside: Uint8Array; heigh
  * while its tile loads, which makes this null too, NaN where there is none.
  * Null as well where nothing is covered.
  */
-export function groundFill(
+export function groundFill(...args: Parameters<typeof groundFillSteps>): GroundFill | null {
+  const steps = groundFillSteps(...args)
+  for (;;) {
+    const step = steps.next()
+    if (step.done) return step.value
+  }
+}
+
+/** Cells a step of the fill's first guess works out before yielding: about a millisecond's. */
+const GUESS_STEP = 2048
+
+/** `groundFill` a millisecond or so at a time: a big model's takes a few hundred. */
+export function* groundFillSteps(
   coverage: Coverage,
   toMap: (x: number, z: number) => Point,
   metres: number,
   bare: (p: Point) => number | null,
-): GroundFill | null {
+): Generator<void, GroundFill | null> {
   const { bounds: b, cell } = coverage
   const grow = Math.max(1, Math.ceil(FILL_MARGIN_M / (cell * metres)))
   // Room round the coverage for the margin and the ring.
@@ -82,8 +94,15 @@ export function groundFill(
   }
   if (!any || !ring.length) return null
 
-  guess(heights, inside, cols, ring)
-  relax(heights, inside, cols, rows)
+  const guessed = guess(heights, inside, cols, ring)
+  for (let from = 0; from < inside.length; from += GUESS_STEP) {
+    guessed(from, Math.min(inside.length, from + GUESS_STEP))
+    yield
+  }
+  for (let sweep = 0; sweep < SWEEPS; sweep++) {
+    relax(heights, inside, cols, rows)
+    yield
+  }
 
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
   for (const [i, j] of [[0, 0], [cols, 0], [0, rows], [cols, rows]]) {
@@ -125,25 +144,37 @@ function invert(o: Point, u: Point, v: Point): number[] {
 /**
  * A first surface inside: the plane through the ring, which keeps the
  * site's slope, plus the ring's departures from it, inverse-distance
- * weighted. Relaxing from here only has to settle the detail.
+ * weighted. Relaxing from here only has to settle the detail. Returns the
+ * guess for a range of cells.
  */
-function guess(heights: Float32Array, inside: Uint8Array, cols: number, ring: number[]) {
+function guess(heights: Float32Array, inside: Uint8Array, cols: number, ring: number[]): (from: number, to: number) => void {
   const step = Math.max(1, ring.length / GUESS_SAMPLES)
   const picked = Array.from({ length: Math.min(ring.length, GUESS_SAMPLES) }, (_, n) => ring[Math.floor(n * step)])
   const pts = picked.map(k => [k % cols, Math.floor(k / cols), heights[k]])
   const plane = fitPlane(pts)
   const level = (i: number, j: number) => plane[0] + plane[1] * i + plane[2] * j
-  const off = pts.map(([i, j, h]) => h - level(i, j))
-  for (let k = 0; k < inside.length; k++) {
-    if (!inside[k]) continue
-    const [i, j] = [k % cols, Math.floor(k / cols)]
-    let [sum, weights] = [0, 0]
-    pts.forEach(([pi, pj], n) => {
-      const w = 1 / ((pi - i) ** 2 + (pj - j) ** 2)
-      sum += w * off[n]
-      weights += w
-    })
-    heights[k] = level(i, j) + sum / weights
+  // Flat arrays and plain loops: this runs once per sample for every cell of a model's footprint.
+  const count = pts.length
+  const [pi, pj, off] = [new Float64Array(count), new Float64Array(count), new Float64Array(count)]
+  pts.forEach(([i, j, h], n) => {
+    pi[n] = i
+    pj[n] = j
+    off[n] = h - level(i, j)
+  })
+  return (from, to) => {
+    for (let k = from; k < to; k++) {
+      if (!inside[k]) continue
+      const i = k % cols
+      const j = Math.floor(k / cols)
+      let sum = 0
+      let weights = 0
+      for (let n = 0; n < count; n++) {
+        const w = 1 / ((pi[n] - i) ** 2 + (pj[n] - j) ** 2)
+        sum += w * off[n]
+        weights += w
+      }
+      heights[k] = level(i, j) + sum / weights
+    }
   }
 }
 
@@ -163,20 +194,25 @@ function fitPlane(pts: number[][]): [number, number, number] {
   return [mh - c1 * mi - c2 * mj, c1, c2]
 }
 
-/** Over-relaxed Gauss-Seidel toward each inside cell being its neighbours' mean, the ring held fixed. */
+/** One sweep of over-relaxed Gauss-Seidel toward each inside cell being its neighbours' mean, the ring held fixed. */
 function relax(heights: Float32Array, inside: Uint8Array, cols: number, rows: number) {
-  for (let sweep = 0; sweep < SWEEPS; sweep++)
-    for (let j = 1; j < rows - 1; j++)
-      for (let i = 1; i < cols - 1; i++) {
-        const k = j * cols + i
-        if (!inside[k]) continue
-        let [sum, count] = [0, 0]
-        for (const n of [k - 1, k + 1, k - cols, k + cols]) {
-          const h = heights[n]
-          if (h === h) sum += h, count++
-        }
-        if (count) heights[k] += OMEGA * (sum / count - heights[k])
-      }
+  for (let j = 1; j < rows - 1; j++)
+    for (let i = 1; i < cols - 1; i++) {
+      const k = j * cols + i
+      if (!inside[k]) continue
+      let sum = 0
+      let count = 0
+      // Each neighbour that has a height: NaN is the only value unequal to itself.
+      let h = heights[k - 1]
+      if (h === h) sum += h, count++
+      h = heights[k + 1]
+      if (h === h) sum += h, count++
+      h = heights[k - cols]
+      if (h === h) sum += h, count++
+      h = heights[k + cols]
+      if (h === h) sum += h, count++
+      if (count) heights[k] += OMEGA * (sum / count - heights[k])
+    }
 }
 
 /** The fill's height at a mercator point, or null where it does not reach. */

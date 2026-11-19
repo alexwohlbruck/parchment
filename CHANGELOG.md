@@ -2,9 +2,18 @@
 
 ### Added
 
+* At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
+
 ### Changed
 
+* The 3D map finishes loading several times sooner where landmarks and bridges are in view.
+* 3D trees, street furniture and landmark models download in a fraction of the requests and size.
+* Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
+* Trees and street furniture now fall into shadow like the ground around them, and shade each other; the ground darkens under tree crowns and low bridges.
+
 ### Fixed
+
+* Road names no longer lie on the ground beneath a bridge drawn in 3D.
 
 ## [0.22.3] - 2026-11-19
 

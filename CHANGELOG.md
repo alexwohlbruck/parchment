@@ -13,7 +13,7 @@
 ### Fixed
 
 * The measure, circle and travel-time tools draw their lines and areas on the map again, with lines above 3D buildings rather than hidden under them.
-* On phones, the measuring panels span the screen with the map buttons above them, and their export menu opens.
+* On phones, the measuring tools open in a bottom sheet you can swipe away, with the map buttons above it, and their export menu opens.
 
 ## [0.22.3] - 2026-11-19
 

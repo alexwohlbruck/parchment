@@ -80,6 +80,12 @@ const DAYLIGHT: Record<FlavorId, Partial<Pick<Shading, 'sunTint' | 'skyTint' | '
   dark: {},
 }
 
+/** How much of the lamplight shows: lamps, lit signs and what lit buildings spill on the pavement. Night only. */
+const LAMPLIGHT: Record<FlavorId, Partial<Pick<Shading, 'lightIntensity' | 'spillColor' | 'lightBlur'>>> = {
+  light: { lightIntensity: 0 },
+  dark: { lightIntensity: 0.6, spillColor: [0.5, 0.36, 0.2], lightBlur: 3 },
+}
+
 /**
  * How hard the sun is, per flavor — and the single biggest reason a wall looks
  * dark.
@@ -160,6 +166,7 @@ export function createBuildingShade(map: MaplibreMap, flavor: FlavorId, minZoom?
     ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
     ...DAYLIGHT[flavor],
+    ...LAMPLIGHT[flavor],
   })!
   return live
 }

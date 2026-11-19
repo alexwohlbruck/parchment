@@ -38,6 +38,7 @@ import type { GlbModel } from './glb.mjs'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
+import { billboardScale, bindLights, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -136,6 +137,11 @@ const VS = `#version 300 es
 
   /** Light-clip from the layer's frame, for the sun's shadow map; identity with no sun. */
   uniform mat4 u_sunLight;
+  /** The lamplight's texture coordinates from the layer's frame, mercator units per metre, and 1 for a part that is a lamp, lit. */
+  uniform mat4 u_lightUv;
+  uniform float u_perMetre;
+  uniform float u_lamp;
+  ${LAMP_LIGHT_GLSL}
 
   out vec3 v_color;
   out vec4 v_sun;
@@ -187,6 +193,8 @@ const VS = `#version 300 es
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
+    v_color += (base * a_shade + 0.06) * lampLight((u_lightUv * vec4(world.xy, 0.0, 1.0)).xy, (world.z - a_offset.z) / u_perMetre);
+    v_color = mix(v_color, base, u_lamp);
     v_facing = dot(unit, u_light);
     v_sun = u_sunLight * vec4(world, 1.0);
 
@@ -238,6 +246,16 @@ function flutterOf(role: string, position: Float32Array, far: boolean): [number,
 }
 
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+
+/**
+ * Models that are lamps at night: metres their pool of light reaches on the ground, its linear colour, and the
+ * glow round the lamp itself, by the share of the model's height it hangs at and its radius in metres.
+ */
+const LAMPS: Record<string, { reach: number; color: [number, number, number]; head: number; glow: number }> = {
+  'street-lamp': { reach: 12, color: [0.5, 0.36, 0.19], head: 0.93, glow: 0.9 },
+}
+/** How bright the glow round a lamp is, against its pool. */
+const LAMP_GLOW = 0.6
 
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
@@ -535,6 +553,11 @@ export class ObjectLayer {
   private sunUniforms: Record<string, WebGLUniformLocation | null> = {}
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
   private sun: SunFrame | null = null
+  private lights: GroundLights | null = null
+  /** The lamps' pools on the ground and the glows round them, and the `shadowVersion` they were built for. */
+  private pools = new LightPools()
+  private glows = new LightPools()
+  private lampsVersion = -1
   /** Each model's height in its own units, for leaving the small ones out of the sun's map. */
   private heights = new Map<string, number>()
   private models = new Map<string, ModelBuffers>()
@@ -617,7 +640,7 @@ export class ObjectLayer {
 
     this.program = link(gl, VS, FS)
     this.uniforms = uniformsOf(gl, this.program,
-      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', ...LAMP_LIGHT_UNIFORMS])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.stillness?.addEventListener('change', this.onStillness)
     this.sunProgram = link(gl, SUN_VS, DEPTH_FS)
@@ -785,6 +808,8 @@ export class ObjectLayer {
     this.detach(map)
     gl.deleteProgram(this.program)
     gl.deleteProgram(this.sunProgram)
+    this.pools.delete(gl)
+    this.glows.delete(gl)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -1033,8 +1058,19 @@ export class ObjectLayer {
     gl.cullFace(gl.BACK)
     gl.frontFace(FRONT_FACE === 'cw' ? gl.CW : gl.CCW)
 
-    this.drawObjects(gl, shifted)
+    const lights = this.lights
+    this.lights = null
+    this.drawObjects(gl, shifted, lights)
     gl.bindVertexArray(null)
+    if (lights && lights.strength > 0 && this.opacity >= 1) {
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE)
+      gl.depthMask(false)
+      gl.disable(gl.CULL_FACE)
+      this.glows.draw(gl, shifted, undefined, 1, billboardScale(painter.transform))
+      gl.depthMask(true)
+      gl.disable(gl.BLEND)
+    }
 
     // MapLibre's painter caches GL state; invalidate what we touched.
     const context = this.map.painter?.context
@@ -1050,7 +1086,7 @@ export class ObjectLayer {
     if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
   }
 
-  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
+  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array, lights: GroundLights | null) {
     gl.useProgram(this.program)
     gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
     const now = performance.now()
@@ -1065,6 +1101,10 @@ export class ObjectLayer {
     gl.uniform1f(this.sunUniforms.u_shadowAlpha, shade ? shade.shadowAlpha * shade.groundOpacity() : 0)
     gl.uniform3fv(this.sunUniforms.u_shadowColor, shade?.shadowColor ?? [0, 0, 0])
     gl.uniformMatrix4fv(this.sunLight, false, sun ? lightAbout(sun.light, this.origin) : IDENTITY)
+    bindLights(gl, this.uniforms, lights)
+    gl.uniformMatrix4fv(this.uniforms.u_lightUv, false, lights ? lightAbout(lights.uv, this.origin) : IDENTITY)
+    gl.uniform1f(this.uniforms.u_perMetre, this.placed[0]?.perMetre ?? 1)
+    const night = !!lights && lights.strength > 0
 
     const ghost = ghostBlend(gl, this.opacity)
     gl.depthMask(!ghost)
@@ -1084,6 +1124,7 @@ export class ObjectLayer {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
+        gl.uniform1f(this.uniforms.u_lamp, night && primitive.role === 'lamp' ? 1 : 0)
         const [amplitude, held, run] = primitive.flutter
         gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
@@ -1209,6 +1250,39 @@ export class ObjectLayer {
     this.sun = frame
   }
 
+  receiveLights(lights: GroundLights) {
+    this.lights = lights
+  }
+
+  /** The pool each lamp throws on the ground, into the map's lamplight. */
+  drawLights(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
+    if (this.lampsVersion !== this.shadowVersion) {
+      this.lampsVersion = this.shadowVersion
+      const { pools, glows } = this.lampLights()
+      this.pools.set(gl, pools)
+      this.glows.set(gl, glows)
+    }
+    this.pools.draw(gl, lightAbout(frame.matrix, this.origin))
+  }
+
+  /** Every lamp's pool on the ground and the glow round its head, in the layer's frame. */
+  private lampLights(): { pools: Float32Array; glows: Float32Array } {
+    const pools: number[] = []
+    const glows: number[] = []
+    const perMetre = this.placed[0]?.perMetre ?? 0
+    for (const batch of this.batches) {
+      const lamp = LAMPS[batch.model.replace(FAR_SUFFIX, '')]
+      if (!lamp) continue
+      const height = this.modelHeight(batch.model)
+      for (let i = 0; i < batch.count; i++) {
+        const [x, y, z] = [batch.offset[i * 3], batch.offset[i * 3 + 1], batch.offset[i * 3 + 2]]
+        pools.push(x, y, 0, lamp.reach * perMetre, ...lamp.color)
+        glows.push(x, y, z + height * lamp.head * batch.shape[i * 4], lamp.glow * perMetre, ...lamp.color.map(c => c * LAMP_GLOW))
+      }
+    }
+    return { pools: new Float32Array(pools), glows: new Float32Array(glows) }
+  }
+
   /** Where the taller objects stand, from overhead, for the ground's occlusion: a tree closes in the ground under its crown. */
   drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
     if (!this.batches.length || !this.placed.length) return
@@ -1244,16 +1318,22 @@ export class ObjectLayer {
     gl.bindVertexArray(null)
   }
 
+  /** A model's height in its own units. */
+  private modelHeight(name: string): number {
+    let height = this.heights.get(name)
+    if (height === undefined) {
+      height = 0
+      for (const p of this.sources[name]?.primitives ?? [])
+        for (let i = 1; i < p.position.length; i += 3) height = Math.max(height, p.position[i])
+      this.heights.set(name, height)
+    }
+    return height
+  }
+
   /** The tallest instance in a batch, in mercator units. */
   private tallest(batch: Batch): number {
     if (batch.tallest !== undefined) return batch.tallest
-    let height = this.heights.get(batch.model)
-    if (height === undefined) {
-      height = 0
-      for (const p of this.sources[batch.model]?.primitives ?? [])
-        for (let i = 1; i < p.position.length; i += 3) height = Math.max(height, p.position[i])
-      this.heights.set(batch.model, height)
-    }
+    const height = this.modelHeight(batch.model)
     let scale = 0
     for (let i = 0; i < batch.count; i++) scale = Math.max(scale, batch.shape[i * 4])
     return (batch.tallest = scale * height)

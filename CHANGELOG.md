@@ -2,6 +2,7 @@
 
 ### Added
 
+* At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
 * The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
 
 ### Changed

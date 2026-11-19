@@ -57,6 +57,8 @@ import { fillAt, groundFillSteps, type GroundFill } from '@/lib/map-terrain/fill
 import { TERRAIN_TILES } from '@/lib/map-style/terrain'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import { bindLights, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
+import { landmarkPools } from './landmark-lights'
 import { liveBuildingShade, type OcclusionFrame } from '@/lib/map/building-shade'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -230,6 +232,9 @@ const DRAW_VS = `#version 300 es
   /** Clip ← anchor metres, for the sun's shadow map; see sun-shadow.ts. */
   uniform mat4 u_sun;
   out vec4 v_sun;
+  /** The lamplight's texture coordinates ← anchor metres; see lamp-light.ts. */
+  uniform mat4 u_lightUv;
+  out vec2 v_lightUv;
   /** Anchor metres, for the glass's view angle; see GLASS_EDGE. */
   out vec3 v_anchor;
   flat out vec3 v_color;
@@ -255,6 +260,7 @@ const DRAW_VS = `#version 300 es
     v_model = vec3(p.x, p.z, p.y) * u_scale;
     v_modelNormal = mat3(u_node) * a_normal;
     v_sun = u_sun * vec4(q, 1.0);
+    v_lightUv = (u_lightUv * vec4(q, 1.0)).xy;
     v_anchor = q;
     gl_Position = u_matrix * vec4(q, 1.0);
     // A lamp is drawn lit, at night, or not at all, and casts no shadow: the sun's pass leaves u_night 0.
@@ -362,6 +368,8 @@ const DRAW_FS = `#version 300 es
   in vec3 v_modelNormal;
   in vec4 v_sun;
   ${SUN_SHADOW_GLSL}
+  in vec2 v_lightUv;
+  ${LAMP_LIGHT_GLSL}
   /** Metres above the flat map's ground; see u_floor. */
   in float v_floor;
   in float v_above;
@@ -426,6 +434,7 @@ const DRAW_FS = `#version 300 es
       if (!wall) f.y = 0.0;
       shaded = facadeShade(shaded, f);
     }
+    shaded += (base + 0.06) * lampLight(v_lightUv, v_above);
     // Floodlit crowns, as a skyline's tallest towers are.
     float crown = u_night * smoothstep(u_height * (1.0 - u_crown), u_height, v_model.z) * step(0.001, u_crown);
     shaded = mix(shaded, u_windowLight * 0.9, crown * 0.45);
@@ -647,6 +656,8 @@ type Model = {
   contacts: Contact[] | null
   /** Its signs' glows, packed by `packHalos` once loaded, and on the GPU once uploaded; see HALO_VS. */
   halos: { data: Float32Array; vao: WebGLVertexArrayObject | null; buffer: WebGLBuffer | null } | null
+  /** The pools its lamps and signs throw on the ground, by `landmarkPools` once loaded, and on the GPU once first drawn. */
+  lights: { data: Float32Array; pools: LightPools | null } | null
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -678,6 +689,7 @@ export class LandmarkLayer {
   private seed!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
   private sun: SunFrame | null = null
+  private lights: GroundLights | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private halo!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private quad: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer } | null = null
@@ -794,7 +806,7 @@ export class LandmarkLayer {
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
         'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
-        'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS])
+        'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS, 'u_lightUv', ...LAMP_LIGHT_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
@@ -1300,7 +1312,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null, lights: null,
     }
     this.models.set(file, model)
     void (async () => {
@@ -1327,6 +1339,8 @@ export class LandmarkLayer {
       model.coverage = planCoverage(glb, poseGlb(glb, 0))
       const halos = neonHalos(glb.primitives)
       model.halos = halos.length ? { data: packHalos(halos), vao: null, buffer: null } : null
+      const pools = landmarkPools(glb.primitives, halos)
+      model.lights = pools.length ? { data: pools, pools: null } : null
       // Its footprint can now be searched, which the last gather could not.
       this.invalidate()
       this.map?.triggerRepaint?.()
@@ -1464,6 +1478,24 @@ export class LandmarkLayer {
     }
   }
 
+  receiveLights(lights: GroundLights) {
+    this.lights = lights
+  }
+
+  /** The pools every landmark's lamps and signs throw on the ground, into the map's lamplight. */
+  drawLights(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
+    if (!this.options.flavor.facade.night) return
+    for (const p of this.drawable()) {
+      const lights = this.drawnModel(p)?.lights
+      if (!lights) continue
+      if (!lights.pools) {
+        lights.pools = new LightPools()
+        lights.pools.set(gl, lights.data)
+      }
+      lights.pools.draw(gl, anchorMatrix(frame.matrix, p.placed), localMatrix(p.bearing, p.scale), p.scale)
+    }
+  }
+
   receiveSun(frame: SunFrame) {
     this.sun = frame
   }
@@ -1546,6 +1578,9 @@ export class LandmarkLayer {
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)
+    const lights = this.lights
+    this.lights = null
+    bindLights(gl, u, lights)
     setFacadeUniforms(gl, u, flavor.facade)
     const shade = liveBuildingShade()
     gl.uniform1f(u.u_occlusion, shade?.enabled ? shade.strength : 0)
@@ -1573,6 +1608,7 @@ export class LandmarkLayer {
       gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
       gl.uniform1f(u.u_scale, p.scale)
       if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
+      if (lights) gl.uniformMatrix4fv(u.u_lightUv, false, anchorMatrix(lights.uv, p.placed))
     }
     for (const p of placements) {
       const model = this.drawnModel(p)
@@ -1934,6 +1970,8 @@ function release(gl: WebGL2RenderingContext, model: Model) {
     gl.deleteBuffer(model.halos.buffer)
     model.halos.vao = model.halos.buffer = null
   }
+  model.lights?.pools?.delete(gl)
+  if (model.lights) model.lights.pools = null
   for (const image of model.pending?.images ?? []) image?.close()
   model.pending = null
 }

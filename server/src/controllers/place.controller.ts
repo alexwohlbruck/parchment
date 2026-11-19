@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import {
@@ -18,6 +19,7 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 const app = new Elysia({ prefix: '/places' })
   .use(i18nPlugin)
   .use(getSession)
+  .use(makeClientRateLimit({ name: 'places', limit: 300 }))
 
 // Get place by looking up source+id or name+lat+lng
 app.get(

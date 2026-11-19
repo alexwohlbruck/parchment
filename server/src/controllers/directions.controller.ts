@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
 import { CoordinateSchema, VehicleSchema } from '../types/directions-api.types'
 import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
@@ -155,7 +156,10 @@ const ModeEstimatesSchema = t.Object({
   departureTime: t.Optional(t.String({ format: 'date-time', description: 'Leave at this time; omit to leave now.' })),
 })
 
-const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin).use(optionalAuth)
+const app = new Elysia({ prefix: '/directions' })
+  .use(i18nPlugin)
+  .use(optionalAuth)
+  .use(makeClientRateLimit({ name: 'directions', limit: 60 }))
 
 /**
  * Plan a multimodal trip (replaces original directions endpoint)

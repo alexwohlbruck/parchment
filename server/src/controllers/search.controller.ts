@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { searchAlongNavRoute } from '../services/route-search.service'
@@ -19,6 +20,7 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(i18nPlugin)
   .use(optionalAuth)
+  .use(makeClientRateLimit({ name: 'search', limit: 300 }))
 
   .get(
     '/',

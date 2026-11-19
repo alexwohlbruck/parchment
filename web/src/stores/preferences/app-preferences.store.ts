@@ -85,9 +85,9 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
 
   const sync = useAccountSync<Required<AppPreferences>>(
     {
-      theme: () => ({ ...pickKnown(THEME, themeStore) }),
-      map: () => ({ ...pickKnown(MAP, mapStore.ownSettings) }),
-      general: () => ({ ...pickKnown(GENERAL, appStore) }),
+      theme: () => pickKnown(THEME, themeStore),
+      map: () => pickKnown(MAP, mapStore.ownSettings),
+      general: () => pickKnown(GENERAL, appStore),
       layerAppearances: () => layerAppearanceStore.chosen,
     },
     saveAppPreferences,
@@ -108,7 +108,9 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       Object.assign(appStore, pickValid(GENERAL, remote.general))
       adoptMap(remote.map)
       if (remote.layerAppearances) {
-        void layerAppearanceStore.adopt(remote.layerAppearances, mapStore.getMapStrategy())
+        layerAppearanceStore
+          .adopt(remote.layerAppearances, mapStore.getMapStrategy())
+          .catch(error => console.error('[preferences] layer appearances failed to apply', error))
       }
     })
   }

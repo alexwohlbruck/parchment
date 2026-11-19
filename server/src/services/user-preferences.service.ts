@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE, LANGUAGES, type Language } from '../lib/i18n/i18n.types'
 import type { NavigationPreferencesPatch } from '../types/navigation-preferences.types'
 import type { AskPreferences } from '../types/ask-preferences.types'
+import type { AppPreferences } from '../types/app-preferences.types'
 import { resolveAskPreferences } from '../lib/ask/ask-preferences'
 
 const DEFAULT_UNIT_SYSTEM = 'metric'
@@ -61,52 +62,53 @@ export async function getOrCreateUserPreferences(
   return inserted
 }
 
+type PreferenceUpdates = Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> & {
+  navigation?: NavigationPreferencesPatch
+  ask?: Partial<AskPreferences>
+  app?: AppPreferences
+}
+
+const BLOB_COLUMNS = ['navigation', 'ask', 'app'] as const
+
 export async function updateUserPreferences(
   userId: string,
-  updates: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> & {
-    navigation?: NavigationPreferencesPatch
-    ask?: Partial<AskPreferences>
-  },
+  updates: PreferenceUpdates,
 ): Promise<UserPreferences> {
   const allowed: Partial<Pick<NewUserPreferences, 'language' | 'unitSystem'>> = {}
   if (updates.language !== undefined) allowed.language = updates.language
   if (updates.unitSystem !== undefined) allowed.unitSystem = updates.unitSystem
-  const navigation =
-    updates.navigation && Object.keys(updates.navigation).length > 0
-      ? updates.navigation
-      : undefined
-  const ask = updates.ask && Object.keys(updates.ask).length > 0 ? updates.ask : undefined
-  if (Object.keys(allowed).length === 0 && !navigation && !ask) {
-    const prefs = await getOrCreateUserPreferences(userId)
-    return prefs
+  const blobs = Object.fromEntries(
+    BLOB_COLUMNS.flatMap((column) => {
+      const patch = updates[column]
+      return patch && Object.keys(patch).length > 0 ? [[column, patch]] : []
+    }),
+  ) as Pick<PreferenceUpdates, (typeof BLOB_COLUMNS)[number]>
+  if (Object.keys(allowed).length === 0 && Object.keys(blobs).length === 0) {
+    return getOrCreateUserPreferences(userId)
   }
+
+  const merges = Object.fromEntries(
+    Object.entries(blobs).map(([column, patch]) => [
+      column,
+      sql`coalesce(${userPreferences[column as (typeof BLOB_COLUMNS)[number]]}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+    ]),
+  )
 
   const [updated] = await db
     .update(userPreferences)
-    .set({
-      ...allowed,
-      ...(navigation && {
-        navigation: sql`coalesce(${userPreferences.navigation}, '{}'::jsonb) || ${JSON.stringify(navigation)}::jsonb`,
-      }),
-      ...(ask && {
-        ask: sql`coalesce(${userPreferences.ask}, '{}'::jsonb) || ${JSON.stringify(ask)}::jsonb`,
-      }),
-      updatedAt: new Date(),
-    })
+    .set({ ...allowed, ...merges, updatedAt: new Date() })
     .where(eq(userPreferences.userId, userId))
     .returning()
 
   if (updated) return updated
 
-  // No row existed, insert
   const [inserted] = await db
     .insert(userPreferences)
     .values({
       userId,
       language: allowed.language ?? DEFAULT_LANGUAGE,
       unitSystem: allowed.unitSystem ?? DEFAULT_UNIT_SYSTEM,
-      ...(navigation && { navigation }),
-      ...(ask && { ask }),
+      ...blobs,
     })
     .returning()
   if (!inserted) throw new Error('Failed to create user preferences')

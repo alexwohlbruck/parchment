@@ -3,21 +3,35 @@
 ### Added
 
 * At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
-* The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
 
 ### Changed
 
-* While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
-* The bottom of the home sheet fades into your account row instead of cutting off.
 * The 3D map finishes loading several times sooner where landmarks and bridges are in view.
 * 3D trees, street furniture and landmark models download in a fraction of the requests and size.
 * Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
 * Trees and street furniture now fall into shadow like the ground around them, and shade each other; the ground darkens under tree crowns and low bridges.
-* Recents in the sidebar slide into place as they're added, reordered or removed.
 
 ### Fixed
 
 * Road names no longer lie on the ground beneath a bridge drawn in 3D.
+
+## [0.22.3] - 2026-11-19
+
+### Added
+
+* The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
+* Battery saver in Behavior settings turns off 3D and checks your location less often; Extreme shows only roads on black. Either can turn on by itself when your battery is low.
+
+### Changed
+
+* Sign-in sends at most 5 codes to an address every 15 minutes and stops accepting codes after 10 wrong tries.
+* While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
+* The bottom of the home sheet fades into your account row instead of cutting off.
+* Recents in the sidebar slide into place as they're added, reordered or removed.
+* Your theme, map style, labels and other look-and-feel settings now follow your account to every device you sign in on.
+
+### Fixed
+
 * Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
 
 ## [0.22.2] - 2026-11-17

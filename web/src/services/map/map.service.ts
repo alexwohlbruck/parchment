@@ -17,6 +17,7 @@ import {
   LocateFlySpeed,
   StartupLocation,
   GridSnapMode,
+  ShadowMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { captureMapSnapshot } from './map-snapshot'
@@ -56,9 +57,11 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { boundsFillView, tripsBounds } from '@/lib/directions/trip-bounds'
 import type { TripsResponse } from '@/types/directions.types'
 import { useThemeStore } from '@/stores/theme.store'
+import { usePowerStore } from '@/stores/power.store'
+import { mapRenderBudget } from '@/lib/power/power-saver'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
-import { createSharedComposable, tryOnScopeDispose, useDark } from '@vueuse/core'
+import { createSharedComposable, tryOnScopeDispose } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/services/map/providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/services/map/providers/maplibre.strategy'
@@ -75,8 +78,6 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-
-const dark = useDark()
 
 
 function mapService() {
@@ -153,7 +154,7 @@ function mapService() {
 
     const options = {
       ...settings,
-      theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
+      theme: isDark.value ? MapTheme.DARK : MapTheme.LIGHT,
       camera: mapCamera,
     }
 
@@ -696,11 +697,10 @@ function mapService() {
     mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
     mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
-    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
-    mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
-    mapStrategy?.setMap3dBuildings(mapStore.settings.buildings3d)
-    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
-    mapStrategy?.setShadowMode(mapStore.settings.shadows)
+    mapStrategy?.setMap3dTerrain(terrain3d.value)
+    mapStrategy?.setMap3dBuildings(buildings3d.value)
+    mapStrategy?.setMap3dObjects(objects3d.value)
+    mapStrategy?.setShadowMode(shadows.value)
     mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -1083,32 +1083,24 @@ function mapService() {
     mapStore.settings.objects3d = value ?? !mapStore.settings.objects3d
   }
 
-  watch(
-    () => mapStore.settings.terrain3d,
-    value => {
-      mapStrategy?.setMap3dTerrain(value)
-    },
-  )
+  // Battery saver holds 3D off without touching the user's own settings.
+  const powerStore = usePowerStore()
+  const terrain3d = computed(() => mapStore.settings.terrain3d && !powerStore.saving)
+  const buildings3d = computed(() => mapStore.settings.buildings3d && !powerStore.saving)
+  const objects3d = computed(() => mapStore.settings.objects3d && !powerStore.saving)
+  const shadows = computed(() => (powerStore.saving ? ShadowMode.OFF : mapStore.settings.shadows))
 
+  watch(terrain3d, value => mapStrategy?.setMap3dTerrain(value))
+  watch(buildings3d, value => mapStrategy?.setMap3dBuildings(value))
+  watch(objects3d, value => mapStrategy?.setMap3dObjects(value))
+  watch(shadows, mode => mapStrategy?.setShadowMode(mode))
   watch(
-    () => mapStore.settings.buildings3d,
-    value => {
-      mapStrategy?.setMap3dBuildings(value)
-    },
+    () => powerStore.saver === 'extreme',
+    value => mapStrategy?.setRoadsOnly(value),
   )
-
   watch(
-    () => mapStore.settings.objects3d,
-    value => {
-      mapStrategy?.setMap3dObjects(value)
-    },
-  )
-
-  watch(
-    () => mapStore.settings.shadows,
-    mode => {
-      mapStrategy?.setShadowMode(mode)
-    },
+    () => powerStore.saver,
+    saver => mapStrategy?.setRenderBudget(mapRenderBudget(saver)),
   )
 
   function togglePoiLabels(value?: boolean) {
@@ -1262,7 +1254,7 @@ function mapService() {
     if (ready) updateMapPadding()
   })
 
-  watch(dark, newDark => {
+  watch(isDark, newDark => {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
 

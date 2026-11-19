@@ -10,11 +10,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { useClipboard } from '@/composables/useClipboard'
 import { usePowerStore } from '@/stores/power.store'
 import { formatStopwatch } from '@/lib/time-format'
-import type { PowerSaver } from '@/types/power.types'
+import { POWER_SAVERS } from '@/lib/power/power-saver'
 import { batteryRun, RUN_DURATION_MS, startBatteryRun, stopBatteryRun } from '@/dev/battery/battery-run'
 import { batteryReport } from '@/dev/battery/battery-report'
-
-const SAVERS: PowerSaver[] = ['off', 'normal', 'extreme']
 
 const power = usePowerStore()
 const { copied, copy } = useClipboard()
@@ -53,11 +51,11 @@ const report = computed(() =>
       description="Navigation's side of battery saver: normal caps the frame rate, extreme also turns 3D off."
       :icon="LeafIcon"
     >
-      <Select v-model="power.saver">
+      <Select v-model="power.choice">
         <SelectTrigger class="w-fit"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectItem v-for="saver in SAVERS" :key="saver" :value="saver">{{ saver }}</SelectItem>
+            <SelectItem v-for="saver in POWER_SAVERS" :key="saver" :value="saver">{{ saver }}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>

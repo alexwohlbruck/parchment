@@ -9,6 +9,9 @@
 import { api } from '@/lib/api'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
+/** How often a view following live vehicles refreshes them. */
+export const VEHICLE_POLL_MS = 5_000
+
 export async function fetchVehiclesOnRoutes(
   feedId: string,
   routeIds: string[],

@@ -9,6 +9,7 @@ import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
+import { useAppPreferencesStore } from '@/stores/preferences/app-preferences.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
@@ -130,6 +131,7 @@ function authService() {
     if (!preferences) return
     useNavigationPreferencesStore().adopt(preferences.navigation)
     if (preferences.ask) useAskPreferencesStore().adopt(preferences.ask)
+    if (preferences.app) useAppPreferencesStore().adopt(preferences.app)
   }
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useDark } from '@vueuse/core'
+import { useThemeStore } from '@/stores/theme.store'
 import { useRecentsStore } from '@/stores/recents.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAppStore } from '@/stores/app.store'
@@ -18,7 +18,7 @@ import { ItemIcon } from '@/components/ui/item-icon'
 
 const RECENTS_LIMIT = 30
 
-const isDark = useDark()
+const { isDark } = storeToRefs(useThemeStore())
 const { collapsed } = useSidebar()
 const appStore = useAppStore()
 const authStore = useAuthStore()

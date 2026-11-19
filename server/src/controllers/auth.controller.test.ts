@@ -538,3 +538,62 @@ describe('PRF option endpoints', () => {
     expect(last.status).toBe(429)
   })
 })
+
+describe('sign-in rate limits', () => {
+  const fromIp = (ip: string) => ({ 'x-forwarded-for': ip })
+
+  test('stops guessing a code after 10 attempts for one address', async () => {
+    tokenValidation = 'invalid'
+    const attempt = (i: number) =>
+      req(app).post('/auth/sessions', {
+        body: { method: 'otp', email: 'guess@parchment.test', token: '00000000' },
+        headers: fromIp(`10.1.0.${i}`),
+      })
+
+    for (let i = 0; i < 10; i++) expect((await attempt(i)).status).toBe(401)
+    const blocked = await attempt(10)
+
+    expect(blocked.status).toBe(429)
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0)
+    expect(validateServerToken).toHaveBeenCalledTimes(10)
+  })
+
+  test('the attempt budget is per address, case-insensitive', async () => {
+    tokenValidation = 'invalid'
+    const attempt = (email: string, i: number) =>
+      req(app).post('/auth/sessions', {
+        body: { method: 'otp', email, token: '00000000' },
+        headers: fromIp(`10.2.0.${i}`),
+      })
+
+    for (let i = 0; i < 10; i++) await attempt('Case@parchment.test', i)
+
+    expect((await attempt('case@parchment.test', 10)).status).toBe(429)
+    expect((await attempt('other@parchment.test', 11)).status).toBe(401)
+  })
+
+  test('sends at most 5 codes to one address', async () => {
+    const request = (i: number) =>
+      req(app).post('/auth/verify', {
+        body: { email: 'inbox@parchment.test' },
+        headers: fromIp(`10.3.0.${i}`),
+      })
+
+    for (let i = 0; i < 5; i++) expect((await request(i)).status).toBe(201)
+
+    expect((await request(5)).status).toBe(429)
+    expect(sendEmailVerificationCode).toHaveBeenCalledTimes(5)
+  })
+
+  test('one IP is cut off after 30 sign-in requests a minute', async () => {
+    const request = (i: number) =>
+      req(app).post('/auth/verify', {
+        body: { email: `spray-${i}@parchment.test` },
+        headers: fromIp('10.4.0.1'),
+      })
+
+    for (let i = 0; i < 30; i++) await request(i)
+
+    expect((await request(30)).status).toBe(429)
+  })
+})

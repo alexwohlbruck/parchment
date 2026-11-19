@@ -1,3 +1,4 @@
+import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
 import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
@@ -46,10 +47,13 @@ import {
   TerminalIcon,
   TreePineIcon,
   MessageCircleQuestionIcon,
+  LeafIcon,
 } from 'lucide-vue-next'
-import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
+import { usePowerStore } from '@/stores/power.store'
+import { POWER_SAVERS } from '@/lib/power/power-saver'
+import type { PowerSaver } from '@/types/power.types'
 import { useAppStore } from '@/stores/app.store'
 import { useMapService } from '@/services/map/map.service'
 
@@ -64,7 +68,6 @@ import {
   ShadowMode,
   UnitSystem,
   type MapControlSettings,
-  type PoiStyleId,
 } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
@@ -114,6 +117,7 @@ export enum CommandName {
   TOGGLE_NORTH_UP_SNAP = 'toggleNorthUpSnap',
   GRID_SNAP = 'gridSnap',
   UPDATE_UNIT_SYSTEM = 'updateUnitSystem',
+  BATTERY_SAVER = 'batterySaver',
   SIGN_OUT = 'signOut',
 }
 
@@ -166,8 +170,6 @@ const MAP_LABELS: MapLabel[] = ['poiLabels', 'roadLabels', 'transitLabels', 'pla
 type MapControl = Exclude<keyof MapControlSettings, 'camera'>
 const MAP_CONTROLS: MapControl[] = ['zoom', 'compass', 'scale', 'streetView', 'locate', 'weather']
 
-const POI_STYLES: PoiStyleId[] = ['badge', 'glyph']
-
 const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
   [GridSnapMode.OFF]: 'gridSnapModeOff',
   [GridSnapMode.NORTH_UP]: 'gridSnapModeNorthUp',
@@ -175,10 +177,9 @@ const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
 }
 
 export const useCommandStore = defineStore('command', () => {
-  const isDark = useDark()
-  const toggleDark = useToggle(isDark)
   const router = useRouter()
-  const { setAccentColor, setRadius } = useThemeStore()
+  const { setAccentColor, setRadius, toggleDark } = useThemeStore()
+  const power = usePowerStore()
   const authService = useAuthService()
   const mapService = useMapService()
 
@@ -770,6 +771,29 @@ export const useCommandStore = defineStore('command', () => {
               return Object.values(UnitSystem).map(system => ({
                 value: system,
                 name: t(`settings.behavior.units.${system}`),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.BATTERY_SAVER,
+        name: t('palette.commands.batterySaver.name'),
+        description: t('palette.commands.batterySaver.description'),
+        keywords: t('palette.commands.batterySaver.keywords'),
+        icon: LeafIcon,
+        action: (level: PowerSaver) => {
+          power.choice = level
+        },
+        arguments: [
+          {
+            id: 'level',
+            name: t('palette.commands.batterySaver.arguments.level.name'),
+            type: 'string',
+            getItems() {
+              return POWER_SAVERS.map(level => ({
+                value: level,
+                name: t(`settings.behavior.batterySaver.values.${level}`),
               }))
             },
           },

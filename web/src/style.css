@@ -669,6 +669,16 @@
     cursor: pointer;
   }
 
+  /* Extreme battery saver: one frame per change instead of an animation. */
+  .motion-off *,
+  .motion-off ::after,
+  .motion-off ::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   /* h1..h3 are display titles (page/section headers, names) → Exposure.
      h4..h6 stay sans; they're used for small structural labels (settings
      rows, detail sub-sections, etc.), not display titles. */

@@ -920,3 +920,54 @@ export function buildSatelliteStyle(
     layers,
   } as StyleSpecification
 }
+
+/** Grey for each kind of road kept by the roads-only style, brightest first. */
+const ROADS_ONLY_LINES: [RegExp, string][] = [
+  [/^Highway( bridge)?$/, 'hsl(0, 0%, 85%)'],
+  [/^Major road( bridge)?$/, 'hsl(0, 0%, 65%)'],
+  [/^(Minor road( bridge)?|Tunnel|Pier road|Road under construction)$/, 'hsl(0, 0%, 45%)'],
+  [/^(Path( bridge)?|Footway tunnel)$/, 'hsl(0, 0%, 32%)'],
+]
+const ROADS_ONLY_LABELS = new Set(['Road labels', 'Place labels', 'Town labels', 'City labels', 'Capital city labels'])
+const ROADS_ONLY_INK = 'hsl(0, 0%, 80%)'
+const ROADS_ONLY_GROUND = 'hsl(0, 0%, 0%)'
+
+/**
+ * Extreme battery saver's basemap: grey roads and paths on pure black, so an
+ * OLED screen lights almost nothing, and one vector source to fetch.
+ */
+export function buildRoadsOnlyStyle(options: BasemapStyleOptions): StyleSpecification {
+  const { tileServerUrl, lang } = options
+  const layers = buildLayers({ flavor: 'dark', lang }).flatMap((l): LayerSpecification[] => {
+    if ((l as any).source !== SOURCE) return []
+    if (l.type === 'line') {
+      const grey = ROADS_ONLY_LINES.find(([id]) => id.test(l.id))?.[1]
+      return grey ? [{ ...l, paint: { ...l.paint, 'line-color': grey, 'line-opacity': 1 } }] : []
+    }
+    if (l.type === 'symbol' && ROADS_ONLY_LABELS.has(l.id)) {
+      return [{
+        ...l,
+        paint: {
+          ...l.paint,
+          'text-color': ROADS_ONLY_INK,
+          'text-halo-color': ROADS_ONLY_GROUND,
+          'icon-color': ROADS_ONLY_INK,
+          'icon-halo-color': ROADS_ONLY_GROUND,
+        },
+      } as LayerSpecification]
+    }
+    return []
+  })
+
+  return {
+    version: 8,
+    name: 'Parchment roads only',
+    glyphs: `${origin()}${GLYPHS_PATH}`,
+    sprite: `${origin()}${SPRITE_PATH}`,
+    sources: { [SOURCE]: vectorSource(tileServerUrl) },
+    layers: [
+      { id: 'Background', type: 'background', paint: { 'background-color': ROADS_ONLY_GROUND } },
+      ...layers,
+    ],
+  } as StyleSpecification
+}

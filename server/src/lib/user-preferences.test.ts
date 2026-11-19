@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { normalizeNavigationPreferences, toPreferencesResponse } from './user-preferences'
+import { normalizeAppPreferences, normalizeNavigationPreferences, toPreferencesResponse } from './user-preferences'
 import type { NavigationPreferences } from '../types/navigation-preferences.types'
 import { DEFAULT_ASK_PREFERENCES } from '../types/ask-preferences.types'
 
@@ -53,15 +53,25 @@ describe('normalizeNavigationPreferences', () => {
   })
 })
 
+describe('normalizeAppPreferences', () => {
+  test('keeps saved sections and leaves the rest absent', () => {
+    expect(normalizeAppPreferences(null)).toEqual({})
+    expect(normalizeAppPreferences({ theme: { accentColor: 'teal' }, map: 'flat', sidebar: {} })).toEqual({
+      theme: { accentColor: 'teal' },
+    })
+  })
+})
+
 describe('toPreferencesResponse', () => {
   test('exposes only the public fields', () => {
     expect(
-      toPreferencesResponse({ language: 'es-ES', unitSystem: 'imperial', navigation: null, ask: { webSearch: false } }),
+      toPreferencesResponse({ language: 'es-ES', unitSystem: 'imperial', navigation: null, ask: { webSearch: false }, app: null }),
     ).toEqual({
       language: 'es-ES',
       unitSystem: 'imperial',
       navigation: {},
       ask: { ...DEFAULT_ASK_PREFERENCES, webSearch: false },
+      app: {},
     })
   })
 })

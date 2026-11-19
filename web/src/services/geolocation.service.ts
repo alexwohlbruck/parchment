@@ -9,23 +9,56 @@
  * waits until the hold is lifted, so nothing prompts mid-onboarding.
  */
 
-import { computed, ref, watch } from 'vue'
-import { createSharedComposable, useGeolocation } from '@vueuse/core'
+import { computed, ref, shallowRef, watch } from 'vue'
+import { createSharedComposable } from '@vueuse/core'
 import type { LngLat } from '@/types/map.types'
+import { usePowerStore } from '@/stores/power.store'
+import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
+import { locationWatchOptions } from '@/lib/power/power-saver'
 
 export type GeolocationPermissionState = 'granted' | 'denied' | 'prompt' | 'unknown'
 
 function geolocationService() {
-  const {
-    coords,
-    locatedAt,
-    error,
-    isSupported,
-    resume,
-    pause,
-  } = useGeolocation({
-    immediate: false,
-    enableHighAccuracy: true,
+  const power = usePowerStore()
+  const isSupported = computed(() => typeof navigator !== 'undefined' && 'geolocation' in navigator)
+  const coords = ref<Omit<GeolocationCoordinates, 'toJSON'>>({
+    accuracy: 0,
+    latitude: Infinity,
+    longitude: Infinity,
+    altitude: null,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+  })
+  const locatedAt = ref<number | null>(null)
+  const error = shallowRef<GeolocationPositionError | null>(null)
+  const watchOptions = computed(() => locationWatchOptions(power.saver, guidanceEngine.active.value))
+  let watchId: number | undefined
+
+  function resume() {
+    if (!isSupported.value || watchId !== undefined) return
+    watchId = navigator.geolocation.watchPosition(
+      position => {
+        locatedAt.value = position.timestamp
+        coords.value = position.coords
+        error.value = null
+      },
+      e => (error.value = e),
+      watchOptions.value,
+    )
+  }
+
+  function pause() {
+    if (watchId === undefined) return
+    navigator.geolocation.clearWatch(watchId)
+    watchId = undefined
+  }
+
+  // A watch keeps the options it started with.
+  watch(watchOptions, () => {
+    if (watchId === undefined) return
+    pause()
+    resume()
   })
 
   const permissionState = ref<GeolocationPermissionState>('unknown')

@@ -15,6 +15,7 @@ import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
 import {
   buildMapStyle,
+  buildRoadsOnlyStyle,
   buildSatelliteStyle,
   buildLayers,
   layerGroups,
@@ -1563,6 +1564,19 @@ describe('assembled styles', () => {
     expect(ids[0]).toBe('satellite-raster')
     expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
     expect(ids).not.toContain('Background')
+  })
+
+  test('roads only draws grey roads and labels on black from one source', () => {
+    const style = buildRoadsOnlyStyle({ ...opts, theme: 'light' })
+    expect(validateStyleMin(style).map(e => e.message)).toEqual([])
+    expect(Object.keys(style.sources)).toEqual([SOURCE])
+    expect(style.layers[0]).toMatchObject({ type: 'background', paint: { 'background-color': 'hsl(0, 0%, 0%)' } })
+    const ids = style.layers.map(l => l.id)
+    expect(ids).toEqual(expect.arrayContaining(['Highway', 'Minor road', 'Path', 'Road labels', 'City labels']))
+    expect(style.layers.every(l => ['background', 'line', 'symbol'].includes(l.type))).toBe(true)
+    for (const l of style.layers.filter(l => l.type === 'line')) {
+      expect((l as any).paint['line-color'], l.id).toMatch(/^hsl\(0, 0%, \d+%\)$/)
+    }
   })
 
   test('every id the strategy toggles exists in the built style', () => {

@@ -1,3 +1,5 @@
+import { withEmissive } from '@/lib/map/mapbox-style-compat'
+import { useMapStore } from '@/stores/map.store'
 import { computed, onUnmounted, watch } from 'vue'
 import { useMapService } from '@/services/map/map.service'
 import { useThemeStore } from '@/stores/theme.store'
@@ -22,6 +24,7 @@ export function useAreaLayer(
   data: () => GeoJSON.FeatureCollection,
 ) {
   const mapService = useMapService()
+  const mapStore = useMapStore()
   const themeStore = useThemeStore()
 
   const color = computed(
@@ -37,18 +40,18 @@ export function useAreaLayer(
     const map = mapInstance()
     if (!map || map.getSource(ids.source)) return
     map.addSource(ids.source, { type: 'geojson', data: data() })
-    map.addLayer({
+    map.addLayer(withEmissive({
       id: ids.fill,
       ...AREA_FILL_LAYER_SPEC,
       source: ids.source,
       paint: { ...AREA_FILL_LAYER_SPEC.paint, 'fill-color': color.value },
-    })
-    map.addLayer({
+    }, mapStore.settings.engine))
+    map.addLayer(withEmissive({
       id: ids.line,
       ...AREA_LINE_LAYER_SPEC,
       source: ids.source,
       paint: { ...AREA_LINE_LAYER_SPEC.paint, 'line-color': color.value },
-    })
+    }, mapStore.settings.engine))
   }
 
   function remove() {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { mapboxLayerToMaplibreLayer } from './mapbox-style-compat'
+import { mapboxLayerToMaplibreLayer, withEmissive } from './mapbox-style-compat'
+import { MapEngine } from '@/types/map.types'
 
 const font = (textFont: string[]) =>
   (mapboxLayerToMaplibreLayer({
@@ -17,5 +18,20 @@ describe('text-font', () => {
 
   test('falls back to Regular for an unknown face', () => {
     expect(font(['Open Sans Regular'])).toEqual(['Geist Regular'])
+  })
+})
+
+describe('withEmissive', () => {
+  const line = { type: 'line', paint: { 'line-width': 3 } }
+
+  test('lights an overlay on Mapbox', () => {
+    expect(withEmissive(line, MapEngine.MAPBOX).paint).toEqual({
+      'line-width': 3,
+      'line-emissive-strength': 1,
+    })
+  })
+
+  test('leaves MapLibre layers alone, which reject the property', () => {
+    expect(withEmissive(line, MapEngine.MAPLIBRE)).toBe(line)
   })
 })

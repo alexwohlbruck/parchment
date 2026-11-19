@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { withEmissive } from '@/lib/map/mapbox-style-compat'
+import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import * as turf from '@turf/turf'
 import { useMapService } from '@/services/map/map.service'
@@ -35,6 +37,7 @@ import {
 } from '@/constants/layers'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
@@ -139,22 +142,22 @@ function addRadiusLayers() {
     type: 'geojson',
     data: EMPTY_RADIUS_GEOJSON,
   })
-  map.addLayer({
+  map.addLayer(withEmissive({
     id: RADIUS_FILL_LAYER_ID,
     ...RADIUS_FILL_LAYER_SPEC,
     paint: {
       ...RADIUS_FILL_LAYER_SPEC.paint,
       'fill-color': getRadiusLineColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(withEmissive({
     id: RADIUS_LINE_LAYER_ID,
     ...RADIUS_LINE_LAYER_SPEC,
     paint: {
       ...RADIUS_LINE_LAYER_SPEC.paint,
       'line-color': getRadiusLineColor(),
     },
-  })
+  }, mapStore.settings.engine))
 }
 
 function removeRadiusLayers() {

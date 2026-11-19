@@ -23,6 +23,7 @@
  * it, so a render pass that rebuilds everything is one the user can feel.
  */
 
+import { withEmissive } from '@/lib/map/mapbox-style-compat'
 import { onScopeDispose, watch, type ComputedRef } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
@@ -209,13 +210,6 @@ function sourceSignature(spec: Record<string, unknown>): SourceSignature {
   return { shape: JSON.stringify(shape), data: dataSignature(data) }
 }
 
-const EMISSIVE_KEYS: Record<string, string> = {
-  fill: 'fill-emissive-strength',
-  line: 'line-emissive-strength',
-  circle: 'circle-emissive-strength',
-  symbol: 'text-emissive-strength',
-}
-
 export interface RenderableCanvas {
   id: string
   body: CanvasBody
@@ -264,15 +258,6 @@ export function useCanvasRendering(
   const mapStore = useMapStore()
   const themeStore = useThemeStore()
 
-  /** Only Mapbox lights the map, and only Mapbox knows how to be told not to. */
-  function withEmissive(configuration: Record<string, unknown>) {
-    if (mapStore.settings.engine !== MapEngine.MAPBOX) return configuration
-    const key = EMISSIVE_KEYS[configuration.type as string]
-    if (!key) return configuration
-    const paint = (configuration.paint ?? {}) as Record<string, unknown>
-    if (key in paint) return configuration
-    return { ...configuration, paint: { ...paint, [key]: 1 } }
-  }
   const layersStore = useLayersStore()
   const collectionsStore = useCollectionsStore()
   const routesStore = useRoutesStore()
@@ -760,7 +745,8 @@ export function useCanvasRendering(
       }
       for (const layer of plan.layers) {
         layer.configuration = withEmissive(
-          layer.configuration as Record<string, unknown>,
+          layer.configuration as { type: string },
+          mapStore.settings.engine,
         ) as typeof layer.configuration
         nextLayers.set(layer.id, JSON.stringify(layer.configuration))
         nextVisible.set(layer.id, visible)

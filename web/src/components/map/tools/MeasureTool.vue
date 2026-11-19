@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { withEmissive } from '@/lib/map/mapbox-style-compat'
+import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
@@ -42,6 +44,7 @@ import {
 } from '@/constants/layers'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
@@ -215,30 +218,30 @@ function addMeasureLayers() {
     type: 'geojson',
     data: EMPTY_MEASURE_FILL_GEOJSON,
   })
-  map.addLayer({
+  map.addLayer(withEmissive({
     id: MEASURE_FILL_LAYER_ID,
     ...MEASURE_FILL_LAYER_SPEC,
     paint: {
       ...MEASURE_FILL_LAYER_SPEC.paint,
       'fill-color': getMeasureLineColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(withEmissive({
     id: MEASURE_LINE_CASE_LAYER_ID,
     ...MEASURE_LINE_CASE_LAYER_SPEC,
     paint: {
       ...MEASURE_LINE_CASE_LAYER_SPEC.paint,
       'line-color': getMeasureLineCasingColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(withEmissive({
     id: MEASURE_LAYER_ID,
     ...MEASURE_LINE_LAYER_SPEC,
     paint: {
       ...MEASURE_LINE_LAYER_SPEC.paint,
       'line-color': getMeasureLineColor(),
     },
-  })
+  }, mapStore.settings.engine))
 }
 
 function removeMeasureLayers() {

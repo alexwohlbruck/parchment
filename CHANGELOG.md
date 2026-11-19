@@ -9,6 +9,8 @@
 
 ### Fixed
 
+* The measure, circle and travel-time tools draw their lines and areas on the map again.
+
 ## [0.22.3] - 2026-11-19
 
 ### Added

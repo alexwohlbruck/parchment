@@ -7,6 +7,7 @@
 
 ### Changed
 
+* Sign-in sends at most 5 codes to an address every 15 minutes and stops accepting codes after 10 wrong tries.
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
 * The bottom of the home sheet fades into your account row instead of cutting off.
 * Recents in the sidebar slide into place as they're added, reordered or removed.

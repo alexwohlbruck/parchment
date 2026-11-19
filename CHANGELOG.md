@@ -13,6 +13,7 @@
 
 ### Fixed
 
+* Landmarks built on sloping ground, like a bridge's approaches, now sit on the terrain instead of floating above it when they first load far from the camera.
 * Road names no longer lie on the ground beneath a bridge drawn in 3D.
 
 ## [0.22.3] - 2026-11-19

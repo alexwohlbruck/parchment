@@ -70,16 +70,14 @@ export const useThemeStore = defineStore('theme', () => {
   /* Light/dark mode */
 
   const colorScheme = useStorage<ColorScheme>('vueuse-color-scheme', 'auto')
-  const isDark = useDark({ storageRef: colorScheme })
-  const toggleDark = useToggle(isDark)
-
-  // Extreme battery saver goes dark for the OLED savings, without changing the stored scheme.
+  // Extreme battery saver goes dark for the OLED savings without touching the stored scheme.
   const power = usePowerStore()
-  watch(
-    [isDark, () => power.saver],
-    () => document.documentElement.classList.toggle('dark', isDark.value || power.saver === 'extreme'),
-    { flush: 'post', immediate: true },
-  )
+  const shownScheme = computed<ColorScheme>({
+    get: () => (power.saver === 'extreme' ? 'dark' : colorScheme.value),
+    set: scheme => (colorScheme.value = scheme),
+  })
+  const isDark = useDark({ storageRef: shownScheme })
+  const toggleDark = useToggle(isDark)
 
   function setColorScheme(scheme: ColorScheme) {
     colorScheme.value = scheme

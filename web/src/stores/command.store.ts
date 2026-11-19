@@ -48,7 +48,6 @@ import {
   MessageCircleQuestionIcon,
   LeafIcon,
 } from 'lucide-vue-next'
-import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { usePowerStore } from '@/stores/power.store'
@@ -180,10 +179,8 @@ const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
 }
 
 export const useCommandStore = defineStore('command', () => {
-  const isDark = useDark()
-  const toggleDark = useToggle(isDark)
   const router = useRouter()
-  const { setAccentColor, setRadius } = useThemeStore()
+  const { setAccentColor, setRadius, toggleDark } = useThemeStore()
   const power = usePowerStore()
   const authService = useAuthService()
   const mapService = useMapService()

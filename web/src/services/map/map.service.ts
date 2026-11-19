@@ -61,7 +61,7 @@ import { usePowerStore } from '@/stores/power.store'
 import { mapRenderBudget } from '@/lib/power/power-saver'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
-import { createSharedComposable, tryOnScopeDispose, useDark } from '@vueuse/core'
+import { createSharedComposable, tryOnScopeDispose } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/services/map/providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/services/map/providers/maplibre.strategy'
@@ -78,8 +78,6 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-
-const dark = useDark()
 
 
 function mapService() {
@@ -156,7 +154,7 @@ function mapService() {
 
     const options = {
       ...settings,
-      theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
+      theme: isDark.value ? MapTheme.DARK : MapTheme.LIGHT,
       camera: mapCamera,
     }
 
@@ -1256,7 +1254,7 @@ function mapService() {
     if (ready) updateMapPadding()
   })
 
-  watch(dark, newDark => {
+  watch(isDark, newDark => {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
 

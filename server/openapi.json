@@ -830,7 +830,7 @@
         "tags": [
           "Auth"
         ],
-        "description": "Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.",
+        "description": "Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use. Limited to 5 codes per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1326,7 +1326,7 @@
         "tags": [
           "Auth"
         ],
-        "description": "Sign in a user. Exchanges a passkey or one-time password for an authentication token.",
+        "description": "Sign in a user. Exchanges a passkey or one-time password for an authentication token. Limited to 10 attempts per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.",
         "requestBody": {
           "required": true,
           "content": {

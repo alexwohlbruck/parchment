@@ -13,6 +13,7 @@ interface Config {
   accentColor: Theme['name']
   radius: number
   style: Style
+  uiScale: number
 }
 
 type Color =
@@ -58,14 +59,36 @@ export const allColors: Color[] = [
 
 export const allRadii = [0, 0.25, 0.5, 0.75, 1]
 
-export const useThemeStore = defineStore('theme', () => {
-  const config = useStorage<Config>('config', {
-    accentColor: 'parchment',
-    radius: 0.5,
-    style: styles[0].name,
-  })
+export const uiScales = [0.9, 1, 1.1, 1.25, 1.5]
 
-  const { accentColor, radius, style } = toRefs(config)
+export const useThemeStore = defineStore('theme', () => {
+  const config = useStorage<Config>(
+    'config',
+    {
+      accentColor: 'parchment',
+      radius: 0.5,
+      style: styles[0].name,
+      uiScale: 1,
+    },
+    undefined,
+    { mergeDefaults: true },
+  )
+
+  const { accentColor, radius, style, uiScale } = toRefs(config)
+
+  /* Interface size: per device, since it depends on the screen */
+
+  function setUiScale(scale: number) {
+    config.value.uiScale = scale
+  }
+
+  watch(
+    uiScale,
+    scale => {
+      document.documentElement.style.fontSize = scale === 1 ? '' : `${scale * 100}%`
+    },
+    { immediate: true },
+  )
 
   /* Light/dark mode */
 
@@ -129,6 +152,8 @@ export const useThemeStore = defineStore('theme', () => {
     setAccentColor,
     radius,
     setRadius,
+    uiScale,
+    setUiScale,
     themeClass,
     style,
     themePrimary,

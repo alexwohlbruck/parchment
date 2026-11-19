@@ -39,10 +39,10 @@ export type LandmarkFlavor = {
 }
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  // Lifted to its neighbours' lightness and under half way into their colour, so a landmark keeps its own hue.
-  light: { palette: [hsl(lightTokens.building_3d_fill_extrusion_color)], harmony: 0.45, harmonyFloor: 0.78, lift: 0.45, facade: FACADE_FLAVOR.light },
-  // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
-  dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.85, harmonyFloor: 0.35, lift: 0, facade: FACADE_FLAVOR.dark },
+  // Lifted to its neighbours' lightness and a third of the way into their colour, so a landmark keeps its own hue.
+  light: { palette: [hsl(lightTokens.building_3d_fill_extrusion_color)], harmony: 0.3, harmonyFloor: 0.78, lift: 0.45, facade: FACADE_FLAVOR.light },
+  // Well into the night map's blue, or a stone tower glows among its neighbours, but with its own hue still showing.
+  dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.65, harmonyFloor: 0.35, lift: 0, facade: FACADE_FLAVOR.dark },
 }
 
 /** The palette colour a landmark with this 0-1 seed is pulled toward. */

@@ -127,6 +127,7 @@ import { Button } from '@/components/ui/button'
 import { X } from 'lucide-vue-next'
 import { handleVaulRelease } from '@/lib/vaul-chrome-workaround'
 import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useThemeStore } from '@/stores/theme.store'
 
 const props = withDefaults(
   defineProps<{
@@ -653,6 +654,8 @@ const userSnapPoints = computed<SnapPoint[]>(() =>
   }),
 )
 
+const themeStore = useThemeStore()
+
 const snapPoints = computed<SnapPoint[]>(() =>
   resolveSnapPoints({
     base: baseSnapPoints.value,
@@ -666,6 +669,7 @@ const snapPoints = computed<SnapPoint[]>(() =>
         }
       : null,
     lift: lift.value,
+    scale: themeStore.uiScale,
   }),
 )
 

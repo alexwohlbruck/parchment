@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { drawnOverlayLayer, withGroundProfiles } from '@/lib/map-elevation/over-buildings'
+import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import * as turf from '@turf/turf'
 import { useMapService } from '@/services/map/map.service'
@@ -10,11 +12,13 @@ import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import {
   circleCircumferenceMeters,
   circleAreaSquareMeters,
 } from '@/lib/measure/measure'
+import { radiusAnnotation } from '@/lib/canvas/measurement-annotations'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
@@ -33,6 +37,7 @@ import {
 } from '@/constants/layers'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
@@ -70,6 +75,11 @@ const circumferenceMeters = computed(() =>
 )
 const areaSquareMeters = computed(() => circleAreaSquareMeters(radiusMeters.value))
 
+const radiusMarks = computed(() => {
+  const mark = radiusAnnotation(radiusCenter.value, radiusMeters.value)
+  return mark ? [mark] : []
+})
+
 const radiusHint = computed(() => formatDistance(radiusMeters.value))
 const circumferenceHint = computed(() => formatDistance(circumferenceMeters.value))
 const areaHint = computed(() => formatArea(areaSquareMeters.value))
@@ -91,7 +101,7 @@ function setRadiusCircleSource(
   const source = map.getSource(RADIUS_SOURCE_ID) as { setData: (d: unknown) => void }
   if (!source) return
   if (feature && feature.geometry.coordinates[0].length >= 3) {
-    source.setData(feature)
+    source.setData(withGroundProfiles(feature))
   } else {
     source.setData(EMPTY_RADIUS_GEOJSON)
   }
@@ -132,22 +142,22 @@ function addRadiusLayers() {
     type: 'geojson',
     data: EMPTY_RADIUS_GEOJSON,
   })
-  map.addLayer({
+  map.addLayer(drawnOverlayLayer({
     id: RADIUS_FILL_LAYER_ID,
     ...RADIUS_FILL_LAYER_SPEC,
     paint: {
       ...RADIUS_FILL_LAYER_SPEC.paint,
       'fill-color': getRadiusLineColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(drawnOverlayLayer({
     id: RADIUS_LINE_LAYER_ID,
     ...RADIUS_LINE_LAYER_SPEC,
     paint: {
       ...RADIUS_LINE_LAYER_SPEC.paint,
       'line-color': getRadiusLineColor(),
     },
-  })
+  }, mapStore.settings.engine))
 }
 
 function removeRadiusLayers() {
@@ -412,9 +422,13 @@ function closeRadius() {
     :close-label="t('radius.close')"
     @close="closeRadius"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="radiusUnitSystem" />
+    </template>
     <template v-if="radiusCenter && radiusMeters > 0">
       <div class="flex flex-col gap-1.5">
         <MeasureReadout
+          prominent
           :label="t('radius.radius')"
           :value="radiusHint"
           :cycle-label="t('measure.cycleUnit')"
@@ -434,10 +448,9 @@ function closeRadius() {
           @cycle="cycleArea(areaSquareMeters)"
         />
       </div>
-      <UnitSystemToggle
-        v-model="radiusUnitSystem"
-        :metric-label="t('measure.unitsMetric')"
-        :imperial-label="t('measure.unitsImperial')"
+      <MeasureExportActions
+        :annotations="radiusMarks"
+        :name="t('measure.circle')"
       />
     </template>
     <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">

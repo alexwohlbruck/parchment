@@ -93,7 +93,7 @@ export interface CanvasDataOrigin {
  * There is no file store: an imported KML becomes GeoJSON in the canvas
  * document, which is what lets a private canvas hold imported data without
  * the server ever seeing it. It also caps how much you can import — see
- * `MAX_IMPORT_BYTES` in `lib/geo-import`.
+ * `MAX_IMPORT_BYTES` in `lib/geo-file/geo-read`.
  */
 export interface CanvasDataLayer {
   id: string

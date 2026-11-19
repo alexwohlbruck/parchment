@@ -576,6 +576,15 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /** A new canvas that starts out holding `body` — a measurement kept, say. */
+  async function createCanvasWith(
+    params: CreateCanvasParams,
+    body: CanvasBody,
+  ): Promise<Canvas | null> {
+    const canvas = await createCanvas(params)
+    return canvas && saveBody(canvas, body)
+  }
+
   function setArchived(id: string, archived: boolean) {
     return archiveService.setArchived(
       {
@@ -596,6 +605,7 @@ export const useCanvasesService = createSharedComposable(() => {
     fetchCanvases,
     fetchCanvasById,
     createCanvas,
+    createCanvasWith,
     replayCreate,
     replayUpdateMetadata,
     replaySaveBody,

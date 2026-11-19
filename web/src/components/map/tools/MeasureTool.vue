@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { drawnOverlayLayer, withGroundProfiles } from '@/lib/map-elevation/over-buildings'
+import { useMapStore } from '@/stores/map.store'
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
@@ -9,6 +11,7 @@ import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import {
   pathLengthMeters,
   polygonAreaSquareMeters,
@@ -19,6 +22,7 @@ import {
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
 } from '@/lib/measure/measure'
+import { measureAnnotation } from '@/lib/canvas/measurement-annotations'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
@@ -40,6 +44,7 @@ import {
 } from '@/constants/layers'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
@@ -92,6 +97,11 @@ const areaSquareMeters = computed(() => {
   return polygonAreaSquareMeters(effectiveMeasurePoints.value)
 })
 
+const measuredMarks = computed(() => {
+  const mark = measureAnnotation(measurePoints.value, isMeasureClosed.value)
+  return mark ? [mark] : []
+})
+
 const distanceHint = computed(() => formatDistance(totalDistanceMeters.value))
 const areaHint = computed(() => formatArea(areaSquareMeters.value))
 
@@ -101,11 +111,13 @@ function setLineSourceData(coords: number[][]) {
   const source = map.getSource(MEASURE_SOURCE_ID) as any
   if (!source) return
   if (coords.length >= 2) {
-    source.setData({
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: coords },
-    })
+    source.setData(
+      withGroundProfiles({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: coords },
+      } as GeoJSON.Feature),
+    )
   } else {
     source.setData(EMPTY_MEASURE_LINE_GEOJSON)
   }
@@ -208,30 +220,30 @@ function addMeasureLayers() {
     type: 'geojson',
     data: EMPTY_MEASURE_FILL_GEOJSON,
   })
-  map.addLayer({
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_FILL_LAYER_ID,
     ...MEASURE_FILL_LAYER_SPEC,
     paint: {
       ...MEASURE_FILL_LAYER_SPEC.paint,
       'fill-color': getMeasureLineColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_LINE_CASE_LAYER_ID,
     ...MEASURE_LINE_CASE_LAYER_SPEC,
     paint: {
       ...MEASURE_LINE_CASE_LAYER_SPEC.paint,
       'line-color': getMeasureLineCasingColor(),
     },
-  })
-  map.addLayer({
+  }, mapStore.settings.engine))
+  map.addLayer(drawnOverlayLayer({
     id: MEASURE_LAYER_ID,
     ...MEASURE_LINE_LAYER_SPEC,
     paint: {
       ...MEASURE_LINE_LAYER_SPEC.paint,
       'line-color': getMeasureLineColor(),
     },
-  })
+  }, mapStore.settings.engine))
 }
 
 function removeMeasureLayers() {
@@ -493,26 +505,30 @@ function closeMeasure() {
     :close-label="t('measure.close')"
     @close="closeMeasure"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="measureUnitSystem" />
+    </template>
     <template v-if="measurePoints.length >= 2">
       <div class="flex flex-col gap-1.5">
         <MeasureReadout
-          :label="t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')"
-          :value="distanceHint"
-          :cycle-label="t('measure.cycleUnit')"
-          @cycle="cycleDistance(totalDistanceMeters)"
-        />
-        <MeasureReadout
           v-if="areaHint"
+          prominent
           :label="t('measure.area')"
           :value="areaHint"
           :cycle-label="t('measure.cycleUnit')"
           @cycle="cycleArea(areaSquareMeters)"
         />
+        <MeasureReadout
+          :prominent="!areaHint"
+          :label="t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')"
+          :value="distanceHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleDistance(totalDistanceMeters)"
+        />
       </div>
-      <UnitSystemToggle
-        v-model="measureUnitSystem"
-        :metric-label="t('measure.unitsMetric')"
-        :imperial-label="t('measure.unitsImperial')"
+      <MeasureExportActions
+        :annotations="measuredMarks"
+        :name="t('measure.title')"
       />
     </template>
     <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">

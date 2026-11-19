@@ -29,7 +29,6 @@ export const MEASURE_FILL_LAYER_SPEC = {
   source: MEASURE_FILL_SOURCE_ID,
   paint: {
     'fill-opacity': 0.18,
-    'fill-emissive-strength': 1,
   },
 } as const
 
@@ -40,7 +39,6 @@ export const MEASURE_LINE_CASE_LAYER_SPEC = {
   layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
   paint: {
     'line-width': 6,
-    'line-emissive-strength': 1,
   },
 } as const
 
@@ -51,7 +49,6 @@ export const MEASURE_LINE_LAYER_SPEC = {
   layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
   paint: {
     'line-width': 3,
-    'line-emissive-strength': 1,
   },
 } as const
 
@@ -76,7 +73,6 @@ export const RADIUS_FILL_LAYER_SPEC = {
   source: RADIUS_SOURCE_ID,
   paint: {
     'fill-opacity': 0.18,
-    'fill-emissive-strength': 1,
   },
 } as const
 
@@ -87,7 +83,6 @@ export const RADIUS_LINE_LAYER_SPEC = {
   layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
   paint: {
     'line-width': 3,
-    'line-emissive-strength': 1,
   },
 } as const
 
@@ -118,7 +113,6 @@ export const AREA_FILL_LAYER_SPEC = {
   paint: {
     // Data-driven so one layer can shade every band from its own property.
     'fill-opacity': ['get', 'opacity'],
-    'fill-emissive-strength': 1,
   },
 } as const
 
@@ -129,6 +123,5 @@ export const AREA_LINE_LAYER_SPEC = {
   paint: {
     'line-width': 1.5,
     'line-opacity': 0.65,
-    'line-emissive-strength': 1,
   },
 } as const

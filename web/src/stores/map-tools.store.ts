@@ -26,6 +26,13 @@ export const useMapToolsStore = defineStore('map-tools', () => {
   const rawClickCapture = ref(false)
 
   /**
+   * How much of a phone's screen the active tool's sheet covers, so the map
+   * buttons can sit above it. Kept out of the map padding on purpose: the map
+   * must not shift under the points being placed.
+   */
+  const sheetHeight = ref(0)
+
+  /**
    * Set while a map tool wants Escape for itself.
    *
    * Escape is bound in several places at once — the drawing tools, the left
@@ -152,6 +159,7 @@ export const useMapToolsStore = defineStore('map-tools', () => {
   return {
     activeTool,
     rawClickCapture,
+    sheetHeight,
     escapeCapture,
     measurePoints,
     measureHistory,

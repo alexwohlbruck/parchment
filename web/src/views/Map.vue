@@ -227,8 +227,18 @@ const streetPeekStyle = computed<CSSProperties>(() => {
 
 // 4.5rem = the cluster's resting offset (overlay p-2 + mb-16); min() keeps
 // the transform from pushing the buttons down when the sheet sits below it.
+/** A measuring tool's sheet covers the bottom of a phone, so the controls ride above it. */
+const toolLiftStyle = computed<CSSProperties>(() => {
+  const covered = mapToolsStore.sheetHeight
+  if (!isMobileScreen.value || !covered) return {}
+  return {
+    transform: `translateY(min(0px, calc(4.5rem + env(safe-area-inset-bottom) - ${covered + PEEK_INSET}px)))`,
+  }
+})
+
 const mapFabsLiftStyle = computed<CSSProperties>(() => {
   if (!isMobileScreen.value) return {}
+  if (toolLiftStyle.value.transform) return toolLiftStyle.value
   const sheet = appStore.componentDimensions.get('map-content-sheet')
   if (!sheet) return {}
   const visible = Math.round(window.innerHeight - sheet.y)
@@ -565,8 +575,9 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto mt-auto flex items-center gap-2"
+                class="pointer-events-auto mt-auto flex items-center gap-2 transition-transform duration-300"
                 :class="{ 'mb-16': isMobileScreen }"
+                :style="toolLiftStyle"
               >
                 <AttributionControl />
                 <CameraPositionControl />

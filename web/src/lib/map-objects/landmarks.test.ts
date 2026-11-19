@@ -6,6 +6,7 @@ import {
 import { coasterTrackLayers, PROMOTED_REFS } from '@/lib/map-style/detail-layers'
 import { buildMapStyle } from '@/lib/map-style/build'
 import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
+import { registerForkSpec } from '@/lib/map-style/test-fork-spec'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 import { parseGlb, poseGlb, sampleChannel } from './glb.mjs'
 import { planCoverage } from './landmark-coverage'
@@ -215,8 +216,8 @@ describe('hidingReplaced', () => {
   const style = buildMapStyle({ tileServerUrl: 'https://example.test/tiles', theme: 'light', hdRoads: true } as any)
 
   it('has every layer of a replaceable source-layer read the mark, in a style that still validates', () => {
-    // The fork's own layout properties are unknown to the published validator.
-    expect(validateStyleMin(style as any).filter(e => e.message.includes('.paint.'))).toEqual([])
+    registerForkSpec()
+    expect(validateStyleMin(style as any)).toEqual([])
     const replaceable = (style.layers as any[]).filter(l => REPLACEABLE_SOURCE_LAYERS.includes(l['source-layer']))
     expect(replaceable.length).toBeGreaterThan(3)
     for (const layer of replaceable) expect(JSON.stringify(layer.paint), layer.id).toContain('"feature-state","replaced"')

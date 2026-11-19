@@ -5,7 +5,6 @@
 import type { Mesh } from './decks'
 import { MATERIALS } from './baked/mesh-file'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
-import type { GroundShadow } from '@/lib/vendor/ao-shadow'
 
 // `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
 // sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
@@ -33,8 +32,6 @@ const VS = `#version 300 es
   out vec3 v_color;
   out vec4 v_sun;
   out float v_slope;
-  out float v_grade;
-  uniform float u_grade_bias;
   int routeSlot(int slot, int shift) {
     return slot == ${MATERIALS.indexOf('route')} || slot == ${MATERIALS.indexOf('routeCasing')} ? slot + shift : slot;
   }
@@ -60,49 +57,27 @@ const VS = `#version 300 es
     }
     v_sun = u_sunLight * vec4(p, 1.0);
     v_slope = sqrt(max(0.0, 1.0 - n.z * n.z)) / max(abs(n.z), 0.2);
-    v_grade = u_grade_bias > 0.0 ? clamp(a_bias / u_grade_bias, 0.0, 1.0) : 0.0;
     if (a_bias > 0.0) p += normalize(u_eye - p) * a_bias * u_per_metre;
     gl_Position = u_matrix * vec4(p, 1.0);
   }`
 
-// At grade a deck lies in the ground's shadow mask, blurred as the ground's, where the sun's map agrees:
-// the mask also holds the deck's own shadow on the ground behind it. Clear of the ground, in the sun's map.
+// In the sun's shadow a surface takes the tint the ground beside it does.
 const FS = `#version 300 es
   precision highp float;
   uniform float u_shadowAlpha;
-  uniform sampler2D u_mask;
-  uniform float u_maskAlpha;
-  uniform vec2 u_maskBlur;
-  uniform float u_maskLod;
-  uniform vec2 u_viewport;
+  uniform vec3 u_shadowColor;
   in vec3 v_color;
   in vec4 v_sun;
   in float v_slope;
-  in float v_grade;
   out vec4 fragColor;
   ${SUN_SHADOW_GLSL}
-  float groundShade() {
-    if (u_maskAlpha <= 0.0) return 0.0;
-    vec2 uv = gl_FragCoord.xy / u_viewport;
-    float sh = 0.0, sw = 0.0;
-    for (int dy = -1; dy <= 1; dy++)
-      for (int dx = -1; dx <= 1; dx++) {
-        float w = exp(-0.5 * float(dx * dx + dy * dy));
-        sh += textureLod(u_mask, uv + vec2(float(dx), float(dy)) * u_maskBlur * 2.0, u_maskLod + 1.0).a * w;
-        sw += w;
-      }
-    return sh / sw * u_maskAlpha;
-  }
   void main() {
-    float sun = sunShade(v_sun, v_slope);
-    float ground = v_grade > 0.0 ? groundShade() * v_grade * (sunCovers(v_sun) ? smoothstep(0.05, 0.4, sun) : 1.0) : 0.0;
-    float shade = max(ground, u_shadowAlpha * sun * (1.0 - v_grade));
-    fragColor = vec4(v_color * (1.0 - shade), 1.0);
+    fragColor = vec4(mix(v_color, u_shadowColor, u_shadowAlpha * sunShade(v_sun, v_slope)), 1.0);
   }`
 
 /** How an attribute's buffer is read: its GL type, and whether integers are normalised to [-1, 1]. */
 type Layout = { type: number; normalized: boolean }
-export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null; layouts?: Partial<Record<'normal' | 'color' | 'low', Layout>> }
+export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null; vao?: WebGLVertexArrayObject | null; layouts?: Partial<Record<'normal' | 'color' | 'low', Layout>> }
 
 export function linkMeshProgram(gl: WebGL2RenderingContext, deferred = false): WebGLProgram {
   const program = gl.createProgram()!
@@ -162,7 +137,9 @@ export function uploadMesh(gl: WebGL2RenderingContext, mesh: MeshUpload): MeshBu
 }
 
 export function deleteMesh(gl: WebGL2RenderingContext, buffers: MeshBuffers | null) {
-  if (buffers) for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread, buffers.lift, buffers.indices]) if (b) gl.deleteBuffer(b)
+  if (!buffers) return
+  for (const b of [buffers.position, buffers.normal, buffers.color, buffers.low, buffers.bias, buffers.spread, buffers.lift, buffers.indices]) if (b) gl.deleteBuffer(b)
+  if (buffers.vao) gl.deleteVertexArray(buffers.vao)
 }
 
 /**
@@ -183,117 +160,117 @@ export function eyeOf(m: ArrayLike<number>): [number, number, number] | null {
   return [h[0] / h[3], h[1] / h[3], h[2] / h[3]]
 }
 
-/** What a draw needs besides the matrix and light: how far toward street zoom it is (1 there) and the eye, for biased vertices. */
-export type MeshView = {
+/** What every mesh drawn in a frame shares besides the light. */
+export type MeshFrame = {
   elevationScale?: number; palette?: Float32Array
+  /** How far toward street zoom the view is, 1 there. */
+  hd?: number; minLinePx?: number; pixelRatio?: number
+  /** The buildings' shadows: their sun shadow map, and how dark and what colour a shadow is. */
+  sun?: { frame: SunFrame | null; alpha: number; color?: readonly number[] }
+}
+
+/** What one mesh's draw needs besides its matrix. */
+export type MeshView = {
+  /** The origin the mesh is drawn about, for its place in the sun's shadow map. */
+  origin?: [number, number]
   /** Metres of route already travelled: route vertices measured short of it are drawn travelled. */
   travelled?: number
-  hd?: number; eye?: [number, number, number] | null; perMetre?: number; minLinePx?: number; pixelRatio?: number
-  /**
-   * The buildings' shadows: their sun shadow map, the origin the mesh is drawn about and how dark a shadow is;
-   * their screen-space ground shadow mask; and the bias a vertex lying on the ground has.
-   */
-  sun?: { frame: SunFrame | null; origin: [number, number]; alpha: number; ground: GroundShadow | null; gradeBias: number }
+  /** The eye about the mesh's origin, and mercator units to a metre, for biased vertices. */
+  eye?: [number, number, number] | null; perMetre?: number
+}
+
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'shadowColor' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[]; frame: SunFrame | null }
+const locations = new WeakMap<WebGLProgram, Locations>()
+
+const BLACK = [0, 0, 0]
+const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+
+function locate(gl: WebGL2RenderingContext, program: WebGLProgram): Locations {
+  let at = locations.get(program)
+  if (at) return at
+  const u = (name: string) => gl.getUniformLocation(program, name)
+  at = {
+    uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), shadowColor: u('u_shadowColor') },
+    sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
+    attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
+    frame: null,
+  }
+  locations.set(program, at)
+  return at
+}
+
+/** Take up the program with what every mesh drawn this frame shares: the style's light, the palette and the sun's shadows. */
+export function useMeshProgram(gl: WebGL2RenderingContext, program: WebGLProgram, light: number[], frame: MeshFrame = {}) {
+  const at = locate(gl, program)
+  gl.useProgram(program)
+  gl.uniform1f(at.uniforms.elevationScale, frame.elevationScale ?? 1)
+  gl.uniform1i(at.uniforms.materials, frame.palette ? 1 : 0)
+  if (frame.palette) gl.uniform3fv(at.uniforms.palette, frame.palette)
+  const l = Math.hypot(light[0], light[1], light[2]) || 1
+  gl.uniform3f(at.uniforms.light, light[0] / l, light[1] / l, light[2] / l)
+  gl.uniform1f(at.uniforms.hd, frame.hd ?? 1)
+  gl.uniform2f(at.uniforms.viewport, gl.drawingBufferWidth, gl.drawingBufferHeight)
+  gl.uniform1f(at.uniforms.minPx, (frame.minLinePx ?? 0) * (frame.pixelRatio ?? 1))
+  const sun = frame.sun?.frame ? frame.sun : null
+  at.frame = sun?.frame ?? null
+  bindSun(gl, at.sun, at.frame)
+  gl.uniform1f(at.uniforms.shadowAlpha, sun?.alpha ?? 0)
+  gl.uniform3fv(at.uniforms.shadowColor, sun?.color ?? BLACK)
+  // A mesh without a bias, spread or lift of its own reads these: attribute constants belong to the context, not to a vertex array.
+  const [, , , , bias, spread, lift] = at.attributes
+  if (bias >= 0) gl.vertexAttrib1f(bias, 0)
+  if (spread >= 0) gl.vertexAttrib3f(spread, 0, 0, 0)
+  if (lift >= 0) gl.vertexAttrib1f(lift, 0)
+}
+
+/** A mesh's buffers pointed at the program's attributes, once. */
+function vertexArray(gl: WebGL2RenderingContext, at: Locations, buffers: MeshBuffers): WebGLVertexArrayObject | null {
+  const vao = gl.createVertexArray()
+  gl.bindVertexArray(vao)
+  const [position, normal, color, low, bias, spread, lift] = at.attributes
+  const point = (loc: number, buffer: WebGLBuffer | null | undefined, size: number, layout?: Layout) => {
+    if (loc < 0 || !buffer) return
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.enableVertexAttribArray(loc)
+    gl.vertexAttribPointer(loc, size, layout?.type ?? gl.FLOAT, layout?.normalized ?? false, 0, 0)
+  }
+  point(position, buffers.position, 3)
+  point(normal, buffers.normal, 3, buffers.layouts?.normal)
+  point(color, buffers.color, 3, buffers.layouts?.color)
+  point(low, buffers.low ?? buffers.color, 3, buffers.layouts?.low)
+  point(bias, buffers.bias, 1)
+  point(spread, buffers.spread, 3)
+  point(lift, buffers.lift, 1)
+  if (buffers.indices) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices)
+  return vao
 }
 
 /**
- * Bind the program with its matrix and the style's light, and the buffers to
- * its attributes; returns a draw for a range of vertices and an unbind. A mesh
- * without low colours or biases draws its own colours, unbiased.
+ * Bind a mesh for drawing with the program `useMeshProgram` took up; returns a
+ * draw for a range of vertices and an unbind. A mesh without low colours or
+ * biases draws its own colours, unbiased.
  */
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'mask' | 'maskAlpha' | 'maskBlur' | 'maskLod' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[] }
-const locations = new WeakMap<WebGLProgram, Locations>()
-const emptyMasks = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
-
-/** A clear 1×1 texture for the mask's sampler while there is no ground shadow, so it never reads an unbound unit as full shadow. */
-function emptyMask(gl: WebGL2RenderingContext): WebGLTexture {
-  let t = emptyMasks.get(gl)
-  if (t) return t
-  t = gl.createTexture()!
-  gl.bindTexture(gl.TEXTURE_2D, t)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4))
-  emptyMasks.set(gl, t)
-  return t
-}
-
-/** The texture unit the ground shadow mask is bound to; the sun's map takes `SUN_SHADOW_UNIT`. */
-const MASK_UNIT = 6
-const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
-
-export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buffers: MeshBuffers, matrix: Float32Array, light: number[], view: MeshView = {}) {
-  let at = locations.get(program)
-  if (!at) {
-    const u = (name: string) => gl.getUniformLocation(program, name)
-    at = {
-      uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), mask: u('u_mask'), maskAlpha: u('u_maskAlpha'), maskBlur: u('u_maskBlur'), maskLod: u('u_maskLod'), gradeBias: u('u_grade_bias') },
-      sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
-      attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
-    }
-    locations.set(program, at)
-  }
-  gl.useProgram(program)
-  gl.uniform1f(at.uniforms.elevationScale, view.elevationScale ?? 1)
-  gl.uniform1i(at.uniforms.materials, view.palette ? 1 : 0)
-  if (view.palette) gl.uniform3fv(at.uniforms.palette, view.palette)
-  gl.uniform1f(at.uniforms.travelled, view.travelled ?? -1)
+export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buffers: MeshBuffers, matrix: Float32Array, view: MeshView = {}) {
+  const at = locate(gl, program)
   gl.uniformMatrix4fv(at.uniforms.matrix, false, matrix)
-  const l = Math.hypot(light[0], light[1], light[2]) || 1
-  gl.uniform3f(at.uniforms.light, light[0] / l, light[1] / l, light[2] / l)
-  gl.uniform1f(at.uniforms.hd, view.hd ?? 1)
+  gl.uniform1f(at.uniforms.travelled, view.travelled ?? -1)
   const eye = view.eye ?? null
   gl.uniform3f(at.uniforms.eye, eye?.[0] ?? 0, eye?.[1] ?? 0, eye?.[2] ?? 0)
   // No eye, no bias: a zero scale leaves every vertex where it is.
   const biased = eye ? (view.perMetre ?? 0) : 0
   gl.uniform1f(at.uniforms.perMetre, biased)
-  gl.uniform2f(at.uniforms.viewport, gl.drawingBufferWidth, gl.drawingBufferHeight)
-  gl.uniform1f(at.uniforms.minPx, (view.minLinePx ?? 0) * (view.pixelRatio ?? 1))
-  const ground = view.sun?.ground ?? null
-  gl.uniform1f(at.uniforms.gradeBias, view.sun?.gradeBias ?? 0)
-  gl.uniform1f(at.uniforms.maskAlpha, ground?.alpha ?? 0)
-  gl.uniform2f(at.uniforms.maskBlur, ground?.blurStep[0] ?? 0, ground?.blurStep[1] ?? 0)
-  gl.uniform1f(at.uniforms.maskLod, ground?.blurLod ?? 0)
-  gl.uniform1i(at.uniforms.mask, MASK_UNIT)
-  gl.activeTexture(gl.TEXTURE0 + MASK_UNIT)
-  gl.bindTexture(gl.TEXTURE_2D, ground?.texture ?? emptyMask(gl))
-  gl.activeTexture(gl.TEXTURE0)
-  const sun = view.sun?.frame ? view.sun : null
-  bindSun(gl, at.sun, sun?.frame ?? null)
-  gl.uniform1f(at.uniforms.shadowAlpha, sun?.alpha ?? 0)
-  gl.uniformMatrix4fv(at.uniforms.sunLight, false, sun ? lightAbout(sun.frame!.light, sun.origin) : IDENTITY)
-  gl.bindVertexArray(null)
-  const [position, normal, color, low, bias, spread, lift] = at.attributes
-  const enabled: number[] = []
-  const bind = (loc: number, buffer: WebGLBuffer, size: number, layout?: Layout) => {
-    if (loc < 0) return
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.enableVertexAttribArray(loc)
-    gl.vertexAttribPointer(loc, size, layout?.type ?? gl.FLOAT, layout?.normalized ?? false, 0, 0)
-    enabled.push(loc)
-  }
-  bind(position, buffers.position, 3)
-  bind(normal, buffers.normal, 3, buffers.layouts?.normal)
-  bind(color, buffers.color, 3, buffers.layouts?.color)
-  bind(low, buffers.low ?? buffers.color, 3, buffers.layouts?.low)
-  if (buffers.bias) bind(bias, buffers.bias, 1)
-  else if (bias >= 0) gl.vertexAttrib1f(bias, 0)
-  if (buffers.spread) bind(spread, buffers.spread, 3)
-  else if (spread >= 0) gl.vertexAttrib3f(spread, 0, 0, 0)
+  gl.uniformMatrix4fv(at.uniforms.sunLight, false, at.frame && view.origin ? lightAbout(at.frame.light, view.origin) : IDENTITY)
   gl.uniform1i(at.uniforms.lifted, buffers.lift ? 1 : 0)
-  if (buffers.lift) bind(lift, buffers.lift, 1)
-  else if (lift >= 0) gl.vertexAttrib1f(lift, 0)
+  if (buffers.vao) gl.bindVertexArray(buffers.vao)
+  else buffers.vao = vertexArray(gl, at, buffers)
   return {
     draw: (from = 0, to = buffers.count) => {
       if (to <= from) return
-      if (buffers.indices) {
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices)
-        gl.drawElements(gl.TRIANGLES, to - from, gl.UNSIGNED_INT, from * 4)
-      } else gl.drawArrays(gl.TRIANGLES, from, to - from)
+      if (buffers.indices) gl.drawElements(gl.TRIANGLES, to - from, gl.UNSIGNED_INT, from * 4)
+      else gl.drawArrays(gl.TRIANGLES, from, to - from)
     },
     /** Draw the biased vertices where they are biased to, or where they are. */
-    bias: (on: boolean) => gl.uniform1f(at!.uniforms.perMetre, on ? biased : 0),
-    unbind: () => {
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
-      for (const loc of enabled) gl.disableVertexAttribArray(loc)
-    },
+    bias: (on: boolean) => gl.uniform1f(at.uniforms.perMetre, on ? biased : 0),
+    unbind: () => gl.bindVertexArray(null),
   }
 }

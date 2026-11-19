@@ -171,9 +171,15 @@ import {
   liveBuildingShade,
   shadeLight,
   sunShadow,
-  BUILDING_SHADE_LAYER_ID,
+  removeBuildingShade,
   shadowCasters,
 } from '@/lib/map/building-shade'
+import { shadowStrength } from '@/lib/map/shadow-mode'
+import { setFrameTaskBudget } from '@/lib/map/rendering/frame-task'
+/** Milliseconds of each frame the map's background tasks share, at rest and while the camera moves. */
+const RESTING_TASK_BUDGET = 4
+const MOVING_TASK_BUDGET = 2
+
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -591,7 +597,10 @@ export class MaplibreStrategy extends MapStrategy {
         pitch: this.mapInstance.getPitch(),
       })
     })
+    // While the camera moves a frame is the map's to draw: background work gets half its share of it.
+    this.mapInstance.on('movestart', () => setFrameTaskBudget(MOVING_TASK_BUDGET))
     this.mapInstance.on('moveend', () => {
+      setFrameTaskBudget(RESTING_TASK_BUDGET)
       this.updateSunShadow()
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
@@ -849,12 +858,12 @@ export class MaplibreStrategy extends MapStrategy {
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / 300)
       this.buildingOpacity = from + (target - from) * t * (2 - t)
-      const shade = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? (liveBuildingShade() as any) : null
+      const shade = liveBuildingShade()
       this.landmarkLayer?.setOpacity(this.buildingOpacity)
       this.objectLayer?.setOpacity(this.surfaceOpacity())
       this.deckLayer?.setOpacity(this.surfaceOpacity())
       if (shade) shade.opacity = this.buildingOpacity
-      else if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
+      if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
         this.mapInstance.setPaintProperty(layerGroups.building3d, 'fill-extrusion-opacity', this.buildingOpacity)
       this.mapInstance.triggerRepaint()
       if (t < 1) this.buildingFade = requestAnimationFrame(step)
@@ -1012,18 +1021,13 @@ export class MaplibreStrategy extends MapStrategy {
       const layer = map.getLayer(id)
       if (layer?.sourceLayer && REPLACEABLE_SOURCE_LAYERS.includes(layer.sourceLayer)) held.set(`${layer.source}|${layer.sourceLayer}`, { source: layer.source, sourceLayer: layer.sourceLayer })
     }
-    let changed = false
     for (const [key, { source, sourceLayer }] of held) {
       const before = marked.get(key) ?? new Set()
       const now = new Set(idsIn(sourceLayer))
       for (const id of now) if (!before.has(id)) map.setFeatureState({ source, sourceLayer, id }, { [state]: true })
       for (const id of before) if (!now.has(id)) map.removeFeatureState({ source, sourceLayer, id }, state)
-      changed ||= now.size !== before.size || [...now].some(id => !before.has(id))
       marked.set(key, now)
     }
-    // The shade layer keeps its shadows while the buckets it read are the same ones.
-    const shade = liveBuildingShade() as { buildingsVersion: number } | null
-    if (changed && shade) shade.buildingsVersion++
   }
 
   /**
@@ -1362,59 +1366,43 @@ export class MaplibreStrategy extends MapStrategy {
 
   override setShadowMode(mode: ShadowMode) {
     this.shadowMode = mode
-    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? liveBuildingShade() : null
-    if (!layer) return
-    layer.shadows = mode
+    const shade = liveBuildingShade()
+    if (!shade) return
+    shade.visibility = pitch => shadowStrength(mode, pitch)
     this.mapInstance.triggerRepaint()
   }
 
   /**
-   * Reconcile the lighting layer with the two switches that gate it.
+   * Reconcile the shading with the two switches that gate it.
    *
    * Kept apart from the setters because both of them feed it and each has to
    * leave the other's preference alone — turning 3D buildings off and back on
    * must not silently clear the shading, which is what happens if the two share
-   * a single flag. Flat buildings get no shading: there is nothing to light, and
-   * the layer walks the same buckets either way, so it would spend the whole
-   * per-frame cost on zero-height geometry.
-   *
-   * The layer takes over drawing the buildings, so the style's own extrusion is
-   * muted rather than removed: at opacity 0 MapLibre skips the draw but still
-   * builds and keeps the tiles and buckets, which is exactly the geometry the
-   * layer borrows. Dropping the layer restores the opacity and the built-in
-   * draw resumes, with no other state to unwind.
+   * a single flag. Flat buildings get no shading: there is nothing to light.
    */
   private applyBuildingShade() {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     const active = this.buildingShade && this.map3dBuildings
-    const present = !!this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
-    if (active && !present) {
-      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
-      // Directional shading and cast shadows have to agree on where the sun is;
-      // the layer reads its direction from the style light rather than from its
-      // own options, so this has to be set before it draws.
-      this.mapInstance.setLight(shadeLight())
-      const shade = createBuildingShade(
-        buildingLayerId,
-        flavor,
-        this.mapInstance.getLayer(buildingLayerId)?.minzoom,
-      )
-      shade.shadows = this.shadowMode
-      shade.opacity = this.buildingOpacity
-      this.mapInstance.addLayer(shade as any, this.layerAfter(buildingLayerId))
-      this.shadowAlphaAtNoon = undefined
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    if (active) {
+      if (!liveBuildingShade() || this.shadeFlavor !== flavor) {
+        const shade = createBuildingShade(this.mapInstance, flavor, this.mapInstance.getLayer(buildingLayerId)?.minzoom)
+        this.shadeFlavor = flavor
+        shade.opacity = this.buildingOpacity
+        this.shadowAlphaAtNoon = undefined
+        this.setShadowMode(this.shadowMode)
+      }
+      // The shading outlives a style, and reads the sun from the style's light: a new style needs it set again.
       this.updateSunShadow()
-    } else if (!active && present) {
-      this.mapInstance.removeLayer(BUILDING_SHADE_LAYER_ID)
+    } else if (liveBuildingShade()) {
+      removeBuildingShade(this.mapInstance)
     }
-    this.mapInstance.setPaintProperty(
-      buildingLayerId,
-      'fill-extrusion-opacity',
-      active ? 0 : this.buildingOpacity,
-    )
+    this.mapInstance.setPaintProperty(buildingLayerId, 'fill-extrusion-opacity', this.buildingOpacity)
   }
+
+  private shadeFlavor?: 'light' | 'dark'
 
   /**
    * Point the shadows where the real sun is, for wherever the map is looking.
@@ -1432,9 +1420,7 @@ export class MaplibreStrategy extends MapStrategy {
    * time can change without the camera moving.
    */
   private updateSunShadow() {
-    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
-      ? (liveBuildingShade() as any)
-      : null
+    const layer = liveBuildingShade()
 
     const { lng, lat } = this.mapInstance.getCenter()
     const sun = sunShadow(new Date(), lat, lng)
@@ -1442,10 +1428,10 @@ export class MaplibreStrategy extends MapStrategy {
     if (!layer) return
 
     layer.shadowOffset = sun.offset
-    layer._heightScale = sun.heightScale
+    layer.heightScale = sun.heightScale
     // Hold the tuned darkness as the daylight maximum rather than overwriting
     // it, so the settings panel and the flavor still have the final say.
-    this.shadowAlphaAtNoon ??= layer.shadowAlpha as number
+    this.shadowAlphaAtNoon ??= layer.shadowAlpha
     layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
 
     this.mapInstance.setLight(shadeLight(sun.offset, sun.altitude))
@@ -1454,12 +1440,6 @@ export class MaplibreStrategy extends MapStrategy {
 
   private shadowAlphaAtNoon?: number
   private sunTimer?: ReturnType<typeof setInterval>
-
-  /** The id of the layer drawn directly above `layerId`, if any. */
-  private layerAfter(layerId: string): string | undefined {
-    const ids = this.mapInstance.getStyle().layers.map((l: any) => l.id)
-    return ids[ids.indexOf(layerId) + 1]
-  }
 
   /**
    * The basemap's own transit POIs, hidden while the transit layer group draws
@@ -1924,6 +1904,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()
       if (this.sunTimer) clearInterval(this.sunTimer)
+      if (liveBuildingShade()) removeBuildingShade(this.mapInstance)
 
       // Remove the map instance
       if (this.mapInstance) {

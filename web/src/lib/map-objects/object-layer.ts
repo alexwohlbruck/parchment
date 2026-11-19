@@ -71,8 +71,8 @@ const SETTLE = 80
 const MOVING_GATHER = 350
 const AT_MOST = 300
 
-/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: short while moving, longer at rest. */
-const SLICE = 8
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: a fraction of a frame while moving, longer at rest. */
+const SLICE = 3
 const RESTING_SLICE = 100
 /** Candidates placed, or features read, between checks of the slice clock. */
 const STEP = 256
@@ -217,30 +217,7 @@ function flutterOf(role: string, position: Float32Array, far: boolean): [number,
 
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
-/**
- * The cast shadow: the object sheared along the light onto the ground it
- * stands on, drawn into the building shade layer's mask so the two blur, fade
- * and overlap as one.
- */
-const SHADOW_VS = `
-  uniform mat4 u_matrix;
-  uniform vec2 u_shear;
-  uniform float u_per_metre;
-  attribute vec3 a_position;
-  attribute vec3 a_offset;
-  attribute vec4 a_shape;
-  attribute vec2 a_slope;
-  void main() {
-    float c = cos(a_shape.z);
-    float s = sin(a_shape.z);
-    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
-    p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
-    float metres = p.z * a_shape.x / u_per_metre;
-    vec2 xy = p.xy * a_shape.y + u_shear * metres;
-    gl_Position = u_matrix * vec4(a_offset.xy + xy, a_offset.z + dot(a_slope, xy), 1.0);
-  }`
-
-const SHADOW_FS = `
+const DEPTH_FS = `
   precision mediump float;
   void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
 
@@ -412,6 +389,8 @@ type Batch = {
    * render path and handed over here.
    */
   buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer } | null
+  /** Its instances and one of a model's primitives pointed at the attributes, once, by primitive. */
+  arrays?: Map<object, WebGLVertexArrayObject>
 }
 
 /**
@@ -523,8 +502,6 @@ export class ObjectLayer {
   private onStillness = () => this.stopFlutter()
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
-  private shadowProgram!: WebGLProgram
-  private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
   private sunProgram!: WebGLProgram
   private sunMatrix: WebGLUniformLocation | null = null
   /** Each model's height in its own units, for leaving the small ones out of the sun's map. */
@@ -532,6 +509,7 @@ export class ObjectLayer {
   private models = new Map<string, ModelBuffers>()
   private batches: Batch[] = []
   private retired: Array<Record<string, WebGLBuffer>> = []
+  private retiredArrays: WebGLVertexArrayObject[] = []
   private placed: Placed[] = []
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
@@ -545,7 +523,7 @@ export class ObjectLayer {
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
-  /** Bumped whenever the drawn instances change, so a cached shadow mask is redrawn. */
+  /** Bumped whenever the drawn instances change, so the sun's shadow map is redrawn. */
   shadowVersion = 0
 
   constructor(
@@ -611,9 +589,7 @@ export class ObjectLayer {
       ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.stillness?.addEventListener('change', this.onStillness)
-    this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
-    this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
-    this.sunProgram = link(gl, SUN_VS, SHADOW_FS)
+    this.sunProgram = link(gl, SUN_VS, DEPTH_FS)
     this.sunMatrix = gl.getUniformLocation(this.sunProgram, 'u_matrix')
 
     for (const [name, model] of Object.entries(this.sources)) {
@@ -775,7 +751,6 @@ export class ObjectLayer {
   onRemove(map: any, gl: WebGL2RenderingContext) {
     this.detach(map)
     gl.deleteProgram(this.program)
-    gl.deleteProgram(this.shadowProgram)
     gl.deleteProgram(this.sunProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
@@ -783,11 +758,9 @@ export class ObjectLayer {
         gl.deleteBuffer(p.normal)
         gl.deleteBuffer(p.index)
       }
-    for (const batch of this.batches) if (batch.buffers) this.retired.push(batch.buffers)
-    for (const buffers of this.retired)
-      for (const buffer of Object.values(buffers)) gl.deleteBuffer(buffer)
+    this.retire()
+    this.free(gl)
     this.batches = []
-    this.retired = []
   }
 
   /**
@@ -949,7 +922,7 @@ export class ObjectLayer {
       else buckets.set(which, [p])
     }
 
-    for (const batch of this.batches) if (batch.buffers) this.retired.push(batch.buffers)
+    this.retire()
 
     this.batches = []
     for (const [model, group] of buckets) {
@@ -992,9 +965,7 @@ export class ObjectLayer {
     // Buffers a rebuild replaced. Freed here rather than where they are
     // retired, because `arrange` runs between frames and deleting a bound
     // buffer there would unbind it under MapLibre's cached GL state.
-    for (const buffers of this.retired)
-      for (const buffer of Object.values(buffers)) gl.deleteBuffer(buffer)
-    this.retired.length = 0
+    this.free(gl)
     if (!this.batches.length) return
 
     // The matrix maps mercator world coordinates to clip space. Shifting it by
@@ -1030,11 +1001,7 @@ export class ObjectLayer {
     gl.frontFace(FRONT_FACE === 'cw' ? gl.CW : gl.CCW)
 
     this.drawObjects(gl, shifted)
-
-    for (const loc of Object.values(LOC)) {
-      gl.vertexAttribDivisor(loc, 0)
-      gl.disableVertexAttribArray(loc)
-    }
+    gl.bindVertexArray(null)
 
     // MapLibre's painter caches GL state; invalidate what we touched.
     const context = this.map.painter?.context
@@ -1072,16 +1039,13 @@ export class ObjectLayer {
       // danger of fighting itself, since there is no second surface behind it.
       if (model.cullable) gl.enable(gl.CULL_FACE)
       else gl.disable(gl.CULL_FACE)
-      this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
+        this.bindArrays(gl, batch, primitive)
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
         const [amplitude, held, run] = primitive.flutter
         gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
-        bindVec3(gl, LOC.a_position, primitive.position)
-        bindVec3(gl, LOC.a_normal, primitive.normal)
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
@@ -1141,6 +1105,35 @@ export class ObjectLayer {
     return false
   }
 
+  /** Set a batch's buffers and vertex arrays aside, to be freed inside a frame. */
+  private retire() {
+    for (const batch of this.batches) {
+      if (batch.buffers) this.retired.push(batch.buffers)
+      if (batch.arrays) this.retiredArrays.push(...batch.arrays.values())
+    }
+  }
+
+  private free(gl: WebGL2RenderingContext) {
+    for (const buffers of this.retired)
+      for (const buffer of Object.values(buffers)) gl.deleteBuffer(buffer)
+    for (const array of this.retiredArrays) gl.deleteVertexArray(array)
+    this.retired.length = 0
+    this.retiredArrays.length = 0
+  }
+
+  /** Bind a batch's instances with one primitive of a model: a vertex array made the first time, and only bound after. */
+  private bindArrays(gl: WebGL2RenderingContext, batch: Batch, primitive: { position: WebGLBuffer; normal: WebGLBuffer; index: WebGLBuffer }) {
+    const made = batch.arrays?.get(primitive)
+    if (made) return gl.bindVertexArray(made)
+    const array = gl.createVertexArray()!
+    gl.bindVertexArray(array)
+    this.bindInstances(gl, batch)
+    bindVec3(gl, LOC.a_position, primitive.position)
+    bindVec3(gl, LOC.a_normal, primitive.normal)
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+    ;(batch.arrays ??= new Map()).set(primitive, array)
+  }
+
   /**
    * Point the instance attributes at this batch, uploading it the first time.
    *
@@ -1172,61 +1165,22 @@ export class ObjectLayer {
     attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
   }
 
-  /**
-   * Cast this layer's shadows into the building shade layer's mask.
-   *
-   * Called from inside that layer's shadow pass, with its framebuffer, stencil
-   * and viewport already set, so only the program and the attributes are ours
-   * to touch. The pass leaves one of its own vertex arrays bound, and pointing
-   * attributes at our buffers while it is bound would rewrite it — so the
-   * default array is bound first and handed back clean.
-   */
-  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
-    if (!this.batches.length || !this.placed.length) return
-    gl.bindVertexArray(null)
-    gl.useProgram(this.shadowProgram)
-    gl.uniformMatrix4fv(this.shadowUniforms.u_matrix, false, translate(frame.matrix, this.origin))
-    gl.uniform2f(this.shadowUniforms.u_shear, frame.shear[0], frame.shear[1])
-    gl.uniform1f(this.shadowUniforms.u_per_metre, this.placed[0].perMetre)
-    gl.disable(gl.CULL_FACE)
-    for (const batch of this.batches) {
-      const model = this.models.get(shadowModel(batch, this.models))
-      if (!model) continue
-      this.bindInstances(gl, batch)
-      for (const primitive of model.primitives) {
-        bindVec3(gl, LOC.a_position, primitive.position)
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
-        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
-      }
-    }
-    for (const loc of Object.values(LOC)) {
-      gl.vertexAttribDivisor(loc, 0)
-      gl.disableVertexAttribArray(loc)
-    }
-  }
-
-  /** Into the sun's shadow map, mid-pass in the building shade layer: what is too short to show there is left out. */
+  /** Into the sun's shadow map, mid-pass in the map's shading: what is too short to show there is left out. */
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (!this.batches.length || !this.placed.length) return
     const least = (SUN_MIN_TEXELS * frame.texelMetres) * this.placed[0].perMetre
-    gl.bindVertexArray(null)
     gl.useProgram(this.sunProgram)
     gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.light, this.origin))
     for (const batch of this.batches) {
       const name = shadowModel(batch, this.models)
       const model = this.models.get(name)
       if (!model || this.tallest(batch) < least) continue
-      this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
-        bindVec3(gl, LOC.a_position, primitive.position)
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        this.bindArrays(gl, batch, primitive)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
-    for (const loc of Object.values(LOC)) {
-      gl.vertexAttribDivisor(loc, 0)
-      gl.disableVertexAttribArray(loc)
-    }
+    gl.bindVertexArray(null)
   }
 
   /** The tallest instance in a batch, in mercator units. */

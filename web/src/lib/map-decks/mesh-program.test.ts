@@ -47,7 +47,7 @@ test('reads byte normals normalised and byte palette slots as they are, without 
   const normal = Int8Array.of(0, 0, 127), color = Uint8Array.of(3, 0, 0)
   const buffers = uploadMesh(gl, { position: new Float32Array(3), normal, color, low: color })
   expect(calls.filter(c => c[0] === 'bufferData').map(c => c[2])).toContain(normal)
-  bindMesh(gl, {} as WebGLProgram, buffers, new Float32Array(16), [0, 0, 1])
+  bindMesh(gl, {} as WebGLProgram, buffers, new Float32Array(16))
   const pointers = calls.filter(c => c[0] === 'pointer')
   expect(pointers.find(c => c[1] === 1)?.slice(3, 5)).toEqual([0x1400, true])
   expect(pointers.find(c => c[1] === 2)?.slice(3, 5)).toEqual([0x1401, false])

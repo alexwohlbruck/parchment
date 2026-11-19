@@ -66,7 +66,8 @@ import {
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
-import { buildingFacadeColor } from './building-facade'
+import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
+import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -449,30 +450,6 @@ export const BUILDING_BASE_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-b
 /** The footprint outline that stands in for the roofline looking straight down. */
 export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
 
-/**
- * A second extrusion layer over the same buildings, carrying the roof colour.
- *
- * OSM records `roof:colour` separately from `building:colour`, and MapLibre's
- * `fill-extrusion` has exactly one colour — no property to put a second one in.
- * The shade layer draws the buildings itself, though, and its shader already
- * knows a roof face from a wall, so what it lacks is only the data.
- *
- * This is how the data gets there. MapLibre groups layers into one bucket by
- * `type`, `source`, `source-layer`, `minzoom`, `maxzoom`, `filter` and `layout`
- * — paint is not part of the key — so a layer identical to the building layer
- * in all of those, differing only in its paint, shares that bucket and gets its
- * own paint buffers built beside it, vertex for vertex. `WallShadowLayer` reads
- * the colour buffer off this layer and the wall colour off the real one.
- *
- * It is never drawn: `fill-extrusion-opacity: 0` makes MapLibre's own draw
- * return before it does anything (`drawFillExtrusion` bails on zero opacity),
- * so this costs a paint buffer per tile and no fragments at all.
- */
-export const BUILDING_3D_ROOF_LAYER = 'Building 3D roof colour'
-
-/** The same again, carrying each building's facade style; see `building-facade.ts`. */
-export const BUILDING_3D_FACADE_LAYER = 'Building 3D facade'
-
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
@@ -652,17 +629,12 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
   layers = layers.map(l => (l.id === BUILDING_ROOF_EDGE_LAYER ? fromBarrelman(l) : l))
 
   const buildings = fromBarrelman(layers[at])
-
-  // Every key MapLibre groups buckets by is copied verbatim; only the paint
-  // differs. Spreading the layer and overwriting `id` and `paint` is what keeps
-  // that true as the building layer is retuned.
-  const roof = {
+  // OSM records `roof:colour` apart from `building:colour`, and the building's kind: both are Barrelman's to give.
+  const painted = {
     ...buildings,
-    id: BUILDING_3D_ROOF_LAYER,
     paint: {
       ...buildings.paint,
-      'fill-extrusion-opacity': 0,
-      'fill-extrusion-color': buildingColor(
+      'fill-extrusion-roof-color': buildingColor(
         BUILDING_TINT[flavor],
         '@building_3d_fill_extrusion_color',
         // Falling back to the wall colour rather than to the flavor's plain
@@ -671,16 +643,11 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
         ['roof_colour', 'colour'],
         unpaintedBuildingColor(flavor),
       ),
+      'fill-extrusion-facade-style': buildingFacadeStyle(),
     },
   }
 
-  const facade = {
-    ...buildings,
-    id: BUILDING_3D_FACADE_LAYER,
-    paint: { ...buildings.paint, 'fill-extrusion-opacity': 0, 'fill-extrusion-color': buildingFacadeColor() },
-  }
-
-  return [...layers.slice(0, at), buildings, roof, facade, ...layers.slice(at + 1)]
+  return [...layers.slice(0, at), painted, ...layers.slice(at + 1)]
 }
 
 /**
@@ -852,6 +819,10 @@ function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
         ['colour'],
         unpaintedBuildingColor(flavor),
       ),
+      // Lit, and casting, once the map's shading is on; see `building-shade.ts`.
+      'fill-extrusion-cast-shadows': true,
+      'fill-extrusion-facade-style': FACADE_UNKNOWN,
+      'fill-extrusion-facade-seed': buildingFacadeSeed(),
     },
   })
 }

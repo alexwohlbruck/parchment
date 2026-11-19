@@ -140,8 +140,7 @@ export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
  * Hiding the circles has to be done with paint rather than `visibility`: a
  * layer set to `none` stops being a consumer of its source, MapLibre stops
  * loading the tiles, and the object layer — which reads its instances out of
- * those same tiles — is left with nothing to draw. The building shade layer
- * mutes the extrusion the same way and for the same reason.
+ * those same tiles — is left with nothing to draw.
  */
 export const TREE_OPACITY = [
   'interpolate', ['linear'], ['zoom'], 16, 0.55, 17.5, 0.85,

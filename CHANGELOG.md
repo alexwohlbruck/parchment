@@ -8,6 +8,7 @@
 * The bottom of the home sheet fades into your account row instead of cutting off.
 * The 3D map finishes loading several times sooner where landmarks and bridges are in view.
 * 3D trees, street furniture and landmark models download in a fraction of the requests and size.
+* Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
 
 ### Fixed
 

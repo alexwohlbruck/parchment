@@ -13,8 +13,8 @@
  *   lighting  The same formula MapLibre's fill-extrusion shader uses, against
  *             the same style light, so a landmark's wall and the office block
  *             beside it are exactly as bright as each other.
- *   shadows   Cast into the building shade layer's own shadow mask (see
- *             `shadowCasters` in `vendor/ao-shadow.mjs`), so a landmark's
+ *   shadows   Cast into the sun's shadow map the buildings are (see
+ *             `shadowCasters` in `map/building-shade.ts`), so a landmark's
  *             shadow has the buildings' direction, length, softness and
  *             darkness — and where the two overlap, it does not double up.
  *   replacing The layer reports the OSM refs it is drawing models for, and the
@@ -53,11 +53,11 @@ import { tileBounds, type Bounds } from './tile-lines'
 import { mercator } from '@/lib/map-decks/decks'
 import { terrainSampler, type HeightsLoader, type TerrainSampler } from '@/lib/map-decks/ground'
 import { fillCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
-import { fillAt, groundFill, type GroundFill } from '@/lib/map-terrain/fill'
+import { fillAt, groundFillSteps, type GroundFill } from '@/lib/map-terrain/fill'
 import { TERRAIN_TILES } from '@/lib/map-style/terrain'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
-import { liveBuildingShade, type OcclusionSeedFrame } from '@/lib/map/building-shade'
+import { liveBuildingShade, type OcclusionFrame } from '@/lib/map/building-shade'
 
 /** Where a landmark stands, in mercator units; see `project`. */
 type Anchor = { x: number; y: number; z: number; perMetre: number }
@@ -104,7 +104,7 @@ const LINGER_MS = 1500
 /** Its name among the terrain carver's owners; ranked first, so a tunnel is cut into filled ground. */
 const CARVER_OWNER = 'landmarks'
 
-/** Metres up from the ground a model counts as touching it, for the occlusion seed. */
+/** Metres up from the ground a model counts as touching it, for the ground occlusion. */
 const SEED_REACH = 3
 /** Metres under the sampled ground still seeded, where the terrain mesh dips between samples. */
 const SEED_BELOW = 0.5
@@ -466,20 +466,16 @@ const SUN_DEPTH_FS = `#version 300 es
     fragColor = vec4(0.0);
   }`
 
-/**
- * Where the model meets the ground, into the shade layer's contact-occlusion
- * seed: the low slab of it, in screen space, as that layer's footprints are.
- */
+/** Where the model meets the ground, for the shading's ground occlusion: the low slab of it, as the buildings' footprints are. */
 const SEED_FS = `#version 300 es
   precision highp float;
   in float v_above;
-  uniform vec2 u_res;
   ${MASK}
   out vec4 fragColor;
   void main() {
     if (v_above < -${SEED_BELOW.toFixed(1)} || v_above > ${SEED_REACH.toFixed(1)}) discard;
     cut();
-    fragColor = vec4(gl_FragCoord.xy / u_res, 0.0, 1.0);
+    fragColor = vec4(1.0);
   }`
 
 /** Metres a door may sit under the flat map's ground and still glow: doors are set on it. */
@@ -603,72 +599,6 @@ const HALO_FS = `#version 300 es
 /** Metres from a door's glow's centre to where it fades out. */
 const GLOW_RADIUS = 2.5
 
-/**
- * The building shade layer's ground shadow, for a model: every vertex is
- * sheared along the sun by its height and flattened onto the ground. The
- * buildings' shadow is made the same way from their walls, which is what
- * keeps the two in agreement.
- */
-const SHADOW_VS = `#version 300 es
-  uniform mat4 u_matrix;
-  uniform mat3 u_local;
-  uniform vec2 u_shear;
-  /** Metres the origin sits above the lowest ground under the model: its elevation. */
-  uniform float u_lift;
-  /** cos and sin of the bearing, and the scale: map metres back to model plan. */
-  uniform vec3 u_plan;
-  ${NODE}
-  ${GROUND}
-  ${ATTRIBUTES}
-  /** Only \`.a\`, the material's role, is read: lamps cast no shadow. */
-  uniform vec4 u_emissions[${MAX_BATCH_MATERIALS}];
-  out vec2 v_uv;
-  /** Metres the vertex stands above the ground under it. */
-  out float v_above;
-  /** The ground's rise above the lowest point, in map metres, at a map point. */
-  float riseAt(vec2 m) {
-    vec2 xz = vec2(u_plan.x * m.x + u_plan.y * m.y, -u_plan.y * m.x + u_plan.x * m.y) / u_plan.z;
-    return groundUnder(xz).x * u_plan.z;
-  }
-  void main() {
-    vec3 m = (u_node * vec4(a_position, 1.0)).xyz;
-    vec3 q = u_local * onGround(m);
-    // The shadow lands on the slope, not on a plane at the model's lowest
-    // point — otherwise, on a hill, it slides off its own base. Find where
-    // the vertex's shadow falls using the ground under the vertex, then read
-    // the ground there and shear by the height above it. One step is enough:
-    // the grid is coarse and a slope's change over a shadow's length small.
-    float below = q.z + u_lift - riseAt(q.xy);
-    // What is under the ground casts nothing: a sunk model's buried part
-    // would otherwise lay its whole plan on the ground as a shadow.
-    v_above = below;
-    vec2 land = q.xy + u_shear * max(below, 0.0);
-    float rise = riseAt(land);
-    float h = max(q.z + u_lift - rise, 0.0);
-    gl_Position = u_matrix * vec4(q.xy + u_shear * h, rise - u_lift, 1.0);
-    if (u_emissions[int(a_material)].a == ${ROLE.lamp}.0) gl_Position = ${OFF_SCREEN};
-    v_uv = a_uv;
-  }`
-
-const SHADOW_FS = `#version 300 es
-  precision highp float;
-  in float v_above;
-  ${MASK}
-  out vec4 fragColor;
-  void main() {
-    if (v_above < 0.0) discard;
-    cut();
-    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-  }`
-
-/** What the shade layer hands a caster for one frame of its shadow pass. */
-export type ShadowFrame = {
-  /** Clip ← mercator, the same matrix the layer's own draw gets. */
-  matrix: ArrayLike<number>
-  /** Mercator units of ground shift per metre of height, x east and y south. */
-  shear: [number, number]
-}
-
 type BatchLighting = { night: boolean; colors: Float32Array; emissions: Float32Array }
 
 /** One draw: a single textured primitive, or several untextured ones; see `batchPrimitives`. */
@@ -746,10 +676,9 @@ export class LandmarkLayer {
 
   private map: any
   private draw!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
-  private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private sunDepth!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private seed!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
-  /** This frame's sun shadow map, handed over by the shade layer before this layer draws. */
+  /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
   private sun: SunFrame | null = null
   private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private halo!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
@@ -760,8 +689,8 @@ export class LandmarkLayer {
   private version = 0
 
   /**
-   * Changes whenever what this layer casts does, so the shade layer can keep
-   * its shadow mask between frames. Not cacheable while a landmark fades out,
+   * Changes whenever what this layer casts does, so the shading can keep
+   * its shadow map between frames. Not cacheable while a landmark fades out,
    * or while a moving part turns on screen: its shadow turns with it.
    */
   get shadowVersion(): number {
@@ -872,11 +801,8 @@ export class LandmarkLayer {
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
     this.seed = program(gl, DRAW_VS, SEED_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_res', 'u_emissions',
+      ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_emissions',
         'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'])
-    this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
-      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
@@ -937,7 +863,6 @@ export class LandmarkLayer {
     for (const model of this.models.values()) release(gl, model)
     this.models.clear()
     gl.deleteProgram(this.draw.program)
-    gl.deleteProgram(this.shadow.program)
     gl.deleteProgram(this.sunDepth.program)
     gl.deleteProgram(this.seed.program)
     gl.deleteProgram(this.glow.program)
@@ -1018,10 +943,10 @@ export class LandmarkLayer {
       seen.add(p.id)
       wanted.push(p)
     }
-    // Filled before any is placed, a frame for each new one: a big model's fill takes some milliseconds.
+    // Filled before any is placed, over as many frames as it takes: a big model's fill is a few hundred milliseconds' work.
     for (const landmark of wanted) {
-      if (!terrain || !this.fill(landmark)) continue
-      yield
+      if (!terrain) break
+      yield* this.fill(landmark)
       if (!this.map) return
     }
     this.placements = wanted.map(landmark => this.place(landmark, terrain, detailed(landmark)))
@@ -1173,21 +1098,19 @@ export class LandmarkLayer {
   }
 
   /**
-   * Work out the terrain filled under a landmark, once its model and the
-   * bare ground round it have loaded; whether it was worked out now. Not
-   * under a raised one: nothing of it meets the ground, and the plinth the
-   * map does not draw may be the terrain's.
+   * Work out the terrain filled under a landmark, a step at a time, once
+   * its model and the bare ground round it have loaded. Not under a raised
+   * one: nothing of it meets the ground, and the plinth the map does not
+   * draw may be the terrain's.
    */
-  private fill(landmark: Landmark): boolean {
+  private *fill(landmark: Landmark): Generator<void> {
     const key = placementKey(landmark)
     const coverage = this.models.get(landmark.model)?.coverage
-    if (!this.options.carver || this.fills.has(key) || !coverage || landmark.elevation > 0) return false
+    if (!this.options.carver || this.fills.has(key) || !coverage || landmark.elevation > 0) return
     const bare = this.bareGround()
-    if (!bare) return false
-    const fill = groundFill(coverage, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
-    if (!fill) return false
-    this.fills.set(key, fill)
-    return true
+    if (!bare) return
+    const fill = yield* groundFillSteps(coverage, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
+    if (fill) this.fills.set(key, fill)
   }
 
   /**
@@ -1565,15 +1488,14 @@ export class LandmarkLayer {
     gl.bindVertexArray(null)
   }
 
-  /** Draw every landmark's foot into the building shade layer's occlusion seed, mid-pass, as `drawShadow`. */
-  drawOcclusionSeed(gl: WebGL2RenderingContext, frame: OcclusionSeedFrame) {
+  /** Draw every landmark's foot for the shading's ground occlusion, mid-pass, as `drawSunDepth`. */
+  drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
     this.upload(gl)
     const placements = this.drawable()
     if (!placements.length) return
     const { program, u } = this.seed
     gl.useProgram(program)
     gl.disable(gl.CULL_FACE)
-    gl.uniform2f(u.u_res, frame.resolution, frame.resolution)
     for (const p of placements) {
       const model = this.drawnModel(p)
       if (!model?.batches) continue
@@ -1581,34 +1503,6 @@ export class LandmarkLayer {
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       gl.uniform1f(u.u_scale, p.scale)
-      this.groundUniforms(gl, u, p)
-      this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
-    }
-    gl.bindVertexArray(null)
-  }
-
-  /**
-   * Draw every landmark's shadow into the building shade layer's mask. Called
-   * by that layer, mid-pass, with its framebuffer and stencil already set up.
-   */
-  drawShadow(gl: WebGL2RenderingContext, frame: ShadowFrame) {
-    this.upload(gl)
-    const placements = this.drawable()
-    if (!placements.length) return
-    const { program, u } = this.shadow
-    gl.useProgram(program)
-    // Both faces: a shadow has no front.
-    gl.disable(gl.CULL_FACE)
-    for (const p of placements) {
-      const model = this.drawnModel(p)
-      if (!model?.batches) continue
-      const { perMetre } = p.placed
-      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
-      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
-      gl.uniform2f(u.u_shear, frame.shear[0] / perMetre, frame.shear[1] / perMetre)
-      gl.uniform1f(u.u_lift, p.elevation)
-      const b = (p.bearing * Math.PI) / 180
-      gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
       this.groundUniforms(gl, u, p)
       this.drawBatches(gl, model.batches, u, false, this.poseOf(model), 'opaque')
     }
@@ -1656,14 +1550,15 @@ export class LandmarkLayer {
     bindSun(gl, u, sun)
     setFacadeUniforms(gl, u, flavor.facade)
     const shade = liveBuildingShade()
-    gl.uniform1f(u.u_occlusion, shade?.wallShade ? shade.strength : 0)
+    gl.uniform1f(u.u_occlusion, shade?.enabled ? shade.strength : 0)
     gl.uniform1f(u.u_band, Math.max(0.01, shade?.band ?? 1))
 
     gl.uniform1f(u.u_opacity, 1)
 
     const now = performance.now()
     let moving = false
-    let onScreen: ((p: Placement, reach: number) => boolean) | null = null
+    const onScreen = this.onScreen()
+    const seen: Placement[] = []
     const glazed: Array<[Placement, Model]> = []
     const place = (p: Placement, model: Model) => {
       const anchored = anchorMatrix(matrix, p.placed)
@@ -1685,16 +1580,19 @@ export class LandmarkLayer {
       const model = this.drawnModel(p)
       if (!model?.batches) continue
       model.used = now
+      // Out of sight, a model costs a few dozen calls a frame for nothing; its shadow is cast from the sun's map.
+      if (!onScreen(p, model.reach)) continue
+      seen.push(p)
       place(p, model)
       const pose = this.poseOf(model, now)
       this.drawBatches(gl, model.batches, u, true, pose, 'opaque')
       if (model.batches.some(b => b.opacity < 1)) glazed.push([p, model])
-      if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
+      if (pose && !this.stillness?.matches) moving = true
     }
     if (glazed.length) this.drawGlass(gl, glazed, place, now)
     if (this.options.flavor.facade.night) {
-      this.drawEntrances(gl, matrix, placements)
-      this.drawHalos(gl, matrix, placements)
+      this.drawEntrances(gl, matrix, seen)
+      this.drawHalos(gl, matrix, seen)
     }
     gl.bindVertexArray(null)
     this.restore()
@@ -1719,14 +1617,16 @@ export class LandmarkLayer {
   /**
    * Whether a placement can be seen, with its model's reach to spare —
    * sideways, and up, which on a pitched map can bring a tall model's top
-   * into view while its anchor is below the bottom edge.
+   * into view while its anchor is below the bottom edge: the more the tilt,
+   * the farther below.
    */
   private onScreen(): (p: Placement, reach: number) => boolean {
     const bounds = this.map.getBounds?.()
     if (!bounds) return () => true
     const [w, s, e, n] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+    const lean = 1 + Math.tan((Math.min(this.map.getPitch?.() ?? 0, 85) * Math.PI) / 180)
     return (p, reach) => {
-      const metres = reach * p.scale
+      const metres = reach * p.scale * lean
       const dLat = metres / 110574
       const dLng = metres / (111320 * Math.max(0.01, Math.cos((p.lat * Math.PI) / 180)))
       return p.lng >= w - dLng && p.lng <= e + dLng && p.lat >= s - dLat && p.lat <= n + dLat

@@ -16,14 +16,13 @@ import { translate } from '@/lib/map-objects/object-layer'
 import { along, holds, type Bounds, type Mesh, type Point } from '@/lib/map-decks/decks'
 import { BANK, footprint, type Footprint } from '@/lib/map-terrain/carve'
 import { cutCarving, type TerrainCarver } from '@/lib/map-terrain/carver'
-import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
-import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, type MeshBuffers } from '@/lib/map-decks/mesh-program'
-import { groundBeneath, MeshShadow } from '@/lib/map-decks/mesh-shadow'
+import { bindMesh, deleteMesh, linkMeshProgram, uploadMesh, useMeshProgram, type MeshBuffers } from '@/lib/map-decks/mesh-program'
+import { MeshShadow } from '@/lib/map-decks/mesh-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import type { SunFrame } from '@/lib/map/sun-shadow'
 import type { DeckPalette } from '@/lib/map-decks/deck.types'
 import { TUNNEL_MIN_ZOOM } from './flat-tunnels'
-import { FINE_TERRAIN_MAXZOOM, TERRAIN_TILES } from '@/lib/map-style/terrain'
+import { FINE_TERRAIN_MAXZOOM } from '@/lib/map-style/terrain'
 import type { FineTerrain } from '@/lib/map-style/fine-terrain'
 import { readCutTile } from './cut-tile'
 import { bedCarving, type ServedBed } from '@/lib/map-terrain/road-beds'
@@ -115,7 +114,7 @@ export class TunnelLayer {
   /** The floors over terrain too coarse to carve them, worked out again when the tiles or the carving change. */
   private exposed: FloorRange[] = []
   private exposedFor = ''
-  private pending: (Built & { ground: Float32Array; exaggeration: number; complete: boolean }) | null = null
+  private pending: (Built & { complete: boolean }) | null = null
   private origin: Point = [0, 0]
   private scheduled = 0
   /** Whether the cuts carved are those of every cut tile in view. */
@@ -126,7 +125,6 @@ export class TunnelLayer {
   private onChange?: (event?: any) => void
   private onTerrain?: () => void
   /** The ground the walls rise out of, for their shadows. */
-  private sampler: TerrainSampler | null = null
   private built = ''
   /** Carves the floors into the terrain, keyed by their cut, beside whatever else is carved there. */
   private carver: TerrainCarver
@@ -136,9 +134,6 @@ export class TunnelLayer {
   private sun: SunFrame | null = null
   get shadowVersion() {
     return this.shadow.version
-  }
-  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
-    this.shadow.drawShadow(gl, frame)
   }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     this.shadow.drawSunDepth(gl, frame)
@@ -228,11 +223,6 @@ export class TunnelLayer {
     }
   }
 
-  private samplerFor(): TerrainSampler | null {
-    const terrain = this.options.terrain
-    return terrainSampler(this.map, this.sampler, () => this.invalidate(), template => terrain && template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)
-  }
-
   onRemove(map: any, gl: WebGL2RenderingContext) {
     if (this.onChange) {
       map.off('sourcedata', this.onChange)
@@ -272,11 +262,7 @@ export class TunnelLayer {
       if (complete) this.settle()
       return
     }
-    // On the ground as it was before the cut, which is what the walls rise out of.
-    const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    this.sampler = this.samplerFor()
-    const ground = groundBeneath(mesh.walls.position, mesh.walls.position.length / 3, this.origin, q => this.sampler?.ground.at(q) ?? null, exaggeration)
-    this.pending = { ...mesh, ground, exaggeration, complete }
+    this.pending = { ...mesh, complete }
     this.map.triggerRepaint?.()
   }
 
@@ -368,9 +354,9 @@ export class TunnelLayer {
       this.floors = floors
       this.carver.set(CARVER_OWNER, new Map([...footprints].map(([key, f]) => [key, cutCarving(f)])), { rank: 1, focus: true })
       if (this.pending.complete) this.settle()
-      this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.pending.ground, this.origin, this.pending.exaggeration)
+      this.shadow.set(gl, this.buffers.walls.position, this.buffers.walls.count, this.origin)
       this.pending = null
-      // The shade layer drew this frame's shadows before the walls changed.
+      // The shading drew this frame's shadows before the walls changed.
       this.map.triggerRepaint()
     }
     this.carver.carveTiles()
@@ -389,9 +375,9 @@ export class TunnelLayer {
     const sun = this.sun
     this.sun = null
     const shade = liveBuildingShade()
-    const shading = { frame: sun, origin: this.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: null, gradeBias: 0 }
+    useMeshProgram(gl, this.program, light, { sun: { frame: sun, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, color: shade?.shadowColor } })
     const draw = (name: keyof NonNullable<typeof this.buffers>, ranges?: FloorRange[]) => {
-      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, light, { sun: shading })
+      const mesh = bindMesh(gl, this.program, this.buffers![name], matrix, { origin: this.origin })
       if (ranges) for (const { from, to } of ranges) mesh.draw(from, to)
       else mesh.draw()
       mesh.unbind()

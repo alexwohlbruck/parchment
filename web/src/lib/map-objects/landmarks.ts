@@ -237,7 +237,7 @@ const REPLACED = ['any', ['boolean', ['feature-state', REPLACED_STATE], false], 
  * value that does it, and the property's default. By feature state and not by
  * filter, which would have MapLibre lay out every tile of the source again
  * each time a landmark arrived. A negative extrusion height is dropped in the
- * vertex shader, by the fork's and by the building shade layer's.
+ * fork's vertex shaders.
  */
 const HIDING: Record<string, [property: string, hidden: number, shown: number]> = {
   'fill-extrusion': ['fill-extrusion-height', -1, 0],

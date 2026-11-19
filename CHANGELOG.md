@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.23.0] - 2026-11-19
+
+### Added
+
 * Make the whole app bigger or smaller under Settings → Appearance → Interface size. Each device keeps its own size.
 * At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
 

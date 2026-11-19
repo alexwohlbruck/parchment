@@ -557,7 +557,9 @@
     "empty": "Haz clic en el mapa para añadir puntos.",
     "unitsMetric": "Métrico",
     "unitsImperial": "Imperial",
-    "cycleUnit": "Clic para cambiar unidad"
+    "cycleUnit": "Clic para cambiar unidad",
+    "saveToCanvas": "Guardar en lienzo",
+    "export": "Exportar"
   },
   "radius": {
     "title": "Radio",
@@ -3590,7 +3592,8 @@
     "notFound": "Este lienzo ya no existe.",
     "actions": {
       "new": "Nuevo lienzo",
-      "rename": "Cambiar nombre"
+      "rename": "Cambiar nombre",
+      "export": "Exportar GeoJSON"
     },
     "empty": {
       "title": "Aún no hay lienzos",

@@ -48,6 +48,7 @@ import {
   bandsToGeoJson,
   maxMinutesForMode,
 } from '@/lib/directions/isochrone'
+import { isochroneAnnotations } from '@/lib/canvas/measurement-annotations'
 import {
   EMPTY_ISOCHRONE_GEOJSON,
   ISOCHRONE_FILL_LAYER_ID,
@@ -55,6 +56,7 @@ import {
   ISOCHRONE_SOURCE_ID,
 } from '@/constants/layers'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import MeasureToolPanel from './MeasureToolPanel.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import { Button } from '@/components/ui/button'
@@ -108,6 +110,12 @@ watch(isActive, active => {
       unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric'
   }
 })
+
+const reachMarks = computed(() =>
+  isochroneAnnotations(origin.value, bands.value, mode.value, minutes =>
+    t('isochrone.minutes', { count: minutes }),
+  ),
+)
 
 const sliderMax = computed(() => maxMinutesForMode(mode.value))
 
@@ -397,6 +405,11 @@ function closeTool() {
             v-model="areaUnitSystem"
             :metric-label="t('measure.unitsMetric')"
             :imperial-label="t('measure.unitsImperial')"
+          />
+
+          <MeasureExportActions
+            :annotations="reachMarks"
+            :name="t('isochrone.title')"
           />
         </template>
 

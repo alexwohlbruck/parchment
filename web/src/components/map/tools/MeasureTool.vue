@@ -9,6 +9,7 @@ import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import {
   pathLengthMeters,
   polygonAreaSquareMeters,
@@ -19,6 +20,7 @@ import {
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
 } from '@/lib/measure/measure'
+import { measureAnnotation } from '@/lib/canvas/measurement-annotations'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
@@ -90,6 +92,11 @@ const totalDistanceMeters = computed(() =>
 const areaSquareMeters = computed(() => {
   if (!isMeasureClosed.value || effectiveMeasurePoints.value.length < 3) return 0
   return polygonAreaSquareMeters(effectiveMeasurePoints.value)
+})
+
+const measuredMarks = computed(() => {
+  const mark = measureAnnotation(measurePoints.value, isMeasureClosed.value)
+  return mark ? [mark] : []
 })
 
 const distanceHint = computed(() => formatDistance(totalDistanceMeters.value))
@@ -513,6 +520,10 @@ function closeMeasure() {
         v-model="measureUnitSystem"
         :metric-label="t('measure.unitsMetric')"
         :imperial-label="t('measure.unitsImperial')"
+      />
+      <MeasureExportActions
+        :annotations="measuredMarks"
+        :name="t('measure.title')"
       />
     </template>
     <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">

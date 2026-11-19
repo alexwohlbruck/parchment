@@ -10,11 +10,13 @@ import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import {
   circleCircumferenceMeters,
   circleAreaSquareMeters,
 } from '@/lib/measure/measure'
+import { radiusAnnotation } from '@/lib/canvas/measurement-annotations'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
@@ -69,6 +71,11 @@ const circumferenceMeters = computed(() =>
   circleCircumferenceMeters(radiusMeters.value),
 )
 const areaSquareMeters = computed(() => circleAreaSquareMeters(radiusMeters.value))
+
+const radiusMarks = computed(() => {
+  const mark = radiusAnnotation(radiusCenter.value, radiusMeters.value)
+  return mark ? [mark] : []
+})
 
 const radiusHint = computed(() => formatDistance(radiusMeters.value))
 const circumferenceHint = computed(() => formatDistance(circumferenceMeters.value))
@@ -438,6 +445,10 @@ function closeRadius() {
         v-model="radiusUnitSystem"
         :metric-label="t('measure.unitsMetric')"
         :imperial-label="t('measure.unitsImperial')"
+      />
+      <MeasureExportActions
+        :annotations="radiusMarks"
+        :name="t('measure.circle')"
       />
     </template>
     <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">

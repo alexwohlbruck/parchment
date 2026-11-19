@@ -565,7 +565,9 @@
     "unitsMetric": "Metric",
     "unitsImperial": "Imperial",
     "cycleUnit": "Change unit",
-    "units": "Units"
+    "units": "Units",
+    "saveToCanvas": "Save to canvas",
+    "export": "Export"
   },
   "radius": {
     "title": "Radius",
@@ -3777,7 +3779,8 @@
     "notFound": "This canvas no longer exists.",
     "actions": {
       "new": "New canvas",
-      "rename": "Rename"
+      "rename": "Rename",
+      "export": "Export GeoJSON"
     },
     "empty": {
       "title": "No canvases yet",

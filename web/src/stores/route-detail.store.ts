@@ -5,11 +5,14 @@
  * tracking, direction selection, and vehicle selection state.
  */
 
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import { useRecentsStore } from '@/stores/recents.store'
-import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
+import { fetchVehiclesOnRoutes, VEHICLE_POLL_MS } from '@/lib/transit/transit-vehicle-fetch'
+import { usePowerStore } from '@/stores/power.store'
+import { createPoller } from '@/lib/power/poller'
+import { pollInterval } from '@/lib/power/power-saver'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import { projectVehicleOnRoute } from '@/lib/transit/route-projection'
 import type {
@@ -382,7 +385,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   // ── Actions ──────────────────────────────────────────────────────
 
-  let vehiclePollTimer: ReturnType<typeof setInterval> | null = null
   /** Generation counter to guard against concurrent openRoute races. */
   let openGeneration = 0
 
@@ -395,7 +397,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     isLoading.value = true
     departureContext.value = context ?? null
     selectedVehicleId.value = null
-    stopVehiclePolling()
+    vehiclePoller.stop()
     try {
       const { data } = await api.get<RouteDetail>(
         '/transit/route-detail',
@@ -405,7 +407,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       if (gen !== openGeneration) return
       activeRoute.value = data
       useRecentsStore().recordTransitRoute(data)
-      startVehiclePolling()
+      vehiclePoller.start()
     } catch (err) {
       if (gen !== openGeneration) return
       console.error('[RouteDetail] Failed to load route:', err)
@@ -420,7 +422,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     stopServiceKnown.value = new Set()
     alertOverrides.value = { serves: new Set(), skips: new Set() }
     feedOnestopId.value = null
-    stopVehiclePolling()
+    vehiclePoller.stop()
     activeRoute.value = null
     departureContext.value = null
     selectedVehicleId.value = null
@@ -521,20 +523,9 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   // Polls the route-specific endpoint which returns ALL vehicles on
   // the route — no bounding box, no WebSocket subscription needed.
 
-  const VEHICLE_POLL_MS = 5_000
-
-  function startVehiclePolling() {
-    stopVehiclePolling()
-    fetchRouteVehicles()
-    vehiclePollTimer = setInterval(fetchRouteVehicles, VEHICLE_POLL_MS)
-  }
-
-  function stopVehiclePolling() {
-    if (vehiclePollTimer) {
-      clearInterval(vehiclePollTimer)
-      vehiclePollTimer = null
-    }
-  }
+  const power = usePowerStore()
+  const vehiclePoller = createPoller(fetchRouteVehicles, () => pollInterval(VEHICLE_POLL_MS, power.saver))
+  watch(() => power.saver, vehiclePoller.retime)
 
   async function fetchRouteVehicles() {
     if (!activeRoute.value) return

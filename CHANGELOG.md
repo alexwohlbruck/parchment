@@ -6,6 +6,45 @@
 
 ### Fixed
 
+## [0.22.3] - 2026-11-19
+
+### Added
+
+* The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
+* Battery saver in Behavior settings turns off 3D and checks your location less often; Extreme shows only roads on black. Either can turn on by itself when your battery is low.
+
+### Changed
+
+* Sign-in sends at most 5 codes to an address every 15 minutes and stops accepting codes after 10 wrong tries.
+* While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
+* The bottom of the home sheet fades into your account row instead of cutting off.
+* Recents in the sidebar slide into place as they're added, reordered or removed.
+* Your theme, map style, labels and other look-and-feel settings now follow your account to every device you sign in on.
+
+### Fixed
+
+* Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
+
+## [0.22.2] - 2026-11-17
+
+### Added
+
+* The desktop sidebar lists your recent places and searches under the main links, with where and when, as icons when collapsed.
+* Choose whether the home sheet opens to the search bar or your library, in Settings → Behavior.
+
+### Changed
+
+* Verification emails include plain text and autofill metadata to help compatible mail apps recognize your sign-in code.
+* Entering a recovery key now opens as a compact card on phones, with clearer wording and a plain error when the key doesn't match.
+* The home sheet's middle position now stops just below your library.
+
+### Fixed
+
+* Every place you open now shows up in your recents, including ones opened offline.
+* Dragging the home sheet by its search bar no longer opens the keyboard.
+* Dragging a sheet no longer presses the button your finger lands on.
+* Search results and your library no longer show at once while you click away from search.
+
 ## [0.22.1] - 2026-11-15
 
 ### Added

@@ -205,6 +205,7 @@ useHotkeys([
       if (isActive.value) closeTool()
     },
     id: 'isochrone-close',
+    category: 'tools',
     name: 'Close isochrone tool',
     description: 'Close the isochrone tool',
   },

@@ -28,6 +28,7 @@ const existingRow: UserPreferences = {
   unitSystem: 'imperial',
   navigation: null,
   ask: null,
+  app: null,
   createdAt: null,
   updatedAt: null,
 }
@@ -174,6 +175,17 @@ describe('updateUserPreferences', () => {
     const written = dbMock.updated[0] as any
     expect(written.navigation).toBeDefined()
     expect(written.language).toBeUndefined()
+  })
+
+  test('writes only the blobs that were sent', async () => {
+    dbMock.setReturningRows([existingRow])
+
+    await updateUserPreferences('user-1', { app: { theme: { accentColor: 'teal' } }, ask: {} })
+
+    const written = dbMock.updated[0] as any
+    expect(written.app).toBeDefined()
+    expect(written.ask).toBeUndefined()
+    expect(written.navigation).toBeUndefined()
   })
 
   test('an empty navigation patch is treated as empty', async () => {

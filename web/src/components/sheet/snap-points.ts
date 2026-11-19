@@ -36,19 +36,25 @@ export function addPixels(
 }
 
 /**
- * Keep the peek strictly below the next detent. On a short screen a tall
- * header would otherwise overshoot it and break the ascending order.
+ * Keep a measured detent strictly between its neighbours. On a short screen
+ * tall content would otherwise overshoot and break the ascending order.
  */
 export function clampPeek(
   point: SnapPoint,
   nextPoint: SnapPoint | undefined,
   viewportHeight: number,
+  prevPoint?: SnapPoint,
 ): SnapPoint {
   if (typeof point !== 'string' || !point.endsWith('px')) return point
-  if (nextPoint === undefined) return point
-  const max = snapPointToPixels(nextPoint, viewportHeight) - PEEK_GAP_PX
-  if (max <= 0) return point
-  return `${Math.min(parseFloat(point), max)}px`
+  let px = parseFloat(point)
+  if (nextPoint !== undefined) {
+    const max = snapPointToPixels(nextPoint, viewportHeight) - PEEK_GAP_PX
+    if (max > 0) px = Math.min(px, max)
+  }
+  if (prevPoint !== undefined) {
+    px = Math.max(px, snapPointToPixels(prevPoint, viewportHeight) + PEEK_GAP_PX)
+  }
+  return `${px}px`
 }
 
 export interface SafeAreaInsets {
@@ -71,23 +77,32 @@ export function adjustForSafeArea(
 }
 
 /**
- * The final list handed to Vaul: the measured peek swapped into the first
- * slot when dynamic peek is active, clamped, then safe-area adjusted.
+ * The final list handed to Vaul: the measured peek swapped into its slot
+ * (`measuredIndex`, the first by default), safe-area adjusted, then clamped.
  * `lift` raises every detent by that many pixels, for a sheet that floats
  * above the bottom edge.
  */
 export function resolveSnapPoints(options: {
   base: SnapPoint[]
   measuredPeekPx?: number | null
+  measuredIndex?: number
   viewportHeight: number
   insets?: SafeAreaInsets | null
   lift?: number
 }): SnapPoint[] {
-  const { base, measuredPeekPx, viewportHeight, insets, lift = 0 } = options
+  const {
+    base,
+    measuredPeekPx,
+    measuredIndex = 0,
+    viewportHeight,
+    insets,
+    lift = 0,
+  } = options
   if (!base.length) return base
 
-  const peek = measuredPeekPx != null ? `${measuredPeekPx}px` : base[0]
-  const points = [peek, ...base.slice(1)]
+  const points = base.map((point, i) =>
+    i === measuredIndex && measuredPeekPx != null ? `${measuredPeekPx}px` : point,
+  )
 
   const safe = insets
     ? points.map((point, i) => adjustForSafeArea(point, i, insets, viewportHeight))
@@ -98,5 +113,9 @@ export function resolveSnapPoints(options: {
 
   // Clamp last: the home-indicator inset is added to the peek, so clamping
   // before it would let the peek land above the next detent anyway.
-  return [clampPeek(adjusted[0], adjusted[1], viewportHeight), ...adjusted.slice(1)]
+  return adjusted.map((point, i) =>
+    i === measuredIndex
+      ? clampPeek(point, adjusted[i + 1], viewportHeight, adjusted[i - 1])
+      : point,
+  )
 }

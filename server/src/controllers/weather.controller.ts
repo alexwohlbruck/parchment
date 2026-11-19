@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { makeIpRateLimit } from '../middleware/rate-limit.middleware'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { getLanguageCode } from '../lib/i18n'
@@ -6,7 +7,9 @@ import { getNearestStationAirQuality } from '../services/air-quality.service'
 import { logError, logWarn } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
-const weatherRouter = new Elysia({ prefix: '/weather' }).use(i18nPlugin)
+const weatherRouter = new Elysia({ prefix: '/weather' })
+  .use(i18nPlugin)
+  .use(makeIpRateLimit({ name: 'weather', limit: 60 }))
   /**
    * Get current weather data for a location
    * GET /weather?lat=40.7128&lng=-74.0060

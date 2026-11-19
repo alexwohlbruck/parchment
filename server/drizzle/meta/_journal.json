@@ -456,6 +456,13 @@
       "when": 1794773115546,
       "tag": "0064_ask_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795060067114,
+      "tag": "0065_app_preferences",
+      "breakpoints": true
     }
   ]
 }

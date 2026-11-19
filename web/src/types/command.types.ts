@@ -7,6 +7,14 @@ import { CommandName } from '@/stores/command.store'
 
 export type Hotkey = string[]
 
+export const COMMAND_CATEGORIES = [
+  'general',
+  'appearance',
+  'map',
+  'tools',
+] as const
+export type CommandCategory = (typeof COMMAND_CATEGORIES)[number]
+
 export type PaletteItem = {
   name: string
   description?: string
@@ -24,6 +32,7 @@ export type PaletteItem = {
 
 export type Command = PaletteItem & {
   id: CommandName
+  category?: CommandCategory
   engine?: MapEngine[]
   /** Hides the command while this says no, e.g. a feature the user turned off. */
   isAvailable?: () => boolean

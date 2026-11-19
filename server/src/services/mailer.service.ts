@@ -2,7 +2,8 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import nodemailer from 'nodemailer'
 import { smtpConfig, smtpFrom, isEmailConfigured } from '../config/mailer.config'
-import { serverOrigin } from '../config/origins.config'
+import { otpTokenHeader } from '../lib/email/otp-token'
+import { clientOrigin, serverOrigin } from '../config/origins.config'
 import { logger } from '../lib/logger'
 import { translate } from '../lib/i18n/translate'
 import { DEFAULT_LANGUAGE, type Language, type TranslationKey } from '../lib/i18n/i18n.types'
@@ -98,10 +99,24 @@ export async function sendMail<T extends TemplateName>(options: {
 
   const language = options.language ?? DEFAULT_LANGUAGE
 
+  const t = translate(language)
+  const code = options.template === 'verification-code'
+    ? (options.data as TemplateDataMap['verification-code']).code
+    : undefined
+  const otpToken = code === undefined ? undefined : otpTokenHeader(code, clientOrigin)
+  const text = code === undefined ? undefined : [
+    t('email.verificationCode.heading'),
+    `${t('email.verificationCode.body')} ${code}`,
+    t('email.verificationCode.expiry'),
+    t('email.verificationCode.ignore'),
+  ].join('\n\n')
+
   return await transporter.sendMail({
     from: smtpFrom,
     to: options.to,
     subject: translate(language)(SUBJECT[options.template]),
+    text,
+    headers: otpToken ? { 'OTP-Token': otpToken } : undefined,
     html: renderTemplate(options.template, options.data, language),
   })
 }

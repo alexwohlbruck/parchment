@@ -5,7 +5,8 @@
  * brands and GTFS stops with the server autocomplete, deduping so one entity
  * never lands in two groups.
  */
-import { useDark } from '@vueuse/core'
+import { storeToRefs } from 'pinia'
+import { useThemeStore } from '@/stores/theme.store'
 import { i18n } from '@/lib/i18n'
 import type { PlaceCategory } from '@/types/place.types'
 import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
@@ -35,7 +36,7 @@ export async function buildSearchSuggestions(
   signal?: AbortSignal,
 ): Promise<CommandArgumentOption[]> {
   const t = (i18n.global as unknown as { t: (k: string, n?: any) => string }).t
-  const isDark = useDark()
+  const { isDark } = storeToRefs(useThemeStore())
   const placeSearchService = useSearchService()
 
   // Use the command service to get the current search query

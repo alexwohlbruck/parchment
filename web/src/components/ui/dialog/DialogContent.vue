@@ -24,6 +24,8 @@ const props = withDefaults(
       overlayClass?: HTMLAttributes['class']
       noPadding?: boolean
       showCloseButton?: boolean
+      /** Float as a card on mobile instead of going full-screen. For short dialogs. */
+      compact?: boolean
     }
   >(),
   {
@@ -32,7 +34,7 @@ const props = withDefaults(
 )
 const emits = defineEmits<DialogContentEmits>()
 
-const delegatedProps = reactiveOmit(props, 'class', 'overlayClass', 'noPadding')
+const delegatedProps = reactiveOmit(props, 'class', 'overlayClass', 'noPadding', 'compact')
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
@@ -49,6 +51,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
           // `sm` breakpoint up it becomes the centered, rounded card.
           'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed inset-0 z-50 m-auto grid w-full gap-4 depth-overlay duration-200 h-full max-w-full rounded-none border-0 sm:h-fit sm:max-w-lg sm:rounded-lg sm:border',
           !props.noPadding && 'p-6',
+          props.compact && 'h-fit max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-md:overflow-y-auto rounded-xl border',
           props.class,
         )
       "

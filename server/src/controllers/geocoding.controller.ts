@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
 import { requireAuth } from '../middleware/auth.middleware'
 import { forwardGeocode, reverseGeocode } from '../services/geocoding.service'
 import { logError } from '../lib/logger'
@@ -7,6 +8,7 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 const geocodingRouter = new Elysia({ prefix: '/geocoding' })
   .use(i18nPlugin)
   .use(requireAuth)
+  .use(makeClientRateLimit({ name: 'geocoding', limit: 120 }))
 
   /**
    * Forward geocoding: Convert an address/query to coordinates

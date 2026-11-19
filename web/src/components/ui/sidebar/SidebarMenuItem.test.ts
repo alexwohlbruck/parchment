@@ -148,11 +148,11 @@ describe('SidebarMenu', () => {
 
     const inactive = mountMenu([{ label: 'Timeline', to: '/timeline' }], router)
     await flush()
-    expect(inactive.find('li[aria-hidden="true"]').exists()).toBe(false)
+    expect(inactive.find('[aria-hidden="true"]').exists()).toBe(false)
 
     await router.push('/timeline')
     const active = mountMenu([{ label: 'Timeline', to: '/timeline' }], router)
     await flush()
-    expect(active.find('li[aria-hidden="true"]').exists()).toBe(true)
+    expect(active.find('[aria-hidden="true"]').exists()).toBe(true)
   })
 })

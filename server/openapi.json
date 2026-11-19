@@ -830,7 +830,7 @@
         "tags": [
           "Auth"
         ],
-        "description": "Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.",
+        "description": "Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use. Limited to 5 codes per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1326,7 +1326,7 @@
         "tags": [
           "Auth"
         ],
-        "description": "Sign in a user. Exchanges a passkey or one-time password for an authentication token.",
+        "description": "Sign in a user. Exchanges a passkey or one-time password for an authentication token. Limited to 10 attempts per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -19804,13 +19804,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               },
@@ -19973,13 +20008,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               },
@@ -20142,13 +20212,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               }
@@ -20159,7 +20264,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Get current user preferences: language, unit system, navigation and Ask. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) is absent until first saved."
+        "description": "Get current user preferences: language, unit system, navigation, Ask and app. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) and app section (theme, map, general, layerAppearances) is absent until first saved."
       },
       "put": {
         "parameters": [],
@@ -20325,13 +20430,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               },
@@ -20494,13 +20634,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               },
@@ -20663,13 +20838,48 @@
                         "saveHistory",
                         "keepDays"
                       ]
+                    },
+                    "app": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "properties": {
+                        "theme": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Accent color, corner radius and light or dark mode.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "map": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "general": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "Floor numbering and where the home sheet opens.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "layerAppearances": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        }
+                      }
                     }
                   },
                   "required": [
                     "language",
                     "unitSystem",
                     "navigation",
-                    "ask"
+                    "ask",
+                    "app"
                   ]
                 }
               }
@@ -20680,7 +20890,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Update current user preferences. Each navigation section sent replaces the stored one; sections left out are kept. Ask settings sent are merged into the stored ones.",
+        "description": "Update current user preferences. Each navigation or app section sent replaces the stored one; sections left out are kept. Ask settings sent are merged into the stored ones.",
         "requestBody": {
           "required": true,
           "content": {
@@ -20859,6 +21069,40 @@
                             "type": "number"
                           }
                         ]
+                      }
+                    }
+                  },
+                  "app": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "theme": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Accent color, corner radius and light or dark mode.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "map": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "general": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Floor numbering and where the home sheet opens.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "layerAppearances": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The look chosen for each built-in layer, by layer id.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   }
@@ -21042,6 +21286,40 @@
                         ]
                       }
                     }
+                  },
+                  "app": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "theme": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Accent color, corner radius and light or dark mode.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "map": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "general": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Floor numbering and where the home sheet opens.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "layerAppearances": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The look chosen for each built-in layer, by layer id.",
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
                   }
                 }
               }
@@ -21221,6 +21499,40 @@
                             "type": "number"
                           }
                         ]
+                      }
+                    }
+                  },
+                  "app": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "properties": {
+                      "theme": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Accent color, corner radius and light or dark mode.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "map": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Map look and behavior that suits any device: basemap, labels, projection, snapping.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "general": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "Floor numbering and where the home sheet opens.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "layerAppearances": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The look chosen for each built-in layer, by layer id.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   }

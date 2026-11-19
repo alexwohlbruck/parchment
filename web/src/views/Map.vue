@@ -28,6 +28,7 @@ import { storeToRefs } from 'pinia'
 import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
 
 import WeatherControl from '@/components/weather/WeatherControl.vue'
+import BatterySaverControl from '@/components/power/BatterySaverControl.vue'
 import MeasureTool from '@/components/map/tools/MeasureTool.vue'
 import RadiusTool from '@/components/map/tools/RadiusTool.vue'
 import IsochroneTool from '@/components/map/tools/IsochroneTool.vue'
@@ -547,6 +548,7 @@ defineExpose({
                 :style="topLeftBufferStyle"
               >
                 <WeatherControl />
+                <BatterySaverControl />
                 <ScaleControl />
               </div>
             </transition-slide>

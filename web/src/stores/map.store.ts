@@ -88,7 +88,7 @@ export const useMapStore = defineStore('map', () => {
     return mapStrategy
   }
 
-  const settings = useStorage<MapSettings>('map', defaultSettings)
+  const settings = useStorage<MapSettings>('map', { ...defaultSettings })
 
   /**
    * The user's own appearance settings, parked while a canvas overrides them.
@@ -141,6 +141,19 @@ export const useMapStore = defineStore('map', () => {
   if (!indoorDefaultApplied.value) {
     settings.value.indoorMaps = true
     indoorDefaultApplied.value = true
+  }
+
+  /** The user's own settings, whatever a canvas is showing over them. */
+  const ownSettings = computed<MapSettings>(() => ({
+    ...settings.value,
+    ...parkedSettings.value,
+  }))
+
+  function setOwnSettings(patch: Partial<MapSettings>) {
+    for (const key of Object.keys(patch) as Array<keyof MapSettings>) {
+      const target = key in parkedSettings.value ? parkedSettings.value : settings.value
+      Object.assign(target, { [key]: patch[key] })
+    }
   }
 
   const hdRoads = computed(() =>
@@ -222,6 +235,8 @@ export const useMapStore = defineStore('map', () => {
     setMapStrategy,
     getMapStrategy,
     settings,
+    ownSettings,
+    setOwnSettings,
     hdRoads,
     controlSettings,
     mapCamera,

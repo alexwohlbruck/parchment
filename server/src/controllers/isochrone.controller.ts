@@ -7,6 +7,7 @@
  */
 
 import { Elysia } from 'elysia'
+import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
 import { requireAuth } from '../middleware/auth.middleware'
 import { requestBarrelman } from '../services/barrelman.service'
 import {
@@ -81,7 +82,9 @@ function badRequest(message: string): Response {
 // Paths are spelled out rather than set as a prefix: a prefixed sub-app's
 // collection root registers as `/isochrone/`, and that trailing slash is what
 // ends up in the OpenAPI spec and the generated docs.
-const app = new Elysia().use(requireAuth)
+const app = new Elysia()
+  .use(requireAuth)
+  .use(makeClientRateLimit({ name: 'isochrone', limit: 60 }))
 
 app.get('/isochrone', ({ query }) => {
   const invalid = validateIsochroneQuery(query)

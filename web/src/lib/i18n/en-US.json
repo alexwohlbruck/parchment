@@ -493,13 +493,32 @@
         "name": "Ask",
         "description": "Ask a question or open a past one",
         "keywords": "ai assistant question chat conversation history"
+      },
+      "batterySaver": {
+        "name": "Battery saver",
+        "description": "Turn off 3D and use less battery",
+        "keywords": "power energy low battery oled",
+        "arguments": {
+          "level": {
+            "name": "Battery saver"
+          }
+        }
       }
     },
     "noResults": "No matching commands",
     "toggleState": {
       "shown": "Shown",
       "hidden": "Hidden"
+    },
+    "categories": {
+      "general": "General",
+      "appearance": "Appearance",
+      "map": "Map",
+      "tools": "Tools"
     }
+  },
+  "hotkeys": {
+    "search": "Search shortcuts"
   },
   "messages": {
     "error": {
@@ -2841,13 +2860,14 @@
           "pairWithOtherDevice": "Pair with your other device",
           "useRecoveryKeyInstead": "Use recovery key instead",
           "unlockFailed": "Could not unlock with passkey",
-          "typeKeyTitle": "Import Recovery Key",
-          "typeKeyDescription": "Enter your recovery key to restore your identity on this device.",
-          "recoveryKeyLabel": "Recovery Key",
-          "recoveryKeyPlaceholder": "Paste your recovery key here",
-          "invalidKey": "Invalid recovery key",
-          "importAction": "Import",
-          "lostKeyLink": "Lost your recovery key?",
+          "typeKeyTitle": "Enter your recovery key",
+          "typeKeyDescription": "The key you saved during setup, often in a password manager.",
+          "recoveryKeyLabel": "Recovery key",
+          "recoveryKeyPlaceholder": "Paste your key",
+          "invalidKey": "That key doesn't match this account",
+          "importAction": "Restore",
+          "lostKeyLink": "Lost your key?",
+          "usePasskeyInstead": "Use a passkey",
           "completeTitle": "Identity restored",
           "completeMessage": "Identity restored successfully!"
         },
@@ -3086,6 +3106,27 @@
       "shakeForFeedback": {
         "title": "Shake to send feedback",
         "description": "Give your phone a shake to open the feedback form. Needs motion access."
+      },
+      "homeScreen": {
+        "title": "Home screen",
+        "sheetStart": "Sheet opens to",
+        "search": "Search bar",
+        "library": "Library"
+      },
+      "batterySaver": {
+        "title": "Battery saver",
+        "level": "Battery saver",
+        "levelDescription": "On turns off 3D and checks your location less often. Extreme shows only roads, on black, with no animations.",
+        "lowBattery": "On for now because your battery is low",
+        "values": {
+          "off": "Off",
+          "normal": "On",
+          "extreme": "Extreme"
+        },
+        "auto": "Turn on when battery is low",
+        "autoDescription": "Only while your phone isn't charging",
+        "normalAt": "Battery saver at",
+        "extremeAt": "Extreme at"
       }
     },
     "appearance": {
@@ -3150,7 +3191,8 @@
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
-        "placeLabels": "Place labels"
+        "placeLabels": "Place labels",
+        "batterySaverNote": "Battery saver has 3D off for now"
       },
       "controls": {
         "title": "Map controls",
@@ -4203,6 +4245,13 @@
     "canvas": {
       "saved": "Canvas in your library",
       "open": "Open"
+    }
+  },
+  "powerSaver": {
+    "indicator": "Battery saver is on",
+    "autoOn": {
+      "normal": "Battery at {percent}%, so battery saver is on",
+      "extreme": "Battery at {percent}%, so extreme battery saver is on"
     }
   }
 }

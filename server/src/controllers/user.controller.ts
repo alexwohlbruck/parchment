@@ -1241,11 +1241,24 @@ const AskPreferencesSchema = t.Object(
   { additionalProperties: false },
 )
 
+const AppPreferencesSchema = t.Partial(
+  t.Object(
+    {
+      theme: clientSettings('Accent color, corner radius and light or dark mode.'),
+      map: clientSettings('Map look and behavior that suits any device: basemap, labels, projection, snapping.'),
+      general: clientSettings('Floor numbering and where the home sheet opens.'),
+      layerAppearances: clientSettings('The look chosen for each built-in layer, by layer id.'),
+    },
+    { additionalProperties: false },
+  ),
+)
+
 const UserPreferencesSchema = t.Object({
   language: t.String(),
   unitSystem: t.String(),
   navigation: t.Partial(NavigationPreferencesSchema),
   ask: AskPreferencesSchema,
+  app: AppPreferencesSchema,
 })
 
 /**
@@ -1259,9 +1272,10 @@ app.use(requireAuth).get(
     detail: {
       tags: ['Users'],
       description:
-        'Get current user preferences: language, unit system, navigation and Ask. ' +
+        'Get current user preferences: language, unit system, navigation, Ask and app. ' +
         'Each navigation section (excludedModes, sortPreference, routing, speech, ' +
-        'guidance) is absent until first saved.',
+        'guidance) and app section (theme, map, general, layerAppearances) is ' +
+        'absent until first saved.',
     },
   },
 )
@@ -1277,6 +1291,7 @@ app.use(requireAuth).put(
     if (body.unitSystem !== undefined) updates.unitSystem = body.unitSystem
     if (body.navigation !== undefined) updates.navigation = body.navigation
     if (body.ask !== undefined) updates.ask = body.ask
+    if (body.app !== undefined) updates.app = body.app
     const prefs = Object.keys(updates).length
       ? await updateUserPreferences(user.id, updates)
       : await getOrCreateUserPreferences(user.id)
@@ -1290,12 +1305,13 @@ app.use(requireAuth).put(
       ),
       navigation: t.Optional(t.Partial(NavigationPreferencesSchema)),
       ask: t.Optional(t.Partial(AskPreferencesSchema)),
+      app: t.Optional(AppPreferencesSchema),
     }),
     response: UserPreferencesSchema,
     detail: {
       tags: ['Users'],
       description:
-        'Update current user preferences. Each navigation section sent ' +
+        'Update current user preferences. Each navigation or app section sent ' +
         'replaces the stored one; sections left out are kept. Ask settings ' +
         'sent are merged into the stored ones.',
     },

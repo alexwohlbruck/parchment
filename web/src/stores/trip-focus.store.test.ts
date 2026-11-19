@@ -6,7 +6,7 @@ import { useTripFocusStore } from './trip-focus.store'
 const state = vi.hoisted(() => ({ directions: null as any, guidance: null as any }))
 vi.mock('@/stores/directions.store', () => ({ useDirectionsStore: () => state.directions }))
 vi.mock('@/stores/guidance.store', () => ({ useGuidanceStore: () => state.guidance }))
-vi.mock('@/lib/transit/transit-vehicle-fetch', () => ({ fetchVehiclesOnRoutes: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/transit/transit-vehicle-fetch', () => ({ VEHICLE_POLL_MS: 5_000, fetchVehiclesOnRoutes: vi.fn().mockResolvedValue([]) }))
 
 const ride = (route: string, trip: string, color: string) => ({
   mode: 'transit',

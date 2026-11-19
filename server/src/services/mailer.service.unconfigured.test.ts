@@ -27,6 +27,7 @@ mock.module('../config/mailer.config', () => ({
 
 mock.module('../config/origins.config', () => ({
   serverOrigin: 'https://api.parchment.test',
+  clientOrigin: 'https://app.parchment.test',
 }))
 
 const warn = mock((..._args: unknown[]) => undefined)

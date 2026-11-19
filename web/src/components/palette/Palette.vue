@@ -38,6 +38,7 @@ import { makePlaceDisplay } from '@/services/place/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
+import { useTapToFocus } from '@/composables/sheet/useTapToFocus'
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
@@ -45,10 +46,12 @@ import { Spinner } from '@/components/ui/spinner'
 import { ASK_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
 import { isAskOffered } from '@/lib/ask/ask-access'
+import { groupByCategory } from '@/lib/command/group-by-category'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
   (e: 'update:open', value: boolean): void
+  (e: 'update:results', value: boolean): void
 }>()
 
 const props = withDefaults(
@@ -103,6 +106,8 @@ const commandOpen = computed({
   set: value => emit('update:open', value),
 })
 const showResults = ref(false)
+// `open` drops on the press outside, but the results stay up until its click.
+watch(showResults, value => emit('update:results', value))
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })
@@ -116,6 +121,7 @@ const { nextSignal } = useAbortController()
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
+useTapToFocus(() => input.value?.inputElement)
 const { escape } = useMagicKeys()
 
 const filteredCommands = computed(() => {
@@ -127,6 +133,10 @@ const filteredCommands = computed(() => {
     ? filterFunction.value(availableCommands, query.value)
     : availableCommands
 })
+
+const commandGroups = computed(() =>
+  groupByCategory(filteredCommands.value, !!query.value),
+)
 
 // --- Settings entries in the palette ---------------------------------------
 // The settings index drives a "Settings" group in the palette so users can
@@ -545,9 +555,13 @@ const filterFunction = computed(() => {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument" :style="listStyle">
-          <CommandGroup v-if="filteredCommands.length" heading="Commands">
+          <CommandGroup
+            v-for="group in commandGroups"
+            :key="group.category"
+            :heading="t(`palette.categories.${group.category}`)"
+          >
             <CommandItem
-              v-for="command in filteredCommands"
+              v-for="command in group.items"
               :key="command.id"
               :value="command"
               class="flex gap-2"

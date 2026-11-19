@@ -9,7 +9,7 @@ import {
   onUnmounted,
 } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useDark } from '@vueuse/core'
+import { useThemeStore } from '@/stores/theme.store'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -29,8 +29,8 @@ import Palette from '@/components/palette/Palette.vue'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
 import { appEventBus } from '@/lib/event-bus'
 import { findScrollAncestor } from '@/lib/scroll'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
+import { recentSubtitle } from '@/lib/recents/recent-subtitle'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { PlaceCard } from '@/components/place/card'
 import { SectionHeader } from '@/components/ui/section-header'
 import {
@@ -39,11 +39,9 @@ import {
   type PlaceDisplay,
 } from '@/services/place/place-display'
 
-dayjs.extend(relativeTime)
-
 const router = useRouter()
 const { t } = useI18n()
-const isDark = useDark()
+const { isDark } = storeToRefs(useThemeStore())
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
 const canvasesStore = useCanvasesStore()
@@ -55,18 +53,16 @@ const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 const expandSheet = inject<() => void>('expandMobileSheet', () => {})
 const emit = defineEmits<{ 'update:palette-focused': [value: boolean] }>()
 
+// The home sheet's middle detent rests just below the library.
+const { peekRef: libraryRef } = useSheetPeek()
 const paletteRef = ref<InstanceType<typeof Palette> | null>(null)
 const paletteFocused = ref(false)
 
-function onPaletteInputFocused() {
-  paletteFocused.value = true
-  emit('update:palette-focused', true)
-  expandSheet()
-}
+defineExpose({ exitSearch: () => paletteRef.value?.resetPalette() })
 
-function onPaletteClosed() {
-  paletteFocused.value = false
-  emit('update:palette-focused', false)
+function onPaletteResults(visible: boolean) {
+  paletteFocused.value = visible
+  emit('update:palette-focused', visible)
 }
 
 const handlePaletteFocus = () => {
@@ -215,11 +211,6 @@ function navigateToRoute(routeName: AppRoute) {
   minimizeSheet()
   router.push({ name: routeName })
 }
-
-/** A recent's own subtitle, with how long ago it happened appended. */
-function recentSubtitle(subtitle: string | null | undefined, at: number): string {
-  return [subtitle, at && dayjs(at).fromNow()].filter(Boolean).join(' · ')
-}
 </script>
 
 <template>
@@ -235,14 +226,14 @@ function recentSubtitle(subtitle: string | null | undefined, at: number): string
           ref="paletteRef"
           search-on-open
           fill
-          @input-focused="onPaletteInputFocused"
-          @update:open="val => { if (!val) onPaletteClosed() }"
+          @input-focused="expandSheet"
+          @update:results="onPaletteResults"
         />
       </div>
 
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Library Section -->
-      <div>
+      <div ref="libraryRef">
         <SectionHeader size="lg" :title="t('library.title')" class="mb-1.5 px-1" />
 
         <div class="grid grid-cols-2 gap-2">

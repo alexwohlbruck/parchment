@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -18,6 +18,8 @@ import {
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
+import { usePowerStore } from '@/stores/power.store'
+import { POWER_SAVERS, strongerSaver } from '@/lib/power/power-saver'
 import { useMapService } from '@/services/map/map.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { useResponsive } from '@/lib/utils'
@@ -42,14 +44,21 @@ import {
   LayersIcon,
   CompassIcon,
   Grid2x2,
+  PanelBottom,
+  BatteryLowIcon,
+  BatteryWarningIcon,
+  LeafIcon,
+  PlugZapIcon,
 } from 'lucide-vue-next'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
+const power = usePowerStore()
 const mapService = useMapService()
-const { unitSystem, floorNumbering, shakeForFeedback } = storeToRefs(appStore)
+const { unitSystem, floorNumbering, shakeForFeedback, homeSheetStart } =
+  storeToRefs(appStore)
 const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 
@@ -75,6 +84,11 @@ async function toggleShakeForFeedback(enabled: boolean) {
   shakeForFeedback.value = state === 'granted'
 }
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
+
+const NORMAL_THRESHOLDS = [0.5, 0.3, 0.2, 0.15]
+const EXTREME_THRESHOLDS = [0.15, 0.1, 0.05]
+const percent = (level: number) => `${Math.round(level * 100)}%`
+const lowBattery = computed(() => strongerSaver(power.choice, power.fromBattery) !== power.choice)
 
 // Persist language and unit preferences to backend when logged in
 watch(
@@ -350,6 +364,115 @@ watch(
               </SelectItem>
               <SelectItem :value="UnitSystem.IMPERIAL">
                 {{ $t('settings.behavior.units.imperial') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <SettingsSection
+      id="battery-saver"
+      :title="$t('settings.behavior.batterySaver.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.behavior.batterySaver.level')"
+        :description="
+          lowBattery
+            ? $t('settings.behavior.batterySaver.lowBattery')
+            : $t('settings.behavior.batterySaver.levelDescription')
+        "
+        :icon="LeafIcon"
+      >
+        <Select v-model="power.choice">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem v-for="saver in POWER_SAVERS" :key="saver" :value="saver">
+                {{ $t(`settings.behavior.batterySaver.values.${saver}`) }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <template v-if="power.batterySupported">
+        <SettingsItem
+          :title="$t('settings.behavior.batterySaver.auto')"
+          :description="$t('settings.behavior.batterySaver.autoDescription')"
+          :icon="PlugZapIcon"
+        >
+          <Switch v-model="power.auto.enabled" />
+        </SettingsItem>
+
+        <template v-if="power.auto.enabled">
+          <SettingsItem
+            :title="$t('settings.behavior.batterySaver.normalAt')"
+            :icon="BatteryLowIcon"
+          >
+            <Select
+              :model-value="String(power.auto.normalAt)"
+              @update:model-value="v => (power.auto.normalAt = Number(v))"
+            >
+              <SelectTrigger class="w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem v-for="level in NORMAL_THRESHOLDS" :key="level" :value="String(level)">
+                    {{ percent(level) }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </SettingsItem>
+
+          <SettingsItem
+            :title="$t('settings.behavior.batterySaver.extremeAt')"
+            :icon="BatteryWarningIcon"
+          >
+            <Select
+              :model-value="String(power.auto.extremeAt)"
+              @update:model-value="v => (power.auto.extremeAt = Number(v))"
+            >
+              <SelectTrigger class="w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem v-for="level in EXTREME_THRESHOLDS" :key="level" :value="String(level)">
+                    {{ percent(level) }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </SettingsItem>
+        </template>
+      </template>
+    </SettingsSection>
+
+    <SettingsSection
+      v-if="isMobileScreen"
+      id="home-screen"
+      :title="$t('settings.behavior.homeScreen.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.behavior.homeScreen.sheetStart')"
+        :icon="PanelBottom"
+      >
+        <Select v-model="homeSheetStart">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="search">
+                {{ $t('settings.behavior.homeScreen.search') }}
+              </SelectItem>
+              <SelectItem value="library">
+                {{ $t('settings.behavior.homeScreen.library') }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>

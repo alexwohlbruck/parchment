@@ -22,19 +22,6 @@ function placeService() {
   const inFlightPlaceRequests = new Map<string, Promise<Place | null>>()
 
   /**
-   * Log a foreground place resolve into the user's (encrypted) recents.
-   * Best-effort: recents must never block or break place loading.
-   */
-  function recordPlaceView(place: Partial<Place> | null) {
-    if (!place) return
-    try {
-      useRecentsStore().recordPlace(place)
-    } catch (e) {
-      console.warn('Failed to record recently-viewed place:', e)
-    }
-  }
-
-  /**
    * Look up a place in the local search results store by ID
    */
   function findCachedPlace(placeId: string): Place | undefined {
@@ -156,7 +143,6 @@ function placeService() {
     if (cached) {
       currentPlace.value = cached.data
       loading.value = false
-      recordPlaceView(cached.data)
       if (placeCache.isStale(cached)) {
         // Background revalidate — don't await. UI keeps cached render until
         // the fresh response lands. Errors are swallowed (no toast) since
@@ -178,7 +164,6 @@ function placeService() {
     try {
       const data = await fetchPlaceFromApi(cacheKey, queryParams, signal)
       currentPlace.value = data ?? null
-      recordPlaceView(data)
       return data
     } catch (e) {
       if (axios.isCancel(e)) return null

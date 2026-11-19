@@ -493,6 +493,16 @@
         "name": "Ask",
         "description": "Ask a question or open a past one",
         "keywords": "ai assistant question chat conversation history"
+      },
+      "batterySaver": {
+        "name": "Battery saver",
+        "description": "Turn off 3D and use less battery",
+        "keywords": "power energy low battery oled",
+        "arguments": {
+          "level": {
+            "name": "Battery saver"
+          }
+        }
       }
     },
     "noResults": "No matching commands",
@@ -4235,6 +4245,13 @@
     "canvas": {
       "saved": "Canvas in your library",
       "open": "Open"
+    }
+  },
+  "powerSaver": {
+    "indicator": "Battery saver is on",
+    "autoOn": {
+      "normal": "Battery at {percent}%, so battery saver is on",
+      "extreme": "Battery at {percent}%, so extreme battery saver is on"
     }
   }
 }

@@ -487,6 +487,16 @@
         "name": "Preguntar",
         "description": "Haz una pregunta o abre una anterior",
         "keywords": "ia asistente pregunta chat conversación historial"
+      },
+      "batterySaver": {
+        "name": "Ahorro de batería",
+        "description": "Quita el 3D y gasta menos batería",
+        "keywords": "energía batería baja oled",
+        "arguments": {
+          "level": {
+            "name": "Ahorro de batería"
+          }
+        }
       }
     },
     "toggleState": {
@@ -3964,6 +3974,13 @@
     "canvas": {
       "saved": "Lienzo en tu biblioteca",
       "open": "Abrir"
+    }
+  },
+  "powerSaver": {
+    "indicator": "El ahorro de batería está activado",
+    "autoOn": {
+      "normal": "Batería al {percent}%: ahorro de batería activado",
+      "extreme": "Batería al {percent}%: ahorro de batería extremo activado"
     }
   }
 }

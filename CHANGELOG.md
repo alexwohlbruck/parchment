@@ -15,6 +15,7 @@
 ### Fixed
 
 * Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
+* In 3D, street names, path names and route shields on bridges sit on the bridge deck instead of the ground or water below.
 
 
 ## [0.22.2] - 2026-11-17

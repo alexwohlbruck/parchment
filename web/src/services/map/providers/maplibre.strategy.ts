@@ -129,6 +129,8 @@ import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
+import { isDeckName } from '@/lib/map-decks/deck-labels'
+import { DeckLabels } from '@/services/map/deck-labels.service'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { TerrainCarver, cutCarving } from '@/lib/map-terrain/carver'
 import { roofCuts } from '@/lib/map-decks/roofs'
@@ -546,6 +548,7 @@ export class MaplibreStrategy extends MapStrategy {
       // The old decks' labels are not this style's to leave out.
       this.mutedBridgeLabels.clear()
       this.bridgeFootprint = null
+      this.deckLabels.forget()
       this.bridgeLabelKey = null
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -1166,6 +1169,7 @@ export class MaplibreStrategy extends MapStrategy {
   private mutedBridgeLabels = new Set<string>()
   /** Where decks are drawn, so the flat bridges' labels under them are left out; null while they are not. */
   private bridgeFootprint: GeoJSON.MultiPolygon | null = null
+  private deckLabels = new DeckLabels(() => this.mapInstance)
   /** The deck version the road labels were last filtered for. */
   private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
@@ -1278,7 +1282,10 @@ export class MaplibreStrategy extends MapStrategy {
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
     const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
-    if (footprint || !covered) this.bridgeFootprint = covered ? footprint : null
+    if (footprint || !covered) {
+      this.bridgeFootprint = covered ? footprint : null
+      this.deckLabels.setDecks(this.bridgeFootprint, (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null)
+    }
     for (const layer of map.getStyle()?.layers ?? []) {
       // The labels' filter is the basemap's, with the ways on decks left out; one writer keeps the two from undoing each other.
       if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && isFlatBridgeLabel(layer as any)) {
@@ -1528,7 +1535,9 @@ export class MaplibreStrategy extends MapStrategy {
       ])
     const footprint = this.mutedBridgeLabels.has(id) && this.bridgeFootprint
     // Validating a filter serialises the whole style; these are built here and known good.
-    this.mapInstance.setFilter(id, (footprint && flatBridgeLabelFilter({ id, type: layer.type, 'source-layer': layer.sourceLayer, filter }, footprint)) || filter, { validate: false })
+    const spec = { id, type: layer.type, 'source-layer': layer.sourceLayer }
+    this.mapInstance.setFilter(id, (footprint && flatBridgeLabelFilter({ ...spec, filter }, footprint)) || filter, { validate: false })
+    if (isDeckName(spec)) this.deckLabels.mirror(id, footprint ? (filter ?? true) : null)
   }
 
   /** A new style brings its own filters, so ours are rebuilt on top of them. */
@@ -1933,6 +1942,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.deckLabels.detach()
     this.poiElevation?.detach()
     this.golfPins?.detach()
     this.indoor?.detach()

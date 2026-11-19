@@ -601,7 +601,18 @@ describe('preferences', () => {
       unitSystem: 'metric',
       navigation: {},
       ask: DEFAULT_ASK_PREFERENCES,
+      app: {},
     })
+  })
+
+  test('passes app sections through and strips unknown ones', async () => {
+    const theme = { accentColor: 'teal', radius: 0.5 }
+    const res = await req(app).put('/users/me/preferences', {
+      body: { app: { theme, sidebar: { width: 300 } } },
+    })
+
+    expect(res.status).toBe(200)
+    expect(updateUserPreferences).toHaveBeenCalledWith(TEST_USER.id, { app: { theme } })
   })
 
   test('passes a navigation patch through', async () => {

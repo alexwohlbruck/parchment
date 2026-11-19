@@ -2,6 +2,7 @@ import { relations } from 'drizzle-orm'
 import { jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import type { NavigationPreferencesPatch } from '../types/navigation-preferences.types'
 import type { AskPreferences } from '../types/ask-preferences.types'
+import type { AppPreferences } from '../types/app-preferences.types'
 import { users } from './users.schema'
 
 export const userPreferences = pgTable('user_preferences', {
@@ -12,6 +13,7 @@ export const userPreferences = pgTable('user_preferences', {
   unitSystem: text('unit_system').default('metric').notNull(),
   navigation: jsonb('navigation').$type<NavigationPreferencesPatch>(),
   ask: jsonb('ask').$type<Partial<AskPreferences>>(),
+  app: jsonb('app').$type<AppPreferences>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

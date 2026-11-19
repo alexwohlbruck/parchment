@@ -25,7 +25,7 @@ describe('flatBridgeOpacity', () => {
     for (const id of ['Major road', 'Highway', 'Road surface', 'Road glyph']) expect(muted(id), id).toBeNull()
   })
 
-  test('takes road names and arrows off the decks, and only those', () => {
+  test('takes road names and arrows off the decks, and leaves names on bridges without one', () => {
     const labels = layers.find(l => l.id === 'Road labels')
     const deck = deckFootprints([{ points: [mercator([-74, 40.7]), mercator([-73.999, 40.7])], edges: [5, 5] }])
     const filter = flatBridgeLabelFilter(labels, deck)!
@@ -40,7 +40,7 @@ describe('flatBridgeOpacity', () => {
     const shows = (lat: number, brunnel?: string) => featureFilter(filter, 'layers[0].filter').filter({ zoom: 18 } as any,
       { type: 2, properties: { class: 'primary', name: 'Brooklyn Bridge', ...(brunnel ? { brunnel } : {}) }, geometry: [[at(-73.9998, lat), at(-73.9992, lat)]] } as any, { z, x: tx, y: ty } as any)
     expect(shows(40.7)).toBe(false)
-    expect(shows(40.701, 'bridge')).toBe(false)
+    expect(shows(40.701, 'bridge')).toBe(true)
     expect(shows(40.701)).toBe(true)
     for (const id of ['Oneway', 'Highway shield']) expect(flatBridgeLabelFilter(layers.find(l => l.id === id), deck), id).not.toBeNull()
     expect(flatBridgeLabelFilter(layers.find(l => l.id === 'Road glyph'), deck)).toBeNull()

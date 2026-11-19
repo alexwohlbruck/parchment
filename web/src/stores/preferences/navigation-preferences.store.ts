@@ -1,6 +1,6 @@
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { defineStore } from 'pinia'
-import { useDebounceFn, useStorage } from '@vueuse/core'
+import { useStorage } from '@vueuse/core'
 import { jsonSerializer } from '@/lib/storage-serializer'
 import {
   DEFAULT_SPEECH_PREFERENCES,
@@ -10,7 +10,6 @@ import {
   mergeSpeechPreferences,
   parseRoutingPreferences,
   runPaceFactor,
-  unsavedSections,
   withModeEnabled,
   type ModeKey,
   type NavigationPreferences,
@@ -19,11 +18,7 @@ import {
 import { DEFAULT_GUIDANCE_PREFERENCES } from '@/lib/guidance/guidance-preferences'
 import type { RoutingPreferences, SortPreference, TripModeToken } from '@/types/multimodal.types'
 import { saveNavigationPreferences } from '@/services/preferences.service'
-import { useAuthStore } from '@/stores/auth.store'
-
-const SAVE_DEBOUNCE_MS = 800
-
-type Section = keyof NavigationPreferences
+import { useAccountSync } from './account-sync'
 
 /**
  * Trip planning and guidance preferences. Every value is kept on the device;
@@ -43,8 +38,6 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   const guidance = useStorage('guidance-preferences', structuredClone(DEFAULT_GUIDANCE_PREFERENCES), undefined, {
     mergeDefaults: true,
   })
-
-  const sections = { excludedModes, sortPreference, routing, speech, guidance }
 
   const transitBufferMinutes = computed(
     () => routing.value.mode.transit.transitBufferMinutes ?? DEFAULT_TRANSIT_BUFFER_MINUTES,
@@ -71,59 +64,26 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
     routing.value = { ...routing.value, mode: { ...slices, [mode]: { ...slices[mode], [key]: value } } }
   }
 
-  // ── Account sync ─────────────────────────────────────────────────
-  const linked = ref(false)
-  let adopting = false
-  let pending: NavigationPreferences = {}
-  /** Bumped on sign-out so a save in flight can't requeue into the next account. */
-  let session = 0
+  const sync = useAccountSync<Required<NavigationPreferences>>(
+    {
+      excludedModes: () => excludedModes.value,
+      sortPreference: () => sortPreference.value,
+      routing: () => routing.value,
+      speech: () => speech.value,
+      guidance: () => guidance.value,
+    },
+    saveNavigationPreferences,
+  )
 
-  const flush = useDebounceFn(async () => {
-    const patch = pending
-    const queuedIn = session
-    pending = {}
-    if (!Object.keys(patch).length) return
-    try {
-      await saveNavigationPreferences(patch)
-    } catch {
-      if (queuedIn === session) pending = { ...patch, ...pending }
-    }
-  }, SAVE_DEBOUNCE_MS)
-
-  function queue(section: Section) {
-    pending = { ...pending, [section]: sections[section].value }
-    void flush()
-  }
-
-  for (const section of Object.keys(sections) as Section[]) {
-    watch(sections[section], () => {
-      if (linked.value && !adopting) queue(section)
-    }, { deep: true, flush: 'sync' })
-  }
-
-  /** Takes the account's values, and seeds the account with this device's for any it never saved. */
   function adopt(remote: NavigationPreferences) {
-    adopting = true
-    try {
+    sync.adopt(remote, () => {
       if (remote.excludedModes) excludedModes.value = [...remote.excludedModes]
       if (remote.sortPreference !== undefined) sortPreference.value = remote.sortPreference
       if (remote.routing) routing.value = parseRoutingPreferences(remote.routing)
       if (remote.speech) speech.value = mergeSpeechPreferences(remote.speech)
       if (remote.guidance) guidance.value = mergeGuidancePreferences(remote.guidance)
-    } finally {
-      adopting = false
-    }
-    linked.value = true
-    unsavedSections(remote).forEach(queue)
+    })
   }
-
-  const authStore = useAuthStore()
-  watch(() => authStore.me, me => {
-    if (me) return
-    linked.value = false
-    pending = {}
-    session++
-  })
 
   return {
     excludedModes,

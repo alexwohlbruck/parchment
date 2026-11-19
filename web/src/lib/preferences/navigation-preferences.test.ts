@@ -5,7 +5,6 @@ import {
   parseRoutingPreferences,
   RUN_PACE_FACTOR,
   runPaceFactor,
-  unsavedSections,
   withModeEnabled,
 } from './navigation-preferences'
 
@@ -46,24 +45,6 @@ describe('withModeEnabled', () => {
 
   it('drops a mode once re-enabled', () => {
     expect(withModeEnabled(['transit', 'driving'], 'driving', true)).toEqual(['transit'])
-  })
-})
-
-describe('unsavedSections', () => {
-  it('lists sections the account lacks', () => {
-    expect(unsavedSections({ excludedModes: [], sortPreference: null, speech: {} })).toEqual([
-      'routing',
-      'guidance',
-    ])
-  })
-
-  it('treats a saved balanced sort as saved', () => {
-    expect(unsavedSections({ sortPreference: null })).toEqual([
-      'excludedModes',
-      'routing',
-      'speech',
-      'guidance',
-    ])
   })
 })
 

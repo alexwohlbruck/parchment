@@ -3,7 +3,7 @@
 ### Added
 
 * Measurements, circles and travel-time areas can be saved to a new canvas or exported as a file.
-* Canvases and measurements export as GeoJSON, KML for Google Earth, GPX for GPS devices, or CSV. Importing an exported file brings its marks back with their labels, colours and icons.
+* Canvases and measurements export as GeoJSON, KML for Google Earth, GPX for GPS devices, or CSV. A GeoJSON or KML export imports back as the same marks, with their labels, colours and icons.
 * Spreadsheets with a WKT column import as lines and shapes, not just points.
 
 ### Changed

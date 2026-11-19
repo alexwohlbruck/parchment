@@ -554,25 +554,26 @@
     "close": "Cerrar herramienta de medir",
     "perimeter": "Perímetro",
     "area": "Área",
-    "empty": "Haz clic en el mapa para añadir puntos.",
+    "empty": "Toca el mapa para empezar a medir",
     "unitsMetric": "Métrico",
     "unitsImperial": "Imperial",
     "cycleUnit": "Clic para cambiar unidad",
     "saveToCanvas": "Guardar en lienzo",
-    "export": "Exportar"
+    "unitsMetricShort": "km",
+    "unitsImperialShort": "mi"
   },
   "radius": {
     "title": "Radio",
     "close": "Cerrar herramienta de radio",
     "radius": "Radio",
     "circumference": "Circunferencia",
-    "empty": "Haz clic en el mapa para fijar el centro.",
-    "clickToConfirm": "Haz clic en el mapa para fijar el radio."
+    "empty": "Toca el mapa para colocar el centro",
+    "clickToConfirm": "Toca de nuevo para fijar el radio"
   },
   "isochrone": {
     "title": "Área alcanzable",
     "close": "Cerrar herramienta de isócronas",
-    "empty": "Haz clic en el mapa para fijar un punto de partida.",
+    "empty": "Toca el mapa para elegir un punto de partida",
     "loading": "Calculando el área alcanzable…",
     "errorGeneric": "No se pudo calcular el área alcanzable.",
     "unreachable": "No se puede llegar a ningún sitio desde este punto.",
@@ -585,9 +586,9 @@
     "minutes": "{count} min",
     "bands": "Bandas",
     "bandsCount": "{count} bandas",
-    "arriveBy": "Llegar a",
-    "arriveByHint": "Mostrar el área desde la que se puede llegar a este punto",
-    "stopsReachable": "{count} paradas alcanzables"
+    "stopsReachable": "{count} paradas alcanzables",
+    "fromHere": "Desde aquí",
+    "toHere": "Hasta aquí"
   },
   "layers": {
     "title": "Capas",
@@ -3592,8 +3593,7 @@
     "notFound": "Este lienzo ya no existe.",
     "actions": {
       "new": "Nuevo lienzo",
-      "rename": "Cambiar nombre",
-      "export": "Exportar GeoJSON"
+      "rename": "Cambiar nombre"
     },
     "empty": {
       "title": "Aún no hay lienzos",
@@ -3984,6 +3984,15 @@
     "autoOn": {
       "normal": "Batería al {percent}%: ahorro de batería activado",
       "extreme": "Batería al {percent}%: ahorro de batería extremo activado"
+    }
+  },
+  "geoFile": {
+    "export": "Exportar",
+    "formats": {
+      "geojson": "GeoJSON",
+      "kml": "Google Earth (KML)",
+      "gpx": "Dispositivo GPS (GPX)",
+      "csv": "Hoja de cálculo (CSV)"
     }
   }
 }

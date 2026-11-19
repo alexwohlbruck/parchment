@@ -2,19 +2,18 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { DownloadIcon, LayersIcon } from 'lucide-vue-next'
+import { ChevronDownIcon, LayersIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
+import { geoExportItems } from '@/components/geo-file/geo-export-items'
 import { AppRoute } from '@/router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
-import {
-  canvasCollection,
-  geoJsonBlob,
-  geoJsonFilename,
-} from '@/lib/canvas/geo-export'
-import { saveFile } from '@/lib/file-save'
+import { canvasCollection } from '@/lib/canvas/canvas-geo'
+import { exportGeoFile } from '@/lib/geo-file/geo-write'
+import type { GeoFormat } from '@/lib/geo-file/geo-format'
 import { themeColorToHex } from '@/lib/utils'
 import { emptyCanvasBody, type CanvasAnnotation } from '@/types/canvas.types'
 
@@ -49,21 +48,23 @@ async function saveToCanvas() {
   }
 }
 
-function exportFile() {
-  const collection = canvasCollection(
-    { annotations: props.annotations, layers: [] },
-    themeColorToHex,
+function exportFile(format: GeoFormat) {
+  exportGeoFile(
+    canvasCollection({ annotations: props.annotations, layers: [] }, themeColorToHex),
+    props.name,
+    format,
   )
-  saveFile(geoJsonBlob(collection), geoJsonFilename(props.name))
 }
+
+const exportItems = computed(() => geoExportItems(t, exportFile))
 </script>
 
 <template>
-  <div class="flex gap-1.5">
+  <div class="flex gap-1.5 pt-1">
     <Button
       v-if="signedIn"
       size="sm"
-      class="h-7 flex-1 gap-1.5"
+      class="h-8 flex-1 gap-1.5"
       :disabled="saving"
       @click="saveToCanvas"
     >
@@ -71,15 +72,18 @@ function exportFile() {
       <LayersIcon v-else class="size-3.5" />
       {{ t('measure.saveToCanvas') }}
     </Button>
-    <Button
-      variant="outline"
-      size="sm"
-      class="h-7 gap-1.5"
-      :class="{ 'flex-1': !signedIn }"
-      @click="exportFile"
-    >
-      <DownloadIcon class="size-3.5" />
-      {{ t('measure.export') }}
-    </Button>
+    <ResponsiveDropdown :items="exportItems" align="end" :title="t('geoFile.export')">
+      <template #trigger>
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-8 gap-1 pr-2"
+          :class="{ 'flex-1': !signedIn }"
+        >
+          {{ t('geoFile.export') }}
+          <ChevronDownIcon class="size-3.5 text-muted-foreground" />
+        </Button>
+      </template>
+    </ResponsiveDropdown>
   </div>
 </template>

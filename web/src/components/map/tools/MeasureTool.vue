@@ -503,27 +503,27 @@ function closeMeasure() {
     :close-label="t('measure.close')"
     @close="closeMeasure"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="measureUnitSystem" />
+    </template>
     <template v-if="measurePoints.length >= 2">
       <div class="flex flex-col gap-1.5">
         <MeasureReadout
-          :label="t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')"
-          :value="distanceHint"
-          :cycle-label="t('measure.cycleUnit')"
-          @cycle="cycleDistance(totalDistanceMeters)"
-        />
-        <MeasureReadout
           v-if="areaHint"
+          prominent
           :label="t('measure.area')"
           :value="areaHint"
           :cycle-label="t('measure.cycleUnit')"
           @cycle="cycleArea(areaSquareMeters)"
         />
+        <MeasureReadout
+          :prominent="!areaHint"
+          :label="t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')"
+          :value="distanceHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleDistance(totalDistanceMeters)"
+        />
       </div>
-      <UnitSystemToggle
-        v-model="measureUnitSystem"
-        :metric-label="t('measure.unitsMetric')"
-        :imperial-label="t('measure.unitsImperial')"
-      />
       <MeasureExportActions
         :annotations="measuredMarks"
         :name="t('measure.title')"

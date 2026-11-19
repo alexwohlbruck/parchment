@@ -30,15 +30,18 @@ defineEmits<{ close: [] }>()
           {{ title }}
           <slot name="title-adornment" />
         </CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0 -my-1 -mr-2"
-          :aria-label="closeLabel"
-          @click="$emit('close')"
-        >
-          <XIcon class="size-4" />
-        </Button>
+        <div class="-my-1 -mr-2 flex items-center gap-1">
+          <slot name="header-actions" />
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0"
+            :aria-label="closeLabel"
+            @click="$emit('close')"
+          >
+            <XIcon class="size-4" />
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent class="flex flex-col gap-3 px-3.5 pb-3 pt-0">

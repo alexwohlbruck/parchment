@@ -64,7 +64,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const ORIGIN_MARKER_ID = 'isochrone-origin-dot'
@@ -259,6 +258,9 @@ function closeTool() {
     width-class="w-[19rem]"
     @close="closeTool"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="areaUnitSystem" />
+    </template>
     <template #title-adornment>
       <Spinner
         v-if="status === 'loading'"
@@ -285,6 +287,26 @@ function closeTool() {
             class="h-8 w-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <component :is="option.icon" class="size-4 shrink-0" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <!-- Direction -->
+        <ToggleGroup
+          type="single"
+          :model-value="arriveBy ? 'to' : 'from'"
+          class="grid grid-cols-2 gap-1"
+          @update:model-value="
+            value => value && isochroneStore.setArriveBy(value === 'to')
+          "
+        >
+          <ToggleGroupItem
+            v-for="direction in ['from', 'to'] as const"
+            :key="direction"
+            :value="direction"
+            variant="outline"
+            class="h-7 w-full text-[12px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            {{ t(direction === 'from' ? 'isochrone.fromHere' : 'isochrone.toHere') }}
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -341,21 +363,6 @@ function closeTool() {
           </ToggleGroup>
         </div>
 
-        <!-- Direction -->
-        <div class="flex items-center justify-between gap-4">
-          <Label
-            for="isochrone-arrive-by"
-            class="shrink-0 text-[11px] font-medium text-muted-foreground"
-          >
-            {{ t('isochrone.arriveBy') }}
-          </Label>
-          <Switch
-            id="isochrone-arrive-by"
-            :model-value="arriveBy"
-            :aria-label="t('isochrone.arriveByHint')"
-            @update:model-value="value => isochroneStore.setArriveBy(value)"
-          />
-        </div>
 
         <Separator />
 
@@ -400,12 +407,6 @@ function closeTool() {
           >
             {{ t('isochrone.stopsReachable', { count: reachableStops }) }}
           </p>
-
-          <UnitSystemToggle
-            v-model="areaUnitSystem"
-            :metric-label="t('measure.unitsMetric')"
-            :imperial-label="t('measure.unitsImperial')"
-          />
 
           <MeasureExportActions
             :annotations="reachMarks"

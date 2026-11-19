@@ -422,9 +422,13 @@ function closeRadius() {
     :close-label="t('radius.close')"
     @close="closeRadius"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="radiusUnitSystem" />
+    </template>
     <template v-if="radiusCenter && radiusMeters > 0">
       <div class="flex flex-col gap-1.5">
         <MeasureReadout
+          prominent
           :label="t('radius.radius')"
           :value="radiusHint"
           :cycle-label="t('measure.cycleUnit')"
@@ -444,11 +448,6 @@ function closeRadius() {
           @cycle="cycleArea(areaSquareMeters)"
         />
       </div>
-      <UnitSystemToggle
-        v-model="radiusUnitSystem"
-        :metric-label="t('measure.unitsMetric')"
-        :imperial-label="t('measure.unitsImperial')"
-      />
       <MeasureExportActions
         :annotations="radiusMarks"
         :name="t('measure.circle')"

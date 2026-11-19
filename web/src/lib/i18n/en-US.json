@@ -561,26 +561,27 @@
     "close": "Close measure tool",
     "perimeter": "Perimeter",
     "area": "Area",
-    "empty": "Click on the map to add points.",
+    "empty": "Tap the map to start measuring",
     "unitsMetric": "Metric",
     "unitsImperial": "Imperial",
     "cycleUnit": "Change unit",
     "units": "Units",
     "saveToCanvas": "Save to canvas",
-    "export": "Export"
+    "unitsMetricShort": "km",
+    "unitsImperialShort": "mi"
   },
   "radius": {
     "title": "Radius",
     "close": "Close radius tool",
     "radius": "Radius",
     "circumference": "Circumference",
-    "empty": "Click on the map to set the center point.",
-    "clickToConfirm": "Click on the map to set the radius."
+    "empty": "Tap the map to place the center",
+    "clickToConfirm": "Tap again to set the radius"
   },
   "isochrone": {
     "title": "Travel time",
     "close": "Close travel time",
-    "empty": "Click on the map to set a starting point.",
+    "empty": "Tap the map to pick a starting point",
     "loading": "Computing reachable area…",
     "errorGeneric": "Couldn't compute the reachable area.",
     "unreachable": "Nothing is reachable from this point.",
@@ -593,9 +594,9 @@
     "minutes": "{count} min",
     "bands": "Rings",
     "bandsCount": "{count} rings",
-    "arriveBy": "Arrive by",
-    "arriveByHint": "Show the area that can reach this point",
-    "stopsReachable": "{count} transit stops reachable"
+    "stopsReachable": "{count} transit stops reachable",
+    "fromHere": "From here",
+    "toHere": "To here"
   },
   "layers": {
     "title": "Layers",
@@ -3779,8 +3780,7 @@
     "notFound": "This canvas no longer exists.",
     "actions": {
       "new": "New canvas",
-      "rename": "Rename",
-      "export": "Export GeoJSON"
+      "rename": "Rename"
     },
     "empty": {
       "title": "No canvases yet",
@@ -4255,6 +4255,15 @@
     "autoOn": {
       "normal": "Battery at {percent}%, so battery saver is on",
       "extreme": "Battery at {percent}%, so extreme battery saver is on"
+    }
+  },
+  "geoFile": {
+    "export": "Export",
+    "formats": {
+      "geojson": "GeoJSON",
+      "kml": "Google Earth (KML)",
+      "gpx": "GPS device (GPX)",
+      "csv": "Spreadsheet (CSV)"
     }
   }
 }

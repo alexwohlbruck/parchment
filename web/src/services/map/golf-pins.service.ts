@@ -1,4 +1,5 @@
 /** Feeds the flat golf pin layer one flag per green, from whichever detail tiles are loaded. */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { DETAIL_SOURCE, GOLF_PIN_SOURCE, GOLF_TILES } from '@/lib/map-style/detail-layers'
 import { golfPinSites } from '@/lib/map-objects/golf'
 
@@ -10,7 +11,7 @@ export function attachGolfPins(map: any) {
     queued = 0
     const source = map.getSource(GOLF_PIN_SOURCE)
     if (!source || !map.getSource(DETAIL_SOURCE)) return
-    const sites = golfPinSites(map.querySourceFeatures(DETAIL_SOURCE, { sourceLayer: GOLF_TILES }))
+    const sites = golfPinSites(sourceFeatures(map, DETAIL_SOURCE, GOLF_TILES))
     const next = sites.map(s => `${s.key}@${s.lng.toFixed(6)},${s.lat.toFixed(6)}`).sort().join('|')
     if (next === signature) return
     signature = next

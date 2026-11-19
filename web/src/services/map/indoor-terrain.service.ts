@@ -1,4 +1,5 @@
 /** Levels the terrain under each indoor venue in view, so its floors, rooms and walls all stand at one height. */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { grownOutline, standsOnGround, venueOutlines } from '@/lib/indoor/venue-outline'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import type { Point } from '@/lib/map-decks/decks'
@@ -43,7 +44,7 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     sampler = next
     const pads = new Map<string, Carving>()
     if (on && sampler) {
-      for (const [id, pieces] of venueOutlines(map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_VENUE_TILES }).filter(standsOnGround))) {
+      for (const [id, pieces] of venueOutlines(sourceFeatures(map, INDOOR_SOURCE, INDOOR_VENUE_TILES).filter(standsOnGround))) {
         const known = venues.get(id)
         const ring = grownOutline(known?.ring, pieces)
         venues.set(id, { ring, height: known?.height ?? heightOf(ring, sampler.ground) ?? undefined })

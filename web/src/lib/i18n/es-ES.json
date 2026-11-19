@@ -3018,6 +3018,9 @@
         "radius": {
           "title": "Radio"
         },
+        "uiScale": {
+          "title": "Tamaño de la interfaz"
+        },
         "theme": {
           "title": "Tema",
           "values": {

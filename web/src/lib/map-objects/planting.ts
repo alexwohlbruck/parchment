@@ -8,6 +8,7 @@
  * on every load and has no seams; each tile piece plants only inside its own
  * tile, so an area split across tiles is never planted twice.
  */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { SOURCE as BASEMAP_SOURCE } from '@/lib/map-style/build'
 import { DETAIL_SOURCE, OBJECT_AREA_TILES, PARKING_TILES, PITCH_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -406,29 +407,22 @@ const OPEN_DETAIL: Array<[string, (f: any) => boolean]> = [
   [PARKING_TILES, () => true],
 ]
 
-const querySource = (map: any, source: string, sourceLayer?: string) => {
-  try {
-    return map.querySourceFeatures(source, sourceLayer ? { sourceLayer } : {})
-  } catch {
-    return []
-  }
-}
 
 /** The basemap's ways, buildings and water, as exclusions. */
 export function builtExclusionsFor(map: any, basemap: string = BASEMAP_SOURCE): ForestExclusions {
-  return buildExclusions(querySource(map, basemap, 'transportation'), [
-    ...querySource(map, basemap, 'building'),
-    ...querySource(map, basemap, 'water'),
+  return buildExclusions(sourceFeatures(map, basemap, 'transportation'), [
+    ...sourceFeatures(map, basemap, 'building'),
+    ...sourceFeatures(map, basemap, 'water'),
   ])
 }
 
 function* exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): Generator<void, ForestExclusions> {
-  const ways = querySource(map, basemap, 'transportation')
+  const ways = sourceFeatures(map, basemap, 'transportation')
   yield
-  const areas = [...querySource(map, basemap, 'building'), ...querySource(map, basemap, 'water')]
+  const areas = [...sourceFeatures(map, basemap, 'building'), ...sourceFeatures(map, basemap, 'water')]
   yield
-  areas.push(...querySource(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
-  for (const [layer, keep] of OPEN_DETAIL) areas.push(...querySource(map, ...detail(layer)).filter(keep))
+  areas.push(...sourceFeatures(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
+  for (const [layer, keep] of OPEN_DETAIL) areas.push(...sourceFeatures(map, ...detail(layer)).filter(keep))
   yield
   return yield* exclusionSteps(ways, areas)
 }
@@ -664,13 +658,7 @@ export function plantedSpec(options: {
     },
     *prepareSteps() {
       if (!map) return
-      let features: any[]
-      try {
-        features = map.querySourceFeatures(options.source, { sourceLayer: options.sourceLayer })
-      } catch {
-        return
-      }
-      for (const feature of features) {
+      for (const feature of sourceFeatures(map, options.source, options.sourceLayer)) {
         if (feature.geometry?.type === 'Point') continue
         const grid = options.grid(feature)
         const tile = grid && tileBounds(feature)

@@ -20,6 +20,8 @@ export function useDayNightLayerService() {
   let intervalId: ReturnType<typeof setInterval> | null = null
   let currentStrategy: MapStrategy | null = null
   let detach: (() => void) | null = null
+  /** Whether the canvas missed an update while the layer was hidden. */
+  let stale = false
 
   function isDayNightLayer(layer: Layer): boolean {
     return layer.configuration?.id === DAYNIGHT_LAYER_ID
@@ -68,10 +70,15 @@ export function useDayNightLayerService() {
       }
     }
     const maplibre = mapStrategy.options.engine === MapEngine.MAPLIBRE
+    const onStyleData = () => {
+      if (stale && map.getLayer(DAYNIGHT_LAYER_ID)) updateCanvas(map)
+    }
     if (maplibre) map.on('projectiontransition', onProjection)
+    map.on('styledata', onStyleData)
     map.on('remove', cleanup)
     detach = () => {
       if (maplibre) map.off('projectiontransition', onProjection)
+      map.off('styledata', onStyleData)
       map.off('remove', cleanup)
     }
     intervalId = setInterval(() => updateCanvas(map), UPDATE_INTERVAL_MS)
@@ -86,6 +93,10 @@ export function useDayNightLayerService() {
   function updateCanvas(map: any) {
     const source = map.getSource(DAYNIGHT_SOURCE_ID)
     if (!source) return
+    // Drawing and encoding the canvas holds the main thread for a few frames: not for a hidden layer, and not mid-gesture.
+    if (map.getLayoutProperty(DAYNIGHT_LAYER_ID, 'visibility') === 'none') return void (stale = true)
+    if (map.isMoving?.()) return void map.once('moveend', () => updateCanvas(map))
+    stale = false
     const canvas = renderDayNightCanvas(CANVAS_WIDTH, CANVAS_HEIGHT)
     source.updateImage({
       url: canvas.toDataURL('image/png'),

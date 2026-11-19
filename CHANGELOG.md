@@ -2,16 +2,24 @@
 
 ### Added
 
+* Make the whole app bigger or smaller under Settings → Appearance → Interface size. Each device keeps its own size.
+* At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
 * Measurements, circles and travel-time areas can be saved to a new canvas or exported as a file.
 * Canvases and measurements export as GeoJSON, KML for Google Earth, GPX for GPS devices, or CSV. A GeoJSON or KML export imports back as the same marks, with their labels, colours and icons.
 * Spreadsheets with a WKT column import as lines and shapes, not just points.
 
 ### Changed
 
+* The 3D map finishes loading several times sooner where landmarks and bridges are in view.
+* 3D trees, street furniture and landmark models download in a fraction of the requests and size.
+* Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
+* Trees and street furniture now fall into shadow like the ground around them, and shade each other; the ground darkens under tree crowns and low bridges.
 * The measure, circle and travel-time panels lead with the number you asked for, switch units with km or mi in the header, and say "From here" or "To here" for travel time.
 
 ### Fixed
 
+* Landmarks built on sloping ground, like a bridge's approaches, now sit on the terrain instead of floating above it when they first load far from the camera.
+* Road names no longer lie on the ground beneath a bridge drawn in 3D.
 * The measure, circle and travel-time tools draw their lines and areas on the map again, with lines above 3D buildings rather than hidden under them.
 * On phones, the measuring tools open in a bottom sheet you can swipe away, with the map buttons above it, and their export menu opens.
 

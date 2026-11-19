@@ -3162,6 +3162,9 @@
         "radius": {
           "title": "Radius"
         },
+        "uiScale": {
+          "title": "Interface size"
+        },
         "theme": {
           "title": "Theme",
           "values": {

@@ -140,8 +140,7 @@ export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
  * Hiding the circles has to be done with paint rather than `visibility`: a
  * layer set to `none` stops being a consumer of its source, MapLibre stops
  * loading the tiles, and the object layer — which reads its instances out of
- * those same tiles — is left with nothing to draw. The building shade layer
- * mutes the extrusion the same way and for the same reason.
+ * those same tiles — is left with nothing to draw.
  */
 export const TREE_OPACITY = [
   'interpolate', ['linear'], ['zoom'], 16, 0.55, 17.5, 0.85,
@@ -228,6 +227,9 @@ const SURFACE_ONLY = [
   true,
 ] as any
 
+/** The source-layers whose `id` property, an OSM ref, MapLibre takes as the feature id, so a landmark can mark what it replaces by ref. */
+export const PROMOTED_REFS = { [BUILDING_3D_TILES]: 'id', [COASTER_TRACK_TILES]: 'id' }
+
 export function detailSources(tileUrl: (source: string) => string) {
   return {
     /**
@@ -251,6 +253,7 @@ export function detailSources(tileUrl: (source: string) => string) {
       tiles: [tileUrl(DETAIL_TILES)],
       minzoom: 9,
       maxzoom: 16,
+      promoteId: PROMOTED_REFS,
     },
     [GOLF_PIN_SOURCE]: {
       type: 'geojson' as const,

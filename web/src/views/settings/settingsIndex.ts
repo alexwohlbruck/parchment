@@ -306,6 +306,10 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.appearance.appTheme.color.title' },
           { titleKey: 'settings.appearance.appTheme.radius.title' },
           { titleKey: 'settings.appearance.appTheme.theme.title' },
+          {
+            titleKey: 'settings.appearance.appTheme.uiScale.title',
+            keywords: ['scale', 'zoom', 'text size', 'font size'],
+          },
         ],
       },
       {

@@ -24,25 +24,36 @@ import { hsl } from '@/lib/map-decks/palette'
 import lightTokens from '@/lib/map-style/tokens.light.json'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 
+/** A landmark with windows stands among the extrusions; anything else (a ride, a bridge, a statue) keeps more of its own paint. */
+export type LandmarkKind = 'building' | 'other'
+
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
   /** The extrusions' colours (sRGB); each landmark is pulled toward one, picked by its seed. */
   palette: [number, number, number][]
-  /** How far: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
-  harmony: number
+  /** How far, by kind: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
+  harmony: Record<LandmarkKind, number>
   /** The palette's share a black material keeps once pulled; white keeps 0.95, so materials keep their pattern. */
   harmonyFloor: number
-  /** How far a model's own colours are lifted toward white first, so a dark model sits at its neighbours' value. */
-  lift: number
+  /** How far a model's own colours are lifted toward white first, by kind, so a dark model sits at its neighbours' value. */
+  lift: Record<LandmarkKind, number>
   /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
   facade: FacadeFlavor
 }
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  // Lifted to its neighbours' lightness and under half way into their colour, so a landmark keeps its own hue.
-  light: { palette: [hsl(lightTokens.building_3d_fill_extrusion_color)], harmony: 0.45, harmonyFloor: 0.78, lift: 0.45, facade: FACADE_FLAVOR.light },
-  // Most of the way into the night map's blue, or a stone tower glows among its neighbours.
-  dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.85, harmonyFloor: 0.35, lift: 0, facade: FACADE_FLAVOR.dark },
+  // Lifted toward its neighbours' lightness and a little way into their colour, so a landmark keeps its own hue.
+  light: {
+    palette: [hsl(lightTokens.building_3d_fill_extrusion_color)],
+    harmony: { building: 0.2, other: 0.08 }, harmonyFloor: 0.78, lift: { building: 0.35, other: 0.1 },
+    facade: FACADE_FLAVOR.light,
+  },
+  // Well into the night map's blue, or a stone tower glows among its neighbours, but with its own hue still showing.
+  dark: {
+    palette: [hsl(darkTokens.building_3d_fill_extrusion_color)],
+    harmony: { building: 0.5, other: 0.55 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 },
+    facade: FACADE_FLAVOR.dark,
+  },
 }
 
 /** The palette colour a landmark with this 0-1 seed is pulled toward. */
@@ -64,9 +75,10 @@ const LAMP_LIGHT = { glow: hex('#ffe7c4'), intensity: 1 }
 
 /**
  * Floodlit stone at night (a model's `_FLOODLIGHT`): its own colour under a
- * warm white, mixed in by up to `strength`.
+ * warm white, mixed in by up to `strength`; a face turned up takes `roof` of
+ * it, and one turned away from the lights `relief` less.
  */
-export const FLOODLIGHT = { color: hex('#ffeacf'), strength: 0.9 }
+export const FLOODLIGHT = { color: hex('#f2d9b8'), strength: 0.75, roof: 0.5, relief: 0.35 }
 
 /** The soft light pooled in front of a lit door; drawn at night only. */
 export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }
@@ -213,54 +225,97 @@ export function parseLandmark(feature: any): Landmark | null {
 }
 
 /**
- * A legacy filter as an expression, for the two forms the building layers
- * use. A style filter is either all-legacy or all-expression, so the one we
- * extend has to be converted before an expression can be added beside it.
- */
-function asExpression(filter: any): any {
-  if (!Array.isArray(filter)) return true
-  if (filter[0] === '!has' && typeof filter[1] === 'string') return ['!', ['has', filter[1]]]
-  if (filter[0] === 'has' && typeof filter[1] === 'string' && filter.length === 2) return ['has', filter[1]]
-  return filter
-}
-
-/**
  * The source-layers a landmark can take features out of, by `replaces`.
  *
  * The buildings, and the coaster tracks: a coaster model draws its own track,
  * so the flat line under it has to go too or it shows through the gaps
- * between the supports. Tracks are filtered by ref only, like `buildings_3d`,
+ * between the supports. Tracks are matched by ref only, like `buildings_3d`,
  * and never by footprint (`buildingSources` in the strategy leaves them out).
  * Coasters cross and run alongside one another, and a smaller ride's track
  * lying under a big coaster's would vanish with no model drawn for it.
  */
 export const REPLACEABLE_SOURCE_LAYERS: readonly string[] = ['building', BUILDING_3D_TILES, COASTER_TRACK_TILES]
 
+/** The feature state a replaced building or track carries. */
+export const REPLACED_STATE = 'replaced'
+
+/** The feature state of a building a floor plan is showing the inside of. */
+export const INSIDE_STATE = 'inside'
+
+const REPLACED = ['any', ['boolean', ['feature-state', REPLACED_STATE], false], ['boolean', ['feature-state', INSIDE_STATE], false]]
+
 /**
- * A building layer's filter with the replaced buildings taken out.
- *
- * The two building sources are filtered differently, because only one of
- * them can be trusted with an id:
+ * The paint property that takes a replaced feature out of each layer type, the
+ * value that does it, and the property's default. By feature state and not by
+ * filter, which would have MapLibre lay out every tile of the source again
+ * each time a landmark arrived. A negative extrusion height is dropped in the
+ * fork's vertex shaders.
+ */
+const HIDING: Record<string, [property: string, hidden: number, shown: number]> = {
+  'fill-extrusion': ['fill-extrusion-height', -1, 0],
+  fill: ['fill-opacity', 0, 1],
+  line: ['line-width', 0, 1],
+}
+
+const ZOOM_CURVES = ['interpolate', 'interpolate-hcl', 'interpolate-lab', 'step']
+
+const readsReplaced = (value: unknown) => JSON.stringify(value ?? null).includes(`"feature-state","${REPLACED_STATE}"`)
+
+/**
+ * A paint value that gives `hidden` for a replaced feature. A zoom curve
+ * keeps the top of the expression, as the style spec requires, and each of
+ * its outputs is wrapped instead.
+ */
+export function unlessReplaced(value: any, hidden: number): any {
+  if (readsReplaced(value)) return value
+  const wrap = (v: any) => ['case', REPLACED, hidden, v]
+  if (value && !Array.isArray(value) && typeof value === 'object' && Array.isArray(value.stops))
+    return ['interpolate', ['exponential', value.base ?? 1], ['zoom'], ...value.stops.flatMap(([zoom, v]: [number, any]) => [zoom, wrap(v)])]
+  if (Array.isArray(value) && ZOOM_CURVES.includes(value[0])) {
+    const input = value[0] === 'step' ? 1 : 2
+    if (JSON.stringify(value[input]) === '["zoom"]') return value.map((v, i) => (i > input && (i - input) % 2 === (value[0] === 'step' ? 1 : 0) ? wrap(v) : v))
+  }
+  return wrap(value)
+}
+
+/**
+ * A style layer that leaves out whatever a landmark has replaced, if it draws
+ * a replaceable source-layer. All of them, the roof-colour twin included,
+ * since it shares the extrusion's bucket and so its heights.
+ */
+export function hidingReplaced<T extends { type: string; 'source-layer'?: string; paint?: any }>(layer: T): T {
+  const hiding = HIDING[layer.type]
+  if (!hiding || !REPLACEABLE_SOURCE_LAYERS.includes(layer['source-layer'] ?? '')) return layer
+  const [property, hidden, shown] = hiding
+  return { ...layer, paint: { ...layer.paint, [property]: unlessReplaced(layer.paint?.[property] ?? shown, hidden) } }
+}
+
+/**
+ * The value for a replaceable layer's hiding property, set after the style
+ * was built, that still hides what is replaced.
+ */
+export function replaceablePaint(type: string, property: string, value: any): any {
+  const hiding = HIDING[type]
+  return hiding?.[0] === property ? unlessReplaced(value, hiding[1]) : value
+}
+
+/**
+ * The ids to mark replaced in a source-layer. The two building sources go
+ * differently, because only one of them can be trusted with an id:
  *
  *   buildings_3d  Barrelman's, one feature per OSM element with the ref as
- *                 `id`. The catalog's `replaces` matches it exactly.
- *   coaster_tracks  Barrelman's too, with the same `id`, so the same filter.
+ *                 `id`, promoted to the feature's id. The catalog's
+ *                 `replaces` matches it exactly.
+ *   coaster_tracks  Barrelman's too, with the same `id`.
  *   building      The basemap's. Its feature ids are not OSM ids to rely on:
  *                 Planetiler merges every building of one height in a z14
  *                 tile into a single multipolygon under one member's id, so
  *                 an id derived from a ref can stand for a whole district.
- *                 Only ids found by footprint (`featureIds`) are filtered —
+ *                 Only ids found by footprint (`featureIds`) are marked —
  *                 ones whose every loaded piece lies inside a landmark.
- *
- * `base` is the layer's filter as the style defined it, so repeated calls do
- * not stack.
  */
-export function withoutReplaced(base: any, sourceLayer: string, refs: string[], featureIds: number[] = []): any {
-  const exclude = sourceLayer === 'building'
-    ? featureIds.length ? ['!', ['in', ['id'], ['literal', featureIds]]] : null
-    : refs.length ? ['!', ['in', ['get', 'id'], ['literal', refs]]] : null
-  if (!exclude) return base ?? null
-  return base ? ['all', asExpression(base), exclude] : exclude
+export function replacedIds(sourceLayer: string, refs: string[], featureIds: number[] = []): Array<string | number> {
+  return sourceLayer === 'building' ? featureIds : refs
 }
 
 /** A model's plan extent, in its own metres: glTF x east, z south. */

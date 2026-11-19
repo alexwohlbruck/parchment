@@ -7,6 +7,7 @@
  * have no glyphs for, an icon the sprite lacks. Each of those still renders
  * *something*, which is exactly why they need asserting rather than eyeballing.
  */
+import { registerForkSpec } from './test-fork-spec'
 import { aboveTunnelsIndex } from './brunnel'
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
@@ -20,13 +21,13 @@ import {
   layerGroups,
   MAX_PITCH,
   SOURCE,
-  BUILDING_3D_ROOF_LAYER,
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
   poiBadgeColors,
   poiBadgeTint,
 } from './build'
-import { INDOOR_SOURCE, withoutIndoorBuildings } from './indoor-layers'
+import { INDOOR_SOURCE } from './indoor-layers'
+import { hidingReplaced } from '@/lib/map-objects/landmarks'
 import {
   DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES, READ_ONLY_DETAIL_TILES,
   GOLF_SURFACE_LAYER, GOLF_HOLE_LAYER, GOLF_HOLE_LABEL_LAYER, GOLF_PIN_LAYER, DISC_GOLF_BASKET_LAYER,
@@ -986,11 +987,7 @@ describe('assembled styles', () => {
     ['dark HD roads', () => buildMapStyle({ ...opts, theme: 'dark', hdRoads: true })],
   ]
 
-  // The fork registers this at runtime on its own bundled spec; the npm spec
-  // used here needs the same entry, which mirrors the extrusion's own.
-  ;(latest as any).layout_line['line-rounded-corner-distance'] ??= {
-    ...(latest as any)['layout_fill-extrusion']['fill-extrusion-rounded-corner-distance'],
-  }
+  registerForkSpec()
 
   test.each(cases)('%s validates against the MapLibre style spec', (_name, make) => {
     expect(validateStyleMin(make()).map(e => e.message)).toEqual([])
@@ -1050,9 +1047,8 @@ describe('assembled styles', () => {
         expect(l.source, l.id).toBe(SOURCE)
         expect(l['source-layer'], l.id).toBe('building')
       }
-      // And the roof-colour layer is not added either — there is no second
-      // colour to read without the source that carries it.
-      expect(extrusions().map(l => l.id)).not.toContain(BUILDING_3D_ROOF_LAYER)
+      // Nor is there a second colour to read without the source that carries it.
+      for (const l of extrusions()) expect(l.paint, l.id).not.toHaveProperty('fill-extrusion-roof-color')
     })
 
     test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
@@ -1076,43 +1072,24 @@ describe('assembled styles', () => {
     })
 
     test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
-      for (const l of extrusions()) expect(l.filter, l.id).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
-    })
-
-    /**
-     * The one that matters, and the one that fails silently.
-     *
-     * The roof colour arrives on a second layer over the same buildings, and the
-     * whole trick rests on MapLibre putting the two in ONE bucket — it groups by
-     * `type`, `source`, `source-layer`, `minzoom`, `maxzoom`, `filter` and
-     * `layout`, and paint is deliberately not in that list. Differ on any of
-     * them and they land in separate buckets with separately ordered vertices,
-     * at which point the roof colours are read against the wrong buildings.
-     */
-    test('the roof layer matches the buildings on every key a bucket is grouped by', () => {
-      const [buildings, roof] = extrusions()
-      expect(roof.id).toBe(BUILDING_3D_ROOF_LAYER)
-      for (const key of ['type', 'source', 'source-layer', 'minzoom', 'maxzoom', 'filter', 'layout']) {
-        expect(roof[key], key).toEqual(buildings[key])
-      }
-    })
-
-    test('the roof layer is never drawn', () => {
-      // MapLibre's own fill-extrusion draw returns immediately on zero opacity,
-      // so the layer costs a paint buffer per tile and no fragments at all.
-      const [, roof] = extrusions()
-      expect(roof.paint['fill-extrusion-opacity']).toBe(0)
+      for (const l of extrusions()) expect(l.filter, l.id).toEqual(['!has', 'hide_3d'])
     })
 
     test('the roof takes roof_colour, falling back to the walls rather than to bare', () => {
-      const [buildings, roof] = extrusions()
+      const [buildings] = extrusions()
       const wall = JSON.stringify(buildings.paint['fill-extrusion-color'])
-      const top = JSON.stringify(roof.paint['fill-extrusion-color'])
+      const top = JSON.stringify(buildings.paint['fill-extrusion-roof-color'])
       expect(wall).not.toContain('roof_colour')
-      expect(top).toContain('roof_colour')
       // A building recording only `building:colour` wears it on the roof too,
       // rather than banding at the roofline against an untinted top.
       expect(top).toContain('"coalesce",["get","roof_colour"],["get","colour"]')
+    })
+
+    test('the buildings take part in the shading, with a facade by kind', () => {
+      const [buildings] = extrusions()
+      expect(buildings.paint['fill-extrusion-cast-shadows']).toBe(true)
+      expect(JSON.stringify(buildings.paint['fill-extrusion-facade-style'])).toContain('"kind"')
+      expect(JSON.stringify(buildings.paint['fill-extrusion-facade-seed'])).toContain('group_id')
     })
 
     test('the roofline stand-in follows the extrusion, source and filter both', () => {
@@ -1122,12 +1099,12 @@ describe('assembled styles', () => {
         .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
       expect(edge.source).toBe(DETAIL_SOURCE)
       expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
-      expect(edge.filter).toEqual(withoutIndoorBuildings(['!has', 'hide_3d']))
+      expect(edge.filter).toEqual(['!has', 'hide_3d'])
     })
 
-    test('trees still stand above the buildings, both layers of them', () => {
+    test('trees still stand above the buildings', () => {
       const ids = (buildLayers({ flavor: 'dark' }) as any[]).map(l => l.id)
-      expect(ids.indexOf('Trees')).toBeGreaterThan(ids.indexOf(BUILDING_3D_ROOF_LAYER))
+      expect(ids.indexOf('Trees')).toBeGreaterThan(ids.indexOf(extrusions()[0].id))
     })
   })
 
@@ -2898,7 +2875,7 @@ describe('indoor layers', () => {
     const layers = (buildLayers({ flavor: 'light' }) as any[]).filter(l => l['source-layer'] === BUILDING_3D_TILES)
     setBarrelmanBuildingsReady(null)
     expect(layers.length).toBeGreaterThan(0)
-    for (const l of layers) expect(JSON.stringify(l.filter), l.id).toContain('indoorBuildings')
+    for (const l of layers) expect(JSON.stringify(hidingReplaced(l).paint), l.id).toContain('"feature-state","inside"')
   })
   test('leaves the gates and places a floor plan draws to it', () => {
     const layers = (buildLayers({ flavor: 'light' }) as any[])

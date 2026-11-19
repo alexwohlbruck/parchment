@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
-import { BakedBridgeLayer } from './baked-bridge-layer'
+import { BakedBridgeLayer, extentOf } from './baked-bridge-layer'
 import { uploadMesh, deleteMesh, bindMesh } from '../mesh-program'
 import { MATERIALS } from './mesh-file'
 import type { DeckPalette } from '../deck.types'
 import { deckTile, vectorTile } from './fixtures/deck-tiles'
 
-vi.mock('../mesh-program', () => ({ programReady: () => true, linkMeshProgram: () => ({}), uploadMesh: vi.fn(() => ({ position: {}, count: 276 })), deleteMesh: vi.fn(), eyeOf: vi.fn(), bindMesh: vi.fn(() => ({ draw() {}, bias() {}, unbind() {} })) }))
-vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} } }))
+vi.mock('../mesh-program', () => ({ programReady: () => true, linkMeshProgram: () => ({}), uploadMesh: vi.fn(() => ({ position: {}, count: 276 })), deleteMesh: vi.fn(), eyeOf: vi.fn(), useMeshProgram: vi.fn(), bindMesh: vi.fn(() => ({ draw() {}, bias() {}, unbind() {} })) }))
+vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} drawOcclusion() {} } }))
 const bytes = readFileSync('src/lib/map-decks/baked/fixtures/arched-bridge.brm')
 const palette = Object.fromEntries(MATERIALS.map(name => [name, [1, 1, 1]])) as DeckPalette
 const file = `${'a'.repeat(64)}.brm`
@@ -404,4 +404,8 @@ test('a tile MapLibre reloads after a read alongside its first load is read afre
   expect(l.tilePieces.values().next().value).not.toBe(first)
   expect(l.readAhead.size).toBe(0)
   layer.onRemove(map, gl)
+})
+
+test('a mesh lies where its vertices do about its origin', () => {
+  expect(extentOf([-2, 1, 9, 3, -4, 0], [10, 20])).toEqual({ minX: 8, minY: 16, maxX: 13, maxY: 21 })
 })

@@ -30,6 +30,7 @@ import {
   useThemeStore,
   allColors,
   colorSchemes,
+  uiScales,
   type ColorScheme,
 } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
@@ -47,8 +48,8 @@ import ControlSettingsSection from '@/components/map/controls/ControlSettingsSec
 
 // Theme store
 const themeStore = useThemeStore()
-const { colorScheme, accentColor, radius } = storeToRefs(themeStore)
-const { setColorScheme, setAccentColor, setRadius } = themeStore
+const { colorScheme, accentColor, radius, uiScale } = storeToRefs(themeStore)
+const { setColorScheme, setAccentColor, setRadius, setUiScale } = themeStore
 
 // Map store
 const mapStore = useMapStore()
@@ -116,13 +117,13 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem :title="$t('settings.appearance.appTheme.radius.title')">
-        <div class="flex items-center gap-2">
+        <div class="flex min-w-0 items-center gap-2">
           <Span class="text-sm text-muted-foreground font-medium">
             {{ sliderRadius[0] }}
           </Span>
           <Slider
             v-model="sliderRadius"
-            class="w-48"
+            class="w-48 min-w-0"
             :default-value="[0.5]"
             :max="1"
             :step="0.25"
@@ -149,6 +150,26 @@ const handleColorChange = (value: any) => {
               :value="scheme"
             >
               {{ $t(`settings.appearance.appTheme.theme.values.${scheme}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem :title="$t('settings.appearance.appTheme.uiScale.title')">
+        <Select
+          :model-value="String(uiScale)"
+          @update:model-value="value => setUiScale(Number(value))"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="scale in uiScales"
+              :key="scale"
+              :value="String(scale)"
+            >
+              {{ `${Math.round(scale * 100)}%` }}
             </SelectItem>
           </SelectContent>
         </Select>

@@ -1,0 +1,44 @@
+import { describe, expect, it, vi } from 'vitest'
+import { sourceFeatures } from './source-features'
+
+function tile(key: string, features: any[]) {
+  return {
+    tileID: { canonical: { key } },
+    latestFeatureIndex: { rawTileData: new ArrayBuffer(1) },
+    querySourceFeatures: vi.fn((out: any[]) => out.push(...features.map(f => ({ ...f })))),
+  }
+}
+
+const mapOf = (tiles: any[]) => ({
+  style: { tileManagers: { detail: { getRenderableIds: () => tiles.map((_, i) => i), getTileByID: (i: number) => tiles[i] } } },
+})
+
+describe('sourceFeatures', () => {
+  it('reads a tile once and hands back the same features until it reloads', () => {
+    const a = tile('a', [{ id: 1 }])
+    const map = mapOf([a, tile('b', [{ id: 2 }])])
+    const first = sourceFeatures(map, 'detail', 'trees')
+    const second = sourceFeatures(map, 'detail', 'trees')
+    expect(first.map(f => f.id)).toEqual([1, 2])
+    expect(second[0]).toBe(first[0])
+    expect(a.querySourceFeatures).toHaveBeenCalledTimes(1)
+
+    a.latestFeatureIndex = { rawTileData: new ArrayBuffer(1) }
+    expect(sourceFeatures(map, 'detail', 'trees')[0]).not.toBe(first[0])
+    expect(a.querySourceFeatures).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads a tile drawn at two zooms once, and each source layer apart', () => {
+    const a = tile('a', [{ id: 1 }])
+    const map = mapOf([a, a])
+    expect(sourceFeatures(map, 'detail', 'trees')).toHaveLength(1)
+    sourceFeatures(map, 'detail', 'woods')
+    expect(a.querySourceFeatures).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks the map where its tiles cannot be reached', () => {
+    const map = { querySourceFeatures: vi.fn(() => [{ id: 3 }]) }
+    expect(sourceFeatures(map, 'detail', 'trees')).toEqual([{ id: 3 }])
+    expect(map.querySourceFeatures).toHaveBeenCalledWith('detail', { sourceLayer: 'trees' })
+  })
+})

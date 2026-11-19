@@ -3,6 +3,7 @@
  * than the street trees of `trees.ts`, kept off the roads, paths, buildings and
  * water that run through them. See `planting.ts` for how an area is planted.
  */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { SOURCE as BASEMAP_SOURCE } from '@/lib/map-style/build'
 import { DETAIL_SOURCE, WOOD_TILES } from '@/lib/map-style/detail-layers'
 import models from './models.json'
@@ -101,10 +102,7 @@ let woods = new Map<number | string, WoodTags>()
 
 function woodsIn(map: any): Map<number | string, WoodTags> {
   const out = new Map<number | string, WoodTags>()
-  try {
-    for (const f of map.querySourceFeatures(DETAIL_SOURCE, { sourceLayer: WOOD_TILES }))
-      if (f.id != null) out.set(f.id, f.properties)
-  } catch {}
+  for (const f of sourceFeatures(map, DETAIL_SOURCE, WOOD_TILES)) if (f.id != null) out.set(f.id, f.properties)
   return out
 }
 

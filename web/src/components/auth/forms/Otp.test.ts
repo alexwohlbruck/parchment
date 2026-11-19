@@ -64,6 +64,30 @@ describe('OTP entry', () => {
     expect(signIn).toHaveBeenCalledExactlyOnceWith('test@example.com', '00123456')
   })
 
+  it.each([null, '01234567'])('fills every box when autofill drops the code into one (data %j)', async data => {
+    const wrapper = mountOtp()
+    const inputs = wrapper.findAll('input[autocomplete="one-time-code"]')
+    const first = inputs[0].element as HTMLInputElement
+    first.value = '01234567'
+    first.dispatchEvent(new InputEvent('input', { data, inputType: data ? 'insertText' : 'insertReplacementText' }))
+    await flushPromises()
+    expect(inputs.map(input => (input.element as HTMLInputElement).value).join('')).toBe('01234567')
+    expect(signIn).toHaveBeenCalledExactlyOnceWith('test@example.com', '01234567')
+  })
+
+  it('still types one digit per box', async () => {
+    const wrapper = mountOtp()
+    const inputs = wrapper.findAll('input[autocomplete="one-time-code"]')
+    for (const [i, digit] of [...'01234567'].entries()) {
+      const box = inputs[i].element as HTMLInputElement
+      box.value = digit
+      box.dispatchEvent(new InputEvent('input', { data: digit, inputType: 'insertText' }))
+      await flushPromises()
+    }
+    expect(inputs.map(input => (input.element as HTMLInputElement).value).join('')).toBe('01234567')
+    expect(signIn).toHaveBeenCalledExactlyOnceWith('test@example.com', '01234567')
+  })
+
   it('ignores a paste with no digits and never submits it', async () => {
     const wrapper = mountOtp()
     expect(await paste(wrapper, ' \nletters\t')).toBe('')

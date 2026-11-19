@@ -94,20 +94,33 @@ const handleComplete = (e: string[]) => {
   }
 }
 
-async function handlePaste(event: ClipboardEvent, index: number) {
-  const digits = event.clipboardData?.getData('text').replace(/\D/g, '')
+async function fill(text: string, index: number, box: HTMLInputElement) {
+  const digits = text.replace(/\D/g, '')
   if (!digits) return
 
   const start = digits.length >= 8 ? 0 : index
   const pin = [...(values.pin ?? [])]
   pin.splice(start, Math.min(digits.length, 8 - start), ...digits.slice(0, 8 - start))
+  box.value = pin[index] ?? ''
   setFieldValue('pin', pin)
 
   await nextTick()
-  const inputs = (event.target as HTMLInputElement).form?.querySelectorAll<HTMLInputElement>(
+  const inputs = box.form?.querySelectorAll<HTMLInputElement>(
     'input[autocomplete="one-time-code"]',
   )
   inputs?.[Math.min(start + digits.length, 7)]?.focus()
+}
+
+function handlePaste(event: ClipboardEvent, index: number) {
+  fill(event.clipboardData?.getData('text') ?? '', index, event.target as HTMLInputElement)
+}
+
+// Autofill drops the whole code into one box as an input event, often with no `data`.
+function handleInput(event: InputEvent, index: number) {
+  const box = event.target as HTMLInputElement
+  if (event.data?.length === 1 || box.value.length <= 1) return
+  event.stopImmediatePropagation()
+  fill(box.value, index, box)
 }
 
 async function signIn(otp: string) {
@@ -150,6 +163,7 @@ async function signIn(otp: string) {
                   inputmode="numeric"
                   pattern="[0-9]*"
                   @paste.capture.stop.prevent="handlePaste($event, index)"
+                  @input.capture="handleInput($event, index)"
                   :class="{
                     'rounded-l-md border-l': index === 0 || index === 4,
                     'rounded-r-md': index === 3 || index === 7,

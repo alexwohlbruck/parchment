@@ -13,6 +13,7 @@
 
 ### Fixed
 
+* Sign-in codes your phone suggests from Mail now fill all eight boxes instead of just one.
 * Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
 
 

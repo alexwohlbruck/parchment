@@ -42,7 +42,7 @@ import {
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, NEON_GLOW, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
-  polygonRings, type Footprint, type Landmark, type LandmarkFlavor,
+  polygonRings, type Footprint, type Landmark, type LandmarkFlavor, type LandmarkKind,
 } from './landmarks'
 import { batchPrimitives, MAX_BATCH_MATERIALS } from './landmark-batches'
 import { HALO_FLOATS, NEON_HALO, neonHalos, packHalos } from './neon-halos'
@@ -638,6 +638,8 @@ type Batch = {
 }
 
 type Model = {
+  /** Known once loaded; see `LandmarkKind`. */
+  kind: LandmarkKind
   /** Parsed and decoded, waiting for the next frame to put it on the GPU. */
   pending: { glb: GlbModel; images: Array<ImageBitmap | null> } | null
   batches: Batch[] | null
@@ -1319,7 +1321,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null, lights: null, glows: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null, lights: null, glows: null, kind: 'building',
     }
     this.models.set(file, model)
     void (async () => {
@@ -1345,6 +1347,7 @@ export class LandmarkLayer {
       model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
       model.coverage = planCoverage(glb, poseGlb(glb, 0))
       const halos = neonHalos(glb.primitives)
+      model.kind = glb.primitives.some(p => isWindow(p.material)) ? 'building' : 'other'
       model.halos = halos.length ? { data: packHalos(halos), vao: null, buffer: null } : null
       const pools = landmarkPools(glb.primitives, halos)
       model.lights = pools.length ? { data: pools, pools: null } : null
@@ -1586,9 +1589,7 @@ export class LandmarkLayer {
     gl.uniform3fv(u.u_lightpos, light.position)
     gl.uniform1f(u.u_lightintensity, light.intensity)
     const flavor = this.options.flavor
-    gl.uniform1f(u.u_harmony, flavor.harmony)
     gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
-    gl.uniform1f(u.u_paint_lift, flavor.lift)
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)
@@ -1620,6 +1621,8 @@ export class LandmarkLayer {
       const seed = seedOf(p.id)
       gl.uniform1f(u.u_seed, seed)
       gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
+      gl.uniform1f(u.u_harmony, flavor.harmony[model.kind])
+      gl.uniform1f(u.u_paint_lift, flavor.lift[model.kind])
       gl.uniform1f(u.u_scale, p.scale)
       if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
       if (lights) gl.uniformMatrix4fv(u.u_lightUv, false, anchorMatrix(lights.uv, p.placed))

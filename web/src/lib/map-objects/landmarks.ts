@@ -24,25 +24,36 @@ import { hsl } from '@/lib/map-decks/palette'
 import lightTokens from '@/lib/map-style/tokens.light.json'
 import darkTokens from '@/lib/map-style/tokens.dark.json'
 
+/** A landmark with windows stands among the extrusions; anything else (a ride, a bridge, a statue) keeps more of its own paint. */
+export type LandmarkKind = 'building' | 'other'
+
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
   /** The extrusions' colours (sRGB); each landmark is pulled toward one, picked by its seed. */
   palette: [number, number, number][]
-  /** How far: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
-  harmony: number
+  /** How far, by kind: 0 keeps the model's colours, 1 repaints it in the palette at its own lightness. */
+  harmony: Record<LandmarkKind, number>
   /** The palette's share a black material keeps once pulled; white keeps 0.95, so materials keep their pattern. */
   harmonyFloor: number
-  /** How far a model's own colours are lifted toward white first, so a dark model sits at its neighbours' value. */
-  lift: number
+  /** How far a model's own colours are lifted toward white first, by kind, so a dark model sits at its neighbours' value. */
+  lift: Record<LandmarkKind, number>
   /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
   facade: FacadeFlavor
 }
 
 export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
-  // Lifted to its neighbours' lightness and a third of the way into their colour, so a landmark keeps its own hue.
-  light: { palette: [hsl(lightTokens.building_3d_fill_extrusion_color)], harmony: 0.3, harmonyFloor: 0.78, lift: 0.45, facade: FACADE_FLAVOR.light },
+  // Lifted toward its neighbours' lightness and a little way into their colour, so a landmark keeps its own hue.
+  light: {
+    palette: [hsl(lightTokens.building_3d_fill_extrusion_color)],
+    harmony: { building: 0.2, other: 0.08 }, harmonyFloor: 0.78, lift: { building: 0.35, other: 0.1 },
+    facade: FACADE_FLAVOR.light,
+  },
   // Well into the night map's blue, or a stone tower glows among its neighbours, but with its own hue still showing.
-  dark: { palette: [hsl(darkTokens.building_3d_fill_extrusion_color)], harmony: 0.65, harmonyFloor: 0.35, lift: 0, facade: FACADE_FLAVOR.dark },
+  dark: {
+    palette: [hsl(darkTokens.building_3d_fill_extrusion_color)],
+    harmony: { building: 0.5, other: 0.3 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 },
+    facade: FACADE_FLAVOR.dark,
+  },
 }
 
 /** The palette colour a landmark with this 0-1 seed is pulled toward. */

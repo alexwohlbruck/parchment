@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.22.3] - 2026-11-19
+
+### Added
+
 * The command palette and keyboard shortcuts list are grouped under headings: General, Appearance, Map and Tools.
 * Battery saver in Behavior settings turns off 3D and checks your location less often; Extreme shows only roads on black. Either can turn on by itself when your battery is low.
 
@@ -16,7 +24,6 @@
 ### Fixed
 
 * Shortcuts for an open map tool now appear in the keyboard shortcuts list, and the list no longer shows the same shortcut twice.
-
 
 ## [0.22.2] - 2026-11-17
 

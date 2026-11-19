@@ -14,6 +14,7 @@ function host(engine = MapEngine.MAPLIBRE) {
   const map = {
     getLayer: (id: string) => layers.get(id),
     getSource: (id: string) => sources.get(id),
+    getLayoutProperty: (id: string, name: string) => layers.get(id)?.layout?.[name],
     addSource: vi.fn((id, value) => sources.set(id, { ...value, updateImage: vi.fn() })),
     addLayer: vi.fn(value => layers.set(value.id, value)),
     fire: vi.fn(),

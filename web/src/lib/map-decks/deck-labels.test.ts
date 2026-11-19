@@ -92,14 +92,15 @@ describe('deckLabelFeatures', () => {
   const [mx, my] = mercator([-73.995, 40.7])
   const tile: [number, number, number] = [14, Math.floor(mx * 2 ** 14), Math.floor(my * 2 ** 14)]
 
-  test('cuts each name back to its tile and gives the deck stretches their height', () => {
+  test('keeps only the stretches of a name on a deck, cut back to its tile, at the deck\'s height', () => {
     const [w, , e] = tileBounds(...tile)
     const { features } = deckLabelFeatures([{ geometry: { type: 'LineString', coordinates: [[w - 0.01, 40.7], [e + 0.01, 40.7]] }, properties: { name: 'Span' }, tile }], ramp)
     const xs = features.flatMap(f => (f.geometry as GeoJSON.LineString).coordinates.map(c => c[0]))
-    expect(Math.min(...xs)).toBeCloseTo(w, 9)
-    expect(Math.max(...xs)).toBeCloseTo(e, 9)
-    expect(features.some(f => f.properties!.deck_height > 50)).toBe(true)
-    expect(features.every(f => f.properties!.name === 'Span')).toBe(true)
+    expect(features.length).toBeGreaterThan(0)
+    // A stretch ends at the first point past its deck, one 5 m step on.
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(Math.max(w, -74) - 1e-4)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(Math.min(e, -73.99) + 1e-4)
+    expect(features.every(f => f.properties!.deck_height > 50 && f.properties!.name === 'Span')).toBe(true)
   })
 
   test('raises a point on a deck and drops one belonging to the next tile', () => {
@@ -129,6 +130,6 @@ describe('deckLabelLayer', () => {
     expect(road.source).toBe('deck-labels')
     expect(road['source-layer']).toBeUndefined()
     expect(road.layout['text-field']).toEqual((names.find(l => l.id === 'Road labels') as any).layout['text-field'])
-    expect(road.layout['symbol-height-anchor']).toEqual(['case', ['has', 'deck_height'], 'absolute', 'ground'])
+    expect(road.layout['symbol-height-anchor']).toBe('absolute')
   })
 })

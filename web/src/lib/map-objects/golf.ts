@@ -1,4 +1,5 @@
 /** Flagsticks on golf greens, from barrelman's `golf_features`. */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { booleanPointInPolygon } from '@turf/turf'
 import { DETAIL_SOURCE, GOLF_FLAG_MINZOOM, GOLF_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -106,7 +107,7 @@ function golfObjects(): ObjectSourceSpec {
     sourceLayer: GOLF_TILES,
     minzoom: GOLF_FLAG_MINZOOM,
     prepare: (map, spec) => {
-      const features = map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
+      const features = sourceFeatures(map, spec.source, spec.sourceLayer)
       sites = new Map(golfPinSites(features).map(site => [site.key, [site.lng, site.lat]]))
     },
     positions: feature => {

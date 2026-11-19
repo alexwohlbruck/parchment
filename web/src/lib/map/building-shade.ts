@@ -1,28 +1,22 @@
 /**
- * Sunlight on the 3D buildings — cast shadows on the ground, ambient occlusion
- * where a wall meets it, and a darkening band up the base of each wall.
+ * Sunlight on the 3D buildings — cast shadows on the ground and on each other,
+ * ambient occlusion where a wall meets the ground, a darkening band up the
+ * base of each wall, and facades.
  *
- * MapLibre has no lighting model beyond a flat directional tint: there is no
- * `fill-extrusion-ambient-occlusion-*` the way Mapbox Standard has, and no
- * shadow of any kind. Everything here is drawn by a `CustomLayerInterface` that
- * borrows MapLibre's own fill-extrusion vertex buffers and re-draws them across
- * four GPU passes, so no geometry is uploaded twice. The layer is vendored from
- * wallabyway/maplibre-building-shadows; see `vendor/ao-shadow.mjs` for the two
- * lines we changed to run it on MapLibre 4.
- *
- * It *replaces* MapLibre's building draw rather than adding to it — the caller
- * hides `Building 3D` by setting its opacity to 0, which early-outs the built-in
- * draw while leaving its tiles and buckets alive for us to read.
+ * Drawn by MapLibre's own shading (`Map.setShading` in our fork), which lights
+ * every extrusion layer marked `fill-extrusion-cast-shadows`; this module
+ * holds how it is tuned and where the sun is.
  *
  * MapLibre only. Mapbox has this natively and the strategy adapter keeps the
  * two apart; see `MapStrategy.setBuildingShade`.
  */
-import { WallShadowLayer } from '@/lib/vendor/ao-shadow.mjs'
-import { BUILDING_3D_FACADE_LAYER, BUILDING_3D_ROOF_LAYER, type FlavorId } from '@/lib/map-style/build'
+import type { Map as MaplibreMap, OcclusionFrame, Shading, ShadingCaster } from 'maplibre-gl'
+import type { FlavorId } from '@/lib/map-style/build'
 import { BUILDING_TINT } from '@/lib/map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
-import { FACADE_FLAVOR } from './facade-shader'
-import type { SunFrame } from './sun-shadow'
+import { FACADE_FLAVOR, facadeWallShader } from './facade-shader'
+
+export type { OcclusionFrame }
 
 const RAD_PER_DEG = Math.PI / 180
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -42,14 +36,12 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
   band: 0.51,
-  shadowBlur: 5.5,
   /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
   fadeZoom: 2.4,
   /** What the cast shadow drops to looking straight down, where it reads as a stain. */
   topDownOpacity: 0.5,
   aoRadiusMin: 26,
   aoRadiusMax: 58,
-  aoOffset: [0, -0.5, -1] as [number, number, number],
 }
 
 /**
@@ -73,11 +65,11 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * roofs a step above the walls. Night keeps the neutral defaults.
  */
 const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
-  light: { shadowBlur: 1, aoRadiusMin: 15, aoRadiusMax: 80, aoOffset: [0, 0, 0] },
+  light: { aoRadiusMin: 15, aoRadiusMax: 80 },
   dark: {},
 }
 
-const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
+const DAYLIGHT: Record<FlavorId, Partial<Pick<Shading, 'sunTint' | 'skyTint' | 'shadowColor' | 'wallRise' | 'roofLift'>>> = {
   light: {
     sunTint: [1.06, 1.01, 0.92],
     skyTint: [0.9, 0.94, 1.06],
@@ -86,6 +78,12 @@ const DAYLIGHT: Record<FlavorId, Record<string, unknown>> = {
     roofLift: 0.07,
   },
   dark: {},
+}
+
+/** How much of the lamplight shows: lamps, lit signs and what lit buildings spill on the pavement. Night only. */
+const LAMPLIGHT: Record<FlavorId, Partial<Pick<Shading, 'lightIntensity' | 'spillColor' | 'lightBlur'>>> = {
+  light: { lightIntensity: 0 },
+  dark: { lightIntensity: 0.6, spillColor: [0.5, 0.36, 0.2], lightBlur: 3 },
 }
 
 /**
@@ -132,104 +130,56 @@ function edgeWidth(flavor: FlavorId): number {
   return EDGE_WIDTH_CSS_PX[flavor] * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }
 
-/**
- * The SDF the ground AO is computed in. The occlusion is a soft falloff tens of
- * pixels wide, so 512 draws the same picture as 1024 at a quarter of the flood.
- */
-const SDF_RESOLUTION = 512
-
-export const BUILDING_SHADE_LAYER_ID = 'building-shade'
-
-/** Anything that can draw itself into the cast-shadow mask; see `shadowCasters`. */
-export type ShadowCaster = {
-  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
-  /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
-  shadowVersion?: number
-  /** Draw depth into the sun's shadow map; see `sun-shadow.ts`. */
-  drawSunDepth?(gl: WebGL2RenderingContext, frame: SunFrame): void
-  /** This frame's sun shadow map, to receive shadow by. */
-  receiveSun?(frame: SunFrame): void
-  /** Draw where it meets the ground into the contact-occlusion seed; see `_seedPass`. */
-  drawOcclusionSeed?(gl: WebGL2RenderingContext, frame: OcclusionSeedFrame): void
-}
-
-/** What the shade layer hands a caster for its contact-occlusion seed: the camera, and the seed's size in texels. */
-export type OcclusionSeedFrame = { matrix: ArrayLike<number>; resolution: number }
+/** Anything that casts shadows alongside the buildings: a custom layer's models. */
+export type ShadowCaster = ShadingCaster
 
 /**
- * Layers casting shadows alongside the buildings — the 3D landmarks.
- *
- * Module-level and handed to every shade layer by reference, because the two
- * have different lifetimes: a style swap rebuilds the shade layer, and a
- * landmark layer added before that must not have to find the new one.
+ * Layers casting shadows alongside the buildings — the 3D landmarks, objects,
+ * decks and tunnel walls. Module-level and handed to the shading by reference:
+ * a layer added before the shading is turned on must not have to find it.
  */
 export const shadowCasters = new Set<ShadowCaster>()
 
 /**
- * The layer currently on the map, for the dev tuning panel to drive.
- *
- * Every lever is a plain mutable field the layer reads each frame, so tuning is
- * a matter of assigning to them — there is no setter and nothing to invalidate.
- * A style swap builds a new layer and reassigns this.
+ * The shading currently on the map, for the layers that match it and the dev
+ * tuning panel. Every lever is a plain field read each frame, so tuning is a
+ * matter of assigning to them.
  */
-let live: WallShadowLayer | null = null
-export function liveBuildingShade(): WallShadowLayer | null {
+let live: Shading | null = null
+export function liveBuildingShade(): Shading | null {
   return live
 }
 
 /**
- * `minZoom` is the zoom the *style's* building layer switches on at, and it has
- * to be passed rather than defaulted.
- *
- * The layer does not decorate MapLibre's building draw, it replaces it — the
- * caller sets the style layer's opacity to 0 — so this threshold is the only
- * thing deciding whether buildings appear in 3D at all. Leave it on the
- * vendored default of 15 while the style says 14 and the buildings simply
- * vanish for a whole zoom level.
+ * Turn the map's shading on, tuned for a flavor. `minZoom` is the zoom the
+ * style's building layer switches on at, which the ground effects ramp in from.
  */
-export function createBuildingShade(
-  buildingsLayerId: string,
-  flavor: FlavorId,
-  minZoom?: number,
-) {
+export function createBuildingShade(map: MaplibreMap, flavor: FlavorId, minZoom?: number): Shading {
   lightIntensity = LIGHT_INTENSITY[flavor]
-  live = new WallShadowLayer({
-    id: BUILDING_SHADE_LAYER_ID,
-    buildingsLayerId,
-    // Where the roof's own colour comes from. A second layer over the same
-    // buildings, never drawn, whose paint buffers ride in the same bucket —
-    // see BUILDING_3D_ROOF_LAYER. Handing the id over unconditionally is safe:
-    // the layer looks the buffers up per bucket and falls back to the wall
-    // colour wherever they are missing, which is every style but the basemap.
-    roofLayerId: BUILDING_3D_ROOF_LAYER,
-    facadeLayerId: BUILDING_3D_FACADE_LAYER,
+  live = map.setShading({
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
-    shadowCasters,
-    sdfResolution: SDF_RESOLUTION,
+    casters: shadowCasters,
     edgeWidth: edgeWidth(flavor),
-    facade: FACADE_FLAVOR[flavor],
-    sunShadows: true,
+    wallShader: facadeWallShader(FACADE_FLAVOR[flavor]),
     ...SHAPE,
     ...SHAPE_BY_FLAVOR[flavor],
     ...TUNING[flavor],
     ...DAYLIGHT[flavor],
-  })
-  // Gone from the map, it is no longer the live one: its textures went with it.
-  const layer = live
-  const remove = layer.onRemove.bind(layer)
-  layer.onRemove = (map: unknown, gl: WebGL2RenderingContext) => {
-    remove(map, gl)
-    if (live === layer) live = null
-  }
+    ...LAMPLIGHT[flavor],
+  })!
   return live
+}
+
+export function removeBuildingShade(map: MaplibreMap) {
+  map.setShading(null)
+  live = null
 }
 
 /**
  * The map light that matches a shadow direction, so the shading up a wall
- * agrees with the direction its shadow falls. The layer reads the light off the
- * style rather than taking it as an option, which is what keeps the two in step
- * — so moving the sun means setting this again, not just the layer's offset.
+ * agrees with the direction its shadow falls. The shading reads the light off
+ * the style, so moving the sun means setting this again, not just its offset.
  */
 export function shadeLight(
   offset: readonly [number, number] = SHADOW_OFFSET,
@@ -237,18 +187,10 @@ export function shadeLight(
 ) {
   const [x, y] = offset
   const azimuth = ((Math.atan2(-x, -y) * 180) / Math.PI + 360) % 360
-  // MapLibre's polar angle is measured from straight overhead, so it is the
-  // sun's altitude subtracted from 90 — a sun high in the sky is a small polar
-  // angle.
-  //
-  // The upper clamp is the important one, and it is a cartographic choice
-  // rather than a physical one. A real sun near the horizon lights the *walls*
-  // facing it more strongly than the roofs, because a roof's normal points
-  // straight up and away from a low sun. That is correct, and it reads wrong:
-  // a map wants the roof to be the top surface, so a dusk view flattens into
-  // one grey mass. Holding the light no lower than this keeps roofs the
-  // brightest face at every hour, while direction and shadow length still
-  // follow the real sun.
+  // MapLibre's polar angle is measured from straight overhead. The upper clamp
+  // is cartographic: a real sun near the horizon lights the walls facing it
+  // more than the roofs, and a dusk view flattens into one grey mass. Holding
+  // the light no lower keeps roofs the brightest face at every hour.
   const polar = altitude === undefined
     ? 30
     : clamp(90 - (altitude * 180) / Math.PI, 12, MAX_LIGHT_POLAR)
@@ -311,7 +253,7 @@ export function isSunOverridden(): boolean {
  * sun — and its altitude gives the length, long at dawn and short at noon, so a
  * morning map and an afternoon map no longer look identical.
  *
- * The layer wants a ground-plane vector with +y pointing *north*, where a
+ * The shading wants a ground-plane vector with +y pointing *north*, where a
  * compass bearing has north at 0 going clockwise. A sun at bearing `a` sits at
  * `(sin a, cos a)`; the shadow is the negative of that.
  */

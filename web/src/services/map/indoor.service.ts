@@ -50,7 +50,6 @@ export function attachIndoor(
     const nextBuildings = growing ? unitedIds(buildings, clearedBuildings(venues, next)) : clearedBuildings(venues, next)
     if (nextBuildings !== buildings) {
       buildings = nextBuildings
-      setState(INDOOR_STATE.buildings, buildings)
       on.buildings(buildings.split(';').filter(Boolean))
     }
     setState(INDOOR_STATE.venue, next?.venue.id ?? 0)
@@ -65,6 +64,8 @@ export function attachIndoor(
   function update() {
     queued = 0
     if (!map.getSource(INDOOR_SOURCE)) return
+    // A change of focus lays out the indoor and basemap tiles again: once the camera rests, never mid-gesture.
+    if (map.isMoving?.()) return
     if (!enabled || map.getZoom() < INDOOR_MINZOOM) {
       venues = []
       places = []

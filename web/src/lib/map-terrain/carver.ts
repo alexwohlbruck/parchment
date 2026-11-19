@@ -100,6 +100,7 @@ export class TerrainCarver {
     else this.owners.delete(owner)
     this.ordered = [...this.owners.values()].sort((a, b) => a.rank - b.rank).flatMap(o => [...o.carvings.values()])
     this.rounds++
+    this.keepClearOf(added.map(c => c.bounds))
     if (focus) {
       const areas = [...next.values()].map(c => c.bounds)
       const before = [...had.values()].map(c => c.bounds)
@@ -109,6 +110,15 @@ export class TerrainCarver {
     }
     // Every owner's carving is in the reloaded tiles again by the next frame: they are new tiles.
     this.reload(removed)
+  }
+
+  /** Tiles carved up to the last round that none of the new carvings reach are carved for this one too. */
+  private keepClearOf(added: Bounds[]) {
+    for (const tile of this.tiles()) {
+      if (!tile.dem || this.carved.get(tile.dem) !== this.rounds - 1) continue
+      const { z, x, y } = tile.tileID.canonical
+      if (!tileUnder([z, x, y], added)) this.carved.set(tile.dem, this.rounds)
+    }
   }
 
   /** Whether an elevation tile has been carved this round. */

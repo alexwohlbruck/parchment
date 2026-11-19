@@ -124,11 +124,12 @@ import {
   forestFloorColor,
   woodColorOf,
 } from '@/lib/map-style/detail-layers'
-import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import type { GlbModel } from '@/lib/map-objects/glb.mjs'
+import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
-import { flatBridgeLabelFilter, flatBridgeOpacity, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
+import { isFlatBridge, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { isDeckName } from '@/lib/map-decks/deck-labels'
 import { DeckLabels } from '@/services/map/deck-labels.service'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
@@ -149,13 +150,13 @@ type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
-  OBJECT_MODELS,
+  OBJECT_MODEL_PACK,
   OBJECT_PALETTE,
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
-import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, withoutReplaced } from '@/lib/map-objects/landmarks'
+import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
@@ -176,9 +177,15 @@ import {
   liveBuildingShade,
   shadeLight,
   sunShadow,
-  BUILDING_SHADE_LAYER_ID,
+  removeBuildingShade,
   shadowCasters,
 } from '@/lib/map/building-shade'
+import { shadowStrength } from '@/lib/map/shadow-mode'
+import { setFrameTaskBudget } from '@/lib/map/rendering/frame-task'
+/** Milliseconds of each frame the map's background tasks share, at rest and while the camera moves. */
+const RESTING_TASK_BUDGET = 4
+const MOVING_TASK_BUDGET = 2
+
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -349,11 +356,13 @@ export class MaplibreStrategy extends MapStrategy {
   /** Set when a click opened a venue's floor plan, so it opens nothing else. */
   private indoorClaimedClick = false
   private objectModels: Promise<Record<string, GlbModel>> | null = null
-  /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
   /** What the tunnels and the landmarks carve into the terrain, together. */
   private terrainCarver = new TerrainCarver(() => this.mapInstance, (areas, owner) => fineTerrain.focus(areas, owner))
-  private buildingFilters = new Map<string, unknown>()
+  /** The ids marked replaced, by `source|source-layer`. */
+  private replacedFeatures = new Map<string, Set<string | number>>()
+  /** The ids marked as shown from inside, likewise. */
+  private insideFeatures = new Map<string, Set<string | number>>()
 
   constructor(
     container: string | HTMLElement,
@@ -528,6 +537,7 @@ export class MaplibreStrategy extends MapStrategy {
       },
       buildings: refs => {
         this.indoorBuildings = refs
+        this.hideIndoorBuildings(refs)
         this.landmarkLayer?.setIndoorBuildings(refs)
       },
       clickable: () => {
@@ -546,7 +556,6 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       // The old decks' labels are not this style's to leave out.
-      this.mutedBridgeLabels.clear()
       this.bridgeFootprint = null
       this.deckLabels.forget()
       this.bridgeLabelKey = null
@@ -576,7 +585,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelLayer = null
       this.mutedTunnels.clear()
       this.tunnelChecked.clear()
-      this.buildingFilters.clear()
+      this.replacedFeatures.clear()
+      this.insideFeatures.clear()
       this.fadedSurface.clear()
       // After the basemap rather than with it: a city's landmark models run to
       // megabytes, and placing them reads every building in view, all of it
@@ -599,7 +609,10 @@ export class MaplibreStrategy extends MapStrategy {
         pitch: this.mapInstance.getPitch(),
       })
     })
+    // While the camera moves a frame is the map's to draw: background work gets half its share of it.
+    this.mapInstance.on('movestart', () => setFrameTaskBudget(MOVING_TASK_BUDGET))
     this.mapInstance.on('moveend', () => {
+      setFrameTaskBudget(RESTING_TASK_BUDGET)
       this.updateSunShadow()
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
@@ -857,12 +870,12 @@ export class MaplibreStrategy extends MapStrategy {
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / 300)
       this.buildingOpacity = from + (target - from) * t * (2 - t)
-      const shade = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? (liveBuildingShade() as any) : null
+      const shade = liveBuildingShade()
       this.landmarkLayer?.setOpacity(this.buildingOpacity)
       this.objectLayer?.setOpacity(this.surfaceOpacity())
       this.deckLayer?.setOpacity(this.surfaceOpacity())
       if (shade) shade.opacity = this.buildingOpacity
-      else if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
+      if (this.mapInstance.getLayer(layerGroups.building3d) && this.map3dBuildings)
         this.mapInstance.setPaintProperty(layerGroups.building3d, 'fill-extrusion-opacity', this.buildingOpacity)
       this.mapInstance.triggerRepaint()
       if (t < 1) this.buildingFade = requestAnimationFrame(step)
@@ -880,7 +893,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-height',
-        BUILDING_HEIGHT_EXPRESSION,
+        replaceablePaint('fill-extrusion', 'fill-extrusion-height', BUILDING_HEIGHT_EXPRESSION),
       )
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -891,7 +904,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-height',
-        0,
+        // Still a zoom curve: a feature state written before the tiles are laid out again is read through the old one's shape.
+        replaceablePaint('fill-extrusion', 'fill-extrusion-height', ['interpolate', ['linear'], ['zoom'], 14, 0, 14.4, 0]),
       )
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -995,29 +1009,36 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * Take the buildings a landmark replaces out of every layer that draws
-   * them — the extrusion, its roof-colour twin, the roof edge and the flat
-   * footprint — so nothing of the old building shows through the model. A
-   * coaster's track ways are among its refs, so the same pass takes them out
-   * of the track and its casing.
-   *
-   * All of them, and with the same filter, for a reason beyond tidiness: the
-   * roof-colour layer only works while it shares the extrusion's bucket, and
-   * MapLibre only shares a bucket between layers whose filters match.
+   * Mark the buildings a landmark replaces, in every source that holds them,
+   * so nothing of the old building shows through the model: the extrusion,
+   * its roof-colour twin, the roof edge and the flat footprint all read the
+   * mark (see `hidingReplaced`). A coaster's track ways are among its refs, so
+   * the same pass takes them out of the track and its casing.
    */
   private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
+    this.markFeatures(REPLACED_STATE, this.replacedFeatures, sourceLayer => replacedIds(sourceLayer, refs, featureIds))
+  }
+
+  /** Mark the buildings a floor plan is showing the inside of, which the same layers leave out. */
+  private hideIndoorBuildings(refs: string[]) {
+    this.markFeatures(INSIDE_STATE, this.insideFeatures, sourceLayer => (sourceLayer === BUILDING_3D_TILES ? refs : []))
+  }
+
+  /** Set a feature state on the ids each replaceable source-layer should carry it on, and clear it from those it held before. */
+  private markFeatures(state: string, marked: Map<string, Set<string | number>>, idsIn: (sourceLayer: string) => Array<string | number>) {
     const map = this.mapInstance
+    const held = new Map<string, { source: string; sourceLayer: string }>()
     // By id, not `getStyle()`: that serialises the whole style, and landmarks report on every pan.
     for (const id of map.getLayersOrder()) {
       const layer = map.getLayer(id)
-      const sourceLayer = layer?.sourceLayer
-      if (!layer || !sourceLayer || !REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
-      if (!this.buildingFilters.has(id))
-        this.buildingFilters.set(id, layer.filter ?? null)
-      map.setFilter(
-        id,
-        withoutReplaced(this.buildingFilters.get(id), sourceLayer, refs, featureIds) as any,
-      )
+      if (layer?.sourceLayer && REPLACEABLE_SOURCE_LAYERS.includes(layer.sourceLayer)) held.set(`${layer.source}|${layer.sourceLayer}`, { source: layer.source, sourceLayer: layer.sourceLayer })
+    }
+    for (const [key, { source, sourceLayer }] of held) {
+      const before = marked.get(key) ?? new Set()
+      const now = new Set(idsIn(sourceLayer))
+      for (const id of now) if (!before.has(id)) map.setFeatureState({ source, sourceLayer, id }, { [state]: true })
+      for (const id of before) if (!now.has(id)) map.removeFeatureState({ source, sourceLayer, id }, state)
+      marked.set(key, now)
     }
   }
 
@@ -1117,9 +1138,7 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
 
-    this.objectModels ??= this.firstTilesLaidOut().then(() => Promise.all(
-      Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
-    )).then(entries => Object.fromEntries(entries))
+    this.objectModels ??= this.firstTilesLaidOut().then(() => loadModelPack(OBJECT_MODEL_PACK))
 
     let models: Record<string, GlbModel>
     try {
@@ -1163,14 +1182,12 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   private deckLayer: BakedBridgeLayer | null = null
-  /** Flat bridge layers muted under the decks, with the opacity each had. */
-  private mutedBridges = new Map<string, { property: any; value: unknown }>()
-  /** Road symbol layers filtered off the bridges under the decks, with the filter each had. */
-  private mutedBridgeLabels = new Set<string>()
-  /** Where decks are drawn, so the flat bridges' labels under them are left out; null while they are not. */
+  /** Flat bridge layers left undrawn under the decks. */
+  private mutedBridges = new Set<string>()
+  /** Where decks are drawn, whose names are drawn again on them; null while they are not. */
   private bridgeFootprint: GeoJSON.MultiPolygon | null = null
   private deckLabels = new DeckLabels(() => this.mapInstance)
-  /** The deck version the road labels were last filtered for. */
+  /** The deck version the road labels were last clipped to. */
   private bridgeLabelKey: number | null = null
   private tunnelLayer: TunnelLayer | null = null
   private deckListeners = new Set<() => void>()
@@ -1281,29 +1298,22 @@ export class MaplibreStrategy extends MapStrategy {
     if (tiles && tiles !== detail!.tiles![0]) detail!.setTiles!([tiles])
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
-    const footprint = labelKey !== null && labelKey !== this.bridgeLabelKey ? this.deckLayer!.footprints() : null
-    if (footprint || !covered) {
-      this.bridgeFootprint = covered ? footprint : null
+    // By id, not `getStyle()`, which serialises the whole style on every deck that arrives.
+    const layers = map.getLayersOrder().map(id => map.getLayer(id)).filter(layer => !!layer).map(layer => ({ id: layer.id, type: layer.type, 'source-layer': layer.sourceLayer }))
+    if (labelKey !== this.bridgeLabelKey) {
+      // A name or arrow placed on a deck would lie on the ground under it; names are drawn again on the deck.
+      this.bridgeFootprint = covered ? this.deckLayer!.footprints() : null
+      map.setSymbolClip(layers.filter(isFlatBridgeLabel).map(l => l.id), this.bridgeFootprint)
       this.deckLabels.setDecks(this.bridgeFootprint, (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null)
-    }
-    for (const layer of map.getStyle()?.layers ?? []) {
-      // The labels' filter is the basemap's, with the ways on decks left out; one writer keeps the two from undoing each other.
-      if ((footprint || (!covered && this.mutedBridgeLabels.has(layer.id))) && isFlatBridgeLabel(layer as any)) {
-        if (covered) this.mutedBridgeLabels.add(layer.id)
-        else this.mutedBridgeLabels.delete(layer.id)
-        this.applyBasemapFilter(layer.id)
-      }
-      const property = flatBridgeOpacity(layer as any) as any
-      if (!property) continue
-      if (covered && !this.mutedBridges.has(layer.id)) {
-        this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
-        map.setPaintProperty(layer.id, property, 0)
-      } else if (!covered && this.mutedBridges.has(layer.id)) {
-        map.setPaintProperty(layer.id, property, this.mutedBridges.get(layer.id)!.value as any)
-        this.mutedBridges.delete(layer.id)
-      }
+      for (const { id } of layers.filter(isDeckName)) this.deckLabels.mirror(id, this.bridgeFootprint ? (map.getFilter(id) ?? true) : null)
     }
     this.bridgeLabelKey = labelKey
+    for (const { id } of layers.filter(isFlatBridge)) {
+      if (covered === this.mutedBridges.has(id)) continue
+      map.setLayerMuted(id, covered)
+      if (covered) this.mutedBridges.add(id)
+      else this.mutedBridges.delete(id)
+    }
     this.terrainCarver.set(ROOFED_DECKS, new Map([...roofCuts(this.deckLayer?.standing() ?? [])].map(([key, f]) => [key, cutCarving(f)])), { rank: 2, focus: true })
     this.terrainCarver.carveTiles()
     this.muteFlatTunnels()
@@ -1376,59 +1386,43 @@ export class MaplibreStrategy extends MapStrategy {
 
   override setShadowMode(mode: ShadowMode) {
     this.shadowMode = mode
-    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID) ? liveBuildingShade() : null
-    if (!layer) return
-    layer.shadows = mode
+    const shade = liveBuildingShade()
+    if (!shade) return
+    shade.visibility = pitch => shadowStrength(mode, pitch)
     this.mapInstance.triggerRepaint()
   }
 
   /**
-   * Reconcile the lighting layer with the two switches that gate it.
+   * Reconcile the shading with the two switches that gate it.
    *
    * Kept apart from the setters because both of them feed it and each has to
    * leave the other's preference alone — turning 3D buildings off and back on
    * must not silently clear the shading, which is what happens if the two share
-   * a single flag. Flat buildings get no shading: there is nothing to light, and
-   * the layer walks the same buckets either way, so it would spend the whole
-   * per-frame cost on zero-height geometry.
-   *
-   * The layer takes over drawing the buildings, so the style's own extrusion is
-   * muted rather than removed: at opacity 0 MapLibre skips the draw but still
-   * builds and keeps the tiles and buckets, which is exactly the geometry the
-   * layer borrows. Dropping the layer restores the opacity and the built-in
-   * draw resumes, with no other state to unwind.
+   * a single flag. Flat buildings get no shading: there is nothing to light.
    */
   private applyBuildingShade() {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     const active = this.buildingShade && this.map3dBuildings
-    const present = !!this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
-    if (active && !present) {
-      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
-      // Directional shading and cast shadows have to agree on where the sun is;
-      // the layer reads its direction from the style light rather than from its
-      // own options, so this has to be set before it draws.
-      this.mapInstance.setLight(shadeLight())
-      const shade = createBuildingShade(
-        buildingLayerId,
-        flavor,
-        this.mapInstance.getLayer(buildingLayerId)?.minzoom,
-      )
-      shade.shadows = this.shadowMode
-      shade.opacity = this.buildingOpacity
-      this.mapInstance.addLayer(shade as any, this.layerAfter(buildingLayerId))
-      this.shadowAlphaAtNoon = undefined
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    if (active) {
+      if (!liveBuildingShade() || this.shadeFlavor !== flavor) {
+        const shade = createBuildingShade(this.mapInstance, flavor, this.mapInstance.getLayer(buildingLayerId)?.minzoom)
+        this.shadeFlavor = flavor
+        shade.opacity = this.buildingOpacity
+        this.shadowAlphaAtNoon = undefined
+        this.setShadowMode(this.shadowMode)
+      }
+      // The shading outlives a style, and reads the sun from the style's light: a new style needs it set again.
       this.updateSunShadow()
-    } else if (!active && present) {
-      this.mapInstance.removeLayer(BUILDING_SHADE_LAYER_ID)
+    } else if (liveBuildingShade()) {
+      removeBuildingShade(this.mapInstance)
     }
-    this.mapInstance.setPaintProperty(
-      buildingLayerId,
-      'fill-extrusion-opacity',
-      active ? 0 : this.buildingOpacity,
-    )
+    this.mapInstance.setPaintProperty(buildingLayerId, 'fill-extrusion-opacity', this.buildingOpacity)
   }
+
+  private shadeFlavor?: 'light' | 'dark'
 
   /**
    * Point the shadows where the real sun is, for wherever the map is looking.
@@ -1446,9 +1440,7 @@ export class MaplibreStrategy extends MapStrategy {
    * time can change without the camera moving.
    */
   private updateSunShadow() {
-    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
-      ? (liveBuildingShade() as any)
-      : null
+    const layer = liveBuildingShade()
 
     const { lng, lat } = this.mapInstance.getCenter()
     const sun = sunShadow(new Date(), lat, lng)
@@ -1456,10 +1448,10 @@ export class MaplibreStrategy extends MapStrategy {
     if (!layer) return
 
     layer.shadowOffset = sun.offset
-    layer._heightScale = sun.heightScale
+    layer.heightScale = sun.heightScale
     // Hold the tuned darkness as the daylight maximum rather than overwriting
     // it, so the settings panel and the flavor still have the final say.
-    this.shadowAlphaAtNoon ??= layer.shadowAlpha as number
+    this.shadowAlphaAtNoon ??= layer.shadowAlpha
     layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
 
     this.mapInstance.setLight(shadeLight(sun.offset, sun.altitude))
@@ -1468,12 +1460,6 @@ export class MaplibreStrategy extends MapStrategy {
 
   private shadowAlphaAtNoon?: number
   private sunTimer?: ReturnType<typeof setInterval>
-
-  /** The id of the layer drawn directly above `layerId`, if any. */
-  private layerAfter(layerId: string): string | undefined {
-    const ids = this.mapInstance.getStyle().layers.map((l: any) => l.id)
-    return ids[ids.indexOf(layerId) + 1]
-  }
 
   /**
    * The basemap's own transit POIs, hidden while the transit layer group draws
@@ -1533,11 +1519,9 @@ export class MaplibreStrategy extends MapStrategy {
         ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ])
-    const footprint = this.mutedBridgeLabels.has(id) && this.bridgeFootprint
     // Validating a filter serialises the whole style; these are built here and known good.
-    const spec = { id, type: layer.type, 'source-layer': layer.sourceLayer }
-    this.mapInstance.setFilter(id, (footprint && flatBridgeLabelFilter({ ...spec, filter }, footprint)) || filter, { validate: false })
-    if (isDeckName(spec)) this.deckLabels.mirror(id, footprint ? (filter ?? true) : null)
+    this.mapInstance.setFilter(id, filter, { validate: false })
+    if (isDeckName({ id, type: layer.type, 'source-layer': layer.sourceLayer })) this.deckLabels.mirror(id, this.bridgeFootprint ? (filter ?? true) : null)
   }
 
   /** A new style brings its own filters, so ours are rebuilt on top of them. */
@@ -1955,6 +1939,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.unwatchTheme?.()
       this.frameCap?.dispose()
       if (this.sunTimer) clearInterval(this.sunTimer)
+      if (liveBuildingShade()) removeBuildingShade(this.mapInstance)
 
       // Remove the map instance
       if (this.mapInstance) {

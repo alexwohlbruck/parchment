@@ -20,8 +20,6 @@ export const INDOOR_MINZOOM = 16
 export const INDOOR_STATE = {
   venue: 'indoorVenue',
   level: 'indoorLevel',
-  /** `;`-delimited ids of the buildings_3d outlines floor plans stand in. */
-  buildings: 'indoorBuildings',
   /** `;`-delimited basemap feature ids of the places floor plans draw on their own level. */
   places: 'indoorPlaces',
 } as const
@@ -72,7 +70,6 @@ export function indoorState() {
   return {
     [INDOOR_STATE.venue]: { default: 0 },
     [INDOOR_STATE.level]: { default: 0 },
-    [INDOOR_STATE.buildings]: { default: '' },
     [INDOOR_STATE.places]: { default: '' },
     [INDOOR_FIXTURES_STATE]: { default: '' },
   }
@@ -92,11 +89,6 @@ const cls = ['get', 'class']
 const sub = ['coalesce', ['get', 'subclass'], '']
 
 const listed = (key: unknown, state: string) => ['in', ['concat', ';', ['to-string', key], ';'], ['global-state', state]]
-
-/** A buildings_3d filter without the buildings a floor plan is showing inside. */
-export function withoutIndoorBuildings(filter: unknown): unknown {
-  return combineFilters([filter, ['!', listed(['get', 'id'], INDOOR_STATE.buildings)]])
-}
 
 /** A basemap label filter without the places a floor plan draws on their own level. */
 export function withoutIndoorPlaces(filter: unknown): unknown {

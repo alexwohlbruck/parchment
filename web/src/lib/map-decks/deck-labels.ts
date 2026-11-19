@@ -1,7 +1,8 @@
 /**
  * Road names, path names and route shields laid on the decks. A basemap name
  * runs on past a bridge's ends, so each one that meets a deck is cut at them and
- * drawn again at the height of the deck under it; the rest of it stays on the ground.
+ * its stretches on the deck drawn again at the deck's height; the basemap's own,
+ * clipped where they stand on a deck, keep the rest on the ground.
  */
 import type { FilterSpecification, LayerSpecification } from '@maplibre/maplibre-gl-style-spec'
 import { combineFilters } from '@/lib/map-style/combine-filters'
@@ -145,8 +146,9 @@ export type TileName = { geometry: GeoJSON.Geometry; properties: Record<string, 
 
 export function deckLabelFeatures(names: TileName[], heightAt: DeckHeightAt): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
-  const add = (geometry: GeoJSON.Geometry, properties: Record<string, unknown>, height: number | null) =>
-    features.push({ type: 'Feature', geometry, properties: height == null ? properties : { ...properties, [DECK_HEIGHT]: height } })
+  const add = (geometry: GeoJSON.Geometry, properties: Record<string, unknown>, height: number | null) => {
+    if (height != null) features.push({ type: 'Feature', geometry, properties: { ...properties, [DECK_HEIGHT]: height } })
+  }
   for (const { geometry, properties, tile } of names) {
     const bounds = tile && tileBounds(...tile)
     if (geometry.type === 'Point') {
@@ -163,7 +165,7 @@ export function deckLabelFeatures(names: TileName[], heightAt: DeckHeightAt): Ge
   return { type: 'FeatureCollection', features }
 }
 
-/** A basemap name layer drawn again from the cut names, each stretch at its deck's height. */
+/** A basemap name layer drawn again from the names' stretches on the decks, each at its deck's height. */
 export function deckLabelLayer(layer: LayerSpecification, filter: unknown): LayerSpecification {
   const { 'source-layer': _, filter: __, ...spec } = layer as LayerSpecification & { 'source-layer'?: string; filter?: unknown; layout?: Record<string, unknown> }
   const combined = combineFilters([filter])
@@ -174,8 +176,8 @@ export function deckLabelLayer(layer: LayerSpecification, filter: unknown): Laye
     ...(combined ? { filter: combined } : {}),
     layout: {
       ...spec.layout,
-      [HEIGHT_PROPERTY]: ['coalesce', ['get', DECK_HEIGHT], 0],
-      [ANCHOR_PROPERTY]: ['case', ['has', DECK_HEIGHT], 'absolute', 'ground'],
+      [HEIGHT_PROPERTY]: ['get', DECK_HEIGHT],
+      [ANCHOR_PROPERTY]: 'absolute',
     },
   } as LayerSpecification
 }

@@ -10,11 +10,11 @@ test('shares shader programs across indexed bridges and releases them after the 
   const a = new MeshShadow(), b = new MeshShadow(), indices = {} as WebGLBuffer
   a.prepare(gl)
   b.set(gl, {} as WebGLBuffer, 6, [0, 0], indices)
-  expect(gl.createProgram).toHaveBeenCalledTimes(1)
+  expect(gl.createProgram).toHaveBeenCalledTimes(2)
   b.drawSunDepth(gl, { light: new Float64Array(16) } as SunFrame, 1.5)
   expect(gl.drawElements).toHaveBeenCalledWith(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0)
   a.delete(gl)
   expect(gl.deleteProgram).not.toHaveBeenCalled()
   b.delete(gl)
-  expect(gl.deleteProgram).toHaveBeenCalledTimes(1)
+  expect(gl.deleteProgram).toHaveBeenCalledTimes(2)
 })

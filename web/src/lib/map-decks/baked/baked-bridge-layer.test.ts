@@ -7,7 +7,7 @@ import type { DeckPalette } from '../deck.types'
 import { deckTile, vectorTile } from './fixtures/deck-tiles'
 
 vi.mock('../mesh-program', () => ({ programReady: () => true, linkMeshProgram: () => ({}), uploadMesh: vi.fn(() => ({ position: {}, count: 276 })), deleteMesh: vi.fn(), eyeOf: vi.fn(), useMeshProgram: vi.fn(), bindMesh: vi.fn(() => ({ draw() {}, bias() {}, unbind() {} })) }))
-vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} } }))
+vi.mock('../mesh-shadow', () => ({ MeshShadow: class { prepare() {} ready() { return true } set() {} delete() {} drawOcclusion() {} } }))
 const bytes = readFileSync('src/lib/map-decks/baked/fixtures/arched-bridge.brm')
 const palette = Object.fromEntries(MATERIALS.map(name => [name, [1, 1, 1]])) as DeckPalette
 const file = `${'a'.repeat(64)}.brm`

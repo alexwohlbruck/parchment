@@ -4,7 +4,7 @@
  */
 import type { Mesh } from './decks'
 import { MATERIALS } from './baked/mesh-file'
-import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import { bindOcclusion, bindSun, GROUND_OCCLUSION_GLSL, GROUND_OCCLUSION_UNIFORMS, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type GroundOcclusion, type SunFrame } from '@/lib/map/sun-shadow'
 
 // `a_low` is the colour below street zoom. `a_bias` moves a vertex along its own
 // sight line, so it keeps its place on screen but wins the depth test against ground that many metres in front.
@@ -32,6 +32,10 @@ const VS = `#version 300 es
   out vec3 v_color;
   out vec4 v_sun;
   out float v_slope;
+  uniform mat4 u_occlusionUv;
+  uniform float u_grade_bias;
+  out vec2 v_occlusion;
+  out float v_grade;
   int routeSlot(int slot, int shift) {
     return slot == ${MATERIALS.indexOf('route')} || slot == ${MATERIALS.indexOf('routeCasing')} ? slot + shift : slot;
   }
@@ -56,12 +60,15 @@ const VS = `#version 300 es
       p.xy += a_spread.xy * max(0.0, u_min_px * 0.5 / max(px, 1e-6) - a_spread.z);
     }
     v_sun = u_sunLight * vec4(p, 1.0);
+    v_occlusion = (u_occlusionUv * vec4(p, 1.0)).xy;
+    // 1 where the surface lies on the ground, by the bias a vertex there has, to 0 clear of it.
+    v_grade = u_grade_bias > 0.0 ? clamp(a_bias / u_grade_bias, 0.0, 1.0) : 0.0;
     v_slope = sqrt(max(0.0, 1.0 - n.z * n.z)) / max(abs(n.z), 0.2);
     if (a_bias > 0.0) p += normalize(u_eye - p) * a_bias * u_per_metre;
     gl_Position = u_matrix * vec4(p, 1.0);
   }`
 
-// In the sun's shadow a surface takes the tint the ground beside it does.
+// In the sun's shadow a surface takes the tint the ground beside it does, and lying on the ground, its occlusion.
 const FS = `#version 300 es
   precision highp float;
   uniform float u_shadowAlpha;
@@ -69,10 +76,15 @@ const FS = `#version 300 es
   in vec3 v_color;
   in vec4 v_sun;
   in float v_slope;
+  in vec2 v_occlusion;
+  in float v_grade;
   out vec4 fragColor;
   ${SUN_SHADOW_GLSL}
+  ${GROUND_OCCLUSION_GLSL}
   void main() {
-    fragColor = vec4(mix(v_color, u_shadowColor, u_shadowAlpha * sunShade(v_sun, v_slope)), 1.0);
+    float shadow = u_shadowAlpha * sunShade(v_sun, v_slope);
+    float occlusion = v_grade > 0.0 ? v_grade * groundOcclusion(v_occlusion) : 0.0;
+    fragColor = vec4(v_color * (1.0 - shadow) * (1.0 - occlusion) + u_shadowColor * shadow, 1.0);
   }`
 
 /** How an attribute's buffer is read: its GL type, and whether integers are normalised to [-1, 1]. */
@@ -167,6 +179,8 @@ export type MeshFrame = {
   hd?: number; minLinePx?: number; pixelRatio?: number
   /** The buildings' shadows: their sun shadow map, and how dark and what colour a shadow is. */
   sun?: { frame: SunFrame | null; alpha: number; color?: readonly number[] }
+  /** The ground's occlusion, and the bias a vertex lying on the ground has: what lies there is darkened as the ground is. */
+  occlusion?: { map: GroundOcclusion | null; gradeBias: number }
 }
 
 /** What one mesh's draw needs besides its matrix. */
@@ -179,7 +193,7 @@ export type MeshView = {
   eye?: [number, number, number] | null; perMetre?: number
 }
 
-type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'shadowColor' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; attributes: number[]; frame: SunFrame | null }
+type Locations = { uniforms: Record<'matrix' | 'light' | 'hd' | 'eye' | 'perMetre' | 'viewport' | 'minPx' | 'sunLight' | 'shadowAlpha' | 'shadowColor' | 'occlusionUv' | 'gradeBias' | 'elevationScale' | 'lifted' | 'materials' | 'palette' | 'travelled', WebGLUniformLocation | null>; sun: Record<string, WebGLUniformLocation | null>; occlusion: Record<string, WebGLUniformLocation | null>; attributes: number[]; frame: SunFrame | null; ground: GroundOcclusion | null }
 const locations = new WeakMap<WebGLProgram, Locations>()
 
 const BLACK = [0, 0, 0]
@@ -190,10 +204,12 @@ function locate(gl: WebGL2RenderingContext, program: WebGLProgram): Locations {
   if (at) return at
   const u = (name: string) => gl.getUniformLocation(program, name)
   at = {
-    uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), shadowColor: u('u_shadowColor') },
+    uniforms: { elevationScale: u('u_elevation_scale'), lifted: u('u_lifted'), materials: u('u_materials'), palette: u('u_palette[0]'), travelled: u('u_travelled'), matrix: u('u_matrix'), light: u('u_light'), hd: u('u_hd'), eye: u('u_eye'), perMetre: u('u_per_metre'), viewport: u('u_viewport'), minPx: u('u_min_px'), sunLight: u('u_sunLight'), shadowAlpha: u('u_shadowAlpha'), shadowColor: u('u_shadowColor'), occlusionUv: u('u_occlusionUv'), gradeBias: u('u_grade_bias') },
     sun: Object.fromEntries(SUN_SHADOW_UNIFORMS.map(name => [name, u(name)])),
+    occlusion: Object.fromEntries(GROUND_OCCLUSION_UNIFORMS.map(name => [name, u(name)])),
     attributes: ['a_position', 'a_normal', 'a_color', 'a_low', 'a_bias', 'a_spread', 'a_lift'].map(name => gl.getAttribLocation(program, name)),
     frame: null,
+    ground: null,
   }
   locations.set(program, at)
   return at
@@ -216,6 +232,9 @@ export function useMeshProgram(gl: WebGL2RenderingContext, program: WebGLProgram
   bindSun(gl, at.sun, at.frame)
   gl.uniform1f(at.uniforms.shadowAlpha, sun?.alpha ?? 0)
   gl.uniform3fv(at.uniforms.shadowColor, sun?.color ?? BLACK)
+  at.ground = frame.occlusion?.map ?? null
+  bindOcclusion(gl, at.occlusion, at.ground)
+  gl.uniform1f(at.uniforms.gradeBias, at.ground ? frame.occlusion!.gradeBias : 0)
   // A mesh without a bias, spread or lift of its own reads these: attribute constants belong to the context, not to a vertex array.
   const [, , , , bias, spread, lift] = at.attributes
   if (bias >= 0) gl.vertexAttrib1f(bias, 0)
@@ -260,6 +279,7 @@ export function bindMesh(gl: WebGL2RenderingContext, program: WebGLProgram, buff
   const biased = eye ? (view.perMetre ?? 0) : 0
   gl.uniform1f(at.uniforms.perMetre, biased)
   gl.uniformMatrix4fv(at.uniforms.sunLight, false, at.frame && view.origin ? lightAbout(at.frame.light, view.origin) : IDENTITY)
+  gl.uniformMatrix4fv(at.uniforms.occlusionUv, false, at.ground && view.origin ? lightAbout(at.ground.uv, view.origin) : IDENTITY)
   gl.uniform1i(at.uniforms.lifted, buffers.lift ? 1 : 0)
   if (buffers.vao) gl.bindVertexArray(buffers.vao)
   else buffers.vao = vertexArray(gl, at, buffers)

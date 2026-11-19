@@ -11,6 +11,7 @@
 * The 3D map finishes loading several times sooner where landmarks and bridges are in view.
 * 3D trees, street furniture and landmark models download in a fraction of the requests and size.
 * Panning the 3D map is much smoother: shadows and shading are drawn once for the ground in view, not again every frame.
+* Trees and street furniture now fall into shadow like the ground around them, and shade each other; the ground darkens under tree crowns and low bridges.
 * Recents in the sidebar slide into place as they're added, reordered or removed.
 
 ### Fixed

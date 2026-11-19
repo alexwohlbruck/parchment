@@ -2,11 +2,12 @@ import type { DeckPalette, DeckSources, RouteSpan } from '../deck.types'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, useMeshProgram, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
-import { mercator, metresPerUnit, standing, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
+import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
 import { translate } from '@/lib/map-objects/object-layer'
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { liveBuildingShade } from '@/lib/map/building-shade'
-import type { SunFrame } from '@/lib/map/sun-shadow'
+import type { OcclusionFrame } from 'maplibre-gl'
+import type { GroundOcclusion, SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
 import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh, type MeshGeometry } from './mesh-file'
@@ -89,6 +90,7 @@ export class BakedBridgeLayer {
   private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
   private sun: SunFrame | null = null
+  private occlusion: GroundOcclusion | null = null
   private bytes = 0
   private bounds = new Map<string, Bounds>()
   private displayed = ''
@@ -135,6 +137,10 @@ export class BakedBridgeLayer {
   }
   get shadowVersion() { return this.version }
   receiveSun(frame: SunFrame) { this.sun = frame }
+  receiveOcclusion(occlusion: GroundOcclusion) { this.occlusion = occlusion }
+  drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
+    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawOcclusion(gl, frame)
+  }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
   }
@@ -869,7 +875,7 @@ export class BakedBridgeLayer {
         this.pending.delete(id)
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
-        shadow.set(gl, buffers.position, data.ranges.paintFrom, data.origin, buffers.indices, buffers.lift)
+        shadow.set(gl, buffers.position, data.ranges.paintFrom, data.origin, buffers.indices, buffers.lift, buffers.bias)
         this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes, bounds: standBounds(data.stands), extent: extentOf(data.position, data.origin) })
         this.bytes += bytes
       }
@@ -897,6 +903,7 @@ export class BakedBridgeLayer {
       hd, palette: this.colors, elevationScale: exaggeration, minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
       // The sun's map is this frame's only: a frame the buildings skip leaves none.
       sun: { frame: this.sun, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, color: shade?.shadowColor },
+      occlusion: { map: this.occlusion, gradeBias: TOUCHDOWN.bias },
     })
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
@@ -910,6 +917,7 @@ export class BakedBridgeLayer {
     if (this.route && this.covered) this.drawPart(gl, view, this.route, this.travelled)
     gl.bindVertexArray(null)
     this.sun = null
+    this.occlusion = null
   }
   /** The ground in view, mercator, with room for what stands on it; null where the map cannot say. */
   private sight(): Bounds | null {

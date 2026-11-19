@@ -7,13 +7,14 @@
  * (metres times `perMetre`), the frame MapLibre's main matrix and the
  * landmarks' `anchorMatrix` already use.
  */
-import type { SunFrame } from 'maplibre-gl'
+import type { GroundOcclusion, SunFrame } from 'maplibre-gl'
 
-export type { SunFrame }
+export type { GroundOcclusion, SunFrame }
 export type Mat4 = Float64Array
 
-/** The texture unit the map is bound to while receivers draw. */
+/** The texture units the sun's map and the ground occlusion are bound to while receivers draw. */
 export const SUN_SHADOW_UNIT = 5
+export const OCCLUSION_UNIT = 6
 
 /** Column-major a × b. */
 export function multiply(a: ArrayLike<number>, b: ArrayLike<number>): Mat4 {
@@ -51,7 +52,7 @@ export const SUN_SHADOW_GLSL = `
   }
 `
 
-/** Light-clip ← a mesh's own frame, mercator about `origin`; composed in double precision so the mesh keeps its float precision. */
+/** A mercator matrix — the sun's light, the occlusion's texture coordinates — taken to a mesh's own frame about `origin`; composed in double precision so the mesh keeps its float precision. */
 export function lightAbout(light: Mat4, origin: [number, number, number?]): Float32Array {
   return Float32Array.from(multiply(light, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, origin[0], origin[1], origin[2] ?? 0, 1]))
 }
@@ -80,5 +81,47 @@ export function bindSun(gl: WebGL2RenderingContext, u: Record<string, WebGLUnifo
   gl.uniform1i(u.u_sunShadow, SUN_SHADOW_UNIT)
   gl.activeTexture(gl.TEXTURE0 + SUN_SHADOW_UNIT)
   gl.bindTexture(gl.TEXTURE_2D, frame ? frame.texture : emptySunTexture(gl))
+  gl.activeTexture(gl.TEXTURE0)
+}
+
+/**
+ * `groundOcclusion(uv)`: how much the buildings and trees round a point of the
+ * ground close it in, 0 to the frame's strength, as the engine darkens the
+ * ground itself; for a surface lying on it.
+ */
+export const GROUND_OCCLUSION_GLSL = `
+  uniform sampler2D u_occlusionMap;
+  uniform vec2 u_occlusionStrength; // strength, 0 with none, and the power that narrows its reach
+  float groundOcclusion(vec2 uv) {
+    if (u_occlusionStrength.x <= 0.0) return 0.0;
+    vec2 edge = abs(uv * 2.0 - 1.0);
+    float reach = max(edge.x, edge.y);
+    if (reach >= 1.0) return 0.0;
+    float near = clamp(2.0 * textureLod(u_occlusionMap, uv, 0.0).r, 0.0, 1.0);
+    return u_occlusionStrength.x * pow(near, u_occlusionStrength.y) * (1.0 - smoothstep(0.8, 1.0, reach));
+  }
+`
+
+export const GROUND_OCCLUSION_UNIFORMS = ['u_occlusionMap', 'u_occlusionStrength'] as const
+
+const clears = new WeakMap<WebGL2RenderingContext, WebGLTexture>()
+
+/** A clear 1×1 texture for the occlusion's sampler while there is none. */
+function clearTexture(gl: WebGL2RenderingContext): WebGLTexture {
+  let t = clears.get(gl)
+  if (t) return t
+  t = gl.createTexture()!
+  gl.bindTexture(gl.TEXTURE_2D, t)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4))
+  clears.set(gl, t)
+  return t
+}
+
+/** Point the receiver's sampler at this frame's ground occlusion, or at nothing. */
+export function bindOcclusion(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, occlusion: GroundOcclusion | null) {
+  gl.uniform2f(u.u_occlusionStrength, occlusion?.strength ?? 0, occlusion?.power ?? 1)
+  gl.uniform1i(u.u_occlusionMap, OCCLUSION_UNIT)
+  gl.activeTexture(gl.TEXTURE0 + OCCLUSION_UNIT)
+  gl.bindTexture(gl.TEXTURE_2D, occlusion ? occlusion.texture : clearTexture(gl))
   gl.activeTexture(gl.TEXTURE0)
 }

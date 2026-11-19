@@ -33,10 +33,11 @@
  */
 import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
-import { MercatorCoordinate } from 'maplibre-gl'
+import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
-import { lightAbout, type SunFrame } from '@/lib/map/sun-shadow'
+import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
+import { liveBuildingShade } from '@/lib/map/building-shade'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -107,7 +108,7 @@ export function project(
   out.perMetre = perMetre
 }
 
-const VS = `
+const VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform vec3 u_light;
   uniform float u_ambient;
@@ -120,20 +121,26 @@ const VS = `
   uniform vec3 u_flutter;
   uniform float u_time;
 
-  attribute vec3 a_position;
-  attribute vec3 a_normal;
+  in vec3 a_position;
+  in vec3 a_normal;
   /** Instance: mercator position, relative to the layer's current origin. */
-  attribute vec3 a_offset;
+  in vec3 a_offset;
   /** Instance: height and lateral scale in mercator units, a heading, and a stretch along the model's x. */
-  attribute vec4 a_shape;
+  in vec4 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
-  attribute float a_shade;
+  in float a_shade;
   /** Instance: how far toward the role's alternate colour, 0-1. */
-  attribute float a_tint;
+  in float a_tint;
   /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
-  attribute vec2 a_slope;
+  in vec2 a_slope;
 
-  varying vec3 v_color;
+  /** Light-clip from the layer's frame, for the sun's shadow map; identity with no sun. */
+  uniform mat4 u_sunLight;
+
+  out vec3 v_color;
+  out vec4 v_sun;
+  /** How squarely the face meets the sun, -1 to 1. */
+  out float v_facing;
 
   void main() {
     float c = cos(a_shape.z);
@@ -172,23 +179,38 @@ const VS = `
     // cannot. The sun still sets which flank is brighter — it just no longer
     // decides whether the top or the bottom of a tree is lit.
     float sky = unit.z * 0.5 + 0.5;
-    float lit = mix(sun, sky, 0.65);
     // Foliage is softer still: a crown reads as one mass lit from above, the
     // look of a baked canopy, rather than as a faceted solid.
-    if (u_occlusion.z > 0.0) lit = mix(sun, sky, 0.85);
+    float lit = mix(sun, sky, u_occlusion.z > 0.0 ? 0.85 : 0.65);
     // A crown is darker underneath, where its own leaves shade it.
     float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
+    v_facing = dot(unit, u_light);
+    v_sun = u_sunLight * vec4(world, 1.0);
 
     gl_Position = u_matrix * vec4(world, 1.0);
   }`
 
-const FS = `
-  precision mediump float;
-  varying vec3 v_color;
-  void main() { gl_FragColor = vec4(v_color, 1.0); }`
+const FS = `#version 300 es
+  precision highp float;
+  /** How dark a shadow is and its colour: the ground's, so an object in shade matches the ground it stands on. */
+  uniform float u_shadowAlpha;
+  uniform vec3 u_shadowColor;
+  in vec3 v_color;
+  in vec4 v_sun;
+  in float v_facing;
+  out vec4 fragColor;
+  ${SUN_SHADOW_GLSL}
+  void main() {
+    // A face turned from the sun is in its own shadow; one turned to it is in whatever stands between. Near
+    // edge-on the map cannot tell which, so the two ease into each other.
+    float facing = clamp(v_facing, 0.0, 1.0);
+    float shadowed = sunShade(v_sun, sqrt(1.0 - facing * facing) / max(facing, 0.2));
+    float shade = u_sunOn > 0.0 ? mix(u_sunOn, shadowed, smoothstep(-0.3, 0.3, v_facing)) : 0.0;
+    fragColor = vec4(mix(v_color, u_shadowColor, u_shadowAlpha * shade), 1.0);
+  }`
 
 /**
  * Roles that flutter in the wind, by amplitude as a share of the model's height.
@@ -215,6 +237,8 @@ function flutterOf(role: string, position: Float32Array, far: boolean): [number,
   return [amplitude, min, Math.max(max - min, 1e-4)]
 }
 
+const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
 
 const DEPTH_FS = `
@@ -236,6 +260,9 @@ const SUN_VS = `
     vec2 across = p.xy * a_shape.y;
     gl_Position = u_matrix * vec4(a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across)), 1.0);
   }`
+
+/** Metres an object must stand to close in the ground round it: a tree does, a bollard does not. */
+const OCCLUDING_HEIGHT = 2.5
 
 /** Texels of the sun's map an object must stand taller than to cast into it. */
 const SUN_MIN_TEXELS = 2
@@ -504,6 +531,10 @@ export class ObjectLayer {
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private sunProgram!: WebGLProgram
   private sunMatrix: WebGLUniformLocation | null = null
+  private sunLight: WebGLUniformLocation | null = null
+  private sunUniforms: Record<string, WebGLUniformLocation | null> = {}
+  /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
+  private sun: SunFrame | null = null
   /** Each model's height in its own units, for leaving the small ones out of the sun's map. */
   private heights = new Map<string, number>()
   private models = new Map<string, ModelBuffers>()
@@ -590,6 +621,8 @@ export class ObjectLayer {
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.stillness?.addEventListener('change', this.onStillness)
     this.sunProgram = link(gl, SUN_VS, DEPTH_FS)
+    this.sunLight = gl.getUniformLocation(this.program, 'u_sunLight')
+    this.sunUniforms = uniformsOf(gl, this.program, [...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'])
     this.sunMatrix = gl.getUniformLocation(this.sunProgram, 'u_matrix')
 
     for (const [name, model] of Object.entries(this.sources)) {
@@ -1025,6 +1058,13 @@ export class ObjectLayer {
     const gain = this.flutterGain(now)
     gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
     gl.uniform1f(this.uniforms.u_ambient, 0.58)
+    const sun = this.sun
+    this.sun = null
+    bindSun(gl, this.sunUniforms, sun)
+    const shade = liveBuildingShade()
+    gl.uniform1f(this.sunUniforms.u_shadowAlpha, shade ? shade.shadowAlpha * shade.groundOpacity() : 0)
+    gl.uniform3fv(this.sunUniforms.u_shadowColor, shade?.shadowColor ?? [0, 0, 0])
+    gl.uniformMatrix4fv(this.sunLight, false, sun ? lightAbout(sun.light, this.origin) : IDENTITY)
 
     const ghost = ghostBlend(gl, this.opacity)
     gl.depthMask(!ghost)
@@ -1163,6 +1203,27 @@ export class ObjectLayer {
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
     attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
     attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
+  }
+
+  receiveSun(frame: SunFrame) {
+    this.sun = frame
+  }
+
+  /** Where the taller objects stand, from overhead, for the ground's occlusion: a tree closes in the ground under its crown. */
+  drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
+    if (!this.batches.length || !this.placed.length) return
+    const least = OCCLUDING_HEIGHT * this.placed[0].perMetre
+    gl.useProgram(this.sunProgram)
+    gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.matrix, this.origin))
+    for (const batch of this.batches) {
+      const model = this.models.get(shadowModel(batch, this.models))
+      if (!model || this.tallest(batch) < least) continue
+      for (const primitive of model.primitives) {
+        this.bindArrays(gl, batch, primitive)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
+    gl.bindVertexArray(null)
   }
 
   /** Into the sun's shadow map, mid-pass in the map's shading: what is too short to show there is left out. */

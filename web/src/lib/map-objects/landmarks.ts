@@ -64,9 +64,10 @@ const LAMP_LIGHT = { glow: hex('#ffe7c4'), intensity: 1 }
 
 /**
  * Floodlit stone at night (a model's `_FLOODLIGHT`): its own colour under a
- * warm white, mixed in by up to `strength`.
+ * warm white, mixed in by up to `strength`; a face turned up takes `roof` of
+ * it, and one turned away from the lights `relief` less.
  */
-export const FLOODLIGHT = { color: hex('#ffeacf'), strength: 0.9 }
+export const FLOODLIGHT = { color: hex('#f2d9b8'), strength: 0.75, roof: 0.5, relief: 0.35 }
 
 /** The soft light pooled in front of a lit door; drawn at night only. */
 export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }

@@ -439,8 +439,11 @@ const DRAW_FS = `#version 300 es
     shaded += (base + 0.06) * lampLight(v_lightUv, v_above);
     // Floodlit crowns, as a skyline's tallest towers are.
     float crown = u_night * smoothstep(u_height * (1.0 - u_crown), u_height, v_model.z) * step(0.001, u_crown);
-    shaded = mix(shaded, u_windowLight * 0.9, crown * 0.45);
-    vec3 floodlit = min(v_color * paint.rgb * vec3(${FLOODLIGHT.color.map(c => c.toFixed(3)).join(', ')}), 1.0);
+    // Floodlights stand below and to one side: a face turned up or away takes less of them.
+    float flood = mix(1.0, ${FLOODLIGHT.roof.toFixed(2)}, smoothstep(0.2, 0.9, n.z))
+      * (1.0 - ${FLOODLIGHT.relief.toFixed(2)} * (0.5 - 0.5 * dot(n.xy, vec2(0.6, -0.8))));
+    shaded = mix(shaded, u_windowLight * 0.9 * flood, crown * 0.45);
+    vec3 floodlit = min(v_color * paint.rgb * vec3(${FLOODLIGHT.color.map(c => c.toFixed(3)).join(', ')}) * flood, 1.0);
     shaded = mix(shaded, floodlit, clamp(v_floodlight, 0.0, 1.0) * u_night * ${FLOODLIGHT.strength.toFixed(2)});
     if (v_emission != vec3(0.0)) {
       vec3 lit = pow(shaded, vec3(2.2)) + v_emission;

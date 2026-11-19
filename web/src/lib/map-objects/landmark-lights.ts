@@ -15,7 +15,7 @@ export const LANDMARK_LIGHT = {
   /** Metres up to which a lamp is on a post, lighting the ground in full, and from which it is on a deck or a cable, lighting none of it. */
   lampPost: 10, lampAloft: 18,
   /** Metres the glow round a bulb reaches, and its linear colour. */
-  glowReach: 2.4, glowColor: [0.3, 0.22, 0.11], maxGlows: 4096,
+  glowReach: 1.6, glowColor: [0.16, 0.115, 0.06], maxGlows: 4096,
   /** A sign's pool reaches its own half-width, this, and this share of its height over the ground, within metres [min, max]. */
   signReach: 4, signRise: 0.6, minReach: 6, maxReach: 45,
   /** How bright the pool under a sign a metre across is, the metres across at which it is full, and the metres up at which it is half. */

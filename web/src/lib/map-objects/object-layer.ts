@@ -243,7 +243,7 @@ const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a
 
 const DEPTH_FS = `
   precision mediump float;
-  void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
+  void main() { gl_FragColor = vec4(1.0); }`
 
 /** The object where it stands, for the sun's shadow map: `VS` without the light or the flutter. */
 const SUN_VS = `

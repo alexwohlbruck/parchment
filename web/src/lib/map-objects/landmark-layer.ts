@@ -104,8 +104,6 @@ const LINGER_MS = 1500
 /** Its name among the terrain carver's owners; ranked first, so a tunnel is cut into filled ground. */
 const CARVER_OWNER = 'landmarks'
 
-/** Metres up from the ground a model counts as touching it, for the ground occlusion. */
-const SEED_REACH = 3
 /** Metres under the sampled ground still seeded, where the terrain mesh dips between samples. */
 const SEED_BELOW = 0.5
 
@@ -473,7 +471,7 @@ const SEED_FS = `#version 300 es
   ${MASK}
   out vec4 fragColor;
   void main() {
-    if (v_above < -${SEED_BELOW.toFixed(1)} || v_above > ${SEED_REACH.toFixed(1)}) discard;
+    if (v_above < -${SEED_BELOW.toFixed(1)}) discard;
     cut();
     fragColor = vec4(1.0);
   }`

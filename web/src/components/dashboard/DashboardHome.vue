@@ -9,7 +9,7 @@ import {
   onUnmounted,
 } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useDark } from '@vueuse/core'
+import { useThemeStore } from '@/stores/theme.store'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -41,7 +41,7 @@ import {
 
 const router = useRouter()
 const { t } = useI18n()
-const isDark = useDark()
+const { isDark } = storeToRefs(useThemeStore())
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
 const canvasesStore = useCanvasesStore()

@@ -46,10 +46,13 @@ import {
   TerminalIcon,
   TreePineIcon,
   MessageCircleQuestionIcon,
+  LeafIcon,
 } from 'lucide-vue-next'
-import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
+import { usePowerStore } from '@/stores/power.store'
+import { POWER_SAVERS } from '@/lib/power/power-saver'
+import type { PowerSaver } from '@/types/power.types'
 import { useAppStore } from '@/stores/app.store'
 import { useMapService } from '@/services/map/map.service'
 
@@ -114,6 +117,7 @@ export enum CommandName {
   TOGGLE_NORTH_UP_SNAP = 'toggleNorthUpSnap',
   GRID_SNAP = 'gridSnap',
   UPDATE_UNIT_SYSTEM = 'updateUnitSystem',
+  BATTERY_SAVER = 'batterySaver',
   SIGN_OUT = 'signOut',
 }
 
@@ -175,10 +179,9 @@ const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
 }
 
 export const useCommandStore = defineStore('command', () => {
-  const isDark = useDark()
-  const toggleDark = useToggle(isDark)
   const router = useRouter()
-  const { setAccentColor, setRadius } = useThemeStore()
+  const { setAccentColor, setRadius, toggleDark } = useThemeStore()
+  const power = usePowerStore()
   const authService = useAuthService()
   const mapService = useMapService()
 
@@ -770,6 +773,29 @@ export const useCommandStore = defineStore('command', () => {
               return Object.values(UnitSystem).map(system => ({
                 value: system,
                 name: t(`settings.behavior.units.${system}`),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.BATTERY_SAVER,
+        name: t('palette.commands.batterySaver.name'),
+        description: t('palette.commands.batterySaver.description'),
+        keywords: t('palette.commands.batterySaver.keywords'),
+        icon: LeafIcon,
+        action: (level: PowerSaver) => {
+          power.choice = level
+        },
+        arguments: [
+          {
+            id: 'level',
+            name: t('palette.commands.batterySaver.arguments.level.name'),
+            type: 'string',
+            getItems() {
+              return POWER_SAVERS.map(level => ({
+                value: level,
+                name: t(`settings.behavior.batterySaver.values.${level}`),
               }))
             },
           },

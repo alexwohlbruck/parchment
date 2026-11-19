@@ -493,6 +493,16 @@
         "name": "Ask",
         "description": "Ask a question or open a past one",
         "keywords": "ai assistant question chat conversation history"
+      },
+      "batterySaver": {
+        "name": "Battery saver",
+        "description": "Turn off 3D and use less battery",
+        "keywords": "power energy low battery oled",
+        "arguments": {
+          "level": {
+            "name": "Battery saver"
+          }
+        }
       }
     },
     "noResults": "No matching commands",
@@ -3102,6 +3112,21 @@
         "sheetStart": "Sheet opens to",
         "search": "Search bar",
         "library": "Library"
+      },
+      "batterySaver": {
+        "title": "Battery saver",
+        "level": "Battery saver",
+        "levelDescription": "On turns off 3D and checks your location less often. Extreme shows only roads, on black, with no animations.",
+        "lowBattery": "On for now because your battery is low",
+        "values": {
+          "off": "Off",
+          "normal": "On",
+          "extreme": "Extreme"
+        },
+        "auto": "Turn on when battery is low",
+        "autoDescription": "Only while your phone isn't charging",
+        "normalAt": "Battery saver at",
+        "extremeAt": "Extreme at"
       }
     },
     "appearance": {
@@ -3166,7 +3191,8 @@
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
-        "placeLabels": "Place labels"
+        "placeLabels": "Place labels",
+        "batterySaverNote": "Battery saver has 3D off for now"
       },
       "controls": {
         "title": "Map controls",
@@ -4219,6 +4245,13 @@
     "canvas": {
       "saved": "Canvas in your library",
       "open": "Open"
+    }
+  },
+  "powerSaver": {
+    "indicator": "Battery saver is on",
+    "autoOn": {
+      "normal": "Battery at {percent}%, so battery saver is on",
+      "extreme": "Battery at {percent}%, so extreme battery saver is on"
     }
   }
 }

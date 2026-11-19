@@ -181,6 +181,14 @@ export const settingsIndex: SettingsPageDef[] = [
         keywords: ['metric', 'imperial', 'temperature', 'distance', 'speed'],
       },
       {
+        id: 'battery-saver',
+        titleKey: 'settings.behavior.batterySaver.title',
+        keywords: ['battery', 'power', 'low power', 'energy', 'oled'],
+        items: [
+          { titleKey: 'settings.behavior.batterySaver.auto' },
+        ],
+      },
+      {
         id: 'home-screen',
         titleKey: 'settings.behavior.homeScreen.title',
         keywords: ['sheet', 'drawer', 'library', 'peek'],

@@ -487,6 +487,16 @@
         "name": "Preguntar",
         "description": "Haz una pregunta o abre una anterior",
         "keywords": "ia asistente pregunta chat conversación historial"
+      },
+      "batterySaver": {
+        "name": "Ahorro de batería",
+        "description": "Quita el 3D y gasta menos batería",
+        "keywords": "energía batería baja oled",
+        "arguments": {
+          "level": {
+            "name": "Ahorro de batería"
+          }
+        }
       }
     },
     "toggleState": {
@@ -2958,6 +2968,21 @@
         "sheetStart": "La hoja se abre en",
         "search": "Barra de búsqueda",
         "library": "Biblioteca"
+      },
+      "batterySaver": {
+        "title": "Ahorro de batería",
+        "level": "Ahorro de batería",
+        "levelDescription": "Activado quita el 3D y consulta tu ubicación con menos frecuencia. Extremo muestra solo calles, sobre negro y sin animaciones.",
+        "lowBattery": "Activado por ahora porque te queda poca batería",
+        "values": {
+          "off": "Desactivado",
+          "normal": "Activado",
+          "extreme": "Extremo"
+        },
+        "auto": "Activar con poca batería",
+        "autoDescription": "Solo cuando el teléfono no se está cargando",
+        "normalAt": "Ahorro de batería al",
+        "extremeAt": "Extremo al"
       }
     },
     "appearance": {
@@ -3021,7 +3046,8 @@
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
-        "placeLabels": "Etiquetas de lugares"
+        "placeLabels": "Etiquetas de lugares",
+        "batterySaverNote": "El ahorro de batería tiene el 3D desactivado por ahora"
       },
       "controls": {
         "title": "Controles del mapa",
@@ -3948,6 +3974,13 @@
     "canvas": {
       "saved": "Lienzo en tu biblioteca",
       "open": "Abrir"
+    }
+  },
+  "powerSaver": {
+    "indicator": "El ahorro de batería está activado",
+    "autoOn": {
+      "normal": "Batería al {percent}%: ahorro de batería activado",
+      "extreme": "Batería al {percent}%: ahorro de batería extremo activado"
     }
   }
 }

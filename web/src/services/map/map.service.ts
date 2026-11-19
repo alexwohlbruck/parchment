@@ -58,6 +58,7 @@ import { boundsFillView, tripsBounds } from '@/lib/directions/trip-bounds'
 import type { TripsResponse } from '@/types/directions.types'
 import { useThemeStore } from '@/stores/theme.store'
 import { usePowerStore } from '@/stores/power.store'
+import { mapRenderBudget } from '@/lib/power/power-saver'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
 import { createSharedComposable, tryOnScopeDispose, useDark } from '@vueuse/core'
@@ -1098,6 +1099,10 @@ function mapService() {
   watch(
     () => powerStore.saver === 'extreme',
     value => mapStrategy?.setRoadsOnly(value),
+  )
+  watch(
+    () => powerStore.saver,
+    saver => mapStrategy?.setRenderBudget(mapRenderBudget(saver)),
   )
 
   function togglePoiLabels(value?: boolean) {

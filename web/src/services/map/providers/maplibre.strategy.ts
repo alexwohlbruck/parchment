@@ -83,6 +83,8 @@ import InstructionPointMarker from '@/components/map/markers/InstructionPointMar
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { usePowerStore } from '@/stores/power.store'
+import { mapRenderBudget, type MapRenderBudget } from '@/lib/power/power-saver'
+import { createFrameCap } from '@/lib/map/frame-cap'
 import {
   buildMapStyle,
   buildRoadsOnlyStyle,
@@ -323,6 +325,7 @@ export class MaplibreStrategy extends MapStrategy {
   geolocateControl: GeolocateControl
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
+  private frameCap?: ReturnType<typeof createFrameCap>
   private tileServerUrl?: string
   private currentBasemap: Basemap = 'standard'
   private poiHandlerCleanup: (() => void) | null = null
@@ -378,7 +381,7 @@ export class MaplibreStrategy extends MapStrategy {
       // A 3× display renders 2.25× the fragments of a 2× cap for sharpness
       // the eye can't use on a moving map — a large GPU/battery cost on
       // phones for no visible gain.
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      pixelRatio: Math.min(window.devicePixelRatio || 1, mapRenderBudget(usePowerStore().saver).maxPixelRatio),
       // The default 300ms symbol crossfade keeps the map repainting for
       // ~20 frames after every camera change.
       fadeDuration: 100,
@@ -400,6 +403,9 @@ export class MaplibreStrategy extends MapStrategy {
       // a building keeps one terrain elevation across zooms.
       zoomLevelsToOverscale: undefined,
     })
+
+    this.frameCap = createFrameCap(this.mapInstance)
+    this.frameCap.set(mapRenderBudget(usePowerStore().saver).minFrameMs)
 
     // A console handle for poking the live map — camera, transform, layers —
     // without wiring anything through the app. Dev builds only.
@@ -1631,6 +1637,12 @@ export class MaplibreStrategy extends MapStrategy {
     return this.builtRoadsOnly
   }
 
+  override setRenderBudget(budget: MapRenderBudget) {
+    this.frameCap?.set(budget.minFrameMs)
+    const ratio = Math.min(window.devicePixelRatio || 1, budget.maxPixelRatio)
+    if (ratio !== this.mapInstance.getPixelRatio()) this.mapInstance.setPixelRatio(ratio)
+  }
+
   override setRoadsOnly(value: boolean) {
     if (this.builtRoadsOnly === undefined || this.builtRoadsOnly === value) return
     this.reloadStyle()
@@ -1931,6 +1943,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.poiHandlerCleanup?.()
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()
+      this.frameCap?.dispose()
       if (this.sunTimer) clearInterval(this.sunTimer)
 
       // Remove the map instance

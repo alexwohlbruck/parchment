@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { autoPowerSaver, DEFAULT_POWER_SAVER_AUTO, locationWatchOptions, strongerSaver } from './power-saver'
+import {
+  autoPowerSaver,
+  DEFAULT_POWER_SAVER_AUTO,
+  isStronger,
+  locationWatchOptions,
+  mapRenderBudget,
+  pollInterval,
+  strongerSaver,
+} from './power-saver'
 
 const auto = { ...DEFAULT_POWER_SAVER_AUTO, enabled: true }
 
@@ -38,5 +46,31 @@ describe('locationWatchOptions', () => {
 
   it('keeps full accuracy during navigation', () => {
     expect(locationWatchOptions('extreme', true).enableHighAccuracy).toBe(true)
+  })
+})
+
+describe('isStronger', () => {
+  it('only counts a step up', () => {
+    expect(isStronger('normal', 'off')).toBe(true)
+    expect(isStronger('normal', 'normal')).toBe(false)
+    expect(isStronger('normal', 'extreme')).toBe(false)
+  })
+})
+
+describe('mapRenderBudget', () => {
+  it('draws fewer pixels and frames the harder it saves', () => {
+    const [off, normal, extreme] = (['off', 'normal', 'extreme'] as const).map(mapRenderBudget)
+    expect(off.minFrameMs).toBe(0)
+    expect(normal.maxPixelRatio).toBeLessThan(off.maxPixelRatio)
+    expect(extreme.maxPixelRatio).toBeLessThan(normal.maxPixelRatio)
+    expect(normal.minFrameMs).toBeGreaterThan(0)
+  })
+})
+
+describe('pollInterval', () => {
+  it('keeps the base rate when off and slows it while saving', () => {
+    expect(pollInterval(5000, 'off')).toBe(5000)
+    expect(pollInterval(5000, 'normal')).toBeGreaterThan(5000)
+    expect(pollInterval(5000, 'extreme')).toBeGreaterThan(pollInterval(5000, 'normal'))
   })
 })

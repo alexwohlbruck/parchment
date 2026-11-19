@@ -1,3 +1,4 @@
+import type { MapRenderBudget } from '@/lib/power/power-saver'
 import { type CameraOptions } from 'maplibre-gl'
 import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
@@ -211,6 +212,8 @@ export class MapStrategy {
   setHdRoads(value: boolean) {}
   /** Extreme battery saver's black, roads-only basemap. MapLibre only. */
   setRoadsOnly(value: boolean) {}
+  /** Battery saver's cap on pixel density and frame rate. MapLibre only. */
+  setRenderBudget(budget: MapRenderBudget) {}
   setIndoorMaps(value: boolean) {}
   /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
   setIndoorLevel(level: number | null) {}

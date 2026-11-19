@@ -4,6 +4,7 @@ import { type Theme, themes } from '@/lib/registry/themes'
 import { type Style, styles } from '@/lib/registry/styles'
 import { defineStore } from 'pinia'
 import { useDark } from '@vueuse/core'
+import { usePowerStore } from '@/stores/power.store'
 
 export const colorSchemes = ['auto', 'light', 'dark'] as const
 export type ColorScheme = (typeof colorSchemes)[number]
@@ -71,6 +72,14 @@ export const useThemeStore = defineStore('theme', () => {
   const colorScheme = useStorage<ColorScheme>('vueuse-color-scheme', 'auto')
   const isDark = useDark({ storageRef: colorScheme })
   const toggleDark = useToggle(isDark)
+
+  // Extreme battery saver goes dark for the OLED savings, without changing the stored scheme.
+  const power = usePowerStore()
+  watch(
+    [isDark, () => power.saver],
+    () => document.documentElement.classList.toggle('dark', isDark.value || power.saver === 'extreme'),
+    { flush: 'post', immediate: true },
+  )
 
   function setColorScheme(scheme: ColorScheme) {
     colorScheme.value = scheme

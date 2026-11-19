@@ -15,6 +15,20 @@
 - **Barrelman code changes** (`../barrelman/src/`): `bun --hot` picks them up automatically (source volume-mounted via the dev compose override). If hot reload fails: `docker compose -f ../barrelman/docker-compose.yml -f ../barrelman/docker-compose.dev.yml restart barrelman`. Rebuild the image only for dependency / `Dockerfile` changes.
 - **Barrelman import scripts** (`../barrelman/import/`, `../barrelman/scripts/`): mounted into the container; re-run them directly, no rebuild.
 
+## MapLibre fork
+
+The web map runs on our fork of MapLibre GL JS, [`alexwohlbruck/maplibre-gl-js`](https://github.com/alexwohlbruck/maplibre-gl-js), pinned by tag in `web/package.json` (`github:alexwohlbruck/maplibre-gl-js#v<upstream>-transit.N-terrain.M`). The fork commits `dist/`, so a tag installs without a toolchain.
+
+- **Engine changes go in the fork**, not in a postinstall patch or a monkey-patch from the app. Rendering, shaders, style-spec properties and worker behaviour all belong there.
+- **Document every fork change in its `FORK.md`** in the same pull request: the API and style-spec surface, the exact behaviour (formulas, constants, render-pass order), the shaders and buffers it touches, and notes for porting it. The iOS and Android apps use MapLibre Native forks that get the same changes ported from that file, so a change missing from it is effectively web-only.
+- **Keep the fork in step with upstream.** When MapLibre GL JS publishes a release, merge its tag into the fork; don't rebase, because published tags point into the fork's history. Resolve conflicts so every fork feature still works, preferring upstream's fix where both changed the same thing. Then:
+  1. Rebuild `dist/` and commit it separately.
+  2. Tag `v<new upstream>-transit.1-terrain.1`.
+  3. Bump the pin here and check the map in a preview.
+  4. Update `FORK.md` wherever a feature had to be reworked.
+- Check how far behind the fork is (`git fetch upstream --tags && git describe --tags --abbrev=0 upstream/main`) before starting fork work. Sync first if a release has landed since the last merge.
+- Version fork releases by bumping the last number of the tag (`-terrain.M`), and bump the app's pin in the same branch that needs the change.
+
 ## Release notes
 
 `CHANGELOG.md` is cumulative ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` at the top — do not wait for release time.

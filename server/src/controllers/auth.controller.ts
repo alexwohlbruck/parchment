@@ -45,7 +45,12 @@ import type {
 import { generateId } from '../util'
 import { billing, registrationMode } from '../config'
 import { getSubscriptionStatus } from '../services/subscription.service'
-import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import {
+  byEmail,
+  byIp,
+  makeUserRateLimit,
+  rateLimitHandler,
+} from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -64,6 +69,19 @@ const prfEnrollRateLimit = makeUserRateLimit({
   limit: 30,
   windowMs: 60_000,
 })
+
+const FIFTEEN_MINUTES = 15 * 60_000
+
+const signInIpLimit = rateLimitHandler({ name: 'sign-in-ip', limit: 30 }, byIp)
+const codeRequestLimit = rateLimitHandler(
+  { name: 'otp-request', limit: 5, windowMs: FIFTEEN_MINUTES },
+  byEmail,
+)
+// The code is 8 digits; this caps guessing at a handful per code lifetime.
+const codeAttemptLimit = rateLimitHandler(
+  { name: 'otp-attempt', limit: 10, windowMs: FIFTEEN_MINUTES },
+  byEmail,
+)
 
 const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
@@ -105,10 +123,11 @@ app.post(
     }
   },
   {
+    beforeHandle: [signInIpLimit, codeRequestLimit],
     detail: {
       tags: ['Auth'],
       description:
-        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.',
+        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use. Limited to 5 codes per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.',
     },
     body: t.Object({
       email: t.String({
@@ -258,6 +277,7 @@ app.group('/passkeys', (app) => {
         }
       },
       {
+        beforeHandle: signInIpLimit,
         detail: {
           tags: ['Auth'],
           summary: 'Get passkey authentication options',
@@ -339,6 +359,7 @@ app.group('/passkeys', (app) => {
           clientExtensionResults: t.Any(),
           authenticatorAttachment: t.String(),
         }),
+        beforeHandle: signInIpLimit,
         detail: {
           tags: ['Auth'],
           summary: 'Verify passkey authentication',
@@ -462,10 +483,11 @@ app.group('/sessions', (app) => {
       }
     },
     {
+      beforeHandle: [signInIpLimit, codeAttemptLimit],
       detail: {
         tags: ['Auth'],
         description:
-          'Sign in a user. Exchanges a passkey or one-time password for an authentication token.',
+          'Sign in a user. Exchanges a passkey or one-time password for an authentication token. Limited to 10 attempts per address every 15 minutes and 30 sign-in requests per IP address a minute; past that it returns 429 with `Retry-After`.',
       },
       body: t.Union([
         t.Object({

@@ -133,3 +133,23 @@ it('keeps the fills of landmarks that left the view, dropping the longest gone p
   expect(kept.has('gone5')).toBe(false)
   expect([...kept.keys()].at(-1)).toBe('drawn')
 })
+
+it('judges the ground a model was built on from the detailed DEM, not the coarse terrain drawn far off', () => {
+  const layer = new LandmarkLayer({ id: 'landmarks', source: 'detail', sourceLayer: 'landmarks', modelUrl: file => file, onReplace: vi.fn(), flavor: LANDMARK_FLAVOR.light }) as any
+  const landmark = { id: 'bridge', model: 'bridge', lng: 0, lat: 0, bearing: 0, scale: 1 }
+  // Its feet follow a slope rising 4 m in 100 m southward, as the bare ground under them does.
+  const rise = (z: number) => 20 + 0.04 * z
+  const model = { contacts: Array.from({ length: 21 }, (_, i) => [0, rise(-500 + 50 * i), -500 + 50 * i]) }
+  const detailed = (point: [number, number]) => rise(-point[1] * 110574)
+  const coarse = { unfilled: () => 20 }
+  let bare: (point: [number, number]) => number = () => NaN
+  layer.bareAt = (point: [number, number]) => bare(point)
+
+  const early = layer.modelGround(landmark, model, coarse)
+  expect(early.follows).toBe(false)
+  expect(layer.grounds.size).toBe(0)
+
+  bare = detailed
+  expect(layer.modelGround(landmark, model, coarse).follows).toBe(true)
+  expect(layer.grounds.size).toBe(1)
+})

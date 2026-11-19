@@ -35,6 +35,15 @@ export function addPixels(
   return point + px
 }
 
+/** Scale an authored pixel detent with the interface size; fractions are already relative. */
+export function scalePixels(point: SnapPoint, scale: number): SnapPoint {
+  if (scale === 1) return point
+  if (typeof point === 'string') {
+    return point.endsWith('px') ? `${parseFloat(point) * scale}px` : point
+  }
+  return point > 1 ? point * scale : point
+}
+
 /**
  * Keep a measured detent strictly between its neighbours. On a short screen
  * tall content would otherwise overshoot and break the ascending order.
@@ -80,7 +89,8 @@ export function adjustForSafeArea(
  * The final list handed to Vaul: the measured peek swapped into its slot
  * (`measuredIndex`, the first by default), safe-area adjusted, then clamped.
  * `lift` raises every detent by that many pixels, for a sheet that floats
- * above the bottom edge.
+ * above the bottom edge. `scale` grows authored pixel detents with the
+ * interface size; a measured peek is already in real pixels.
  */
 export function resolveSnapPoints(options: {
   base: SnapPoint[]
@@ -89,6 +99,7 @@ export function resolveSnapPoints(options: {
   viewportHeight: number
   insets?: SafeAreaInsets | null
   lift?: number
+  scale?: number
 }): SnapPoint[] {
   const {
     base,
@@ -97,11 +108,14 @@ export function resolveSnapPoints(options: {
     viewportHeight,
     insets,
     lift = 0,
+    scale = 1,
   } = options
   if (!base.length) return base
 
   const points = base.map((point, i) =>
-    i === measuredIndex && measuredPeekPx != null ? `${measuredPeekPx}px` : point,
+    i === measuredIndex && measuredPeekPx != null
+      ? `${measuredPeekPx}px`
+      : scalePixels(point, scale),
   )
 
   const safe = insets

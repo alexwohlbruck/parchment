@@ -1,12 +1,13 @@
 import type { DeckPalette, DeckSources, RouteSpan } from '../deck.types'
 import { ghostBlend } from '@/lib/map/ghost-blend'
-import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, type MeshBuffers } from '../mesh-program'
+import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, useMeshProgram, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
 import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
 import { translate } from '@/lib/map-objects/object-layer'
 import { HD_FADE } from '@/lib/map-style/road-markings'
 import { liveBuildingShade } from '@/lib/map/building-shade'
-import type { SunFrame } from '@/lib/map/sun-shadow'
+import type { OcclusionFrame } from 'maplibre-gl'
+import type { GroundOcclusion, SunFrame } from '@/lib/map/sun-shadow'
 import { queryFeatures } from '../map-query'
 import { routeOverlay } from './route-overlay'
 import { BRIDGE_MESH_FILE, gpuBytes, MATERIALS, type BakedMesh, type MeshGeometry } from './mesh-file'
@@ -36,7 +37,7 @@ const TILE_RETRY_MS = 10_000
 const REBUILD_MS = 300
 
 type Stand = NonNullable<ReturnType<typeof standing>>
-type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number; bounds: Bounds | null }
+type Part = { data: Pick<BakedMesh, 'origin' | 'ranges' | 'stands' | 'under' | 'tracks'>; buffers: MeshBuffers; shadow: MeshShadow; bytes: number; bounds: Bounds | null; /** Where its vertices lie, for leaving it undrawn out of sight; null draws it always. */ extent: Bounds | null }
 
 export class BakedBridgeLayer {
   readonly id = 'map-decks'
@@ -89,6 +90,7 @@ export class BakedBridgeLayer {
   private tileSync?: ReturnType<typeof setTimeout>
   private rebuildTimer?: ReturnType<typeof setTimeout>
   private sun: SunFrame | null = null
+  private occlusion: GroundOcclusion | null = null
   private bytes = 0
   private bounds = new Map<string, Bounds>()
   private displayed = ''
@@ -135,8 +137,9 @@ export class BakedBridgeLayer {
   }
   get shadowVersion() { return this.version }
   receiveSun(frame: SunFrame) { this.sun = frame }
-  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
-    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawShadow(gl, frame, this.exaggeration())
+  receiveOcclusion(occlusion: GroundOcclusion) { this.occlusion = occlusion }
+  drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
+    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawOcclusion(gl, frame)
   }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
@@ -872,8 +875,8 @@ export class BakedBridgeLayer {
         this.pending.delete(id)
         const buffers = uploadMesh(gl, data)
         const shadow = new MeshShadow()
-        shadow.set(gl, buffers.position, data.ranges.paintFrom, data.ground, data.origin, 1, buffers.indices, buffers.lift)
-        this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes, bounds: standBounds(data.stands) })
+        shadow.set(gl, buffers.position, data.ranges.paintFrom, data.origin, buffers.indices, buffers.lift, buffers.bias)
+        this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes, bounds: standBounds(data.stands), extent: extentOf(data.position, data.origin) })
         this.bytes += bytes
       }
       this.updateCover()
@@ -882,7 +885,7 @@ export class BakedBridgeLayer {
     if (this.routePending) {
       const { mesh, origin } = this.routePending
       this.routePending = null
-      this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null }
+      this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null, extent: null }
     }
     if (!this.drawing) return
     // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
@@ -891,46 +894,67 @@ export class BakedBridgeLayer {
       if (this.tileMode) ids.sort((a, b) => parseInt(a) - parseInt(b))
       this.drawOrder = { parts: this.parts.size, wanted: this.wanted, ids }
     }
-    for (const id of this.drawOrder.ids) {
-      const part = this.parts.get(id)
-      if (part) this.drawPart(gl, args, part)
-    }
-    if (this.route && this.covered) this.drawPart(gl, args, this.route, this.travelled)
-    this.sun = null
-  }
-  private drawPart(gl: WebGL2RenderingContext, args: any, part: Part, travelled = -1) {
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
-    const matrix = translate(projection, [part.data.origin[0], part.data.origin[1], 0])
-    const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
     const [from, to] = HD_FADE
     const hd = this.sources.hd?.() === false ? 0 : Math.max(0, Math.min(1, (this.map.getZoom() - from) / (to - from)))
-    const eye = eyeOf(projection)
-    const relative: [number, number, number] | null = eye && [eye[0] - part.data.origin[0], eye[1] - part.data.origin[1], eye[2]]
     const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-    // The sun's map is this frame's only: a frame the buildings skip leaves none.
-    const sun = this.sun
-
     const shade = liveBuildingShade()
-    const mesh = bindMesh(gl, this.program, part.buffers, matrix, light, { hd, palette: this.colors, travelled, elevationScale: exaggeration, eye: relative, perMetre: (part.buffers.lift ? 1 : exaggeration) / metresPerUnit(part.data.origin[1]), minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
-      sun: { frame: sun, origin: part.data.origin, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, ground: shade?.groundShadow() ?? null, gradeBias: TOUCHDOWN.bias },
+    useMeshProgram(gl, this.program, this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7], {
+      hd, palette: this.colors, elevationScale: exaggeration, minLinePx: MIN_LINE_PX, pixelRatio: this.map.getPixelRatio?.() ?? 1,
+      // The sun's map is this frame's only: a frame the buildings skip leaves none.
+      sun: { frame: this.sun, alpha: shade ? shade.shadowAlpha * shade.groundOpacity() : 0, color: shade?.shadowColor },
+      occlusion: { map: this.occlusion, gradeBias: TOUCHDOWN.bias },
+    })
+    gl.enable(gl.DEPTH_TEST)
+    gl.depthFunc(gl.LEQUAL)
+    gl.disable(gl.CULL_FACE)
+    const view = { projection, eye: eyeOf(projection), hd, exaggeration, rails: this.map.getZoom() >= RAILS_FROM }
+    const sight = this.sight()
+    for (const id of this.drawOrder.ids) {
+      const part = this.parts.get(id)
+      if (part && (!part.extent || !sight || meets(part.extent, sight))) this.drawPart(gl, view, part)
+    }
+    if (this.route && this.covered) this.drawPart(gl, view, this.route, this.travelled)
+    gl.bindVertexArray(null)
+    this.sun = null
+    this.occlusion = null
+  }
+  /** The ground in view, mercator, with room for what stands on it; null where the map cannot say. */
+  private sight(): Bounds | null {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return null
+    const [sw, ne] = [mercator([bounds.getWest(), bounds.getSouth()]), mercator([bounds.getEast(), bounds.getNorth()])]
+    // A deck high over ground out of sight leans into view as the map tilts.
+    const pad = (DECK_REACH * Math.tan((Math.min(this.map.getPitch?.() ?? 0, 85) * Math.PI) / 180)) / metresPerUnit(sw[1])
+    return { minX: Math.min(sw[0], ne[0]) - pad, minY: Math.min(sw[1], ne[1]) - pad, maxX: Math.max(sw[0], ne[0]) + pad, maxY: Math.max(sw[1], ne[1]) + pad }
+  }
+  private drawPart(gl: WebGL2RenderingContext, view: { projection: ArrayLike<number>; eye: [number, number, number] | null; hd: number; exaggeration: number; rails: boolean }, part: Part, travelled = -1) {
+    const { origin } = part.data
+    const relative: [number, number, number] | null = view.eye && [view.eye[0] - origin[0], view.eye[1] - origin[1], view.eye[2]]
+    const mesh = bindMesh(gl, this.program, part.buffers, translate(view.projection, [origin[0], origin[1], 0]), {
+      origin, travelled, eye: relative, perMetre: (part.buffers.lift ? 1 : view.exaggeration) / metresPerUnit(origin[1]),
     })
     const { paintFrom, railsFrom, routesFrom } = part.data.ranges
+    const end = part.buffers.count
+    // What lies over the asphalt: paint, then rails from the zoom they show at, then routes. Most pieces have none.
+    const paintTo = view.hd > 0 ? railsFrom : paintFrom
+    const overFrom = view.rails ? railsFrom : routesFrom
     const draw = (writeDepth: boolean) => {
       mesh.draw(0, paintFrom)
+      if (paintTo === paintFrom && overFrom === end) return
       // Paint and routes sit a few centimetres over the asphalt; the offset keeps them in front of it at any distance.
       gl.enable(gl.POLYGON_OFFSET_FILL)
       gl.polygonOffset(-2, -2)
       // Paint is a decal: each mark tested against the deck but not the marks laid before it, so the later one shows where two meet.
       gl.depthMask(false)
-      if (hd > 0) mesh.draw(paintFrom, railsFrom)
-      gl.depthMask(writeDepth)
-      if (this.map.getZoom() >= RAILS_FROM) mesh.draw(railsFrom, routesFrom)
-      mesh.draw(routesFrom)
+      if (!writeDepth && paintTo === overFrom) mesh.draw(paintFrom, end)
+      else {
+        mesh.draw(paintFrom, paintTo)
+        gl.depthMask(writeDepth)
+        mesh.draw(overFrom, end)
+      }
       gl.disable(gl.POLYGON_OFFSET_FILL)
     }
-    gl.enable(gl.DEPTH_TEST)
-    gl.depthFunc(gl.LEQUAL)
-    gl.disable(gl.CULL_FACE)
     const ghost = ghostBlend(gl, this.opacity)
     if (!ghost) {
       gl.disable(gl.BLEND)
@@ -943,8 +967,23 @@ export class BakedBridgeLayer {
     }
     gl.depthMask(!ghost)
     draw(!ghost)
-    mesh.unbind()
   }
+}
+
+/** Metres a deck may stand over the ground. */
+const DECK_REACH = 150
+
+/** Where a mesh's vertices lie on the map, from positions about its origin. */
+export function extentOf(position: ArrayLike<number>, origin: Point): Bounds {
+  let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
+  for (let i = 0; i < position.length; i += 3) {
+    const [x, y] = [position[i], position[i + 1]]
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  return { minX: origin[0] + minX, minY: origin[1] + minY, maxX: origin[0] + maxX, maxY: origin[1] + maxY }
 }
 
 /** The bounds of every surface a mesh's decks stand on, or null where one has none and so cannot be skipped. */

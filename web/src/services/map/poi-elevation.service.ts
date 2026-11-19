@@ -8,6 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
+import { sourceFeatures } from '@/lib/map/source-features'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import {
@@ -15,7 +16,7 @@ import {
   RECENT_PLACES_SOURCE_ID,
   SEARCH_RESULTS_SOURCE_ID,
 } from '@/constants/layers'
-import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'
+import { footprintIndex, poiElevation, raisedDiff, type BuildingFootprint } from '@/lib/map/poi-elevation'
 import { RAISED_POI_SOURCE } from '@/lib/map/basemap-poi-look'
 
 const SOURCE = RAISED_POI_SOURCE
@@ -51,7 +52,7 @@ function footprintReader() {
     const previous = byTile
     byTile = new Map()
     let read = 0
-    for (const f of map.querySourceFeatures(layer.source, { sourceLayer: layer.sourceLayer })) {
+    for (const f of sourceFeatures(map, layer.source, layer.sourceLayer)) {
       if (++read % 64 === 0) yield
       const tile = `${layer.source}/${layer.sourceLayer}/${f._z}/${f._x}/${f._y}`
       const known = previous.get(tile)
@@ -184,6 +185,8 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   let currentBuildings: BuildingFootprint[] | null = null
   let currentLift: boolean | null = null
   let elevations = new Map<string, number>()
+  /** The height of each POI in the raised source, by id; null while it holds some that have none. */
+  let shown: Map<string | number, number> | null = null
 
   function* hydrate(): Generator<void> {
     const mounted = mount()
@@ -210,7 +213,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const positions: string[] = []
     const nextElevations = new Map<string, number>()
     let read = 0
-    for (const f of map.querySourceFeatures(tiles, { sourceLayer: 'poi' })) {
+    for (const f of sourceFeatures(map, tiles, 'poi')) {
       if (++read % 32 === 0) yield
       const point = f.geometry?.coordinates as [number, number]
       if (!point) continue
@@ -231,7 +234,12 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const next = `${lift}|${positions.sort().join(';')}`
     if (next === signature) return
     signature = next
-    map.getSource(SOURCE)?.setData({ type: 'FeatureCollection', features })
+    const source = map.getSource(SOURCE)
+    // Only what changed, where the source can take it: writing every POI again re-tiles the whole view for a handful that arrived.
+    const diff = shown && source?.updateData ? raisedDiff(shown, features) : null
+    if (diff) source.updateData(diff)
+    else source?.setData({ type: 'FeatureCollection', features })
+    shown = raisedDiff(new Map(), features) ? new Map(features.map(f => [f.id, f.properties._elev])) : null
   }
 
   const hydration = frameTask(hydrate)
@@ -275,6 +283,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   }
   const onStyle = () => {
     signature = ''
+    shown = null
     hydration.cancel()
     poiDirty = true
     buildingDirty = true

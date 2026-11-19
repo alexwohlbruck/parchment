@@ -1,4 +1,4 @@
-import { Layer, MaplibreLayerType } from '@/types/map.types'
+import { Layer, MapEngine, MaplibreLayerType } from '@/types/map.types'
 
 // List of Mapbox paint properties that are not supported by Maplibre
 const MAPBOX_PAINT_PROPERTIES = [
@@ -194,4 +194,26 @@ export function mapboxLayerToMaplibreLayer(
     ...layer,
     configuration: maplibreConfig,
   } as any
+}
+
+const EMISSIVE_KEYS: Record<string, string> = {
+  fill: 'fill-emissive-strength',
+  line: 'line-emissive-strength',
+  circle: 'circle-emissive-strength',
+  symbol: 'text-emissive-strength',
+}
+
+/**
+ * Keep an overlay at full brightness under Mapbox's night lighting. MapLibre
+ * has no lighting and rejects the whole layer if the property is present.
+ */
+export function withEmissive<T extends { type: string; paint?: object }>(
+  layer: T,
+  engine: MapEngine,
+): T {
+  const key = EMISSIVE_KEYS[layer.type]
+  if (engine !== MapEngine.MAPBOX || !key) return layer
+  const paint = (layer.paint ?? {}) as Record<string, unknown>
+  if (key in paint) return layer
+  return { ...layer, paint: { ...paint, [key]: 1 } }
 }

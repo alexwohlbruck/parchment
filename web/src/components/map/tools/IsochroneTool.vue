@@ -48,6 +48,7 @@ import {
   bandsToGeoJson,
   maxMinutesForMode,
 } from '@/lib/directions/isochrone'
+import { isochroneAnnotations } from '@/lib/canvas/measurement-annotations'
 import {
   EMPTY_ISOCHRONE_GEOJSON,
   ISOCHRONE_FILL_LAYER_ID,
@@ -55,6 +56,7 @@ import {
   ISOCHRONE_SOURCE_ID,
 } from '@/constants/layers'
 import MeasureDot from './MeasureDot.vue'
+import MeasureExportActions from './MeasureExportActions.vue'
 import MeasureToolPanel from './MeasureToolPanel.vue'
 import UnitSystemToggle from './UnitSystemToggle.vue'
 import { Button } from '@/components/ui/button'
@@ -62,7 +64,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const ORIGIN_MARKER_ID = 'isochrone-origin-dot'
@@ -108,6 +109,12 @@ watch(isActive, active => {
       unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric'
   }
 })
+
+const reachMarks = computed(() =>
+  isochroneAnnotations(origin.value, bands.value, mode.value, minutes =>
+    t('isochrone.minutes', { count: minutes }),
+  ),
+)
 
 const sliderMax = computed(() => maxMinutesForMode(mode.value))
 
@@ -251,6 +258,9 @@ function closeTool() {
     width-class="w-[19rem]"
     @close="closeTool"
   >
+    <template #header-actions>
+      <UnitSystemToggle v-model="areaUnitSystem" />
+    </template>
     <template #title-adornment>
       <Spinner
         v-if="status === 'loading'"
@@ -274,9 +284,29 @@ function closeTool() {
             :value="option.id"
             variant="outline"
             :aria-label="t(option.labelKey)"
-            class="h-8 w-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+            class="h-8 w-full max-md:h-10 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <component :is="option.icon" class="size-4 shrink-0" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <!-- Direction -->
+        <ToggleGroup
+          type="single"
+          :model-value="arriveBy ? 'to' : 'from'"
+          class="grid grid-cols-2 gap-1"
+          @update:model-value="
+            value => value && isochroneStore.setArriveBy(value === 'to')
+          "
+        >
+          <ToggleGroupItem
+            v-for="direction in ['from', 'to'] as const"
+            :key="direction"
+            :value="direction"
+            variant="outline"
+            class="h-7 w-full text-[12px] max-md:h-9 max-md:text-[13px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            {{ t(direction === 'from' ? 'isochrone.fromHere' : 'isochrone.toHere') }}
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -326,28 +356,13 @@ function closeTool() {
               :value="String(count)"
               variant="outline"
               :aria-label="t('isochrone.bandsCount', { count })"
-              class="h-7 w-8 text-[12px] tabular-nums data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              class="h-7 w-8 text-[12px] tabular-nums max-md:h-9 max-md:w-10 max-md:text-[13px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {{ count }}
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
 
-        <!-- Direction -->
-        <div class="flex items-center justify-between gap-4">
-          <Label
-            for="isochrone-arrive-by"
-            class="shrink-0 text-[11px] font-medium text-muted-foreground"
-          >
-            {{ t('isochrone.arriveBy') }}
-          </Label>
-          <Switch
-            id="isochrone-arrive-by"
-            :model-value="arriveBy"
-            :aria-label="t('isochrone.arriveByHint')"
-            @update:model-value="value => isochroneStore.setArriveBy(value)"
-          />
-        </div>
 
         <Separator />
 
@@ -356,13 +371,13 @@ function closeTool() {
              slider nudge is more disorienting than a moment of staleness. -->
         <template v-if="bands.length">
           <div
-            class="flex flex-col gap-1.5 transition-opacity"
+            class="grid grid-cols-3 gap-x-3 gap-y-2.5 transition-opacity"
             :class="{ 'opacity-50': status === 'loading' }"
           >
             <div
               v-for="band in bands"
               :key="band.bucket"
-              class="flex items-baseline justify-between gap-4"
+              class="flex min-w-0 flex-col gap-0.5"
             >
               <span class="flex min-w-0 items-center gap-2">
                 <span
@@ -379,7 +394,7 @@ function closeTool() {
                 </Label>
               </span>
               <span
-                class="text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums"
+                class="truncate text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums"
               >
                 {{ formatArea(band.reachableAreaSquareMeters) }}
               </span>
@@ -393,10 +408,9 @@ function closeTool() {
             {{ t('isochrone.stopsReachable', { count: reachableStops }) }}
           </p>
 
-          <UnitSystemToggle
-            v-model="areaUnitSystem"
-            :metric-label="t('measure.unitsMetric')"
-            :imperial-label="t('measure.unitsImperial')"
+          <MeasureExportActions
+            :annotations="reachMarks"
+            :name="t('isochrone.title')"
           />
         </template>
 

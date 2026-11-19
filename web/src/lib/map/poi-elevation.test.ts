@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { footprintIndex, LEVEL_HEIGHT, poiElevation, type BuildingFootprint } from './poi-elevation'
+import { footprintIndex, LEVEL_HEIGHT, poiElevation, raisedDiff, type BuildingFootprint } from './poi-elevation'
 
 const square = (x: number, y: number, size: number, height: number): BuildingFootprint => ({
   rings: [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]],
@@ -41,5 +41,25 @@ describe('poiElevation', () => {
     const ring = square(0, 0, 0.001, 30)
     ring.rings.push([[0.0004, 0.0004], [0.0006, 0.0004], [0.0006, 0.0006], [0.0004, 0.0006], [0.0004, 0.0004]])
     expect(poiElevation([0.0005, 0.0005], undefined, footprintIndex([ring]))).toBe(0)
+  })
+})
+
+describe('raisedDiff', () => {
+  const poi = (id: number | undefined, _elev: number) => ({ id, properties: { _elev } })
+
+  test('adds what is new or at another height, and removes what is gone', () => {
+    const shown = new Map<string | number, number>([[1, 0], [2, 12], [3, 0]])
+    const moved = poi(2, 20)
+    const fresh = poi(4, 0)
+    expect(raisedDiff(shown, [poi(1, 0), moved, fresh])).toEqual({ remove: [3], add: [moved, fresh] })
+  })
+
+  test('changes nothing for the same set', () => {
+    expect(raisedDiff(new Map([[1, 5]]), [poi(1, 5)])).toEqual({ remove: [], add: [] })
+  })
+
+  test('gives up where two features share an id or one has none', () => {
+    expect(raisedDiff(new Map(), [poi(1, 0), poi(1, 0)])).toBeNull()
+    expect(raisedDiff(new Map(), [poi(undefined, 0)])).toBeNull()
   })
 })

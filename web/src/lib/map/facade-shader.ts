@@ -2,9 +2,11 @@
  * Procedural facades in the calm style of a cartoon city: soft glass bands,
  * a look per kind of building, and at night a minority of buildings lit in a
  * few long stretches. Generated per fragment and box-filtered, so there are no
- * textures and no shimmer. Shared by the extrusions (`vendor/ao-shadow.mjs`)
- * and the landmarks.
+ * textures and no shimmer. Shared by the extrusions, through MapLibre's
+ * shading (`facadeWallShader`), and the landmarks.
  */
+import type { WallShader } from 'maplibre-gl'
+
 
 /** A 0-1 hash of a 2D point; keep inputs small (under ~1e4) for mobile precision. */
 export const FACADE_HASH_GLSL = `
@@ -15,7 +17,7 @@ export const FACADE_HASH_GLSL = `
   }
 `
 
-/** What a building's walls look like; the id the style's donor layer encodes, see `BUILDING_3D_FACADE_LAYER`. */
+/** What a building's walls look like; the id the style hands over as `fill-extrusion-facade-style`. */
 export const FACADE_STYLE = {
   plain: 0,
   curtain: 1,
@@ -66,6 +68,20 @@ export const FACADE_GLSL = `
     return clamp((y - lo) / max(wy, 1e-4) + 0.5, 0.0, 1.0) * clamp((hi - y) / max(wy, 1e-4) + 0.5, 0.0, 1.0);
   }
 
+  // How much of a style's buildings keep lights on, as a share of the share asked for.
+  float facadeLitShare(int s) {
+    if (s == ${FACADE_STYLE.curtain}) return 0.3;
+    if (s == ${FACADE_STYLE.punched}) return 0.35;
+    if (s == ${FACADE_STYLE.shopfront}) return 0.6;
+    if (s == ${FACADE_STYLE.industrial} || s == ${FACADE_STYLE.parking}) return 0.0;
+    return 0.3;
+  }
+
+  // 1 for a building whose lights are on tonight.
+  float facadeOn(float seed, int s, float litShare) {
+    return step(facadeHash(vec2(seed * 61.0, 3.7)), litShare * facadeLitShare(s) * u_litScale);
+  }
+
   vec3 facade(float along, float up, float height, float seed, float style, float litShare) {
     int s = int(style + 0.5);
     if (s == ${FACADE_STYLE.plain} || height < 3.0) return vec3(0.0);
@@ -79,12 +95,11 @@ export const FACADE_GLSL = `
     float s1 = fract(seed * 7.13), s2 = fract(seed * 3.71);
 
     float bay = 3.2, dx = 0.5, dy = 0.45, lo = 0.0, hi = levels - 0.3, stretch = 4.0, share = 0.22, cool = 0.0;
-    if (s == ${FACADE_STYLE.curtain}) { bay = 1.6; dx = 0.9; dy = 0.52; stretch = 12.0; share = 0.25; cool = 1.0; litShare *= 0.3; }
-    else if (s == ${FACADE_STYLE.punched}) { litShare *= 0.35; }
-    else if (s == ${FACADE_STYLE.shopfront}) { hi = height > 14.0 ? hi : 1.0; share = 0.9; stretch = 30.0; litShare *= 0.6; }
-    else if (s == ${FACADE_STYLE.industrial}) { dy = 0.22; dx = 0.8; bay = 4.0; lo = levels - 1.0; litShare = 0.0; }
-    else if (s == ${FACADE_STYLE.parking}) { dy = 0.4; dx = 0.92; bay = 6.0; litShare = 0.0; }
-    else { bay = 4.0; dx = 0.3; dy = 0.38; stretch = 1.0; share = 0.5; litShare *= 0.3; }
+    if (s == ${FACADE_STYLE.curtain}) { bay = 1.6; dx = 0.9; dy = 0.52; stretch = 12.0; share = 0.25; cool = 1.0; }
+        else if (s == ${FACADE_STYLE.shopfront}) { hi = height > 14.0 ? hi : 1.0; share = 0.9; stretch = 30.0; }
+    else if (s == ${FACADE_STYLE.industrial}) { dy = 0.22; dx = 0.8; bay = 4.0; lo = levels - 1.0; }
+    else if (s == ${FACADE_STYLE.parking}) { dy = 0.4; dx = 0.92; bay = 6.0; }
+    else if (s != ${FACADE_STYLE.punched}) { bay = 4.0; dx = 0.3; dy = 0.38; stretch = 1.0; share = 0.5; }
     float rowY = y - 0.15;
     float rows = mix(facadePulse(rowY, dy, wy), dy, far);
     // A shopfront is one tall pane across the ground storey.
@@ -96,7 +111,7 @@ export const FACADE_GLSL = `
     float glass = rows * cols * facadeBetween(y, lo, hi, wy);
 
     // Most buildings stay dark; a lit one has a few floors lit in long stretches.
-    float on = step(facadeHash(vec2(seed * 61.0, 3.7)), litShare * u_litScale);
+    float on = facadeOn(seed, s, litShare);
     vec2 cell = vec2(floor(x / stretch + s2 * 5.0), floor(rowY));
     float lit = on * step(facadeHash(cell + seed * 97.0), share * mix(0.6, 1.4, s1));
     lit = mix(lit, on * share, far);
@@ -150,4 +165,30 @@ export function setFacadeUniforms(
   gl.uniform3fv(u.u_windowLight, f.windowLight)
   gl.uniform1f(u.u_windowGlow, f.windowGlow)
   gl.uniform1f(u.u_litScale, f.litScale)
+}
+
+/** How much a lit building spills on the pavement, against a shopfront's 1. */
+const SPILL = 0.6
+
+/** The facades as the shading's wall shader: a building of unknown kind is guessed from its height. A lit one spills light on the ground round it. */
+export function facadeWallShader(f: FacadeFlavor): WallShader {
+  return {
+    source: `
+      precision highp float;
+      ${FACADE_GLSL}
+      ${FACADE_GUESS_GLSL}
+      ${FACADE_SHADE_GLSL}
+      vec3 shade_wall(vec3 color, vec3 wall, float seed, float style) {
+        if (style > ${FACADE_UNKNOWN}.0 - 0.5) style = facadeGuess(wall.z, seed);
+        return facadeShade(color, facade(wall.x, wall.y, wall.z, seed, style, 1.0));
+      }
+      float wall_light(float seed, float style, float height) {
+        if (style > ${FACADE_UNKNOWN}.0 - 0.5) style = facadeGuess(height, seed);
+        int s = int(style + 0.5);
+        if (s == ${FACADE_STYLE.plain} || height < 3.0) return 0.0;
+        return u_night * facadeOn(seed, s, 1.0) * (s == ${FACADE_STYLE.shopfront} ? 1.0 : ${SPILL.toFixed(2)});
+      }`,
+    light: true,
+    uniforms: { u_glass: f.glass, u_glassMix: f.glassMix, u_night: f.night, u_windowLight: f.windowLight, u_windowGlow: f.windowGlow, u_litScale: f.litScale },
+  }
 }

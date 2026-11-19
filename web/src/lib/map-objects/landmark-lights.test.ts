@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GlbPrimitive } from './glb.mjs'
-import { LANDMARK_LIGHT, landmarkPools } from './landmark-lights'
+import { LANDMARK_LIGHT, landmarkGlows, landmarkPools } from './landmark-lights'
 import type { Halo } from './neon-halos'
 
 const FLOATS = 7
@@ -40,5 +40,11 @@ describe('landmarkPools', () => {
     expect(high[4]).toBeLessThan(low[4])
     expect(low[4]).toBeGreaterThan(0)
     expect([low[5], low[6]]).toEqual([0, 0])
+  })
+
+  it('glows round every bulb, however high', () => {
+    const glows = landmarkGlows([primitive('lamp', [[0.5, 6, 0], [40.5, 40, 0]]), primitive('stone', [[0, 4, 0]])])
+    expect(glows.length / FLOATS).toBe(2)
+    expect([...glows.slice(FLOATS, FLOATS + 4)]).toEqual([40.5, 40, 0, Math.fround(LANDMARK_LIGHT.glowReach)])
   })
 })

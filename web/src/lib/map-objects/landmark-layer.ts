@@ -57,8 +57,8 @@ import { fillAt, groundFillSteps, type GroundFill } from '@/lib/map-terrain/fill
 import { TERRAIN_TILES } from '@/lib/map-style/terrain'
 import { FACADE_GLSL, FACADE_SHADE_GLSL, FACADE_STYLE, FACADE_UNIFORMS, setFacadeUniforms } from '@/lib/map/facade-shader'
 import { bindSun, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
-import { bindLights, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
-import { landmarkPools } from './landmark-lights'
+import { billboardScale, bindLights, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
+import { landmarkGlows, landmarkPools } from './landmark-lights'
 import { liveBuildingShade, type OcclusionFrame } from '@/lib/map/building-shade'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -660,6 +660,8 @@ type Model = {
   halos: { data: Float32Array; vao: WebGLVertexArrayObject | null; buffer: WebGLBuffer | null } | null
   /** The pools its lamps and signs throw on the ground, by `landmarkPools` once loaded, and on the GPU once first drawn. */
   lights: { data: Float32Array; pools: LightPools | null } | null
+  /** The glow round each of its lamps, by `landmarkGlows`, likewise. */
+  glows: { data: Float32Array; pools: LightPools | null } | null
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -1314,7 +1316,7 @@ export class LandmarkLayer {
       return
     }
     const model: Model = {
-      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null, lights: null,
+      pending: null, batches: null, footprint: null, used: now, animation: null, pose: null, reach: 0, height: 0, contacts: null, halos: null, lights: null, glows: null,
     }
     this.models.set(file, model)
     void (async () => {
@@ -1343,6 +1345,8 @@ export class LandmarkLayer {
       model.halos = halos.length ? { data: packHalos(halos), vao: null, buffer: null } : null
       const pools = landmarkPools(glb.primitives, halos)
       model.lights = pools.length ? { data: pools, pools: null } : null
+      const glows = landmarkGlows(glb.primitives)
+      model.glows = glows.length ? { data: glows, pools: null } : null
       // Its footprint can now be searched, which the last gather could not.
       this.invalidate()
       this.map?.triggerRepaint?.()
@@ -1634,6 +1638,7 @@ export class LandmarkLayer {
     if (this.options.flavor.facade.night) {
       this.drawEntrances(gl, matrix, seen)
       this.drawHalos(gl, matrix, seen)
+      this.drawLampGlows(gl, matrix, seen)
     }
     gl.bindVertexArray(null)
     this.restore()
@@ -1750,6 +1755,26 @@ export class LandmarkLayer {
       this.groundUniforms(gl, u, p)
       gl.uniform3fv(u.u_points, p.doors)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, p.doors.length / 3)
+    }
+    gl.depthMask(true)
+    gl.disable(gl.BLEND)
+  }
+
+  /** The glow round every lamp, as the signs' glow is. */
+  private drawLampGlows(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[]) {
+    const billboard = billboardScale(this.map.painter.transform)
+    gl.disable(gl.CULL_FACE)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.ONE, gl.ONE)
+    gl.depthMask(false)
+    for (const p of placements) {
+      const glows = this.drawnModel(p)?.glows
+      if (!glows) continue
+      if (!glows.pools) {
+        glows.pools = new LightPools()
+        glows.pools.set(gl, glows.data)
+      }
+      glows.pools.draw(gl, anchorMatrix(matrix, p.placed), localMatrix(p.bearing, p.scale), p.scale * p.placed.perMetre, billboard)
     }
     gl.depthMask(true)
     gl.disable(gl.BLEND)
@@ -1979,6 +2004,8 @@ function release(gl: WebGL2RenderingContext, model: Model) {
   }
   model.lights?.pools?.delete(gl)
   if (model.lights) model.lights.pools = null
+  model.glows?.pools?.delete(gl)
+  if (model.glows) model.glows.pools = null
   for (const image of model.pending?.images ?? []) image?.close()
   model.pending = null
 }

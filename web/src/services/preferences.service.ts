@@ -6,12 +6,14 @@ import { useAppStore } from '@/stores/app.store'
 import { UnitSystem } from '@/types/map.types'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 import type { AskPreferences } from '@/types/ask.types'
+import type { AppPreferences } from '@server/types/app-preferences.types'
 
 export interface UserPreferences {
   language: string
   unitSystem: string
   navigation: NavigationPreferences
   ask: AskPreferences
+  app: AppPreferences
 }
 
 const SUPPORTED_LOCALES: Locale[] = ['en-US', 'es-ES']
@@ -47,6 +49,11 @@ export async function saveNavigationPreferences(
   navigation: Partial<NavigationPreferences>,
 ): Promise<void> {
   await api.put('/users/me/preferences', { navigation })
+}
+
+/** Each section sent replaces the stored one; the rest are kept. */
+export async function saveAppPreferences(app: AppPreferences): Promise<void> {
+  await api.put('/users/me/preferences', { app })
 }
 
 /** Settings sent are merged into the account's; the rest are kept. */

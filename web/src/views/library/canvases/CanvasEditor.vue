@@ -39,6 +39,7 @@ import type { CanvasMapSettings } from '@/types/canvas.types'
 import CanvasContextMenu from '@/components/library/canvas/CanvasContextMenu.vue'
 import { useDrawOverlay } from '@/composables/canvas/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas/canvas-annotations'
+import { splitAnnotations } from '@/lib/canvas/geo-export'
 import { useRoutesService } from '@/services/library/routes.service'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
@@ -632,7 +633,19 @@ function addImportedData(result: {
   collection: unknown
   format: string
 }) {
-  const collection = result.collection as CanvasDataLayer['data']
+  const { annotations, rest: collection } = splitAnnotations(
+    result.collection as CanvasDataLayer['data'],
+  )
+  body.value = annotations.reduce(
+    (next, annotation) =>
+      fileInDestination(
+        { ...next, annotations: [...(next.annotations ?? []), annotation] },
+        annotation.id,
+      ),
+    body.value,
+  )
+  if (!collection.features.length) return
+
   const render = inferRender(countGeometries(collection))
   addLayer({
     id: newCanvasId('cl'),
@@ -851,6 +864,7 @@ const saveStatus = computed(() => {
         v-if="canvas"
         :canvas="canvas"
         :map-settings="body.mapSettings"
+        :body="body"
         @update:map-settings="setMapSettings"
         @edit="renameOpen = true"
         @deleted="close"

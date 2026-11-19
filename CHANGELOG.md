@@ -2,6 +2,9 @@
 
 ### Added
 
+* Measurements, circles and travel-time areas can be saved to a new canvas or exported as a GeoJSON file.
+* Canvases can be exported as GeoJSON, and importing that file brings its marks back with their labels, colours and icons.
+
 ### Changed
 
 ### Fixed

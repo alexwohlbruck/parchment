@@ -19,8 +19,16 @@ import { useAppService } from '@/services/app.service'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { currentMapSettings } from '@/composables/canvas/useCanvasMapSettings'
 import {
+  canvasCollection,
+  geoJsonBlob,
+  geoJsonFilename,
+} from '@/lib/canvas/geo-export'
+import { saveFile } from '@/lib/file-save'
+import { themeColorToHex } from '@/lib/utils'
+import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  DownloadIcon,
   Building2Icon,
   DoorOpenIcon,
   InfoIcon,
@@ -34,12 +42,19 @@ import {
   TrainFrontIcon,
   Trash2Icon,
 } from 'lucide-vue-next'
-import type { Canvas, CanvasMapSettings } from '@/types/canvas.types'
+import {
+  emptyCanvasBody,
+  type Canvas,
+  type CanvasBody,
+  type CanvasMapSettings,
+} from '@/types/canvas.types'
 
 const props = defineProps<{
   canvas: Canvas
   /** Absent means the canvas follows whatever the app is set to. */
   mapSettings?: CanvasMapSettings
+  /** The editor's working copy, which can be ahead of the saved one. */
+  body?: CanvasBody
 }>()
 
 const emit = defineEmits<{
@@ -81,6 +96,14 @@ function setOverriding(on: boolean) {
 function set(key: keyof CanvasMapSettings, value: boolean) {
   if (!props.mapSettings) return
   emit('update:mapSettings', { ...props.mapSettings, [key]: value })
+}
+
+function exportFile() {
+  const body = props.body ?? props.canvas.body ?? emptyCanvasBody()
+  saveFile(
+    geoJsonBlob(canvasCollection(body, themeColorToHex)),
+    geoJsonFilename(canvasesService.displayName(props.canvas)),
+  )
 }
 
 async function remove() {
@@ -151,6 +174,13 @@ const menuItems = computed<MenuItemDefinition[]>(() => [
     label: t('canvases.dialog.editTitle'),
     icon: markRaw(PencilIcon),
     onSelect: () => emit('edit'),
+  },
+  {
+    type: 'item',
+    id: 'export',
+    label: t('canvases.actions.export'),
+    icon: markRaw(DownloadIcon),
+    onSelect: exportFile,
   },
   {
     type: 'item',

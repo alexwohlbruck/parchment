@@ -9,6 +9,7 @@
 * While you're searching, the home sheet opens fully or drops to the search bar, skipping the library position.
 * The bottom of the home sheet fades into your account row instead of cutting off.
 * Recents in the sidebar slide into place as they're added, reordered or removed.
+* Your theme, map style, labels and other look-and-feel settings now follow your account to every device you sign in on.
 
 ### Fixed
 

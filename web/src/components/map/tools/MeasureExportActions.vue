@@ -63,7 +63,7 @@ function exportFile() {
     <Button
       v-if="signedIn"
       size="sm"
-      class="h-7 flex-1"
+      class="h-7 flex-1 gap-1.5"
       :disabled="saving"
       @click="saveToCanvas"
     >
@@ -74,7 +74,7 @@ function exportFile() {
     <Button
       variant="outline"
       size="sm"
-      class="h-7"
+      class="h-7 gap-1.5"
       :class="{ 'flex-1': !signedIn }"
       @click="exportFile"
     >

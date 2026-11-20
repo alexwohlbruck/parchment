@@ -16,6 +16,7 @@
 * Self-hosted servers keep profile photos on their own disk by default, or in any S3-compatible bucket such as R2.
 * Press ⌘Z to take back changes to your library: saving or removing places, adding them to collections, editing or deleting routes, canvases and layers, and archiving. ⇧⌘Z redoes them, and each change's message has an Undo button.
 * 3D trees and plants change through the year: buds and cherry blossom in spring, gold and rust in fall, bare branches in winter, each tree on its own schedule. Evergreens stay green, and lawns and woods follow the season too. Turn it off under Settings → Appearance.
+* Zoomed out, the globe shows forests, grasslands and deserts, shaded mountains, ocean depths, and the names of continents, oceans, seas and mountain ranges.
 * The map shows Indigenous lands, such as reserves, Inuit Owned Lands and tribal lands, each named in its own language where it has one.
 
 ### Changed

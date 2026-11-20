@@ -9,6 +9,8 @@
 * Press ⌘Z to take back changes to your library: saving or removing places, adding them to collections, editing or deleting routes, canvases and layers, and archiving. ⇧⌘Z redoes them, and each change's message has an Undo button.
 * 3D trees and plants change through the year: buds and cherry blossom in spring, gold and rust in fall, bare branches in winter, each tree on its own schedule. Evergreens stay green, and lawns and woods follow the season too. Turn it off under Settings → Appearance.
 * Ask can plan a ride, run or walk for you: it builds a loop through the places you mention, saves it to Routes in your library and puts it on a canvas with the stops marked.
+* Ask can save places to your collections, change or archive routes and canvases, shade how far you can get in a set time on a canvas, and share a canvas by link.
+* Ask can tell you where a transit line goes and whether it's running, what's at a spot on the map, and whether there are wildfires or smoke nearby.
 
 ### Changed
 

@@ -35,7 +35,7 @@ export interface McpCaller {
 }
 
 const INSTRUCTIONS =
-  'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures and alerts, travel times by mode, bike share availability, weather and air quality. Build and save routes (rides, runs and walks through points you choose) and canvases (maps of routes and places) to the user\'s library, and read their saved places, routes and vehicles. Tools need a location: pass coordinates, a place id a tool returned, a place name, or one of the user\'s saved places by name ("home", "work"). Times are local to the trip.'
+  'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures, lines and alerts, travel times by mode, bike share availability, weather, air quality and wildfires, and what is at a point. Build, change and archive routes (rides, runs and walks through points you choose) and canvases (maps of routes, places and travel-time areas) in the user\'s library, share a canvas by link, save places to their collections, and read their saved places, collections, routes, canvases and vehicles. Change the library only when the user asks. Tools need a location: pass coordinates, a place id a tool returned, a place name, or one of the user\'s saved places by name ("home", "work"). Times are local to the trip.'
 
 /** MCP clients search the web themselves, and Parchment has no model to do it with here. */
 const mcpTools = askTools.filter((tool) => !webTools.includes(tool))

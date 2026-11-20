@@ -22,6 +22,7 @@ mock.module('../category.service', () => ({
 }))
 mock.module('../geocoding.service', () => ({
   forwardGeocode: mock(async () => ({ results: [] })),
+  reverseGeocode: mock(async () => ({ results: [] })),
 }))
 const mockClassify = mock((_query: string, _options: unknown): any => ({
   intent: 'ask',

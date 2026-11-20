@@ -3064,6 +3064,9 @@
             "always": "Siempre"
           }
         },
+        "season": {
+          "toggle": "Colores de temporada"
+        },
         "hdRoads": "Carreteras HD",
         "indoorMaps": "Mapas de interiores",
         "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",

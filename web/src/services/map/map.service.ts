@@ -701,6 +701,8 @@ function mapService() {
     mapStrategy?.setMap3dBuildings(buildings3d.value)
     mapStrategy?.setMap3dObjects(objects3d.value)
     mapStrategy?.setShadowMode(shadows.value)
+    mapStrategy?.setPlantDay(plantDay.value)
+    mapStrategy?.setSeasons(mapStore.settings.seasons ?? true)
     mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -1089,11 +1091,15 @@ function mapService() {
   const buildings3d = computed(() => mapStore.settings.buildings3d && !powerStore.saving)
   const objects3d = computed(() => mapStore.settings.objects3d && !powerStore.saving)
   const shadows = computed(() => (powerStore.saving ? ShadowMode.OFF : mapStore.settings.shadows))
+  // Pinned only from the developer page, so a production build always follows today.
+  const plantDay = computed(() => (import.meta.env.DEV ? (mapStore.settings.plantDay ?? null) : null))
 
   watch(terrain3d, value => mapStrategy?.setMap3dTerrain(value))
   watch(buildings3d, value => mapStrategy?.setMap3dBuildings(value))
   watch(objects3d, value => mapStrategy?.setMap3dObjects(value))
   watch(shadows, mode => mapStrategy?.setShadowMode(mode))
+  watch(plantDay, day => mapStrategy?.setPlantDay(day))
+  watch(() => mapStore.settings.seasons, value => mapStrategy?.setSeasons(value ?? true))
   watch(
     () => powerStore.saver === 'extreme',
     value => mapStrategy?.setRoadsOnly(value),

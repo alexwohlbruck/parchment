@@ -205,6 +205,10 @@ export class MapStrategy {
   setBuildingShade(value: boolean) {}
   /** Which views the building lighting casts shadows in. MapLibre only. */
   setShadowMode(mode: ShadowMode) {}
+  /** The day of the year the 3D plants show, 0-364, or null for today. MapLibre only. */
+  setPlantDay(day: number | null) {}
+  /** Whether plants, grass and woods change through the year. MapLibre only. */
+  setSeasons(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}

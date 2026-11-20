@@ -19,7 +19,7 @@ import { CONDUCTORS, POWER_MODELS } from './power'
 import { AREA_MODELS, areaObject } from './areas'
 import { SOLAR_MODELS } from './solar'
 import { GOLF_MODELS } from './golf'
-import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
+import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_SOLID, objectPalette } from './index'
 import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
@@ -27,7 +27,7 @@ import { treeLayers } from '@/lib/map-style/detail-layers'
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
 /** The roles a crown is made of. */
-const CANOPY = new Set(['foliage', 'blossom'])
+const CANOPY = new Set(['foliage', 'needles', 'frond', 'shrub', 'twigs', 'blossom'])
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -247,9 +247,7 @@ describe('models', () => {
   test.each(ALL)('%s carries roles rather than baked colours', name => {
     // The role is what lets the layer retint per flavor. Written as the
     // material name, since glTF has no field for it.
-    for (const p of load(name).primitives) {
-      expect(Object.keys(OBJECT_PALETTE.light), `${name}: ${p.material}`).toContain(p.material)
-    }
+    for (const p of load(name).primitives) expect(Object.keys(objectPalette('light')), `${name}: ${p.material}`).toContain(p.material)
   })
 
   /**
@@ -372,7 +370,7 @@ describe('models', () => {
   test.each(PALMS.map(name => `${name}${FAR_SUFFIX}`))('%s is a star from above', name => {
     const triangles: Array<Array<[number, number]>> = []
     for (const p of load(name).primitives) {
-      if (p.material !== 'foliage') continue
+      if (p.material !== 'frond') continue
       for (let i = 0; i < p.index.length; i += 3)
         triangles.push([0, 1, 2].map(k => [p.position[p.index[i + k] * 3], p.position[p.index[i + k] * 3 + 2]] as [number, number]))
     }
@@ -777,15 +775,18 @@ describe('ground plane', () => {
 })
 
 describe('flavors', () => {
+  const light = objectPalette('light')
+  const dark = objectPalette('dark')
+
   test('both flavors colour every role', () => {
-    expect(Object.keys(OBJECT_PALETTE.dark).sort()).toEqual(Object.keys(OBJECT_PALETTE.light).sort())
+    expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort())
   })
 
   /** An object has to belong to the ground it stands on. */
   test('night objects are darker than day ones, role for role', () => {
-    for (const role of Object.keys(OBJECT_PALETTE.light)) {
+    for (const role of Object.keys(light)) {
       const sum = (c: [number, number, number]) => c[0] + c[1] + c[2]
-      expect(sum(OBJECT_PALETTE.dark[role]), role).toBeLessThan(sum(OBJECT_PALETTE.light[role]))
+      expect(sum(dark[role]), role).toBeLessThan(sum(light[role]))
     }
   })
 })

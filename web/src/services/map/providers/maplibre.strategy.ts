@@ -160,6 +160,7 @@ import {
   terrainSource,
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
+  TERRAIN_SHADING,
   FINE_TERRAIN_PROTOCOL,
 } from '@/lib/map-style/terrain'
 import { FineTerrain } from '@/lib/map-style/fine-terrain'
@@ -1359,6 +1360,10 @@ export class MaplibreStrategy extends MapStrategy {
 
   protected override terrainSource() {
     return terrainSource(true)
+  }
+
+  protected override terrainSpec() {
+    return { ...super.terrainSpec(), shading: TERRAIN_SHADING }
   }
 
   override setMap3dTerrain(value: boolean) {

@@ -49,9 +49,10 @@ function userService() {
     return data
   }
 
-  async function uploadAvatar(file: File): Promise<{ picture: string }> {
+  async function uploadAvatar(image: Blob): Promise<{ picture: string }> {
     const formData = new FormData()
-    formData.append('file', file)
+    // The server derives the file type from this name's extension.
+    formData.append('file', image, 'avatar.jpg')
     const { data } = await api.post('/users/me/avatar', formData)
     return data
   }

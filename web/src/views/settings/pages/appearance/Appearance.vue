@@ -17,6 +17,7 @@ import {
   MountainSnowIcon,
   Building2Icon,
   TreePineIcon,
+  SproutIcon,
   MapIcon,
   MilestoneIcon,
   InfoIcon,
@@ -200,6 +201,17 @@ const handleColorChange = (value: any) => {
         <Switch
           :model-value="settings.objects3d"
           @update:model-value="mapService.toggle3dObjects()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.configuration.season.toggle')"
+        :icon="SproutIcon"
+      >
+        <Switch
+          :model-value="settings.seasons ?? true"
+          @update:model-value="v => (settings.seasons = v)"
         />
       </SettingsItem>
 

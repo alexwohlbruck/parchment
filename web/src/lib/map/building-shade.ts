@@ -13,6 +13,7 @@
 import type { Map as MaplibreMap, OcclusionFrame, Shading, ShadingCaster } from 'maplibre-gl'
 import type { FlavorId } from '@/lib/map-style/build'
 import { BUILDING_TINT } from '@/lib/map-style/building-color.mjs'
+import SunCalc from 'suncalc'
 import { sunPosition } from './sun-position'
 import { FACADE_FLAVOR, facadeWallShader } from './facade-shader'
 
@@ -264,16 +265,43 @@ export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
   // sunrise arrives as a fade instead of a jump.
   const daylight = clamp((altitude - MIN_SUN_ALTITUDE) / (6 * RAD_PER_DEG), 0, 1)
 
-  const length = altitude > MIN_SUN_ALTITUDE
-    ? Math.min(1 / Math.tan(altitude), MAX_SHADOW_LENGTH)
-    : MAX_SHADOW_LENGTH
+  return { ...shadowFrom(azimuth, altitude), daylight }
+}
 
+/**
+ * The light at night. A moon well up casts soft shadows, stronger the fuller it is; with none, the sky's glow from
+ * nearly overhead still leaves short shadows at the foot of every wall. Shares of the daytime shadow's darkness.
+ */
+const NIGHT_LIGHT = { moonMin: 0.25, moonFull: 0.5, sky: 0.3, moonAltitude: 10 * RAD_PER_DEG, skyAltitude: 62 * RAD_PER_DEG, skyAzimuth: 300 * RAD_PER_DEG }
+
+/** A cast shadow and how dark it is against the sun's at noon, 0 to 1. */
+export type CastShadow = SunShadow & { strength: number }
+
+function shadowFrom(azimuth: number, altitude: number): Pick<SunShadow, 'offset' | 'altitude' | 'heightScale'> {
   return {
     offset: [-Math.sin(azimuth), -Math.cos(azimuth)],
     altitude,
-    heightScale: length,
-    daylight,
+    heightScale: Math.min(1 / Math.tan(Math.max(altitude, MIN_SUN_ALTITUDE)), MAX_SHADOW_LENGTH),
   }
+}
+
+/** The night's light: the moon when it is well up, the sky's glow otherwise. */
+export function nightShadow(date: Date, lat: number, lng: number): CastShadow {
+  const moon = SunCalc.getMoonPosition(date, lat, lng)
+  if (moon.altitude > NIGHT_LIGHT.moonAltitude) {
+    const { fraction } = SunCalc.getMoonIllumination(date)
+    const strength = NIGHT_LIGHT.moonMin + (NIGHT_LIGHT.moonFull - NIGHT_LIGHT.moonMin) * fraction
+    return { ...shadowFrom(moon.azimuth + Math.PI, moon.altitude), daylight: 0, strength }
+  }
+  return { ...shadowFrom(NIGHT_LIGHT.skyAzimuth, NIGHT_LIGHT.skyAltitude), daylight: 0, strength: NIGHT_LIGHT.sky }
+}
+
+/** The shadow the map casts now: the sun's by day and through twilight, the night's light once the sun is down. */
+export function castShadow(date: Date, lat: number, lng: number): CastShadow {
+  const sun = sunShadow(date, lat, lng)
+  if (sun.daylight >= 1) return { ...sun, strength: 1 }
+  const night = nightShadow(date, lat, lng)
+  return sun.daylight > 0 ? { ...sun, strength: Math.max(sun.daylight, night.strength) } : night
 }
 
 /** The tuned defaults, for the settings panel to open on and reset to. */

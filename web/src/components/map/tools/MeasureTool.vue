@@ -6,6 +6,7 @@ import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { mapEventBus } from '@/lib/event-bus'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useUndoScope } from '@/composables/useUndoScope'
 import { useMeasureUnits } from '@/composables/useMeasureUnits'
 import MeasureToolPanel from './MeasureToolPanel.vue'
 import MeasureReadout from './MeasureReadout.vue'
@@ -402,32 +403,9 @@ function teardownClickOverride() {
   }
 }
 
-// Undo/redo hotkeys only when measure tool is active
+useUndoScope({ undo: measureUndo, redo: measureRedo }, isActive)
+
 useHotkeys([
-  {
-    key: ['mod', 'z'],
-    handler: () => {
-      if (isActive.value) {
-        measureUndo()
-      }
-    },
-    id: 'measure-undo',
-    category: 'tools',
-    name: 'Measure undo',
-    description: 'Undo last measure point change',
-  },
-  {
-    key: ['mod', 'y'],
-    handler: () => {
-      if (isActive.value) {
-        measureRedo()
-      }
-    },
-    id: 'measure-redo',
-    category: 'tools',
-    name: 'Measure redo',
-    description: 'Redo measure point change',
-  },
   {
     key: ['escape'],
     handler: () => {

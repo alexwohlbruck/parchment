@@ -12,7 +12,7 @@ import {
   setShadeLightIntensity,
   setSunOverride,
   shadeLight,
-  sunShadow,
+  castShadow,
 } from '@/lib/map/building-shade'
 import { sunPosition } from '@/lib/map/sun-position'
 import { buildingColor } from '@/lib/map-style/building-color.mjs'
@@ -173,11 +173,11 @@ export function useBuildingShadeTuner() {
       // only takes effect once the light is set again — with the sun still
       // pointing wherever it currently is.
       const { lng, lat } = map.value.getCenter()
-      const sun = sunShadow(new Date(), lat, lng)
+      const sun = castShadow(new Date(), lat, lng)
       // The override changes direction and length too, not just the light.
       layer.shadowOffset = sun.offset
       layer.heightScale = sun.heightScale
-      layer.shadowAlpha = state.shadowAlpha * sun.daylight
+      layer.shadowAlpha = state.shadowAlpha * sun.strength
       map.value.setLight(shadeLight(sun.offset, sun.altitude))
 
       if (map.value.getLayer?.(layerGroups.building3d)) {

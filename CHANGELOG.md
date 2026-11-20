@@ -2,9 +2,13 @@
 
 ### Added
 
+* Press ⌘Z to take back archiving something or removing a place from a collection, and ⇧⌘Z to redo it. Each change also offers Undo in its message.
+
 ### Changed
 
 ### Fixed
+
+* ⌘Z in the canvas editor, measure tool or route builder no longer also fires the other tools' undo.
 
 ## [0.23.0] - 2026-11-19
 

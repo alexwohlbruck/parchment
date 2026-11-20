@@ -22,6 +22,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Node's default ~2 GB heap runs out while Vite renders the chunks.
+  NODE_OPTIONS = "--max-old-space-size=6144"
 
 # The service worker must never be served stale, or updates take two visits
 # plus the previous worker's lifetime to reach users.

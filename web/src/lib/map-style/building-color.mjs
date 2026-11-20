@@ -17,7 +17,8 @@
  * look of the whole 3D layer rather than being a rare accent. Both were cut to
  * 22/30 to stop a street of brick reading as a wash of colour over the land;
  * the daylight roof has since come down off near-white, which leaves room for
- * the paint again, so day is back where it was tuned.
+ * the paint again — but at full strength a street of brick read as confetti,
+ * so day sits at two thirds of that.
  *
  * Night is not, and the reason is above: "night has the room" is true of
  * headroom and false of how the eye reads it. Against a dark ground a channel
@@ -29,11 +30,11 @@
  *
  * Kept this low, the hue a facade contributes is nearly all it contributes;
  * what makes a brown building look brown at this strength is `VALUE_PULL`
- * below, which lets dark paint darken the surface it is on. 11 is night's
- * floor: below it the `rgb()` output rounds to whole channels coarser than the
+ * below, which lets dark paint darken the surface it is on. 13 is night's
+ * floor on the ink ground: below it the `rgb()` output rounds to whole channels coarser than the
  * tint, and the hue-fidelity test catches a facade drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 46, dark: 11 }
+export const BUILDING_TINT = { light: 30, dark: 13 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -208,19 +209,20 @@ export function buildingColor(
  * Faint casts for buildings that record no colour of their own, so a block of
  * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
  * only: night already separates buildings by light, and a cast there reads as
- * a lit surface. Each sits at the flavor's own lightness: stone, steel, brick, sand, sage.
+ * a lit surface. Each sits at the flavor's own lightness, all in the warm family: stone, clay, sand, brick, limestone.
  */
 export const BUILDING_PASTELS = {
-  light: ['hsl(30, 20%, 83%)', 'hsl(212, 14%, 84%)', 'hsl(8, 16%, 84%)', 'hsl(44, 24%, 82.5%)', 'hsl(155, 10%, 82.5%)'],
+  light: ['hsl(32, 14%, 86%)', 'hsl(22, 12%, 86%)', 'hsl(42, 18%, 86%)', 'hsl(14, 10%, 86.5%)', 'hsl(50, 10%, 86%)'],
   dark: [],
 }
 
 /**
  * The colour an unpainted building wears: the flavor's own, or one of its
  * pastels picked by feature id so a building keeps its cast as tiles reload.
+ *
+ * @param {string[]} [pastels] A map theme's own casts, in place of the flavor's.
  */
-export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color') {
-  const pastels = BUILDING_PASTELS[flavor] ?? []
+export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color', pastels = BUILDING_PASTELS[flavor] ?? []) {
   if (!pastels.length) return colorToken
   return [
     // Keyed on the building a part belongs to where the tiles say, so one

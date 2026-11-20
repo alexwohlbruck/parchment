@@ -226,10 +226,11 @@ describe('flavors', () => {
      * Apple's, so their values are not the answer for any of it.
      *
      * The planted family goes the same way through `DARK_FOLIAGE`: theirs is
-     * blue at the ground's own lightness, which hides a wooded county.
+     * blue at the ground's own lightness, which hides a wooded county. So does
+     * the rest of the night land, through `DARK_LAND`.
      */
     const authored =
-      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium)_fill_color$|stadium_outline_color$)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium|cemetery)_fill_color$|stadium_outline_color$|background_|residential_|industrial_|airport_zone_|school_|hospital_|pier_|bridge_outline_|water_|river_line|aqueduct_line|major_rail_)/
 
     const wrong: string[] = []
     let checked = 0
@@ -256,10 +257,9 @@ describe('flavors', () => {
 
     // A floor, so a change that silently stops pairing anything at all — a
     // renamed layer, a restructured section — fails here instead of passing
-    // vacuously with an empty `wrong`. Well under the ~77 lifted colours left
-    // once the authored ones are set aside, since authoring more of the map is
-    // a normal thing to do and should not need this number revisited.
-    expect(checked).toBeGreaterThan(50)
+    // vacuously with an empty `wrong`. Under the ~36 lifted colours left once
+    // the authored ones are set aside, with room to author a few more.
+    expect(checked).toBeGreaterThan(25)
     expect(wrong).toEqual([])
   })
 

@@ -346,6 +346,7 @@ const DRAW_FS = `#version 300 es
   uniform vec3 u_palette;
   uniform float u_harmony;
   uniform float u_harmonyFloor;
+  uniform float u_harmonyNeutral;
   uniform float u_paint_lift;
   uniform float u_paint_tone;
   uniform vec3 u_lightpos;
@@ -409,7 +410,10 @@ const DRAW_FS = `#version 300 es
     vec3 pulled = u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA));
     vec3 toned = min(base * dot(pulled, LUMA) / max(dot(base, LUMA), 0.02), 1.0);
     base = glass || neon ? base : mix(base + (1.0 - base) * u_paint_lift, toned, u_paint_tone);
-    base = mix(base, pulled, neon ? 0.0 : glass ? u_harmony * 0.3 : u_harmony);
+    // White and grey take the night colour; a coloured material keeps its own hue.
+    float chroma = (max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b))) / max(max(base.r, max(base.g, base.b)), 0.02);
+    float harmony = mix(max(u_harmony, u_harmonyNeutral), u_harmony, smoothstep(0.08, 0.35, chroma));
+    base = mix(base, pulled, neon ? 0.0 : glass ? u_harmony * 0.3 : harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -817,7 +821,7 @@ export class LandmarkLayer {
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_paint_tone', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_harmonyNeutral', 'u_paint_lift', 'u_paint_tone', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
         'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS, 'u_lightUv', ...LAMP_LIGHT_UNIFORMS])
     this.sunDepth = program(gl, DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
@@ -1598,6 +1602,7 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_lightintensity, light.intensity)
     const flavor = this.options.flavor
     gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
+    gl.uniform1f(u.u_harmonyNeutral, flavor.harmonyNeutral)
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)

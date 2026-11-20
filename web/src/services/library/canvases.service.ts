@@ -19,6 +19,8 @@ import type {
 import { getSeed } from '@/lib/identity/key-storage'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useHistoryStore } from '@/stores/history.store'
+import { previousValues } from '@/lib/history/previous-values'
 import {
   encryptCanvasMetadata,
   decryptCanvasMetadata,
@@ -119,6 +121,7 @@ export const useCanvasesService = createSharedComposable(() => {
   const t = (key: string, named?: Record<string, unknown>) =>
     (i18n.global as any).t(key, named ?? {})
   const canvasesStore = useCanvasesStore()
+  const historyStore = useHistoryStore()
   const authStore = useAuthStore()
   const archiveService = useArchiveService()
 
@@ -354,24 +357,21 @@ export const useCanvasesService = createSharedComposable(() => {
     if (isOffline.value) return updateOffline()
 
     try {
-      const merged: CanvasMetadata = {
-        name: canvas.name,
-        description: canvas.description,
-        icon: canvas.icon ?? undefined,
-        iconColor: canvas.iconColor ?? undefined,
-        ...metadata,
-      }
-      const payload = await buildMetadataPayload(
-        canvas.id,
-        canvas.scheme,
-        merged,
+      const previous = previousValues<CanvasMetadata>(
+        {
+          name: canvas.name,
+          description: canvas.description,
+          icon: canvas.icon ?? undefined,
+          iconColor: canvas.iconColor ?? undefined,
+        },
+        metadata,
       )
-      const { data } = await api.put(`/library/canvases/${canvas.id}`, payload)
-      const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
-      // The server sends back only what it stores, so the decrypted body we
-      // already hold has to be carried across.
-      hydrated.body = canvas.body
-      canvasesStore.upsertCanvas(hydrated)
+      const hydrated = await replayUpdateMetadata(canvas.id, metadata)
+      historyStore.record({
+        label: t('history.canvasUpdated'),
+        undo: () => replayUpdateMetadata(canvas.id, previous),
+        redo: () => replayUpdateMetadata(canvas.id, metadata),
+      })
       return hydrated
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
@@ -539,6 +539,27 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /** Undo a delete by making the canvas again, under a new id. */
+  function recordDelete(id: string, canvas: Canvas) {
+    const params: CreateCanvasParams = {
+      name: canvas.name ?? '',
+      description: canvas.description ?? undefined,
+      icon: canvas.icon ?? undefined,
+      iconColor: canvas.iconColor ?? undefined,
+      scheme: canvas.scheme,
+    }
+    const body = canvas.body!
+    let current = id
+    historyStore.record({
+      label: t('history.canvasDeleted', { name: displayName(canvas) }),
+      undo: async () => {
+        current = (await replayCreate(params)).id
+        await replaySaveBody(current, body)
+      },
+      redo: () => replayDelete(current),
+    })
+  }
+
   /** Server side of a delete; replayed from the queue when offline. */
   async function replayDelete(id: string): Promise<void> {
     await api.delete(`/library/canvases/${id}`)
@@ -565,7 +586,9 @@ export const useCanvasesService = createSharedComposable(() => {
     if (isOffline.value) return deleteOffline()
 
     try {
+      const deleted = existing?.body ? existing : await fetchCanvasById(id)
       await replayDelete(id)
+      if (deleted?.body) recordDelete(id, deleted)
       return true
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {

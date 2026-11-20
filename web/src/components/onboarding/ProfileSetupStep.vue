@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import OnboardingHeader from './OnboardingHeader.vue'
-import { ref, inject, onMounted, computed, watch } from 'vue'
+import { ref, inject, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useForm } from 'vee-validate'
@@ -21,6 +21,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Camera, X, CircleCheck, CircleAlert } from 'lucide-vue-next'
 import { Spinner } from '@/components/ui/spinner'
+import AvatarPicker from '@/components/profile/AvatarPicker.vue'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -44,9 +45,8 @@ const { validate: validateForm, values } = useForm({
 })
 
 const avatarPreview = ref<string | null>(authStore.me?.picture || null)
-const avatarFile = ref<File | null>(null)
+const avatarImage = ref<Blob | null>(null)
 const uploading = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
 
 const currentAlias = authStore.me?.alias ?? ''
 const aliasInput = ref(currentAlias)
@@ -158,12 +158,12 @@ async function validateStep(): Promise<boolean> {
     await userService.updateMyProfile({
       firstName: (values.firstName || '').trim(),
       lastName: (values.lastName || '').trim() || null,
-      picture: avatarFile.value ? undefined : authStore.me?.picture || placeholderAvatar.value,
+      picture: avatarImage.value ? undefined : authStore.me?.picture || placeholderAvatar.value,
     })
 
-    if (avatarFile.value) {
-      await userService.uploadAvatar(avatarFile.value)
-    }
+    const picture = avatarImage.value
+      ? (await userService.uploadAvatar(avatarImage.value)).picture
+      : authStore.me?.picture || placeholderAvatar.value
 
     if (aliasInput.value !== currentAlias) {
       const aliasResult = await identityStore.updateAlias(aliasInput.value)
@@ -177,6 +177,7 @@ async function validateStep(): Promise<boolean> {
       ...authStore.me!,
       firstName: (values.firstName || '').trim(),
       lastName: (values.lastName || '').trim() || undefined,
+      picture,
     })
 
     return true
@@ -187,33 +188,22 @@ async function validateStep(): Promise<boolean> {
   }
 }
 
-function triggerFileInput() {
-  fileInput.value?.click()
+function setPreview(url: string | null) {
+  if (avatarPreview.value?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview.value)
+  avatarPreview.value = url
 }
 
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return
-  if (file.size > 2 * 1024 * 1024) return
-
-  if (avatarPreview.value?.startsWith('blob:')) {
-    URL.revokeObjectURL(avatarPreview.value)
-  }
-  avatarFile.value = file
-  avatarPreview.value = URL.createObjectURL(file)
+function onCrop(image: Blob) {
+  avatarImage.value = image
+  setPreview(URL.createObjectURL(image))
 }
 
 function removeAvatar() {
-  if (avatarPreview.value?.startsWith('blob:')) {
-    URL.revokeObjectURL(avatarPreview.value)
-  }
-  avatarFile.value = null
-  avatarPreview.value = null
-  if (fileInput.value) fileInput.value.value = ''
+  avatarImage.value = null
+  setPreview(null)
 }
+
+onBeforeUnmount(() => setPreview(null))
 </script>
 
 <template>
@@ -223,48 +213,42 @@ function removeAvatar() {
       :description="t('onboarding.profile.description')"
     >
       <template #tile>
-        <button
-          type="button"
-          class="avatar-picker group relative block size-20 rounded-full cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-label="t('onboarding.profile.chooseAvatar')"
-          @click="triggerFileInput"
-        >
-          <div
-            class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+        <AvatarPicker v-slot="{ choose }" @crop="onCrop">
+          <button
+            type="button"
+            class="avatar-picker group relative block size-20 rounded-full cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="t('onboarding.profile.chooseAvatar')"
+            @click="choose"
           >
-            <img
-              :src="avatarPreview || placeholderAvatar"
-              class="size-full object-cover"
-              alt=""
-            />
-          </div>
+            <div
+              class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+            >
+              <img
+                :src="avatarPreview || placeholderAvatar"
+                class="size-full object-cover"
+                alt=""
+              />
+            </div>
 
-          <div
-            class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
-          >
-            <Camera class="size-4 text-muted-foreground" />
-          </div>
+            <div
+              class="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border bg-background shadow-sm transition-colors group-hover:bg-muted"
+            >
+              <Camera class="size-4 text-muted-foreground" />
+            </div>
 
-          <div
-            v-if="avatarPreview"
-            role="button"
-            tabindex="0"
-            :aria-label="t('onboarding.profile.removeAvatar')"
-            class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
-            @click.stop="removeAvatar"
-            @keydown.enter.stop="removeAvatar"
-          >
-            <X class="size-3" />
-          </div>
-
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            class="hidden"
-            @change="onFileChange"
-          />
-        </button>
+            <div
+              v-if="avatarPreview"
+              role="button"
+              tabindex="0"
+              :aria-label="t('onboarding.profile.removeAvatar')"
+              class="absolute -top-0.5 -right-0.5 size-6 rounded-full bg-background ring-1 ring-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer z-10"
+              @click.stop="removeAvatar"
+              @keydown.enter.stop="removeAvatar"
+            >
+              <X class="size-3" />
+            </div>
+          </button>
+        </AvatarPicker>
       </template>
     </OnboardingHeader>
 

@@ -151,6 +151,7 @@ import {
   OBJECT_SOLID,
   OBJECT_SPECS,
   DECIDUOUS,
+  MIDSUMMER,
   dayOfYear,
   objectPalette,
   seasonRamps,
@@ -349,7 +350,7 @@ export class MaplibreStrategy extends MapStrategy {
   private shadowMode = ShadowMode.ALWAYS
   /** Day of the year the plants show, 0-364, or null for today. */
   private plantDay: number | null = null
-  private seasonalGround = true
+  private seasons = true
   /** The paint each ground fill was last given, so an unchanged day sets nothing. */
   private groundPaint = new Map<string, string>()
   /** Trees and the rest; see `applyMapObjects`. */
@@ -1386,9 +1387,9 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyYear()
   }
 
-  override setSeasonalGround(value: boolean) {
-    this.seasonalGround = value
-    this.applyGround()
+  override setSeasons(value: boolean) {
+    this.seasons = value
+    this.applyYear()
   }
 
   private applyYear() {
@@ -1396,14 +1397,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.applyGround()
   }
 
-  /** Grass, cemeteries and woods in the plants' season, or the style's own green; woods turn to soil under the 3D forest. */
+  /** Grass, cemeteries and woods in the plants' season, or the style's own green with seasons off; woods turn to soil under the 3D forest. */
   private applyGround() {
     const map = this.mapInstance
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     const year = this.plantYear()
     for (const layer of Object.keys(GROUND_LAYERS) as GroundLayer[]) {
       if (!map.getLayer(layer)) continue
-      const color = this.seasonalGround ? groundColor(layer, flavor, year) : baseGroundColor(layer, flavor)
+      const color = this.seasons ? groundColor(layer, flavor, year) : baseGroundColor(layer, flavor)
       const key = `${color}|${this.map3dObjects}`
       if (this.groundPaint.get(layer) === key) continue
       this.groundPaint.set(layer, key)
@@ -1411,8 +1412,9 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  /** Where the plants' year stands: the chosen day, or today in the hemisphere in view. */
+  /** Where the plants' year stands: the chosen day, or today in the hemisphere in view; high summer with seasons off. */
   private plantYear(): number {
+    if (!this.seasons) return MIDSUMMER
     return yearAt(this.plantDay ?? dayOfYear(new Date()), this.mapInstance.getCenter().lat)
   }
 

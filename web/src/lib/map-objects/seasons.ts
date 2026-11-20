@@ -20,7 +20,8 @@ export const PHASE_SPREAD = 13 / 365
 
 /** Latitudes nearer the equator than this stay in high summer all year. */
 const EVERGREEN_LATITUDE = 27
-const MIDSUMMER = 182 / 365
+/** High summer, where plants that do not follow the seasons stay. */
+export const MIDSUMMER = 182 / 365
 
 /** Days since January 1st, in the date's own calendar. */
 export function dayOfYear(date: Date): number {

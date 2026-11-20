@@ -3049,7 +3049,7 @@
         "season": {
           "title": "Estación",
           "today": "Hoy",
-          "ground": "Césped y bosques según la estación"
+          "toggle": "Colores de temporada"
         },
         "hdRoads": "Carreteras HD",
         "indoorMaps": "Mapas de interiores",

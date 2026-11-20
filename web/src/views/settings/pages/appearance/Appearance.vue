@@ -213,7 +213,18 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="isMaplibre && (settings.objects3d || settings.seasonalGround)"
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.configuration.season.toggle')"
+        :icon="SproutIcon"
+      >
+        <Switch
+          :model-value="settings.seasons ?? true"
+          @update:model-value="v => (settings.seasons = v)"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre && settings.seasons"
         :title="$t('settings.mapSettings.configuration.season.title')"
         :icon="LeafIcon"
       >
@@ -239,17 +250,6 @@ const handleColorChange = (value: any) => {
             @update:model-value="v => v && (settings.plantDay = v[0])"
           />
         </div>
-      </SettingsItem>
-
-      <SettingsItem
-        v-if="isMaplibre"
-        :title="$t('settings.mapSettings.configuration.season.ground')"
-        :icon="SproutIcon"
-      >
-        <Switch
-          :model-value="settings.seasonalGround ?? true"
-          @update:model-value="v => (settings.seasonalGround = v)"
-        />
       </SettingsItem>
 
       <SettingsItem

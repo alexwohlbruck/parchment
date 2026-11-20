@@ -38,7 +38,7 @@ const defaultSettings: MapSettings = {
   objects3d: true,
   shadows: ShadowMode.ALWAYS,
   plantDay: null,
-  seasonalGround: true,
+  seasons: true,
   poiLabels: true,
   roadLabels: true,
   transitLabels: true,
@@ -130,7 +130,7 @@ export const useMapStore = defineStore('map', () => {
   if (settings.value.objects3d === undefined) settings.value.objects3d = true
   settings.value.shadows ??= ShadowMode.ALWAYS
   settings.value.plantDay ??= null
-  settings.value.seasonalGround ??= true
+  settings.value.seasons ??= true
 
   // HD roads became default-on for MapLibre. A stored `false` from the old
   // default can't be told apart from a chosen one, so clear it once.

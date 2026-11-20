@@ -207,8 +207,8 @@ export class MapStrategy {
   setShadowMode(mode: ShadowMode) {}
   /** The day of the year the 3D plants show, 0-364, or null for today. MapLibre only. */
   setPlantDay(day: number | null) {}
-  /** Whether grass and woods follow the plants' season. MapLibre only. */
-  setSeasonalGround(value: boolean) {}
+  /** Whether plants, grass and woods change through the year. MapLibre only. */
+  setSeasons(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}

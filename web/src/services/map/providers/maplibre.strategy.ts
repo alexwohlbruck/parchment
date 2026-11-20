@@ -175,7 +175,7 @@ import {
   createBuildingShade,
   liveBuildingShade,
   shadeLight,
-  sunShadow,
+  castShadow,
   removeBuildingShade,
   shadowCasters,
 } from '@/lib/map/building-shade'
@@ -1423,9 +1423,8 @@ export class MaplibreStrategy extends MapStrategy {
    * Direction and length both come from the sun's actual position, so a map of
    * Manhattan in the afternoon throws its shadows east and long, and the same
    * view at noon throws them short — and a city in the other hemisphere throws
-   * them the other way entirely. `daylight` folds in the sunrise and sunset
-   * ramp, taking the cast shadow to nothing overnight while the ambient
-   * occlusion that separates one building from the next stays put.
+   * them the other way entirely. After sunset the moon, or the sky's glow when
+   * it is down, takes over with softer shadows; see `castShadow`.
    *
    * Recomputed on `moveend` rather than per frame: the sun moves a quarter of a
    * degree a minute, and the answer only depends on where the map is and what
@@ -1436,7 +1435,7 @@ export class MaplibreStrategy extends MapStrategy {
     const layer = liveBuildingShade()
 
     const { lng, lat } = this.mapInstance.getCenter()
-    const sun = sunShadow(new Date(), lat, lng)
+    const sun = castShadow(new Date(), lat, lng)
 
     if (!layer) return
 
@@ -1445,7 +1444,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Hold the tuned darkness as the daylight maximum rather than overwriting
     // it, so the settings panel and the flavor still have the final say.
     this.shadowAlphaAtNoon ??= layer.shadowAlpha
-    layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
+    layer.shadowAlpha = this.shadowAlphaAtNoon * sun.strength
 
     this.mapInstance.setLight(shadeLight(sun.offset, sun.altitude))
     this.mapInstance.triggerRepaint()

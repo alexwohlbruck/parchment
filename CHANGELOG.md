@@ -3,6 +3,7 @@
 ### Added
 
 * Hills and mountains are shaded by the sun in 3D, so their slopes stand out and turn with the time of day.
+* At night, buildings and landmarks still cast soft shadows: from the moon when it's up, or faintly from the sky's glow.
 * At night, street lamps and lit signs throw light on the ground, walls and trees around them, and lit buildings spill a warm glow onto the pavement.
 
 ### Changed

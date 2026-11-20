@@ -41,6 +41,8 @@ function maplibreWorkerChunk(): Plugin {
     generateBundle(_options, bundle) {
       const require = createRequire(import.meta.url)
       const source = readFileSync(require.resolve('maplibre-gl/dist/maplibre-gl-shared.mjs'), 'utf-8')
+      // Builds from 6.19 on bundle the worker whole and leave the shared chunk empty: nothing to pin.
+      if (!source.trim()) return
       const hash = createHash('sha256').update(source).digest('hex').slice(0, 10)
       const name = `maplibre-gl-shared-${hash}.mjs`
       this.emitFile({ type: 'asset', fileName: `assets/${name}`, source })

@@ -10,4 +10,5 @@ export declare function buildingColor(
 export declare function unpaintedBuildingColor(
   flavor: 'light' | 'dark',
   colorToken?: string,
+  pastels?: string[],
 ): unknown

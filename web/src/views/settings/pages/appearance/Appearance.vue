@@ -347,6 +347,8 @@ const handleColorChange = (value: any) => {
               Mapbox Standard
             </SelectItem>
             <SelectItem value="parchment">Parchment</SelectItem>
+            <SelectItem value="cupertino">Cupertino</SelectItem>
+            <SelectItem value="mountain-view">Mountain View</SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, markRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { storeToRefs } from 'pinia'
@@ -12,12 +12,9 @@ import { Spinner } from '@/components/ui/spinner'
 import { SettingsSection } from '@/components/settings'
 import { toast } from '@/lib/toast'
 import { Camera, Check, Pencil, Trash2 } from 'lucide-vue-next'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
 import AvatarPicker from '@/components/profile/AvatarPicker.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
@@ -55,6 +52,19 @@ function removePhoto() {
     await userService.deleteAvatar()
     return null
   })
+}
+
+function photoMenu(choose: () => void): MenuItemDefinition[] {
+  return [
+    { type: 'item', label: t('profilePhoto.change'), icon: markRaw(Camera), onSelect: choose },
+    {
+      type: 'item',
+      label: t('profilePhoto.remove'),
+      icon: markRaw(Trash2),
+      variant: 'destructive',
+      onSelect: removePhoto,
+    },
+  ]
 }
 
 const isEditingName = ref(false)
@@ -132,35 +142,26 @@ async function saveName() {
       <SettingsSection id="user" :title="$t('settings.account.user.title')">
         <div class="flex items-center gap-2 w-full">
           <AvatarPicker v-slot="{ choose }" @crop="uploadPhoto">
-            <DropdownMenu v-if="me.picture">
-              <DropdownMenuTrigger as-child>
+            <ResponsiveDropdown v-if="me.picture" :items="photoMenu(choose)">
+              <template #trigger="{ open }">
                 <button
                   type="button"
-                  class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  class="rounded-[28%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   :aria-label="t('profilePhoto.edit')"
                   :disabled="isSavingPhoto"
+                  @click="open"
                 >
                   <Avatar size="sm">
                     <AvatarImage :src="me.picture" :alt="me.email" />
                   </Avatar>
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem @select="choose">
-                  <Camera class="size-4" />
-                  {{ t('profilePhoto.change') }}
-                </DropdownMenuItem>
-                <DropdownMenuItem @select="removePhoto">
-                  <Trash2 class="size-4" />
-                  {{ t('profilePhoto.remove') }}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </template>
+            </ResponsiveDropdown>
             <Button
               v-else
               size="icon"
               variant="outline"
-              class="rounded-full"
+              class="rounded-[28%]"
               :icon="Camera"
               :loading="isSavingPhoto"
               :aria-label="t('profilePhoto.add')"

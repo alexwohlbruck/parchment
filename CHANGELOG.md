@@ -2,7 +2,7 @@
 
 ### Added
 
-* Press ⌘Z to take back archiving something or removing a place from a collection, and ⇧⌘Z to redo it. Each change also offers Undo in its message.
+* Press ⌘Z to take back changes to your library: saving or removing places, adding them to collections, editing or deleting routes, canvases and layers, and archiving. ⇧⌘Z redoes them, and each change's message has an Undo button.
 
 ### Changed
 

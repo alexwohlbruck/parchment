@@ -1,7 +1,8 @@
 import type { Place } from './place.types'
 import type { IsochroneGeometry } from './isochrone.types'
 import type { QueryIntent } from './search.types'
-import type { MultimodalTripResponse, Vehicle } from './trip.types'
+import type { MultimodalTripResponse, RoutingPreferences, Vehicle } from './trip.types'
+import type { TripModeToken } from './departure-profile.types'
 
 export interface LatLng {
   lat: number
@@ -32,6 +33,9 @@ export interface AskStop extends AskEndpoint {
 export const ASK_TRIP_KINDS = ['bikeshare', 'transit', 'walking', 'biking', 'driving', 'rideshare'] as const
 export type AskTripKind = (typeof ASK_TRIP_KINDS)[number]
 
+export const ASK_ROUTE_MODES = ['cycling', 'walking', 'driving'] as const
+export type AskRouteMode = (typeof ASK_ROUTE_MODES)[number]
+
 /** Where the user is and what they call places, sent with each question. */
 export interface AskWhere {
   /** The map's centre. */
@@ -43,6 +47,9 @@ export interface AskWhere {
   units?: AskUnits
   /** The user's vehicles, as Directions sends them. */
   vehicles?: Vehicle[]
+  /** The user's Directions preferences, so trips and routes are planned the same way. */
+  routingPreferences?: RoutingPreferences
+  excludedModes?: TripModeToken[]
 }
 
 /** When a trip leaves or must arrive; absent for leaving now. */
@@ -110,6 +117,8 @@ export type AskEvent =
     }
   /** A canvas a tool saved to the user's library. */
   | { type: 'canvas'; id: string; name: string }
+  /** A route a tool saved to the user's library. */
+  | { type: 'route'; id: string; name: string; mode: AskRouteMode; distance: number; duration: number; elevationGain?: number }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

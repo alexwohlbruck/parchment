@@ -4,9 +4,12 @@ import { MemoCache } from '../../lib/memo-cache'
 import { HERE, parsePointText } from '../../lib/ask/known-places'
 import { nearbyFirst } from '../../lib/ask/nearby-match'
 import { forwardGeocode } from '../geocoding.service'
+import { lookupEnrichedPlaceById } from '../place.service'
+import type { Source } from '../../lib/constants'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
-import type { Vehicle } from '../../types/trip.types'
+import type { RoutingPreferences, Vehicle } from '../../types/trip.types'
+import type { TripModeToken } from '../../types/departure-profile.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
 import type {
   AskEndpoint,
@@ -36,6 +39,8 @@ export interface AskContext {
   units: AskUnits
   /** The user's vehicles, so trips match what Directions plans. */
   vehicles: Vehicle[]
+  routingPreferences?: RoutingPreferences
+  excludedModes?: TripModeToken[]
   now: Date
   signal?: AbortSignal
   /** Every place a tool has returned, by id. The answer may only cite these. */
@@ -46,6 +51,10 @@ export interface AskContext {
   sources: Map<string, AskSource>
   /** The trip plan_trip proposed, so a canvas can draw it. */
   trip?: { name: string; path: LatLng[] }
+  /** The last trip plan_trip proposed, shown with the answer rather than as each plan comes in. */
+  proposedTrip?: Extract<AskEvent, { type: 'trip' }>
+  /** Routes saved this conversation turn, by id, so a canvas can draw them. */
+  routes: Map<string, { name: string }>
   emit(event: AskEvent): void
 }
 
@@ -110,7 +119,8 @@ export async function endpoint(
       context.places.get(text.toLowerCase()) ?? seenPlace(text, context)
     if (known) return known
     const written = parsePointText(text)
-    return written ? named(written, context) : geocode(text, context)
+    if (written) return named(written, context)
+    return (await placeById(text, context)) ?? geocode(text, context)
   }
   const target = value ?? context.origin
   if (!target)
@@ -160,6 +170,32 @@ function seenPlace(id: string, context: AskContext): AskEndpoint | undefined {
       ...(place.name.value && { name: place.name.value }),
     }
   )
+}
+
+export function splitPlaceId(
+  id: string,
+): { source: Source; externalId: string } | null {
+  const slash = id.indexOf('/')
+  if (slash <= 0) return null
+  return {
+    source: id.slice(0, slash) as Source,
+    externalId: id.slice(slash + 1),
+  }
+}
+
+/** A place id from an earlier call that this one hasn't seen, as MCP clients pass between calls. */
+async function placeById(id: string, context: AskContext): Promise<AskEndpoint | undefined> {
+  const parts = /^[a-z]+\/\S+$/.test(id) ? splitPlaceId(id) : null
+  if (!parts) return undefined
+  const place = await cached(
+    'place_by_id',
+    { id },
+    { language: context.language },
+    () => lookupEnrichedPlaceById(parts.source, parts.externalId, { language: context.language }).catch(() => null),
+  )
+  if (!place) return undefined
+  context.seen.set(id, { ...place, id })
+  return seenPlace(id, context)
 }
 
 /** What a point is called, for a step's detail; coordinates have no name worth showing. */

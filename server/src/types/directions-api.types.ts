@@ -1,4 +1,5 @@
 import { t } from 'elysia'
+import { TRIP_MODE_TOKENS } from './departure-profile.types'
 
 export const CoordinateSchema = t.Object({
   lat: t.Number(),
@@ -234,3 +235,49 @@ export const SingleTripRequestSchema = t.Object({
   ),
   requestId: t.Optional(t.String()),
 })
+
+export const RoutingPreferencesSchema = t.Object({
+  // Range preferences (0-1 floats, 5-stop sliders)
+  highways: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  tolls: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  ferries: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  hills: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  surfaceQuality: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  litPaths: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  safetyVsSpeed: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+
+  // Boolean preferences
+  shortest: t.Optional(t.Boolean()),
+  preferHOV: t.Optional(t.Boolean()),
+  wheelchairAccessible: t.Optional(t.Boolean()),
+
+  // Numeric/enum preferences
+  cyclingSpeed: t.Optional(t.Number({ minimum: 1, maximum: 60 })),
+  walkingSpeed: t.Optional(t.Number({ minimum: 0.5, maximum: 25 })),
+  bicycleType: t.Optional(t.String()),
+
+  // Transit
+  maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
+  maxTransfers: t.Optional(t.Number({ minimum: 0 })),
+  transitBufferMinutes: t.Optional(t.Number({ minimum: 0, maximum: 5 })),
+
+  // UI state
+  useKnownVehicleLocations: t.Optional(t.Boolean()),
+  useKnownParkingLocations: t.Optional(t.Boolean()),
+  includePrivateParking: t.Optional(t.Boolean()),
+  routingEngine: t.Optional(t.String()),
+
+  // Advanced: raw custom_model JSON override
+  customModelOverride: t.Optional(t.String()),
+
+  // Legacy boolean fields (backward compat)
+  avoidHighways: t.Optional(t.Boolean()),
+  avoidTolls: t.Optional(t.Boolean()),
+  avoidFerries: t.Optional(t.Boolean()),
+  avoidHills: t.Optional(t.Boolean()),
+  preferLitPaths: t.Optional(t.Boolean()),
+  preferPavedPaths: t.Optional(t.Boolean()),
+  safetyVsEfficiency: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+})
+
+export const TripModeTokenSchema = t.UnionEnum(TRIP_MODE_TOKENS)

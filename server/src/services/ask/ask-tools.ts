@@ -29,11 +29,11 @@ import {
 } from '../../types/isochrone.types'
 import type { MapBounds } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
-import type { Source } from '../../lib/constants'
 import type { ChatTool } from '../../types/language-model.types'
 import type { LatLng } from '../../types/ask.types'
 import {
   AskToolError,
+  splitPlaceId,
   cached,
   centre,
   clamp,
@@ -48,6 +48,7 @@ import { tripTools } from './ask-trip-tools'
 import { libraryTools } from './ask-library-tools'
 import { webTools } from './ask-web-tools'
 import { canvasTools } from './ask-canvas-tools'
+import { routeTools } from './ask-route-tools'
 
 export {
   AskToolError,
@@ -132,17 +133,6 @@ function listPlaces(
         units: context.units,
       }),
     ),
-  }
-}
-
-function splitPlaceId(
-  id: string,
-): { source: Source; externalId: string } | null {
-  const slash = id.indexOf('/')
-  if (slash <= 0) return null
-  return {
-    source: id.slice(0, slash) as Source,
-    externalId: id.slice(slash + 1),
   }
 }
 
@@ -514,6 +504,7 @@ export const askTools: AskTool[] = [
   searchAlongRoute,
   ...tripTools,
   ...libraryTools,
+  ...routeTools,
   ...canvasTools,
   ...webTools,
 ]

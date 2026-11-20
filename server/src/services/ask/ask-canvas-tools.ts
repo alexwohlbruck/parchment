@@ -1,59 +1,85 @@
 import { createCanvas, updateCanvas } from '../library/canvases.service'
+import { getRouteById } from '../library/routes.service'
 import { getPermissions, hasPermission } from '../auth.service'
 import { PermissionId } from '../../types/auth.types'
-import { askCanvasBody, type CanvasPlaceGroup } from '../../lib/ask/ask-canvas'
-import { AskToolError, type AskContext, type AskTool } from './ask-tool-base'
+import { askCanvasBody, type CanvasPlaceGroup, type CanvasRoute } from '../../lib/ask/ask-canvas'
+import type { RouteBody } from '../../schema/routes.schema'
+import {
+  AskToolError,
+  endpoint,
+  pointSchema,
+  type AskContext,
+  type AskTool,
+  type PointArg,
+} from './ask-tool-base'
 
 interface LayerArg {
   name: string
-  place_ids: string[]
+  points: PointArg[]
   color?: string
 }
 
-function placeGroup(layer: LayerArg, context: AskContext, unknown: string[]): CanvasPlaceGroup {
-  const places = (layer.place_ids ?? []).flatMap((id) => {
-    const place = context.seen.get(id)
-    const center = place?.geometry?.value?.center
-    if (!place || !center) {
-      unknown.push(id)
-      return []
-    }
-    return [{
-      lat: center.lat,
-      lng: center.lng,
-      name: place.name.value ?? place.placeType?.value ?? 'Place',
-      placeId: id,
-      ...(place.placeType?.value && { type: place.placeType.value }),
-    }]
-  })
+async function placeGroup(layer: LayerArg, context: AskContext): Promise<CanvasPlaceGroup> {
+  const places = await Promise.all(
+    (layer.points ?? []).map(async (point) => {
+      const { lat, lng, name, placeId } = await endpoint(point, context)
+      const type = placeId ? context.seen.get(placeId)?.placeType?.value : undefined
+      return {
+        lat,
+        lng,
+        name: name ?? type ?? 'Place',
+        ...(placeId && { placeId }),
+        ...(type && { type }),
+      }
+    }),
+  )
   return { name: layer.name || 'Places', color: layer.color, places }
+}
+
+async function savedRoute(id: string, context: AskContext): Promise<CanvasRoute> {
+  const route = await getRouteById(id, context.userId)
+  if (!route) throw new AskToolError(`Unknown route ${id}. Use ids create_route or my_routes returned.`)
+  const geometry = (route.body as RouteBody | null)?.geometry ?? []
+  return {
+    routeId: id,
+    path: geometry.map(([lng, lat]) => ({ lat, lng })),
+  }
 }
 
 const createCanvasTool: AskTool<{
   name: string
   description?: string
   layers?: LayerArg[]
+  route_ids?: string[]
   include_trip?: boolean
 }> = {
   name: 'create_canvas',
   description:
-    "Save a canvas (a map of the user's own, kept in their library) with places tools returned, in named layers, and optionally the trip plan_trip proposed. Only when the user asks for a map or canvas.",
+    "Save a canvas (a map of the user's own, kept in their library) with saved routes, points in named layers, and optionally the trip plan_trip proposed.",
   parameters: {
     type: 'object',
     properties: {
       name: { type: 'string', description: 'Short title, e.g. "Pizza in the East Village"' },
       description: { type: 'string' },
+      route_ids: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Routes to draw, by the id create_route or my_routes returned',
+      },
       layers: {
         type: 'array',
-        description: 'One layer per kind of place, e.g. "Pizza" and "Bagels"',
+        description: 'One layer per kind of point, e.g. "Pizza" and "Bagels", or "Stops" on a route',
         items: {
           type: 'object',
           properties: {
             name: { type: 'string' },
-            place_ids: { type: 'array', items: { type: 'string' }, description: 'Ids tools returned' },
+            points: {
+              type: 'array',
+              items: pointSchema('A point to mark: a place id a tool returned, a known place like "home", or coordinates.'),
+            },
             color: { type: 'string', description: 'Hex colour, e.g. #dc2626' },
           },
-          required: ['name', 'place_ids'],
+          required: ['name', 'points'],
         },
       },
       include_trip: { type: 'boolean', description: 'Draw the trip plan_trip proposed' },
@@ -66,24 +92,23 @@ const createCanvasTool: AskTool<{
     if (!hasPermission(await getPermissions(context.userId), PermissionId.LIBRARY_WRITE)) {
       throw new AskToolError('Saving canvases needs a Basic or Premium plan.')
     }
-    const unknown: string[] = []
-    const groups = (args.layers ?? []).map((layer) => placeGroup(layer, context, unknown))
-    if (unknown.length) {
-      throw new AskToolError(`Unknown place ids ${unknown.join(', ')}. Use only ids tools returned.`)
-    }
+    const [groups, routes] = await Promise.all([
+      Promise.all((args.layers ?? []).map((layer) => placeGroup(layer, context))),
+      Promise.all([...new Set(args.route_ids ?? [])].map((id) => savedRoute(id, context))),
+    ])
     const trip = args.include_trip ? context.trip : undefined
-    if (!groups.some((group) => group.places.length) && !trip) {
-      throw new AskToolError('Nothing to put on the canvas: find places or plan a trip first.')
+    if (!groups.some((group) => group.places.length) && !routes.length && !trip) {
+      throw new AskToolError('Nothing to put on the canvas: build a route, find places or plan a trip first.')
     }
     const name = args.name.trim() || 'Canvas'
     const canvas = await createCanvas({ userId: context.userId })
     await updateCanvas(canvas.id, context.userId, {
       name,
       description: args.description?.trim() || null,
-      body: askCanvasBody(groups, trip),
+      body: askCanvasBody(groups, { trip, routes }),
     })
     context.emit({ type: 'canvas', id: canvas.id, name })
-    return { saved: true, name, layers: groups.length + (trip ? 1 : 0) }
+    return { saved: true, id: canvas.id, name, layers: groups.length + routes.length + (trip ? 1 : 0) }
   },
 }
 

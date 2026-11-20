@@ -71,6 +71,15 @@ mock.module('../library/canvases.service', () => ({
   updateCanvas: mockUpdateCanvas,
 }))
 
+const loop = { geometry: [[-73.99, 40.73], [-73.93, 40.8]] }
+const mockGetRouteById = mock(async (id: string, _userId: string) => (id === 'route-1' ? { id, body: loop } : undefined))
+mock.module('../library/routes.service', () => ({
+  getRouteById: mockGetRouteById,
+  getRoutes: mock(async () => []),
+  createRoute: mock(async () => ({ id: 'route-1' })),
+  updateRoute: mock(async () => ({})),
+}))
+
 const { askTools } = await import('./ask-tools')
 import type { AskContext } from './ask-tools'
 import type { ChatRequest } from '../../types/language-model.types'
@@ -87,6 +96,7 @@ function context(userId = 'u1'): AskContext {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    routes: new Map(),
     sources: new Map(),
     emit: () => {},
   }
@@ -242,17 +252,33 @@ describe('create_canvas', () => {
     const events: unknown[] = []
     const ctx = { ...context(), emit: (event: unknown) => events.push(event) } as AskContext
     ctx.seen.set(pizza.id, pizza)
-    const result = await tool('create_canvas').run({ name: 'Pizza', layers: [{ name: 'Pizza', place_ids: [pizza.id] }] }, ctx)
-    expect(result).toEqual({ saved: true, name: 'Pizza', layers: 1 })
+    const result = await tool('create_canvas').run({ name: 'Pizza', layers: [{ name: 'Pizza', points: [pizza.id] }] }, ctx)
+    expect(result).toEqual({ saved: true, id: 'canvas-1', name: 'Pizza', layers: 1 })
     expect(mockUpdateCanvas.mock.calls.at(-1)![2].body.layers[0].data.features[0].properties.name).toBe('Joe’s Pizza')
     expect(events).toEqual([{ type: 'canvas', id: 'canvas-1', name: 'Pizza' }])
   })
 
-  test('refuses ids no tool returned, and users without a library', async () => {
+  test('marks known places like home, and draws saved routes as route layers', async () => {
     permissions = ['library:write']
+    const ctx = context()
+    ctx.places.set('home', { name: 'Home', lat: 40.68, lng: -73.96 })
+    await tool('create_canvas').run(
+      { name: 'Loop', route_ids: ['route-1'], layers: [{ name: 'Stops', points: ['home'] }] },
+      ctx,
+    )
+    const body = mockUpdateCanvas.mock.calls.at(-1)![2].body
+    expect(body.layers[0]).toMatchObject({ kind: 'route', routeId: 'route-1' })
+    expect(body.layers[1].data.features[0].properties.name).toBe('Home')
+  })
+
+  test('refuses routes and places it cannot find, and users without a library', async () => {
+    permissions = ['library:write']
+    await expect(tool('create_canvas').run({ name: 'x', route_ids: ['route-9'] }, context())).rejects.toThrow(
+      'Unknown route route-9',
+    )
     await expect(
-      tool('create_canvas').run({ name: 'x', layers: [{ name: 'x', place_ids: ['osm/node/9'] }] }, context()),
-    ).rejects.toThrow('Unknown place ids osm/node/9')
+      tool('create_canvas').run({ name: 'x', layers: [{ name: 'x', points: ['osm/node/9'] }] }, context()),
+    ).rejects.toThrow('Couldn\'t find')
     permissions = []
     await expect(tool('create_canvas').run({ name: 'x' }, context())).rejects.toThrow('Basic or Premium')
   })

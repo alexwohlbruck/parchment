@@ -24,11 +24,20 @@ describe('askCanvasBody', () => {
 
   test('puts a trip underneath as a line, and ignores a colour that is not hex', () => {
     const body = askCanvasBody([{ name: 'Stops', color: 'red', places: [pizza] }], {
-      name: 'Home to Work',
-      path: [pizza, bagels],
+      trip: { name: 'Home to Work', path: [pizza, bagels] },
     })
     expect(body.layers.map((layer) => layer.kind === 'data' && layer.render)).toEqual(['lines', 'points'])
     expect(body.layers[1].kind === 'data' && body.layers[1].style?.color).toBe('#2563eb')
+  })
+
+  test('draws saved routes as route layers beneath the points, framed in the camera', () => {
+    const far = { lat: 40.8, lng: -73.93 }
+    const body = askCanvasBody([{ name: 'Stops', places: [pizza] }], {
+      routes: [{ routeId: 'r1', path: [bagels, far] }],
+    })
+    expect(body.layers.map((layer) => layer.kind)).toEqual(['route', 'data'])
+    expect(body.layers[0]).toMatchObject({ kind: 'route', routeId: 'r1', visible: true })
+    expect(body.camera?.center[1]).toBeCloseTo((40.7306 + 40.8) / 2)
   })
 
   test('opens on everything it holds', () => {

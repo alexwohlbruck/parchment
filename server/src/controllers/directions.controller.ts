@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
-import { CoordinateSchema, VehicleSchema } from '../types/directions-api.types'
+import { CoordinateSchema, RoutingPreferencesSchema, TripModeTokenSchema, VehicleSchema } from '../types/directions-api.types'
 import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
@@ -21,7 +21,6 @@ import {
   EnergyType,
   SORT_PREFERENCES,
 } from '../types/trip.types'
-import { TRIP_MODE_TOKENS } from '../types/departure-profile.types'
 import { logError } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -65,49 +64,6 @@ const AccessPointSchema = t.Object({
   location: t.Optional(CoordinateSchema),
 })
 
-const RoutingPreferencesSchema = t.Object({
-  // Range preferences (0-1 floats, 5-stop sliders)
-  highways: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  tolls: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  ferries: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  hills: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  surfaceQuality: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  litPaths: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-  safetyVsSpeed: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-
-  // Boolean preferences
-  shortest: t.Optional(t.Boolean()),
-  preferHOV: t.Optional(t.Boolean()),
-  wheelchairAccessible: t.Optional(t.Boolean()),
-
-  // Numeric/enum preferences
-  cyclingSpeed: t.Optional(t.Number({ minimum: 1, maximum: 60 })),
-  walkingSpeed: t.Optional(t.Number({ minimum: 0.5, maximum: 25 })),
-  bicycleType: t.Optional(t.String()),
-
-  // Transit
-  maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
-  maxTransfers: t.Optional(t.Number({ minimum: 0 })),
-  transitBufferMinutes: t.Optional(t.Number({ minimum: 0, maximum: 5 })),
-
-  // UI state
-  useKnownVehicleLocations: t.Optional(t.Boolean()),
-  useKnownParkingLocations: t.Optional(t.Boolean()),
-  includePrivateParking: t.Optional(t.Boolean()),
-  routingEngine: t.Optional(t.String()),
-
-  // Advanced: raw custom_model JSON override
-  customModelOverride: t.Optional(t.String()),
-
-  // Legacy boolean fields (backward compat)
-  avoidHighways: t.Optional(t.Boolean()),
-  avoidTolls: t.Optional(t.Boolean()),
-  avoidFerries: t.Optional(t.Boolean()),
-  avoidHills: t.Optional(t.Boolean()),
-  preferLitPaths: t.Optional(t.Boolean()),
-  preferPavedPaths: t.Optional(t.Boolean()),
-  safetyVsEfficiency: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
-})
 
 // Schema for SelectedMode type
 const SelectedModeSchema = t.Union([
@@ -120,8 +76,6 @@ const SelectedModeSchema = t.Union([
 ] as const)
 
 const SortPreferenceSchema = t.UnionEnum(SORT_PREFERENCES)
-
-const TripModeTokenSchema = t.UnionEnum(TRIP_MODE_TOKENS)
 
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),

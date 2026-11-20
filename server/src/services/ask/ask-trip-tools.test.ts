@@ -34,6 +34,7 @@ const mockGeocode = mock(
     ],
   }),
 )
+mock.module('../place.service', () => ({ lookupEnrichedPlaceById: mock(async () => null) }))
 mock.module('../geocoding.service', () => ({ forwardGeocode: mockGeocode }))
 mock.module('../trip.service', () => ({
   multimodalTripService: { planTrip: mockPlanTrip },
@@ -67,6 +68,7 @@ function context(): AskContext {
     vehicles: [],
     now: new Date('2026-11-20T23:00:00Z'),
     seen: new Map(),
+    routes: new Map(),
     sources: new Map(),
     emit: () => {},
   }
@@ -232,15 +234,17 @@ describe('plan_trip', () => {
     },
   })
 
-  function knownContext(events: AskEvent[]) {
-    return {
+  /** The trip each plan proposes, which the answer shows once the model is done. */
+  function knownContext(proposed: AskEvent[]) {
+    const ctx = {
       ...context(),
       places: new Map([
         ['here', here],
         ['home', home],
       ]),
-      emit: (event: AskEvent) => events.push(event),
-    }
+    } as AskContext
+    Object.defineProperty(ctx, 'proposedTrip', { set: (trip: AskEvent) => proposed.push(trip) })
+    return ctx
   }
 
   test('routes between named places and offers the kind asked for in Directions', async () => {

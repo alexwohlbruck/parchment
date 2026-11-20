@@ -90,6 +90,7 @@ function context(): AskContext & { events: AskEvent[] } {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    routes: new Map(),
     sources: new Map(),
     emit: (event) => events.push(event),
     events,

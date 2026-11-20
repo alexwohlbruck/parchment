@@ -175,6 +175,10 @@ never have to translate their situation into our model.
   doesn't fit, cut words before adding a line. Use sentence case, no trailing
   periods on labels, and numbers instead of number words.
 
+## Signing in as an agent
+
+To act as the admin account without the email or passkey flow, run `bun run dev:sign-in` in `server/` (a preview needs `bun --env-file=../.env.preview scripts/dev-sign-in.ts`). It prints a session token: send it as `Authorization: Bearer <token>`, or set it as the `auth_session` cookie on the API host to sign a browser in. Run `--revoke` when done. It refuses to run outside `NODE_ENV=development` or against a non-local database; never turn it into an HTTP route.
+
 ## Important rules
 
 - Do NOT start new dev servers. The user runs their own.

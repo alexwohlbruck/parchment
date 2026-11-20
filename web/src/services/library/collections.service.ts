@@ -37,6 +37,8 @@ import {
 } from '@/lib/identity/collection-scheme-switch'
 import { useAuthStore } from '@/stores/auth.store'
 import { useArchiveService } from '@/services/library/archive.service'
+import { useHistoryStore } from '@/stores/history.store'
+import { previousValues } from '@/lib/history/previous-values'
 
 // TODO: i18n error messages
 
@@ -185,6 +187,7 @@ function isUnnamedStarter(collection: Collection): boolean {
 
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
+  const historyStore = useHistoryStore()
   const archiveService = useArchiveService()
   const authStore = useAuthStore()
   const friendsStore = useFriendsStore()
@@ -314,34 +317,52 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  async function create(params: CreateCollectionParams): Promise<Collection> {
+    const metadata = collectionMetadataOf(params)
+    const isPublic = params.isPublic ?? false
+    let created: Collection
+
+    if (params.scheme === 'user-e2ee') {
+      const { data } = await api.post<Collection>('/library/collections', {
+        scheme: 'user-e2ee',
+        isPublic,
+      })
+      const { data: sealed } = await api.put<Collection>(
+        `/library/collections/${data.id}`,
+        { metadataEncrypted: await buildMetadataEnvelope(data, metadata) },
+      )
+      created = await hydrateDecryptedMetadata({ ...sealed, role: 'owner' })
+    } else {
+      const { data } = await api.post<Collection>('/library/collections', {
+        ...metadata,
+        isPublic,
+      })
+      created = { ...data, role: 'owner' }
+    }
+
+    collectionsStore.updateCollection(created)
+    return created
+  }
+
+  async function remove(id: string) {
+    await api.delete(`/library/collections/${id}`)
+    collectionsStore.removeCollection(id)
+  }
+
   async function createCollection(params: CreateCollectionParams) {
     try {
-      const metadata = collectionMetadataOf(params)
-      const isPublic = params.isPublic ?? false
-      let created: Collection
-
-      if (params.scheme === 'user-e2ee') {
-        const { data } = await api.post<Collection>('/library/collections', {
-          scheme: 'user-e2ee',
-          isPublic,
-        })
-        const { data: sealed } = await api.put<Collection>(
-          `/library/collections/${data.id}`,
-          { metadataEncrypted: await buildMetadataEnvelope(data, metadata) },
-        )
-        created = await hydrateDecryptedMetadata({ ...sealed, role: 'owner' })
-      } else {
-        const { data } = await api.post<Collection>('/library/collections', {
-          ...metadata,
-          isPublic,
-        })
-        created = { ...data, role: 'owner' }
-      }
-
-      collectionsStore.updateCollection(created)
-      toast.success(t('services.collections.createSuccess'), {
-        action: viewCollectionAction(created.id),
-      })
+      const created = await create(params)
+      let id = created.id
+      historyStore.record(
+        {
+          label: t('services.collections.createSuccess'),
+          undo: () => remove(id),
+          redo: async () => {
+            id = (await create(params)).id
+          },
+        },
+        { view: viewCollectionAction(created.id) },
+      )
       return created
     } catch (error) {
       toast.error(t('services.collections.createError'), { cause: error })
@@ -349,36 +370,46 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  async function applyUpdate(id: string, updates: Partial<Collection>) {
+    const current = collectionsStore.getCollectionById(id)
+    if (!current) throw new Error(`Collection ${id} is not loaded`)
+    const e2ee = current.scheme === 'user-e2ee'
+    const metadataChanged =
+      updates.name !== undefined ||
+      updates.description !== undefined ||
+      updates.icon !== undefined ||
+      updates.iconPack !== undefined ||
+      updates.iconColor !== undefined
+
+    const body: Record<string, unknown> = {}
+    if (updates.isPublic !== undefined) body.isPublic = updates.isPublic
+
+    if (metadataChanged) {
+      const merged = collectionMetadataOf({ ...current, ...updates })
+      if (e2ee) body.metadataEncrypted = await buildMetadataEnvelope(current, merged)
+      else Object.assign(body, merged)
+    }
+
+    const response = await api.put(`/library/collections/${id}`, body)
+    const hydrated = await hydrateDecryptedMetadata({
+      ...(response.data as Collection),
+      role: current.role,
+    })
+
+    collectionsStore.updateCollection(hydrated)
+    return hydrated
+  }
+
   async function updateCollection(id: string, updates: Partial<Collection>) {
     try {
       const current = collectionsStore.getCollectionById(id)
-      if (!current) throw new Error(`Collection ${id} is not loaded`)
-      const e2ee = current.scheme === 'user-e2ee'
-      const metadataChanged =
-        updates.name !== undefined ||
-        updates.description !== undefined ||
-        updates.icon !== undefined ||
-        updates.iconPack !== undefined ||
-        updates.iconColor !== undefined
-
-      const body: Record<string, unknown> = {}
-      if (updates.isPublic !== undefined) body.isPublic = updates.isPublic
-
-      if (metadataChanged) {
-        const merged = collectionMetadataOf({ ...current, ...updates })
-        if (e2ee) body.metadataEncrypted = await buildMetadataEnvelope(current, merged)
-        else Object.assign(body, merged)
-      }
-
-      const response = await api.put(`/library/collections/${id}`, body)
-      const hydrated = await hydrateDecryptedMetadata({
-        ...(response.data as Collection),
-        role: current.role,
+      const previous = previousValues(current, updates)
+      const hydrated = await applyUpdate(id, updates)
+      historyStore.record({
+        label: t('services.collections.updateSuccess'),
+        undo: () => applyUpdate(id, previous),
+        redo: () => applyUpdate(id, updates),
       })
-
-      collectionsStore.updateCollection(hydrated)
-
-      toast.success(t('services.collections.updateSuccess'))
       return hydrated
     } catch (error) {
       toast.error(t('services.collections.updateError'), { cause: error })
@@ -444,9 +475,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
   async function deleteCollection(id: string) {
     try {
-      await api.delete(`/library/collections/${id}`)
-
-      collectionsStore.removeCollection(id)
+      await remove(id)
       toast.success(t('services.collections.deleteSuccess'))
 
       return true

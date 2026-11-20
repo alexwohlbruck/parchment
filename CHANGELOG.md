@@ -12,6 +12,7 @@
 ### Fixed
 
 * Uploaded profile photos now show up, including for friends on other Parchment servers.
+* The zoomed-out map no longer shows patches of dark specks over the ocean and land.
 
 ## [0.23.0] - 2026-11-19
 

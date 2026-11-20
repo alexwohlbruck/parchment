@@ -18,6 +18,7 @@ import {
   watch,
 } from 'vue'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useUndoScope } from '@/composables/useUndoScope'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -294,6 +295,12 @@ function canvasOwnsUndo(element: Element) {
   return !(element as HTMLInputElement).value
 }
 
+useUndoScope({
+  undo: () => history.undo(),
+  redo: () => history.redo(),
+  allowInInput: canvasOwnsUndo,
+})
+
 // Esc drops the armed tool before it does anything else — the reflex when a
 // tool is live is "get me out of this", not "leave this view".
 useHotkeys([
@@ -304,14 +311,6 @@ useHotkeys([
       if (annotations.isArmed.value) annotations.disarm()
     },
   },
-  { key: 'mod+z', allowInInput: canvasOwnsUndo, handler: () => history.undo() },
-  {
-    key: 'mod+shift+z',
-    allowInInput: canvasOwnsUndo,
-    handler: () => history.redo(),
-  },
-  // What Windows reaches for, and harmless everywhere else.
-  { key: 'mod+y', allowInInput: canvasOwnsUndo, handler: () => history.redo() },
   { key: 'p', handler: () => annotations.arm('pin') },
   { key: 'l', handler: () => annotations.arm('line') },
   { key: 'r', handler: () => annotations.arm('route') },

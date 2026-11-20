@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.23.1] - 2026-11-20
+
+### Added
+
 * Hills and mountains are shaded by the sun in 3D, so their slopes stand out and turn with the time of day.
 * At night, buildings and landmarks still cast soft shadows: from the moon when it's up, or faintly from the sky's glow.
 * Crop and zoom your profile photo before you save it, and change or remove it any time under Settings → Account.

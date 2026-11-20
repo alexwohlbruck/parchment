@@ -166,6 +166,21 @@ const VS = `#version 300 es
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
     vec3 m = a_position;
+    vec4 day = vec4(0.0, 0.0, 0.0, 1.0);
+    int i = 0;
+    int j = 0;
+    float t = 0.0;
+    if (u_seasonal > 0.0) {
+      // Each plant a few days early or late; see \`phaseOf\`.
+      float phase = fract(a_tint * 7.13 + a_shade * 13.7);
+      float at = fract(u_year + (phase - 0.5) * ${(2 * PHASE_SPREAD).toFixed(6)}) * ${RAMP}.0;
+      i = int(floor(at)) % ${RAMP};
+      j = (i + 1) % ${RAMP};
+      t = fract(at);
+      day = mix(u_ramp[i], u_ramp[j], t);
+      // A crown filling out or thinning draws in toward its middle as well as opening up.
+      if (u_occlusion.z > 0.0) m = mix(vec3(0.0, (u_occlusion.x + u_occlusion.y) * 0.5, 0.0), m, mix(0.6, 1.0, day.a));
+    }
     if (u_flutter.x > 0.0) {
       // A wave running out along the cloth, still at the pole; the heading staggers instances.
       float along = clamp((m.x - u_flutter.y) / u_flutter.z, 0.0, 1.0);
@@ -201,19 +216,9 @@ const VS = `#version 300 es
     float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
-    v_leaf = 1.0;
-    if (u_seasonal > 0.0) {
-      // Each plant a few days early or late; see \`phaseOf\`.
-      float phase = fract(a_tint * 7.13 + a_shade * 13.7);
-      float at = fract(u_year + (phase - 0.5) * ${(2 * PHASE_SPREAD).toFixed(6)}) * ${RAMP}.0;
-      int i = int(floor(at)) % ${RAMP};
-      int j = (i + 1) % ${RAMP};
-      float t = fract(at);
-      vec4 day = mix(u_ramp[i], u_ramp[j], t);
-      base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
-      v_leaf = day.a;
-    }
-    v_grain = a_position * 5.0 + a_shape.z * 17.0;
+    v_leaf = day.a;
+    if (u_seasonal > 0.0) base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
+    v_grain = a_position * 8.0 + a_shape.z * 17.0;
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
     v_color += (base * a_shade + 0.06) * lampLight((u_lightUv * vec4(world.xy, 0.0, 1.0)).xy, (world.z - a_offset.z) / u_perMetre);
     v_color = mix(v_color, base, u_lamp);

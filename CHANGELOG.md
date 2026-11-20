@@ -11,6 +11,7 @@
 
 ### Fixed
 
+* 3D landmarks no longer glow among their neighbours on the night map, and keep their own colours while they blend in.
 * Uploaded profile photos now show up, including for friends on other Parchment servers.
 
 ## [0.23.0] - 2026-11-19

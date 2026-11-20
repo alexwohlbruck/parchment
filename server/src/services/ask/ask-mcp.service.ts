@@ -3,7 +3,12 @@ import { logError } from '../../lib/logger'
 import { askTools, toolErrorMessage, type AskContext } from './ask-tools'
 import { webTools } from './ask-web-tools'
 import type { Language } from '../../lib/i18n/i18n.types'
-import type { LatLng } from '../../types/ask.types'
+import type { AskEndpoint, AskUnits, LatLng } from '../../types/ask.types'
+import type { Vehicle, VehicleType } from '../../types/trip.types'
+import { getAskPreferences, getUserPreferences } from '../user-preferences.service'
+import { getActiveVehicles } from '../vehicle.service'
+import { getFrequentBookmarks } from '../library/bookmarks.service'
+import { knownPlaces } from '../../lib/ask/known-places'
 import type { Place } from '../../types/place.types'
 import type {
   JsonRpcId,
@@ -30,7 +35,7 @@ export interface McpCaller {
 }
 
 const INSTRUCTIONS =
-  'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures and alerts, travel times by mode, bike share availability, weather and air quality, plus the user\'s saved places and vehicles. Tools need a location: pass coordinates, a place id a tool returned, or a place name. Times are local to the trip.'
+  'Search Parchment for real places, search along a route, and plan how to reach them: trips with stops, live transit departures and alerts, travel times by mode, bike share availability, weather and air quality. Build and save routes (rides, runs and walks through points you choose) and canvases (maps of routes and places) to the user\'s library, and read their saved places, routes and vehicles. Tools need a location: pass coordinates, a place id a tool returned, a place name, or one of the user\'s saved places by name ("home", "work"). Times are local to the trip.'
 
 /** MCP clients search the web themselves, and Parchment has no model to do it with here. */
 const mcpTools = askTools.filter((tool) => !webTools.includes(tool))
@@ -67,6 +72,35 @@ function initialize(params: Record<string, unknown> = {}) {
   }
 }
 
+/** What the app sends with each question, read from the user's own account instead. */
+async function userContext(userId: string): Promise<Pick<AskContext, 'places' | 'units' | 'vehicles'>> {
+  const [preferences, askPreferences, vehicles, frequents] = await Promise.all([
+    getUserPreferences(userId),
+    getAskPreferences(userId),
+    getActiveVehicles(userId),
+    getFrequentBookmarks(userId),
+  ])
+  const saved: AskEndpoint[] = frequents.map((bookmark) => ({
+    name: bookmark.frequentType === 'custom' ? bookmark.name : bookmark.frequentType!,
+    lat: bookmark.lat,
+    lng: bookmark.lng,
+  }))
+  return {
+    places: askPreferences.shareLocation ? knownPlaces(undefined, saved) : new Map(),
+    units: (preferences?.unitSystem as AskUnits | undefined) ?? 'metric',
+    vehicles: vehicles.map(
+      (vehicle): Vehicle => ({
+        id: vehicle.id,
+        type: vehicle.type as VehicleType,
+        ...(vehicle.name && { name: vehicle.name }),
+        ...(vehicle.lastKnownLat != null && vehicle.lastKnownLng != null && {
+          location: { lat: vehicle.lastKnownLat, lng: vehicle.lastKnownLng },
+        }),
+      }),
+    ),
+  }
+}
+
 async function callTool(
   params: Record<string, unknown> = {},
   caller: McpCaller,
@@ -79,9 +113,8 @@ async function callTool(
     userId: caller.userId,
     language: caller.language,
     origin: [args.near, args.from, args.at].find((point): point is LatLng => typeof point === 'object' && point !== null),
-    places: new Map(),
-    units: 'metric',
-    vehicles: [],
+    ...(await userContext(caller.userId)),
+    routes: new Map(),
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),

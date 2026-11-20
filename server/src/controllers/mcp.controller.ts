@@ -52,7 +52,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Model Context Protocol endpoint',
         description:
-          "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's place search tools to MCP clients such as Claude or ChatGPT: `find_places`, `find_categories`, `browse_category`, `get_place`, `locate` and `places_within_reach`. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
+          "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, trip planning and transit, weather, the user's saved places, routes and vehicles, and saving routes and canvases to their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
       },
     },
   )

@@ -12,7 +12,14 @@ mock.module('../services/auth.service', () => ({
 
 let askEnabled = true
 mock.module('../services/user-preferences.service', () => ({
-  getAskPreferences: async () => ({ enabled: askEnabled }),
+  getAskPreferences: async () => ({ enabled: askEnabled, shareLocation: true }),
+  getUserPreferences: async () => ({ unitSystem: 'imperial' }),
+}))
+mock.module('../services/vehicle.service', () => ({ getActiveVehicles: async () => [], getUserVehicles: async () => [] }))
+mock.module('../services/library/bookmarks.service', () => ({
+  getFrequentBookmarks: async () => [{ frequentType: 'home', name: 'Home', lat: 40.68, lng: -73.96 }],
+  getBookmarks: async () => [],
+  searchBookmarks: async () => [],
 }))
 
 const place = {

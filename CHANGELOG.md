@@ -20,6 +20,7 @@
 * Uploaded profile photos now show up, including for friends on other Parchment servers.
 * The zoomed-out map no longer shows patches of dark specks over the ocean and land.
 * ⌘Z in the canvas editor, measure tool or route builder no longer also fires the other tools' undo.
+* The map no longer loads half-empty after an app update: areas you've seen before draw from cache straight away.
 
 ## [0.23.0] - 2026-11-19
 

@@ -568,12 +568,12 @@ export const useBookmarksService = createSharedComposable(() => {
       if (!updated) throw new Error('Restore failed')
       bookmark = updated
     }
-    collectionIds.forEach(collectionId => {
-      const collection = collectionsStore.getCollectionById(collectionId)
-      if (!collection?.bookmarkIds?.includes(bookmark.id)) {
-        collectionsStore.addBookmarkToCollection(collectionId, bookmark)
-      }
-    })
+    const linked = collectionsStore.getCollectionIdsForBookmark(bookmark.id)
+    collectionIds
+      .filter(collectionId => !linked.includes(collectionId))
+      .forEach(collectionId =>
+        collectionsStore.addBookmarkToCollection(collectionId, bookmark),
+      )
     return bookmark.id
   }
 

@@ -210,6 +210,16 @@ export const useCollectionsStore = defineStore('collections', () => {
     }
   }
 
+  /** File `bookmark` under exactly `collectionIds`, and nowhere else. */
+  function setBookmarkCollections(bookmark: Bookmark, collectionIds: string[]) {
+    collections.value.forEach(collection => {
+      const filed = collection.bookmarkIds?.includes(bookmark.id) ?? false
+      const wanted = collectionIds.includes(collection.id)
+      if (wanted && !filed) addBookmarkToCollection(collection.id, bookmark)
+      if (!wanted && filed) removeBookmarkFromSingleCollection(collection.id, bookmark.id)
+    })
+  }
+
   function removeBookmarkFromSingleCollection(
     collectionId: string,
     bookmarkId: string,
@@ -310,6 +320,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     getCollectionIdsForBookmark,
     removeCollection,
     removeBookmarkFromCollections,
+    setBookmarkCollections,
     addBookmarkToCollection,
     removeBookmarkFromSingleCollection,
     updateBookmarkCollections,

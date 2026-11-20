@@ -76,8 +76,8 @@ export function areaObject(
 export const AREA_OBJECTS = plantedSpec({
   source: DETAIL_SOURCE,
   sourceLayer: OBJECT_AREA_TILES,
-  minzoom: 16.5,
-  budget: 5000,
+  minzoom: 16,
+  falloff: { full: 18000 },
   grid: feature => GRIDS[feature.properties?.kind] ?? null,
   clear: feature => feature.properties?.kind === 'scrub',
   instance: (feature, lng, lat, i, j) => areaObject(feature.properties?.kind, lng, lat, i, j, feature.properties?.shape),

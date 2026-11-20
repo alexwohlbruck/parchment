@@ -8,7 +8,7 @@ function context() {
     createProgram: vi.fn(() => ({})), createShader: vi.fn(() => ({})),
     shaderSource: vi.fn(), compileShader: vi.fn(), getShaderParameter: vi.fn(() => true),
     deleteShader: vi.fn(), attachShader: vi.fn(), linkProgram: vi.fn(),
-    getProgramParameter: vi.fn(() => true), deleteProgram: vi.fn(),
+    getProgramParameter: vi.fn((_program: unknown, _status: number) => true), deleteProgram: vi.fn(), getExtension: vi.fn((): unknown => null),
     createVertexArray: vi.fn(() => ({})), deleteVertexArray: vi.fn(),
     getUniformLocation: vi.fn((_program, name) => name),
     useProgram: vi.fn(), bindVertexArray: vi.fn(), disable: vi.fn(), enable: vi.fn(),
@@ -46,6 +46,7 @@ describe('GlobeSky', () => {
     sky.render(gl, input(1))
     expect(calls.drawArrays).not.toHaveBeenCalled()
     expect(calls.useProgram).not.toHaveBeenCalled()
+    expect(calls.createProgram).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
     sky.onRemove(map(), gl)
   })
@@ -94,13 +95,15 @@ describe('GlobeSky', () => {
     const { gl, calls } = context()
     const sky = new GlobeSky()
     sky.onAdd(map(), gl)
+    sky.render(gl, input(1))
     expect(calls.deleteShader).toHaveBeenCalledTimes(2)
     sky.onRemove(map(), gl)
     expect(calls.deleteProgram).toHaveBeenCalledOnce()
     expect(calls.deleteVertexArray).toHaveBeenCalledOnce()
     sky.render(gl, input(1))
-    expect(calls.drawArrays).not.toHaveBeenCalled()
+    expect(calls.drawArrays).toHaveBeenCalledOnce()
     sky.onAdd(map(), gl)
+    sky.render(gl, input(1))
     expect(calls.createProgram).toHaveBeenCalledTimes(2)
     sky.onRemove(map(), gl)
   })
@@ -176,11 +179,20 @@ describe('GlobeSky', () => {
     expect(host.triggerRepaint).toHaveBeenCalledTimes(2)
   })
 
-  it('cleans up both shaders and the program if the fragment shader fails', () => {
+  it('skips drawing until its program has finished compiling', () => {
     const { gl, calls } = context()
-    calls.getShaderParameter.mockReturnValueOnce(true).mockReturnValueOnce(false)
-    expect(() => new GlobeSky().onAdd(map(), gl)).toThrow('compile error')
-    expect(calls.deleteShader).toHaveBeenCalledTimes(2)
-    expect(calls.deleteProgram).toHaveBeenCalledOnce()
+    let complete = false
+    calls.getExtension.mockReturnValue({ COMPLETION_STATUS_KHR: 1 })
+    calls.getProgramParameter.mockImplementation((_program, status) => status !== 1 || complete)
+    const host = { ...map(), triggerRepaint: vi.fn() } as unknown as Map
+    const sky = new GlobeSky()
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    expect(calls.drawArrays).not.toHaveBeenCalled()
+    expect(host.triggerRepaint).toHaveBeenCalled()
+    complete = true
+    sky.render(gl, input(1))
+    expect(calls.drawArrays).toHaveBeenCalledOnce()
+    sky.onRemove(host, gl)
   })
 })

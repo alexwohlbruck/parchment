@@ -66,6 +66,7 @@ import {
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
+import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
 import lightTokens from './tokens.light.json'
@@ -135,12 +136,10 @@ const FALLBACK_CATEGORY_COLORS: Record<FlavorId, Record<PlaceCategoryId, string>
 }
 
 /**
- * Release-stable cache-buster: busts stale cached tile responses on each app
- * release, but stays constant across sessions so the service worker's
- * opportunistic tile cache (and the browser's) keeps working between visits —
- * a per-load value would make every reopened session start from a cold map.
+ * Bump only when the app starts reading a tile field older cached tiles lack.
+ * Every bump empties the CDN, browser and offline tile caches for every user.
  */
-const cacheBuster = __APP_VERSION__
+const TILE_FORMAT = 1
 
 export const SOURCE = 'openmaptiles'
 
@@ -465,7 +464,7 @@ export function withDeckPieces(url: string, on: boolean): string {
 }
 
 export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
-  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
+  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${TILE_FORMAT}`
 }
 
 function origin(): string {
@@ -540,9 +539,9 @@ export function buildLayers(options: {
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
-  const converted = withNeighbourhoodLabels(base
+  const converted = withAboriginalLands(withNeighbourhoodLabels(base
     .map(l => resolve(l, tokens, categories, flavor))
-    .map(l => localize(l, lang)))
+    .map(l => localize(l, lang))), flavor)
 
   const park = converted.find(l => l.id === 'Park')
   const detailLabel: DetailLabelStyle = {
@@ -853,6 +852,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
         : {}),
       [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
       [NEIGHBOURHOOD_SOURCE]: neighbourhoodSource(buildTileUrl(tileServerUrl, NEIGHBOURHOOD_TILES)),
+      [ABORIGINAL_LANDS_SOURCE]: aboriginalLandsSource(buildTileUrl(tileServerUrl, ABORIGINAL_LANDS_TILES)),
     },
     state: indoorState(),
     sky: SKY[flavor],

@@ -232,6 +232,29 @@ function floodOutside(cov: Float32Array, w: number, h: number): Uint8Array {
   return outside
 }
 
+/** A box average along one line of `n` samples, `stride` apart, with a running sum; the window is clipped at the ends. */
+function boxLine(src: Float32Array, dst: Float32Array, start: number, stride: number, n: number, r: number): void {
+  let sum = 0
+  let count = 0
+  for (let i = 0; i < Math.min(r, n); i++) {
+    sum += src[start + i * stride]
+    count++
+  }
+  for (let i = 0; i < n; i++) {
+    const enter = i + r
+    if (enter < n) {
+      sum += src[start + enter * stride]
+      count++
+    }
+    const leave = i - r - 1
+    if (leave >= 0) {
+      sum -= src[start + leave * stride]
+      count--
+    }
+    dst[start + i * stride] = sum / count
+  }
+}
+
 /** One separable box pass, horizontal then vertical, clamped at the edges. */
 function boxPass(
   src: Float32Array,
@@ -241,32 +264,8 @@ function boxPass(
   h: number,
   r: number,
 ): void {
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let sum = 0
-      let n = 0
-      for (let d = -r; d <= r; d++) {
-        const xx = x + d
-        if (xx < 0 || xx >= w) continue
-        sum += src[y * w + xx]
-        n++
-      }
-      scratch[y * w + x] = sum / n
-    }
-  }
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) {
-      let sum = 0
-      let n = 0
-      for (let d = -r; d <= r; d++) {
-        const yy = y + d
-        if (yy < 0 || yy >= h) continue
-        sum += scratch[yy * w + x]
-        n++
-      }
-      dst[y * w + x] = sum / n
-    }
-  }
+  for (let y = 0; y < h; y++) boxLine(src, scratch, y * w, 1, w, r)
+  for (let x = 0; x < w; x++) boxLine(scratch, dst, x, w, h, r)
 }
 
 /** Two box passes, which is close enough to a Gaussian at this size. */

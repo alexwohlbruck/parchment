@@ -4,7 +4,7 @@
  * the ground into the ground's occlusion. See `ShadowCaster` in
  * `building-shade.ts`.
  */
-import { programReady } from './mesh-program'
+import { linkProgram, programReady } from '@/lib/map/rendering/gl-program'
 import type { OcclusionFrame } from 'maplibre-gl'
 import { lightAbout, type SunFrame } from '@/lib/map/sun-shadow'
 import { TOUCHDOWN, type Point } from './decks'
@@ -49,19 +49,7 @@ const OCCLUDING_BIAS = 0.7
 type Program = { uniforms: string[]; initialized?: boolean; program: WebGLProgram; u: Record<string, WebGLUniformLocation | null>; position: number; lift: number; bias: number }
 
 function link(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: string[]): Program {
-  const program = gl.createProgram()!
-  for (const [type, source] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]] as const) {
-    const shader = gl.createShader(type)!
-    gl.shaderSource(shader, source)
-    gl.compileShader(shader)
-    gl.attachShader(program, shader)
-    gl.deleteShader(shader)
-  }
-  gl.linkProgram(program)
-  return {
-    program,
-    uniforms, u: {}, position: -1, lift: -1, bias: -1,
-  }
+  return { program: linkProgram(gl, vs, fs), uniforms, u: {}, position: -1, lift: -1, bias: -1 }
 }
 
 type SharedPrograms = { depth: Program; occlusion: Program; users: number }
@@ -100,7 +88,7 @@ export class MeshShadow {
   ready(gl: WebGL2RenderingContext) {
     if (!this.shared) return false
     for (const p of [this.shared.depth, this.shared.occlusion]) {
-      if (!programReady(gl, p.program)) return false
+      if (!programReady(gl, p.program, 'mesh shadow')) return false
       if (p.initialized) continue
       p.u = Object.fromEntries(p.uniforms.map(name => [name, gl.getUniformLocation(p.program, name)]))
       p.position = gl.getAttribLocation(p.program, 'a_position')

@@ -29,6 +29,7 @@ import {
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import BuildingShadeSection from '@/components/settings/developer/BuildingShadeSection.vue'
 import BatteryRunSection from '@/components/settings/developer/BatteryRunSection.vue'
+import PlantSeasonSection from '@/components/settings/developer/PlantSeasonSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -435,6 +436,8 @@ onMounted(() => {
     </SettingsSection>
 
     <BuildingShadeSection />
+
+    <PlantSeasonSection />
 
     <BatteryRunSection />
 

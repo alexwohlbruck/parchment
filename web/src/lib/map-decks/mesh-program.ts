@@ -3,6 +3,7 @@
  * buffers a built mesh is uploaded into.
  */
 import type { Mesh } from './decks'
+import { linkProgram, programReady } from '@/lib/map/rendering/gl-program'
 import { MATERIALS } from './baked/mesh-file'
 import { bindOcclusion, bindSun, GROUND_OCCLUSION_GLSL, GROUND_OCCLUSION_UNIFORMS, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type GroundOcclusion, type SunFrame } from '@/lib/map/sun-shadow'
 
@@ -92,27 +93,9 @@ type Layout = { type: number; normalized: boolean }
 export type MeshBuffers = { position: WebGLBuffer; normal: WebGLBuffer; color: WebGLBuffer; low: WebGLBuffer | null; bias: WebGLBuffer | null; spread: WebGLBuffer | null; lift?: WebGLBuffer | null; count: number; indices?: WebGLBuffer | null; vao?: WebGLVertexArrayObject | null; layouts?: Partial<Record<'normal' | 'color' | 'low', Layout>> }
 
 export function linkMeshProgram(gl: WebGL2RenderingContext, deferred = false): WebGLProgram {
-  const program = gl.createProgram()!
-  for (const [type, source] of [[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, FS]] as const) {
-    const shader = gl.createShader(type)!
-    gl.shaderSource(shader, source)
-    gl.compileShader(shader)
-    gl.attachShader(program, shader)
-    gl.deleteShader(shader)
-  }
-  gl.linkProgram(program)
-  if (!deferred) programReady(gl, program)
+  const program = linkProgram(gl, VS, FS)
+  if (!deferred) programReady(gl, program, 'mesh')
   return program
-}
-
-const readyPrograms = new WeakSet<WebGLProgram>()
-export function programReady(gl: WebGL2RenderingContext, program: WebGLProgram): boolean {
-  if (readyPrograms.has(program)) return true
-  const parallel = gl.getExtension('KHR_parallel_shader_compile')
-  if (parallel && !gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)) return false
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(`Mesh shader: ${gl.getProgramInfoLog(program)}`)
-  readyPrograms.add(program)
-  return true
 }
 
 /** Normals may come as signed bytes (read normalised) and palette slots as unsigned bytes, as compact meshes store them. */

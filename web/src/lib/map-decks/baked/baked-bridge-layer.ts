@@ -1,6 +1,7 @@
 import type { DeckPalette, DeckSources, RouteSpan } from '../deck.types'
 import { ghostBlend } from '@/lib/map/ghost-blend'
-import { bindMesh, deleteMesh, eyeOf, programReady, linkMeshProgram, uploadMesh, useMeshProgram, type MeshBuffers } from '../mesh-program'
+import { programReady } from '@/lib/map/rendering/gl-program'
+import { bindMesh, deleteMesh, eyeOf, linkMeshProgram, uploadMesh, useMeshProgram, type MeshBuffers } from '../mesh-program'
 import { MeshShadow } from '../mesh-shadow'
 import { mercator, metresPerUnit, standing, TOUCHDOWN, BOX_MIN, underWay, runsWith, parseLine, boundsOf, meets, holds, deckMeshOut, linesOf, type Mesh, type Point, type Bounds } from '../decks'
 import { translate } from '@/lib/map-objects/object-layer'
@@ -865,7 +866,7 @@ export class BakedBridgeLayer {
     return hit.z + (this.exaggeration() - 1) * hit.lift
   }
   render(gl: WebGL2RenderingContext, args: any) {
-    if (!programReady(gl, this.program) || !this.shadows.ready(gl)) { this.map.triggerRepaint(); return }
+    if (!programReady(gl, this.program, 'bridge') || !this.shadows.ready(gl)) { this.map.triggerRepaint(); return }
     if (this.pending.size) {
       const started = performance.now()
       for (const [id, { data, bytes }] of this.pending) {

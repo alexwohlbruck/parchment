@@ -4,6 +4,8 @@
 
 ### Changed
 
+* The map stutters less while it first draws and while you pan around.
+
 ### Fixed
 
 ## [0.23.1] - 2026-11-20

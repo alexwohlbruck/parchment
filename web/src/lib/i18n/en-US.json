@@ -64,7 +64,13 @@
     "archive": "Archive",
     "unarchive": "Unarchive",
     "undo": "Undo",
+    "redo": "Redo",
     "saved": "Saved"
+  },
+  "history": {
+    "undone": "Undid: {label}",
+    "undoFailed": "Couldn't undo that",
+    "redoFailed": "Couldn't redo that"
   },
   "weather": {
     "title": "Weather",

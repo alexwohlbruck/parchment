@@ -63,7 +63,13 @@
     "archive": "Archivar",
     "unarchive": "Desarchivar",
     "undo": "Deshacer",
+    "redo": "Rehacer",
     "saved": "Guardado"
+  },
+  "history": {
+    "undone": "Deshecho: {label}",
+    "undoFailed": "No se pudo deshacer",
+    "redoFailed": "No se pudo rehacer"
   },
   "weather": {
     "title": "Condiciones del tiempo",

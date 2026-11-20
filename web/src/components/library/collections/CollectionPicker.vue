@@ -78,6 +78,27 @@ const { privatePoints } = usePlaceCollections(() => ({
   externalIds: props.place?.externalIds ?? storedBookmark.value?.externalIds,
 }))
 
+// Undo and redo delete, re-create and re-file the bookmark under an open
+// picker, so follow the store rather than the copy taken when it opened.
+const liveBookmark = computed(() => {
+  const externalIds = props.place?.externalIds ?? currentBookmark.value?.externalIds
+  if (!externalIds) return storedBookmark.value
+  return bookmarksStore.bookmarks.find(b => isSamePlace(externalIds, b.externalIds))
+})
+
+watch(
+  () => {
+    const id = liveBookmark.value?.id
+    return id ? `${id}:${collectionsStore.getCollectionIdsForBookmark(id).join()}` : ''
+  },
+  () => {
+    if (isTogglingCollection.value) return
+    const bookmark = liveBookmark.value
+    currentBookmark.value = bookmark
+    applyCollectionIds(bookmark ? collectionsStore.getCollectionIdsForBookmark(bookmark.id) : [])
+  },
+)
+
 function isInCollection(collection: Collection) {
   return (
     bookmarkCollectionIds.value.includes(collection.id) ||

@@ -27,7 +27,7 @@ import {
   precacheAndRoute,
 } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { CacheFirst } from 'workbox-strategies'
+import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
 
@@ -64,21 +64,26 @@ const stripAuthParams = {
   },
 }
 
-registerRoute(
-  ({ url }) =>
-    TILE_PROXY_PATH.test(url.pathname) || TILE_HOSTS.test(url.hostname),
-  new CacheFirst({
-    cacheName: 'map-tiles',
-    plugins: [
-      stripAuthParams,
-      new CacheableResponsePlugin({ statuses: [200] }),
-      new ExpirationPlugin({
-        maxEntries: 2500,
-        maxAgeSeconds: 30 * DAY,
-        purgeOnQuotaError: true,
-      }),
-    ],
+const tileCachePlugins = [
+  stripAuthParams,
+  new CacheableResponsePlugin({ statuses: [200] }),
+  new ExpirationPlugin({
+    maxEntries: 2500,
+    maxAgeSeconds: 30 * DAY,
+    purgeOnQuotaError: true,
   }),
+]
+
+// Our tile URLs stay the same across releases, so a cached tile is drawn at
+// once and refreshed behind it; an import shows up on the next visit.
+registerRoute(
+  ({ url }) => TILE_PROXY_PATH.test(url.pathname),
+  new StaleWhileRevalidate({ cacheName: 'map-tiles', plugins: tileCachePlugins }),
+)
+
+registerRoute(
+  ({ url }) => TILE_HOSTS.test(url.hostname),
+  new CacheFirst({ cacheName: 'map-tiles', plugins: tileCachePlugins }),
 )
 
 registerRoute(

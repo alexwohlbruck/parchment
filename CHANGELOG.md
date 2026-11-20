@@ -2,9 +2,16 @@
 
 ### Added
 
+* Crop and zoom your profile photo before you save it, and change or remove it any time under Settings → Account.
+* Self-hosted servers keep profile photos on their own disk by default, or in any S3-compatible bucket such as R2.
+
 ### Changed
 
+* Profile photos are rounded squares everywhere, including friends on the map.
+
 ### Fixed
+
+* Uploaded profile photos now show up, including for friends on other Parchment servers.
 
 ## [0.23.0] - 2026-11-19
 

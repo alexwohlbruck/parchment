@@ -19,6 +19,8 @@ import type {
 import { getSeed } from '@/lib/identity/key-storage'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
+import { useHistoryStore } from '@/stores/history.store'
+import { previousValues } from '@/lib/history/previous-values'
 import {
   encryptRouteMetadata,
   decryptRouteMetadata,
@@ -95,6 +97,7 @@ export const useRoutesService = createSharedComposable(() => {
   const t = (key: string, named?: Record<string, unknown>) =>
     (i18n.global as any).t(key, named ?? {})
   const routesStore = useRoutesStore()
+  const historyStore = useHistoryStore()
   const authStore = useAuthStore()
   const archiveService = useArchiveService()
 
@@ -254,7 +257,7 @@ export const useRoutesService = createSharedComposable(() => {
 
     try {
       const local = await replayCreate(params)
-      toast.success('Route saved')
+      recordCreate(local.id, params)
       return local
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
@@ -339,46 +342,14 @@ export const useRoutesService = createSharedComposable(() => {
     if (isOffline.value) return updateOffline()
 
     try {
-      const current = routesStore.getRouteById(id)
-      const scheme = current?.scheme ?? 'server-key'
-
-      const payload: Record<string, unknown> = {}
-      if (updates.mode !== undefined) payload.mode = updates.mode
-      if (updates.isPublic !== undefined) payload.isPublic = updates.isPublic
-
-      const metadataChanged =
-        updates.name !== undefined ||
-        updates.description !== undefined ||
-        updates.icon !== undefined ||
-        updates.iconColor !== undefined
-      if (metadataChanged) {
-        payload.metadataEncrypted = await buildMetadataEnvelope(id, {
-          name: updates.name ?? current?.name,
-          description: updates.description ?? current?.description,
-          icon: updates.icon ?? current?.icon,
-          iconColor: updates.iconColor ?? current?.iconColor,
-        })
-      }
-
-      if (updates.body !== undefined) {
-        Object.assign(
-          payload,
-          await buildContentPayload(id, scheme, updates.body),
-        )
-      }
-
-      const { data } = await api.put(`/library/routes/${id}`, payload)
-      const local = data as Route
-      // Re-apply local plaintext so the store stays decrypted.
-      stampMetadata(local, {
-        name: updates.name ?? current?.name,
-        description: updates.description ?? current?.description,
-        icon: updates.icon ?? current?.icon,
-        iconColor: updates.iconColor ?? current?.iconColor,
+      const previous = previousValues(existing, updates)
+      const local = await replayUpdate(id, updates)
+      historyStore.record({
+        label: t('history.updated', { name: getRouteDisplayName(local) }),
+        undoneLabel: t('history.changedBack', { name: getRouteDisplayName(local) }),
+        undo: () => replayUpdate(id, previous),
+        redo: () => replayUpdate(id, updates),
       })
-      local.body = updates.body ?? current?.body ?? null
-      routesStore.upsertRoute(local)
-      toast.success('Route updated')
       return local
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
@@ -387,6 +358,47 @@ export const useRoutesService = createSharedComposable(() => {
       toast.error('Failed to update route', { cause: error })
       return null
     }
+  }
+
+  function paramsOf(route: Route): CreateRouteParams {
+    return JSON.parse(
+      JSON.stringify({
+        name: route.name,
+        description: route.description,
+        icon: route.icon,
+        iconColor: route.iconColor,
+        mode: route.mode,
+        scheme: route.scheme,
+        isPublic: route.isPublic,
+        body: route.body,
+      }),
+    )
+  }
+
+  /** Undo a create by deleting; redo it as a new route. */
+  function recordCreate(id: string, params: CreateRouteParams) {
+    let current = id
+    historyStore.record({
+      label: t('history.saved', { name: params.name }),
+      undoneLabel: t('history.deleted', { name: params.name }),
+      undo: () => replayDelete(current),
+      redo: async () => {
+        current = (await replayCreate(params)).id
+      },
+    })
+  }
+
+  /** Undo a delete by saving the route again, under a new id. */
+  function recordDelete(id: string, params: CreateRouteParams) {
+    let current = id
+    historyStore.record({
+      label: t('history.deleted', { name: params.name }),
+      undoneLabel: t('history.restored', { name: params.name }),
+      undo: async () => {
+        current = (await replayCreate(params)).id
+      },
+      redo: () => replayDelete(current),
+    })
   }
 
   /** Server side of a delete; replayed from the queue when offline. */
@@ -415,8 +427,10 @@ export const useRoutesService = createSharedComposable(() => {
     if (isOffline.value) return deleteOffline()
 
     try {
+      const deleted = existing?.body ? existing : await fetchRouteById(id)
       await replayDelete(id)
-      toast.success('Route deleted')
+      if (deleted?.body) recordDelete(id, paramsOf(deleted))
+      else toast.success('Route deleted')
       return true
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {

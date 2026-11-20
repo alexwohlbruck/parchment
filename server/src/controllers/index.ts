@@ -32,6 +32,7 @@ export { default as realtime } from './realtime.controller'
 export { default as data } from './data.controller'
 export { default as subscription } from './subscription.controller'
 export { default as avatar } from './avatar.controller'
+export { default as files } from './files.controller'
 export { default as vehicles } from './vehicle.controller'
 export { default as feedback } from './feedback.controller'
 

@@ -40,6 +40,7 @@ import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
 import { billboardScale, bindLights, groundShare, LAMP_LIGHT_GLSL, LAMP_LIGHT_UNIFORMS, LightPools, type GroundLights } from '@/lib/map/lamp-light'
+import { LazyProgram, type Uniforms } from '@/lib/map/rendering/gl-program'
 
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
@@ -541,30 +542,6 @@ export function unproject(x: number, y: number): [number, number] {
   return [x * 360 - 180, (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * Math.PI)) - 90]
 }
 
-function compile(gl: WebGL2RenderingContext, type: number, src: string) {
-  const shader = gl.createShader(type)!
-  gl.shaderSource(shader, src)
-  gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-    console.error('[objects]', gl.getShaderInfoLog(shader))
-  return shader
-}
-
-function link(gl: WebGL2RenderingContext, vs: string, fs: string) {
-  const program = gl.createProgram()!
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vs))
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fs))
-  for (const [name, loc] of Object.entries(LOC)) gl.bindAttribLocation(program, loc, name)
-  gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-    console.error('[objects] link:', gl.getProgramInfoLog(program))
-  return program
-}
-
-function uniformsOf(gl: WebGL2RenderingContext, program: WebGLProgram, names: string[]) {
-  return Object.fromEntries(names.map(n => [n, gl.getUniformLocation(program, n)]))
-}
-
 /** Default positions: a point feature stands where it is. */
 function pointPositions(feature: any): Array<[number, number]> {
   const coords = feature.geometry?.coordinates
@@ -594,12 +571,10 @@ export class ObjectLayer {
   private onMoveStart?: () => void
   private flutterTimer = 0
   private onStillness = () => this.stopFlutter()
-  private program!: WebGLProgram
-  private uniforms: Record<string, WebGLUniformLocation | null> = {}
-  private sunProgram!: WebGLProgram
-  private sunMatrix: WebGLUniformLocation | null = null
-  private sunLight: WebGLUniformLocation | null = null
-  private sunUniforms: Record<string, WebGLUniformLocation | null> = {}
+  private program = new LazyProgram(VS, FS, [
+    'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer',
+    ...LAMP_LIGHT_UNIFORMS, 'u_sunLight', ...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'], 'objects', LOC)
+  private sunProgram = new LazyProgram(SUN_VS, DEPTH_FS, ['u_matrix'], 'objects', LOC)
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
   private sun: SunFrame | null = null
   private lights: GroundLights | null = null
@@ -712,15 +687,10 @@ export class ObjectLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
 
-    this.program = link(gl, VS, FS)
-    this.uniforms = uniformsOf(gl, this.program,
-      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer', ...LAMP_LIGHT_UNIFORMS])
+    this.program.start(gl)
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.stillness?.addEventListener('change', this.onStillness)
-    this.sunProgram = link(gl, SUN_VS, DEPTH_FS)
-    this.sunLight = gl.getUniformLocation(this.program, 'u_sunLight')
-    this.sunUniforms = uniformsOf(gl, this.program, [...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'])
-    this.sunMatrix = gl.getUniformLocation(this.sunProgram, 'u_matrix')
+    this.sunProgram.start(gl)
 
     for (const [name, model] of Object.entries(this.sources)) {
       const primitives = model.primitives.map(p => {
@@ -881,8 +851,8 @@ export class ObjectLayer {
 
   onRemove(map: any, gl: WebGL2RenderingContext) {
     this.detach(map)
-    gl.deleteProgram(this.program)
-    gl.deleteProgram(this.sunProgram)
+    this.program.delete(gl)
+    this.sunProgram.delete(gl)
     this.pools.delete(gl)
     this.glows.delete(gl)
     for (const model of this.models.values())
@@ -1117,6 +1087,8 @@ export class ObjectLayer {
     // buffer there would unbind it under MapLibre's cached GL state.
     this.free(gl)
     if (!this.batches.length) return
+    const program = this.program.use(gl)
+    if (!program) return void this.map.triggerRepaint()
 
     // The matrix maps mercator world coordinates to clip space. Shifting it by
     // the origin is what lets the instance offsets stay small.
@@ -1151,7 +1123,7 @@ export class ObjectLayer {
 
     const lights = this.lights
     this.lights = null
-    this.drawObjects(gl, shifted, lights)
+    this.drawObjects(gl, program, shifted, lights)
     gl.bindVertexArray(null)
     if (lights && lights.strength > 0 && this.opacity >= 1) {
       gl.enable(gl.BLEND)
@@ -1177,25 +1149,25 @@ export class ObjectLayer {
     if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
   }
 
-  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array, lights: GroundLights | null) {
-    gl.useProgram(this.program)
-    gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
+  private drawObjects(gl: WebGL2RenderingContext, { program, u }: { program: WebGLProgram; u: Uniforms<string> }, matrix: Float32Array, lights: GroundLights | null) {
+    gl.useProgram(program)
+    gl.uniformMatrix4fv(u.u_matrix, false, matrix)
     const now = performance.now()
-    gl.uniform1f(this.uniforms.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
+    gl.uniform1f(u.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
     const gain = this.flutterGain(now)
-    gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
-    gl.uniform1f(this.uniforms.u_ambient, 0.58)
+    gl.uniform3fv(u.u_light, this.lightDirection())
+    gl.uniform1f(u.u_ambient, 0.58)
     const sun = this.sun
     this.sun = null
-    bindSun(gl, this.sunUniforms, sun)
+    bindSun(gl, u, sun)
     const shade = liveBuildingShade()
-    gl.uniform1f(this.sunUniforms.u_shadowAlpha, shade ? shade.shadowAlpha * shade.groundOpacity() : 0)
-    gl.uniform3fv(this.sunUniforms.u_shadowColor, shade?.shadowColor ?? [0, 0, 0])
-    gl.uniformMatrix4fv(this.sunLight, false, sun ? lightAbout(sun.light, this.origin) : IDENTITY)
-    bindLights(gl, this.uniforms, lights)
-    gl.uniformMatrix4fv(this.uniforms.u_lightUv, false, lights ? lightAbout(lights.uv, this.origin) : IDENTITY)
-    gl.uniform1f(this.uniforms.u_perMetre, this.placed[0]?.perMetre ?? 1)
-    gl.uniform1f(this.uniforms.u_year, this.year)
+    gl.uniform1f(u.u_shadowAlpha, shade ? shade.shadowAlpha * shade.groundOpacity() : 0)
+    gl.uniform3fv(u.u_shadowColor, shade?.shadowColor ?? [0, 0, 0])
+    gl.uniformMatrix4fv(u.u_sunLight, false, sun ? lightAbout(sun.light, this.origin) : IDENTITY)
+    bindLights(gl, u, lights)
+    gl.uniformMatrix4fv(u.u_lightUv, false, lights ? lightAbout(lights.uv, this.origin) : IDENTITY)
+    gl.uniform1f(u.u_perMetre, this.placed[0]?.perMetre ?? 1)
+    gl.uniform1f(u.u_year, this.year)
     const night = !!lights && lights.strength > 0
 
     const ghost = ghostBlend(gl, this.opacity)
@@ -1213,18 +1185,18 @@ export class ObjectLayer {
       else gl.disable(gl.CULL_FACE)
       for (const primitive of model.primitives) {
         this.bindArrays(gl, batch, primitive)
-        gl.uniform3fv(this.uniforms.u_color, primitive.color)
-        gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
-        gl.uniform1f(this.uniforms.u_seasonal, primitive.ramp ? 1 : 0)
-        gl.uniform1f(this.uniforms.u_sheer, SHEER.has(primitive.role) ? 1 : 0)
+        gl.uniform3fv(u.u_color, primitive.color)
+        gl.uniform3fv(u.u_color_alt, primitive.colorAlt)
+        gl.uniform1f(u.u_seasonal, primitive.ramp ? 1 : 0)
+        gl.uniform1f(u.u_sheer, SHEER.has(primitive.role) ? 1 : 0)
         if (primitive.ramp) {
-          gl.uniform4fv(this.uniforms.u_ramp, primitive.ramp.color)
-          gl.uniform3fv(this.uniforms.u_rampAlt, primitive.ramp.alt)
+          gl.uniform4fv(u.u_ramp, primitive.ramp.color)
+          gl.uniform3fv(u.u_rampAlt, primitive.ramp.alt)
         }
-        gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
-        gl.uniform1f(this.uniforms.u_lamp, night && primitive.role === 'lamp' ? 1 : 0)
+        gl.uniform3fv(u.u_occlusion, primitive.occlusion)
+        gl.uniform1f(u.u_lamp, night && primitive.role === 'lamp' ? 1 : 0)
         const [amplitude, held, run] = primitive.flutter
-        gl.uniform3f(this.uniforms.u_flutter, amplitude * gain, held, run)
+        gl.uniform3f(u.u_flutter, amplitude * gain, held, run)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
     }
@@ -1386,8 +1358,10 @@ export class ObjectLayer {
   drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
     if (!this.batches.length || !this.placed.length) return
     const least = OCCLUDING_HEIGHT * this.placed[0].perMetre
-    gl.useProgram(this.sunProgram)
-    gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.matrix, this.origin))
+    const depth = this.sunProgram.use(gl)
+    if (!depth) return
+    gl.useProgram(depth.program)
+    gl.uniformMatrix4fv(depth.u.u_matrix, false, lightAbout(frame.matrix, this.origin))
     for (const batch of this.batches) {
       const model = this.models.get(shadowModel(batch, this.models))
       if (!model || this.tallest(batch) < least) continue
@@ -1404,8 +1378,10 @@ export class ObjectLayer {
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
     if (!this.batches.length || !this.placed.length) return
     const least = (SUN_MIN_TEXELS * frame.texelMetres) * this.placed[0].perMetre
-    gl.useProgram(this.sunProgram)
-    gl.uniformMatrix4fv(this.sunMatrix, false, lightAbout(frame.light, this.origin))
+    const depth = this.sunProgram.use(gl)
+    if (!depth) return
+    gl.useProgram(depth.program)
+    gl.uniformMatrix4fv(depth.u.u_matrix, false, lightAbout(frame.light, this.origin))
     for (const batch of this.batches) {
       const name = shadowModel(batch, this.models)
       const model = this.models.get(name)

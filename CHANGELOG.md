@@ -12,6 +12,7 @@
 ### Changed
 
 * Profile photos are rounded squares everywhere, including friends on the map.
+* The map draws sooner when it first opens, without waiting for 3D models, landmarks and the globe sky to get ready.
 
 ### Fixed
 

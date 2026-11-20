@@ -230,7 +230,7 @@ describe('flavors', () => {
      * the rest of the night land, through `DARK_LAND`.
      */
     const authored =
-      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium|cemetery)_fill_color$|stadium_outline_color$|background_|residential_|industrial_|airport_zone_|school_|hospital_|pier_|bridge_outline_|water_|river_line|aqueduct_line|major_rail_)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium|cemetery)_fill_color$|stadium_outline_color$|background_|residential_|industrial_|airport_zone_|school_|hospital_|pier_|bridge_outline_|water_|river_line|aqueduct_line|major_rail_|building_fill_)/
 
     const wrong: string[] = []
     let checked = 0

@@ -279,6 +279,10 @@ const DARK_LAND = {
   aqueduct_line_color: 'hsl(214, 34%, 11%)',
   major_rail_line_color: 'hsl(218, 8%, 42%)',
   major_rail_line_color_2: 'hsl(218, 8%, 36%)',
+  // The flat building fill below the extrusions, drawn at 0.3.
+  building_fill_color: 'hsl(218, 18%, 34%)',
+  building_fill_outline_color: 'hsl(218, 18%, 34%)',
+  building_fill_outline_color_2: 'hsl(218, 18%, 34%)',
 }
 
 /**

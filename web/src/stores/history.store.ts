@@ -40,20 +40,32 @@ export const useHistoryStore = defineStore('history', () => {
   const canRedo = computed(() => future.value.length > 0)
   const activeScope = computed(() => scopes.value.at(-1))
 
-  function notify(message: string, action: { label: string; run: () => void }) {
+  type ToastAction = { label: string; onClick: () => void }
+
+  /** The toast for a change: Undo, or Undo beside the change's own action. */
+  function notify(message: string, undoOrRedo: ToastAction, view?: ToastAction) {
     toast.success(message, {
       id: TOAST_ID,
-      action: { label: action.label, onClick: action.run },
+      ...(view ? { action: view, cancel: undoOrRedo } : { action: undoOrRedo }),
     })
   }
 
-  /** Remember a change the user just made, and offer to take it back. */
-  function record(entry: HistoryEntry) {
+  const undoAction = (): ToastAction => ({ label: t('general.undo'), onClick: undo })
+  const redoAction = (): ToastAction => ({ label: t('general.redo'), onClick: redo })
+
+  /**
+   * Remember a change the user just made, and offer to take it back. A quiet
+   * change goes on the stack without a toast: a toggle the user can see flip.
+   */
+  function record(
+    entry: HistoryEntry,
+    options: { view?: ToastAction; quiet?: boolean } = {},
+  ) {
     // Undo and redo go back through the same services that record.
     if (replaying) return
     past.value = [...past.value, entry].slice(-LIMIT)
     future.value = []
-    notify(entry.label, { label: t('general.undo'), run: undo })
+    if (!options.quiet) notify(entry.label, undoAction(), options.view)
   }
 
   async function step(from: typeof past, to: typeof past, direction: 'undo' | 'redo') {
@@ -65,12 +77,9 @@ export const useHistoryStore = defineStore('history', () => {
       await entry[direction]()
       to.value = [...to.value, entry]
       if (direction === 'undo') {
-        notify(t('history.undone', { label: entry.label }), {
-          label: t('general.redo'),
-          run: redo,
-        })
+        notify(t('history.undone', { label: entry.label }), redoAction())
       } else {
-        notify(entry.label, { label: t('general.undo'), run: undo })
+        notify(entry.label, undoAction())
       }
     } catch (error) {
       toast.error(t(`history.${direction}Failed`), { cause: error })

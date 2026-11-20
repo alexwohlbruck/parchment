@@ -347,7 +347,9 @@ const DRAW_FS = `#version 300 es
   uniform vec3 u_palette;
   uniform float u_harmony;
   uniform float u_harmonyFloor;
+  uniform float u_harmonyNeutral;
   uniform float u_paint_lift;
+  uniform float u_paint_tone;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
   /** Metres from the model's ground to its top, and the share of that lit as a crown at night. */
@@ -406,8 +408,13 @@ const DRAW_FS = `#version 300 es
     // Glass keeps most of its own tint: seen through, a pale blue is what makes it read as glass. A sign keeps all of its colour.
     bool glass = u_opacity < 1.0;
     bool neon = v_role == ${ROLE.neon}.0;
-    base = mix(base + (1.0 - base) * (glass || neon ? 0.0 : u_paint_lift), u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA)),
-      neon ? 0.0 : glass ? u_harmony * 0.3 : u_harmony);
+    vec3 pulled = u_palette * mix(u_harmonyFloor, 0.95, dot(base, LUMA));
+    vec3 toned = min(base * dot(pulled, LUMA) / max(dot(base, LUMA), 0.02), 1.0);
+    base = glass || neon ? base : mix(base + (1.0 - base) * u_paint_lift, toned, u_paint_tone);
+    // White and grey take the night colour; a coloured material keeps its own hue.
+    float chroma = (max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b))) / max(max(base.r, max(base.g, base.b)), 0.02);
+    float harmony = mix(max(u_harmony, u_harmonyNeutral), u_harmony, smoothstep(0.08, 0.35, chroma));
+    base = mix(base, pulled, neon ? 0.0 : glass ? u_harmony * 0.3 : harmony);
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -815,7 +822,7 @@ export class LandmarkLayer {
     this.draw = new LazyProgram(DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
-        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_paint_lift', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
+        'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_harmonyNeutral', 'u_paint_lift', 'u_paint_tone', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
         'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS, 'u_lightUv', ...LAMP_LIGHT_UNIFORMS], 'landmarks')
     this.sunDepth = new LazyProgram(DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
@@ -1574,8 +1581,7 @@ export class LandmarkLayer {
     if (!placements.length || this.opacity <= 0) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
-    const painter = this.map.painter
-    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
+    const range: [number, number] | undefined = args?.depthRangeFor3D
     const linked = this.draw.use(gl)
     if (!linked) {
       this.map.triggerRepaint()
@@ -1606,6 +1612,7 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_lightintensity, light.intensity)
     const flavor = this.options.flavor
     gl.uniform1f(u.u_harmonyFloor, flavor.harmonyFloor)
+    gl.uniform1f(u.u_harmonyNeutral, flavor.harmonyNeutral)
     const sun = this.sun
     this.sun = null
     bindSun(gl, u, sun)
@@ -1639,6 +1646,7 @@ export class LandmarkLayer {
       gl.uniform3fv(u.u_palette, paletteFor(flavor, seed))
       gl.uniform1f(u.u_harmony, flavor.harmony[model.kind])
       gl.uniform1f(u.u_paint_lift, flavor.lift[model.kind])
+      gl.uniform1f(u.u_paint_tone, flavor.tone[model.kind])
       gl.uniform1f(u.u_scale, p.scale)
       if (sun) gl.uniformMatrix4fv(u.u_sun, false, anchorMatrix(sun.light, p.placed))
       if (lights) gl.uniformMatrix4fv(u.u_lightUv, false, anchorMatrix(lights.uv, p.placed))
@@ -1660,7 +1668,7 @@ export class LandmarkLayer {
     if (this.options.flavor.facade.night) {
       this.drawEntrances(gl, matrix, seen)
       this.drawHalos(gl, matrix, seen)
-      this.drawLampGlows(gl, matrix, seen)
+      this.drawLampGlows(gl, matrix, seen, args.fov)
     }
     gl.bindVertexArray(null)
     this.restore()
@@ -1785,8 +1793,8 @@ export class LandmarkLayer {
   }
 
   /** The glow round every lamp, as the signs' glow is. */
-  private drawLampGlows(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[]) {
-    const billboard = billboardScale(this.map.painter.transform)
+  private drawLampGlows(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[], fov: number) {
+    const billboard = billboardScale({ zoom: this.map.getZoom(), fov, width: gl.drawingBufferWidth, height: gl.drawingBufferHeight })
     gl.disable(gl.CULL_FACE)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE)

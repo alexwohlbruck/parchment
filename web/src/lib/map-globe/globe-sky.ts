@@ -74,6 +74,8 @@ float stars(vec3 ray) {
     vec2 dx = dFdx(grid);
     vec2 dy = dFdy(grid);
     float determinant = dx.x * dy.y - dx.y * dy.x;
+    // Zoomed in, neighbouring rays round to the same value; the NaN would survive mix() into the globe.
+    if (abs(determinant) < 1e-12) return 0.0;
     float light = 0.0;
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {

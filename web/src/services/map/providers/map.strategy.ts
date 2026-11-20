@@ -205,6 +205,10 @@ export class MapStrategy {
   setBuildingShade(value: boolean) {}
   /** Which views the building lighting casts shadows in. MapLibre only. */
   setShadowMode(mode: ShadowMode) {}
+  /** The day of the year the 3D plants show, 0-364, or null for today. MapLibre only. */
+  setPlantDay(day: number | null) {}
+  /** Whether plants, grass and woods change through the year. MapLibre only. */
+  setSeasons(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
@@ -454,14 +458,15 @@ export class MapStrategy {
     return terrainSource()
   }
 
+  protected terrainSpec(): Record<string, unknown> {
+    return { source: TERRAIN_SOURCE_ID, exaggeration: TERRAIN_EXAGGERATION }
+  }
+
   setMap3dTerrain(value: boolean) {
     const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
     if (value && !present) {
       this.mapInstance.addSource(TERRAIN_SOURCE_ID, this.terrainSource() as any)
-      this.mapInstance.setTerrain({
-        source: TERRAIN_SOURCE_ID,
-        exaggeration: TERRAIN_EXAGGERATION,
-      })
+      this.mapInstance.setTerrain(this.terrainSpec() as any)
     } else if (!value && present) {
       // Order matters: a source still referenced by the terrain cannot be
       // removed, so the terrain has to be cleared first.

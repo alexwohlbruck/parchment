@@ -46,6 +46,8 @@ import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
 import { useFeedback } from '@/composables/integrations/useFeedback'
 import { useShakeGesture } from '@/composables/useShakeGesture'
+import { useHotkeys } from '@/composables/useHotkeys'
+import { useHistoryStore } from '@/stores/history.store'
 import DialogView from '@/components/shell/DialogHost.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
@@ -91,6 +93,29 @@ watchEffect(() => {
   else if (!wanted) shake.stop()
 })
 
+
+const historyStore = useHistoryStore()
+const undoKeys = { allowInInput: historyStore.keyAllowedIn, category: 'general' as const }
+useHotkeys([
+  {
+    ...undoKeys,
+    key: ['mod', 'z'],
+    handler: historyStore.undoKey,
+    id: 'undo',
+    name: 'Undo',
+    description: 'Take back the last change',
+  },
+  {
+    ...undoKeys,
+    key: ['mod', 'shift', 'z'],
+    handler: historyStore.redoKey,
+    id: 'redo',
+    name: 'Redo',
+    description: 'Put back the last undone change',
+  },
+  // What Windows reaches for, and harmless everywhere else.
+  { ...undoKeys, key: ['mod', 'y'], handler: historyStore.redoKey },
+])
 
 // TEMPORARY: the building-lighting tuner, as a panel over the map. Opened from
 // Settings → Developer, which is a dialog that covers the very thing being
@@ -317,7 +342,13 @@ function beforeNavTransition(value: boolean) {
   ></div>
 
   <!-- Popups and modals -->
-  <Toaster richColors closeButton :duration="7000" position="bottom-center" />
+  <Toaster
+    richColors
+    closeButton
+    :theme="themeStore.isDark ? 'dark' : 'light'"
+    :duration="7000"
+    position="bottom-center"
+  />
   <SyncQueueDialog v-if="authStore.me" />
   <HotkeysMenu />
   <DialogView></DialogView>

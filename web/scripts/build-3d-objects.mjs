@@ -61,6 +61,10 @@ const ROLE_COLOR = {
   bark: [0.35, 0.27, 0.22, 1],
   'palm-bark': [0.47, 0.44, 0.4, 1],
   foliage: [0.31, 0.52, 0.27, 1],
+  needles: [0.24, 0.42, 0.27, 1],
+  frond: [0.33, 0.52, 0.27, 1],
+  shrub: [0.3, 0.48, 0.26, 1],
+  twigs: [0.45, 0.38, 0.34, 1],
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
   paint: [0.24, 0.42, 0.30, 1],
@@ -102,7 +106,8 @@ const ROLE_COLOR = {
 }
 
 /** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
-const CANOPY = new Set(['foliage', 'blossom', 'spray'])
+const LEAVES = ['foliage', 'needles', 'frond', 'shrub', 'twigs']
+const CANOPY = new Set([...LEAVES, 'blossom', 'spray'])
 
 /** How far apart two faces can lean and still share a smoothed normal. */
 const CREASE_DEGREES = 78
@@ -1608,7 +1613,7 @@ const LINES = {
   ]),
   'fence-post': furnLod(q => [{ role: 'metal', ...cylinder(mesh(), half(q), 0.035, 0.03, 0, 1.2) }]),
   'wall-span': furnLod(() => [{ role: 'stone', ...box(mesh(), [-0.5, 0, -0.15], [0.5, 1, 0.15]) }]),
-  'hedge-span': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.4], [0.5, 1, 0.4], 0.2, q.seg ? 2 : 0) }]),
+  'hedge-span': furnLod(q => [{ role: 'shrub', ...roundedBox(mesh(), [-0.5, 0, -0.4], [0.5, 1, 0.4], 0.2, q.seg ? 2 : 0) }]),
   'guard-rail-span': standing(furnLod(() => [
     { role: 'metal', ...box(mesh(), [-0.5, 0.55, -0.05], [0.5, 0.8, 0.05]) },
   ]), 0.8),
@@ -1874,7 +1879,7 @@ function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, cr
     merge(leaves, shaft)
   }
   if (!far && hub) merge(leaves, blob(mesh(), crown, hub, { seed: 7, subdivisions: 1 }))
-  const parts = [{ role: 'palm-bark', ...bark }, { role: 'foliage', ...leaves }]
+  const parts = [{ role: 'palm-bark', ...bark }, { role: 'frond', ...leaves }]
   // The dead fronds an unpruned Washingtonia keeps, hanging flat against the
   // trunk below the living ones: a sleeve flaring out towards the crown.
   // Kept at the far LOD too, since from the side it is half the tree's outline.
@@ -1926,7 +1931,7 @@ function spruce(q, tiers) {
     blob(crown, [0, y, 0], [radius, rise, radius], { subdivisions: q.cone, seed, lump: 0.05, flat: 0.25, taper: 0.8 })
   return [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.38, 0.1, 0, 9) },
-    { role: 'foliage', ...crown },
+    { role: 'needles', ...crown },
   ]
 }
 
@@ -1959,49 +1964,127 @@ const palmLod = spec => Object.assign(() => palm(spec, false), { far: () => palm
 const lod = make =>
   Object.assign(() => make(NEAR), { far: () => make(FAR), crown: crownOnly(make, CROWN), crownFar: crownOnly(make, FAR) })
 
+/** Suffix on a deciduous tree's winter form: the same tree, its leaves fallen. */
+const BARE_SUFFIX = '-bare'
+
+/**
+ * A broadleaf: a trunk under one smooth crown, and the same tree bare for winter.
+ * The bare form keeps the crown's envelope, so it is fitted with the leafy one and the two swap in place.
+ */
+function broadleaf({ trunk: [base, top, height], role, at, radii, ...crown }) {
+  const leafy = q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, base, top, 0, height) },
+    { role, ...blob(mesh(), at, radii, { subdivisions: q.crown, ...crown }) },
+  ]
+  const bare = q => bareTree(q, { base, top, height, at, radii, seed: crown.seed })
+  return Object.assign(lod(leafy), { bare: () => bare(NEAR), bareFar: () => bare(FAR) })
+}
+
+/**
+ * Winter branches: a trunk forking into scaffold limbs that split again and again
+ * toward the crown's envelope, each fork thinner and more upright. Far off, where the
+ * limbs are too thin to resolve, a shell of fine twigs the layer draws as a veil (see `twigs`).
+ */
+function bareTree(q, { base, top, height, at, radii, seed }) {
+  const r = rng(seed + 1000)
+  const near = q === NEAR
+  const [rx, ry, rz] = radii
+  const bark = cylinder(mesh(), q.sides, base, top, 0, height)
+  const sides = near ? 4 : 3
+  const depth = near ? 2 : 1
+  const add = (v, w, k = 1) => v.map((c, i) => c + w[i] * k)
+  const unit = v => { const l = Math.hypot(...v) || 1; return v.map(c => c / l) }
+  // How far a point sits inside the crown's ellipsoid: 1 on its surface.
+  const inside = p => Math.hypot((p[0] - at[0]) / rx, (p[1] - at[1]) / ry, (p[2] - at[2]) / rz)
+
+  const grow = (from, dir, length, radius, level) => {
+    // Bend toward the envelope where the limb would overshoot it, and lift as it goes.
+    let to = add(from, dir, length)
+    const over = inside(to)
+    if (over > 0.92) to = add(from, dir, length * (0.92 / over))
+    to[1] += length * 0.08
+    const tip = radius * (level === depth ? 0.45 : 0.68)
+    taperedLimb(bark, from, to, radius, tip, sides)
+    if (level === depth) return
+    const forks = 2
+    const spin = r() * Math.PI * 2
+    for (let k = 0; k < forks; k++) {
+      const yaw = spin + (k / forks) * Math.PI * 2
+      const side = [Math.cos(yaw), 0, Math.sin(yaw)]
+      const child = unit(add(add(dir, side, 0.55 + r() * 0.25), [0, 1, 0], 0.25))
+      const start = add(from, unit(to.map((c, i) => c - from[i])), Math.hypot(...to.map((c, i) => c - from[i])) * (0.75 + r() * 0.2))
+      grow(start, child, length * (0.62 + r() * 0.12), tip, level + 1)
+    }
+  }
+
+  // A leader up the middle, and scaffold limbs round it at the golden angle.
+  const crotch = [0, height, 0]
+  grow(crotch, [0, 1, 0], ry * 1.1, top * 0.8, 1)
+  const scaffolds = 3
+  for (let k = 0; k < scaffolds; k++) {
+    const yaw = k * 2.39996 + r() * 0.5
+    const lean = 0.45 + r() * 0.3
+    const dir = unit([Math.cos(yaw) * Math.sin(lean) * rx, Math.cos(lean) * ry, Math.sin(yaw) * Math.sin(lean) * rz])
+    const from = [0, height * (0.92 + r() * 0.12), 0]
+    grow(from, dir, Math.max(rx, rz) * (0.75 + r() * 0.15), top * 0.7, 0)
+  }
+
+  if (near) return [{ role: 'bark', ...bark }]
+  const twigs = blob(mesh(), [at[0], at[1] + ry * 0.04, at[2]], radii.map(c => c * 0.9), { subdivisions: 1, seed, lump: 0.1, flat: 0.75 })
+  return [{ role: 'bark', ...bark }, { role: 'twigs', ...twigs }]
+}
+
+/** An open limb from `a` to `b` tapering from `r0` to `r1`, with `sides` faces round it; its ends are buried in the next. */
+function taperedLimb(m, a, b, r0, r1, sides) {
+  const d = b.map((c, i) => c - a[i])
+  const len = Math.hypot(...d) || 1
+  const t = d.map(c => c / len)
+  const up = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+  const ul = Math.hypot(...u)
+  u.forEach((c, i) => { u[i] = c / ul })
+  const v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+  const ring = (p, r) => Array.from({ length: sides }, (_, k) => {
+    const ang = (k / sides) * Math.PI * 2
+    return p.map((c, i) => c + (Math.cos(ang) * u[i] + Math.sin(ang) * v[i]) * r)
+  })
+  const lo = ring(a, r0)
+  const hi = ring(b, r1)
+  for (let k = 0; k < sides; k++) quad(m, lo[k], hi[k], hi[(k + 1) % sides], lo[(k + 1) % sides])
+  return m
+}
+
 const TREES = {
   // Each crown is one smooth, softly undulating solid rather than a cluster of
   // puffs: read from map distance a crown is a single mass, and the light
   // gradient across it carries the form better than its outline does.
   // Ovoid: the common street tree, taller than wide.
-  'tree-broadleaf-a': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.32, 0.22, 0, 4.4) },
-    { role: 'foliage', ...blob(mesh(), [0, 6.4, 0], [2.8, 4.1, 2.8], { subdivisions: q.crown, seed: 11, lump: 0.05, ripple: 0.07, flat: 0.8, taper: 0.16 }) },
-  ]),
+  'tree-broadleaf-a': broadleaf({ trunk: [0.32, 0.22, 4.4], role: 'foliage', at: [0, 6.4, 0], radii: [2.8, 4.1, 2.8], seed: 11, lump: 0.05, ripple: 0.07, flat: 0.8, taper: 0.16 }),
   // Round: a full, broad crown.
-  'tree-broadleaf-b': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.42, 0.28, 0, 4.2) },
-    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [3.5, 3.4, 3.5], { subdivisions: q.crown, seed: 23, lump: 0.06, ripple: 0.07, flat: 0.75, taper: 0.1 }) },
-  ]),
+  'tree-broadleaf-b': broadleaf({ trunk: [0.42, 0.28, 4.2], role: 'foliage', at: [0, 5.6, 0], radii: [3.5, 3.4, 3.5], seed: 23, lump: 0.06, ripple: 0.07, flat: 0.75, taper: 0.1 }),
   // Columnar: narrow and tall.
-  'tree-broadleaf-c': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.15, 0, 3.8) },
-    { role: 'foliage', ...blob(mesh(), [0, 6.8, 0], [2.2, 4.9, 2.2], { subdivisions: q.crown, seed: 37, lump: 0.05, ripple: 0.06, flat: 0.85, taper: 0.2 }) },
-  ]),
+  'tree-broadleaf-c': broadleaf({ trunk: [0.22, 0.15, 3.8], role: 'foliage', at: [0, 6.8, 0], radii: [2.2, 4.9, 2.2], seed: 37, lump: 0.05, ripple: 0.06, flat: 0.85, taper: 0.2 }),
   // Irregular: a gently lopsided crown, the odd one out in a row.
-  'tree-broadleaf-d': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.34, 0.23, 0, 4.4) },
-    { role: 'foliage', ...blob(mesh(), [0, 6, 0], [3.1, 3.7, 2.7], { subdivisions: q.crown, seed: 54, lump: 0.1, ripple: 0.08, flat: 0.75, taper: 0.12 }) },
-  ]),
+  'tree-broadleaf-d': broadleaf({ trunk: [0.34, 0.23, 4.4], role: 'foliage', at: [0, 6, 0], radii: [3.1, 3.7, 2.7], seed: 54, lump: 0.1, ripple: 0.08, flat: 0.75, taper: 0.12 }),
   // Spruce: a smooth cone, widest low down.
   'tree-conifer-a': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.12, 0, 5.2) },
-    { role: 'foliage', ...blob(mesh(), [0, 6.6, 0], [2.7, 5.4, 2.7], { subdivisions: q.cone, seed: 70, lump: 0.04, flat: 0.45, taper: 0.85 }) },
+    { role: 'needles', ...blob(mesh(), [0, 6.6, 0], [2.7, 5.4, 2.7], { subdivisions: q.cone, seed: 70, lump: 0.04, flat: 0.45, taper: 0.85 }) },
   ]),
   // Pine: a soft, slightly tapered column.
   'tree-conifer-b': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.14, 0, 6.2) },
-    { role: 'foliage', ...blob(mesh(), [0, 8, 0], [2.2, 4.2, 2.2], { subdivisions: q.cone, seed: 80, lump: 0.07, flat: 0.7, taper: 0.4 }) },
+    { role: 'needles', ...blob(mesh(), [0, 8, 0], [2.2, 4.2, 2.2], { subdivisions: q.cone, seed: 80, lump: 0.07, flat: 0.7, taper: 0.4 }) },
   ]),
   // Fir: tall and narrow, coming to a point.
   'tree-conifer-c': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.2, 0.1, 0, 5.6) },
-    { role: 'foliage', ...blob(mesh(), [0, 7, 0], [2, 6.2, 2], { subdivisions: q.cone, seed: 90, lump: 0.04, flat: 0.4, taper: 0.9 }) },
+    { role: 'needles', ...blob(mesh(), [0, 7, 0], [2, 6.2, 2], { subdivisions: q.cone, seed: 90, lump: 0.04, flat: 0.4, taper: 0.9 }) },
   ]),
   // Cypress: a slim flame.
   'tree-conifer-d': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
-    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
+    { role: 'needles', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
   ]),
   // Palms. Two feather palms after the royal and coconut palms — a crownshaft,
   // long arching fronds — and a fan palm after Washingtonia and Sabal: a
@@ -2106,14 +2189,8 @@ const TREES = {
   'tree-pine-a': lod(q => pine(q, 211, 15, [[6.8, 2.6, 1.45], [8.3, 3.1, 1.5], [9.8, 2.6, 1.45], [11.1, 2.5, 1.4], [12.3, 1.8, 1.35], [13.3, 1.1, 1.3], [14.1, 0.6, 0.9]], { trunk: 14, base: 0.38, stubs: 4, lobes: 6, ragged: 0.4 })),
   'tree-pine-b': lod(q => pine(q, 221, 14, [[2.8, 4, 2.6], [4.3, 3.6, 2.6], [5.8, 3.2, 2.5], [7.3, 2.7, 2.4], [8.7, 2.1, 2.3], [10, 1.5, 2.2], [11.3, 0.9, 2.7]], { trunk: 12, base: 0.45 })),
   // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
-  'tree-blossom-a': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
-    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 202, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
-  ]),
-  'tree-blossom-b': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.46, 0.3, 0, 3.2) },
-    { role: 'blossom', ...blob(mesh(), [0, 5.4, 0], [3.3, 3.2, 3.3], { subdivisions: q.crown, seed: 211, lump: 0.16, ripple: 0.14, flat: 0.7, taper: 0.06 }) },
-  ]),
+  'tree-blossom-a': broadleaf({ trunk: [0.55, 0.36, 2.8], role: 'blossom', at: [0, 5, 0], radii: [3.9, 3, 3.9], seed: 202, lump: 0.18, ripple: 0.14, flat: 0.6 }),
+  'tree-blossom-b': broadleaf({ trunk: [0.46, 0.3, 3.2], role: 'blossom', at: [0, 5.4, 0], radii: [3.3, 3.2, 3.3], seed: 211, lump: 0.16, ripple: 0.14, flat: 0.7, taper: 0.06 }),
 }
 
 // ---------------------------------------------------------------------------
@@ -2122,13 +2199,13 @@ const TREES = {
 
 /** What scrub, flower beds and solar fields are planted with; see `areas.ts`. */
 const AREAS = {
-  'shrub-a': lod(q => [{ role: 'foliage', ...blob(mesh(), [0, 0.5, 0], [0.62, 0.5, 0.55], { seed: 41, lump: 0.22, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) }]),
+  'shrub-a': lod(q => [{ role: 'shrub', ...blob(mesh(), [0, 0.5, 0], [0.62, 0.5, 0.55], { seed: 41, lump: 0.22, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) }]),
   'shrub-b': lod(q => [
-    { role: 'foliage', ...blob(mesh(), [-0.18, 0.42, 0.05], [0.5, 0.42, 0.48], { seed: 43, lump: 0.25, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) },
-    { role: 'foliage', ...blob(mesh(), [0.28, 0.36, -0.1], [0.38, 0.36, 0.36], { seed: 47, lump: 0.25, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.8 }) },
+    { role: 'shrub', ...blob(mesh(), [-0.18, 0.42, 0.05], [0.5, 0.42, 0.48], { seed: 43, lump: 0.25, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) },
+    { role: 'shrub', ...blob(mesh(), [0.28, 0.36, -0.1], [0.38, 0.36, 0.36], { seed: 47, lump: 0.25, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.8 }) },
   ]),
   // A clipped shrub: square-cut sides and a flat top, set close in a planting.
-  'shrub-box': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.5], [0.5, 1, 0.5], 0.14, q.seg) }]),
+  'shrub-box': furnLod(q => [{ role: 'shrub', ...roundedBox(mesh(), [-0.5, 0, -0.5], [0.5, 1, 0.5], 0.14, q.seg) }]),
   // A clump of bedding plants: a low green mound studded with blooms.
   flowers: lod(q => {
     const blooms = mesh()
@@ -2139,7 +2216,7 @@ const AREAS = {
       blob(blooms, [Math.cos(a) * d, 0.32 + r() * 0.06, Math.sin(a) * d], [0.1, 0.07, 0.1], { seed: 60 + k, lump: 0.1, subdivisions: 0 })
     }
     return [
-      { role: 'foliage', ...blob(mesh(), [0, 0.15, 0], [0.48, 0.18, 0.48], { seed: 51, lump: 0.2, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.9 }) },
+      { role: 'shrub', ...blob(mesh(), [0, 0.15, 0], [0.48, 0.18, 0.48], { seed: 51, lump: 0.2, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.9 }) },
       { role: 'bloom', ...blooms },
     ]
   }),
@@ -2248,7 +2325,7 @@ function pine(q, seed, height, layers, { trunk, base, stubs = 0, lobes = 7, ragg
       const base = (y + 0.22 * next) / 1.22
       skirt(needles, base, radius * 0.9, next - base, 6, k * 0.5)
     })
-    return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+    return [{ role: 'bark', ...bark }, { role: 'needles', ...needles }]
   }
   for (let k = 0; k < stubs; k++) {
     const y = layers[0][0] * (0.35 + (k / stubs) * 0.5)
@@ -2261,7 +2338,7 @@ function pine(q, seed, height, layers, { trunk, base, stubs = 0, lobes = 7, ragg
     const reach = i => (ragged && stunted.includes(i) ? 0.5 : 1 - ragged * r())
     needleLayer(needles, y, radius, rise, last ? 5 : lobes, t * 0.5 + r() * 0.3, { barbs: radius > 1.4, reach })
   })
-  return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+  return [{ role: 'bark', ...bark }, { role: 'needles', ...needles }]
 }
 
 async function main() {
@@ -2306,7 +2383,7 @@ async function main() {
       far = ownFar
       // Shaded as the near model is, or the switch between them is a pop
       // from soft to faceted even where the outline holds.
-      const leaves = far.filter(p => p.role === 'foliage')
+      const leaves = far.filter(p => LEAVES.includes(p.role))
       if (leaves.length) smoothNormals(leaves, CREASE_DEGREES)
       if (soft) far.forEach(p => smoothNormals([p], SOFT_CREASE))
     }
@@ -2342,6 +2419,7 @@ async function main() {
   for (const [name, build] of Object.entries(TREES)) {
     const fit = await emit(name, build(), build.far?.())
     if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
+    if (build.bare) await emit(`${name}${BARE_SUFFIX}`, build.bare(), build.bareFar(), fit, true)
   }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())

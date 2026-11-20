@@ -122,7 +122,6 @@ import {
   TUNNEL_CUT_TILES,
   WOOD_LAYER,
   forestFloorColor,
-  woodColorOf,
 } from '@/lib/map-style/detail-layers'
 import type { GlbModel } from '@/lib/map-objects/glb.mjs'
 import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
@@ -149,17 +148,24 @@ import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
   OBJECT_MODEL_PACK,
-  OBJECT_PALETTE,
   OBJECT_SOLID,
   OBJECT_SPECS,
+  DECIDUOUS,
+  MIDSUMMER,
+  dayOfYear,
+  objectPalette,
+  seasonRamps,
+  yearAt,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
+import { GROUND_LAYERS, baseGroundColor, groundColor, type GroundLayer } from '@/lib/map-style/seasonal-ground'
 import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
+  TERRAIN_SHADING,
   FINE_TERRAIN_PROTOCOL,
 } from '@/lib/map-style/terrain'
 import { FineTerrain } from '@/lib/map-style/fine-terrain'
@@ -174,7 +180,7 @@ import {
   createBuildingShade,
   liveBuildingShade,
   shadeLight,
-  sunShadow,
+  castShadow,
   removeBuildingShade,
   shadowCasters,
 } from '@/lib/map/building-shade'
@@ -343,6 +349,11 @@ export class MaplibreStrategy extends MapStrategy {
   /** Whether 3D terrain is on, known before the style is built so its detail tiles can ask for the decks. */
   private terrainOn = !!this.options.terrain3d
   private shadowMode = ShadowMode.ALWAYS
+  /** Day of the year the plants show, 0-364, or null for today. */
+  private plantDay: number | null = null
+  private seasons = true
+  /** The paint each ground fill was last given, so an unchanged day sets nothing. */
+  private groundPaint = new Map<string, string>()
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
@@ -555,6 +566,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
       // The old decks' labels are not this style's to leave out.
       this.bridgeLabelKey = null
+      this.groundPaint.clear()
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()
@@ -610,6 +622,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('moveend', () => {
       setFrameTaskBudget(RESTING_TASK_BUDGET)
       this.updateSunShadow()
+      this.applyYear()
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
         zoom: this.mapInstance.getZoom(),
@@ -1117,11 +1130,7 @@ export class MaplibreStrategy extends MapStrategy {
         )
       }
       this.updateGolfPins(true)
-      if (map.getLayer(WOOD_LAYER)) {
-        const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))
-        const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
-        map.setPaintProperty(WOOD_LAYER, 'fill-color', this.map3dObjects ? forestFloorColor(wood, flavor) : wood)
-      }
+      this.applyGround()
     }
 
     if (!this.map3dObjects) {
@@ -1157,13 +1166,15 @@ export class MaplibreStrategy extends MapStrategy {
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Already drawing: a flavor change is a uniform, not a rebuild.
     if (map.getLayer(OBJECT_LAYER_ID) && this.objectLayer) {
-      this.objectLayer.setFlavor(OBJECT_PALETTE[flavor])
+      this.objectLayer.setFlavor(objectPalette(flavor), seasonRamps(flavor))
+      this.objectLayer.setYear(this.plantYear())
       return flat()
     }
 
-    this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
+    this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, objectPalette(flavor), {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
+      seasons: { ramps: seasonRamps(flavor), deciduous: DECIDUOUS, year: this.plantYear() },
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
       surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
@@ -1361,6 +1372,10 @@ export class MaplibreStrategy extends MapStrategy {
     return terrainSource(true)
   }
 
+  protected override terrainSpec() {
+    return { ...super.terrainSpec(), shading: TERRAIN_SHADING }
+  }
+
   override setMap3dTerrain(value: boolean) {
     this.terrainOn = value
     super.setMap3dTerrain(value)
@@ -1370,6 +1385,42 @@ export class MaplibreStrategy extends MapStrategy {
   override setBuildingShade(value: boolean) {
     this.buildingShade = value
     this.applyBuildingShade()
+  }
+
+  override setPlantDay(day: number | null) {
+    this.plantDay = day
+    this.applyYear()
+  }
+
+  override setSeasons(value: boolean) {
+    this.seasons = value
+    this.applyYear()
+  }
+
+  private applyYear() {
+    this.objectLayer?.setYear(this.plantYear())
+    this.applyGround()
+  }
+
+  /** Grass, cemeteries and woods in the plants' season, or the style's own green with seasons off; woods turn to soil under the 3D forest. */
+  private applyGround() {
+    const map = this.mapInstance
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    const year = this.plantYear()
+    for (const layer of Object.keys(GROUND_LAYERS) as GroundLayer[]) {
+      if (!map.getLayer(layer)) continue
+      const color = this.seasons ? groundColor(layer, flavor, year) : baseGroundColor(layer, flavor)
+      const key = `${color}|${this.map3dObjects}`
+      if (this.groundPaint.get(layer) === key) continue
+      this.groundPaint.set(layer, key)
+      map.setPaintProperty(layer, 'fill-color', layer === WOOD_LAYER && this.map3dObjects ? forestFloorColor(color, flavor) : color)
+    }
+  }
+
+  /** Where the plants' year stands: the chosen day, or today in the hemisphere in view; high summer with seasons off. */
+  private plantYear(): number {
+    if (!this.seasons) return MIDSUMMER
+    return yearAt(this.plantDay ?? dayOfYear(new Date()), this.mapInstance.getCenter().lat)
   }
 
   override setShadowMode(mode: ShadowMode) {
@@ -1418,9 +1469,8 @@ export class MaplibreStrategy extends MapStrategy {
    * Direction and length both come from the sun's actual position, so a map of
    * Manhattan in the afternoon throws its shadows east and long, and the same
    * view at noon throws them short — and a city in the other hemisphere throws
-   * them the other way entirely. `daylight` folds in the sunrise and sunset
-   * ramp, taking the cast shadow to nothing overnight while the ambient
-   * occlusion that separates one building from the next stays put.
+   * them the other way entirely. After sunset the moon, or the sky's glow when
+   * it is down, takes over with softer shadows; see `castShadow`.
    *
    * Recomputed on `moveend` rather than per frame: the sun moves a quarter of a
    * degree a minute, and the answer only depends on where the map is and what
@@ -1431,7 +1481,7 @@ export class MaplibreStrategy extends MapStrategy {
     const layer = liveBuildingShade()
 
     const { lng, lat } = this.mapInstance.getCenter()
-    const sun = sunShadow(new Date(), lat, lng)
+    const sun = castShadow(new Date(), lat, lng)
 
     if (!layer) return
 
@@ -1440,7 +1490,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Hold the tuned darkness as the daylight maximum rather than overwriting
     // it, so the settings panel and the flavor still have the final say.
     this.shadowAlphaAtNoon ??= layer.shadowAlpha
-    layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
+    layer.shadowAlpha = this.shadowAlphaAtNoon * sun.strength
 
     this.mapInstance.setLight(shadeLight(sun.offset, sun.altitude))
     this.mapInstance.triggerRepaint()

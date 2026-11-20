@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, markRaw } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { storeToRefs } from 'pinia'
 import { useAuthService } from '@/services/auth.service'
@@ -10,7 +11,11 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { SettingsSection } from '@/components/settings'
 import { toast } from '@/lib/toast'
-import { Check, Pencil } from 'lucide-vue-next'
+import { Camera, Check, Pencil, Trash2 } from 'lucide-vue-next'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
+import AvatarPicker from '@/components/profile/AvatarPicker.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
 import IdentitySettings from '@/components/identity/IdentitySettings.vue'
@@ -21,6 +26,46 @@ const authStore = useAuthStore()
 const userService = useUserService()
 
 const { me } = storeToRefs(authStore)
+const { t } = useI18n()
+
+const isSavingPhoto = ref(false)
+
+async function savePhoto(change: () => Promise<string | null>) {
+  if (!me.value) return
+  isSavingPhoto.value = true
+  try {
+    const picture = await change()
+    authStore.updateUser({ ...me.value, picture: picture ?? undefined })
+  } catch {
+    toast.error(t('profilePhoto.saveFailed'))
+  } finally {
+    isSavingPhoto.value = false
+  }
+}
+
+function uploadPhoto(image: Blob) {
+  return savePhoto(async () => (await userService.uploadAvatar(image)).picture)
+}
+
+function removePhoto() {
+  return savePhoto(async () => {
+    await userService.deleteAvatar()
+    return null
+  })
+}
+
+function photoMenu(choose: () => void): MenuItemDefinition[] {
+  return [
+    { type: 'item', label: t('profilePhoto.change'), icon: markRaw(Camera), onSelect: choose },
+    {
+      type: 'item',
+      label: t('profilePhoto.remove'),
+      icon: markRaw(Trash2),
+      variant: 'destructive',
+      onSelect: removePhoto,
+    },
+  ]
+}
 
 const isEditingName = ref(false)
 const isSavingName = ref(false)
@@ -96,9 +141,33 @@ async function saveName() {
     <template v-if="me">
       <SettingsSection id="user" :title="$t('settings.account.user.title')">
         <div class="flex items-center gap-2 w-full">
-          <Avatar v-if="me.picture" size="sm">
-            <AvatarImage :src="me.picture" :alt="me.email" />
-          </Avatar>
+          <AvatarPicker v-slot="{ choose }" @crop="uploadPhoto">
+            <ResponsiveDropdown v-if="me.picture" :items="photoMenu(choose)">
+              <template #trigger="{ open }">
+                <button
+                  type="button"
+                  class="rounded-[28%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  :aria-label="t('profilePhoto.edit')"
+                  :disabled="isSavingPhoto"
+                  @click="open"
+                >
+                  <Avatar size="sm">
+                    <AvatarImage :src="me.picture" :alt="me.email" />
+                  </Avatar>
+                </button>
+              </template>
+            </ResponsiveDropdown>
+            <Button
+              v-else
+              size="icon"
+              variant="outline"
+              class="rounded-[28%]"
+              :icon="Camera"
+              :loading="isSavingPhoto"
+              :aria-label="t('profilePhoto.add')"
+              @click="choose"
+            />
+          </AvatarPicker>
 
           <!-- View mode -->
           <div v-if="!isEditingName" class="flex items-center gap-2 flex-1">

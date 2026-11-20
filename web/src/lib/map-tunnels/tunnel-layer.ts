@@ -365,8 +365,7 @@ export class TunnelLayer {
     const projection = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const matrix = translate(projection, [this.origin[0], this.origin[1], 0])
     const light = this.map.style?.light?.getCartesianPosition?.() ?? [0.4, -0.6, 0.7]
-    // MapLibre's own range for 3D layers; asking the context for it would stall on the GPU.
-    const [near, far] = this.map.painter?.renderContext?.depthRangeFor3D ?? [0, 1]
+    const [near, far]: [number, number] = args?.depthRangeFor3D ?? [0, 1]
     gl.enable(gl.DEPTH_TEST)
     gl.depthMask(true)
     gl.depthFunc(gl.LEQUAL)

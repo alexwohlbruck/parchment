@@ -6,6 +6,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useSyncStore } from '@/stores/sync.store'
+import { useHistoryStore } from '@/stores/history.store'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 import type {
@@ -50,6 +51,7 @@ export const useBookmarksService = createSharedComposable(() => {
   const encryptedPointsStore = useEncryptedPointsStore()
   const categoryPaletteStore = useCategoryPaletteStore()
   const syncStore = useSyncStore()
+  const historyStore = useHistoryStore()
   const themeStore = useThemeStore()
   const { t } = useI18n()
   const isSaving = ref(false)
@@ -99,9 +101,8 @@ export const useBookmarksService = createSharedComposable(() => {
     if (existing) return existing
 
     try {
-      const source = await collectionsService.collectionKeySource(collection)
-      if (!source) throw new Error('No key to this collection on this device')
-      const point: DecryptedPoint = {
+      const now = new Date().toISOString()
+      const point = await writePrivatePoint(collection, {
         id: crypto.randomUUID(),
         externalIds: fields.externalIds,
         name: fields.name,
@@ -112,28 +113,30 @@ export const useBookmarksService = createSharedComposable(() => {
         iconPack: fields.iconPack ?? 'lucide',
         iconColor: fields.iconColor ?? 'cobalt',
         frequentType: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      await collectionsService.createEncryptedPoint(collection.id, {
-        id: point.id,
-        encryptedData: encryptCollectionPoint({
-          point,
-          pointId: point.id,
-          source,
-          ownerUserId: collection.userId,
-          collectionId: collection.id,
-          keyVersion: collection.metadataKeyVersion,
-        }),
+        createdAt: now,
+        updatedAt: now,
       })
-      encryptedPointsStore.addPoint(collection.id, point)
       rememberLastSaved([collection.id])
-      toast.success(
-        t('services.bookmarks.saveSuccessToCollection', {
-          name: point.name,
-          collection: collectionsService.getCollectionDisplayName(collection),
-        }),
-        { action: collectionsService.viewCollectionAction(collection.id) },
+      let current = point
+      historyStore.record(
+        {
+          label: t('history.savedTo', {
+            name: point.name,
+            collection: collectionsService.getCollectionDisplayName(collection),
+          }),
+          undoneLabel: t('history.removedFrom', {
+            name: point.name,
+            collection: collectionsService.getCollectionDisplayName(collection),
+          }),
+          undo: () => deletePrivatePoint(collection, current),
+          redo: async () => {
+            current = await writePrivatePoint(collection, {
+              ...current,
+              id: crypto.randomUUID(),
+            })
+          },
+        },
+        { view: collectionsService.viewCollectionAction(collection.id) },
       )
       return point
     } catch (err) {
@@ -143,22 +146,63 @@ export const useBookmarksService = createSharedComposable(() => {
     }
   }
 
+  /** Encrypt `point` into a private collection and hold it locally. */
+  async function writePrivatePoint(
+    collection: Collection,
+    point: DecryptedPoint,
+  ): Promise<DecryptedPoint> {
+    const source = await collectionsService.collectionKeySource(collection)
+    if (!source) throw new Error('No key to this collection on this device')
+    await collectionsService.createEncryptedPoint(collection.id, {
+      id: point.id,
+      encryptedData: encryptCollectionPoint({
+        point,
+        pointId: point.id,
+        source,
+        ownerUserId: collection.userId,
+        collectionId: collection.id,
+        keyVersion: collection.metadataKeyVersion,
+      }),
+    })
+    encryptedPointsStore.addPoint(collection.id, point)
+    return point
+  }
+
   async function removeFromPrivateCollection(
     collection: Collection,
     point: DecryptedPoint,
   ): Promise<boolean> {
     try {
-      await collectionsService.deleteEncryptedPoint(collection.id, point.id)
-      encryptedPointsStore.removePoint(collection.id, point.id)
-      toast.success(
-        t('services.bookmarks.removeFromCollectionSuccess', { name: point.name }),
-      )
+      await deletePrivatePoint(collection, point)
+      let current = point
+      historyStore.record({
+        label: t('history.removedFrom', {
+          name: point.name,
+          collection: collectionsService.getCollectionDisplayName(collection),
+        }),
+        undoneLabel: t('history.putBackIn', {
+          name: point.name,
+          collection: collectionsService.getCollectionDisplayName(collection),
+        }),
+        undo: async () => {
+          current = await writePrivatePoint(collection, {
+            ...current,
+            id: crypto.randomUUID(),
+          })
+        },
+        redo: () => deletePrivatePoint(collection, current),
+      })
       return true
     } catch (err) {
       console.error('[bookmarks] private remove failed', err)
       toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: err })
       return false
     }
+  }
+
+  async function deletePrivatePoint(collection: Collection, point: DecryptedPoint) {
+    await collectionsService.deleteEncryptedPoint(collection.id, point.id)
+    encryptedPointsStore.removePoint(collection.id, point.id)
   }
 
   // Remember the most recently written-to collection so the bookmark
@@ -195,26 +239,15 @@ export const useBookmarksService = createSharedComposable(() => {
     // the next one-tap save, so "Saved {name} to {collection}" matches
     // what the user just did. Fall back to a generic message if the
     // collection can't be resolved (e.g. stale cache).
-    function notifySaved() {
+    function notifySaved(bookmark: Bookmark) {
       if (options.silent) return
       const targetId = collectionIds?.[collectionIds.length - 1]
-      const target = targetId
-        ? collectionsStore.getCollectionById(targetId)
-        : undefined
-      if (target) {
-        toast.success(
-          t('services.bookmarks.saveSuccessToCollection', {
-            name: place.name.value,
-            collection:
-              target.name || t('library.entities.collections.untitled'),
-          }),
-          { action: collectionsService.viewCollectionAction(targetId) },
-        )
-      } else {
-        toast.success(
-          t('services.bookmarks.saveSuccess', { name: place.name.value }),
-        )
-      }
+      recordChange(
+        bookmark.id,
+        null,
+        { bookmark: snapshot(bookmark)!, collectionIds: collectionIds ?? [] },
+        { view: collectionsService.viewCollectionAction(targetId) },
+      )
     }
 
     const params: CreateBookmarkParams & { collectionIds?: string[] } = {
@@ -253,7 +286,7 @@ export const useBookmarksService = createSharedComposable(() => {
         { tempId, params: snapshot(params)! } satisfies CreateBookmarkMutation,
         t('offline.sync.labels.save', { name: params.name }),
       )
-      notifySaved()
+      notifySaved(bookmark)
       return bookmark
     }
 
@@ -265,7 +298,7 @@ export const useBookmarksService = createSharedComposable(() => {
 
       bookmarksStore.addBookmark(bookmark)
       rememberLastSaved(collectionIds)
-      notifySaved()
+      notifySaved(bookmark)
 
       return bookmark
     } catch (error) {
@@ -295,6 +328,21 @@ export const useBookmarksService = createSharedComposable(() => {
       addedCollectionId?: string
     } = {},
   ): Promise<Bookmark | null> {
+    const before = stateOf(id)
+
+    /** Record the change, unless the caller announces it itself. */
+    function announce(result: Bookmark | null) {
+      if (options.silent) return
+      const after: SavedState = result && {
+        bookmark: snapshot(result)!,
+        collectionIds: updates.collectionIds ?? before?.collectionIds ?? [],
+      }
+      const view = result && options.addedCollectionId
+        ? collectionsService.viewCollectionAction(options.addedCollectionId)
+        : undefined
+      recordChange(id, before, after, { view })
+    }
+
     // Offline: apply the change locally and queue the PUT for replay. The
     // server deletes a bookmark whose last collection is removed (the 204
     // branch below), so mirror that locally too.
@@ -346,32 +394,7 @@ export const useBookmarksService = createSharedComposable(() => {
           name: current?.name || t('library.entities.bookmarks.title.singular'),
         }),
       )
-      if (!options.silent) {
-        if (removesBookmark) {
-          toast.success(
-            t('services.bookmarks.unsaveSuccess', {
-              name:
-                current?.name ||
-                t('library.entities.bookmarks.title.singular'),
-            }),
-          )
-        } else {
-          const added = options.addedCollectionId
-            ? collectionsStore.getCollectionById(options.addedCollectionId)
-            : undefined
-          if (added) {
-            toast.success(
-              t('library.actions.addedToCollection', {
-                collection:
-                  added.name || t('library.entities.collections.untitled'),
-              }),
-              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
-            )
-          } else {
-            toast.success(t('services.bookmarks.updateSuccess'))
-          }
-        }
-      }
+      announce(removesBookmark ? null : (merged ?? null))
       return removesBookmark ? null : (merged ?? null)
     }
 
@@ -385,33 +408,17 @@ export const useBookmarksService = createSharedComposable(() => {
         // Added or removed collection-bookmark relations
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
-        rememberLastSaved(updates.collectionIds)
-        if (!options.silent) {
-          const added = options.addedCollectionId
-            ? collectionsStore.getCollectionById(options.addedCollectionId)
-            : undefined
-          if (added) {
-            toast.success(
-              t('library.actions.addedToCollection', {
-                collection: added.name || t('library.entities.collections.untitled'),
-              }),
-              { action: collectionsService.viewCollectionAction(options.addedCollectionId) },
-            )
-          } else {
-            toast.success(t('services.bookmarks.updateSuccess'))
-          }
+        if (updates.collectionIds) {
+          collectionsStore.setBookmarkCollections(updatedBookmark, updates.collectionIds)
         }
+        rememberLastSaved(updates.collectionIds)
+        announce(updatedBookmark)
         return updatedBookmark
       } else if (response && response.status === 204) {
         // Completely removed bookmark from all collections
-        const bookmarkToRemove = bookmarksStore.getBookmarkById(id)
-        const name =
-          bookmarkToRemove?.name ||
-          t('library.entities.bookmarks.title.singular')
         bookmarksStore.removeBookmark(id)
-        if (!options.silent) {
-          toast.success(t('services.bookmarks.unsaveSuccess', { name }))
-        }
+        collectionsStore.removeBookmarkFromCollections(id)
+        announce(null)
         return null
       } else {
         console.warn('Unexpected success status:', response?.status)
@@ -447,6 +454,12 @@ export const useBookmarksService = createSharedComposable(() => {
       return false
     }
 
+    const before = stateOf(bookmarkId)
+    const after = before && {
+      ...before,
+      collectionIds: before.collectionIds.filter(id => !collectionIds.includes(id)),
+    }
+
     function applyRemovalLocally() {
       collectionIds.forEach(collectionId => {
         collectionsStore.removeBookmarkFromSingleCollection(
@@ -454,11 +467,9 @@ export const useBookmarksService = createSharedComposable(() => {
           bookmarkId,
         )
       })
-      toast.success(
-        t('services.bookmarks.removeFromCollectionSuccess', {
-          name: bookmarkName,
-        }),
-      )
+      // The server deletes a bookmark left in no collection.
+      if (!isKept(after)) bookmarksStore.removeBookmark(bookmarkId)
+      recordChange(bookmarkId, before, after)
     }
 
     // Offline: unlink locally and queue the DELETE for replay.
@@ -493,6 +504,132 @@ export const useBookmarksService = createSharedComposable(() => {
       toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: error })
       return false
     }
+  }
+
+  /** A bookmark as undo puts it back: its row and where it is filed. */
+  type SavedState = { bookmark: Bookmark; collectionIds: string[] } | null
+
+  function stateOf(id: string): SavedState {
+    const bookmark = snapshot(bookmarksStore.getBookmarkById(id))
+    if (!bookmark) return null
+    return { bookmark, collectionIds: collectionsStore.getCollectionIdsForBookmark(id) }
+  }
+
+  /** The server keeps a bookmark only while it is filed somewhere or is a frequent. */
+  function isKept(state: SavedState): state is NonNullable<SavedState> {
+    return !!state && (state.collectionIds.length > 0 || !!state.bookmark.frequentType)
+  }
+
+  /**
+   * Make bookmark `id` match `state`, creating or deleting it as needed.
+   * Resolves to its id, which changes when it has to be created again.
+   */
+  async function putBack(id: string, state: SavedState): Promise<string> {
+    const exists = !!bookmarksStore.getBookmarkById(id)
+    if (!isKept(state)) {
+      if (exists) {
+        await updateBookmark(
+          id,
+          { collectionIds: [], frequentType: null } as unknown as Partial<Bookmark>,
+          { silent: true },
+        )
+      }
+      collectionsStore.removeBookmarkFromCollections(id)
+      bookmarksStore.removeBookmark(id)
+      return id
+    }
+
+    const { bookmark, collectionIds } = state
+    let current: Bookmark | null
+    if (exists) {
+      current = await updateBookmark(
+        id,
+        {
+          name: bookmark.name,
+          icon: bookmark.icon,
+          iconPack: bookmark.iconPack,
+          iconColor: bookmark.iconColor,
+          frequentType: bookmark.frequentType ?? null,
+          collectionIds,
+        } as unknown as Partial<Bookmark>,
+        { silent: true },
+      )
+    } else {
+      const { data } = await api.post('/library/bookmarks', {
+        externalIds: bookmark.externalIds,
+        name: bookmark.name,
+        address: bookmark.address,
+        lat: bookmark.lat,
+        lng: bookmark.lng,
+        icon: bookmark.icon,
+        iconPack: bookmark.iconPack,
+        iconColor: bookmark.iconColor,
+        ...(bookmark.frequentType ? { frequentType: bookmark.frequentType } : {}),
+        collectionIds,
+      })
+      current = data
+      if (current) bookmarksStore.addBookmark(current)
+    }
+    if (!current) throw new Error(`Could not restore bookmark ${id}`)
+    collectionsStore.setBookmarkCollections(current, collectionIds)
+    return current.id
+  }
+
+  function collectionNames(ids: string[]) {
+    return ids
+      .map(id => collectionsService.getCollectionDisplayName(collectionsStore.getCollectionById(id) ?? null))
+      .join(', ')
+  }
+
+  /** A change from one state to another, in words: "Added X to Coffee". */
+  function describe(from: SavedState, to: SavedState, undoing: boolean): string {
+    const name = (to ?? from)?.bookmark.name || t('library.entities.bookmarks.title.singular')
+    if (!isKept(to)) return t('history.removed', { name })
+    const added = to.collectionIds.filter(id => !from?.collectionIds.includes(id))
+    const removed = (from?.collectionIds ?? []).filter(id => !to.collectionIds.includes(id))
+    if (!isKept(from)) {
+      if (undoing) {
+        return added.length
+          ? t('history.putBackIn', { name, collection: collectionNames(added) })
+          : t('history.putBack', { name })
+      }
+      return added.length
+        ? t('history.savedTo', { name, collection: collectionNames(added) })
+        : t('history.saved', { name })
+    }
+    if (added.length) {
+      return t(undoing ? 'history.putBackIn' : 'history.addedTo', {
+        name,
+        collection: collectionNames(added),
+      })
+    }
+    if (removed.length) {
+      return t('history.removedFrom', { name, collection: collectionNames(removed) })
+    }
+    return t(undoing ? 'history.changedBack' : 'history.updated', { name })
+  }
+
+  /** Put a bookmark change on the undo stack, and toast it. */
+  function recordChange(
+    id: string,
+    before: SavedState,
+    after: SavedState,
+    options: { label?: string; view?: { label: string; onClick: () => void } } = {},
+  ) {
+    let current = id
+    historyStore.record(
+      {
+        label: options.label ?? describe(before, after, false),
+        undoneLabel: describe(after, before, true),
+        undo: async () => {
+          current = await putBack(current, before)
+        },
+        redo: async () => {
+          current = await putBack(current, after)
+        },
+      },
+      { view: options.view },
+    )
   }
 
   function isBookmarkSaved(bookmark: Bookmark) {
@@ -577,6 +714,7 @@ export const useBookmarksService = createSharedComposable(() => {
   ): Promise<Bookmark | null> {
     const targetBookmarkId = findBookmarkIdForPlace(place)
     const name = opts.name?.trim() || undefined
+    const before = targetBookmarkId ? stateOf(targetBookmarkId) : null
 
     let result: Bookmark | null
     if (targetBookmarkId) {
@@ -596,10 +734,15 @@ export const useBookmarksService = createSharedComposable(() => {
     }
 
     if (result) {
-      toast.success(
-        t('services.bookmarks.frequentSet', {
-          label: name || t(`library.types.${frequentType}`),
-        }),
+      recordChange(
+        result.id,
+        before,
+        { bookmark: snapshot(result)!, collectionIds: before?.collectionIds ?? [] },
+        {
+          label: t('services.bookmarks.frequentSet', {
+            label: name || t(`library.types.${frequentType}`),
+          }),
+        },
       )
     }
     return result
@@ -610,12 +753,18 @@ export const useBookmarksService = createSharedComposable(() => {
     const current = bookmarksStore.getBookmarkById(bookmarkId)
     if (!current?.frequentType) return
     const label = t(`library.types.${current.frequentType}`)
-    await updateBookmark(
+    const before = stateOf(bookmarkId)
+    const result = await updateBookmark(
       bookmarkId,
       { frequentType: null } as unknown as Partial<Bookmark>,
       { silent: true },
     )
-    toast.success(t('services.bookmarks.frequentRemoved', { label }))
+    recordChange(
+      bookmarkId,
+      before,
+      result && { bookmark: snapshot(result)!, collectionIds: before?.collectionIds ?? [] },
+      { label: t('services.bookmarks.frequentRemoved', { label }) },
+    )
   }
 
   return {

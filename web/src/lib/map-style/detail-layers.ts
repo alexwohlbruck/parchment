@@ -520,11 +520,6 @@ export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
   return ['interpolate', ['linear'], ['zoom'], 14.5, wood, 15.5, FOREST_FLOOR[flavor]]
 }
 
-/** The colour `forestFloorColor` was built from, or the value unchanged. */
-export function woodColorOf(paint: unknown): any {
-  return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
-}
-
 /** Solar arrays and flower beds as flat ground, under the objects planted on them (see `map-objects/areas.ts`). */
 export function plantedAreaLayers(flavor: FlavorId): any[] {
   const c = DETAIL_COLORS[flavor]

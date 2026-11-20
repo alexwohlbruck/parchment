@@ -15,6 +15,10 @@
       "description": "User and profile management"
     },
     {
+      "name": "Files",
+      "description": "Public uploaded files such as avatars"
+    },
+    {
       "name": "Health",
       "description": "Health check"
     },
@@ -1574,36 +1578,106 @@
         }
       }
     },
-    "/users/{id}/avatar": {
-      "get": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "operationId": "getUsersByIdAvatar",
-        "tags": [
-          "Users"
-        ],
-        "summary": "Get user avatar",
-        "responses": {
-          "200": {}
-        }
-      }
-    },
     "/users/me/avatar": {
       "post": {
         "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "picture": {
+                      "description": "Absolute URL of the new avatar",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "picture"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "picture": {
+                      "description": "Absolute URL of the new avatar",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "picture"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "picture": {
+                      "description": "Absolute URL of the new avatar",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "picture"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "operationId": "postUsersMeAvatar",
         "tags": [
           "Users"
         ],
         "summary": "Upload avatar",
+        "description": "Accepts a JPEG, PNG or WebP up to 2MB, center-crops it to a 256px square WebP and sets it as the caller’s picture. Each upload gets a new URL, so it can be cached indefinitely.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1653,9 +1727,6 @@
               }
             }
           }
-        },
-        "responses": {
-          "200": {}
         }
       },
       "delete": {

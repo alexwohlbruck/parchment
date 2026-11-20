@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
@@ -48,6 +48,7 @@ import { AppRoute } from '@/router'
 import type { RouteMode } from '@/types/routes.types'
 import { formatDurationLong } from '@/lib/time-format'
 import { Spinner } from '@/components/ui/spinner'
+import { useUndoScope } from '@/composables/useUndoScope'
 
 const props = defineProps<{ id?: string }>()
 
@@ -96,17 +97,7 @@ useMapListener(
   { override: true },
 )
 
-// ── Keyboard undo/redo ──────────────────────────────────────────────────────
-function onKeydown(e: KeyboardEvent) {
-  const meta = e.metaKey || e.ctrlKey
-  if (!meta || e.key.toLowerCase() !== 'z') return
-  // Ignore while typing in the save dialog.
-  const tag = (e.target as HTMLElement)?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return
-  e.preventDefault()
-  if (e.shiftKey) store.redo()
-  else store.undo()
-}
+useUndoScope({ undo: store.undo, redo: store.redo })
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -131,12 +122,8 @@ onMounted(async () => {
   } else {
     store.start()
   }
-  window.addEventListener('keydown', onKeydown)
 })
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown)
-})
 
 // Reset clears the map line/markers when leaving the builder. We snapshot
 // whether we're handing off to directions first so the directions store keeps

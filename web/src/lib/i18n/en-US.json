@@ -64,7 +64,25 @@
     "archive": "Archive",
     "unarchive": "Unarchive",
     "undo": "Undo",
+    "redo": "Redo",
     "saved": "Saved"
+  },
+  "history": {
+    "undone": "Undone",
+    "saved": "Saved {name}",
+    "savedTo": "Saved {name} to {collection}",
+    "addedTo": "Added {name} to {collection}",
+    "removedFrom": "Removed {name} from {collection}",
+    "putBackIn": "Put {name} back in {collection}",
+    "putBack": "Put {name} back",
+    "removed": "Removed {name}",
+    "created": "Created {name}",
+    "updated": "Updated {name}",
+    "deleted": "Deleted {name}",
+    "restored": "Restored {name}",
+    "changedBack": "Changed {name} back",
+    "undoFailed": "Couldn't undo that",
+    "redoFailed": "Couldn't redo that"
   },
   "weather": {
     "title": "Weather",
@@ -3191,6 +3209,9 @@
             "always": "Always"
           }
         },
+        "season": {
+          "toggle": "Seasonal colors"
+        },
         "hdRoads": "Lanes and crosswalks",
         "indoorMaps": "Indoor maps",
         "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
@@ -4268,5 +4289,16 @@
       "gpx": "GPS device (GPX)",
       "csv": "Spreadsheet (CSV)"
     }
+  },
+  "profilePhoto": {
+    "cropTitle": "Adjust your photo",
+    "zoom": "Zoom",
+    "save": "Use photo",
+    "add": "Add a photo",
+    "edit": "Edit photo",
+    "change": "Change photo",
+    "remove": "Remove photo",
+    "unreadable": "Couldn't open that image",
+    "saveFailed": "Couldn't update your photo"
   }
 }

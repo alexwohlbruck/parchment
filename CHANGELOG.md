@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* The map no longer loads half-empty after an app update: areas you've seen before draw from cache straight away.
+
 ## [0.23.0] - 2026-11-19
 
 ### Added

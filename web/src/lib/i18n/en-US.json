@@ -4268,5 +4268,16 @@
       "gpx": "GPS device (GPX)",
       "csv": "Spreadsheet (CSV)"
     }
+  },
+  "profilePhoto": {
+    "cropTitle": "Adjust your photo",
+    "zoom": "Zoom",
+    "save": "Use photo",
+    "add": "Add a photo",
+    "edit": "Edit photo",
+    "change": "Change photo",
+    "remove": "Remove photo",
+    "unreadable": "Couldn't open that image",
+    "saveFailed": "Couldn't update your photo"
   }
 }

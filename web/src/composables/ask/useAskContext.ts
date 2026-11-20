@@ -5,11 +5,13 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useDirectionsService } from '@/services/directions.service'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
 import { frequentChipMeta } from '@/lib/frequents'
 import { toLngLat } from '@/lib/geo/lng-lat'
 import type { AskEndpoint, AskWhere } from '@/types/ask.types'
 
-/** The map, the device's position, the user's saved places, units and vehicles, read fresh for each question. */
+/** The map, the device's position, the user's saved places, units, vehicles and Directions preferences, read fresh for each question. */
 export function useAskContext() {
   const { t } = useI18n()
   const mapStore = useMapStore()
@@ -18,6 +20,8 @@ export function useAskContext() {
   const askPreferences = useAskPreferencesStore()
   const geolocation = useGeolocationService()
   const directionsService = useDirectionsService()
+  const directionsStore = useDirectionsStore()
+  const navigationPreferences = useNavigationPreferencesStore()
 
   function savedPlaces(): AskEndpoint[] {
     return bookmarksStore.bookmarks
@@ -40,6 +44,8 @@ export function useAskContext() {
       places: shareLocation ? savedPlaces() : [],
       units: appStore.unitSystem,
       vehicles: directionsService.collectAvailableVehicles(),
+      routingPreferences: directionsStore.routingPreferences,
+      excludedModes: navigationPreferences.excludedModes,
     }
   }
 }

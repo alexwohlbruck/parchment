@@ -89,6 +89,7 @@ async function hydrateRoute(
     }
   }
 
+  if (!route.name && route.body?.name) route.name = route.body.name
   return route
 }
 

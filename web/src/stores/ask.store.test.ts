@@ -27,6 +27,14 @@ describe('ask store', () => {
     })
   })
 
+  it('keeps the route and canvas an answer saved', () => {
+    const store = useAskStore()
+    store.start('plan a ride around manhattan', { followUp: false })
+    store.apply({ type: 'route', id: 'r1', name: 'Manhattan loop', mode: 'cycling', distance: 52000, duration: 12000 })
+    store.apply({ type: 'canvas', id: 'c1', name: 'Manhattan loop' })
+    expect(store.current).toMatchObject({ route: { id: 'r1', name: 'Manhattan loop' }, canvas: { id: 'c1' } })
+  })
+
   it('keeps earlier exchanges only for a follow-up', () => {
     const store = useAskStore()
     store.start('first', { followUp: false })

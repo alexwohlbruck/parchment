@@ -20,7 +20,6 @@ import {
   LngLat,
   Waypoint,
   ShadowMode,
-  PlantSeason,
 } from '@/types/map.types'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
@@ -206,8 +205,8 @@ export class MapStrategy {
   setBuildingShade(value: boolean) {}
   /** Which views the building lighting casts shadows in. MapLibre only. */
   setShadowMode(mode: ShadowMode) {}
-  /** Which season the 3D plants show. MapLibre only. */
-  setPlantSeason(season: PlantSeason) {}
+  /** The day of the year the 3D plants show, 0-364, or null for today. MapLibre only. */
+  setPlantDay(day: number | null) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}

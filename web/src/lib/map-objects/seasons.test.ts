@@ -1,47 +1,92 @@
 import { describe, expect, test } from 'vitest'
 import models from './models.json'
-import { seasonAt, seasonSwaps } from './seasons'
+import { DECIDUOUS, PHASE_SPREAD, dayOfYear, phaseOf, plantYear, rampAt, seasonRamps, yearAt } from './seasons'
 import { TREE_FAMILIES } from './trees'
 
-const day = (month: number) => new Date(2026, month - 1, 15)
+const ramps = seasonRamps('light')
+const on = (month: number, day = 15) => yearAt(dayOfYear(new Date(2026, month - 1, day)), 40)
+const leaf = (role: string, year: number) => rampAt(ramps[role], year).leaf
+/** Red over green: high in fall colour, low in summer leaf. */
+const warmth = (role: string, year: number) => {
+  const { color } = rampAt(ramps[role], year)
+  return color[0] / color[1]
+}
 
-describe('seasonAt', () => {
-  test('follows the month in the north', () => {
-    expect(seasonAt(day(1), 40)).toBe('winter')
-    expect(seasonAt(day(4), 40)).toBe('spring')
-    expect(seasonAt(day(7), 40)).toBe('summer')
-    expect(seasonAt(day(10), 40)).toBe('fall')
-    expect(seasonAt(day(12), 40)).toBe('winter')
+describe('the year', () => {
+  test('counts days from January 1st', () => {
+    expect(dayOfYear(new Date(2026, 0, 1))).toBe(0)
+    expect(dayOfYear(new Date(2026, 11, 31))).toBe(364)
   })
 
-  test('runs half a year apart in the south', () => {
-    expect(seasonAt(day(1), -35)).toBe('summer')
-    expect(seasonAt(day(4), -35)).toBe('fall')
-    expect(seasonAt(day(7), -35)).toBe('winter')
-    expect(seasonAt(day(10), -35)).toBe('spring')
+  test('runs half a year apart in the south, and stands still in the tropics', () => {
+    expect(yearAt(0, -35)).toBeCloseTo(0.5)
+    expect(yearAt(0, 10)).toBe(yearAt(200, 10))
   })
 
-  test('keeps the tropics in leaf', () => {
-    for (const month of [1, 4, 7, 10]) expect(seasonAt(day(month), 10)).toBe('summer')
+  test('each plant runs a few days either side of the date', () => {
+    expect(plantYear(0.5, 0)).toBeCloseTo(0.5 - PHASE_SPREAD)
+    expect(plantYear(0.5, 1)).toBeCloseTo(0.5 + PHASE_SPREAD)
+    const phases = Array.from({ length: 200 }, (_, i) => phaseOf((i * 0.618) % 1, 0.88 + ((i * 0.37) % 0.24)))
+    expect(Math.min(...phases)).toBeLessThan(0.1)
+    expect(Math.max(...phases)).toBeGreaterThan(0.9)
   })
 })
 
-describe('seasonSwaps', () => {
-  test('only winter swaps models', () => {
-    for (const season of ['spring', 'summer', 'fall'] as const) expect(seasonSwaps(season)).toEqual({})
+describe('broadleaves', () => {
+  test('are bare in winter and in full leaf through summer', () => {
+    expect(leaf('foliage', on(1))).toBe(0)
+    expect(leaf('foliage', on(7))).toBe(1)
   })
 
-  test('every winter stand-in was built', () => {
-    for (const bare of Object.values(seasonSwaps('winter'))) {
+  test('come into and out of leaf gradually', () => {
+    const spring = leaf('foliage', on(4, 10))
+    const fall = leaf('foliage', on(11, 10))
+    expect(spring).toBeGreaterThan(0)
+    expect(spring).toBeLessThan(1)
+    expect(fall).toBeGreaterThan(0)
+    expect(fall).toBeLessThan(1)
+  })
+
+  test('turn warm in fall', () => {
+    expect(warmth('foliage', on(10, 20))).toBeGreaterThan(1)
+    expect(warmth('foliage', on(7))).toBeLessThan(1)
+  })
+})
+
+test('cherries blossom on bare wood before they leaf', () => {
+  const { color } = rampAt(ramps.blossom, on(4, 1))
+  expect(color[0]).toBeGreaterThan(color[1])
+  expect(leaf('blossom', on(4, 1))).toBeGreaterThan(0.5)
+  expect(leaf('blossom', on(1))).toBe(0)
+})
+
+test('evergreens keep their leaf all year', () => {
+  for (const month of [1, 4, 7, 10]) {
+    expect(leaf('needles', on(month))).toBe(1)
+    expect(leaf('shrub', on(month))).toBe(1)
+    expect(leaf('frond', on(month))).toBe(1)
+  }
+})
+
+test('night ramps are darker than day ones', () => {
+  const dark = seasonRamps('dark')
+  for (const [role, ramp] of Object.entries(ramps)) {
+    const sum = (r: typeof ramp) => r.color.reduce((t, c, i) => (i % 4 === 3 ? t : t + c), 0)
+    expect(sum(dark[role]), role).toBeLessThan(sum(ramp))
+  }
+})
+
+describe('deciduous models', () => {
+  test('every bare stand-in was built', () => {
+    for (const { bare } of Object.values(DECIDUOUS)) {
       expect(models).toHaveProperty(bare)
       expect(models).toHaveProperty(`${bare}-far`)
     }
   })
 
-  test('evergreens keep their leaves', () => {
-    const swapped = seasonSwaps('winter')
-    for (const model of [...TREE_FAMILIES.conifer, ...TREE_FAMILIES.pine, ...TREE_FAMILIES.palm]) expect(swapped).not.toHaveProperty(model)
-    expect(swapped).toHaveProperty(TREE_FAMILIES.broadleaf[0])
-    expect(swapped).toHaveProperty(`${TREE_FAMILIES.blossom[0]}-crown`)
+  test('cover the broadleaves and cherries, crown-only too, and no evergreen', () => {
+    expect(DECIDUOUS).toHaveProperty(TREE_FAMILIES.broadleaf[0])
+    expect(DECIDUOUS).toHaveProperty(`${TREE_FAMILIES.blossom[0]}-crown`)
+    for (const model of [...TREE_FAMILIES.conifer, ...TREE_FAMILIES.pine, ...TREE_FAMILIES.palm]) expect(DECIDUOUS).not.toHaveProperty(model)
   })
 })

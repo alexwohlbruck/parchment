@@ -1981,38 +1981,77 @@ function broadleaf({ trunk: [base, top, height], role, at, radii, ...crown }) {
 }
 
 /**
- * Winter branches: a trunk forking into limbs that reach the crown's envelope, then twigs off each.
- * Too fine to resolve from afar, so the far form adds the grey haze a leafless crown reads as.
+ * Winter branches: a trunk forking into scaffold limbs that split again and again
+ * toward the crown's envelope, each fork thinner and more upright. Far off, where the
+ * limbs are too thin to resolve, a shell of fine twigs the layer draws as a veil (see `twigs`).
  */
 function bareTree(q, { base, top, height, at, radii, seed }) {
   const r = rng(seed + 1000)
-  const [rx, ry, rz] = radii
   const near = q === NEAR
+  const [rx, ry, rz] = radii
   const bark = cylinder(mesh(), q.sides, base, top, 0, height)
-  const reach = (yaw, pitch, share) => [
-    at[0] + Math.cos(yaw) * Math.cos(pitch) * rx * share,
-    at[1] + Math.sin(pitch) * ry * share,
-    at[2] + Math.sin(yaw) * Math.cos(pitch) * rz * share,
-  ]
-  const lerp3 = (a, b, t) => a.map((c, i) => c + (b[i] - c) * t)
-  limb(bark, [0, height * 0.9, 0], [at[0], at[1] + ry * 0.8, at[2]], top * 0.8, top * 0.25)
-  const limbs = near ? 6 : 4
-  for (let k = 0; k < limbs; k++) {
-    const yaw = k * 2.39996 + r() * 0.4
-    const pitch = 0.2 + r() * 0.75
-    const from = [0, height * (0.85 + r() * 0.15) + k * ((at[1] - height) / limbs) * 0.6, 0]
-    const to = reach(yaw, pitch, 0.78 + r() * 0.12)
-    limb(bark, from, to, top * 0.62, top * 0.14)
-    if (!near) continue
-    for (const turn of [-0.7, 0.75]) {
-      const fork = lerp3(from, to, 0.45 + r() * 0.15)
-      limb(bark, fork, reach(yaw + turn + (r() - 0.5) * 0.3, Math.min(1.3, pitch + 0.35 + r() * 0.25), 0.82 + r() * 0.12), top * 0.3, top * 0.08)
+  const sides = near ? 4 : 3
+  const depth = near ? 3 : 1
+  const add = (v, w, k = 1) => v.map((c, i) => c + w[i] * k)
+  const unit = v => { const l = Math.hypot(...v) || 1; return v.map(c => c / l) }
+  // How far a point sits inside the crown's ellipsoid: 1 on its surface.
+  const inside = p => Math.hypot((p[0] - at[0]) / rx, (p[1] - at[1]) / ry, (p[2] - at[2]) / rz)
+
+  const grow = (from, dir, length, radius, level) => {
+    // Bend toward the envelope where the limb would overshoot it, and lift as it goes.
+    let to = add(from, dir, length)
+    const over = inside(to)
+    if (over > 0.92) to = add(from, dir, length * (0.92 / over))
+    to[1] += length * 0.08
+    const tip = radius * (level === depth ? 0.35 : 0.62)
+    taperedLimb(bark, from, to, radius, tip, sides)
+    if (level === depth) return
+    const forks = level === 0 ? 3 : 2
+    const spin = r() * Math.PI * 2
+    for (let k = 0; k < forks; k++) {
+      const yaw = spin + (k / forks) * Math.PI * 2
+      const side = [Math.cos(yaw), 0, Math.sin(yaw)]
+      const child = unit(add(add(dir, side, 0.55 + r() * 0.25), [0, 1, 0], 0.25))
+      const start = add(from, unit(to.map((c, i) => c - from[i])), Math.hypot(...to.map((c, i) => c - from[i])) * (0.75 + r() * 0.2))
+      grow(start, child, length * (0.62 + r() * 0.12), tip, level + 1)
     }
   }
-  const parts = [{ role: 'bark', ...bark }]
-  if (!near)
-    parts.push({ role: 'twigs', ...blob(mesh(), [at[0], at[1] + ry * 0.05, at[2]], radii.map(c => c * 0.82), { subdivisions: 1, seed, lump: 0.08, flat: 0.75 }) })
-  return parts
+
+  // A leader up the middle, and scaffold limbs round it at the golden angle.
+  const crotch = [0, height, 0]
+  grow(crotch, [0, 1, 0], ry * 1.1, top * 0.8, 1)
+  const scaffolds = near ? 4 : 3
+  for (let k = 0; k < scaffolds; k++) {
+    const yaw = k * 2.39996 + r() * 0.5
+    const lean = 0.45 + r() * 0.3
+    const dir = unit([Math.cos(yaw) * Math.sin(lean) * rx, Math.cos(lean) * ry, Math.sin(yaw) * Math.sin(lean) * rz])
+    const from = [0, height * (0.92 + r() * 0.12), 0]
+    grow(from, dir, Math.max(rx, rz) * (0.75 + r() * 0.15), top * 0.7, 0)
+  }
+
+  if (near) return [{ role: 'bark', ...bark }]
+  const twigs = blob(mesh(), [at[0], at[1] + ry * 0.04, at[2]], radii.map(c => c * 0.9), { subdivisions: 1, seed, lump: 0.1, flat: 0.75 })
+  return [{ role: 'bark', ...bark }, { role: 'twigs', ...twigs }]
+}
+
+/** An open limb from `a` to `b` tapering from `r0` to `r1`, with `sides` faces round it; its ends are buried in the next. */
+function taperedLimb(m, a, b, r0, r1, sides) {
+  const d = b.map((c, i) => c - a[i])
+  const len = Math.hypot(...d) || 1
+  const t = d.map(c => c / len)
+  const up = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+  const ul = Math.hypot(...u)
+  u.forEach((c, i) => { u[i] = c / ul })
+  const v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+  const ring = (p, r) => Array.from({ length: sides }, (_, k) => {
+    const ang = (k / sides) * Math.PI * 2
+    return p.map((c, i) => c + (Math.cos(ang) * u[i] + Math.sin(ang) * v[i]) * r)
+  })
+  const lo = ring(a, r0)
+  const hi = ring(b, r1)
+  for (let k = 0; k < sides; k++) quad(m, lo[k], hi[k], hi[(k + 1) % sides], lo[(k + 1) % sides])
+  return m
 }
 
 const TREES = {
@@ -2380,7 +2419,7 @@ async function main() {
   for (const [name, build] of Object.entries(TREES)) {
     const fit = await emit(name, build(), build.far?.())
     if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
-    if (build.bare) await emit(`${name}${BARE_SUFFIX}`, build.bare(), build.bareFar(), fit)
+    if (build.bare) await emit(`${name}${BARE_SUFFIX}`, build.bare(), build.bareFar(), fit, true)
   }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())

@@ -2,7 +2,7 @@
 
 ### Added
 
-* 3D trees and plants change with the seasons: fresh green and cherry blossom in spring, gold and rust in fall, and bare branches in winter, while evergreens stay green. Pick a season under Settings → Appearance.
+* 3D trees and plants change through the year: buds and cherry blossom in spring, gold and rust in fall, bare branches in winter, each tree on its own schedule. Evergreens stay green. Preview any day under Settings → Appearance.
 
 ### Changed
 

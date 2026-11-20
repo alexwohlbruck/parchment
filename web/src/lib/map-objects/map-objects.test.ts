@@ -20,7 +20,6 @@ import { AREA_MODELS, areaObject } from './areas'
 import { SOLAR_MODELS } from './solar'
 import { GOLF_MODELS } from './golf'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_SOLID, objectPalette } from './index'
-import type { Season } from './seasons'
 import { FAR_SUFFIX, FRONT_FACE, groundPlane, nearOf, project, shadowModel } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
@@ -29,7 +28,6 @@ const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...GOLF_MODELS, ...LINE_MODELS, ...POWER_MODELS, ...AREA_MODELS, ...SOLAR_MODELS })
 /** The roles a crown is made of. */
 const CANOPY = new Set(['foliage', 'needles', 'frond', 'shrub', 'twigs', 'blossom'])
-const SEASONS: Season[] = ['spring', 'summer', 'fall', 'winter']
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -249,9 +247,7 @@ describe('models', () => {
   test.each(ALL)('%s carries roles rather than baked colours', name => {
     // The role is what lets the layer retint per flavor. Written as the
     // material name, since glTF has no field for it.
-    for (const season of SEASONS)
-      for (const p of load(name).primitives)
-        expect(Object.keys(objectPalette('light', season)), `${name}: ${p.material}`).toContain(p.material)
+    for (const p of load(name).primitives) expect(Object.keys(objectPalette('light')), `${name}: ${p.material}`).toContain(p.material)
   })
 
   /**
@@ -778,9 +774,9 @@ describe('ground plane', () => {
   })
 })
 
-describe.each(SEASONS)('flavors in %s', season => {
-  const light = objectPalette('light', season)
-  const dark = objectPalette('dark', season)
+describe('flavors', () => {
+  const light = objectPalette('light')
+  const dark = objectPalette('dark')
 
   test('both flavors colour every role', () => {
     expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort())

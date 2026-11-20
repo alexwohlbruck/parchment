@@ -21,7 +21,7 @@ import { AREA_MODELS, AREA_OBJECTS } from './areas'
 import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
 import { FIXTURE_MODELS, FIXTURE_OBJECTS } from './fixtures'
 import { INDOOR_FLIGHT_MODELS } from './indoor-flights'
-import { seasonPalette, type Season } from './seasons'
+import { rampAt, seasonRamps } from './seasons'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -156,11 +156,17 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   },
 }
 
-/** Every role's colour for a flavor in a season. */
-export function objectPalette(flavor: FlavorId, season: Season): ObjectPalette {
-  return { ...OBJECT_PALETTE[flavor], ...seasonPalette(season, flavor) }
+const MIDSUMMER = 182 / 365
+
+/** Every role's colour for a flavor, the leafy ones as they stand at midsummer; the year moves them in the shader. */
+export function objectPalette(flavor: FlavorId): ObjectPalette {
+  const leaves = Object.entries(seasonRamps(flavor)).flatMap(([role, ramp]) => {
+    const { color, alt } = rampAt(ramp, MIDSUMMER)
+    return [[role, color], [`${role}-alt`, alt]]
+  })
+  return { ...OBJECT_PALETTE[flavor], ...Object.fromEntries(leaves) }
 }
 
 export { ObjectLayer } from './object-layer'
-export { seasonAt, seasonSwaps, type Season } from './seasons'
+export { DECIDUOUS, dayOfYear, seasonRamps, yearAt } from './seasons'
 export type { ObjectInstance, ObjectSourceSpec, ObjectPalette } from './object-layer'

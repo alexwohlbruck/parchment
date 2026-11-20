@@ -18,7 +18,6 @@ import {
   StartupLocation,
   GridSnapMode,
   ShadowMode,
-  PlantSeason,
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
@@ -38,7 +37,7 @@ const defaultSettings: MapSettings = {
   buildings3d: true,
   objects3d: true,
   shadows: ShadowMode.ALWAYS,
-  season: PlantSeason.AUTO,
+  plantDay: null,
   poiLabels: true,
   roadLabels: true,
   transitLabels: true,
@@ -129,7 +128,7 @@ export const useMapStore = defineStore('map', () => {
   }
   if (settings.value.objects3d === undefined) settings.value.objects3d = true
   settings.value.shadows ??= ShadowMode.ALWAYS
-  settings.value.season ??= PlantSeason.AUTO
+  settings.value.plantDay ??= null
 
   // HD roads became default-on for MapLibre. A stored `false` from the old
   // default can't be told apart from a chosen one, so clear it once.

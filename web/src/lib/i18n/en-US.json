@@ -3193,13 +3193,7 @@
         },
         "season": {
           "title": "Season",
-          "values": {
-            "auto": "Current",
-            "spring": "Spring",
-            "summer": "Summer",
-            "fall": "Fall",
-            "winter": "Winter"
-          }
+          "today": "Today"
         },
         "hdRoads": "Lanes and crosswalks",
         "indoorMaps": "Indoor maps",

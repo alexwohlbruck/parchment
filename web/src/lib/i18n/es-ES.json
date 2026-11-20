@@ -3048,13 +3048,7 @@
         },
         "season": {
           "title": "Estación",
-          "values": {
-            "auto": "Actual",
-            "spring": "Primavera",
-            "summer": "Verano",
-            "fall": "Otoño",
-            "winter": "Invierno"
-          }
+          "today": "Hoy"
         },
         "hdRoads": "Carreteras HD",
         "indoorMaps": "Mapas de interiores",

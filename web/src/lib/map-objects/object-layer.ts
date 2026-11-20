@@ -35,6 +35,7 @@ import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
+import { PHASE_SPREAD, RAMP, phaseOf, plantYear, rampAt, type Deciduous, type SeasonRamp } from './seasons'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
@@ -121,6 +122,11 @@ const VS = `#version 300 es
   /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
   uniform vec3 u_flutter;
   uniform float u_time;
+  /** The role's year, when it has one: rgb and leaf per step, the tinted rgb, and where the year stands. */
+  uniform float u_seasonal;
+  uniform vec4 u_ramp[${RAMP}];
+  uniform vec3 u_rampAlt[${RAMP}];
+  uniform float u_year;
 
   in vec3 a_position;
   in vec3 a_normal;
@@ -144,6 +150,9 @@ const VS = `#version 300 es
   ${LAMP_LIGHT_GLSL}
 
   out vec3 v_color;
+  /** How much of its leaf the part carries, and where on it a fragment is, for thinning a crown. */
+  out float v_leaf;
+  out vec3 v_grain;
   out vec4 v_sun;
   /** How squarely the face meets the sun, -1 to 1. */
   out float v_facing;
@@ -192,6 +201,19 @@ const VS = `#version 300 es
     float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
+    v_leaf = 1.0;
+    if (u_seasonal > 0.0) {
+      // Each plant a few days early or late; see \`phaseOf\`.
+      float phase = fract(a_tint * 7.13 + a_shade * 13.7);
+      float at = fract(u_year + (phase - 0.5) * ${(2 * PHASE_SPREAD).toFixed(6)}) * ${RAMP}.0;
+      int i = int(floor(at)) % ${RAMP};
+      int j = (i + 1) % ${RAMP};
+      float t = fract(at);
+      vec4 day = mix(u_ramp[i], u_ramp[j], t);
+      base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
+      v_leaf = day.a;
+    }
+    v_grain = a_position * 5.0 + a_shape.z * 17.0;
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
     v_color += (base * a_shade + 0.06) * lampLight((u_lightUv * vec4(world.xy, 0.0, 1.0)).xy, (world.z - a_offset.z) / u_perMetre);
     v_color = mix(v_color, base, u_lamp);
@@ -207,11 +229,27 @@ const FS = `#version 300 es
   uniform float u_shadowAlpha;
   uniform vec3 u_shadowColor;
   in vec3 v_color;
+  in float v_leaf;
+  in vec3 v_grain;
   in vec4 v_sun;
   in float v_facing;
+  /** 1 for a part drawn as a veil, thinned per pixel rather than in clumps. */
+  uniform float u_sheer;
   out vec4 fragColor;
   ${SUN_SHADOW_GLSL}
+  float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+  /** Smooth value noise over the model, so a thinning crown loses whole clumps rather than pixels. */
+  float clumps(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y);
+    float b = mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y);
+    return mix(a, b, f.z);
+  }
   void main() {
+    float cover = u_sheer > 0.0 ? hash3(vec3(floor(gl_FragCoord.xy), 0.0)) : clumps(v_grain);
+    if (v_leaf < 0.999 && cover > v_leaf) discard;
     // A face turned from the sun is in its own shadow; one turned to it is in whatever stands between. Near
     // edge-on the map cannot tell which, so the two ease into each other.
     float facing = clamp(v_facing, 0.0, 1.0);
@@ -407,6 +445,8 @@ type ModelBuffers = {
     occlusion: [number, number, number]
     /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
     flutter: [number, number, number]
+    /** The role's year, for the plants that change with it. */
+    ramp?: SeasonRamp
   }>
   /** Whether any part flutters, so a flag in view can start a flutter; see `startFlutter`. */
   flutters: boolean
@@ -588,10 +628,20 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt; swaps?: Record<string, string> } = {},
+    options: {
+      id?: string
+      solid?: Record<string, boolean>
+      standOn?: StandOn
+      surfaceAt?: SurfaceAt
+      seasons?: { ramps: Record<string, SeasonRamp>; deciduous: Record<string, Deciduous>; year: number }
+    } = {},
   ) {
     this.id = options.id ?? 'map-objects'
-    this.swaps = options.swaps ?? {}
+    if (options.seasons) {
+      this.ramps = options.seasons.ramps
+      this.deciduous = options.seasons.deciduous
+      this.year = options.seasons.year
+    }
     this.solid = options.solid ?? {}
     this.standOn = options.standOn
     this.surfaceAt = options.surfaceAt
@@ -630,20 +680,26 @@ export class ObjectLayer {
     this.map?.triggerRepaint?.()
   }
 
-  /** Models drawn in place of others, by name, as a bare tree stands in for a leafy one in winter. */
-  private swaps: Record<string, string> = {}
+  /** Each leafy role's year, the deciduous models and their bare branches, and where the year stands, 0-1. */
+  private ramps: Record<string, SeasonRamp> = {}
+  private deciduous: Record<string, Deciduous> = {}
+  private year = 0.5
 
-  setSwaps(swaps: Record<string, string>) {
-    this.swaps = swaps
+  /** Move the plants through the year: a uniform, plus a re-sort where a tree's branches come into or out of view. */
+  setYear(year: number) {
+    if (year === this.year) return
+    this.year = year
     if (this.map) this.invalidate(false)
   }
 
-  setFlavor(palette: ObjectPalette) {
+  setFlavor(palette: ObjectPalette, ramps: Record<string, SeasonRamp> = this.ramps) {
     this.palette = palette
+    this.ramps = ramps
     for (const model of this.models.values())
       for (const p of model.primitives) {
         p.color = palette[p.role] ?? p.color
         p.colorAlt = palette[`${p.role}-alt`] ?? p.color
+        p.ramp = ramps[p.role]
       }
     this.map?.triggerRepaint?.()
   }
@@ -653,7 +709,7 @@ export class ObjectLayer {
 
     this.program = link(gl, VS, FS)
     this.uniforms = uniformsOf(gl, this.program,
-      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', ...LAMP_LIGHT_UNIFORMS])
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer', ...LAMP_LIGHT_UNIFORMS])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.stillness?.addEventListener('change', this.onStillness)
     this.sunProgram = link(gl, SUN_VS, DEPTH_FS)
@@ -675,6 +731,7 @@ export class ObjectLayer {
             colorAlt: this.palette[`${p.material}-alt`] ?? color,
             occlusion: crownOcclusion(p.material, p.position),
             flutter: flutterOf(p.material, p.position, name.endsWith(FAR_SUFFIX)),
+            ramp: this.ramps[p.material],
           }
         })
       this.models.set(name, {
@@ -985,16 +1042,28 @@ export class ObjectLayer {
     const nearLimitSquared = zoom < FAR_BELOW_ZOOM ? 0 : nearLimit * nearLimit
 
     const buckets = new Map<string, Placed[]>()
-    for (const p of this.placed) {
-      const model = this.swaps[p.instance.model] ?? p.instance.model
+    const add = (model: string, p: Placed, near: boolean) => {
       const far = `${model}${FAR_SUFFIX}`
-      const dx = p.x - origin.x
-      const dy = p.y - origin.y
-      const which =
-        this.models.has(far) && dx * dx + dy * dy > nearLimitSquared ? far : model
+      const which = !near && this.models.has(far) ? far : model
       const list = buckets.get(which)
       if (list) list.push(p)
       else buckets.set(which, [p])
+    }
+    for (const p of this.placed) {
+      const { model, tint = 0, shade } = p.instance
+      const dx = p.x - origin.x
+      const dy = p.y - origin.y
+      const near = dx * dx + dy * dy <= nearLimitSquared
+      const deciduous = this.deciduous[model]
+      const ramp = deciduous && this.ramps[deciduous.role]
+      if (!ramp) {
+        add(model, p, near)
+        continue
+      }
+      // Branches show under any crown not in full leaf; a crown with none left is not drawn at all.
+      const leaf = rampAt(ramp, plantYear(this.year, phaseOf(tint, shade))).leaf
+      if (leaf < 0.98) add(deciduous.bare, p, near)
+      if (leaf > 0.02) add(model, p, near)
     }
 
     this.retire()
@@ -1122,6 +1191,7 @@ export class ObjectLayer {
     bindLights(gl, this.uniforms, lights)
     gl.uniformMatrix4fv(this.uniforms.u_lightUv, false, lights ? lightAbout(lights.uv, this.origin) : IDENTITY)
     gl.uniform1f(this.uniforms.u_perMetre, this.placed[0]?.perMetre ?? 1)
+    gl.uniform1f(this.uniforms.u_year, this.year)
     const night = !!lights && lights.strength > 0
 
     const ghost = ghostBlend(gl, this.opacity)
@@ -1141,6 +1211,12 @@ export class ObjectLayer {
         this.bindArrays(gl, batch, primitive)
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
         gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
+        gl.uniform1f(this.uniforms.u_seasonal, primitive.ramp ? 1 : 0)
+        gl.uniform1f(this.uniforms.u_sheer, SHEER.has(primitive.role) ? 1 : 0)
+        if (primitive.ramp) {
+          gl.uniform4fv(this.uniforms.u_ramp, primitive.ramp.color)
+          gl.uniform3fv(this.uniforms.u_rampAlt, primitive.ramp.alt)
+        }
         gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
         gl.uniform1f(this.uniforms.u_lamp, night && primitive.role === 'lamp' ? 1 : 0)
         const [amplitude, held, run] = primitive.flutter

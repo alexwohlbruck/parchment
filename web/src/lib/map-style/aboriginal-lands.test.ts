@@ -11,7 +11,7 @@ const labelled = (zoom: number, km2: number) =>
   featureFilter(labelFilter(), 'filter').filter({ zoom }, { type: 1, properties: { area: km2 * KM2 } } as any)
 
 const text = (properties: Record<string, string>) => {
-  const parsed = expression.createExpression(LABEL_TEXT, latest.layout_symbol['text-field']) as any
+  const parsed = expression.createExpression(LABEL_TEXT, latest.layout_symbol['text-field'] as any) as any
   const value = parsed.value.evaluate({ zoom: 8 }, { type: 1, properties })
   return value.sections ? value.sections.map((s: any) => s.text).join('') : String(value)
 }

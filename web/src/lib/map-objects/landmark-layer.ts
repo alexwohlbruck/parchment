@@ -1728,7 +1728,7 @@ export class LandmarkLayer {
    */
   private drawGlass(
     gl: WebGL2RenderingContext,
-    u: Uniforms,
+    u: Uniforms<string>,
     glazed: Array<[Placement, Model]>,
     place: (p: Placement, model: Model) => void,
     now: number,

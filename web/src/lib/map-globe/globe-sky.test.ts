@@ -8,7 +8,7 @@ function context() {
     createProgram: vi.fn(() => ({})), createShader: vi.fn(() => ({})),
     shaderSource: vi.fn(), compileShader: vi.fn(), getShaderParameter: vi.fn(() => true),
     deleteShader: vi.fn(), attachShader: vi.fn(), linkProgram: vi.fn(),
-    getProgramParameter: vi.fn(() => true), deleteProgram: vi.fn(), getExtension: vi.fn(() => null),
+    getProgramParameter: vi.fn((_program: unknown, _status: number) => true), deleteProgram: vi.fn(), getExtension: vi.fn((): unknown => null),
     createVertexArray: vi.fn(() => ({})), deleteVertexArray: vi.fn(),
     getUniformLocation: vi.fn((_program, name) => name),
     useProgram: vi.fn(), bindVertexArray: vi.fn(), disable: vi.fn(), enable: vi.fn(),
@@ -182,7 +182,7 @@ describe('GlobeSky', () => {
   it('skips drawing until its program has finished compiling', () => {
     const { gl, calls } = context()
     let complete = false
-    calls.getExtension.mockReturnValue({ COMPLETION_STATUS_KHR: 1 } as never)
+    calls.getExtension.mockReturnValue({ COMPLETION_STATUS_KHR: 1 })
     calls.getProgramParameter.mockImplementation((_program, status) => status !== 1 || complete)
     const host = { ...map(), triggerRepaint: vi.fn() } as unknown as Map
     const sky = new GlobeSky()

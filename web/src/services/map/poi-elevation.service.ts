@@ -8,7 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatures, sourceTileFeatures } from '@/lib/map/source-features'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import {
@@ -37,6 +37,42 @@ const LIFT = ['coalesce', ['get', '_elev'], 0]
 type Overlay = { raw: any; set: (data: any) => void; signature: string }
 
 type Ring = Array<[number, number]>
+
+/** A basemap POI with the keys a hydration compares by, and the raised copy it last made of it. */
+type PoiEntry = {
+  feature: any
+  point: [number, number]
+  at: string
+  key: string
+  heightKey: string
+  raised: any | null
+}
+
+/** A tile's POIs read into entries once; the tile's feature array is kept until the tile reloads. */
+const poiEntries = new WeakMap<any[], PoiEntry[]>()
+
+function tilePois(features: any[]): PoiEntry[] {
+  let entries = poiEntries.get(features)
+  if (entries) return entries
+  entries = []
+  for (const feature of features) {
+    const point = feature.geometry?.coordinates as [number, number]
+    if (!point) continue
+    const at = `${point}`
+    const p = feature.properties
+    entries.push({ feature, point, at, key: `${at}|${p?.name ?? ''}|${p?.class ?? ''}`, heightKey: `${at}|${p?.level ?? ''}`, raised: null })
+  }
+  poiEntries.set(features, entries)
+  return entries
+}
+
+function raisedPoi(entry: PoiEntry, _elev: number) {
+  if (entry.raised?.properties._elev !== _elev) {
+    const f = entry.feature
+    entry.raised = { type: 'Feature', id: f.id, properties: { ...f.properties, _elev }, geometry: f.geometry }
+  }
+  return entry.raised
+}
 
 /**
  * The loaded tiles' building footprints. A tile's buildings never change once
@@ -213,20 +249,18 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const positions: string[] = []
     const nextElevations = new Map<string, number>()
     let read = 0
-    for (const f of sourceFeatures(map, tiles, 'poi')) {
-      if (++read % 32 === 0) yield
-      const point = f.geometry?.coordinates as [number, number]
-      if (!point) continue
-      const key = `${point}|${f.properties?.name ?? ''}|${f.properties?.class ?? ''}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      const heightKey = `${point}|${f.properties?.level ?? ''}`
-      const _elev = lift
-        ? nextElevations.get(heightKey) ?? elevations.get(heightKey) ?? Math.round(poiElevation(point, f.properties?.level, currentNear) * 2) / 2
-        : 0
-      nextElevations.set(heightKey, _elev)
-      positions.push(`${point}:${_elev}`)
-      features.push({ type: 'Feature', id: f.id, properties: { ...f.properties, _elev }, geometry: f.geometry })
+    for (const tile of sourceTileFeatures(map, tiles, 'poi')) {
+      for (const entry of tilePois(tile)) {
+        if (++read % 64 === 0) yield
+        if (seen.has(entry.key)) continue
+        seen.add(entry.key)
+        const _elev = lift
+          ? nextElevations.get(entry.heightKey) ?? elevations.get(entry.heightKey) ?? Math.round(poiElevation(entry.point, entry.feature.properties?.level, currentNear) * 2) / 2
+          : 0
+        nextElevations.set(entry.heightKey, _elev)
+        positions.push(`${entry.at}:${_elev}`)
+        features.push(raisedPoi(entry, _elev))
+      }
     }
     elevations = nextElevations
     // setData re-tiles and repaints, which ends in another idle: an unchanged

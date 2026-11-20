@@ -19,17 +19,22 @@ function tileFeatures(tile: any, sourceLayer: string): any[] {
   return features
 }
 
-export function sourceFeatures(map: any, source: string, sourceLayer = ''): any[] {
+/** Each loaded tile's features in a source layer, one array per tile, kept the same until the tile reloads. */
+export function sourceTileFeatures(map: any, source: string, sourceLayer = ''): any[][] {
   try {
     const manager = map.style?.tileManagers?.[source]
-    if (!manager?.getRenderableIds) return map.querySourceFeatures(source, sourceLayer ? { sourceLayer } : {})
+    if (!manager?.getRenderableIds) return [map.querySourceFeatures(source, sourceLayer ? { sourceLayer } : {})]
     const tiles = new Map<string, any>()
     for (const id of manager.getRenderableIds()) {
       const tile = manager.getTileByID(id)
       if (tile && !tiles.has(tile.tileID.canonical.key)) tiles.set(tile.tileID.canonical.key, tile)
     }
-    return [...tiles.values()].flatMap(tile => tileFeatures(tile, sourceLayer))
+    return [...tiles.values()].map(tile => tileFeatures(tile, sourceLayer))
   } catch {
     return []
   }
+}
+
+export function sourceFeatures(map: any, source: string, sourceLayer = ''): any[] {
+  return sourceTileFeatures(map, source, sourceLayer).flat()
 }

@@ -169,9 +169,12 @@ import {
   FINE_TERRAIN_PROTOCOL,
 } from '@/lib/map-style/terrain'
 import { FineTerrain } from '@/lib/map-style/fine-terrain'
+import { GLOBE_PROTOCOL } from '@/lib/map-style/globe-layers'
+import { loadGlobeTile } from '@/lib/map-style/globe-tiles'
 
 const fineTerrain = new FineTerrain()
 addProtocol(FINE_TERRAIN_PROTOCOL, async params => ({ data: await fineTerrain.tile(params.url) }))
+addProtocol(GLOBE_PROTOCOL, async (params, abort) => ({ data: await loadGlobeTile(params.url, abort.signal) }))
 import {
   rgbToHex,
   adjustLightness,

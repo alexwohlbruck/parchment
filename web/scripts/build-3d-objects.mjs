@@ -1991,7 +1991,7 @@ function bareTree(q, { base, top, height, at, radii, seed }) {
   const [rx, ry, rz] = radii
   const bark = cylinder(mesh(), q.sides, base, top, 0, height)
   const sides = near ? 4 : 3
-  const depth = near ? 3 : 1
+  const depth = near ? 2 : 1
   const add = (v, w, k = 1) => v.map((c, i) => c + w[i] * k)
   const unit = v => { const l = Math.hypot(...v) || 1; return v.map(c => c / l) }
   // How far a point sits inside the crown's ellipsoid: 1 on its surface.
@@ -2003,10 +2003,10 @@ function bareTree(q, { base, top, height, at, radii, seed }) {
     const over = inside(to)
     if (over > 0.92) to = add(from, dir, length * (0.92 / over))
     to[1] += length * 0.08
-    const tip = radius * (level === depth ? 0.35 : 0.62)
+    const tip = radius * (level === depth ? 0.45 : 0.68)
     taperedLimb(bark, from, to, radius, tip, sides)
     if (level === depth) return
-    const forks = level === 0 ? 3 : 2
+    const forks = 2
     const spin = r() * Math.PI * 2
     for (let k = 0; k < forks; k++) {
       const yaw = spin + (k / forks) * Math.PI * 2
@@ -2020,7 +2020,7 @@ function bareTree(q, { base, top, height, at, radii, seed }) {
   // A leader up the middle, and scaffold limbs round it at the golden angle.
   const crotch = [0, height, 0]
   grow(crotch, [0, 1, 0], ry * 1.1, top * 0.8, 1)
-  const scaffolds = near ? 4 : 3
+  const scaffolds = 3
   for (let k = 0; k < scaffolds; k++) {
     const yaw = k * 2.39996 + r() * 0.5
     const lean = 0.45 + r() * 0.3

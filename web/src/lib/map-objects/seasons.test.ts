@@ -40,15 +40,16 @@ describe('broadleaves', () => {
 
   test('come into and out of leaf gradually', () => {
     const spring = leaf('foliage', on(4, 10))
-    const fall = leaf('foliage', on(11, 10))
+    const fall = leaf('foliage', on(11, 20))
     expect(spring).toBeGreaterThan(0)
     expect(spring).toBeLessThan(1)
     expect(fall).toBeGreaterThan(0)
     expect(fall).toBeLessThan(1)
   })
 
-  test('turn warm in fall', () => {
-    expect(warmth('foliage', on(10, 20))).toBeGreaterThan(1)
+  test('turn warm in fall and keep most of their leaf through mid-November', () => {
+    expect(warmth('foliage', on(10, 25))).toBeGreaterThan(1)
+    expect(leaf('foliage', on(11, 15))).toBeGreaterThan(0.7)
     expect(warmth('foliage', on(7))).toBeLessThan(1)
   })
 })

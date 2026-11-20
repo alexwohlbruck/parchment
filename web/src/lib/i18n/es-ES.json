@@ -67,6 +67,8 @@
     "saved": "Guardado"
   },
   "history": {
+    "canvasDeleted": "{name} eliminado",
+    "canvasUpdated": "Lienzo actualizado",
     "undone": "Deshecho: {label}",
     "undoFailed": "No se pudo deshacer",
     "redoFailed": "No se pudo rehacer"
@@ -597,6 +599,11 @@
     "toHere": "Hasta aquí"
   },
   "layers": {
+    "history": {
+      "created": "Capa creada",
+      "updated": "Capa actualizada",
+      "deleted": "{name} eliminada"
+    },
     "title": "Capas",
     "search": {
       "placeholder": "Buscar capas…",

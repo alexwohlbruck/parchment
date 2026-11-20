@@ -68,6 +68,8 @@
     "saved": "Saved"
   },
   "history": {
+    "canvasDeleted": "Deleted {name}",
+    "canvasUpdated": "Canvas updated",
     "undone": "Undid: {label}",
     "undoFailed": "Couldn't undo that",
     "redoFailed": "Couldn't redo that"
@@ -605,6 +607,11 @@
     "toHere": "To here"
   },
   "layers": {
+    "history": {
+      "created": "Layer created",
+      "updated": "Layer updated",
+      "deleted": "Deleted {name}"
+    },
     "title": "Layers",
     "search": {
       "placeholder": "Search layers…",

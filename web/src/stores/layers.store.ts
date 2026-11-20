@@ -47,6 +47,8 @@ import {
   type LayerStoreItem,
 } from '@/lib/map/layer-templates'
 import { i18n } from '@/lib/i18n'
+import { useHistoryStore } from '@/stores/history.store'
+import { previousValues } from '@/lib/history/previous-values'
 import { partitionArchived } from '@/lib/map/layer-archive'
 
 /**
@@ -105,11 +107,15 @@ function buildDefaultStatePatch(
  * narrowed to the one signature this file uses. `legacy: false` keeps it
  * reactive, so labels still follow a locale change.
  */
-const translate = (i18n.global as any).t as (key: string) => string
+const translate = (i18n.global as any).t as (
+  key: string,
+  named?: Record<string, unknown>,
+) => string
 
 export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
   const crudService = useLayerCrudService()
+  const history = useHistoryStore()
   const integrationsStore = useIntegrationsStore()
 
   // ==========================================================================
@@ -718,7 +724,7 @@ export const useLayersStore = defineStore('layers', () => {
   // LAYER CRUD — routes to state/clone/userLayers based on id
   // ==========================================================================
 
-  async function addLayer(
+  async function createLayer(
     layer: Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
     const newLayer = await crudService.createLayer(layer)
@@ -727,7 +733,7 @@ export const useLayersStore = defineStore('layers', () => {
     return newLayer
   }
 
-  async function updateLayer(id: string, updates: Partial<Layer>) {
+  async function applyLayerUpdate(id: string, updates: Partial<Layer>) {
     // Virtual layers/groups (saved places) have no server row — a PATCH
     // would 404. Visibility is the only mutable thing about them and it
     // flows through the override maps instead.
@@ -758,7 +764,7 @@ export const useLayersStore = defineStore('layers', () => {
     return updatedLayer
   }
 
-  async function removeLayer(id: string) {
+  async function deleteLayer(id: string) {
     // Virtual layers/groups (saved places) have no server row — a PATCH
     // would 404. Visibility is the only mutable thing about them and it
     // flows through the override maps instead.
@@ -779,6 +785,76 @@ export const useLayersStore = defineStore('layers', () => {
     syncLayersToCache()
   }
 
+  type NewLayer = Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+
+  /** A user layer's own fields, as `addLayer` takes them, to make it again. */
+  function newLayerOf(layer: Layer): NewLayer {
+    const { id: _id, userId: _u, createdAt: _c, updatedAt: _up, ...fields } =
+      JSON.parse(JSON.stringify(layer)) as Layer
+    return fields
+  }
+
+  async function addLayer(layer: NewLayer) {
+    const created = await createLayer(layer)
+    let id = created.id
+    history.record(
+      {
+        label: translate('layers.history.created'),
+        undo: () => deleteLayer(id),
+        redo: async () => {
+          id = (await createLayer(layer)).id
+        },
+      },
+      { quiet: true },
+    )
+    return created
+  }
+
+  async function updateLayer(id: string, updates: Partial<Layer>) {
+    if (isFixedLayer(id)) return applyLayerUpdate(id, updates)
+    const previous = previousValues(layers.value.find(l => l.id === id), updates)
+    const updated = await applyLayerUpdate(id, updates)
+    history.record(
+      {
+        label: translate('layers.history.updated'),
+        undo: () => applyLayerUpdate(id, previous),
+        redo: () => applyLayerUpdate(id, updates),
+      },
+      { quiet: true },
+    )
+    return updated
+  }
+
+  /** Virtual and core layers have nothing a user can change, or take back. */
+  const isFixedLayer = (id: string) =>
+    isVirtualLayerId(id) || Object.values(CORE_LAYER_IDS).includes(id as any)
+
+  async function removeLayer(id: string) {
+    const layer = layers.value.find(l => l.id === id)
+    const owned = userOwnedLayers.value.some(l => l.id === id)
+    await deleteLayer(id)
+    if (!layer || isFixedLayer(id)) return
+    const label = translate('layers.history.deleted', { name: layer.name })
+    if (isTemplateId(id)) {
+      history.record({
+        label,
+        undo: () => patchDefaultLayerState(id, { hidden: false }),
+        redo: () => patchDefaultLayerState(id, { hidden: true }),
+      })
+      return
+    }
+    if (!owned) return
+    const fields = newLayerOf(layer)
+    let current = id
+    history.record({
+      label,
+      undo: async () => {
+        current = (await createLayer(fields)).id
+      },
+      redo: () => deleteLayer(current),
+    })
+  }
+
   // ==========================================================================
   // LAYER GROUP CRUD
   // ==========================================================================
@@ -792,7 +868,7 @@ export const useLayersStore = defineStore('layers', () => {
     return newGroup
   }
 
-  async function updateLayerGroup(id: string, updates: Partial<LayerGroup>) {
+  async function applyGroupUpdate(id: string, updates: Partial<LayerGroup>) {
     // Virtual layers/groups (saved places) have no server row — a PATCH
     // would 404. Visibility is the only mutable thing about them and it
     // flows through the override maps instead.
@@ -813,6 +889,24 @@ export const useLayersStore = defineStore('layers', () => {
     if (index !== -1) userOwnedGroups.value[index] = updatedGroup
     syncGroupsToCache()
     return updatedGroup
+  }
+
+  async function updateLayerGroup(id: string, updates: Partial<LayerGroup>) {
+    if (isVirtualLayerId(id)) return
+    const previous = previousValues(
+      allLayerGroups.value.find(g => g.id === id),
+      updates,
+    )
+    const updated = await applyGroupUpdate(id, updates)
+    history.record(
+      {
+        label: translate('layers.history.updated'),
+        undo: () => applyGroupUpdate(id, previous),
+        redo: () => applyGroupUpdate(id, updates),
+      },
+      { quiet: true },
+    )
+    return updated
   }
 
   async function removeLayerGroup(id: string) {

@@ -1,17 +1,8 @@
 import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
-import { integrationManager } from '../services/integrations'
-import { IntegrationId } from '../types/integration.types'
 import { getStationsGeoJson } from '../services/air-quality.service'
-import { parseBbox, parseFirmsCsv, EMPTY_FC, type Bbox } from '../lib/wildfire'
-
-/** NASA FIRMS MAP_KEY from the user-configured integration (undefined if unset). */
-function firmsKey(): string | undefined {
-  const rec = integrationManager
-    .getConfiguredIntegrations()
-    .find((i) => i.integrationId === IntegrationId.FIRMS)
-  return (rec?.config as { apiKey?: string } | undefined)?.apiKey?.trim() || undefined
-}
+import { parseBbox, EMPTY_FC } from '../lib/wildfire'
+import { getFireHotspots, getFirePerimeters, getSmokePlumes } from '../services/wildfire.service'
 
 // ---------------------------------------------------------------------------
 // Raster tile proxy (XYZ → WMS). Overlays that ARE continuous/dense — the AQI
@@ -72,41 +63,6 @@ async function proxyWmsTile(url: string, maxAge: number): Promise<Response> {
  * never break.
  */
 
-const NIFC_PERIMETERS =
-  'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query'
-const NOAA_HMS_SMOKE =
-  'https://services2.arcgis.com/C8EMgrsFcRFL6LrL/arcgis/rest/services/NOAA_Satellite_Smoke_Detection_(v1)/FeatureServer/0/query'
-
-/** Query an ArcGIS FeatureServer for GeoJSON intersecting a bbox. */
-async function arcgisGeoJson(
-  queryUrl: string,
-  bbox: Bbox,
-  outFields: string,
-  recordCount = 500,
-): Promise<unknown> {
-  const params = new URLSearchParams({
-    where: '1=1',
-    geometry: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
-    geometryType: 'esriGeometryEnvelope',
-    inSR: '4326',
-    spatialRel: 'esriSpatialRelIntersects',
-    outFields,
-    outSR: '4326',
-    resultRecordCount: String(recordCount),
-    f: 'geojson',
-  })
-  try {
-    const res = await fetch(`${queryUrl}?${params}`, {
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (!res.ok) return EMPTY_FC
-    const data = await res.json()
-    return data?.type === 'FeatureCollection' ? data : EMPTY_FC
-  } catch {
-    return EMPTY_FC
-  }
-}
-
 const bboxQuery = t.Object({ bbox: t.String() })
 const tileParams = t.Object({ z: t.Numeric(), x: t.Numeric(), y: t.Numeric() })
 
@@ -153,50 +109,7 @@ app.get(
     set.headers['cache-control'] = 'public, max-age=600'
     const bbox = parseBbox(query.bbox)
     if (!bbox) return EMPTY_FC
-    const key = firmsKey()
-    if (!key) return EMPTY_FC
-    const days = Math.min(Math.max(Number(query.days) || 1, 1), 10)
-    const area = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`
-    // The single-satellite CSV feeds are thin; merge all VIIRS + MODIS to match
-    // the combined WMS coverage.
-    const sources = [
-      'VIIRS_NOAA20_NRT',
-      'VIIRS_NOAA21_NRT',
-      'VIIRS_SNPP_NRT',
-      'MODIS_NRT',
-    ]
-    const results = await Promise.all(
-      sources.map(async (src) => {
-        try {
-          const res = await fetch(
-            `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/${src}/${area}/${days}`,
-            { signal: AbortSignal.timeout(15_000) },
-          )
-          if (!res.ok) return []
-          return parseFirmsCsv(await res.text()).features
-        } catch {
-          return []
-        }
-      }),
-    )
-
-    // VIIRS/MODIS flag huge numbers of low-intensity thermal anomalies (crop
-    // burns, gas flares). Drop low confidence, then keep the most intense so the
-    // vector layer stays crisp/meaningful and renders fast even continent-wide.
-    let features = results.flat().filter((f) => {
-      const c = f.properties.confidence as string | null
-      if (c === 'l') return false // VIIRS low
-      const n = Number(c)
-      return Number.isNaN(n) || n >= 50 // MODIS: drop < 50
-    })
-    const MAX_FIRES = 5000
-    if (features.length > MAX_FIRES) {
-      features.sort(
-        (a, b) => (Number(b.properties.frp) || 0) - (Number(a.properties.frp) || 0),
-      )
-      features = features.slice(0, MAX_FIRES)
-    }
-    return { type: 'FeatureCollection' as const, features }
+    return await getFireHotspots(bbox, Number(query.days) || 1)
   },
   { query: t.Object({ bbox: t.String(), days: t.Optional(t.String()) }) },
 )
@@ -208,11 +121,7 @@ app.get(
     set.headers['cache-control'] = 'public, max-age=1800'
     const bbox = parseBbox(query.bbox)
     if (!bbox) return EMPTY_FC
-    return await arcgisGeoJson(
-      NIFC_PERIMETERS,
-      bbox,
-      'poly_IncidentName,attr_IncidentName,attr_FireDiscoveryDateTime',
-    )
+    return await getFirePerimeters(bbox)
   },
   { query: bboxQuery },
 )
@@ -224,11 +133,7 @@ app.get(
     set.headers['cache-control'] = 'public, max-age=1800'
     const bbox = parseBbox(query.bbox)
     if (!bbox) return EMPTY_FC
-    return await arcgisGeoJson(
-      NOAA_HMS_SMOKE,
-      bbox,
-      'Density,Satellite,Start,End_',
-    )
+    return await getSmokePlumes(bbox)
   },
   { query: bboxQuery },
 )

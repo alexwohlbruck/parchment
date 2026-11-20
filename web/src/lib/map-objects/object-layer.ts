@@ -312,7 +312,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
+export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'needles' | 'frond' | 'shrub' | 'twigs' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full
@@ -588,9 +588,10 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt } = {},
+    options: { id?: string; solid?: Record<string, boolean>; standOn?: StandOn; surfaceAt?: SurfaceAt; swaps?: Record<string, string> } = {},
   ) {
     this.id = options.id ?? 'map-objects'
+    this.swaps = options.swaps ?? {}
     this.solid = options.solid ?? {}
     this.standOn = options.standOn
     this.surfaceAt = options.surfaceAt
@@ -627,6 +628,14 @@ export class ObjectLayer {
   setOpacity(opacity: number) {
     this.opacity = opacity
     this.map?.triggerRepaint?.()
+  }
+
+  /** Models drawn in place of others, by name, as a bare tree stands in for a leafy one in winter. */
+  private swaps: Record<string, string> = {}
+
+  setSwaps(swaps: Record<string, string>) {
+    this.swaps = swaps
+    if (this.map) this.invalidate(false)
   }
 
   setFlavor(palette: ObjectPalette) {
@@ -977,7 +986,7 @@ export class ObjectLayer {
 
     const buckets = new Map<string, Placed[]>()
     for (const p of this.placed) {
-      const model = p.instance.model
+      const model = this.swaps[p.instance.model] ?? p.instance.model
       const far = `${model}${FAR_SUFFIX}`
       const dx = p.x - origin.x
       const dy = p.y - origin.y
@@ -1303,6 +1312,7 @@ export class ObjectLayer {
       const model = this.models.get(shadowModel(batch, this.models))
       if (!model || this.tallest(batch) < least) continue
       for (const primitive of model.primitives) {
+        if (SHEER.has(primitive.role)) continue
         this.bindArrays(gl, batch, primitive)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
@@ -1321,6 +1331,7 @@ export class ObjectLayer {
       const model = this.models.get(name)
       if (!model || this.tallest(batch) < least) continue
       for (const primitive of model.primitives) {
+        if (SHEER.has(primitive.role)) continue
         this.bindArrays(gl, batch, primitive)
         gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
       }
@@ -1381,7 +1392,10 @@ function modelWidth(model: GlbModel): number {
   return width
 }
 
-const CANOPY = new Set(['foliage', 'blossom'])
+const CANOPY = new Set(['foliage', 'needles', 'frond', 'shrub', 'twigs', 'blossom'])
+
+/** Roles light passes through, left out of the shadows: a leafless crown is mostly sky. */
+const SHEER = new Set(['twigs'])
 
 /** A model's extent along x, in its own units. */
 function modelLength(model: GlbModel): number {

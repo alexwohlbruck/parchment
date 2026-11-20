@@ -62,6 +62,7 @@ import {
   Waypoint,
   LayerType,
   ShadowMode,
+  PlantSeason,
 } from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
@@ -149,9 +150,12 @@ import { isOverlay, slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
   OBJECT_MODEL_PACK,
-  OBJECT_PALETTE,
   OBJECT_SOLID,
   OBJECT_SPECS,
+  objectPalette,
+  seasonAt,
+  seasonSwaps,
+  type Season,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
 import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
@@ -343,6 +347,9 @@ export class MaplibreStrategy extends MapStrategy {
   /** Whether 3D terrain is on, known before the style is built so its detail tiles can ask for the decks. */
   private terrainOn = !!this.options.terrain3d
   private shadowMode = ShadowMode.ALWAYS
+  private plantSeason = PlantSeason.AUTO
+  /** The season the object layer was last dressed for. */
+  private season: Season | null = null
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
@@ -610,6 +617,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('moveend', () => {
       setFrameTaskBudget(RESTING_TASK_BUDGET)
       this.updateSunShadow()
+      if (this.plantSeason === PlantSeason.AUTO) this.applySeason()
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
         zoom: this.mapInstance.getZoom(),
@@ -1155,15 +1163,19 @@ export class MaplibreStrategy extends MapStrategy {
     if (!map.style?._loaded) return
 
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    const season = this.resolveSeason()
+    this.season = season
     // Already drawing: a flavor change is a uniform, not a rebuild.
     if (map.getLayer(OBJECT_LAYER_ID) && this.objectLayer) {
-      this.objectLayer.setFlavor(OBJECT_PALETTE[flavor])
+      this.objectLayer.setFlavor(objectPalette(flavor, season))
+      this.objectLayer.setSwaps(seasonSwaps(season))
       return flat()
     }
 
-    this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
+    this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, objectPalette(flavor, season), {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
+      swaps: seasonSwaps(season),
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
       surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
@@ -1370,6 +1382,26 @@ export class MaplibreStrategy extends MapStrategy {
   override setBuildingShade(value: boolean) {
     this.buildingShade = value
     this.applyBuildingShade()
+  }
+
+  override setPlantSeason(season: PlantSeason) {
+    this.plantSeason = season
+    this.applySeason()
+  }
+
+  private resolveSeason(): Season {
+    if (this.plantSeason !== PlantSeason.AUTO) return this.plantSeason
+    return seasonAt(new Date(), this.mapInstance.getCenter().lat)
+  }
+
+  /** Redress the plants when the season changes, as on crossing the equator. */
+  private applySeason() {
+    const season = this.resolveSeason()
+    if (!this.objectLayer || season === this.season) return
+    this.season = season
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    this.objectLayer.setFlavor(objectPalette(flavor, season))
+    this.objectLayer.setSwaps(seasonSwaps(season))
   }
 
   override setShadowMode(mode: ShadowMode) {

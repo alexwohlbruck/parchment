@@ -21,6 +21,7 @@ import { AREA_MODELS, AREA_OBJECTS } from './areas'
 import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
 import { FIXTURE_MODELS, FIXTURE_OBJECTS } from './fixtures'
 import { INDOOR_FLIGHT_MODELS } from './indoor-flights'
+import { seasonPalette, type Season } from './seasons'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -76,10 +77,11 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_
  * in: switching theme is a uniform, not a reload.
  *
  * Colours are plain sRGB triples, written straight to the screen: nothing in
- * the pipeline linearises them. Foliage carries an `-alt`, the bluer green an
- * instance moves toward with its `tint`, so a street of trees varies in hue
- * and not only in value. The shader darkens a crown's underside on top of this,
- * so the named colour is roughly what the sunlit top of a tree reads as.
+ * the pipeline linearises them. Leaves change with the season and live in
+ * `seasons.ts`; each carries an `-alt`, the colour an instance moves toward with
+ * its `tint`, so a street of trees varies in hue and not only in value. The
+ * shader darkens a crown's underside on top of this, so the named colour is
+ * roughly what the sunlit top of a tree reads as.
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
@@ -87,8 +89,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     // A palm's trunk is grey, not brown: ringed, fibrous, and pale as concrete
     // on a royal palm.
     'palm-bark': [0.62, 0.58, 0.52],
-    foliage: [0.66, 0.83, 0.5],
-    'foliage-alt': [0.55, 0.77, 0.52],
     metal: [0.3, 0.36, 0.33],
     wood: [0.62, 0.47, 0.31],
     paint: [0.22, 0.47, 0.36],
@@ -101,8 +101,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     water: [0.55, 0.72, 0.82],
     lamp: [1, 0.95, 0.82],
     panel: [0.95, 0.94, 0.91],
-    blossom: [0.97, 0.76, 0.84],
-    'blossom-alt': [0.98, 0.86, 0.9],
     thatch: [0.74, 0.64, 0.48],
     net: [0.45, 0.48, 0.48],
     tape: [0.97, 0.97, 0.95],
@@ -112,8 +110,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     pennant: [0.8, 0.3, 0.26],
     wire: [0.38, 0.39, 0.41],
     mesh: [0.72, 0.74, 0.74],
-    bloom: [0.9, 0.52, 0.68],
-    'bloom-alt': [0.96, 0.82, 0.36],
     pv: [0.26, 0.34, 0.5],
     lattice: [0.66, 0.68, 0.7],
     housing: [0.2, 0.21, 0.21],
@@ -127,8 +123,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   dark: {
     bark: [0.17, 0.14, 0.12],
     'palm-bark': [0.2, 0.19, 0.17],
-    foliage: [0.17, 0.3, 0.17],
-    'foliage-alt': [0.12, 0.25, 0.18],
     metal: [0.2, 0.23, 0.26],
     wood: [0.24, 0.18, 0.13],
     paint: [0.12, 0.23, 0.17],
@@ -141,8 +135,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     water: [0.13, 0.2, 0.26],
     lamp: [1, 0.86, 0.58],
     panel: [0.42, 0.42, 0.4],
-    blossom: [0.36, 0.24, 0.3],
-    'blossom-alt': [0.4, 0.3, 0.35],
     thatch: [0.25, 0.21, 0.16],
     net: [0.2, 0.22, 0.22],
     tape: [0.6, 0.6, 0.58],
@@ -152,8 +144,6 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     pennant: [0.55, 0.22, 0.19],
     wire: [0.3, 0.31, 0.33],
     mesh: [0.3, 0.31, 0.32],
-    bloom: [0.42, 0.24, 0.32],
-    'bloom-alt': [0.46, 0.4, 0.18],
     pv: [0.22, 0.29, 0.45],
     lattice: [0.32, 0.34, 0.36],
     housing: [0.1, 0.11, 0.11],
@@ -166,5 +156,11 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   },
 }
 
+/** Every role's colour for a flavor in a season. */
+export function objectPalette(flavor: FlavorId, season: Season): ObjectPalette {
+  return { ...OBJECT_PALETTE[flavor], ...seasonPalette(season, flavor) }
+}
+
 export { ObjectLayer } from './object-layer'
+export { seasonAt, seasonSwaps, type Season } from './seasons'
 export type { ObjectInstance, ObjectSourceSpec, ObjectPalette } from './object-layer'

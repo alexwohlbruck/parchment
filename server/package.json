@@ -18,6 +18,7 @@
     "seed:prod": "bun dist/seed/seed.js",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
+    "dev:sign-in": "bun scripts/dev-sign-in.ts",
     "openapi": "SERVER_ORIGIN=${SERVER_ORIGIN:-http://localhost:5000} CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:5173} bun scripts/generate-openapi.ts"
   },
   "dependencies": {

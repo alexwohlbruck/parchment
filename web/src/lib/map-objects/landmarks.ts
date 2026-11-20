@@ -37,6 +37,8 @@ export type LandmarkFlavor = {
   harmonyFloor: number
   /** How far a model's own colours are lifted toward white first, by kind, so a dark model sits at its neighbours' value. */
   lift: Record<LandmarkKind, number>
+  /** How far a model's own colours are then brought to the palette's lightness, keeping their hue. */
+  tone: Record<LandmarkKind, number>
   /** Window glass and lit windows, shared with the extrusions; `night` also lights the doors. */
   facade: FacadeFlavor
 }
@@ -45,13 +47,13 @@ export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
   // Lifted toward its neighbours' lightness and a little way into their colour, so a landmark keeps its own hue.
   light: {
     palette: [hsl(lightTokens.building_3d_fill_extrusion_color)],
-    harmony: { building: 0.2, other: 0.08 }, harmonyFloor: 0.78, lift: { building: 0.35, other: 0.1 },
+    harmony: { building: 0.2, other: 0.08 }, harmonyFloor: 0.78, lift: { building: 0.35, other: 0.1 }, tone: { building: 0, other: 0 },
     facade: FACADE_FLAVOR.light,
   },
-  // Well into the night map's blue, or a stone tower glows among its neighbours, but with its own hue still showing.
+  // Dimmed to the night map's lightness, or a stone tower glows among its neighbours, so its own hue can stay.
   dark: {
     palette: [hsl(darkTokens.building_3d_fill_extrusion_color)],
-    harmony: { building: 0.5, other: 0.55 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 },
+    harmony: { building: 0.3, other: 0.4 }, harmonyFloor: 0.35, lift: { building: 0, other: 0 }, tone: { building: 0.9, other: 0.6 },
     facade: FACADE_FLAVOR.dark,
   },
 }

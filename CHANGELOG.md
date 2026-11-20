@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* The zoomed-out globe shows its forests, deserts, ocean depths and place names on the web, where it had shown a plain globe.
+
 ## [0.23.1] - 2026-11-20
 
 ### Added

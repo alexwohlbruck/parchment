@@ -13,7 +13,7 @@ export const GLOBE_PROTOCOL = 'globe'
 /** The tile layer of continent, ocean and landform names. */
 export const GLOBE_NAMES = 'label'
 
-const VERSION = 'v1'
+const VERSION = 'v2'
 const VECTOR_MAXZOOM = 5
 const RELIEF_MAXZOOM = 4
 /** Relief over-zoomed much past its data turns to mush, so it bows out early. */

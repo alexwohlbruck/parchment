@@ -66,6 +66,7 @@ import {
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
+import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
 import lightTokens from './tokens.light.json'
@@ -538,9 +539,9 @@ export function buildLayers(options: {
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
-  const converted = withNeighbourhoodLabels(base
+  const converted = withAboriginalLands(withNeighbourhoodLabels(base
     .map(l => resolve(l, tokens, categories, flavor))
-    .map(l => localize(l, lang)))
+    .map(l => localize(l, lang))), flavor)
 
   const park = converted.find(l => l.id === 'Park')
   const detailLabel: DetailLabelStyle = {
@@ -851,6 +852,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
         : {}),
       [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
       [NEIGHBOURHOOD_SOURCE]: neighbourhoodSource(buildTileUrl(tileServerUrl, NEIGHBOURHOOD_TILES)),
+      [ABORIGINAL_LANDS_SOURCE]: aboriginalLandsSource(buildTileUrl(tileServerUrl, ABORIGINAL_LANDS_TILES)),
     },
     state: indoorState(),
     sky: SKY[flavor],

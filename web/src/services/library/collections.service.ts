@@ -355,7 +355,8 @@ export const useCollectionsService = createSharedComposable(() => {
       let id = created.id
       historyStore.record(
         {
-          label: t('services.collections.createSuccess'),
+          label: t('history.created', { name: getCollectionDisplayName(created) }),
+          undoneLabel: t('history.deleted', { name: getCollectionDisplayName(created) }),
           undo: () => remove(id),
           redo: async () => {
             id = (await create(params)).id
@@ -406,7 +407,8 @@ export const useCollectionsService = createSharedComposable(() => {
       const previous = previousValues(current, updates)
       const hydrated = await applyUpdate(id, updates)
       historyStore.record({
-        label: t('services.collections.updateSuccess'),
+        label: t('history.updated', { name: getCollectionDisplayName(hydrated) }),
+        undoneLabel: t('history.changedBack', { name: getCollectionDisplayName(hydrated) }),
         undo: () => applyUpdate(id, previous),
         redo: () => applyUpdate(id, updates),
       })

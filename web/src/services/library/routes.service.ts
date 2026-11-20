@@ -257,7 +257,7 @@ export const useRoutesService = createSharedComposable(() => {
 
     try {
       const local = await replayCreate(params)
-      recordCreate(local.id, params, 'Route saved')
+      recordCreate(local.id, params)
       return local
     } catch (error) {
       if (isRetriableNetworkError(getNetworkErrorKind(error))) {
@@ -345,7 +345,8 @@ export const useRoutesService = createSharedComposable(() => {
       const previous = previousValues(existing, updates)
       const local = await replayUpdate(id, updates)
       historyStore.record({
-        label: 'Route updated',
+        label: t('history.updated', { name: getRouteDisplayName(local) }),
+        undoneLabel: t('history.changedBack', { name: getRouteDisplayName(local) }),
         undo: () => replayUpdate(id, previous),
         redo: () => replayUpdate(id, updates),
       })
@@ -375,10 +376,11 @@ export const useRoutesService = createSharedComposable(() => {
   }
 
   /** Undo a create by deleting; redo it as a new route. */
-  function recordCreate(id: string, params: CreateRouteParams, label: string) {
+  function recordCreate(id: string, params: CreateRouteParams) {
     let current = id
     historyStore.record({
-      label,
+      label: t('history.saved', { name: params.name }),
+      undoneLabel: t('history.deleted', { name: params.name }),
       undo: () => replayDelete(current),
       redo: async () => {
         current = (await replayCreate(params)).id
@@ -387,10 +389,11 @@ export const useRoutesService = createSharedComposable(() => {
   }
 
   /** Undo a delete by saving the route again, under a new id. */
-  function recordDelete(id: string, params: CreateRouteParams, label: string) {
+  function recordDelete(id: string, params: CreateRouteParams) {
     let current = id
     historyStore.record({
-      label,
+      label: t('history.deleted', { name: params.name }),
+      undoneLabel: t('history.restored', { name: params.name }),
       undo: async () => {
         current = (await replayCreate(params)).id
       },
@@ -426,7 +429,7 @@ export const useRoutesService = createSharedComposable(() => {
     try {
       const deleted = existing?.body ? existing : await fetchRouteById(id)
       await replayDelete(id)
-      if (deleted?.body) recordDelete(id, paramsOf(deleted), 'Route deleted')
+      if (deleted?.body) recordDelete(id, paramsOf(deleted))
       else toast.success('Route deleted')
       return true
     } catch (error) {

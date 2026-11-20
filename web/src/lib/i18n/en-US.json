@@ -68,9 +68,19 @@
     "saved": "Saved"
   },
   "history": {
-    "canvasDeleted": "Deleted {name}",
-    "canvasUpdated": "Canvas updated",
-    "undone": "Undid: {label}",
+    "undone": "Undone",
+    "saved": "Saved {name}",
+    "savedTo": "Saved {name} to {collection}",
+    "addedTo": "Added {name} to {collection}",
+    "removedFrom": "Removed {name} from {collection}",
+    "putBackIn": "Put {name} back in {collection}",
+    "putBack": "Put {name} back",
+    "removed": "Removed {name}",
+    "created": "Created {name}",
+    "updated": "Updated {name}",
+    "deleted": "Deleted {name}",
+    "restored": "Restored {name}",
+    "changedBack": "Changed {name} back",
     "undoFailed": "Couldn't undo that",
     "redoFailed": "Couldn't redo that"
   },
@@ -607,11 +617,6 @@
     "toHere": "To here"
   },
   "layers": {
-    "history": {
-      "created": "Layer created",
-      "updated": "Layer updated",
-      "deleted": "Deleted {name}"
-    },
     "title": "Layers",
     "search": {
       "placeholder": "Search layers…",

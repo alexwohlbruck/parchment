@@ -27,6 +27,7 @@ export const useArchiveService = createSharedComposable(() => {
       await apply(archived)
       useHistoryStore().record({
         label: t(archived ? 'services.archive.archived' : 'services.archive.unarchived'),
+        undoneLabel: t(archived ? 'services.archive.unarchived' : 'services.archive.archived'),
         undo: () => apply(!archived),
         redo: () => apply(archived),
       })

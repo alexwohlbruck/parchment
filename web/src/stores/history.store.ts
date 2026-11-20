@@ -8,6 +8,8 @@ import type { AllowInInput } from '@/stores/hotkey.store'
 export interface HistoryEntry {
   /** What happened, in the user's words: "Removed Blue Bottle from Coffee". */
   label: string
+  /** What taking it back does, in the same words: "Put Blue Bottle back in Coffee". */
+  undoneLabel?: string
   undo: () => unknown
   redo: () => unknown
 }
@@ -77,7 +79,7 @@ export const useHistoryStore = defineStore('history', () => {
       await entry[direction]()
       to.value = [...to.value, entry]
       if (direction === 'undo') {
-        notify(t('history.undone', { label: entry.label }), redoAction())
+        notify(entry.undoneLabel ?? t('history.undone'), redoAction())
       } else {
         notify(entry.label, undoAction())
       }

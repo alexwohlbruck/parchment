@@ -799,7 +799,8 @@ export const useLayersStore = defineStore('layers', () => {
     let id = created.id
     history.record(
       {
-        label: translate('layers.history.created'),
+        label: translate('history.created', { name: layer.name }),
+        undoneLabel: translate('history.deleted', { name: layer.name }),
         undo: () => deleteLayer(id),
         redo: async () => {
           id = (await createLayer(layer)).id
@@ -813,10 +814,12 @@ export const useLayersStore = defineStore('layers', () => {
   async function updateLayer(id: string, updates: Partial<Layer>) {
     if (isFixedLayer(id)) return applyLayerUpdate(id, updates)
     const previous = previousValues(layers.value.find(l => l.id === id), updates)
+    const name = layers.value.find(l => l.id === id)?.name ?? ''
     const updated = await applyLayerUpdate(id, updates)
     history.record(
       {
-        label: translate('layers.history.updated'),
+        label: translate('history.updated', { name }),
+        undoneLabel: translate('history.changedBack', { name }),
         undo: () => applyLayerUpdate(id, previous),
         redo: () => applyLayerUpdate(id, updates),
       },
@@ -834,10 +837,12 @@ export const useLayersStore = defineStore('layers', () => {
     const owned = userOwnedLayers.value.some(l => l.id === id)
     await deleteLayer(id)
     if (!layer || isFixedLayer(id)) return
-    const label = translate('layers.history.deleted', { name: layer.name })
+    const label = translate('history.deleted', { name: layer.name })
+    const undoneLabel = translate('history.restored', { name: layer.name })
     if (isTemplateId(id)) {
       history.record({
         label,
+        undoneLabel,
         undo: () => patchDefaultLayerState(id, { hidden: false }),
         redo: () => patchDefaultLayerState(id, { hidden: true }),
       })
@@ -848,6 +853,7 @@ export const useLayersStore = defineStore('layers', () => {
     let current = id
     history.record({
       label,
+      undoneLabel,
       undo: async () => {
         current = (await createLayer(fields)).id
       },
@@ -897,10 +903,12 @@ export const useLayersStore = defineStore('layers', () => {
       allLayerGroups.value.find(g => g.id === id),
       updates,
     )
+    const name = allLayerGroups.value.find(g => g.id === id)?.name ?? ''
     const updated = await applyGroupUpdate(id, updates)
     history.record(
       {
-        label: translate('layers.history.updated'),
+        label: translate('history.updated', { name }),
+        undoneLabel: translate('history.changedBack', { name }),
         undo: () => applyGroupUpdate(id, previous),
         redo: () => applyGroupUpdate(id, updates),
       },

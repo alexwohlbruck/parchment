@@ -67,9 +67,19 @@
     "saved": "Guardado"
   },
   "history": {
-    "canvasDeleted": "{name} eliminado",
-    "canvasUpdated": "Lienzo actualizado",
-    "undone": "Deshecho: {label}",
+    "undone": "Deshecho",
+    "saved": "{name} guardado",
+    "savedTo": "{name} guardado en {collection}",
+    "addedTo": "{name} añadido a {collection}",
+    "removedFrom": "{name} quitado de {collection}",
+    "putBackIn": "{name} devuelto a {collection}",
+    "putBack": "{name} restaurado",
+    "removed": "{name} quitado",
+    "created": "{name} creado",
+    "updated": "{name} actualizado",
+    "deleted": "{name} eliminado",
+    "restored": "{name} restaurado",
+    "changedBack": "{name} restablecido",
     "undoFailed": "No se pudo deshacer",
     "redoFailed": "No se pudo rehacer"
   },
@@ -599,11 +609,6 @@
     "toHere": "Hasta aquí"
   },
   "layers": {
-    "history": {
-      "created": "Capa creada",
-      "updated": "Capa actualizada",
-      "deleted": "{name} eliminada"
-    },
     "title": "Capas",
     "search": {
       "placeholder": "Buscar capas…",

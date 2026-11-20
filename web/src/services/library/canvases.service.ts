@@ -368,7 +368,8 @@ export const useCanvasesService = createSharedComposable(() => {
       )
       const hydrated = await replayUpdateMetadata(canvas.id, metadata)
       historyStore.record({
-        label: t('history.canvasUpdated'),
+        label: t('history.updated', { name: displayName(hydrated) }),
+        undoneLabel: t('history.changedBack', { name: displayName(hydrated) }),
         undo: () => replayUpdateMetadata(canvas.id, previous),
         redo: () => replayUpdateMetadata(canvas.id, metadata),
       })
@@ -551,7 +552,8 @@ export const useCanvasesService = createSharedComposable(() => {
     const body = canvas.body!
     let current = id
     historyStore.record({
-      label: t('history.canvasDeleted', { name: displayName(canvas) }),
+      label: t('history.deleted', { name: displayName(canvas) }),
+      undoneLabel: t('history.restored', { name: displayName(canvas) }),
       undo: async () => {
         current = (await replayCreate(params)).id
         await replaySaveBody(current, body)

@@ -120,7 +120,11 @@ export const useBookmarksService = createSharedComposable(() => {
       let current = point
       historyStore.record(
         {
-          label: t('services.bookmarks.saveSuccessToCollection', {
+          label: t('history.savedTo', {
+            name: point.name,
+            collection: collectionsService.getCollectionDisplayName(collection),
+          }),
+          undoneLabel: t('history.removedFrom', {
             name: point.name,
             collection: collectionsService.getCollectionDisplayName(collection),
           }),
@@ -172,7 +176,14 @@ export const useBookmarksService = createSharedComposable(() => {
       await deletePrivatePoint(collection, point)
       let current = point
       historyStore.record({
-        label: t('services.bookmarks.removeFromCollectionSuccess', { name: point.name }),
+        label: t('history.removedFrom', {
+          name: point.name,
+          collection: collectionsService.getCollectionDisplayName(collection),
+        }),
+        undoneLabel: t('history.putBackIn', {
+          name: point.name,
+          collection: collectionsService.getCollectionDisplayName(collection),
+        }),
         undo: async () => {
           current = await writePrivatePoint(collection, {
             ...current,
@@ -231,20 +242,11 @@ export const useBookmarksService = createSharedComposable(() => {
     function notifySaved(bookmark: Bookmark) {
       if (options.silent) return
       const targetId = collectionIds?.[collectionIds.length - 1]
-      const target = targetId
-        ? collectionsStore.getCollectionById(targetId)
-        : undefined
       recordChange(
         bookmark.id,
         null,
         { bookmark: snapshot(bookmark)!, collectionIds: collectionIds ?? [] },
-        target
-          ? t('services.bookmarks.saveSuccessToCollection', {
-              name: place.name.value,
-              collection: target.name || t('library.entities.collections.untitled'),
-            })
-          : t('services.bookmarks.saveSuccess', { name: place.name.value }),
-        target ? collectionsService.viewCollectionAction(targetId) : undefined,
+        { view: collectionsService.viewCollectionAction(targetId) },
       )
     }
 
@@ -331,27 +333,14 @@ export const useBookmarksService = createSharedComposable(() => {
     /** Record the change, unless the caller announces it itself. */
     function announce(result: Bookmark | null) {
       if (options.silent) return
-      const name = before?.bookmark.name || t('library.entities.bookmarks.title.singular')
-      const added = options.addedCollectionId
-        ? collectionsStore.getCollectionById(options.addedCollectionId)
-        : undefined
       const after: SavedState = result && {
         bookmark: snapshot(result)!,
         collectionIds: updates.collectionIds ?? before?.collectionIds ?? [],
       }
-      recordChange(
-        id,
-        before,
-        after,
-        !result
-          ? t('services.bookmarks.unsaveSuccess', { name })
-          : added
-            ? t('library.actions.addedToCollection', {
-                collection: added.name || t('library.entities.collections.untitled'),
-              })
-            : t('services.bookmarks.updateSuccess'),
-        added ? collectionsService.viewCollectionAction(added.id) : undefined,
-      )
+      const view = result && options.addedCollectionId
+        ? collectionsService.viewCollectionAction(options.addedCollectionId)
+        : undefined
+      recordChange(id, before, after, { view })
     }
 
     // Offline: apply the change locally and queue the PUT for replay. The
@@ -480,12 +469,7 @@ export const useBookmarksService = createSharedComposable(() => {
       })
       // The server deletes a bookmark left in no collection.
       if (!isKept(after)) bookmarksStore.removeBookmark(bookmarkId)
-      recordChange(
-        bookmarkId,
-        before,
-        after,
-        t('services.bookmarks.removeFromCollectionSuccess', { name: bookmarkName }),
-      )
+      recordChange(bookmarkId, before, after)
     }
 
     // Offline: unlink locally and queue the DELETE for replay.
@@ -591,18 +575,52 @@ export const useBookmarksService = createSharedComposable(() => {
     return current.id
   }
 
+  function collectionNames(ids: string[]) {
+    return ids
+      .map(id => collectionsService.getCollectionDisplayName(collectionsStore.getCollectionById(id) ?? null))
+      .join(', ')
+  }
+
+  /** A change from one state to another, in words: "Added X to Coffee". */
+  function describe(from: SavedState, to: SavedState, undoing: boolean): string {
+    const name = (to ?? from)?.bookmark.name || t('library.entities.bookmarks.title.singular')
+    if (!isKept(to)) return t('history.removed', { name })
+    const added = to.collectionIds.filter(id => !from?.collectionIds.includes(id))
+    const removed = (from?.collectionIds ?? []).filter(id => !to.collectionIds.includes(id))
+    if (!isKept(from)) {
+      if (undoing) {
+        return added.length
+          ? t('history.putBackIn', { name, collection: collectionNames(added) })
+          : t('history.putBack', { name })
+      }
+      return added.length
+        ? t('history.savedTo', { name, collection: collectionNames(added) })
+        : t('history.saved', { name })
+    }
+    if (added.length) {
+      return t(undoing ? 'history.putBackIn' : 'history.addedTo', {
+        name,
+        collection: collectionNames(added),
+      })
+    }
+    if (removed.length) {
+      return t('history.removedFrom', { name, collection: collectionNames(removed) })
+    }
+    return t(undoing ? 'history.changedBack' : 'history.updated', { name })
+  }
+
   /** Put a bookmark change on the undo stack, and toast it. */
   function recordChange(
     id: string,
     before: SavedState,
     after: SavedState,
-    label: string,
-    view?: { label: string; onClick: () => void },
+    options: { label?: string; view?: { label: string; onClick: () => void } } = {},
   ) {
     let current = id
     historyStore.record(
       {
-        label,
+        label: options.label ?? describe(before, after, false),
+        undoneLabel: describe(after, before, true),
         undo: async () => {
           current = await putBack(current, before)
         },
@@ -610,7 +628,7 @@ export const useBookmarksService = createSharedComposable(() => {
           current = await putBack(current, after)
         },
       },
-      { view },
+      { view: options.view },
     )
   }
 
@@ -720,9 +738,11 @@ export const useBookmarksService = createSharedComposable(() => {
         result.id,
         before,
         { bookmark: snapshot(result)!, collectionIds: before?.collectionIds ?? [] },
-        t('services.bookmarks.frequentSet', {
-          label: name || t(`library.types.${frequentType}`),
-        }),
+        {
+          label: t('services.bookmarks.frequentSet', {
+            label: name || t(`library.types.${frequentType}`),
+          }),
+        },
       )
     }
     return result
@@ -743,7 +763,7 @@ export const useBookmarksService = createSharedComposable(() => {
       bookmarkId,
       before,
       result && { bookmark: snapshot(result)!, collectionIds: before?.collectionIds ?? [] },
-      t('services.bookmarks.frequentRemoved', { label }),
+      { label: t('services.bookmarks.frequentRemoved', { label }) },
     )
   }
 

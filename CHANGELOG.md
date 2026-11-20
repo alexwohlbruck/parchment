@@ -4,6 +4,8 @@
 
 ### Changed
 
+* The map draws sooner when it first opens, without waiting for 3D models, landmarks and the globe sky to get ready.
+
 ### Fixed
 
 ## [0.23.0] - 2026-11-19

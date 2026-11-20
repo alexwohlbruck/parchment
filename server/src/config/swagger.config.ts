@@ -8,6 +8,7 @@ export default {
     tags: [
       { name: 'Auth', description: 'Authentication and session endpoints' },
       { name: 'Users', description: 'User and profile management' },
+      { name: 'Files', description: 'Public uploaded files such as avatars' },
       { name: 'Health', description: 'Health check' },
       { name: 'Library', description: 'Libraries, collections, and bookmarks' },
       { name: 'Layers', description: 'Map layers and style management' },

@@ -6,6 +6,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useSyncStore } from '@/stores/sync.store'
+import { useHistoryStore } from '@/stores/history.store'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 import type {
@@ -50,6 +51,7 @@ export const useBookmarksService = createSharedComposable(() => {
   const encryptedPointsStore = useEncryptedPointsStore()
   const categoryPaletteStore = useCategoryPaletteStore()
   const syncStore = useSyncStore()
+  const historyStore = useHistoryStore()
   const themeStore = useThemeStore()
   const { t } = useI18n()
   const isSaving = ref(false)
@@ -99,9 +101,8 @@ export const useBookmarksService = createSharedComposable(() => {
     if (existing) return existing
 
     try {
-      const source = await collectionsService.collectionKeySource(collection)
-      if (!source) throw new Error('No key to this collection on this device')
-      const point: DecryptedPoint = {
+      const now = new Date().toISOString()
+      const point = await writePrivatePoint(collection, {
         id: crypto.randomUUID(),
         externalIds: fields.externalIds,
         name: fields.name,
@@ -112,21 +113,9 @@ export const useBookmarksService = createSharedComposable(() => {
         iconPack: fields.iconPack ?? 'lucide',
         iconColor: fields.iconColor ?? 'cobalt',
         frequentType: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      await collectionsService.createEncryptedPoint(collection.id, {
-        id: point.id,
-        encryptedData: encryptCollectionPoint({
-          point,
-          pointId: point.id,
-          source,
-          ownerUserId: collection.userId,
-          collectionId: collection.id,
-          keyVersion: collection.metadataKeyVersion,
-        }),
+        createdAt: now,
+        updatedAt: now,
       })
-      encryptedPointsStore.addPoint(collection.id, point)
       rememberLastSaved([collection.id])
       toast.success(
         t('services.bookmarks.saveSuccessToCollection', {
@@ -143,22 +132,56 @@ export const useBookmarksService = createSharedComposable(() => {
     }
   }
 
+  /** Encrypt `point` into a private collection and hold it locally. */
+  async function writePrivatePoint(
+    collection: Collection,
+    point: DecryptedPoint,
+  ): Promise<DecryptedPoint> {
+    const source = await collectionsService.collectionKeySource(collection)
+    if (!source) throw new Error('No key to this collection on this device')
+    await collectionsService.createEncryptedPoint(collection.id, {
+      id: point.id,
+      encryptedData: encryptCollectionPoint({
+        point,
+        pointId: point.id,
+        source,
+        ownerUserId: collection.userId,
+        collectionId: collection.id,
+        keyVersion: collection.metadataKeyVersion,
+      }),
+    })
+    encryptedPointsStore.addPoint(collection.id, point)
+    return point
+  }
+
   async function removeFromPrivateCollection(
     collection: Collection,
     point: DecryptedPoint,
   ): Promise<boolean> {
     try {
-      await collectionsService.deleteEncryptedPoint(collection.id, point.id)
-      encryptedPointsStore.removePoint(collection.id, point.id)
-      toast.success(
-        t('services.bookmarks.removeFromCollectionSuccess', { name: point.name }),
-      )
+      await deletePrivatePoint(collection, point)
+      let current = point
+      historyStore.record({
+        label: t('services.bookmarks.removeFromCollectionSuccess', { name: point.name }),
+        undo: async () => {
+          current = await writePrivatePoint(collection, {
+            ...current,
+            id: crypto.randomUUID(),
+          })
+        },
+        redo: () => deletePrivatePoint(collection, current),
+      })
       return true
     } catch (err) {
       console.error('[bookmarks] private remove failed', err)
       toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: err })
       return false
     }
+  }
+
+  async function deletePrivatePoint(collection: Collection, point: DecryptedPoint) {
+    await collectionsService.deleteEncryptedPoint(collection.id, point.id)
+    encryptedPointsStore.removePoint(collection.id, point.id)
   }
 
   // Remember the most recently written-to collection so the bookmark
@@ -447,6 +470,12 @@ export const useBookmarksService = createSharedComposable(() => {
       return false
     }
 
+    const saved = snapshot(bookmarksStore.getBookmarkById(bookmarkId))
+    // The server deletes a bookmark left in no collection.
+    const orphaned = collectionsStore
+      .getCollectionIdsForBookmark(bookmarkId)
+      .every(id => collectionIds.includes(id))
+
     function applyRemovalLocally() {
       collectionIds.forEach(collectionId => {
         collectionsStore.removeBookmarkFromSingleCollection(
@@ -454,11 +483,20 @@ export const useBookmarksService = createSharedComposable(() => {
           bookmarkId,
         )
       })
-      toast.success(
-        t('services.bookmarks.removeFromCollectionSuccess', {
+      let id = bookmarkId
+      historyStore.record({
+        label: t('services.bookmarks.removeFromCollectionSuccess', {
           name: bookmarkName,
         }),
-      )
+        undo: async () => {
+          id = await restoreToCollections(id, collectionIds, orphaned ? saved : undefined)
+        },
+        redo: async () => {
+          if (!(await removeBookmark(id, collectionIds, bookmarkName))) {
+            throw new Error('Remove failed')
+          }
+        },
+      })
     }
 
     // Offline: unlink locally and queue the DELETE for replay.
@@ -493,6 +531,50 @@ export const useBookmarksService = createSharedComposable(() => {
       toast.error(t('services.bookmarks.removeFromCollectionError'), { cause: error })
       return false
     }
+  }
+
+  /**
+   * Put a bookmark back into `collectionIds`. With `saved`, the bookmark
+   * itself is gone and is created again; resolves to its id either way.
+   */
+  async function restoreToCollections(
+    id: string,
+    collectionIds: string[],
+    saved?: Bookmark,
+  ): Promise<string> {
+    let bookmark: Bookmark
+    if (saved) {
+      const { data } = await api.post('/library/bookmarks', {
+        externalIds: saved.externalIds,
+        name: saved.name,
+        address: saved.address,
+        lat: saved.lat,
+        lng: saved.lng,
+        icon: saved.icon,
+        iconPack: saved.iconPack,
+        iconColor: saved.iconColor,
+        ...(saved.frequentType ? { frequentType: saved.frequentType } : {}),
+        collectionIds,
+      })
+      bookmark = data
+      bookmarksStore.addBookmark(bookmark)
+    } else {
+      const remaining = collectionsStore.getCollectionIdsForBookmark(id)
+      const updated = await updateBookmark(
+        id,
+        { collectionIds: [...new Set([...remaining, ...collectionIds])] },
+        { silent: true },
+      )
+      if (!updated) throw new Error('Restore failed')
+      bookmark = updated
+    }
+    collectionIds.forEach(collectionId => {
+      const collection = collectionsStore.getCollectionById(collectionId)
+      if (!collection?.bookmarkIds?.includes(bookmark.id)) {
+        collectionsStore.addBookmarkToCollection(collectionId, bookmark)
+      }
+    })
+    return bookmark.id
   }
 
   function isBookmarkSaved(bookmark: Bookmark) {

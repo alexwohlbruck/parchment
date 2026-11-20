@@ -1,11 +1,12 @@
 import { resolve } from 'path'
 
-export type StorageDriver = 'local' | 's3'
+const DRIVERS = ['local', 's3', 'r2'] as const
+export type StorageDriver = (typeof DRIVERS)[number]
 
 const driver = (process.env.STORAGE_DRIVER ?? 'local') as StorageDriver
 
-if (driver !== 'local' && driver !== 's3') {
-  throw new Error(`STORAGE_DRIVER must be 'local' or 's3', got '${driver}'`)
+if (!DRIVERS.includes(driver)) {
+  throw new Error(`STORAGE_DRIVER must be one of ${DRIVERS.join(', ')}, got '${driver}'`)
 }
 
 export const storage = {
@@ -20,18 +21,31 @@ export const storage = {
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
   },
+  r2: {
+    apiToken: process.env.R2_API_TOKEN ?? '',
+    /** Optional: the token's only account is used when unset. */
+    accountId: process.env.R2_ACCOUNT_ID ?? '',
+  },
+}
+
+function requireEnv(vars: Record<string, string>) {
+  const missing = Object.entries(vars)
+    .filter(([, value]) => !value)
+    .map(([name]) => name)
+  if (missing.length > 0) {
+    throw new Error(`STORAGE_DRIVER=${driver} requires ${missing.join(', ')}`)
+  }
 }
 
 if (driver === 's3') {
-  const missing = Object.entries({
+  requireEnv({
     S3_ENDPOINT: storage.s3.endpoint,
     S3_BUCKET: storage.s3.bucket,
     S3_ACCESS_KEY_ID: storage.s3.accessKeyId,
     S3_SECRET_ACCESS_KEY: storage.s3.secretAccessKey,
   })
-    .filter(([, value]) => !value)
-    .map(([name]) => name)
-  if (missing.length > 0) {
-    throw new Error(`STORAGE_DRIVER=s3 requires ${missing.join(', ')}`)
-  }
+}
+
+if (driver === 'r2') {
+  requireEnv({ R2_API_TOKEN: storage.r2.apiToken, S3_BUCKET: storage.s3.bucket })
 }

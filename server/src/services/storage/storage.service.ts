@@ -3,12 +3,23 @@ import { serverOrigin } from '../../config/origins.config'
 import type { BlobStore } from './blob-store.types'
 import { createLocalStore } from './local-store'
 import { createS3Store } from './s3-store'
+import { createR2Store } from './r2-store'
 
 /** Key prefixes anyone may read through `/files`. Everything else stays private. */
 export const PUBLIC_PREFIXES = ['avatars/']
 
-export const blobStore: BlobStore =
-  config.driver === 's3' ? createS3Store(config.s3) : createLocalStore(config.localDir)
+function createBlobStore(): BlobStore {
+  switch (config.driver) {
+    case 's3':
+      return createS3Store(config.s3)
+    case 'r2':
+      return createR2Store({ ...config.r2, bucket: config.s3.bucket })
+    case 'local':
+      return createLocalStore(config.localDir)
+  }
+}
+
+export const blobStore = createBlobStore()
 
 function publicBase() {
   return config.publicUrl ?? `${serverOrigin}/files`

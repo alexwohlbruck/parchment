@@ -1,8 +1,7 @@
 import { planTripFor } from '../planned-trip.service'
-import { createRoute, getRoutes, updateRoute } from '../library/routes.service'
-import { getPermissions, hasPermission } from '../auth.service'
-import { PermissionId } from '../../types/auth.types'
-import { pathFromTrip } from '../../lib/directions/route-path'
+import { createRoute, getRouteById, getRoutes, updateRoute } from '../library/routes.service'
+import { requireLibrary } from './ask-library-tools'
+import { pathFromTrip, type RoutePath } from '../../lib/directions/route-path'
 import { climbText, distanceText } from '../../lib/ask/distance-text'
 import { ASK_ROUTE_MODES, type AskEndpoint, type AskRouteMode, type AskUnits } from '../../types/ask.types'
 import type { RouteBody } from '../../schema/routes.schema'
@@ -53,12 +52,6 @@ function stats(body: RouteBody, units: AskUnits) {
   }
 }
 
-async function requireLibrary(userId: string) {
-  if (!hasPermission(await getPermissions(userId), PermissionId.LIBRARY_WRITE)) {
-    throw new AskToolError('Saving to the library needs a Basic or Premium plan.')
-  }
-}
-
 const createRouteTool: AskTool<{
   name: string
   mode?: AskRouteMode
@@ -90,58 +83,124 @@ const createRouteTool: AskTool<{
   async run(args, context) {
     await requireLibrary(context.userId)
     const mode = args.mode ?? 'cycling'
-    const given = args.points ?? []
-    if (given.length < 2) throw new AskToolError('A route needs at least 2 points.')
-    if (given.length > MAX_POINTS) throw new AskToolError(`A route takes at most ${MAX_POINTS} points.`)
-    const points = await Promise.all(given.map((point) => endpoint(point, context)))
-    if (args.loop) points.push(points[0])
-
-    const plan = await planTripFor(
-      {
-        waypoints: waypoints(points),
-        selectedMode: ROUTE_TAB[mode],
-        excludedModes: ['bikeshare', 'transit', 'rideshare'],
-        routingPreferences: { ...context.routingPreferences, useKnownParkingLocations: false },
-        availableVehicles: [],
-        language: context.language,
-        requestId: `ask-route-${crypto.randomUUID()}`,
-      },
-      context.userId,
-    )
-    const trip = routedTrip(plan.trips, mode)
-    if (!trip) throw new AskToolError('No route through those points: move one onto a street or path.')
-
-    const name = args.name.trim() || 'Route'
-    const path = pathFromTrip(trip)
-    const body: RouteBody = {
-      name,
-      waypoints: points.map(({ lat, lng, name }) => ({ lat, lng, ...(name && { name }) })),
-      geometry: path.geometry,
-      ...(path.elevation && { elevation: path.elevation }),
-      segments: path.segments,
-      pathMode: 'snap',
-      stats: path.stats,
-    }
+    const points = await routePoints(args.points ?? [], args.loop, context)
+    const path = await snap(points, mode, context)
     const route = await createRoute({ userId: context.userId, mode, scheme: 'server-key' })
-    await updateRoute(route.id, context.userId, {
-      body,
-      distance: path.stats.distance,
-      duration: path.stats.duration,
-      elevationGain: path.stats.elevationGain ?? null,
-      elevationLoss: path.stats.elevationLoss ?? null,
-    })
+    return saveRoute(route.id, args.name.trim() || 'Route', mode, points, path, context)
+  },
+}
+
+const editRoute: AskTool<{
+  id: string
+  name?: string
+  mode?: AskRouteMode
+  points?: PointArg[]
+  loop?: boolean
+}> = {
+  name: 'edit_route',
+  description:
+    'Change a saved route: give new points to re-route it (all of them, in order), a mode to re-snap it for another way of travelling, or a new name.',
+  parameters: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'From create_route or my_routes' },
+      name: { type: 'string' },
+      mode: { type: 'string', enum: [...ASK_ROUTE_MODES] },
+      points: {
+        type: 'array',
+        minItems: 2,
+        maxItems: MAX_POINTS,
+        description: 'Every point of the new route, in order',
+        items: pointSchema('A point on the route.'),
+      },
+      loop: { type: 'boolean', description: 'Return to the first point at the end' },
+    },
+    required: ['id'],
+  },
+  label: () => 'Changing the route',
+  async run(args, context) {
+    await requireLibrary(context.userId)
+    const route = await getRouteById(args.id, context.userId)
+    const body = route?.body as RouteBody | null | undefined
+    if (!route || route.scheme !== 'server-key' || !body) {
+      throw new AskToolError(`Can't change route ${args.id}: use an id create_route or my_routes returned.`)
+    }
+    const mode = args.mode ?? (route.mode as AskRouteMode)
+    const points = args.points?.length
+      ? await routePoints(args.points, args.loop, context)
+      : body.waypoints.map(({ lat, lng, name }) => ({ lat, lng, ...(name && { name }) }))
+    const path = args.points?.length || args.mode ? await snap(points, mode, context) : undefined
+    const name = args.name?.trim() || routeLabel(body)
+    if (args.mode && args.mode !== route.mode) await updateRoute(route.id, context.userId, { mode })
+    if (path) return saveRoute(route.id, name, mode, points, path, context)
+    await updateRoute(route.id, context.userId, { body: { ...body, name } })
     context.routes.set(route.id, { name })
-    context.emit({
-      type: 'route',
-      id: route.id,
-      name,
-      mode,
-      distance: path.stats.distance,
-      duration: path.stats.duration,
-      ...(path.stats.elevationGain && { elevationGain: path.stats.elevationGain }),
-    })
     return { saved: true, id: route.id, name, ...stats(body, context.units) }
   },
+}
+
+async function routePoints(given: PointArg[], loop: boolean | undefined, context: AskContext) {
+  if (given.length < 2) throw new AskToolError('A route needs at least 2 points.')
+  if (given.length > MAX_POINTS) throw new AskToolError(`A route takes at most ${MAX_POINTS} points.`)
+  const points = await Promise.all(given.map((point) => endpoint(point, context)))
+  if (loop) points.push(points[0])
+  return points
+}
+
+/** Snaps a path through the points as the route builder does: one trip on the mode's own Directions tab. */
+async function snap(points: AskEndpoint[], mode: AskRouteMode, context: AskContext): Promise<RoutePath> {
+  const plan = await planTripFor(
+    {
+      waypoints: waypoints(points),
+      selectedMode: ROUTE_TAB[mode],
+      excludedModes: ['bikeshare', 'transit', 'rideshare'],
+      routingPreferences: { ...context.routingPreferences, useKnownParkingLocations: false },
+      availableVehicles: [],
+      language: context.language,
+      requestId: `ask-route-${crypto.randomUUID()}`,
+    },
+    context.userId,
+  )
+  const trip = routedTrip(plan.trips, mode)
+  if (!trip) throw new AskToolError('No route through those points: move one onto a street or path.')
+  return pathFromTrip(trip)
+}
+
+async function saveRoute(
+  id: string,
+  name: string,
+  mode: AskRouteMode,
+  points: AskEndpoint[],
+  path: RoutePath,
+  context: AskContext,
+) {
+  const body: RouteBody = {
+    name,
+    waypoints: points.map(({ lat, lng, name }) => ({ lat, lng, ...(name && { name }) })),
+    geometry: path.geometry,
+    ...(path.elevation && { elevation: path.elevation }),
+    segments: path.segments,
+    pathMode: 'snap',
+    stats: path.stats,
+  }
+  await updateRoute(id, context.userId, {
+    body,
+    distance: path.stats.distance,
+    duration: path.stats.duration,
+    elevationGain: path.stats.elevationGain ?? null,
+    elevationLoss: path.stats.elevationLoss ?? null,
+  })
+  context.routes.set(id, { name })
+  context.emit({
+    type: 'route',
+    id,
+    name,
+    mode,
+    distance: path.stats.distance,
+    duration: path.stats.duration,
+    ...(path.stats.elevationGain && { elevationGain: path.stats.elevationGain }),
+  })
+  return { saved: true, id, name, ...stats(body, context.units) }
 }
 
 /** Ask names the routes it builds; the user's own names are encrypted, so those go by their ends. */
@@ -174,4 +233,4 @@ const myRoutes: AskTool<Record<string, never>> = {
   },
 }
 
-export const routeTools: AskTool[] = [createRouteTool, myRoutes]
+export const routeTools: AskTool[] = [createRouteTool, editRoute, myRoutes]

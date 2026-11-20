@@ -24,7 +24,19 @@ const mockPlanTrip = mock(async (_request: any, _userId?: string) => ({
 mock.module('../planned-trip.service', () => ({ planTripFor: mockPlanTrip, hasPremiumNavigation: async () => false }))
 
 const mockUpdateRoute = mock(async (_id: string, _userId: string, _updates: any) => ({}))
+const saved = {
+  id: 'route-1',
+  mode: 'cycling',
+  scheme: 'server-key',
+  body: {
+    name: 'Manhattan loop',
+    waypoints: [{ lat: 40.68, lng: -73.96, name: 'Home' }, { lat: 40.8, lng: -73.93 }],
+    geometry: [],
+    stats: { distance: 30000, duration: 7200 },
+  },
+}
 mock.module('../library/routes.service', () => ({
+  getRouteById: mock(async (id: string) => (id === 'route-1' ? saved : undefined)),
   createRoute: mock(async () => ({ id: 'route-1' })),
   updateRoute: mockUpdateRoute,
   getRoutes: mock(async () => [
@@ -32,7 +44,10 @@ mock.module('../library/routes.service', () => ({
     { id: 'old', mode: 'cycling', archivedAt: new Date(), body: { waypoints: [], geometry: [] } },
   ]),
 }))
-mock.module('../geocoding.service', () => ({ forwardGeocode: async () => ({ results: [] }) }))
+mock.module('../geocoding.service', () => ({
+  forwardGeocode: async () => ({ results: [] }),
+  reverseGeocode: async () => ({ results: [] }),
+}))
 mock.module('../place.service', () => ({ lookupEnrichedPlaceById: async () => null }))
 
 const { routeTools } = await import('./ask-route-tools')
@@ -99,6 +114,29 @@ describe('create_route', () => {
     await expect(tool('create_route').run({ name: 'x', points: ['home', 'home'] }, context())).rejects.toThrow(
       'Basic or Premium',
     )
+  })
+})
+
+describe('edit_route', () => {
+  test('renames without routing again', async () => {
+    const result = await tool('edit_route').run({ id: 'route-1', name: 'Island loop' }, context())
+    expect(mockPlanTrip).not.toHaveBeenCalled()
+    expect(mockUpdateRoute.mock.calls[0][2].body).toMatchObject({ name: 'Island loop', waypoints: saved.body.waypoints })
+    expect(result).toMatchObject({ saved: true, id: 'route-1', name: 'Island loop', distance: '30.0 km' })
+  })
+
+  test('re-snaps its own points for another mode', async () => {
+    const events: AskEvent[] = []
+    await tool('edit_route').run({ id: 'route-1', mode: 'walking' }, context(events))
+    const request = mockPlanTrip.mock.calls[0][0]
+    expect(request.selectedMode).toBe('walking')
+    expect(request.waypoints.map((w: any) => w.label)).toEqual(['Home', ''])
+    expect(mockUpdateRoute.mock.calls[0][2]).toEqual({ mode: 'walking' })
+    expect(events[0]).toMatchObject({ type: 'route', id: 'route-1', mode: 'walking', name: 'Manhattan loop' })
+  })
+
+  test('refuses a route it cannot read', async () => {
+    await expect(tool('edit_route').run({ id: 'elsewhere', name: 'x' }, context())).rejects.toThrow("Can't change route")
   })
 })
 

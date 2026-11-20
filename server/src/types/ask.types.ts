@@ -119,6 +119,8 @@ export type AskEvent =
   | { type: 'canvas'; id: string; name: string }
   /** A route a tool saved to the user's library. */
   | { type: 'route'; id: string; name: string; mode: AskRouteMode; distance: number; duration: number; elevationGain?: number }
+  /** A route or canvas a tool filed away or restored, so the library follows. */
+  | { type: 'archived'; kind: 'route' | 'canvas'; id: string; archived: boolean }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

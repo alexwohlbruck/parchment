@@ -1,4 +1,6 @@
-import type { CanvasBody, CanvasDataLayer, CanvasLayer } from '../../schema/canvases.schema'
+import { coordAll } from '@turf/turf'
+import type { MultiPolygon, Polygon } from 'geojson'
+import type { CanvasBody, CanvasLayer } from '../../schema/canvases.schema'
 import type { LatLng } from '../../types/ask.types'
 
 export interface CanvasPoint extends LatLng {
@@ -11,6 +13,12 @@ export interface CanvasPoint extends LatLng {
 export interface CanvasRoute {
   routeId: string
   path: LatLng[]
+}
+
+/** An area shaded on the canvas, like how far a 15 minute ride reaches. */
+export interface CanvasArea {
+  name: string
+  geometry: Polygon | MultiPolygon
 }
 
 export interface CanvasPlaceGroup {
@@ -44,10 +52,14 @@ export function fitCamera(points: LatLng[]): CanvasBody['camera'] | undefined {
   }
 }
 
-/** Saved routes as route layers, places as labelled points one layer per group, and a planned trip as a line. */
+/** Saved routes as route layers, places as labelled points one layer per group, a planned trip as a line and areas as shapes. */
 export function askCanvasBody(
   groups: CanvasPlaceGroup[],
-  { trip, routes = [] }: { trip?: { name: string; path: LatLng[] }; routes?: CanvasRoute[] } = {},
+  {
+    trip,
+    routes = [],
+    areas = [],
+  }: { trip?: { name: string; path: LatLng[] }; routes?: CanvasRoute[]; areas?: CanvasArea[] } = {},
 ): CanvasBody {
   const layers: CanvasLayer[] = groups
     .filter((group) => group.places.length)
@@ -94,6 +106,21 @@ export function askCanvasBody(
       },
     })
   }
+  layers.push(
+    ...areas.map(({ name, geometry }, index) => ({
+      id: `ask-area-${index + 1}`,
+      kind: 'data' as const,
+      name,
+      visible: true,
+      render: 'shapes' as const,
+      origin: { format: 'drawn' as const },
+      style: { color: COLORS[(groups.length + index) % COLORS.length], opacity: 0.25 },
+      data: {
+        type: 'FeatureCollection' as const,
+        features: [{ type: 'Feature' as const, geometry, properties: { name } }],
+      },
+    })),
+  )
   layers.unshift(
     ...routes.map(({ routeId }, index) => ({
       id: `ask-route-${index + 1}`,
@@ -106,6 +133,7 @@ export function askCanvasBody(
     ...groups.flatMap((group) => group.places),
     ...(trip?.path ?? []),
     ...routes.flatMap((route) => route.path),
+    ...areas.flatMap(({ geometry }) => coordAll(geometry).map(([lng, lat]) => ({ lat, lng }))),
   ]
   const camera = fitCamera(points)
   return { layers, ...(camera && { camera }) }

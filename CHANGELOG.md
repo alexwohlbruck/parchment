@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* 3D landmarks no longer glow among their neighbours on the night map, and keep their own colours while they blend in.
+
 ## [0.23.0] - 2026-11-19
 
 ### Added

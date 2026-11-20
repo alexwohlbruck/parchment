@@ -2,6 +2,8 @@
 
 ### Added
 
+* Hills and mountains are shaded by the sun in 3D, so their slopes stand out and turn with the time of day.
+* At night, buildings and landmarks still cast soft shadows: from the moon when it's up, or faintly from the sky's glow.
 * Crop and zoom your profile photo before you save it, and change or remove it any time under Settings → Account.
 * Self-hosted servers keep profile photos on their own disk by default, or in any S3-compatible bucket such as R2.
 * Press ⌘Z to take back changes to your library: saving or removing places, adding them to collections, editing or deleting routes, canvases and layers, and archiving. ⇧⌘Z redoes them, and each change's message has an Undo button.
@@ -12,6 +14,7 @@
 
 ### Fixed
 
+* Scrub and planted beds fill their whole area in 3D instead of a small patch that moves with the camera.
 * 3D landmarks no longer glow among their neighbours on the night map, and keep their own colours while they blend in.
 * Uploaded profile photos now show up, including for friends on other Parchment servers.
 * The zoomed-out map no longer shows patches of dark specks over the ocean and land.

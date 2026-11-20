@@ -1039,8 +1039,7 @@ export class ObjectLayer {
     // the origin is what lets the instance offsets stay small.
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const shifted = translate(matrix as ArrayLike<number>, this.origin)
-    const painter = this.map.painter
-    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
+    const range: [number, number] | undefined = args?.depthRangeFor3D
 
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
@@ -1076,7 +1075,7 @@ export class ObjectLayer {
       gl.blendFunc(gl.ONE, gl.ONE)
       gl.depthMask(false)
       gl.disable(gl.CULL_FACE)
-      this.glows.draw(gl, shifted, undefined, 1, billboardScale(painter.transform))
+      this.glows.draw(gl, shifted, undefined, 1, billboardScale({ zoom: this.map.getZoom(), fov: args.fov, width: gl.drawingBufferWidth, height: gl.drawingBufferHeight }))
       gl.depthMask(true)
       gl.disable(gl.BLEND)
     }

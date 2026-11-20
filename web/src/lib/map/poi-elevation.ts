@@ -19,11 +19,13 @@ export type BuildingFootprint = { rings: Ring[]; height: number }
 
 const CELL = 0.0005
 
-function pointInRing([x, y]: [number, number], ring: Ring): boolean {
+function pointInRing(point: [number, number], ring: Ring): boolean {
+  const x = point[0]
+  const y = point[1]
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
+    const xi = ring[i][0], yi = ring[i][1]
+    const xj = ring[j][0], yj = ring[j][1]
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
   return inside
@@ -32,29 +34,37 @@ function pointInRing([x, y]: [number, number], ring: Ring): boolean {
 /** Inside the outer ring and outside every hole. */
 function contains(point: [number, number], { rings }: BuildingFootprint): boolean {
   if (!rings.length || !pointInRing(point, rings[0])) return false
-  return !rings.slice(1).some(hole => pointInRing(point, hole))
+  for (let i = 1; i < rings.length; i++) if (pointInRing(point, rings[i])) return false
+  return true
 }
+
+/** One number per grid cell: rows stay within ±180,000, so columns a million apart never collide. */
+const cellKey = (cx: number, cy: number) => cx * 1e6 + cy
 
 /** Index footprints by the grid cells their bounding boxes touch. */
 export function footprintIndex(buildings: BuildingFootprint[]) {
-  const cells = new Map<string, BuildingFootprint[]>()
+  const cells = new Map<number, BuildingFootprint[]>()
   for (const b of buildings) {
     const outer = b.rings[0]
     if (!outer?.length) continue
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
-    for (const [x, y] of outer) {
-      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y)
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    for (let i = 0; i < outer.length; i++) {
+      const x = outer[i][0], y = outer[i][1]
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      if (y > y1) y1 = y
     }
     for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++)
       for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
-        const key = `${cx}:${cy}`
+        const key = cellKey(cx, cy)
         const list = cells.get(key)
         if (list) list.push(b)
         else cells.set(key, [b])
       }
   }
-  return (point: [number, number]) =>
-    cells.get(`${Math.floor(point[0] / CELL)}:${Math.floor(point[1] / CELL)}`) ?? []
+  const none: BuildingFootprint[] = []
+  return (point: [number, number]) => cells.get(cellKey(Math.floor(point[0] / CELL), Math.floor(point[1] / CELL))) ?? none
 }
 
 /**

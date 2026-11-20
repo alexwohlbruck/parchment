@@ -24,13 +24,13 @@ const LABEL_BELOW = 'Place labels'
 const COLORS: Record<FlavorId, { fill: string; outline: string; ink: string; halo: string }> = {
   light: {
     fill: 'hsla(32, 40%, 42%, 0.09)',
-    outline: 'hsla(30, 28%, 40%, 0.4)',
+    outline: 'hsla(30, 30%, 38%, 0.6)',
     ink: 'hsl(318, 32%, 36%)',
     halo: 'rgba(255, 255, 255, 0.85)',
   },
   dark: {
     fill: 'hsla(32, 30%, 72%, 0.06)',
-    outline: 'hsla(32, 22%, 70%, 0.3)',
+    outline: 'hsla(32, 22%, 72%, 0.45)',
     ink: 'hsl(318, 30%, 78%)',
     halo: 'rgba(13, 16, 22, 0.85)',
   },
@@ -108,7 +108,7 @@ export function aboriginalLandLayers(flavor: FlavorId): { areas: any[]; labels: 
       'text-field': LABEL_TEXT,
       'text-font': ['Geist SemiBold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 12, 14, 13],
-      'text-max-width': 9,
+      'text-max-width': 14,
       'text-line-height': 1.15,
       'text-padding': 8,
       'symbol-sort-key': ['-', area],

@@ -77,6 +77,23 @@ describe('resolveSnapPoints', () => {
     ).toEqual(['125px', 0.5, 1])
   })
 
+  test('scales authored pixel detents with the interface size, not fractions', () => {
+    expect(
+      resolveSnapPoints({ base: ['120px', 0.5, 1], viewportHeight: VH, scale: 1.25 }),
+    ).toEqual(['150px', 0.5, 1])
+  })
+
+  test('leaves a measured peek unscaled', () => {
+    expect(
+      resolveSnapPoints({
+        base: ['125px', '400px', 1],
+        measuredPeekPx: 200,
+        viewportHeight: VH,
+        scale: 1.5,
+      }),
+    ).toEqual(['200px', '600px', 1])
+  })
+
   test('swaps a measured peek into the first slot', () => {
     expect(
       resolveSnapPoints({

@@ -25,3 +25,6 @@ web/e2e/.auth/
 
 # Preview tooling writes this per worktree
 .env.preview
+
+# Local file storage (STORAGE_DRIVER=local)
+server/data/uploads/

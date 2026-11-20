@@ -25,11 +25,11 @@ import {
   type DataSourceDefinition,
 } from '@/lib/canvas/data-source-catalogue'
 import {
-  ACCEPTED_EXTENSIONS,
   GeoImportError,
   importGeoFile,
   parseGeoData,
-} from '@/lib/canvas/geo-import'
+} from '@/lib/geo-file/geo-read'
+import { ACCEPTED_EXTENSIONS } from '@/lib/geo-file/geo-format'
 import { LinkIcon, LockIcon, SearchIcon, FolderOpenIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })

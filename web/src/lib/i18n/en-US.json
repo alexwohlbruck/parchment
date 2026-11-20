@@ -3191,6 +3191,16 @@
             "always": "Always"
           }
         },
+        "season": {
+          "title": "Season",
+          "values": {
+            "auto": "Current",
+            "spring": "Spring",
+            "summer": "Summer",
+            "fall": "Fall",
+            "winter": "Winter"
+          }
+        },
         "hdRoads": "Lanes and crosswalks",
         "indoorMaps": "Indoor maps",
         "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",

@@ -17,6 +17,7 @@ import {
   MountainSnowIcon,
   Building2Icon,
   TreePineIcon,
+  LeafIcon,
   MapIcon,
   MilestoneIcon,
   InfoIcon,
@@ -36,7 +37,7 @@ import {
 import { useMapStore } from '@/stores/map.store'
 import { usePowerStore } from '@/stores/power.store'
 import { useMapService } from '@/services/map/map.service'
-import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
+import { MapEngine, PlantSeason, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
@@ -201,6 +202,30 @@ const handleColorChange = (value: any) => {
           :model-value="settings.objects3d"
           @update:model-value="mapService.toggle3dObjects()"
         />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre && settings.objects3d"
+        :title="$t('settings.mapSettings.configuration.season.title')"
+        :icon="LeafIcon"
+      >
+        <Select
+          :model-value="settings.season ?? PlantSeason.AUTO"
+          @update:model-value="v => (settings.season = v as PlantSeason)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="season in Object.values(PlantSeason)"
+              :key="season"
+              :value="season"
+            >
+              {{ $t(`settings.mapSettings.configuration.season.values.${season}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </SettingsItem>
 
       <SettingsItem

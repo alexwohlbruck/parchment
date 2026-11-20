@@ -18,6 +18,7 @@ import {
   StartupLocation,
   GridSnapMode,
   ShadowMode,
+  PlantSeason,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { captureMapSnapshot } from './map-snapshot'
@@ -701,6 +702,7 @@ function mapService() {
     mapStrategy?.setMap3dBuildings(buildings3d.value)
     mapStrategy?.setMap3dObjects(objects3d.value)
     mapStrategy?.setShadowMode(shadows.value)
+    mapStrategy?.setPlantSeason(mapStore.settings.season ?? PlantSeason.AUTO)
     mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -1094,6 +1096,7 @@ function mapService() {
   watch(buildings3d, value => mapStrategy?.setMap3dBuildings(value))
   watch(objects3d, value => mapStrategy?.setMap3dObjects(value))
   watch(shadows, mode => mapStrategy?.setShadowMode(mode))
+  watch(() => mapStore.settings.season, season => mapStrategy?.setPlantSeason(season ?? PlantSeason.AUTO))
   watch(
     () => powerStore.saver === 'extreme',
     value => mapStrategy?.setRoadsOnly(value),

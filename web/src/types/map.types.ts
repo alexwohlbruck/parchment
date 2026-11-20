@@ -92,6 +92,15 @@ export enum ShadowMode {
   ALWAYS = 'always',
 }
 
+/** Which season the 3D plants show; `auto` follows the date and the hemisphere in view. */
+export enum PlantSeason {
+  AUTO = 'auto',
+  SPRING = 'spring',
+  SUMMER = 'summer',
+  FALL = 'fall',
+  WINTER = 'winter',
+}
+
 export enum FloorNumbering {
   ZERO_BASED = 'zero-based',
   ONE_BASED = 'one-based',
@@ -116,6 +125,8 @@ export interface MapSettings {
   objects3d: boolean
   /** Cast shadows and ground occlusion under 3D buildings and objects. MapLibre only. */
   shadows: ShadowMode
+  /** The season the 3D plants show. MapLibre only. */
+  season: PlantSeason
   poiLabels: boolean
   roadLabels: boolean
   transitLabels: boolean

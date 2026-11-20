@@ -3046,6 +3046,16 @@
             "always": "Siempre"
           }
         },
+        "season": {
+          "title": "Estación",
+          "values": {
+            "auto": "Actual",
+            "spring": "Primavera",
+            "summer": "Verano",
+            "fall": "Otoño",
+            "winter": "Invierno"
+          }
+        },
         "hdRoads": "Carreteras HD",
         "indoorMaps": "Mapas de interiores",
         "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",

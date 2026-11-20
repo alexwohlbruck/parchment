@@ -2,6 +2,9 @@
 import { Toaster as Sonner, type ToasterProps } from 'vue-sonner'
 
 const props = defineProps<ToasterProps>()
+
+const TOAST_BUTTON =
+  '!bg-transparent !text-current !font-medium hover:!bg-current/10 !rounded-md !px-2'
 </script>
 
 <template>
@@ -15,15 +18,10 @@ const props = defineProps<ToasterProps>()
         toast:
           'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:shadow-lg',
         description: 'group-[.toast]:text-muted-foreground',
-        // Outlined ghost so the button blends with whatever color the
-        // toast is rendered in (richColors paints success/error/info
-        // backgrounds via `currentColor`-based vars). `!` flags beat
-        // sonner's inline default styles, otherwise the action button
-        // ends up solid black on a green success toast.
-        actionButton:
-          '!bg-transparent !text-current border border-current/30 hover:!bg-current/10',
-        cancelButton:
-          'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
+        // Both buttons are ghosts in the toast's own colour (richColors paints
+        // it through `currentColor`); `!` beats sonner's inline defaults.
+        actionButton: TOAST_BUTTON,
+        cancelButton: TOAST_BUTTON,
       },
     }"
   />

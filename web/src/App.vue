@@ -342,7 +342,13 @@ function beforeNavTransition(value: boolean) {
   ></div>
 
   <!-- Popups and modals -->
-  <Toaster richColors closeButton :duration="7000" position="bottom-center" />
+  <Toaster
+    richColors
+    closeButton
+    :theme="themeStore.isDark ? 'dark' : 'light'"
+    :duration="7000"
+    position="bottom-center"
+  />
   <SyncQueueDialog v-if="authStore.me" />
   <HotkeysMenu />
   <DialogView></DialogView>

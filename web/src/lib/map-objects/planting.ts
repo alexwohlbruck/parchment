@@ -67,8 +67,7 @@ export function spansAt(rings: Ring[], y: number): Span[] {
   const xs: number[] = []
   for (const ring of rings)
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [x0, y0] = ring[j]
-      const [x1, y1] = ring[i]
+      const x0 = ring[j][0], y0 = ring[j][1], x1 = ring[i][0], y1 = ring[i][1]
       if ((y0 > y) !== (y1 > y)) xs.push(x0 + ((y - y0) / (y1 - y0)) * (x1 - x0))
     }
   xs.sort((a, b) => a - b)
@@ -83,8 +82,7 @@ function inside(rings: Ring[], x: number, y: number): boolean {
   let hit = false
   for (const ring of rings)
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [x0, y0] = ring[j]
-      const [x1, y1] = ring[i]
+      const x0 = ring[j][0], y0 = ring[j][1], x1 = ring[i][0], y1 = ring[i][1]
       if ((y0 > y) !== (y1 > y) && x < x0 + ((y - y0) / (y1 - y0)) * (x1 - x0)) hit = !hit
     }
   return hit

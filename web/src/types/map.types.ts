@@ -116,7 +116,7 @@ export interface MapSettings {
   objects3d: boolean
   /** Cast shadows and ground occlusion under 3D buildings and objects. MapLibre only. */
   shadows: ShadowMode
-  /** The day of the year the 3D plants show, 0-364, or null to follow today. MapLibre only. */
+  /** A day of the year, 0-364, the seasons are pinned to instead of today; set only from the developer page. */
   plantDay: number | null
   /** Plants, grass and woods change through the year; off, they stay in high summer. MapLibre only. */
   seasons: boolean

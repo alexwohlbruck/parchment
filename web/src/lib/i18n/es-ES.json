@@ -3047,8 +3047,6 @@
           }
         },
         "season": {
-          "title": "Estación",
-          "today": "Hoy",
           "toggle": "Colores de temporada"
         },
         "hdRoads": "Carreteras HD",

@@ -3192,8 +3192,6 @@
           }
         },
         "season": {
-          "title": "Season",
-          "today": "Today",
           "toggle": "Seasonal colors"
         },
         "hdRoads": "Lanes and crosswalks",

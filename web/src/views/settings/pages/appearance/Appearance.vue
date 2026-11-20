@@ -17,7 +17,6 @@ import {
   MountainSnowIcon,
   Building2Icon,
   TreePineIcon,
-  LeafIcon,
   SproutIcon,
   MapIcon,
   MilestoneIcon,
@@ -43,7 +42,6 @@ import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { dayOfYear } from '@/lib/map-objects/seasons'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { CommandName } from '@/stores/command.store'
 import Layers from '@/components/library/layers/LayerList.vue'
@@ -61,12 +59,6 @@ const mapService = useMapService()
 const { settings } = storeToRefs(mapStore)
 
 const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
-
-const { locale } = useI18n()
-const plantDayLabel = computed(() => {
-  const day = settings.value.plantDay ?? dayOfYear(new Date())
-  return new Date(2026, 0, 1 + day).toLocaleDateString(locale.value, { month: 'short', day: 'numeric' })
-})
 
 // Convert radius to slider format (array)
 const sliderRadius = ref([radius.value])
@@ -221,35 +213,6 @@ const handleColorChange = (value: any) => {
           :model-value="settings.seasons ?? true"
           @update:model-value="v => (settings.seasons = v)"
         />
-      </SettingsItem>
-
-      <SettingsItem
-        v-if="isMaplibre && settings.seasons"
-        :title="$t('settings.mapSettings.configuration.season.title')"
-        :icon="LeafIcon"
-      >
-        <div class="flex min-w-0 items-center gap-2">
-          <Button
-            v-if="settings.plantDay != null"
-            variant="ghost"
-            size="sm"
-            @click="settings.plantDay = null"
-          >
-            {{ $t('settings.mapSettings.configuration.season.today') }}
-          </Button>
-          <Span class="w-14 text-right text-sm text-muted-foreground font-medium">
-            {{ plantDayLabel }}
-          </Span>
-          <Slider
-            class="w-40 min-w-0"
-            :model-value="[settings.plantDay ?? dayOfYear(new Date())]"
-            :min="0"
-            :max="364"
-            :step="1"
-            :aria-label="$t('settings.mapSettings.configuration.season.title')"
-            @update:model-value="v => v && (settings.plantDay = v[0])"
-          />
-        </div>
       </SettingsItem>
 
       <SettingsItem

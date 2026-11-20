@@ -15,8 +15,8 @@ export const TERRAIN_SOURCE_ID = 'terrain-dem'
  */
 export const TERRAIN_EXAGGERATION = 1
 
-/** How strongly the map's light (the sun) shades the terrain's slopes, 0 to 1. MapLibre only. */
-export const TERRAIN_SHADING = 1
+/** How strongly the map's light (the sun) shades the terrain's slopes: 1 as it lights buildings, more exaggerates. MapLibre only. */
+export const TERRAIN_SHADING = 2.5
 
 /**
  * About 2 m a pixel at 512 px. Where a region's data stops lower, the archive

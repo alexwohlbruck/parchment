@@ -7,6 +7,8 @@
 
 ### Changed
 
+* Profile photos are rounded squares everywhere, including friends on the map.
+
 ### Fixed
 
 * Uploaded profile photos now show up, including for friends on other Parchment servers.

@@ -216,12 +216,12 @@ onBeforeUnmount(() => setPreview(null))
         <AvatarPicker v-slot="{ choose }" @crop="onCrop">
           <button
             type="button"
-            class="avatar-picker group relative block size-20 rounded-full cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
+            class="avatar-picker group relative block size-20 rounded-[28%] cursor-pointer bg-background p-1 shadow-sm ring-1 ring-border focus-visible:ring-2 focus-visible:ring-ring"
             :aria-label="t('onboarding.profile.chooseAvatar')"
             @click="choose"
           >
             <div
-              class="size-full rounded-full overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
+              class="size-full rounded-[24%] overflow-hidden flex items-center justify-center ring-1 ring-border bg-secondary"
             >
               <img
                 :src="avatarPreview || placeholderAvatar"

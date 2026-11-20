@@ -180,7 +180,7 @@ async function save() {
 
       <div class="flex flex-col items-center gap-5">
         <div
-          class="relative overflow-hidden rounded-full bg-muted touch-none select-none cursor-grab active:cursor-grabbing ring-1 ring-border"
+          class="relative overflow-hidden rounded-[28%] bg-muted touch-none select-none cursor-grab active:cursor-grabbing ring-1 ring-border"
           :style="{ width: `${VIEWPORT}px`, height: `${VIEWPORT}px` }"
           @pointerdown="onPointerDown"
           @pointermove="onPointerMove"

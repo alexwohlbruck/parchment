@@ -85,7 +85,7 @@ defineExpose({ submit })
 
     <!-- Connected account info -->
     <div class="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
-      <Avatar size="sm" shape="circle">
+      <Avatar size="sm">
         <AvatarImage v-if="osmProfileImageUrl" :src="osmProfileImageUrl" :alt="osmDisplayName" />
         <AvatarFallback
           class="text-white font-bold"

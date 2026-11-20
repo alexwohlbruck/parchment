@@ -91,6 +91,7 @@ const batteryLow = computed(
       <TooltipTrigger asChild>
         <MapMarker
           class="cursor-pointer"
+          shape="square"
           :paint="paint"
           :size="MARKER_LIVE_PLATE_SIZE"
           pulse

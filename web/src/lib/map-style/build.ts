@@ -135,12 +135,10 @@ const FALLBACK_CATEGORY_COLORS: Record<FlavorId, Record<PlaceCategoryId, string>
 }
 
 /**
- * Release-stable cache-buster: busts stale cached tile responses on each app
- * release, but stays constant across sessions so the service worker's
- * opportunistic tile cache (and the browser's) keeps working between visits —
- * a per-load value would make every reopened session start from a cold map.
+ * Bump only when the app starts reading a tile field older cached tiles lack.
+ * Every bump empties the CDN, browser and offline tile caches for every user.
  */
-const cacheBuster = __APP_VERSION__
+const TILE_FORMAT = 1
 
 export const SOURCE = 'openmaptiles'
 
@@ -465,7 +463,7 @@ export function withDeckPieces(url: string, on: boolean): string {
 }
 
 export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
-  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
+  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${TILE_FORMAT}`
 }
 
 function origin(): string {

@@ -274,15 +274,6 @@ const ORTHO_FOV = 0.5
 const ORTHO_NEAR = 0.5
 const ORTHO_FAR = 2
 
-/** The internal transform surface the camera work needs. */
-interface InternalTransform {
-  cameraToCenterDistance: number
-  autoCalculateNearFarZ: boolean
-  nearZ: number
-  overrideNearFarZ?: (near: number, far: number) => void
-  clearNearFarZOverride?: () => void
-}
-
 /**
  * The zoom at which the globe has finished becoming a flat map.
  *
@@ -1682,22 +1673,6 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * The live transform, which is where everything the camera API does not
-   * reach lives.
-   *
-   * The transit fork keeps it on `_camera` rather than having Map extend the
-   * camera; plain MapLibre exposes it on the map itself. Try both, so the
-   * reach survives either layout.
-   */
-  private transform(): InternalTransform | undefined {
-    const instance = this.mapInstance as unknown as {
-      _camera?: { transform?: InternalTransform }
-      transform?: InternalTransform
-    }
-    return instance._camera?.transform ?? instance.transform
-  }
-
-  /**
    * Whether a sphere is on screen — which is not the same question as whether
    * the globe projection is selected. MapLibre eases the globe into Mercator
    * as you zoom in, so a globe map is flat by the time a building is drawn,
@@ -1766,34 +1741,16 @@ export class MaplibreStrategy extends MapStrategy {
     this.updateClipPlanes(topDown)
   }
 
-  /**
-   * Close the clip planes around the map in the plan view, and hand them back
-   * to MapLibre in every other view.
-   *
-   * `transform` is typed read-only because the mutators are internal, but the
-   * near and far planes are the one thing a near-orthographic camera has to
-   * take over — there is no styling or camera API that reaches them. Guarded
-   * on the method existing so a MapLibre that drops it degrades to the old
-   * z-fighting rather than throwing on every pitch event.
-   */
+  /** Close the clip planes around the map in the plan view, and hand them back to MapLibre in every other view. */
   private updateClipPlanes(topDown: boolean) {
-    const transform = this.transform()
-    if (!transform?.overrideNearFarZ || !transform.clearNearFarZOverride) return
-
+    const map = this.mapInstance
     if (!topDown) {
-      if (transform.autoCalculateNearFarZ) return
-      transform.clearNearFarZOverride()
-      this.mapInstance.triggerRepaint()
+      map.setNearFarZ(null)
       return
     }
-
-    const near = transform.cameraToCenterDistance * ORTHO_NEAR
-    // The distance also moves with the viewport, so this has to re-run on
-    // resize; a repaint on every pitch event with nothing to change would be
-    // wasted work.
-    if (transform.autoCalculateNearFarZ === false && Math.abs(transform.nearZ - near) < 1) return
-    transform.overrideNearFarZ(near, transform.cameraToCenterDistance * ORTHO_FAR)
-    this.mapInstance.triggerRepaint()
+    const fov = (map.getVerticalFieldOfView() * Math.PI) / 180
+    const distance = map.getContainer().clientHeight / 2 / Math.tan(fov / 2)
+    map.setNearFarZ({ nearZ: distance * ORTHO_NEAR, farZ: distance * ORTHO_FAR })
   }
 
   /**

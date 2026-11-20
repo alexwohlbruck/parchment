@@ -64,6 +64,7 @@ import {
   cyclingWaysLayers,
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
+import { basemapMaxzoom } from './basemap-zoom'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import { BASEMAP_CONTINENT_LABELS, GLOBE_CONTINENT_LABELS, GLOBE_NAMES, GLOBE_SOURCE, globeSources, withGlobeLayers } from './globe-layers'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
@@ -477,7 +478,7 @@ function vectorSource(tileServerUrl: string) {
   return {
     type: 'vector' as const,
     tiles: [buildTileUrl(tileServerUrl)],
-    maxzoom: 14,
+    maxzoom: basemapMaxzoom(),
     attribution: OSM_ATTRIBUTION,
   }
 }

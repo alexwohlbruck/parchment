@@ -118,6 +118,8 @@ export interface MapSettings {
   shadows: ShadowMode
   /** The day of the year the 3D plants show, 0-364, or null to follow today. MapLibre only. */
   plantDay: number | null
+  /** Tint grass and woods with the plants' season. MapLibre only. */
+  seasonalGround: boolean
   poiLabels: boolean
   roadLabels: boolean
   transitLabels: boolean

@@ -702,6 +702,7 @@ function mapService() {
     mapStrategy?.setMap3dObjects(objects3d.value)
     mapStrategy?.setShadowMode(shadows.value)
     mapStrategy?.setPlantDay(mapStore.settings.plantDay ?? null)
+    mapStrategy?.setSeasonalGround(mapStore.settings.seasonalGround ?? true)
     mapStrategy?.setHdRoads(mapStore.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -1096,6 +1097,7 @@ function mapService() {
   watch(objects3d, value => mapStrategy?.setMap3dObjects(value))
   watch(shadows, mode => mapStrategy?.setShadowMode(mode))
   watch(() => mapStore.settings.plantDay, day => mapStrategy?.setPlantDay(day ?? null))
+  watch(() => mapStore.settings.seasonalGround, value => mapStrategy?.setSeasonalGround(value ?? true))
   watch(
     () => powerStore.saver === 'extreme',
     value => mapStrategy?.setRoadsOnly(value),

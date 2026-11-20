@@ -3048,7 +3048,8 @@
         },
         "season": {
           "title": "Estación",
-          "today": "Hoy"
+          "today": "Hoy",
+          "ground": "Césped y bosques según la estación"
         },
         "hdRoads": "Carreteras HD",
         "indoorMaps": "Mapas de interiores",

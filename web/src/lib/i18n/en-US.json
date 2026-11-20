@@ -3193,7 +3193,8 @@
         },
         "season": {
           "title": "Season",
-          "today": "Today"
+          "today": "Today",
+          "ground": "Seasonal grass and woods"
         },
         "hdRoads": "Lanes and crosswalks",
         "indoorMaps": "Indoor maps",

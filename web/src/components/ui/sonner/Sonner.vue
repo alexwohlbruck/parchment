@@ -20,7 +20,9 @@ const TOAST_BUTTON =
         description: 'group-[.toast]:text-muted-foreground',
         // Both buttons are ghosts in the toast's own colour (richColors paints
         // it through `currentColor`); `!` beats sonner's inline defaults.
-        actionButton: TOAST_BUTTON,
+        // Sonner pushes every button right with an auto margin, which splits
+        // the free space between two; the action follows the cancel, so it sits beside it.
+        actionButton: `${TOAST_BUTTON} [[data-cancel]+&]:!ml-1`,
         cancelButton: TOAST_BUTTON,
       },
     }"

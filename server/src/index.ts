@@ -41,6 +41,7 @@ import {
   data as dataController,
   subscription as subscriptionController,
   avatar as avatarController,
+  files as filesController,
   vehicles as vehiclesController,
   feedback as feedbackController,
   speech as speechController,
@@ -48,6 +49,7 @@ import {
   mcp as mcpController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { migrateLegacyAvatars } from './services/avatar.service'
 import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
@@ -128,6 +130,7 @@ async function main() {
   app.use(dataController)
   app.use(subscriptionController)
   app.use(avatarController)
+  app.use(filesController)
   app.use(vehiclesController)
   app.use(feedbackController)
   app.use(speechController)
@@ -178,6 +181,7 @@ async function main() {
     initializeOsmPresets()
     await initializeIntegrations()
     logger.info('Integrations initialized')
+    await migrateLegacyAvatars()
   } catch (error) {
     logError('Failed to initialize services', error)
   }

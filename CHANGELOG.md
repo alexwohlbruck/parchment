@@ -2,11 +2,16 @@
 
 ### Added
 
-* You can change what kind of place an existing place is when editing it, such as giving a bare address a business or swapping in a new tenant.
-
 ### Changed
 
 ### Fixed
+
+## [0.23.3] - 2026-11-21
+
+### Added
+
+* Two new map styles, Cupertino and Mountain View, under Settings → Appearance, plus a refreshed Parchment palette.
+* You can change what kind of place an existing place is when editing it, such as giving a bare address a business or swapping in a new tenant.
 
 ## [0.23.2] - 2026-11-20
 

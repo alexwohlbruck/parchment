@@ -26,11 +26,20 @@ interface MapTheme {
   shading?: PerFlavor<ThemeShading>
   /** The street-zoom carriageway and its kerb. */
   roadSurface?: PerFlavor<RoadSurface>
+  typography?: Typography
 }
 
 export interface RoadSurface {
   asphalt: string
   kerb: string
+  /** The zoom from which roads deepen out of their map colour into the asphalt, reaching it as the lanes draw. */
+  darkenFrom?: number
+}
+
+export interface Typography {
+  /** Stands in for Geist at the same weight; `build-glyphs.mjs` generates its stacks. */
+  family: 'Inter' | 'Roboto'
+  roadLabels?: { transform: 'uppercase' | 'none'; letterSpacing: number }
 }
 
 const BASE_TOKENS: Record<FlavorId, Tokens> = { light: lightTokens, dark: darkTokens }
@@ -214,10 +223,10 @@ const CUPERTINO: MapTheme = {
         urban: 'hsl(213, 27%, 26%)',
         commercial: 'hsl(238, 22%, 33%)',
         industrial: 'hsl(220, 20%, 29%)',
-        grass: 'hsl(170, 100%, 22%)',
+        grass: 'hsl(177, 100%, 17%)',
         wood: 'hsl(176, 90%, 18%)',
-        pitch: 'hsl(176, 70%, 22%)',
-        pitchEdge: 'hsl(176, 60%, 28%)',
+        pitch: 'hsl(177, 80%, 18%)',
+        pitchEdge: 'hsl(177, 60%, 24%)',
         cemetery: 'hsl(176, 40%, 22%)',
         school: 'hsl(250, 16%, 31%)',
         hospital: 'hsl(345, 22%, 31%)',
@@ -254,9 +263,10 @@ const CUPERTINO: MapTheme = {
     dark: { 'sky-color': 'hsl(220, 36%, 12%)', 'horizon-color': 'hsl(213, 27%, 26%)', 'fog-color': 'hsl(213, 27%, 26%)' },
   },
   roadSurface: {
-    light: { asphalt: 'hsl(185, 6%, 77%)', kerb: 'hsl(190, 6%, 69%)' },
-    dark: { asphalt: 'hsl(210, 15%, 20%)', kerb: 'hsl(210, 18%, 15%)' },
+    light: { asphalt: 'hsl(200, 6%, 66%)', kerb: 'hsl(45, 8%, 86%)', darkenFrom: 13 },
+    dark: { asphalt: 'hsl(210, 15%, 20%)', kerb: 'hsl(210, 14%, 30%)', darkenFrom: 13 },
   },
+  typography: { family: 'Inter', roadLabels: { transform: 'uppercase', letterSpacing: 0.06 } },
   buildingPastels: {
     light: ['hsl(0, 8%, 89%)', 'hsl(30, 14%, 89%)', 'hsl(60, 8%, 88.5%)', 'hsl(220, 8%, 89%)'],
     dark: [],
@@ -269,7 +279,7 @@ const CUPERTINO: MapTheme = {
 
 /**
  * Neutral grey land, pale yellow commercial blocks, mint parks, white streets
- * and blue-grey highways.
+ * and blue-grey highways by day; navy land and blue-grey streets by night.
  */
 const MOUNTAIN_VIEW: MapTheme = {
   tokens: {
@@ -315,52 +325,54 @@ const MOUNTAIN_VIEW: MapTheme = {
     },
     dark: {
       ...land({
-        ground: 'hsl(220, 8%, 13%)',
-        urban: 'hsl(220, 8%, 13%)',
-        commercial: 'hsl(40, 12%, 16%)',
-        industrial: 'hsl(222, 9%, 16%)',
-        grass: 'hsl(150, 30%, 22%)',
-        wood: 'hsl(150, 20%, 17%)',
-        pitch: 'hsl(150, 22%, 19%)',
-        pitchEdge: 'hsl(150, 20%, 23%)',
-        cemetery: 'hsl(150, 12%, 17%)',
-        school: 'hsl(34, 12%, 17%)',
-        hospital: 'hsl(5, 14%, 18%)',
-        sand: 'hsl(40, 12%, 20%)',
-        airport: 'hsl(222, 8%, 16%)',
-        water: 'hsl(214, 38%, 15%)',
-        shallows: 'hsl(214, 30%, 19%)',
-        pier: 'hsl(220, 6%, 18%)',
+        ground: 'hsl(208, 52%, 23%)',
+        urban: 'hsl(208, 52%, 23%)',
+        commercial: 'hsl(214, 42%, 27%)',
+        industrial: 'hsl(214, 40%, 26%)',
+        grass: 'hsl(160, 45%, 26%)',
+        wood: 'hsl(165, 45%, 21%)',
+        pitch: 'hsl(160, 38%, 25%)',
+        pitchEdge: 'hsl(160, 34%, 31%)',
+        cemetery: 'hsl(165, 30%, 24%)',
+        school: 'hsl(222, 34%, 28%)',
+        hospital: 'hsl(345, 26%, 28%)',
+        sand: 'hsl(40, 18%, 27%)',
+        airport: 'hsl(214, 40%, 26%)',
+        water: 'hsl(214, 58%, 13%)',
+        shallows: 'hsl(212, 50%, 18%)',
+        pier: 'hsl(212, 36%, 30%)',
       }),
       ...roads({
-        highway: 'hsl(218, 18%, 42%)',
-        highwayCasing: 'hsl(218, 16%, 28%)',
-        major: 'hsl(220, 8%, 30%)',
-        majorCasing: 'hsl(220, 6%, 19%)',
-        minor: 'hsl(220, 6%, 25%)',
-        minorCasing: 'hsl(220, 6%, 17%)',
-        path: 'hsl(220, 6%, 20%)',
-        pathCasing: 'hsl(220, 6%, 15%)',
-        rail: 'hsl(220, 6%, 32%)',
+        highway: 'hsl(212, 28%, 50%)',
+        highwayCasing: 'hsl(212, 36%, 32%)',
+        major: 'hsl(212, 33%, 36%)',
+        majorCasing: 'hsl(210, 50%, 20%)',
+        minor: 'hsl(213, 44%, 31%)',
+        minorCasing: 'hsl(210, 50%, 20%)',
+        path: 'hsl(213, 40%, 28%)',
+        pathCasing: 'hsl(210, 50%, 20%)',
+        rail: 'hsl(212, 24%, 44%)',
       }),
-      ...buildings({ roof: 'hsl(220, 6%, 21%)', edge: 'hsl(220, 6%, 16%)', flat: 'hsl(220, 6%, 32%)' }),
+      ...buildings({ roof: 'hsl(212, 46%, 29%)', edge: 'hsl(210, 52%, 21%)', flat: 'hsl(212, 40%, 34%)' }),
       ...labels({
-        strong: 'hsl(210, 10%, 88%)',
-        muted: 'hsl(210, 6%, 62%)',
-        road: 'hsl(210, 6%, 70%)',
-        halo: 'rgba(30, 32, 36, 0.9)',
-        water: 'hsl(205, 40%, 60%)',
-        waterHalo: 'hsl(214, 38%, 15%)',
+        strong: 'hsl(220, 30%, 88%)',
+        muted: 'hsl(215, 22%, 68%)',
+        road: 'hsl(215, 24%, 76%)',
+        halo: 'rgba(28, 60, 88, 0.9)',
+        water: 'hsl(210, 40%, 62%)',
+        waterHalo: 'hsl(214, 58%, 13%)',
       }),
     },
   },
   sky: {
     light: { 'horizon-color': 'hsl(0, 0%, 95.5%)', 'fog-color': 'hsl(0, 0%, 95.5%)' },
-    dark: { 'sky-color': 'hsl(220, 12%, 7%)', 'horizon-color': 'hsl(220, 8%, 13%)', 'fog-color': 'hsl(220, 8%, 13%)' },
+    dark: { 'sky-color': 'hsl(214, 50%, 9%)', 'horizon-color': 'hsl(208, 52%, 23%)', 'fog-color': 'hsl(208, 52%, 23%)' },
   },
   roadSurface: {
     light: { asphalt: 'hsl(206, 25%, 78%)', kerb: 'hsl(206, 20%, 90%)' },
+    dark: { asphalt: 'hsl(212, 33%, 33%)', kerb: 'hsl(210, 50%, 20%)' },
   },
+  typography: { family: 'Roboto', roadLabels: { transform: 'none', letterSpacing: 0 } },
   buildingPastels: { light: [], dark: [] },
   buildingTint: { light: 0, dark: 0 },
   shading: {
@@ -408,4 +420,8 @@ export function themeShading(style: MapStyleId | undefined, flavor: FlavorId): T
 
 export function themeRoadSurface(style: MapStyleId | undefined, flavor: FlavorId): RoadSurface | undefined {
   return theme(style).roadSurface?.[flavor]
+}
+
+export function themeTypography(style: MapStyleId | undefined): Typography | undefined {
+  return theme(style).typography
 }

@@ -141,6 +141,19 @@ export function asphaltRoads(layers: any[], flavor: FlavorId, style?: MapStyleId
   })
 }
 
+/**
+ * A theme's roads deepening from their map colour into the asphalt as the
+ * zoom climbs, so a street is a light line across a city and a dark
+ * carriageway close up, with or without the lane geometry over it.
+ */
+export function darkenRoads(layers: any[], flavor: FlavorId, mapStyle?: MapStyleId): any[] {
+  const surface = themeRoadSurface(mapStyle, flavor)
+  if (surface?.darkenFrom === undefined) return layers
+  return layers.map(layer => ROAD_FILLS.includes(layer.id) && typeof layer.paint?.['line-color'] === 'string'
+    ? { ...layer, paint: { ...layer.paint, 'line-color': ['interpolate', ['linear'], ['zoom'], surface.darkenFrom, layer.paint['line-color'], TO, surface.asphalt] } }
+    : layer)
+}
+
 /** One band of lane geometry: at grade, or on bridges. */
 export function roadMarkingLayers(flavor: FlavorId, bridge: boolean, mapStyle?: MapStyleId): any[] {
   const c = colors(flavor, mapStyle)

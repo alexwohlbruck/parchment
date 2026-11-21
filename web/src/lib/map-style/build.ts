@@ -53,7 +53,8 @@ import {
 import { trackLayers, racewayLayer } from './track-layers'
 import { fixtureLayer, withFixtures } from './fixture-layers'
 import { stepsLayers } from './steps-layers'
-import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { ROAD_GLYPH_TILES, asphaltRoads, darkenRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { withTypography } from './typography'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -68,7 +69,7 @@ import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
-import { themeBuildingPastels, themeBuildingTint, themeSky, themeTokens } from './themes'
+import { themeBuildingPastels, themeBuildingTint, themeSky, themeTokens, themeTypography } from './themes'
 
 /**
  * Assembles the basemap style from the converted layer spec and a flavor's
@@ -509,7 +510,8 @@ export function buildLayers(options: {
 
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
-  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures) as LayerSpecification[]
+  const layers = spliceIndoorLayers(spliceDetailLayers(darkenRoads(converted, flavor, mapStyle), flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures)
+  return withTypography(layers, themeTypography(mapStyle)) as LayerSpecification[]
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */

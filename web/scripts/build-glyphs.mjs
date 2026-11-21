@@ -13,7 +13,7 @@
  * They arrive from @fontsource as woff2 (there is no ttf release), which
  * `wawoff2` turns back into the sfnt fontnik needs.
  *
- * Run with: bun run build:glyphs
+ * Run with: bun run build:glyphs [stack name…]
  */
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -66,6 +66,13 @@ const STACKS = [
   ]),
   // Cupertino's tall, narrow district names.
   { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', style: 'SemiBold' },
+  // The Parchment chart theme: Garamond for the working labels, Fell types for
+  // the engraved town names and the italic seas and rivers.
+  ...['Regular', 'Medium', 'SemiBold', 'Bold'].map((style, i) => (
+    { name: `EB Garamond ${style}`, family: 'EB Garamond', weight: `${400 + 100 * i}-normal`, style }
+  )),
+  { name: 'IM Fell English Italic', family: 'IM Fell English', weight: '400-italic', style: 'Regular', noto: 'NotoSans-Italic.ttf' },
+  { name: 'IM Fell English SC Regular', family: 'IM Fell English SC', weight: '400-normal', style: 'Regular' },
 ]
 
 /**
@@ -92,6 +99,9 @@ const SUBSET_DIRS = {
   Geist: resolve(WEB, 'node_modules/@fontsource/geist-sans/files'),
   Inter: resolve(WEB, 'node_modules/@fontsource/inter/files'),
   'Barlow Condensed': resolve(WEB, 'node_modules/@fontsource/barlow-condensed/files'),
+  'EB Garamond': resolve(WEB, 'node_modules/@fontsource/eb-garamond/files'),
+  'IM Fell English': resolve(WEB, 'node_modules/@fontsource/im-fell-english/files'),
+  'IM Fell English SC': resolve(WEB, 'node_modules/@fontsource/im-fell-english-sc/files'),
 }
 
 /** @fontsource splits each weight across these subsets. */
@@ -123,10 +133,11 @@ async function main() {
   }
   await mkdir(OUT, { recursive: true })
 
-  for (const stack of STACKS) {
+  const only = process.argv.slice(2)
+  for (const stack of STACKS.filter(s => !only.length || only.includes(s.name))) {
     const faces = [
       ...(await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
-      await readFile(join(VENDOR, 'NotoSans-Regular.ttf')),
+      await readFile(join(VENDOR, stack.noto ?? 'NotoSans-Regular.ttf')),
       ...(await Promise.all(SCRIPT_FALLBACKS.map(f => readFile(join(VENDOR, `${f}-${stack.style}.ttf`))))),
     ]
     const dir = join(OUT, stack.name)

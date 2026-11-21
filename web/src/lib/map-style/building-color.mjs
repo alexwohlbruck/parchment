@@ -209,10 +209,10 @@ export function buildingColor(
  * Faint casts for buildings that record no colour of their own, so a block of
  * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
  * only: night already separates buildings by light, and a cast there reads as
- * a lit surface. Each sits at the flavor's own lightness, all in the warm family: stone, clay, sand, brick, limestone.
+ * a lit surface. Each sits at the flavor's own lightness: stone, steel, brick, sand, sage.
  */
 export const BUILDING_PASTELS = {
-  light: ['hsl(32, 14%, 86%)', 'hsl(22, 12%, 86%)', 'hsl(42, 18%, 86%)', 'hsl(14, 10%, 86.5%)', 'hsl(50, 10%, 86%)'],
+  light: ['hsl(30, 17%, 84.5%)', 'hsl(212, 12%, 85%)', 'hsl(8, 14%, 85%)', 'hsl(44, 21%, 84%)', 'hsl(155, 9%, 84%)'],
   dark: [],
 }
 

@@ -25,6 +25,9 @@ describe('theme typography', () => {
     const font = JSON.stringify(layers.find(l => l.id === 'Place labels').layout['text-font'])
     expect(font).toContain('Barlow Condensed SemiBold')
     expect(font).toContain('Inter Medium')
+    const size = layers.find(l => l.id === 'Neighbourhood labels').layout['text-size']
+    expect(size.slice(0, 3)).toEqual(['interpolate', ['linear', 1], ['zoom']])
+    expect(size.at(-1)[0]).toBe('*')
   })
 })
 

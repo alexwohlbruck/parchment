@@ -41,7 +41,7 @@ export interface Typography {
   family: 'Inter' | 'Roboto'
   roadLabels?: { transform: 'uppercase' | 'none'; letterSpacing: number }
   /** Neighbourhood and district names, in a face of their own. */
-  districtLabels?: { font: string; letterSpacing: number }
+  districtLabels?: { font: string; letterSpacing: number; scale: number }
 }
 
 const BASE_TOKENS: Record<FlavorId, Tokens> = { light: lightTokens, dark: darkTokens }
@@ -271,7 +271,7 @@ const CUPERTINO: MapTheme = {
   typography: {
     family: 'Inter',
     roadLabels: { transform: 'uppercase', letterSpacing: 0.06 },
-    districtLabels: { font: 'Barlow Condensed SemiBold', letterSpacing: 0.1 },
+    districtLabels: { font: 'Barlow Condensed SemiBold', letterSpacing: 0.1, scale: 1.4 },
   },
   buildingPastels: {
     light: ['hsl(0, 8%, 89%)', 'hsl(30, 14%, 89%)', 'hsl(60, 8%, 88.5%)', 'hsl(220, 8%, 89%)'],

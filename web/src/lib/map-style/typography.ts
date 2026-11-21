@@ -24,12 +24,21 @@ export function withTypography(layers: any[], typography: Typography | undefined
     if (districts && layer.id === NEIGHBOURHOOD_LAYER) {
       layout['text-font'] = ['literal', [districts.font]]
       layout['text-letter-spacing'] = districts.letterSpacing
+      layout['text-size'] = scaleStops(layout['text-size'], size => ['*', size, districts.scale])
     }
     if (districts && layer.id === PLACE_LABELS) {
       const isDistrict = ['in', ['get', 'class'], ['literal', DISTRICTS]]
       layout['text-font'] = ['case', isDistrict, ['literal', [districts.font]], ['literal', layout['text-font']]]
       layout['text-letter-spacing'] = ['case', isDistrict, districts.letterSpacing, layer.layout['text-letter-spacing'] ?? 0]
+      layout['text-size'] = scaleStops(layout['text-size'], size => ['case', isDistrict, ['*', size, districts.scale], size])
     }
     return { ...layer, layout }
   })
+}
+
+/** Maps each output of a zoom `interpolate`, since a zoom curve cannot be nested inside arithmetic. */
+function scaleStops(size: any, scale: (size: any) => any): any {
+  if (!Array.isArray(size) || size[0] !== 'interpolate') return typeof size === 'number' ? scale(size) : size
+  const [op, curve, input, ...stops] = size
+  return [op, curve, input, ...stops.map((v, i) => (i % 2 ? scale(v) : v))]
 }

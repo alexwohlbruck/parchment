@@ -3,6 +3,8 @@ import { i18n, storedLocale } from '@/lib/i18n'
 import { createSseParser } from '@/lib/ask/sse-events'
 import { useAskStore } from '@/stores/ask.store'
 import { useAskHistoryService } from '@/services/ask/ask-history.service'
+import { useRoutesStore } from '@/stores/library/routes.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 import type { AskAccess, AskEvent, AskPoint, AskWhere } from '@/types/ask.types'
 
 let controller: AbortController | null = null
@@ -23,6 +25,25 @@ function requestHeaders(): Record<string, string> {
 export function useAskService() {
   const askStore = useAskStore()
   const askHistory = useAskHistoryService()
+  const routesStore = useRoutesStore()
+  const canvasesStore = useCanvasesStore()
+
+  /** Keeps the library in step with what Ask filed away. */
+  function syncLibrary(event: Extract<AskEvent, { type: 'archived' }>) {
+    const archivedAt = event.archived ? new Date().toISOString() : null
+    if (event.kind === 'route') {
+      const route = routesStore.getRouteById(event.id)
+      if (route) routesStore.upsertRoute({ ...route, archivedAt })
+    } else {
+      const canvas = canvasesStore.getCanvasById(event.id)
+      if (canvas) canvasesStore.upsertCanvas({ ...canvas, archivedAt })
+    }
+  }
+
+  function receive(event: AskEvent) {
+    if (event.type === 'archived') syncLibrary(event)
+    else askStore.apply(event)
+  }
 
   async function loadAccess({ fresh = false } = {}): Promise<AskAccess> {
     if (askStore.access && !fresh) return askStore.access
@@ -70,7 +91,7 @@ export function useAskService() {
         return
       }
 
-      const feed = createSseParser<AskEvent>(askStore.apply)
+      const feed = createSseParser<AskEvent>(receive)
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
       for (;;) {
         const { value, done } = await reader.read()

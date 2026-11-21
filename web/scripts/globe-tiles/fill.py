@@ -13,6 +13,7 @@ from PIL import Image
 OUT = Path(sys.argv[1])
 MAXZOOM = int(sys.argv[2])
 RELIEF_MAXZOOM = int(sys.argv[3])
+GZIP_MAGIC = b'\x1f\x8b'
 
 
 def positions(maxzoom: int):
@@ -29,7 +30,8 @@ def vector():
         tile.unlink(missing_ok=True)
         target = tile.with_suffix('.pbf.gz')
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(gzip.compress(data, 9, mtime=0))
+        # Tippecanoe already gzips its tiles; a second layer survives the browser's one inflate.
+        target.write_bytes(data if data[:2] == GZIP_MAGIC else gzip.compress(data, 9, mtime=0))
 
 
 def relief():

@@ -9,7 +9,7 @@
 # never mix tiles from two builds.
 set -euo pipefail
 
-VERSION=v1
+VERSION=v2
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PUBLIC="$HERE/../../public/globe"
 WORK="${1:-/tmp/globe-tiles}"

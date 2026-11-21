@@ -15,6 +15,7 @@ import AskAnswer from './AskAnswer.vue'
 import AskFollowUps from './AskFollowUps.vue'
 import AskSources from './AskSources.vue'
 import AskTripCard from './AskTripCard.vue'
+import AskRouteCard from './AskRouteCard.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
 import type { AskExchange } from '@/types/ask.types'
@@ -94,6 +95,8 @@ const browseRoute = computed(() => {
       </Button>
     </template>
 
+    <AskRouteCard v-if="exchange.route" :id="exchange.route.id" />
+
     <div v-if="exchange.canvas" :class="ITEM_ROW_SURFACES.row" class="flex items-center gap-3 px-3 py-2.5">
       <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
         <MapIcon class="size-4 text-muted-foreground" />
@@ -108,7 +111,7 @@ const browseRoute = computed(() => {
     </div>
 
     <EmptyState
-      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip && !exchange.canvas"
+      v-if="exchange.status === 'done' && !exchange.places.length && !exchange.text && !exchange.trip && !exchange.canvas && !exchange.route"
       :icon="MapPinOffIcon"
       :title="t('ask.empty.title')"
       :description="t('ask.empty.description')"

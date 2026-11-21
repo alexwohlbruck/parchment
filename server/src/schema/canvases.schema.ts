@@ -152,11 +152,23 @@ export interface CanvasDataLayer {
   style?: { color?: string; size?: number; opacity?: number; labelProperty?: string | null }
 }
 
+/** A saved route, drawn as its path. */
+export interface CanvasRouteLayer {
+  id: string
+  kind: 'route'
+  routeId: string
+  visible: boolean
+  color?: string | null
+  /** This canvas's own word for it; the route keeps its own name. */
+  name?: string
+}
+
 export type CanvasLayer =
   | CanvasStyleLayer
   | CanvasLibraryLayer
   | CanvasCollectionLayer
   | CanvasDataLayer
+  | CanvasRouteLayer
 
 export interface CanvasBody {
   layers: CanvasLayer[]

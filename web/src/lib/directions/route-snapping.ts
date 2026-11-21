@@ -12,7 +12,8 @@
 
 import axios from 'axios'
 import { api } from '@/lib/api'
-import type { RouteMode, RouteSegment, RouteStats } from '@/types/routes.types'
+import { pathFromTrip, type RoutePath } from '@server/lib/directions/route-path'
+import type { RouteMode } from '@/types/routes.types'
 
 export interface SnapWaypoint {
   lat: number
@@ -20,14 +21,7 @@ export interface SnapWaypoint {
   name?: string
 }
 
-export interface SnappedPath {
-  /** The routed path as [lng, lat] pairs, ready for GeoJSON. */
-  geometry: Array<[number, number]>
-  /** Per-vertex elevation, aligned to `geometry`, when the engine returned it. */
-  elevation?: number[]
-  segments: RouteSegment[]
-  stats: RouteStats
-}
+export type SnappedPath = RoutePath
 
 /** Backend `selectedMode` token for a travel mode. */
 export function backendMode(mode: RouteMode): string {
@@ -44,70 +38,6 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       resolve()
     })
   })
-}
-
-interface CollectedLeg extends RouteSegment {
-  /** Per-vertex elevation (meters), aligned to `geometry`; may be sparse. */
-  elevation: Array<number | undefined>
-}
-
-/**
- * Walk a directions response's segment tree and collect the leaf legs that
- * carry geometry. Multimodal candidates nest sub-segments under
- * `details.multimodalSegments`; single-mode routes are already flat.
- */
-export function collectLegs(segments: any[]): CollectedLeg[] {
-  const legs: CollectedLeg[] = []
-  for (const segment of segments ?? []) {
-    if (segment.details?.multimodalSegments) {
-      legs.push(...collectLegs(segment.details.multimodalSegments))
-      continue
-    }
-    const points = segment.geometry ?? []
-    legs.push({
-      mode: segment.mode,
-      geometry: points.map(
-        (c: any) => [c.lng, c.lat] as [number, number],
-      ),
-      distance: segment.distance ?? 0,
-      duration: segment.duration ?? 0,
-      elevation: points.map((c: any) =>
-        typeof c.elevation === 'number' ? c.elevation : undefined,
-      ),
-    })
-  }
-  return legs
-}
-
-/** A trip response reduced to the path and its totals. */
-export function pathFromTrip(trip: any): SnappedPath {
-  const legs = collectLegs(trip.segments)
-  const geometry = legs.flatMap(leg => leg.geometry)
-
-  const elevationFlat = legs.flatMap(leg => leg.elevation)
-  const hasElevation = elevationFlat.some(value => value !== undefined)
-
-  const elevationGain = (trip.segments ?? []).reduce(
-    (sum: number, s: any) => sum + (s.totalElevationGain ?? 0),
-    0,
-  )
-  const elevationLoss = (trip.segments ?? []).reduce(
-    (sum: number, s: any) => sum + (s.totalElevationLoss ?? 0),
-    0,
-  )
-
-  return {
-    geometry,
-    elevation: hasElevation ? elevationFlat.map(e => e ?? 0) : undefined,
-    // Strip the per-leg elevation helper before handing the legs back.
-    segments: legs.map(({ elevation: _e, ...rest }) => rest),
-    stats: {
-      distance: trip.tripStats?.totalDistance ?? 0,
-      duration: trip.tripStats?.totalDuration ?? 0,
-      elevationGain: elevationGain || undefined,
-      elevationLoss: elevationLoss || undefined,
-    },
-  }
 }
 
 /**

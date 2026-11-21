@@ -191,7 +191,10 @@ function onLevel(heights: readonly number[], width: number): number {
  *
  * `heights` are the map's as the terrain draws them, exaggerated; a 0 among
  * real ones is a tile that has not loaded and reads as the lowest ground.
- * `raw` is the bare DEM in true metres, NaN where unknown. A flat model's
+ * `under` is the drawn ground at the model's contacts, where it stands: the
+ * lowest ground is read there, so a ditch in a corner of its bounding box
+ * does not sink it (from the grid until they have loaded). `raw` is the bare
+ * DEM in true metres at the grid, NaN where unknown. A flat model's
  * offset is 0. One that follows the terrain takes the median, over the grid,
  * of the map's ground less its own, so its feet meet the terrain wherever
  * the two agree; under exaggeration the hills grow and the model does not.
@@ -203,9 +206,11 @@ export function groundModel(
   scale: number,
   sink: number,
   raw: readonly number[] = [],
+  under: readonly number[] = [],
 ): { lowest: number; offset: number; ground: Float32Array<ArrayBuffer> } {
   const loaded = heights.some(h => h !== 0)
-  const lowest = Math.min(...(loaded ? heights.filter(h => h !== 0) : heights))
+  const stands = under.filter(h => h !== 0)
+  const lowest = stands.length ? Math.min(...stands) : Math.min(...(loaded ? heights.filter(h => h !== 0) : heights))
   const drawn = heights.map(h => (loaded && h === 0 ? lowest : h))
   const offset = model.follows && loaded
     ? median(heights.flatMap((h, i) => {

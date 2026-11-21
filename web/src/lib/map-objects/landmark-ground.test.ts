@@ -115,6 +115,15 @@ describe('groundModel', () => {
     expect([...ground]).toEqual([0, 4, 0, 8])
   })
 
+  it('reads the lowest ground only where the model stands', () => {
+    // A ditch at one corner of its bounding box, where the model stands on nothing.
+    const { lowest, ground } = groundModel([170, 194, 190, 198], 1, { follows: false }, 1, 0, [], [192, 189.5, 0])
+    expect(lowest).toBe(189.5)
+    expect(ground[0]).toBeCloseTo(-19.5, 6)
+    // Until the ground under its contacts has loaded, the grid's lowest stands in.
+    expect(groundModel([170, 194, 190, 198], 1, { follows: false }, 1, 0, [], [0, 0]).lowest).toBe(170)
+  })
+
   it('counts the sink in the ground over the origin', () => {
     const { ground } = groundModel(raw, 1, { follows: false }, 0.5, GROUND_SINK)
     // In model units: a model drawn at half size has twice the units per metre.

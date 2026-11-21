@@ -1003,7 +1003,7 @@ export class LandmarkLayer {
 
   /**
    * A landmark set on the terrain as it stands now, whole: its origin on the
-   * lowest ground under its footprint, moved by its own ground's offset and
+   * lowest ground it covers, moved by its own ground's offset and
    * then its elevation; see `groundModel`. Until the model has loaded its
    * extent is unknown, so the anchor stands in; the load invalidates and this
    * runs again.
@@ -1023,7 +1023,8 @@ export class LandmarkLayer {
       const drawn = this.drawnGround(sample, this.fills.get(placementKey(landmark)), exaggeration)
       const own: ModelGround = footprint && model ? this.modelGround(landmark, model, drawn) : { follows: false }
       const sink = groundSink(own, true)
-      const grounded = groundModel(points.map(drawn.at), exaggeration, own, landmark.scale, sink, points.map(p => this.bareAt(p)))
+      const under = (model?.contacts ?? []).map(([x, , z]) => drawn.at(modelToLngLat(landmark, x, z)))
+      const grounded = groundModel(points.map(drawn.at), exaggeration, own, landmark.scale, sink, points.map(p => this.bareAt(p)), under)
       base = grounded.lowest + grounded.offset * landmark.scale - sink
       if (footprint) ground = grounded.ground
     }

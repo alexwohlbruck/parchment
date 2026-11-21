@@ -12,6 +12,7 @@ import {
   nextStart,
   splitFeedId,
   alertsFor,
+  withRouteDetours,
 } from './transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 
@@ -289,5 +290,26 @@ describe('alertsFor', () => {
   it('reaches a run only when the caller asked about that run', () => {
     expect(alertsFor(all, { tripId: 'T9' }).map(a => a.id)).toEqual(['agency', 'trip'])
     expect(alertsFor(all, { routeId: 'B48' }).map(a => a.id)).not.toContain('trip')
+  })
+})
+
+describe('withRouteDetours', () => {
+  const skipped = alert({
+    id: 'detour',
+    informedEntities: [{ routeId: 'A', stopId: 'A40' }],
+  })
+  const elsewhere = alert({
+    id: 'far',
+    effect: 'REDUCED_SERVICE',
+    informedEntities: [{ routeId: 'A', stopId: 'A02' }],
+  })
+  const onLeg = alert({ id: 'leg', effect: 'MODIFIED_SERVICE' })
+
+  it('adds a detour on the route even when it names none of the leg\'s stops', () => {
+    expect(withRouteDetours([onLeg], [skipped, elsewhere]).map(a => a.id)).toEqual(['leg', 'detour'])
+  })
+
+  it('does not repeat an alert the leg already has', () => {
+    expect(withRouteDetours([skipped], [skipped]).map(a => a.id)).toEqual(['detour'])
   })
 })

@@ -241,3 +241,17 @@ export function alertsFor(
     }),
   )
 }
+
+/**
+ * A trip leg's alerts plus any detour on its route.
+ *
+ * Agencies scope a detour to the stops it skips, which a rerouted ride never
+ * passes, so no stop on the leg can match it.
+ */
+export function withRouteDetours(
+  legAlerts: ServiceAlert[],
+  routeAlerts: ServiceAlert[],
+): ServiceAlert[] {
+  const seen = new Set(legAlerts.map(a => a.id))
+  return [...legAlerts, ...routeAlerts.filter(a => a.effect === 'DETOUR' && !seen.has(a.id))]
+}

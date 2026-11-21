@@ -10,6 +10,8 @@
 
 ### Fixed
 
+* Trips now show when your train or bus is detoured, so a ride taking an unusual path no longer looks like a wrong plan.
+
 ## [0.23.3] - 2026-11-21
 
 ### Added

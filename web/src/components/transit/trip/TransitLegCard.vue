@@ -173,7 +173,7 @@ function stopClass(index: number) {
           </div>
         </div>
       </div>
-      <div v-if="alerts ?? [].length" class="relative flex">
+      <div v-if="alerts?.length" class="relative flex">
         <div class="w-7 shrink-0" />
         <div class="flex-1 min-w-0 pl-6 space-y-1.5">
           <template

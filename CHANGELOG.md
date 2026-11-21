@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.23.2] - 2026-11-20
+
+### Added
+
 * Ask can plan a ride, run or walk for you: it builds a loop through the places you mention, saves it to Routes in your library and puts it on a canvas with the stops marked.
 * Ask can save places to your collections, change or archive routes and canvases, shade how far you can get in a set time on a canvas, and share a canvas by link.
 * Ask can tell you where a transit line goes and whether it's running, what's at a spot on the map, and whether there are wildfires or smoke nearby.

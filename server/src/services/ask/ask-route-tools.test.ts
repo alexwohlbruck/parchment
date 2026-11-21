@@ -44,8 +44,12 @@ mock.module('../library/routes.service', () => ({
     { id: 'old', mode: 'cycling', archivedAt: new Date(), body: { waypoints: [], geometry: [] } },
   ]),
 }))
+let geocoded: { lat: number; lng: number } = { lat: 40.775, lng: -73.969 }
+const mockForwardGeocode = mock(async (query: string, _lat?: number, _lng?: number) => ({
+  results: [{ id: `osm/${query}`, name: { value: query }, geometry: { value: { center: geocoded } } }],
+}))
 mock.module('../geocoding.service', () => ({
-  forwardGeocode: async () => ({ results: [] }),
+  forwardGeocode: mockForwardGeocode,
   reverseGeocode: async () => ({ results: [] }),
 }))
 mock.module('../place.service', () => ({ lookupEnrichedPlaceById: async () => null }))
@@ -75,6 +79,8 @@ beforeEach(() => {
   permissions = ['library:write']
   mockPlanTrip.mockClear()
   mockUpdateRoute.mockClear()
+  mockForwardGeocode.mockClear()
+  geocoded = { lat: 40.775, lng: -73.969 }
 })
 
 describe('create_route', () => {
@@ -106,6 +112,25 @@ describe('create_route', () => {
       { type: 'route', id: 'route-1', name: 'Manhattan loop', mode: 'cycling', distance: 30000, duration: 7200, elevationGain: 40 },
     ])
     expect(ctx.routes.has('route-1')).toBe(true)
+  })
+
+  test('looks each named point up near the point before it', async () => {
+    await tool('create_route').run({ name: 'Park ride', points: ['home', 'Loeb Boathouse'] }, context())
+    expect(mockForwardGeocode.mock.calls[0]).toEqual(['Loeb Boathouse', home.lat, home.lng])
+  })
+
+  test('stops at a point found implausibly far from the one before it', async () => {
+    geocoded = { lat: 42.94, lng: -78.84 }
+    await expect(
+      tool('create_route').run({ name: 'Park ride', points: ['home', 'Central Park'] }, context()),
+    ).rejects.toThrow(/"Central Park" is .* from "Home"/)
+    expect(mockPlanTrip).not.toHaveBeenCalled()
+  })
+
+  test('rejects a mode it cannot route', async () => {
+    await expect(
+      tool('create_route').run({ name: 'Ride', mode: 'bike' as never, points: ['home', home] }, context()),
+    ).rejects.toThrow('Unknown mode bike')
   })
 
   test('needs two points and a library', async () => {

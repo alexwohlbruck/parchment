@@ -282,19 +282,22 @@ const getPlace: AskTool<{ id: string }> = {
   },
 }
 
-const locate: AskTool<{ query: string }> = {
+const locate: AskTool<{ query: string; near?: PointArg }> = {
   name: 'locate',
   description:
     'Resolve a neighbourhood, address, city or landmark name to coordinates, to search around it. Tools that take a point also accept a name directly.',
   parameters: {
     type: 'object',
-    properties: { query: { type: 'string' } },
+    properties: {
+      query: { type: 'string' },
+      near: pointSchema('Where to look first, e.g. the city. Defaults to the map.'),
+    },
     required: ['query'],
   },
   label: () => 'Finding',
   detail: ({ query }) => query,
-  async run({ query }, context) {
-    const results = await geocodeResults(query, context)
+  async run({ query, near }, context) {
+    const results = await geocodeResults(query, context, near === undefined ? undefined : await centre(near, context))
     return results.slice(0, 3).map((place) => ({
       name: place.name.value,
       address: place.address?.value?.formatted,

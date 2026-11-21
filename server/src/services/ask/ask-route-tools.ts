@@ -1,3 +1,4 @@
+import { distance } from '@turf/turf'
 import { planTripFor } from '../planned-trip.service'
 import { createRoute, getRouteById, getRoutes, updateRoute } from '../library/routes.service'
 import { requireLibrary } from './ask-library-tools'
@@ -16,6 +17,7 @@ import {
 } from './ask-tool-base'
 
 const MAX_POINTS = 25
+const MAX_HOP_KM: Record<AskRouteMode, number> = { cycling: 150, walking: 60, driving: 1500 }
 
 const ROUTE_TAB: Record<AskRouteMode, SelectedMode> = {
   cycling: 'biking',
@@ -82,8 +84,8 @@ const createRouteTool: AskTool<{
   detail: ({ name }) => name,
   async run(args, context) {
     await requireLibrary(context.userId)
-    const mode = args.mode ?? 'cycling'
-    const points = await routePoints(args.points ?? [], args.loop, context)
+    const mode = routeMode(args.mode ?? 'cycling')
+    const points = await routePoints(args.points ?? [], args.loop, mode, context)
     const path = await snap(points, mode, context)
     const route = await createRoute({ userId: context.userId, mode, scheme: 'server-key' })
     return saveRoute(route.id, args.name.trim() || 'Route', mode, points, path, context)
@@ -125,9 +127,9 @@ const editRoute: AskTool<{
     if (!route || route.scheme !== 'server-key' || !body) {
       throw new AskToolError(`Can't change route ${args.id}: use an id create_route or my_routes returned.`)
     }
-    const mode = args.mode ?? (route.mode as AskRouteMode)
+    const mode = routeMode(args.mode ?? route.mode)
     const points = args.points?.length
-      ? await routePoints(args.points, args.loop, context)
+      ? await routePoints(args.points, args.loop, mode, context)
       : body.waypoints.map(({ lat, lng, name }) => ({ lat, lng, ...(name && { name }) }))
     const path = args.points?.length || args.mode ? await snap(points, mode, context) : undefined
     const name = args.name?.trim() || routeLabel(body)
@@ -139,10 +141,28 @@ const editRoute: AskTool<{
   },
 }
 
-async function routePoints(given: PointArg[], loop: boolean | undefined, context: AskContext) {
+function routeMode(mode: string): AskRouteMode {
+  if (!(ASK_ROUTE_MODES as readonly string[]).includes(mode)) {
+    throw new AskToolError(`Unknown mode ${mode}: use ${ASK_ROUTE_MODES.join(', ')}.`)
+  }
+  return mode as AskRouteMode
+}
+
+async function routePoints(given: PointArg[], loop: boolean | undefined, mode: AskRouteMode, context: AskContext) {
   if (given.length < 2) throw new AskToolError('A route needs at least 2 points.')
   if (given.length > MAX_POINTS) throw new AskToolError(`A route takes at most ${MAX_POINTS} points.`)
-  const points = await Promise.all(given.map((point) => endpoint(point, context)))
+  const points: AskEndpoint[] = []
+  for (const point of given) {
+    const previous = points.at(-1)
+    const next = await endpoint(point, context, previous)
+    const km = previous ? distance([previous.lng, previous.lat], [next.lng, next.lat]) : 0
+    if (km > MAX_HOP_KM[mode]) {
+      throw new AskToolError(
+        `"${next.name ?? 'A point'}" is ${distanceText(km * 1000, context.units)} from "${previous!.name ?? 'the point before'}". Pass coordinates or a fuller name for it.`,
+      )
+    }
+    points.push(next)
+  }
   if (loop) points.push(points[0])
   return points
 }

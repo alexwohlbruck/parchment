@@ -112,6 +112,7 @@ export function cached<T>(
 export async function endpoint(
   value: PointArg | undefined,
   context: AskContext,
+  near?: LatLng,
 ): Promise<AskEndpoint> {
   if (typeof value === 'string') {
     const text = value.trim()
@@ -120,7 +121,7 @@ export async function endpoint(
     if (known) return known
     const written = parsePointText(text)
     if (written) return named(written, context)
-    return (await placeById(text, context)) ?? geocode(text, context)
+    return (await placeById(text, context)) ?? geocode(text, context, near)
   }
   const target = value ?? context.origin
   if (!target)
@@ -227,22 +228,24 @@ export async function centre(
   return { lat, lng }
 }
 
-export async function geocodeResults(query: string, context: AskContext) {
-  const near = context.places.get(HERE) ?? context.origin
+export async function geocodeResults(query: string, context: AskContext, near?: LatLng) {
+  const bias = near ?? context.places.get(HERE) ?? context.origin ?? context.places.get('home')
+  const at = bias && { lat: bias.lat, lng: bias.lng }
   const { results } = await cached(
     'locate',
-    { query, origin: near },
+    { query, origin: at },
     { language: context.language },
-    () => forwardGeocode(query, near?.lat, near?.lng),
+    () => forwardGeocode(query, at?.lat, at?.lng),
   )
-  return nearbyFirst(results, query, near)
+  return nearbyFirst(results, query, at)
 }
 
 async function geocode(
   query: string,
   context: AskContext,
+  near?: LatLng,
 ): Promise<AskEndpoint> {
-  const [top] = await geocodeResults(query, context)
+  const [top] = await geocodeResults(query, context, near)
   if (!top)
     throw new AskToolError(
       `Couldn't find "${query}". Try locate with a fuller address.`,

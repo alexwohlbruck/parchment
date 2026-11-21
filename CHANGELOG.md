@@ -25,6 +25,7 @@
 * Scrub and planted beds fill their whole area in 3D instead of a small patch that moves with the camera.
 * 3D landmarks no longer glow among their neighbours on the night map, and keep their own colours while they blend in.
 * Uploaded profile photos now show up, including for friends on other Parchment servers.
+* Canvases keep their routes, shapes and data on the map after it reloads its style, and opening one from a link draws everything.
 * The zoomed-out map no longer shows patches of dark specks over the ocean and land.
 * ⌘Z in the canvas editor, measure tool or route builder no longer also fires the other tools' undo.
 * The map no longer loads half-empty after an app update: areas you've seen before draw from cache straight away.

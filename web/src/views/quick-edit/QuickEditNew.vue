@@ -21,6 +21,7 @@ import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
 import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
 import { useDuplicateMarkers } from '@/composables/quick-edit/useDuplicateMarkers'
 import { whenMapReady } from '@/composables/map/whenMapReady'
+import { retagForPreset } from '@/lib/quick-edit/preset-tags'
 import type {
   BrandChoice,
   DuplicateCandidate,
@@ -145,12 +146,7 @@ watch(
 async function selectPreset(result: PresetSummary) {
   preset.value = await quickEditService.getPreset(result.id)
   for (const key of Object.keys(tags)) delete tags[key]
-  for (const [key, value] of Object.entries({
-    ...preset.value.tags,
-    ...preset.value.addTags,
-  })) {
-    if (value !== '*') tags[key] = value
-  }
+  Object.assign(tags, retagForPreset({}, null, preset.value))
 
   placeMarker()
   duplicates.value = await quickEditService.findDuplicates(

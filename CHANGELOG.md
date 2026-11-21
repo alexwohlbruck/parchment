@@ -2,6 +2,8 @@
 
 ### Added
 
+* You can change what kind of place an existing place is when editing it, such as giving a bare address a business or swapping in a new tenant.
+
 ### Changed
 
 ### Fixed

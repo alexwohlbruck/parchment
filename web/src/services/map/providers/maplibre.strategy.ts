@@ -5,6 +5,7 @@ import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { attachIndoor } from '@/services/map/indoor.service'
+import { attachChartPaper } from '@/services/map/chart-paper.service'
 import { attachIndoorTerrain } from '@/services/map/indoor-terrain.service'
 import { attachIndoorFlights } from '@/services/map/indoor-flights.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
@@ -159,7 +160,7 @@ import {
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
 import { GROUND_LAYERS, baseGroundColor, groundColor, type GroundLayer } from '@/lib/map-style/seasonal-ground'
-import { themeShading } from '@/lib/map-style/themes'
+import { themeEngraved, themeShading } from '@/lib/map-style/themes'
 import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
@@ -354,6 +355,7 @@ export class MaplibreStrategy extends MapStrategy {
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private indoor: ReturnType<typeof attachIndoor> | null = null
+  private chartPaper: ReturnType<typeof attachChartPaper> | null = null
   private indoorTerrain: ReturnType<typeof attachIndoorTerrain> | null = null
   private indoorFlights: ReturnType<typeof attachIndoorFlights> | null = null
   private indoorBuildings: string[] = []
@@ -532,6 +534,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.golfPins = attachGolfPins(this.mapInstance)
     this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain, this.terrainCarver)
     this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))
+    this.chartPaper = attachChartPaper(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))
     this.indoor = attachIndoor(this.mapInstance, {
       focus: focus => {
         this.indoorFlights?.refresh()
@@ -558,7 +561,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.elevateLines()
     })
     this.mapInstance.on('style.load', () => {
-      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard'))
+      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard', () => this.currentBasemap === 'standard' && themeEngraved(this.options.mapStyle)))
       // The old decks' labels are not this style's to leave out.
       this.bridgeLabelKey = null
       this.groundPaint.clear()
@@ -1931,6 +1934,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.poiElevation?.detach()
     this.golfPins?.detach()
     this.indoor?.detach()
+    this.chartPaper?.detach()
     this.indoorTerrain?.detach()
     this.indoorFlights?.detach()
     try {

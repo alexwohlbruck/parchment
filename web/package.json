@@ -110,6 +110,9 @@
   },
   "devDependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/eb-garamond": "^5.3.0",
+    "@fontsource/im-fell-english": "^5.3.0",
+    "@fontsource/im-fell-english-sc": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/roboto": "^5.3.0",
     "@mapbox/shelf-pack": "^3.2.0",

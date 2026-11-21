@@ -152,7 +152,7 @@ export const TREE_OPACITY = [
  * Not the pedestrian surface's colour: a car park is not somewhere you walk,
  * and reading as one would be worse than reading as nothing.
  */
-const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
+export const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
   light: {
     parking: 'hsl(228, 12%, 89%)',
     parkingCasing: 'hsl(228, 11%, 80%)',

@@ -1,13 +1,14 @@
 /**
  * Map themes: one layer spec, several palettes.
  *
- * Parchment is the generated tokens as they stand. The others are overlays on
+ * Charlotte is the generated tokens as they stand. The others are overlays on
  * them, so a theme only names the colours it changes and inherits every token
  * it does not — a new layer or token added to the spec lands in every theme.
  */
 import type { MapStyleId } from '@/types/map.types'
 import type { ThemeShading } from '@/lib/map/building-shade'
 import type { FlavorId } from './build'
+import type { GlobePalette } from './globe-layers'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -27,6 +28,10 @@ interface MapTheme {
   /** The street-zoom carriageway and its kerb. */
   roadSurface?: PerFlavor<RoadSurface>
   typography?: Typography
+  /** The low-zoom globe's biomes, ocean depths, lines and names. */
+  globe?: PerFlavor<Partial<GlobePalette>>
+  /** Sea lining, wood tufts and paper grain over the palette, as an engraved chart has. */
+  engraved?: boolean
 }
 
 export interface RoadSurface {
@@ -38,10 +43,21 @@ export interface RoadSurface {
 
 export interface Typography {
   /** Stands in for Geist at the same weight; `build-glyphs.mjs` generates its stacks. */
-  family: 'Inter' | 'Roboto'
+  family: 'Inter' | 'Roboto' | 'EB Garamond'
+  /** Every label's size, for a family that sets smaller than Geist at the same size. */
+  textScale?: number
   roadLabels?: { transform: 'uppercase' | 'none'; letterSpacing: number }
   /** Neighbourhood and district names, in a face of their own. */
   districtLabels?: { font: string; letterSpacing: number; scale: number }
+  /** Whole label layers, by id, in a face of their own. */
+  layerFaces?: LayerFace[]
+}
+
+export interface LayerFace {
+  layers: string[]
+  font: string
+  letterSpacing?: number
+  transform?: 'uppercase' | 'none'
 }
 
 const BASE_TOKENS: Record<FlavorId, Tokens> = { light: lightTokens, dark: darkTokens }
@@ -386,13 +402,224 @@ const MOUNTAIN_VIEW: MapTheme = {
   },
 }
 
+/**
+ * An engraved sea chart: buff paper, a sea washed in faded verdigris with its
+ * coast lined in ink, red-ochre post roads, sepia lettering, italic waters and
+ * towns in small capitals. By night the same chart under a lamp.
+ */
+const CHART: MapTheme = {
+  tokens: {
+    light: {
+      ...land({
+        ground: 'hsl(41, 50%, 86%)',
+        urban: 'hsl(38, 44%, 82%)',
+        commercial: 'hsl(28, 46%, 79%)',
+        industrial: 'hsl(34, 20%, 75%)',
+        grass: 'hsl(64, 28%, 73%)',
+        wood: 'hsl(70, 22%, 66%)',
+        pitch: 'hsl(66, 28%, 70%)',
+        pitchEdge: 'hsl(72, 22%, 54%)',
+        cemetery: 'hsl(68, 22%, 74%)',
+        school: 'hsl(34, 40%, 79%)',
+        hospital: 'hsl(8, 38%, 80%)',
+        sand: 'hsl(44, 56%, 79%)',
+        airport: 'hsl(36, 22%, 77%)',
+        water: 'hsl(188, 26%, 74%)',
+        shallows: 'hsl(186, 28%, 80%)',
+        pier: 'hsl(36, 30%, 76%)',
+      }),
+      ...roads({
+        highway: 'hsl(12, 44%, 64%)',
+        highwayCasing: 'hsl(10, 36%, 42%)',
+        major: 'hsl(40, 70%, 90%)',
+        majorCasing: 'hsl(28, 38%, 40%)',
+        minor: 'hsl(42, 60%, 92%)',
+        minorCasing: 'hsl(30, 24%, 62%)',
+        path: 'hsl(40, 45%, 88%)',
+        pathCasing: 'hsl(30, 25%, 58%)',
+        rail: 'hsl(25, 30%, 26%)',
+      }),
+      ...buildings({ roof: 'hsl(33, 30%, 76%)', edge: 'hsl(28, 32%, 50%)', flat: 'hsl(31, 28%, 70%)' }),
+      ...labels({
+        strong: 'hsl(24, 48%, 17%)',
+        muted: 'hsl(28, 28%, 34%)',
+        road: 'hsl(24, 36%, 24%)',
+        halo: 'hsla(41, 50%, 87%, 0.85)',
+        water: 'hsl(203, 48%, 25%)',
+        waterHalo: 'hsl(188, 26%, 78%)',
+      }),
+      glacier_fill_color: 'hsl(190, 22%, 90%)',
+      aeroway_line_color: 'hsl(34, 22%, 66%)',
+      heliport_fill_color: 'hsl(34, 22%, 70%)',
+      ferry_line_line_color: 'hsl(203, 40%, 36%)',
+      ferry_line_line_color_2: 'hsl(203, 40%, 36%)',
+      country_border_line_color: 'hsl(350, 42%, 40%)',
+      other_border_line_color: 'hsl(350, 28%, 50%)',
+      disputed_border_line_color: 'hsl(350, 28%, 50%)',
+      ocean_labels_text_halo_color: 'hsl(188, 26%, 78%)',
+      ocean_labels_text_halo_color_2: 'hsl(188, 26%, 78%)',
+      lake_labels_text_halo_color: 'hsl(188, 26%, 78%)',
+      town_labels_icon_color: 'hsl(24, 48%, 17%)',
+      town_labels_icon_halo_color: 'hsl(41, 50%, 86%)',
+      poi_halo: 'hsla(41, 50%, 87%, 0.85)',
+      highway_shield_text_halo_color: 'hsl(41, 50%, 86%)',
+    },
+    dark: {
+      ...land({
+        ground: 'hsl(33, 24%, 15%)',
+        urban: 'hsl(32, 22%, 18%)',
+        commercial: 'hsl(24, 26%, 21%)',
+        industrial: 'hsl(30, 12%, 19%)',
+        grass: 'hsl(75, 22%, 20%)',
+        wood: 'hsl(80, 22%, 17%)',
+        pitch: 'hsl(75, 22%, 22%)',
+        pitchEdge: 'hsl(75, 18%, 30%)',
+        cemetery: 'hsl(72, 16%, 19%)',
+        school: 'hsl(32, 22%, 20%)',
+        hospital: 'hsl(8, 24%, 21%)',
+        sand: 'hsl(40, 26%, 22%)',
+        airport: 'hsl(30, 12%, 20%)',
+        water: 'hsl(200, 32%, 12%)',
+        shallows: 'hsl(198, 28%, 15%)',
+        pier: 'hsl(32, 18%, 24%)',
+      }),
+      ...roads({
+        highway: 'hsl(16, 38%, 40%)',
+        highwayCasing: 'hsl(16, 34%, 20%)',
+        major: 'hsl(38, 32%, 38%)',
+        majorCasing: 'hsl(30, 26%, 12%)',
+        minor: 'hsl(36, 22%, 29%)',
+        minorCasing: 'hsl(30, 26%, 12%)',
+        path: 'hsl(36, 20%, 26%)',
+        pathCasing: 'hsl(30, 26%, 12%)',
+        rail: 'hsl(36, 22%, 46%)',
+      }),
+      ...buildings({ roof: 'hsl(32, 20%, 26%)', edge: 'hsl(30, 22%, 18%)', flat: 'hsl(32, 18%, 28%)' }),
+      ...labels({
+        strong: 'hsl(42, 55%, 82%)',
+        muted: 'hsl(38, 30%, 62%)',
+        road: 'hsl(40, 35%, 72%)',
+        halo: 'hsla(33, 24%, 13%, 0.88)',
+        water: 'hsl(190, 35%, 62%)',
+        waterHalo: 'hsl(200, 32%, 12%)',
+      }),
+      glacier_fill_color: 'hsl(200, 14%, 24%)',
+      aeroway_line_color: 'hsl(34, 16%, 30%)',
+      heliport_fill_color: 'hsl(34, 16%, 24%)',
+      ferry_line_line_color: 'hsl(190, 30%, 45%)',
+      ferry_line_line_color_2: 'hsl(190, 30%, 45%)',
+      country_border_line_color: 'hsl(355, 40%, 52%)',
+      other_border_line_color: 'hsl(355, 26%, 42%)',
+      disputed_border_line_color: 'hsl(355, 26%, 42%)',
+      ocean_labels_text_halo_color: 'hsl(200, 32%, 12%)',
+      ocean_labels_text_halo_color_2: 'hsl(200, 32%, 12%)',
+      lake_labels_text_halo_color: 'hsl(200, 32%, 12%)',
+      town_labels_icon_color: 'hsl(42, 55%, 82%)',
+      town_labels_icon_halo_color: 'hsl(33, 24%, 15%)',
+      poi_halo: 'hsla(33, 24%, 13%, 0.88)',
+      highway_shield_text_halo_color: 'hsl(33, 24%, 15%)',
+    },
+  },
+  sky: {
+    light: { 'sky-color': 'hsl(38, 36%, 80%)', 'horizon-color': 'hsl(41, 50%, 86%)', 'fog-color': 'hsl(41, 50%, 86%)' },
+    dark: { 'sky-color': 'hsl(30, 26%, 7%)', 'horizon-color': 'hsl(33, 24%, 15%)', 'fog-color': 'hsl(33, 24%, 15%)' },
+  },
+  roadSurface: {
+    light: { asphalt: 'hsl(36, 26%, 74%)', kerb: 'hsl(30, 26%, 56%)' },
+    dark: { asphalt: 'hsl(34, 16%, 24%)', kerb: 'hsl(30, 20%, 14%)' },
+  },
+  typography: {
+    family: 'EB Garamond',
+    textScale: 1.12,
+    roadLabels: { transform: 'none', letterSpacing: 0.02 },
+    districtLabels: { font: 'IM Fell English SC Regular', letterSpacing: 0.14, scale: 1.08 },
+    layerFaces: [
+      { layers: ['River labels', 'Lake labels', 'Ferry', 'Globe sea labels', 'Globe line labels', 'Globe region labels', 'Globe range labels'], font: 'IM Fell English Italic', letterSpacing: 0.06 },
+      { layers: ['Ocean labels', 'Globe ocean labels'], font: 'IM Fell English Italic', letterSpacing: 0.3 },
+      { layers: ['Town labels', 'City labels', 'Capital city labels'], font: 'IM Fell English SC Regular', letterSpacing: 0.04 },
+      { layers: ['State labels', 'Country labels', 'Continent labels', 'Globe continent labels'], font: 'IM Fell English SC Regular', letterSpacing: 0.24, transform: 'uppercase' },
+    ],
+  },
+  buildingPastels: {
+    light: ['hsl(30, 28%, 75%)', 'hsl(38, 30%, 77%)', 'hsl(24, 26%, 74%)'],
+    dark: [],
+  },
+  buildingTint: { light: 0, dark: 0 },
+  shading: {
+    light: { sunTint: [1.05, 1.0, 0.9], skyTint: [0.98, 0.95, 0.9], shadowColor: [0.36, 0.27, 0.18] },
+  },
+  globe: {
+    light: {
+      biome: {
+        desert: 'hsl(40, 52%, 84%)',
+        scrub: 'hsl(52, 38%, 80%)',
+        grassland: 'hsl(56, 32%, 79%)',
+        savanna: 'hsl(50, 40%, 79%)',
+        tundra: 'hsl(45, 22%, 84%)',
+        dry_forest: 'hsl(70, 26%, 72%)',
+        forest: 'hsl(70, 22%, 70%)',
+        boreal: 'hsl(76, 16%, 72%)',
+        rainforest: 'hsl(76, 24%, 66%)',
+      },
+      depth: [
+        [200, 'hsl(188, 26%, 70%)'],
+        [1000, 'hsl(190, 27%, 67%)'],
+        [2000, 'hsl(192, 28%, 64%)'],
+        [3000, 'hsl(194, 28%, 61%)'],
+        [4000, 'hsl(196, 29%, 58%)'],
+        [5000, 'hsl(198, 29%, 55.5%)'],
+        [6000, 'hsl(200, 30%, 53%)'],
+        [8000, 'hsl(202, 30%, 50%)'],
+      ],
+      relief: 0.7,
+      line: 'hsla(203, 40%, 24%, 0.45)',
+      continent: 'hsl(24, 48%, 22%)',
+      ocean: 'hsl(203, 48%, 22%)',
+      oceanHalo: 'hsla(188, 26%, 78%, 0.5)',
+      region: 'hsl(28, 30%, 32%)',
+      halo: 'hsla(41, 50%, 87%, 0.7)',
+    },
+    dark: {
+      biome: {
+        desert: 'hsl(36, 22%, 20%)',
+        scrub: 'hsl(48, 16%, 19%)',
+        grassland: 'hsl(62, 16%, 19%)',
+        savanna: 'hsl(48, 18%, 19%)',
+        tundra: 'hsl(40, 10%, 22%)',
+        dry_forest: 'hsl(70, 16%, 18%)',
+        forest: 'hsl(78, 18%, 17%)',
+        boreal: 'hsl(85, 14%, 18%)',
+        rainforest: 'hsl(82, 20%, 16%)',
+      },
+      depth: [
+        [200, 'hsl(200, 32%, 11.5%)'],
+        [1000, 'hsl(201, 33%, 11%)'],
+        [2000, 'hsl(202, 34%, 10.2%)'],
+        [3000, 'hsl(203, 34%, 9.6%)'],
+        [4000, 'hsl(203, 35%, 9%)'],
+        [5000, 'hsl(204, 35%, 8.4%)'],
+        [6000, 'hsl(205, 36%, 7.8%)'],
+        [8000, 'hsl(205, 36%, 7%)'],
+      ],
+      ice: 'hsl(200, 14%, 30%)',
+      line: 'hsla(190, 22%, 55%, 0.35)',
+      continent: 'hsl(42, 45%, 75%)',
+      ocean: 'hsl(190, 30%, 58%)',
+      region: 'hsl(38, 26%, 60%)',
+      halo: 'hsla(33, 24%, 13%, 0.6)',
+    },
+  },
+  engraved: true,
+}
+
 const THEMES: Record<MapStyleId, MapTheme> = {
-  parchment: {},
+  charlotte: {},
+  chart: CHART,
   cupertino: CUPERTINO,
   'mountain-view': MOUNTAIN_VIEW,
 }
 
-const theme = (style: MapStyleId | undefined): MapTheme => THEMES[style ?? 'parchment'] ?? {}
+const theme = (style: MapStyleId | undefined): MapTheme => THEMES[style ?? 'charlotte'] ?? {}
 
 const tokenCache = new Map<string, Tokens>()
 
@@ -430,4 +657,12 @@ export function themeRoadSurface(style: MapStyleId | undefined, flavor: FlavorId
 
 export function themeTypography(style: MapStyleId | undefined): Typography | undefined {
   return theme(style).typography
+}
+
+export function themeEngraved(style: MapStyleId | undefined): boolean {
+  return !!theme(style).engraved
+}
+
+export function themeGlobe(style: MapStyleId | undefined, flavor: FlavorId): Partial<GlobePalette> | undefined {
+  return theme(style).globe?.[flavor]
 }

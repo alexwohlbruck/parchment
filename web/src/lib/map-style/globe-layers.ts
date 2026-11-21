@@ -66,6 +66,8 @@ type Palette = {
   halo: string
 }
 
+export type GlobePalette = Palette
+
 const PALETTE: Record<FlavorId, Palette> = {
   light: {
     biome: {
@@ -275,8 +277,8 @@ function labelLayers(p: Palette) {
  * under every landcover, depth and relief over the water, names with the
  * basemap's own country labels.
  */
-export function withGlobeLayers(layers: any[], flavor: FlavorId): any[] {
-  const p = PALETTE[flavor]
+export function withGlobeLayers(layers: any[], flavor: FlavorId, theme?: Partial<Palette>): any[] {
+  const p = { ...PALETTE[flavor], ...theme }
   const out = layers
     .filter(l => l.id !== BASEMAP_CONTINENT_LABELS)
     .map(l => {

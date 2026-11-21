@@ -64,7 +64,7 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
 
 /** The flavor's palette with the map theme's own road and path colours. */
 export function deckPalette(flavor: FlavorId, style?: MapStyleId): DeckPalette {
-  return style && style !== 'parchment' ? { ...DECK_PALETTE[flavor], ...basemap(flavor, style) } : DECK_PALETTE[flavor]
+  return style && style !== 'charlotte' ? { ...DECK_PALETTE[flavor], ...basemap(flavor, style) } : DECK_PALETTE[flavor]
 }
 
 /** The palette with routes on decks drawn in other colours, as the navigated route's. */

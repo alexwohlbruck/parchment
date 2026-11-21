@@ -346,7 +346,8 @@ const handleColorChange = (value: any) => {
             <SelectItem v-if="!isMaplibre" value="mapbox-standard">
               Mapbox Standard
             </SelectItem>
-            <SelectItem value="parchment">Parchment</SelectItem>
+            <SelectItem value="charlotte">Charlotte</SelectItem>
+            <SelectItem value="chart">Parchment</SelectItem>
             <SelectItem value="cupertino">Cupertino</SelectItem>
             <SelectItem value="mountain-view">Mountain View</SelectItem>
           </SelectContent>

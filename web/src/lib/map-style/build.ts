@@ -71,7 +71,8 @@ import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNei
 import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
-import { themeBuildingPastels, themeBuildingTint, themeSky, themeTokens, themeTypography } from './themes'
+import { themeBuildingPastels, themeBuildingTint, themeEngraved, themeGlobe, themeSky, themeTokens, themeTypography } from './themes'
+import { withChartEngraving } from './chart-engraving'
 
 /**
  * Assembles the basemap style from the converted layer spec and a flavor's
@@ -497,7 +498,7 @@ export function buildLayers(options: {
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor, paint)
   base = withPoiDots(base)
-  base = withGlobeLayers(base, flavor)
+  base = withGlobeLayers(base, flavor, themeGlobe(mapStyle, flavor))
 
   const converted = withAboriginalLands(withNeighbourhoodLabels(base
     .map(l => resolve(l, tokens, categories, flavor))
@@ -515,7 +516,8 @@ export function buildLayers(options: {
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
   const layers = spliceIndoorLayers(spliceDetailLayers(darkenRoads(converted, flavor, mapStyle), flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures)
-  return withTypography(layers, themeTypography(mapStyle)) as LayerSpecification[]
+  const engraved = themeEngraved(mapStyle) ? withChartEngraving(layers, flavor) : layers
+  return withTypography(engraved, themeTypography(mapStyle)) as LayerSpecification[]
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */

@@ -4,6 +4,7 @@ import { NEIGHBOURHOOD_LAYER } from './neighbourhood-labels'
 const GEIST = 'Geist '
 const ROAD_LABELS = 'Road labels'
 const PLACE_LABELS = 'Place labels'
+const DEFAULT_TEXT_SIZE = 16
 const DISTRICTS = ['suburb', 'neighborhood', 'neighbourhood', 'quarter']
 
 /** Every label in the theme's family at Geist's weights, with its road and district names set its way. */
@@ -12,10 +13,19 @@ export function withTypography(layers: any[], typography: Typography | undefined
   const swap = (font: any): any =>
     typeof font === 'string' && font.startsWith(GEIST) ? `${typography.family} ${font.slice(GEIST.length)}`
       : Array.isArray(font) ? font.map(swap) : font
+  const faces = new Map(typography.layerFaces?.flatMap(face => face.layers.map(id => [id, face])))
   return layers.map(layer => {
     const font = layer.layout?.['text-font']
     if (!font) return layer
     const layout = { ...layer.layout, 'text-font': swap(font) }
+    const { textScale } = typography
+    if (textScale) layout['text-size'] = scaleStops(layout['text-size'] ?? DEFAULT_TEXT_SIZE, size => typeof size === 'number' ? size * textScale : ['*', size, textScale])
+    const face = faces.get(layer.id)
+    if (face) {
+      layout['text-font'] = ['literal', [face.font]]
+      if (face.letterSpacing !== undefined) layout['text-letter-spacing'] = face.letterSpacing
+      if (face.transform) layout['text-transform'] = face.transform
+    }
     if (layer.id === ROAD_LABELS && typography.roadLabels) {
       layout['text-transform'] = typography.roadLabels.transform
       layout['text-letter-spacing'] = typography.roadLabels.letterSpacing

@@ -22,6 +22,7 @@ mock.module('../category.service', () => ({
 }))
 mock.module('../geocoding.service', () => ({
   forwardGeocode: mock(async () => ({ results: [] })),
+  reverseGeocode: mock(async () => ({ results: [] })),
 }))
 const mockClassify = mock((_query: string, _options: unknown): any => ({
   intent: 'ask',
@@ -90,6 +91,7 @@ function context(): AskContext & { events: AskEvent[] } {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    routes: new Map(),
     sources: new Map(),
     emit: (event) => events.push(event),
     events,

@@ -12,3 +12,8 @@ export function distanceText(meters: number, units: AskUnits): string {
   }
   return meters < 1000 ? `${Math.max(10, Math.round(meters / 10) * 10)} m` : `${(meters / 1000).toFixed(1)} km`
 }
+
+/** "130 ft", "40 m": a climb, in the user's units. */
+export function climbText(meters: number, units: AskUnits): string {
+  return units === 'imperial' ? `${Math.round(meters * FEET_PER_METER)} ft` : `${Math.round(meters)} m`
+}

@@ -76,6 +76,9 @@ export const useAskStore = defineStore('ask', () => {
       case 'canvas':
         updateCurrent(exchange => ({ ...exchange, canvas: { id: event.id, name: event.name } }))
         break
+      case 'route':
+        updateCurrent(exchange => ({ ...exchange, route: { id: event.id, name: event.name } }))
+        break
       case 'reach':
         updateCurrent(exchange => ({ ...exchange, reach: event.geometry }))
         break

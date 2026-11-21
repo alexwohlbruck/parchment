@@ -110,6 +110,11 @@ export interface RouteBody {
   waypoints: Array<{ lat: number; lng: number; name?: string }>
   // Routed path as [lng, lat] pairs (GeoJSON order).
   geometry: Array<[number, number]>
+  // Elevation (meters) aligned by index to `geometry`, when the engine returned it.
+  elevation?: number[]
+  // A name the server gave a route it built (Ask), shown until the owner's
+  // client stores one in the encrypted metadata.
+  name?: string
   // Per-leg routed segments, kept so the editor can re-open and re-route
   // individual legs without replanning the whole path.
   segments?: Array<{

@@ -4,9 +4,12 @@ import { MemoCache } from '../../lib/memo-cache'
 import { HERE, parsePointText } from '../../lib/ask/known-places'
 import { nearbyFirst } from '../../lib/ask/nearby-match'
 import { forwardGeocode } from '../geocoding.service'
+import { lookupEnrichedPlaceById } from '../place.service'
+import type { Source } from '../../lib/constants'
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
-import type { Vehicle } from '../../types/trip.types'
+import type { RoutingPreferences, Vehicle } from '../../types/trip.types'
+import type { TripModeToken } from '../../types/departure-profile.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
 import type {
   AskEndpoint,
@@ -36,6 +39,8 @@ export interface AskContext {
   units: AskUnits
   /** The user's vehicles, so trips match what Directions plans. */
   vehicles: Vehicle[]
+  routingPreferences?: RoutingPreferences
+  excludedModes?: TripModeToken[]
   now: Date
   signal?: AbortSignal
   /** Every place a tool has returned, by id. The answer may only cite these. */
@@ -46,6 +51,10 @@ export interface AskContext {
   sources: Map<string, AskSource>
   /** The trip plan_trip proposed, so a canvas can draw it. */
   trip?: { name: string; path: LatLng[] }
+  /** The last trip plan_trip proposed, shown with the answer rather than as each plan comes in. */
+  proposedTrip?: Extract<AskEvent, { type: 'trip' }>
+  /** Routes saved this conversation turn, by id, so a canvas can draw them. */
+  routes: Map<string, { name: string }>
   emit(event: AskEvent): void
 }
 
@@ -103,6 +112,7 @@ export function cached<T>(
 export async function endpoint(
   value: PointArg | undefined,
   context: AskContext,
+  near?: LatLng,
 ): Promise<AskEndpoint> {
   if (typeof value === 'string') {
     const text = value.trim()
@@ -110,7 +120,8 @@ export async function endpoint(
       context.places.get(text.toLowerCase()) ?? seenPlace(text, context)
     if (known) return known
     const written = parsePointText(text)
-    return written ? named(written, context) : geocode(text, context)
+    if (written) return named(written, context)
+    return (await placeById(text, context)) ?? geocode(text, context, near)
   }
   const target = value ?? context.origin
   if (!target)
@@ -162,6 +173,32 @@ function seenPlace(id: string, context: AskContext): AskEndpoint | undefined {
   )
 }
 
+export function splitPlaceId(
+  id: string,
+): { source: Source; externalId: string } | null {
+  const slash = id.indexOf('/')
+  if (slash <= 0) return null
+  return {
+    source: id.slice(0, slash) as Source,
+    externalId: id.slice(slash + 1),
+  }
+}
+
+/** A place id from an earlier call that this one hasn't seen, as MCP clients pass between calls. */
+async function placeById(id: string, context: AskContext): Promise<AskEndpoint | undefined> {
+  const parts = /^[a-z]+\/\S+$/.test(id) ? splitPlaceId(id) : null
+  if (!parts) return undefined
+  const place = await cached(
+    'place_by_id',
+    { id },
+    { language: context.language },
+    () => lookupEnrichedPlaceById(parts.source, parts.externalId, { language: context.language }).catch(() => null),
+  )
+  if (!place) return undefined
+  context.seen.set(id, { ...place, id })
+  return seenPlace(id, context)
+}
+
 /** What a point is called, for a step's detail; coordinates have no name worth showing. */
 export function pointLabel(
   value: PointArg | undefined,
@@ -191,22 +228,24 @@ export async function centre(
   return { lat, lng }
 }
 
-export async function geocodeResults(query: string, context: AskContext) {
-  const near = context.places.get(HERE) ?? context.origin
+export async function geocodeResults(query: string, context: AskContext, near?: LatLng) {
+  const bias = near ?? context.places.get(HERE) ?? context.origin ?? context.places.get('home')
+  const at = bias && { lat: bias.lat, lng: bias.lng }
   const { results } = await cached(
     'locate',
-    { query, origin: near },
+    { query, origin: at },
     { language: context.language },
-    () => forwardGeocode(query, near?.lat, near?.lng),
+    () => forwardGeocode(query, at?.lat, at?.lng),
   )
-  return nearbyFirst(results, query, near)
+  return nearbyFirst(results, query, at)
 }
 
 async function geocode(
   query: string,
   context: AskContext,
+  near?: LatLng,
 ): Promise<AskEndpoint> {
-  const [top] = await geocodeResults(query, context)
+  const [top] = await geocodeResults(query, context, near)
   if (!top)
     throw new AskToolError(
       `Couldn't find "${query}". Try locate with a fuller address.`,

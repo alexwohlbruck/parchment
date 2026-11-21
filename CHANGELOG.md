@@ -2,10 +2,18 @@
 
 ### Added
 
+* Ask can plan a ride, run or walk for you: it builds a loop through the places you mention, saves it to Routes in your library and puts it on a canvas with the stops marked.
+* Ask can save places to your collections, change or archive routes and canvases, shade how far you can get in a set time on a canvas, and share a canvas by link.
+* Ask can tell you where a transit line goes and whether it's running, what's at a spot on the map, and whether there are wildfires or smoke nearby.
+
 ### Changed
+
+* Ask plans trips with your own Directions settings, and "by bike" means your own bike, not bike share.
+* Ask shows only the trip it recommends, not each one it tried along the way.
 
 ### Fixed
 
+* Canvases keep their routes, shapes and data on the map after it reloads its style, and opening one from a link draws everything.
 * The zoomed-out globe shows its forests, deserts, ocean depths and place names on the web, where it had shown a plain globe.
 
 ## [0.23.1] - 2026-11-20

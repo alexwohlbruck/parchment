@@ -2,7 +2,11 @@
 
 ### Added
 
+* A new Parchment map style drawn like an old engraved sea chart: inked coasts, italic sea names, towns in small capitals and a paper-grained sheet.
+
 ### Changed
+
+* The previous default map style is now called Charlotte.
 
 ### Fixed
 

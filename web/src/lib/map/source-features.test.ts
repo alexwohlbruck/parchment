@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sourceFeatures } from './source-features'
+import { sourceFeatures, sourceTileFeatures } from './source-features'
 
 function tile(key: string, features: any[]) {
   return {
@@ -40,5 +40,16 @@ describe('sourceFeatures', () => {
     const map = { querySourceFeatures: vi.fn(() => [{ id: 3 }]) }
     expect(sourceFeatures(map, 'detail', 'trees')).toEqual([{ id: 3 }])
     expect(map.querySourceFeatures).toHaveBeenCalledWith('detail', { sourceLayer: 'trees' })
+  })
+
+  it('hands back each tile as the same array until that tile reloads', () => {
+    const a = tile('a', [{ id: 1 }])
+    const b = tile('b', [{ id: 2 }])
+    const map = mapOf([a, b])
+    const [firstA, firstB] = sourceTileFeatures(map, 'detail', 'poi')
+    a.latestFeatureIndex = { rawTileData: new ArrayBuffer(1) }
+    const [nextA, nextB] = sourceTileFeatures(map, 'detail', 'poi')
+    expect(nextB).toBe(firstB)
+    expect(nextA).not.toBe(firstA)
   })
 })

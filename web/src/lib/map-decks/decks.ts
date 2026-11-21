@@ -1133,11 +1133,12 @@ export function halfPlane(poly: Point[], o: Point, n: Point): Point[] {
 }
 
 /** Whether a point lies inside a polygon's rings, by the even-odd rule. */
-export function inside([x, y]: Point, rings: Point[][]): boolean {
+export function inside(point: Point, rings: Point[][]): boolean {
+  const x = point[0], y = point[1]
   let hit = false
   for (const ring of rings)
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [[xi, yi], [xj, yj]] = [ring[i], ring[j]]
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]
       if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
     }
   return hit
@@ -1553,11 +1554,14 @@ export function outline(pts: Point[], edges: [number, number], origin: Point): A
 
 /** A triangle onto a mesh, flat-shaded by its winding. */
 export function triangle(out: Mesh, a: number[], b: number[], c: number[], color: number[]) {
-  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
-  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
-  const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
-  const l = Math.hypot(nn[0], nn[1], nn[2]) || 1
-  for (const p of [a, b, c]) vertex(out, p, [nn[0] / l, nn[1] / l, nn[2] / l], color)
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2]
+  const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2]
+  const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
+  const l = Math.hypot(nx, ny, nz) || 1
+  const n = [nx / l, ny / l, nz / l]
+  vertex(out, a, n, color)
+  vertex(out, b, n, color)
+  vertex(out, c, n, color)
 }
 
 /** Two triangles, a-b-c and a-c-d. */

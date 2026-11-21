@@ -21,14 +21,18 @@ import { LngLat } from '@/types/map.types'
 import ConnectPrompt from '@/components/quick-edit/ConnectPrompt.vue'
 import QuickEditMarker from '@/components/quick-edit/QuickEditMarker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
+import PresetPicker from '@/components/quick-edit/PresetPicker.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
 import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
 import { whenMapReady } from '@/composables/map/whenMapReady'
+import { retagForPreset } from '@/lib/quick-edit/preset-tags'
 import type {
+  BrandChoice,
   EditablePreset,
   NsiBrand,
   OsmElementType,
   OsmLiveElement,
+  PresetSummary,
 } from '@/types/quick-edit.types'
 
 const props = defineProps<{
@@ -58,6 +62,7 @@ const sandboxServer = ref<string | null>(null)
 const osmServerUrl = ref<string | null>(null)
 const brandLogo = ref<string | null>(null)
 const markerAt = ref<LngLat | null>(null)
+const choosingType = ref(false)
 
 const osmConnected = computed(() =>
   Boolean(
@@ -161,6 +166,21 @@ function applyBrand(brand: NsiBrand) {
   brandLogo.value = brand.logoUrl
 }
 
+async function selectPreset(result: PresetSummary) {
+  const next = await quickEditService.getPreset(result.id)
+  const retagged = retagForPreset(tags, preset.value, next)
+  for (const key of Object.keys(tags)) delete tags[key]
+  Object.assign(tags, retagged)
+  preset.value = next
+  choosingType.value = false
+  placeMarker()
+}
+
+async function selectBrand(choice: BrandChoice) {
+  await selectPreset(choice.preset)
+  applyBrand(choice.brand)
+}
+
 /** Success, with a way through to the changeset it produced. */
 function announceSubmitted(changesetId: number) {
   const url = osmServerUrl.value
@@ -206,7 +226,9 @@ async function handleSubmit(comment: string) {
         Object.assign(tags, live.tags)
       }
     } else {
-      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'), { cause: error })
+      toast.error(error.response?.data?.message ?? t('quickEdit.submitError'), {
+        cause: error,
+      })
     }
   } finally {
     submitting.value = false
@@ -249,49 +271,67 @@ async function handleSubmit(comment: string) {
             <h2 class="truncate text-lg font-semibold leading-tight">
               {{ displayName }}
             </h2>
-            <span class="text-xs text-muted-foreground">
+            <span class="block text-xs text-muted-foreground">
               {{
                 t('quickEdit.editingElement', {
                   element: `${element.type} ${element.id}`,
                 })
               }}
             </span>
+            <button
+              type="button"
+              class="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              @click="choosingType = !choosingType"
+            >
+              {{
+                choosingType ? t('general.cancel') : t('quickEdit.changeType')
+              }}
+            </button>
           </div>
         </div>
       </div>
 
-      <div
-        v-if="hasPendingEdit"
-        class="mb-3 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
-      >
-        <ClockIcon class="size-3.5 shrink-0" />
-        {{ t('quickEdit.pendingNotice') }}
-      </div>
-
-      <div
-        v-if="element.type !== 'node'"
-        class="mb-3 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
-      >
-        <InfoIcon class="size-3.5 shrink-0" />
-        {{ t('quickEdit.geometryNotice') }}
-      </div>
-      <p v-else class="mb-3 text-xs text-muted-foreground">
-        {{ t('quickEdit.dragHint') }}
-      </p>
-
-      <QuickEditForm
-        :preset="preset"
-        :tags="tags"
-        :submitting="submitting"
-        :submit-label="t('quickEdit.submitEdit')"
-        :lat="movedTo?.lat ?? element.lat ?? 0"
-        :lng="movedTo?.lng ?? element.lon ?? 0"
-        :sandbox-server="sandboxServer"
-        @set="setTag"
-        @brand="applyBrand"
-        @logo="brandLogo = $event"
-        @submit="handleSubmit"
+      <PresetPicker
+        v-if="choosingType"
+        :geometry="element.type === 'node' ? 'point' : undefined"
+        @select="selectPreset"
+        @select-brand="selectBrand"
       />
+
+      <template v-else>
+        <div
+          v-if="hasPendingEdit"
+          class="mb-3 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
+        >
+          <ClockIcon class="size-3.5 shrink-0" />
+          {{ t('quickEdit.pendingNotice') }}
+        </div>
+
+        <div
+          v-if="element.type !== 'node'"
+          class="mb-3 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
+        >
+          <InfoIcon class="size-3.5 shrink-0" />
+          {{ t('quickEdit.geometryNotice') }}
+        </div>
+        <p v-else class="mb-3 text-xs text-muted-foreground">
+          {{ t('quickEdit.dragHint') }}
+        </p>
+
+        <QuickEditForm
+          :preset="preset"
+          :tags="tags"
+          :submitting="submitting"
+          :submit-label="t('quickEdit.submitEdit')"
+          :lat="movedTo?.lat ?? element.lat ?? 0"
+          :lng="movedTo?.lng ?? element.lon ?? 0"
+          :sandbox-server="sandboxServer"
+          @set="setTag"
+          @brand="applyBrand"
+          @logo="brandLogo = $event"
+          @submit="handleSubmit"
+        />
+      </template>
     </template>
   </PanelLayout>
 </template>

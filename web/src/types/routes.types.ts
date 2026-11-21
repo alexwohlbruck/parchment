@@ -48,6 +48,8 @@ export interface RouteBody {
   segments?: RouteSegment[]
   pathMode?: RoutePathMode
   stats?: RouteStats
+  /** A name the server gave a route it built (Ask), until one is saved in the encrypted metadata. */
+  name?: string
 }
 
 export interface Route {

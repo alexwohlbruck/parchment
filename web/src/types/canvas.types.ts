@@ -18,6 +18,7 @@ import type { MapEngine } from '@/types/map.types'
 import { MARKER_PLATE_SIZE } from '@/lib/map-marker/marker-metrics.mjs'
 import type { MarkerShape } from '@/lib/map-marker/marker-shape'
 import type { EncryptionScheme } from '@/types/library.types'
+import type { CanvasRouteLayer } from '@server/schema/canvases.schema'
 
 export type CanvasScheme = EncryptionScheme
 
@@ -112,16 +113,7 @@ export interface CanvasDataLayer {
   style?: CanvasDataStyle
 }
 
-/** A saved route, drawn as its path. */
-export interface CanvasRouteLayer {
-  id: string
-  kind: 'route'
-  routeId: string
-  visible: boolean
-  color?: string | null
-  /** This canvas's own word for it; the route keeps its own name. */
-  name?: string
-}
+export type { CanvasRouteLayer }
 
 /**
  * Friends' live positions on this canvas.

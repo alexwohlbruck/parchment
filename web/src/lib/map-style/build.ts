@@ -66,7 +66,9 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { BASEMAP_CONTINENT_LABELS, GLOBE_CONTINENT_LABELS, GLOBE_NAMES, GLOBE_SOURCE, globeSources, withGlobeLayers } from './globe-layers'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
+import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
 import { themeBuildingPastels, themeBuildingTint, themeSky, themeTokens, themeTypography } from './themes'
@@ -369,7 +371,8 @@ export const layerGroups = {
    * turning transit on erased the rails and left every stop label doubled.
    */
   transit: idsWhere(isTransitStopLayer),
-  placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
+  placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place')
+    .map(id => (id === BASEMAP_CONTINENT_LABELS ? GLOBE_CONTINENT_LABELS : id)),
   /**
    * The green twins of the road layers; see `addCyclingSurface` in
    * `convert-basemap-style.mjs`. They ship hidden, so nothing switches them on
@@ -494,10 +497,11 @@ export function buildLayers(options: {
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor, paint)
   base = withPoiDots(base)
+  base = withGlobeLayers(base, flavor)
 
-  const converted = withNeighbourhoodLabels(base
+  const converted = withAboriginalLands(withNeighbourhoodLabels(base
     .map(l => resolve(l, tokens, categories, flavor))
-    .map(l => localize(l, lang)))
+    .map(l => localize(l, lang))), flavor)
 
   const park = converted.find(l => l.id === 'Park')
   const detailLabel: DetailLabelStyle = {
@@ -810,6 +814,8 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
         : {}),
       [INDOOR_SOURCE]: indoorSource(source => buildTileUrl(tileServerUrl, source)),
       [NEIGHBOURHOOD_SOURCE]: neighbourhoodSource(buildTileUrl(tileServerUrl, NEIGHBOURHOOD_TILES)),
+      ...globeSources(origin()),
+      [ABORIGINAL_LANDS_SOURCE]: aboriginalLandsSource(buildTileUrl(tileServerUrl, ABORIGINAL_LANDS_TILES)),
     },
     state: indoorState(),
     sky: themeSky(mapStyle, flavor),
@@ -849,6 +855,7 @@ export function buildSatelliteStyle(
 
   if (hybrid) {
     sources[SOURCE] = vectorSource(tileServerUrl)
+    sources[GLOBE_SOURCE] = globeSources(origin())[GLOBE_SOURCE]
     const overlay = buildLayers({
       flavor: 'dark',
       categoryColors,
@@ -859,6 +866,7 @@ export function buildSatelliteStyle(
     }).filter(
       l =>
         (l.type === 'symbol' && (l as any).source === SOURCE) ||
+        (l as any)['source-layer'] === GLOBE_NAMES ||
         // Keep the arterial network so the imagery stays navigable.
         /^(Highway|Major road)$/.test(l.id),
     )

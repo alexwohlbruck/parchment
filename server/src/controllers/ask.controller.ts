@@ -7,7 +7,7 @@ import { runAsk } from '../services/ask/ask-agent.service'
 import { recordAskQuestion } from '../services/ask/ask-usage.service'
 import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
-import { VehicleSchema } from '../types/directions-api.types'
+import { RoutingPreferencesSchema, TripModeTokenSchema, VehicleSchema } from '../types/directions-api.types'
 import { getAskPreferences } from '../services/user-preferences.service'
 import type { AskAccess, AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
@@ -87,6 +87,9 @@ const app = new Elysia()
                 places: preferences.shareLocation ? knownPlaces(body.here, body.places) : new Map(),
                 units: body.units ?? 'metric',
                 vehicles: (body.vehicles ?? []) as Vehicle[],
+                routingPreferences: body.routingPreferences,
+                excludedModes: body.excludedModes,
+                routes: new Map(),
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
@@ -164,12 +167,16 @@ const app = new Elysia()
         vehicles: t.Optional(
           t.Array(VehicleSchema, { maxItems: 20, description: 'The user\'s vehicles, so Ask plans trips the way Directions does' }),
         ),
+        routingPreferences: t.Optional(RoutingPreferencesSchema),
+        excludedModes: t.Optional(
+          t.Array(TripModeTokenSchema, { uniqueItems: true, description: 'Modes the user does not use, as Directions sends them' }),
+        ),
       }),
       detail: {
         tags: ['Ask'],
         summary: 'Answer a question about places',
         description:
-          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
+          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user\'s library. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
       },
     },
   )

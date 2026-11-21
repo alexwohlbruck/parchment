@@ -1,5 +1,4 @@
 import { bbox, booleanPointInPolygon, circle, point } from '@turf/turf'
-import type { Feature, MultiPolygon, Polygon } from 'geojson'
 import {
   lookupPlacesByNameAndLocation,
   lookupEnrichedPlaceById,
@@ -12,7 +11,6 @@ import { MODE_COSTING, type RerouteMode } from '../reroute.service'
 import { samplePoints } from '../../lib/ask/route-sample'
 import { distanceText } from '../../lib/ask/distance-text'
 import type { Location } from '../../types/valhalla.types'
-import { requestBarrelman } from '../barrelman.service'
 import { getPermissions, hasPermission } from '../auth.service'
 import { PermissionId } from '../../types/auth.types'
 import {
@@ -22,18 +20,16 @@ import {
 } from '../../lib/ask/place-summary'
 import {
   ISOCHRONE_MODES,
-  maxDurationForMode,
   type IsochroneGeometry,
   type IsochroneMode,
-  type IsochroneResponse,
 } from '../../types/isochrone.types'
 import type { MapBounds } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
-import type { Source } from '../../lib/constants'
 import type { ChatTool } from '../../types/language-model.types'
 import type { LatLng } from '../../types/ask.types'
 import {
   AskToolError,
+  splitPlaceId,
   cached,
   centre,
   clamp,
@@ -44,10 +40,15 @@ import {
   type AskContext,
   type AskTool,
 } from './ask-tool-base'
+import { reachPolygon } from './ask-reach'
+import { reverseGeocode } from '../geocoding.service'
+import { transitTools } from './ask-transit-tools'
+import { environmentTools } from './ask-environment-tools'
 import { tripTools } from './ask-trip-tools'
 import { libraryTools } from './ask-library-tools'
 import { webTools } from './ask-web-tools'
 import { canvasTools } from './ask-canvas-tools'
+import { routeTools } from './ask-route-tools'
 
 export {
   AskToolError,
@@ -132,17 +133,6 @@ function listPlaces(
         units: context.units,
       }),
     ),
-  }
-}
-
-function splitPlaceId(
-  id: string,
-): { source: Source; externalId: string } | null {
-  const slash = id.indexOf('/')
-  if (slash <= 0) return null
-  return {
-    source: id.slice(0, slash) as Source,
-    externalId: id.slice(slash + 1),
   }
 }
 
@@ -292,19 +282,22 @@ const getPlace: AskTool<{ id: string }> = {
   },
 }
 
-const locate: AskTool<{ query: string }> = {
+const locate: AskTool<{ query: string; near?: PointArg }> = {
   name: 'locate',
   description:
     'Resolve a neighbourhood, address, city or landmark name to coordinates, to search around it. Tools that take a point also accept a name directly.',
   parameters: {
     type: 'object',
-    properties: { query: { type: 'string' } },
+    properties: {
+      query: { type: 'string' },
+      near: pointSchema('Where to look first, e.g. the city. Defaults to the map.'),
+    },
     required: ['query'],
   },
   label: () => 'Finding',
   detail: ({ query }) => query,
-  async run({ query }, context) {
-    const results = await geocodeResults(query, context)
+  async run({ query, near }, context) {
+    const results = await geocodeResults(query, context, near === undefined ? undefined : await centre(near, context))
     return results.slice(0, 3).map((place) => ({
       name: place.name.value,
       address: place.address?.value?.formatted,
@@ -313,38 +306,31 @@ const locate: AskTool<{ query: string }> = {
   },
 }
 
-function reachPolygon(
-  from: LatLng,
-  mode: IsochroneMode,
-  minutes: number,
-  context: AskContext,
-): Promise<Feature<Polygon | MultiPolygon>> {
-  return cached(
-    'reach',
-    { from, mode, minutes },
-    { language: context.language },
-    () => loadReachPolygon(from, mode, minutes),
-  )
-}
-
-async function loadReachPolygon(
-  from: LatLng,
-  mode: IsochroneMode,
-  minutes: number,
-): Promise<Feature<Polygon | MultiPolygon>> {
-  const seconds = Math.min(minutes * 60, maxDurationForMode(mode))
-  const response = await requestBarrelman(
-    '/isochrone',
-    { lat: from.lat, lng: from.lng, mode, durations: seconds },
-    { timeoutMs: 60_000 },
-  )
-  if (!response.ok)
-    throw new AskToolError(`Could not compute reach (${response.status})`)
-  const { isochrones } = (await response.json()) as IsochroneResponse
-  const feature = isochrones?.features?.[0] as
-    Feature<Polygon | MultiPolygon> | undefined
-  if (!feature) throw new AskToolError('No reachable area')
-  return feature
+const whatIsHere: AskTool<{ at: PointArg }> = {
+  name: 'what_is_here',
+  description:
+    'What is at a point: the address and the places right there. For coordinates the user gives, or "where am I".',
+  parameters: {
+    type: 'object',
+    properties: { at: pointSchema('The point to look up.') },
+    required: ['at'],
+  },
+  label: () => "Checking what's here",
+  async run({ at }, context) {
+    const { lat, lng } = await centre(at, context)
+    const { results } = await cached(
+      'what_is_here',
+      { lat: lat.toFixed(5), lng: lng.toFixed(5) },
+      { language: context.language },
+      () => reverseGeocode(lat, lng),
+    )
+    if (!results.length) throw new AskToolError('Nothing known at that point')
+    const places = results.slice(0, 5)
+    for (const place of places) context.seen.set(place.id, place)
+    return places.map((place) =>
+      summarizePlace(place, { now: context.now, origin: { lat, lng }, units: context.units }),
+    )
+  },
 }
 
 const MODE_PHRASES: Record<IsochroneMode, string> = {
@@ -510,10 +496,14 @@ export const askTools: AskTool[] = [
   browseCategory,
   getPlace,
   locate,
+  whatIsHere,
   placesWithinReach,
   searchAlongRoute,
   ...tripTools,
+  ...transitTools,
+  ...environmentTools,
   ...libraryTools,
+  ...routeTools,
   ...canvasTools,
   ...webTools,
 ]

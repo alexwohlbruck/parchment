@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref, type Ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
+import { mapEventBus } from '@/lib/event-bus'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCanvasRendering } from './useCanvasRendering'
 import type {
@@ -122,9 +123,13 @@ beforeEach(() => {
   useMapStore().setMapStrategy(strategy as never)
 })
 
+const scopes: ReturnType<typeof effectScope>[] = []
+afterEach(() => scopes.splice(0).forEach(scope => scope.stop()))
+
 /** Render a canvas body under a given instance key, inside its own scope. */
 function render(key: string, body: CanvasBody) {
   const scope = effectScope()
+  scopes.push(scope)
   const api = scope.run(() =>
     useCanvasRendering(
       computed(() => [{ id: 'canvas-1', body }]),
@@ -154,6 +159,18 @@ describe('useCanvasRendering', () => {
       'canvas-canvas-editor-canvas-1-cl-1-source',
       'canvas-map-canvas-1-cl-1-source',
     ])
+  })
+
+  it('puts every layer back when a new style wipes the map', () => {
+    render('map', { layers: [dataLayer()] })
+
+    // A style load leaves the engine empty while the renderer still thinks it is drawn.
+    strategy.sources.clear()
+    strategy.layers.clear()
+    mapEventBus.emit('style.load', undefined as never)
+
+    expect([...strategy.sources]).toEqual(['canvas-map-canvas-1-cl-1-source'])
+    expect([...strategy.layers]).toEqual(['canvas-map-canvas-1-cl-1-points'])
   })
 
   it('takes layers off before rebuilding the source they draw from', () => {

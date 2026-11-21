@@ -27,6 +27,7 @@ import { withEmissive } from '@/lib/map/mapbox-style-compat'
 import { onScopeDispose, watch, type ComputedRef } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
+import { mapEventBus } from '@/lib/event-bus'
 import { useLayersStore } from '@/stores/layers.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
@@ -895,8 +896,18 @@ export function useCanvasRendering(
   // and nothing else would prompt a redraw for it.
   watch(() => themeStore.isDark, render)
 
-  // The basemap style change drops every layer we added, so put them back.
-  mapStore.on('style.load', render)
+  // A route layer has nothing to draw until its route loads, which on a cold
+  // load can land after the canvas.
+  watch(() => routesStore.routes, render)
+
+  // The basemap style change drops every layer we added, so put them all back.
+  function redraw() {
+    mountedLayers = new Map()
+    mountedVisible = new Map()
+    mountedSources = new Map()
+    render()
+  }
+  mapEventBus.on('style.load', redraw)
 
   /**
    * Fly to a canvas layer's data.
@@ -920,7 +931,7 @@ export function useCanvasRendering(
   }
 
   onScopeDispose(() => {
-    mapStore.off('style.load', render)
+    mapEventBus.off('style.load', redraw)
     teardown()
   })
 

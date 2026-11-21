@@ -2,13 +2,43 @@
 
 ### Added
 
+* You can change what kind of place an existing place is when editing it, such as giving a bare address a business or swapping in a new tenant.
+
+### Changed
+
+### Fixed
+
+## [0.23.2] - 2026-11-20
+
+### Added
+
+* Ask can plan a ride, run or walk for you: it builds a loop through the places you mention, saves it to Routes in your library and puts it on a canvas with the stops marked.
+* Ask can save places to your collections, change or archive routes and canvases, shade how far you can get in a set time on a canvas, and share a canvas by link.
+* Ask can tell you where a transit line goes and whether it's running, what's at a spot on the map, and whether there are wildfires or smoke nearby.
+
+### Changed
+
+* Ask plans trips with your own Directions settings, and "by bike" means your own bike, not bike share.
+* Ask shows only the trip it recommends, not each one it tried along the way.
+
+### Fixed
+
+* Canvases keep their routes, shapes and data on the map after it reloads its style, and opening one from a link draws everything.
+* The zoomed-out globe shows its forests, deserts, ocean depths and place names on the web, where it had shown a plain globe.
+
+## [0.23.1] - 2026-11-20
+
+### Added
+
 * Hills and mountains are shaded by the sun in 3D, so their slopes stand out and turn with the time of day.
 * At night, buildings and landmarks still cast soft shadows: from the moon when it's up, or faintly from the sky's glow.
 * Crop and zoom your profile photo before you save it, and change or remove it any time under Settings → Account.
 * Self-hosted servers keep profile photos on their own disk by default, or in any S3-compatible bucket such as R2.
 * Press ⌘Z to take back changes to your library: saving or removing places, adding them to collections, editing or deleting routes, canvases and layers, and archiving. ⇧⌘Z redoes them, and each change's message has an Undo button.
 * 3D trees and plants change through the year: buds and cherry blossom in spring, gold and rust in fall, bare branches in winter, each tree on its own schedule. Evergreens stay green, and lawns and woods follow the season too. Turn it off under Settings → Appearance.
-* Two new map styles under Settings → Appearance: Cupertino, clean and neutral, and Mountain View, with white streets and yellow highways.
+* Zoomed out, the globe shows forests, grasslands and deserts, shaded mountains, ocean depths, and the names of continents, oceans, seas and mountain ranges.
+* The map shows Indigenous lands, such as reserves, Inuit Owned Lands and tribal lands, each named in its own language where it has one.
+* Two new map styles under Settings → Appearance: Cupertino, clean and neutral like Apple Maps, and Mountain View, with crisp white streets like Google Maps.
 
 ### Changed
 
@@ -18,6 +48,7 @@
 
 ### Fixed
 
+* Flat top-down views no longer show dark patches flickering across landmark roofs and trees.
 * Scrub and planted beds fill their whole area in 3D instead of a small patch that moves with the camera.
 * 3D landmarks no longer glow among their neighbours on the night map, and keep their own colours while they blend in.
 * Uploaded profile photos now show up, including for friends on other Parchment servers.

@@ -55,8 +55,16 @@ mock.module('../route-search.service', () => ({
 mock.module('../category.service', () => ({
   categoryService: { searchCategories: () => [] },
 }))
+const corner = {
+  id: 'osm/way/7',
+  name: { value: 'Washington Square Park' },
+  placeType: { value: 'Park' },
+  geometry: { value: { center: { lat: 40.7308, lng: -73.9973 } } },
+} as any
+const mockReverse = mock(async (_lat: number, _lng: number) => ({ results: [corner] }))
 mock.module('../geocoding.service', () => ({
   forwardGeocode: mock(async () => ({ results: [] })),
+  reverseGeocode: mockReverse,
 }))
 mock.module('../barrelman.service', () => ({ requestBarrelman: mockBarrelman }))
 let permissions: string[] = []
@@ -66,9 +74,32 @@ mock.module('../auth.service', () => ({
 }))
 const mockCreateCanvas = mock(async (_params: unknown) => ({ id: 'canvas-1' }))
 const mockUpdateCanvas = mock(async (_id: string, _userId: string, _updates: any) => ({}))
+class PublicLinkNotAllowedOnE2eeError extends Error {}
+const mockArchiveCanvas = mock(async (id: string, _userId: string, _archived: boolean) => (id === 'canvas-1' ? {} : undefined))
 mock.module('../library/canvases.service', () => ({
   createCanvas: mockCreateCanvas,
   updateCanvas: mockUpdateCanvas,
+  getCanvases: mock(async () => [
+    { id: 'canvas-1', scheme: 'server-key', name: 'Pizza', body: { layers: [{}, {}] }, publicToken: null, updatedAt: new Date('2026-11-19') },
+    { id: 'private', scheme: 'user-e2ee', name: null, body: null, updatedAt: new Date('2026-11-18') },
+    { id: 'old', scheme: 'server-key', name: 'Old', archivedAt: new Date(), updatedAt: new Date('2026-01-01') },
+  ]),
+  createPublicLink: mock(async (id: string) => {
+    if (id === 'private') throw new PublicLinkNotAllowedOnE2eeError()
+    return id === 'canvas-1' ? { publicToken: 'tok', publicRole: 'viewer' } : null
+  }),
+  setCanvasArchived: mockArchiveCanvas,
+  PublicLinkNotAllowedOnE2eeError,
+}))
+
+const loop = { geometry: [[-73.99, 40.73], [-73.93, 40.8]] }
+const mockGetRouteById = mock(async (id: string, _userId: string) => (id === 'route-1' ? { id, body: loop } : undefined))
+mock.module('../library/routes.service', () => ({
+  getRouteById: mockGetRouteById,
+  getRoutes: mock(async () => []),
+  createRoute: mock(async () => ({ id: 'route-1' })),
+  updateRoute: mock(async () => ({})),
+  setRouteArchived: mock(async () => ({})),
 }))
 
 const { askTools } = await import('./ask-tools')
@@ -87,6 +118,7 @@ function context(userId = 'u1'): AskContext {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    routes: new Map(),
     sources: new Map(),
     emit: () => {},
   }
@@ -242,18 +274,87 @@ describe('create_canvas', () => {
     const events: unknown[] = []
     const ctx = { ...context(), emit: (event: unknown) => events.push(event) } as AskContext
     ctx.seen.set(pizza.id, pizza)
-    const result = await tool('create_canvas').run({ name: 'Pizza', layers: [{ name: 'Pizza', place_ids: [pizza.id] }] }, ctx)
-    expect(result).toEqual({ saved: true, name: 'Pizza', layers: 1 })
+    const result = await tool('create_canvas').run({ name: 'Pizza', layers: [{ name: 'Pizza', points: [pizza.id] }] }, ctx)
+    expect(result).toEqual({ saved: true, id: 'canvas-1', name: 'Pizza', layers: 1 })
     expect(mockUpdateCanvas.mock.calls.at(-1)![2].body.layers[0].data.features[0].properties.name).toBe('Joe’s Pizza')
     expect(events).toEqual([{ type: 'canvas', id: 'canvas-1', name: 'Pizza' }])
   })
 
-  test('refuses ids no tool returned, and users without a library', async () => {
+  test('marks known places like home, and draws saved routes as route layers', async () => {
     permissions = ['library:write']
+    const ctx = context()
+    ctx.places.set('home', { name: 'Home', lat: 40.68, lng: -73.96 })
+    await tool('create_canvas').run(
+      { name: 'Loop', route_ids: ['route-1'], layers: [{ name: 'Stops', points: ['home'] }] },
+      ctx,
+    )
+    const body = mockUpdateCanvas.mock.calls.at(-1)![2].body
+    expect(body.layers[0]).toMatchObject({ kind: 'route', routeId: 'route-1' })
+    expect(body.layers[1].data.features[0].properties.name).toBe('Home')
+  })
+
+  test('refuses routes and places it cannot find, and users without a library', async () => {
+    permissions = ['library:write']
+    await expect(tool('create_canvas').run({ name: 'x', route_ids: ['route-9'] }, context())).rejects.toThrow(
+      'Unknown route route-9',
+    )
     await expect(
-      tool('create_canvas').run({ name: 'x', layers: [{ name: 'x', place_ids: ['osm/node/9'] }] }, context()),
-    ).rejects.toThrow('Unknown place ids osm/node/9')
+      tool('create_canvas').run({ name: 'x', layers: [{ name: 'x', points: ['osm/node/9'] }] }, context()),
+    ).rejects.toThrow('Couldn\'t find')
     permissions = []
     await expect(tool('create_canvas').run({ name: 'x' }, context())).rejects.toThrow('Basic or Premium')
+  })
+})
+
+describe('create_canvas areas', () => {
+  test('shades how far a travel time reaches', async () => {
+    permissions = ['library:write']
+    const result = await tool('create_canvas').run(
+      { name: 'Coffee runs', areas: [{ mode: 'bike', minutes: 15 }] },
+      context(),
+    )
+    expect(result).toMatchObject({ saved: true, layers: 1 })
+    const [area] = mockUpdateCanvas.mock.calls.at(-1)![2].body.layers
+    expect(area).toMatchObject({ kind: 'data', render: 'shapes', name: '15 min ride' })
+    expect(area.data.features[0].geometry).toEqual(reachGeometry)
+  })
+})
+
+describe('what_is_here', () => {
+  test('names the places at a point so the answer can cite them', async () => {
+    const ctx = context()
+    const [place] = (await tool('what_is_here').run({ at: { lat: 40.7308, lng: -73.9973 } }, ctx)) as any[]
+    expect(place).toMatchObject({ id: 'osm/way/7', name: 'Washington Square Park', type: 'Park' })
+    expect(ctx.seen.has('osm/way/7')).toBe(true)
+  })
+})
+
+describe('library canvases', () => {
+  test('lists live canvases the server can read', async () => {
+    expect(await tool('my_canvases').run({}, context())).toEqual([
+      { id: 'canvas-1', name: 'Pizza', layers: 2, shared: false, updated: '2026-11-19' },
+    ])
+  })
+
+  test('shares a canvas by link, but never a private one', async () => {
+    permissions = ['library:write']
+    const { url } = (await tool('share_canvas').run({ id: 'canvas-1' }, context())) as { url: string }
+    expect(url.endsWith('/c/tok')).toBe(true)
+    await expect(tool('share_canvas').run({ id: 'private' }, context())).rejects.toThrow("Private canvases can't")
+    await expect(tool('share_canvas').run({ id: 'nope' }, context())).rejects.toThrow('Unknown canvas')
+  })
+
+  test('archives and restores, telling the app', async () => {
+    permissions = ['library:write']
+    const events: unknown[] = []
+    const ctx = { ...context(), emit: (event: unknown) => events.push(event) } as AskContext
+    await tool('archive').run({ kind: 'canvas', id: 'canvas-1' }, ctx)
+    await tool('archive').run({ kind: 'canvas', id: 'canvas-1', restore: true }, ctx)
+    expect(mockArchiveCanvas.mock.calls.map((call) => call[2])).toEqual([true, false])
+    expect(events).toEqual([
+      { type: 'archived', kind: 'canvas', id: 'canvas-1', archived: true },
+      { type: 'archived', kind: 'canvas', id: 'canvas-1', archived: false },
+    ])
+    await expect(tool('archive').run({ kind: 'canvas', id: 'gone' }, ctx)).rejects.toThrow('Unknown canvas')
   })
 })

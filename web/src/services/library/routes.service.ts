@@ -54,9 +54,14 @@ async function hydrateRoute(
   route: Route,
   userId: string | undefined,
 ): Promise<Route> {
-  if (!userId) return route
+  if (userId) await decryptRoute(route, userId)
+  if (!route.name && route.body?.name) route.name = route.body.name
+  return route
+}
+
+async function decryptRoute(route: Route, userId: string): Promise<void> {
   const seed = await getSeed()
-  if (!seed) return route
+  if (!seed) return
 
   if (route.metadataEncrypted) {
     try {
@@ -88,8 +93,6 @@ async function hydrateRoute(
       // leave body null — preview will show "encrypted"
     }
   }
-
-  return route
 }
 
 export const useRoutesService = createSharedComposable(() => {

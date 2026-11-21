@@ -27,6 +27,8 @@ import {
   type EstimateMode,
 } from '../../lib/directions/mode-estimates'
 import { IntegrationCapabilityId } from '../../types/integration.types'
+import type { SelectedMode } from '../../types/trip.types'
+import type { TripModeToken } from '../../types/departure-profile.types'
 import type { NearbyStation } from '../../lib/dock-alternatives'
 import {
   ASK_TRIP_KINDS,
@@ -209,6 +211,23 @@ const transitTrips: AskTool<{
   },
 }
 
+/** The Directions tab a kind of trip is planned on. */
+const KIND_TAB: Record<AskTripKind, SelectedMode> = {
+  bikeshare: 'biking',
+  biking: 'biking',
+  transit: 'transit',
+  walking: 'walking',
+  driving: 'driving',
+  rideshare: 'rideshare',
+}
+
+/** The user's own exclusions, plus shared bikes when they asked to ride their own. */
+function tripExclusions(kind: AskTripKind | undefined, context: AskContext): TripModeToken[] {
+  const excluded = new Set(context.excludedModes ?? [])
+  if (kind === 'biking') excluded.add('bikeshare')
+  return [...excluded]
+}
+
 const planTrip: AskTool<{
   from?: PointArg
   to: PointArg
@@ -219,7 +238,7 @@ const planTrip: AskTool<{
 }> = {
   name: 'plan_trip',
   description:
-    'Plan a door-to-door trip the way Parchment Directions does: walking, cycling, bike share (with the stations to pick up and drop off at), transit and driving. The app offers the best trip as a Directions button. Set `kind` to get only one way of travelling.',
+    'Plan a door-to-door trip the way Parchment Directions does: walking, cycling on your own bike, bike share (with the stations to pick up and drop off at), transit and driving. The app offers the best trip as a Directions button. Set `kind` to plan only one way of travelling, as the matching Directions tab does: biking is the user\'s own bike, never bike share. For a ride or walk taken for its own sake (a loop, a tour, a scenic way), use create_route instead.',
   parameters: {
     type: 'object',
     properties: {
@@ -275,7 +294,9 @@ const planTrip: AskTool<{
             ...(time?.mode === 'arriveBy' && { arriveBy: time.at }),
           },
         ],
-        selectedMode: 'multi',
+        selectedMode: args.kind ? KIND_TAB[args.kind] : 'multi',
+        excludedModes: tripExclusions(args.kind, context),
+        routingPreferences: context.routingPreferences,
         availableVehicles: context.vehicles,
         language: context.language,
         ...(time?.mode === 'departAfter' && {
@@ -302,7 +323,7 @@ const planTrip: AskTool<{
     const lines = trips[0].steps.flatMap((step) =>
       'line' in step && step.line ? [step.line] : [],
     )
-    context.emit({
+    context.proposedTrip = {
       type: 'trip',
       from,
       to,
@@ -312,7 +333,7 @@ const planTrip: AskTool<{
       ...(lines.length && { lines }),
       plan: result,
       tripIndex: all.indexOf(trips[0]),
-    })
+    }
     context.trip = {
       name: [from.name, to.name].filter(Boolean).join(' to ') || 'Trip',
       path: tripPath(result.trips[all.indexOf(trips[0])].trip),

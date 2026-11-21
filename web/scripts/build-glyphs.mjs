@@ -52,21 +52,29 @@ const LAST_RANGE = 0x2fff
  * like a corrupt-font problem when it is a URL-encoding one.
  */
 const STACKS = [
-  { name: 'Geist Regular', weight: '400-normal', fallback: 'NotoSans-Regular.ttf' },
-  { name: 'Geist Medium', weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
-  { name: 'Geist SemiBold', weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
-  { name: 'Geist Bold', weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
+  { name: 'Geist Regular', weight: '400-normal', style: 'Regular' },
+  { name: 'Geist Medium', weight: '500-normal', style: 'Medium' },
+  { name: 'Geist SemiBold', weight: '600-normal', style: 'SemiBold' },
+  { name: 'Geist Bold', weight: '700-normal', style: 'Bold' },
   // The Cupertino and Mountain View map themes' families: the nearest open
   // faces to SF Pro and to the one Google Maps sets its labels in.
   ...['Inter', 'Roboto'].flatMap(family => [
-    { name: `${family} Regular`, weight: '400-normal', fallback: 'NotoSans-Regular.ttf' },
-    { name: `${family} Medium`, weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
-    { name: `${family} SemiBold`, weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
-    { name: `${family} Bold`, weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
+    { name: `${family} Regular`, weight: '400-normal', style: 'Regular' },
+    { name: `${family} Medium`, weight: '500-normal', style: 'Medium' },
+    { name: `${family} SemiBold`, weight: '600-normal', style: 'SemiBold' },
+    { name: `${family} Bold`, weight: '700-normal', style: 'Bold' },
   ]),
   // Cupertino's tall, narrow district names.
-  { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
+  { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', style: 'SemiBold' },
 ]
+
+/**
+ * Noto faces under Geist, in order, for scripts neither Geist nor Noto Sans
+ * covers: syllabics (Inuktitut, Cree, Ojibwe) and Cherokee, which name
+ * Indigenous lands. Static instances at each stack's weight, cut from Google
+ * Fonts' variable files with `fonttools varLib.instancer`.
+ */
+const SCRIPT_FALLBACKS = ['NotoSansCanadianAboriginal', 'NotoSansCherokee']
 
 /**
  * Geist ships Latin only, where Roboto carried nine subsets — so for anything
@@ -118,7 +126,8 @@ async function main() {
   for (const stack of STACKS) {
     const faces = [
       ...(await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
-      await readFile(join(VENDOR, stack.fallback)),
+      await readFile(join(VENDOR, 'NotoSans-Regular.ttf')),
+      ...(await Promise.all(SCRIPT_FALLBACKS.map(f => readFile(join(VENDOR, `${f}-${stack.style}.ttf`))))),
     ]
     const dir = join(OUT, stack.name)
     await mkdir(dir, { recursive: true })

@@ -117,7 +117,7 @@
           "Ask"
         ],
         "summary": "Answer a question about places",
-        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
+        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user's library. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -345,6 +345,135 @@
                       "required": [
                         "id",
                         "type"
+                      ]
+                    }
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "properties": {
+                      "highways": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "tolls": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "ferries": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "hills": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "surfaceQuality": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "litPaths": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "safetyVsSpeed": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "shortest": {
+                        "type": "boolean"
+                      },
+                      "preferHOV": {
+                        "type": "boolean"
+                      },
+                      "wheelchairAccessible": {
+                        "type": "boolean"
+                      },
+                      "cyclingSpeed": {
+                        "minimum": 1,
+                        "maximum": 60,
+                        "type": "number"
+                      },
+                      "walkingSpeed": {
+                        "minimum": 0.5,
+                        "maximum": 25,
+                        "type": "number"
+                      },
+                      "bicycleType": {
+                        "type": "string"
+                      },
+                      "maxWalkingDistance": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "maxTransfers": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "transitBufferMinutes": {
+                        "minimum": 0,
+                        "maximum": 5,
+                        "type": "number"
+                      },
+                      "useKnownVehicleLocations": {
+                        "type": "boolean"
+                      },
+                      "useKnownParkingLocations": {
+                        "type": "boolean"
+                      },
+                      "includePrivateParking": {
+                        "type": "boolean"
+                      },
+                      "routingEngine": {
+                        "type": "string"
+                      },
+                      "customModelOverride": {
+                        "type": "string"
+                      },
+                      "avoidHighways": {
+                        "type": "boolean"
+                      },
+                      "avoidTolls": {
+                        "type": "boolean"
+                      },
+                      "avoidFerries": {
+                        "type": "boolean"
+                      },
+                      "avoidHills": {
+                        "type": "boolean"
+                      },
+                      "preferLitPaths": {
+                        "type": "boolean"
+                      },
+                      "preferPavedPaths": {
+                        "type": "boolean"
+                      },
+                      "safetyVsEfficiency": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the user does not use, as Directions sends them",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
                       ]
                     }
                   }
@@ -580,6 +709,135 @@
                         "type"
                       ]
                     }
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "properties": {
+                      "highways": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "tolls": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "ferries": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "hills": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "surfaceQuality": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "litPaths": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "safetyVsSpeed": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "shortest": {
+                        "type": "boolean"
+                      },
+                      "preferHOV": {
+                        "type": "boolean"
+                      },
+                      "wheelchairAccessible": {
+                        "type": "boolean"
+                      },
+                      "cyclingSpeed": {
+                        "minimum": 1,
+                        "maximum": 60,
+                        "type": "number"
+                      },
+                      "walkingSpeed": {
+                        "minimum": 0.5,
+                        "maximum": 25,
+                        "type": "number"
+                      },
+                      "bicycleType": {
+                        "type": "string"
+                      },
+                      "maxWalkingDistance": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "maxTransfers": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "transitBufferMinutes": {
+                        "minimum": 0,
+                        "maximum": 5,
+                        "type": "number"
+                      },
+                      "useKnownVehicleLocations": {
+                        "type": "boolean"
+                      },
+                      "useKnownParkingLocations": {
+                        "type": "boolean"
+                      },
+                      "includePrivateParking": {
+                        "type": "boolean"
+                      },
+                      "routingEngine": {
+                        "type": "string"
+                      },
+                      "customModelOverride": {
+                        "type": "string"
+                      },
+                      "avoidHighways": {
+                        "type": "boolean"
+                      },
+                      "avoidTolls": {
+                        "type": "boolean"
+                      },
+                      "avoidFerries": {
+                        "type": "boolean"
+                      },
+                      "avoidHills": {
+                        "type": "boolean"
+                      },
+                      "preferLitPaths": {
+                        "type": "boolean"
+                      },
+                      "preferPavedPaths": {
+                        "type": "boolean"
+                      },
+                      "safetyVsEfficiency": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the user does not use, as Directions sends them",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -811,6 +1069,135 @@
                       "required": [
                         "id",
                         "type"
+                      ]
+                    }
+                  },
+                  "routingPreferences": {
+                    "type": "object",
+                    "properties": {
+                      "highways": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "tolls": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "ferries": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "hills": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "surfaceQuality": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "litPaths": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "safetyVsSpeed": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      },
+                      "shortest": {
+                        "type": "boolean"
+                      },
+                      "preferHOV": {
+                        "type": "boolean"
+                      },
+                      "wheelchairAccessible": {
+                        "type": "boolean"
+                      },
+                      "cyclingSpeed": {
+                        "minimum": 1,
+                        "maximum": 60,
+                        "type": "number"
+                      },
+                      "walkingSpeed": {
+                        "minimum": 0.5,
+                        "maximum": 25,
+                        "type": "number"
+                      },
+                      "bicycleType": {
+                        "type": "string"
+                      },
+                      "maxWalkingDistance": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "maxTransfers": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "transitBufferMinutes": {
+                        "minimum": 0,
+                        "maximum": 5,
+                        "type": "number"
+                      },
+                      "useKnownVehicleLocations": {
+                        "type": "boolean"
+                      },
+                      "useKnownParkingLocations": {
+                        "type": "boolean"
+                      },
+                      "includePrivateParking": {
+                        "type": "boolean"
+                      },
+                      "routingEngine": {
+                        "type": "string"
+                      },
+                      "customModelOverride": {
+                        "type": "string"
+                      },
+                      "avoidHighways": {
+                        "type": "boolean"
+                      },
+                      "avoidTolls": {
+                        "type": "boolean"
+                      },
+                      "avoidFerries": {
+                        "type": "boolean"
+                      },
+                      "avoidHills": {
+                        "type": "boolean"
+                      },
+                      "preferLitPaths": {
+                        "type": "boolean"
+                      },
+                      "preferPavedPaths": {
+                        "type": "boolean"
+                      },
+                      "safetyVsEfficiency": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "excludedModes": {
+                    "uniqueItems": true,
+                    "description": "Modes the user does not use, as Directions sends them",
+                    "type": "array",
+                    "items": {
+                      "default": "transit",
+                      "type": "string",
+                      "enum": [
+                        "transit",
+                        "biking",
+                        "bikeshare",
+                        "rideshare",
+                        "driving"
                       ]
                     }
                   }
@@ -14059,7 +14446,7 @@
           "Ask"
         ],
         "summary": "Model Context Protocol endpoint",
-        "description": "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's place search tools to MCP clients such as Claude or ChatGPT: `find_places`, `find_categories`, `browse_category`, `get_place`, `locate` and `places_within_reach`. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
+        "description": "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, what is at a point, trip planning, transit departures and lines, weather and wildfires, the user's saved places, collections, routes, canvases and vehicles, and building, changing, sharing and archiving routes, canvases and saved places in their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
         "requestBody": {
           "required": true,
           "content": {

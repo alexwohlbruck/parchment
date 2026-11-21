@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.23.2",
+  "version": "0.23.3",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -109,6 +109,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
     "@fontsource/roboto": "^5.3.0",
     "@mapbox/shelf-pack": "^3.2.0",
     "@playwright/test": "^1.65.1",

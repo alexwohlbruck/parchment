@@ -53,7 +53,8 @@ import {
 import { trackLayers, racewayLayer } from './track-layers'
 import { fixtureLayer, withFixtures } from './fixture-layers'
 import { stepsLayers } from './steps-layers'
-import { ROAD_GLYPH_TILES, asphaltRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { ROAD_GLYPH_TILES, asphaltRoads, darkenRoads, roadMarkingLayers, signalLayer } from './road-markings'
+import { withTypography } from './typography'
 import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -70,8 +71,7 @@ import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNei
 import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
 import { buildingFacadeSeed, buildingFacadeStyle } from './building-facade'
 import { FACADE_UNKNOWN } from '@/lib/map/facade-shader'
-import lightTokens from './tokens.light.json'
-import darkTokens from './tokens.dark.json'
+import { themeBuildingPastels, themeBuildingTint, themeSky, themeTokens, themeTypography } from './themes'
 
 /**
  * Assembles the basemap style from the converted layer spec and a flavor's
@@ -158,54 +158,6 @@ export const SOURCE = 'openmaptiles'
 export const MAX_PITCH = 85
 
 /**
- * What sits above the horizon once the camera can see it.
- *
- * Unspecified, MapLibre's sky is fully transparent and a steep view ends in
- * whatever is behind the canvas. These are the map's own colours rather than a
- * photographic sky: the horizon takes the land it meets so the ground fades
- * into it instead of ending on a line, and the sky above is a few steps toward
- * blue in daylight and toward black at night.
- *
- * `fog-color` is the haze drawn onto the far ground, which is what stops the
- * last few tiles reading as a hard edge.
- *
- * The two ground-side values track `LIGHT_LAND` in `convert-basemap-style`.
- * They are not tokens — the sky is ours, not MapTiler's — so a change to the
- * ground has to be made here too, and a mismatch shows as a band of the old
- * colour along the horizon where the land runs out.
- *
- * `atmosphere-blend` is the globe's halo, and it is off. MapLibre scatters it
- * from the sun, which the strategy keeps at the real one so buildings cast
- * their shadows the right way (see `updateSunShadow`) — so switching the globe
- * on would light one limb and darken the other, drawing a second, cruder
- * terminator underneath the day/night layer's own. One is the map's, tuned
- * through twilight; the other is a side effect of the shadow light. The
- * property is scaled by the globe transition, so this changes nothing on a
- * flat map, and the shadows themselves are untouched — buildings are drawn far
- * past the zoom where the sphere has already flattened.
- */
-const SKY: Record<FlavorId, Record<string, string | number>> = {
-  light: {
-    'sky-color': 'hsl(199, 88%, 78%)',
-    'horizon-color': 'hsl(48, 14%, 93.5%)',
-    'fog-color': 'hsl(48, 16%, 94.5%)',
-    'fog-ground-blend': 0.8,
-    'horizon-fog-blend': 0.6,
-    'sky-horizon-blend': 0.85,
-    'atmosphere-blend': 0,
-  },
-  dark: {
-    'sky-color': 'hsl(217, 45%, 10%)',
-    'horizon-color': 'hsl(216, 34%, 22%)',
-    'fog-color': 'hsl(216, 37%, 24%)',
-    'fog-ground-blend': 0.72,
-    'horizon-fog-blend': 0.6,
-    'sky-horizon-blend': 0.85,
-    'atmosphere-blend': 0,
-  },
-}
-
-/**
  * The projection setting, in the two shapes MapLibre can draw.
  *
  * MapLibre projects onto a flat Mercator plane or onto a sphere, and nothing
@@ -268,8 +220,8 @@ const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring|dot-fill|dot-edge):/
 /** A literal colour run through the same treatment. */
 const TINT_PREFIX = /^@@tint-(plate|ink|ring):/
 
-function tokenMap(flavor: FlavorId): Record<string, string> {
-  return (flavor === 'dark' ? darkTokens : lightTokens) as Record<string, string>
+function tokenMap(flavor: FlavorId, mapStyle?: MapStyleId): Record<string, string> {
+  return themeTokens(mapStyle, flavor)
 }
 
 /**
@@ -528,17 +480,22 @@ export function buildLayers(options: {
   lang?: string
   poiStyle?: PoiStyleId
   hdRoads?: boolean
+  mapStyle?: MapStyleId
 }): LayerSpecification[] {
-  const { flavor, categoryColors, lang, poiStyle = 'badge', hdRoads = false } = options
-  const tokens = tokenMap(flavor)
+  const { flavor, categoryColors, lang, poiStyle = 'badge', hdRoads = false, mapStyle } = options
+  const tokens = tokenMap(flavor, mapStyle)
+  const paint: BuildingPaint = {
+    tint: themeBuildingTint(mapStyle, flavor) ?? BUILDING_TINT[flavor],
+    pastels: themeBuildingPastels(mapStyle, flavor),
+  }
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
 
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
-  base = withBuildingColor(base, flavor)
+  base = withBuildingColor(base, flavor, paint)
   base = withRoundedRoofEdge(base)
-  base = useBarrelmanBuildings(base, flavor)
+  base = useBarrelmanBuildings(base, flavor, paint)
   base = withPoiDots(base)
   base = withGlobeLayers(base, flavor)
 
@@ -557,7 +514,8 @@ export function buildLayers(options: {
 
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
-  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels, fixtures) as LayerSpecification[]
+  const layers = spliceIndoorLayers(spliceDetailLayers(darkenRoads(converted, flavor, mapStyle), flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures)
+  return withTypography(layers, themeTypography(mapStyle)) as LayerSpecification[]
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */
@@ -603,7 +561,7 @@ function withPoiDots(layers: any[]): any[] {
  * the same flat colour on top of one another are indistinguishable from one
  * shape, so the doubling costs nothing there.
  */
-function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
+function useBarrelmanBuildings(layers: any[], flavor: FlavorId, paint: BuildingPaint): any[] {
   // Until the source is known to answer, the buildings stay on the basemap —
   // doubled where a building is mapped in parts, which is the fault this fixes,
   // but present. Pointed at a source that 404s there would be none at all. See
@@ -636,15 +594,10 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
     ...buildings,
     paint: {
       ...buildings.paint,
-      'fill-extrusion-roof-color': buildingColor(
-        BUILDING_TINT[flavor],
-        '@building_3d_fill_extrusion_color',
-        // Falling back to the wall colour rather than to the flavor's plain
-        // building: a building that records only `building:colour` should wear
-        // it on the roof too, not band at the roofline.
-        ['roof_colour', 'colour'],
-        unpaintedBuildingColor(flavor),
-      ),
+      // Falling back to the wall colour rather than to the flavor's plain
+      // building: a building that records only `building:colour` should wear
+      // it on the roof too, not band at the roofline.
+      'fill-extrusion-roof-color': paintedBuildingColor(flavor, paint, ['roof_colour', 'colour']),
       'fill-extrusion-facade-style': buildingFacadeStyle(),
     },
   }
@@ -662,7 +615,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle, mapStyle?: MapStyleId): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
@@ -772,13 +725,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, d
   const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
   const tunnels = tunnelledTrack(out)
   out.splice(rails, 0, ...tunnels)
-  const roads = asphaltRoads(liftedTrack(out), flavor)
+  const roads = asphaltRoads(liftedTrack(out), flavor, mapStyle)
   // Found again in the result: asphaltRoads adds layers (cycle tracks) ahead of the tunnels.
   const lastTunnel = tunnels.at(-1)?.id
   const ground = lastTunnel ? roads.findIndex(l => l.id === lastTunnel) + 1 : roads.findIndex(l => l.id === out[rails]?.id)
   const decks = aboveBridgesIndex(roads)
-  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
-  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
+  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true, mapStyle))
+  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false, mapStyle))
   return roads
 }
 
@@ -809,18 +762,24 @@ function withRoundedRoofEdge(layers: any[]): any[] {
   })
 }
 
+interface BuildingPaint {
+  tint: number
+  pastels?: string[]
+}
+
+/** A building's colour from its tagged paint, or its cast when it has none or the theme draws buildings plain. */
+function paintedBuildingColor(flavor: FlavorId, { tint, pastels }: BuildingPaint, properties: string[]): unknown {
+  const unpainted = unpaintedBuildingColor(flavor, undefined, pastels)
+  return tint ? buildingColor(tint, '@building_3d_fill_extrusion_color', properties, unpainted) : unpainted
+}
+
 /** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
-function withBuildingColor(layers: any[], flavor: FlavorId): any[] {
+function withBuildingColor(layers: any[], flavor: FlavorId, paint: BuildingPaint): any[] {
   return layers.map(l => l.type !== 'fill-extrusion' ? l : {
     ...l,
     paint: {
       ...l.paint,
-      'fill-extrusion-color': buildingColor(
-        BUILDING_TINT[flavor],
-        '@building_3d_fill_extrusion_color',
-        ['colour'],
-        unpaintedBuildingColor(flavor),
-      ),
+      'fill-extrusion-color': paintedBuildingColor(flavor, paint, ['colour']),
       // Lit, and casting, once the map's shading is on; see `building-shade.ts`.
       'fill-extrusion-cast-shadows': true,
       'fill-extrusion-facade-style': FACADE_UNKNOWN,
@@ -859,8 +818,8 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
       [ABORIGINAL_LANDS_SOURCE]: aboriginalLandsSource(buildTileUrl(tileServerUrl, ABORIGINAL_LANDS_TILES)),
     },
     state: indoorState(),
-    sky: SKY[flavor],
-    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads }).map(hidingReplaced),
+    sky: themeSky(mapStyle, flavor),
+    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads, mapStyle }).map(hidingReplaced),
   } as StyleSpecification
 }
 
@@ -903,6 +862,7 @@ export function buildSatelliteStyle(
       lang,
       poiStyle,
       hdRoads,
+      mapStyle,
     }).filter(
       l =>
         (l.type === 'symbol' && (l as any).source === SOURCE) ||
@@ -919,7 +879,7 @@ export function buildSatelliteStyle(
     ...(hybrid ? { state: indoorState() } : {}),
     // Daylight regardless of app theme, for the same reason hybrid's labels are
     // fixed: the ground here is aerial photography, taken in the day.
-    sky: SKY.light,
+    sky: themeSky(mapStyle, 'light'),
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources,

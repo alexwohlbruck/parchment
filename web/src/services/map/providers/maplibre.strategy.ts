@@ -126,7 +126,7 @@ import {
 import type { GlbModel } from '@/lib/map-objects/glb.mjs'
 import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
-import { DECK_PALETTE, withRouteColors } from '@/lib/map-decks/palette'
+import { deckPalette, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
 import { isFlatBridge, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
@@ -159,6 +159,7 @@ import {
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
 import { GROUND_LAYERS, baseGroundColor, groundColor, type GroundLayer } from '@/lib/map-style/seasonal-ground'
+import { themeShading } from '@/lib/map-style/themes'
 import { INSIDE_STATE, LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, REPLACED_STATE, replaceablePaint, replacedIds } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
@@ -1206,7 +1207,8 @@ export class MaplibreStrategy extends MapStrategy {
   private deckRouteColors: { route: string; casing: string } | null = null
   private deckPalette(flavor: 'light' | 'dark') {
     const colors = this.deckRouteColors
-    return colors ? withRouteColors(DECK_PALETTE[flavor], colors.route, colors.casing) : DECK_PALETTE[flavor]
+    const base = deckPalette(flavor, this.options.mapStyle)
+    return colors ? withRouteColors(base, colors.route, colors.casing) : base
   }
 
   setDeckRouteColors(colors: { route: string; casing: string } | null) {
@@ -1264,7 +1266,7 @@ export class MaplibreStrategy extends MapStrategy {
       return ids
     }
     if (active && !this.tunnelLayer) {
-      this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, DECK_PALETTE[flavor], { terrain: fineTerrain, carver: this.terrainCarver })
+      this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, deckPalette(flavor, this.options.mapStyle), { terrain: fineTerrain, carver: this.terrainCarver })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
     } else if (!active && this.tunnelLayer) {
@@ -1403,7 +1405,8 @@ export class MaplibreStrategy extends MapStrategy {
     const year = this.plantYear()
     for (const layer of Object.keys(GROUND_LAYERS) as GroundLayer[]) {
       if (!map.getLayer(layer)) continue
-      const color = this.seasons ? groundColor(layer, flavor, year) : baseGroundColor(layer, flavor)
+      const style = this.options.mapStyle
+      const color = this.seasons ? groundColor(layer, flavor, year, style) : baseGroundColor(layer, flavor, style)
       const key = `${color}|${this.map3dObjects}`
       if (this.groundPaint.get(layer) === key) continue
       this.groundPaint.set(layer, key)
@@ -1440,9 +1443,10 @@ export class MaplibreStrategy extends MapStrategy {
     const active = this.buildingShade && this.map3dBuildings
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     if (active) {
-      if (!liveBuildingShade() || this.shadeFlavor !== flavor) {
-        const shade = createBuildingShade(this.mapInstance, flavor, this.mapInstance.getLayer(buildingLayerId)?.minzoom)
-        this.shadeFlavor = flavor
+      const key = `${flavor}|${this.options.mapStyle}`
+      if (!liveBuildingShade() || this.shadeKey !== key) {
+        const shade = createBuildingShade(this.mapInstance, flavor, this.mapInstance.getLayer(buildingLayerId)?.minzoom, themeShading(this.options.mapStyle, flavor))
+        this.shadeKey = key
         shade.opacity = this.buildingOpacity
         this.shadowAlphaAtNoon = undefined
         this.setShadowMode(this.shadowMode)
@@ -1455,7 +1459,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.setPaintProperty(buildingLayerId, 'fill-extrusion-opacity', this.buildingOpacity)
   }
 
-  private shadeFlavor?: 'light' | 'dark'
+  private shadeKey?: string
 
   /**
    * Point the shadows where the real sun is, for wherever the map is looking.
@@ -1593,6 +1597,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMapStyle(styleId: MapStyleId) {
     this.options.mapStyle = styleId
+    this.deckLayer?.setPalette(this.deckPalette(this.options.theme === 'dark' ? 'dark' : 'light'))
     this.reloadStyle()
   }
 

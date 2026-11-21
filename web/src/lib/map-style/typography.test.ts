@@ -8,16 +8,23 @@ const fontsIn = (layers: any[]) =>
 
 describe('theme typography', () => {
   test.each(MAP_STYLE_IDS)('%s sets every label in its own family', style => {
-    const family = themeTypography(style)?.family ?? 'Geist'
+    const { family = 'Geist', districtLabels } = themeTypography(style) ?? {}
     const fonts = [...fontsIn(buildLayers({ flavor: 'light', mapStyle: style, hdRoads: true }))]
     expect(fonts.length).toBeGreaterThan(0)
-    expect(fonts.filter(f => !f.startsWith(family))).toEqual([])
+    expect(fonts.filter(f => !f.startsWith(family) && !districtLabels?.font.endsWith(f))).toEqual([])
   })
 
   test('cupertino names roads in spaced capitals', () => {
     const road = buildLayers({ flavor: 'light', mapStyle: 'cupertino' }).find(l => l.id === 'Road labels') as any
     expect(road.layout['text-transform']).toBe('uppercase')
     expect(road.layout['text-letter-spacing']).toBeGreaterThan(0)
+  })
+
+  test('cupertino sets district names in a condensed face', () => {
+    const layers = buildLayers({ flavor: 'light', mapStyle: 'cupertino' }) as any[]
+    const font = JSON.stringify(layers.find(l => l.id === 'Place labels').layout['text-font'])
+    expect(font).toContain('Barlow Condensed SemiBold')
+    expect(font).toContain('Inter Medium')
   })
 })
 

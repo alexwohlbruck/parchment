@@ -64,6 +64,8 @@ const STACKS = [
     { name: `${family} SemiBold`, weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
     { name: `${family} Bold`, weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
   ]),
+  // Cupertino's tall, narrow district names.
+  { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
 ]
 
 /**
@@ -81,6 +83,7 @@ const SUBSET_DIRS = {
   Roboto: resolve(WEB, 'node_modules/@fontsource/roboto/files'),
   Geist: resolve(WEB, 'node_modules/@fontsource/geist-sans/files'),
   Inter: resolve(WEB, 'node_modules/@fontsource/inter/files'),
+  'Barlow Condensed': resolve(WEB, 'node_modules/@fontsource/barlow-condensed/files'),
 }
 
 /** @fontsource splits each weight across these subsets. */
@@ -92,7 +95,7 @@ const SUBSETS = [
 /** Every subset @fontsource ships for a family at one weight, as sfnt. */
 async function familyFaces(family, weight) {
   const dir = SUBSET_DIRS[family]
-  const slug = family.toLowerCase() === 'geist' ? 'geist-sans' : family.toLowerCase()
+  const slug = family === 'Geist' ? 'geist-sans' : family.toLowerCase().replace(/ /g, '-')
   const out = []
   for (const subset of SUBSETS) {
     const file = join(dir, `${slug}-${subset}-${weight}.woff2`)
@@ -114,7 +117,7 @@ async function main() {
 
   for (const stack of STACKS) {
     const faces = [
-      ...(await familyFaces(stack.name.split(' ')[0], stack.weight)),
+      ...(await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
       await readFile(join(VENDOR, stack.fallback)),
     ]
     const dir = join(OUT, stack.name)

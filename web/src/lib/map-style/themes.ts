@@ -40,6 +40,8 @@ export interface Typography {
   /** Stands in for Geist at the same weight; `build-glyphs.mjs` generates its stacks. */
   family: 'Inter' | 'Roboto'
   roadLabels?: { transform: 'uppercase' | 'none'; letterSpacing: number }
+  /** Neighbourhood and district names, in a face of their own. */
+  districtLabels?: { font: string; letterSpacing: number }
 }
 
 const BASE_TOKENS: Record<FlavorId, Tokens> = { light: lightTokens, dark: darkTokens }
@@ -266,7 +268,11 @@ const CUPERTINO: MapTheme = {
     light: { asphalt: 'hsl(200, 6%, 66%)', kerb: 'hsl(45, 8%, 86%)', darkenFrom: 13 },
     dark: { asphalt: 'hsl(210, 15%, 20%)', kerb: 'hsl(210, 14%, 30%)', darkenFrom: 13 },
   },
-  typography: { family: 'Inter', roadLabels: { transform: 'uppercase', letterSpacing: 0.06 } },
+  typography: {
+    family: 'Inter',
+    roadLabels: { transform: 'uppercase', letterSpacing: 0.06 },
+    districtLabels: { font: 'Barlow Condensed SemiBold', letterSpacing: 0.1 },
+  },
   buildingPastels: {
     light: ['hsl(0, 8%, 89%)', 'hsl(30, 14%, 89%)', 'hsl(60, 8%, 88.5%)', 'hsl(220, 8%, 89%)'],
     dark: [],

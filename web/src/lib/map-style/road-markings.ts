@@ -8,6 +8,8 @@
  * barrelman without this geometry a street still draws, only unpainted.
  */
 import type { FlavorId } from './build'
+import type { MapStyleId } from '@/types/map.types'
+import { themeRoadSurface } from './themes'
 import { DETAIL_SOURCE } from './detail-layers'
 import { metres } from './metres'
 import { CYCLING_SUFFIX } from './cycling.mjs'
@@ -53,6 +55,8 @@ const COLORS: Record<FlavorId, { asphalt: string; kerb: string; island: string; 
     signalHalo: 'hsl(222, 5%, 20%)',
   },
 }
+
+const colors = (flavor: FlavorId, style?: MapStyleId) => ({ ...COLORS[flavor], ...themeRoadSurface(style, flavor) })
 
 const fadeIn = ['interpolate', ['linear'], ['zoom'], FROM, 0, TO, 1]
 /** Over a fill still fading in, an edge would draw darker than it; it waits for the fill. */
@@ -115,8 +119,8 @@ export function cycleTrack(path: any, flavor: FlavorId): any[] {
  * so the true-width carriageways read as the same road; and paint cycle tracks
  * over its paths.
  */
-export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
-  const asphalt = COLORS[flavor].asphalt
+export function asphaltRoads(layers: any[], flavor: FlavorId, style?: MapStyleId): any[] {
+  const asphalt = colors(flavor, style).asphalt
   return layers.flatMap(layer => {
     // Over the basemap's own cycling tints of the path, which would otherwise hide it.
     const path = PATHS.find(id => layer.id === `${id}${CYCLING_SUFFIX}`)
@@ -137,9 +141,22 @@ export function asphaltRoads(layers: any[], flavor: FlavorId): any[] {
   })
 }
 
+/**
+ * A theme's roads deepening from their map colour into the asphalt as the
+ * zoom climbs, so a street is a light line across a city and a dark
+ * carriageway close up, with or without the lane geometry over it.
+ */
+export function darkenRoads(layers: any[], flavor: FlavorId, mapStyle?: MapStyleId): any[] {
+  const surface = themeRoadSurface(mapStyle, flavor)
+  if (surface?.darkenFrom === undefined) return layers
+  return layers.map(layer => ROAD_FILLS.includes(layer.id) && typeof layer.paint?.['line-color'] === 'string'
+    ? { ...layer, paint: { ...layer.paint, 'line-color': ['interpolate', ['linear'], ['zoom'], surface.darkenFrom, layer.paint['line-color'], TO, surface.asphalt] } }
+    : layer)
+}
+
 /** One band of lane geometry: at grade, or on bridges. */
-export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
-  const c = COLORS[flavor]
+export function roadMarkingLayers(flavor: FlavorId, bridge: boolean, mapStyle?: MapStyleId): any[] {
+  const c = colors(flavor, mapStyle)
   const band = ['==', ['coalesce', ['get', 'bridge'], false], bridge]
   const suffix = bridge ? ' bridge' : ''
   const paint = ['match', ['get', 'color'], 'yellow', c.yellow, c.white]

@@ -245,10 +245,45 @@ const DARK_OVERRIDES = {
  * because the ground underneath is more saturated.
  */
 const DARK_FOLIAGE = {
-  wood_fill_color: 'hsl(145, 22%, 19%)',
-  grass_fill_color: 'hsl(96, 59%, 17%)',
-  stadium_fill_color: 'hsl(150, 20%, 21%)',
-  stadium_outline_color: 'hsl(150, 18%, 24%)',
+  wood_fill_color: 'hsl(145, 18%, 15%)',
+  grass_fill_color: 'hsl(100, 40%, 14%)',
+  stadium_fill_color: 'hsl(145, 16%, 15.5%)',
+  stadium_outline_color: 'hsl(145, 14%, 24%)',
+  cemetery_fill_color: 'hsl(140, 10%, 18.5%)',
+}
+
+/**
+ * The night ground: ink rather than MapTiler's electric navy, which at city
+ * zoom turned the road network into a lit blue grid. Saturation comes down a
+ * third so the map reads as a dark page, land classes keep a faint hue of
+ * their daylight colour, and water sits well below the land.
+ */
+const DARK_LAND = {
+  background_background_color: 'hsl(218, 24%, 17%)',
+  background_background_color_2: 'hsl(218, 24%, 16.5%)',
+  residential_fill_color: 'hsl(218, 22%, 17.5%)',
+  residential_fill_color_2: 'hsl(218, 18%, 18%)',
+  commercial_fill_color: 'hsl(30, 14%, 19.5%)',
+  industrial_fill_color: 'hsl(222, 16%, 19%)',
+  industrial_fill_color_2: 'hsl(222, 16%, 19%)',
+  industrial_fill_color_3: 'hsl(222, 16%, 19%)',
+  industrial_fill_color_4: 'hsl(222, 16%, 19%)',
+  industrial_fill_color_5: 'hsl(222, 16%, 19%)',
+  airport_zone_fill_color: 'hsl(222, 16%, 19.5%)',
+  school_fill_color: 'hsl(40, 16%, 20%)',
+  hospital_fill_color: 'hsl(354, 16%, 21%)',
+  pier_fill_color: 'hsl(218, 14%, 22%)',
+  bridge_outline_line_color: 'hsl(218, 14%, 22%)',
+  water_fill_color: 'hsl(214, 34%, 11%)',
+  water_intermittent_fill_color: 'hsl(214, 30%, 14%)',
+  river_line_color: 'hsl(214, 34%, 11%)',
+  aqueduct_line_color: 'hsl(214, 34%, 11%)',
+  major_rail_line_color: 'hsl(218, 8%, 42%)',
+  major_rail_line_color_2: 'hsl(218, 8%, 36%)',
+  // The flat building fill below the extrusions, drawn at 0.3.
+  building_fill_color: 'hsl(218, 18%, 34%)',
+  building_fill_outline_color: 'hsl(218, 18%, 34%)',
+  building_fill_outline_color_2: 'hsl(218, 18%, 34%)',
 }
 
 /**
@@ -316,6 +351,9 @@ async function shieldImages() {
  */
 const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'School']
 
+const RESIDENTIAL_LAYER = 'Residential'
+const COMMERCIAL_LAYER = 'Commercial'
+
 /** Sports surfaces — `pitch`, `playground` and `stadium` share one layer. */
 const PITCH_LAYER = 'Stadium'
 
@@ -375,20 +413,20 @@ const FIRST_ROAD_LAYER = 'Minor road outline'
  */
 const ROAD_INK = {
   light: {
-    highway: 'hsl(42, 22%, 87%)',
-    highway_casing: 'hsl(40, 16%, 72%)',
-    major: 'hsl(0, 0%, 100%)',
-    major_casing: 'hsl(40, 15%, 77%)',
-    minor: 'hsl(0, 0%, 100%)',
-    minor_casing: 'hsl(40, 14%, 84%)',
+    highway: 'hsl(38, 46%, 86%)',
+    highway_casing: 'hsl(32, 24%, 70%)',
+    major: 'hsl(40, 40%, 99%)',
+    major_casing: 'hsl(36, 14%, 76%)',
+    minor: 'hsl(40, 40%, 99%)',
+    minor_casing: 'hsl(36, 12%, 83%)',
   },
   dark: {
-    highway: 'hsl(211, 47%, 33%)',
-    highway_casing: 'hsl(211, 41%, 39%)',
-    major: 'hsl(211, 44%, 40%)',
-    major_casing: 'hsl(212, 38%, 52%)',
-    minor: 'hsl(211, 22%, 34%)',
-    minor_casing: 'hsl(213, 20%, 24%)',
+    highway: 'hsl(34, 24%, 34%)',
+    highway_casing: 'hsl(30, 20%, 24%)',
+    major: 'hsl(218, 14%, 31%)',
+    major_casing: 'hsl(218, 18%, 21%)',
+    minor: 'hsl(218, 12%, 25.5%)',
+    minor_casing: 'hsl(218, 18%, 15%)',
   },
 }
 
@@ -396,79 +434,56 @@ const ROAD_INK = {
  * The daylight land, in one place: the ground everything sits on and every
  * class of land drawn onto it.
  *
- * MapTiler's land is a pale near-neutral with the landuse classes barely
- * tinted over it, which is a restrained map and a flat one — at a glance a
- * park, a campus and a block of housing are the same colour, so the only thing
- * carrying the city is its road network. Apple's daylight map is the argument
- * for the opposite: a warm cream ground with land that is allowed to be
- * coloured, so a neighbourhood has a shape before a single label is read.
+ * A paper map's palette: a warm cream ground, earthy greens rather than
+ * saturated ones, water a soft slate blue, and institutional land as faint
+ * washes. Colour separates a park from a block at a glance without any one
+ * class shouting over the rest.
  *
- * So the ground goes back to a cream — warmer and more saturated than
- * MapTiler's, which the app's near-white chrome (#F7F6F9, #F6F9F7, #F9F6F6,
- * #F9F8F6) sits over as a surface rather than blending into — and the land
- * classes come up with it, and further than Apple takes them: a storybook
- * green for anything planted, a sky blue for water, amber for campuses, rose
- * for hospitals, sand for beaches. Saturation is what a map has instead of
- * labels at a glance, and this one can afford to spend it.
- *
- * Lightness is the part that does not move. Every contrast on the daylight map
- * is a lightness relationship — buildings sit just off the ground, roof edges
- * far below it, pavement between the two — so saturating a class without
- * moving it in value adds colour and disturbs nothing that was tuned.
+ * Every contrast is a lightness relationship — buildings sit just off the
+ * ground, roof edges well below it, paving between — so a hue can move here
+ * without disturbing that.
  */
 const LIGHT_LAND = {
-  background_background_color: 'hsl(48, 16%, 94.5%)',
-  background_background_color_2: 'hsl(48, 14%, 93.5%)',
-  residential_fill_color: 'hsl(45, 14%, 92.5%)',
-  residential_fill_color_2: 'hsl(45, 14%, 93%)',
-  pier_fill_color: 'hsl(40, 20%, 90.5%)',
-  bridge_outline_line_color: 'hsl(44, 44%, 94%)',
-  // Industrial land is a neutral in MapTiler too, just a warm one; the two
-  // translucent members keep their alpha, which is what they are for.
-  industrial_fill_color: 'hsl(220, 8%, 88%)',
-  industrial_fill_color_2: 'hsla(40, 18%, 86%, 0.2)',
-  industrial_fill_color_3: 'hsl(220, 6%, 86%)',
-  industrial_fill_color_4: 'hsl(220, 8%, 88%)',
-  industrial_fill_color_5: 'hsla(40, 18%, 86%, 0.5)',
-  // Anything planted, in one green family: a soft yellow-green rather than the
-  // pure one, which is what stops a park reading as a colour swatch next to
-  // cream land. Grass is paler than it looks here — its layer draws at half
-  // opacity over the ground, deliberately, so that a park edge softens rather
-  // than cuts — so the token is pitched about as far past the intended green as
-  // the blend pulls it back: on the map it lands near hsl(95, 52%, 76%), a
-  // shade above the wood it borders.
-  grass_fill_color: 'hsl(112, 46%, 52%)',
-  wood_fill_color: 'hsl(128, 34%, 52%)',
-  stadium_fill_color: 'hsl(110, 44%, 66%)',
-  // A pitch is a made surface with a boundary, so it gets an edge — the
-  // same green a shade down, which reads as the line around a field rather
-  // than as a second colour.
-  stadium_outline_color: 'hsl(95, 45%, 62%)',
-  cemetery_fill_color: 'hsl(92, 30%, 84%)',
-  // A campus is amber, not the pale blue MapTiler gives it: blue on a map with
-  // water on it is a colour that already means something else. Yellow rather
-  // than orange, and light: the polygons are large, and at this size an orange
-  // one stops reading as a wash over the ground and starts reading as a slab.
-  school_fill_color: 'hsl(48, 88%, 85%)',
-  hospital_fill_color: 'hsl(4, 78%, 88%)',
-  sand_fill_color: 'hsl(46, 92%, 80%)',
-  airport_zone_fill_color: 'hsl(42, 18%, 91%)',
-  // The flat building fill, for the zooms below the extrusions. Its layer draws
-  // at 0.3, so the token is well past where the buildings land.
-  building_fill_color: 'hsl(40, 34%, 64%)',
-  building_fill_outline_color: 'hsla(40, 30%, 75%, 0.3)',
-  building_fill_outline_color_2: 'hsl(40, 30%, 75%)',
-  // The water the land meets: a light cyan-leaning blue rather than the azure
-  // it was. Deep blue is what a nautical chart wants — a map of a city wants
-  // water that reads as shallow and lit, the way it does from a plane.
-  water_fill_color: 'hsl(206, 82%, 62%)',
-  water_intermittent_fill_color: 'hsl(198, 84%, 82%)',
-  river_line_color: 'hsl(206, 76%, 58%)',
-  river_tunnel_line_color: 'hsl(206, 76%, 58%)',
-  aqueduct_line_color: 'hsl(206, 82%, 62%)',
+  background_background_color: 'hsl(42, 24%, 94%)',
+  background_background_color_2: 'hsl(42, 22%, 93.5%)',
+  residential_fill_color: 'hsl(40, 18%, 92.5%)',
+  residential_fill_color_2: 'hsl(40, 18%, 93%)',
+  commercial_fill_color: 'hsl(40, 44%, 90%)',
+  pier_fill_color: 'hsl(38, 16%, 90.5%)',
+  bridge_outline_line_color: 'hsl(40, 30%, 94%)',
+  // The two translucent members keep their alpha, which is what they are for.
+  industrial_fill_color: 'hsl(34, 10%, 89%)',
+  industrial_fill_color_2: 'hsla(34, 12%, 86%, 0.2)',
+  industrial_fill_color_3: 'hsl(34, 9%, 87.5%)',
+  industrial_fill_color_4: 'hsl(34, 10%, 89%)',
+  industrial_fill_color_5: 'hsla(34, 12%, 86%, 0.5)',
+  // Grass draws at half opacity over the ground, so its token is pitched past
+  // the sage it lands on, a shade above the wood it borders.
+  grass_fill_color: 'hsl(90, 40%, 60%)',
+  wood_fill_color: 'hsl(100, 24%, 66%)',
+  stadium_fill_color: 'hsl(92, 32%, 74%)',
+  stadium_outline_color: 'hsl(92, 28%, 64%)',
+  cemetery_fill_color: 'hsl(88, 20%, 85%)',
+  // Not blue: on a map with water on it, blue already means something else.
+  school_fill_color: 'hsl(42, 52%, 89%)',
+  hospital_fill_color: 'hsl(8, 48%, 91%)',
+  sand_fill_color: 'hsl(42, 52%, 84%)',
+  airport_zone_fill_color: 'hsl(38, 14%, 90.5%)',
+  // The flat building fill, below the extrusions. Its layer draws at 0.3.
+  building_fill_color: 'hsl(36, 22%, 62%)',
+  building_fill_outline_color: 'hsla(36, 18%, 74%, 0.3)',
+  building_fill_outline_color_2: 'hsl(36, 18%, 74%)',
+  water_fill_color: 'hsl(202, 50%, 72%)',
+  water_intermittent_fill_color: 'hsl(200, 42%, 85%)',
+  river_line_color: 'hsl(202, 48%, 68%)',
+  river_tunnel_line_color: 'hsl(202, 48%, 68%)',
+  aqueduct_line_color: 'hsl(202, 50%, 72%)',
+  river_labels_text_color: 'hsl(204, 46%, 36%)',
+  lake_labels_text_color: 'hsl(204, 46%, 36%)',
+  ferry_text_color: 'hsl(204, 46%, 36%)',
+  river_labels_text_halo_color: 'hsl(200, 42%, 85%)',
 }
 
-/** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */
 const ROAD_RUNG = { highway: ['motorway'], major: ['trunk', 'primary'] }
 
 /** A `match` on road class picking one of the three rungs, for the mixed layers. */
@@ -924,6 +939,24 @@ function outlinePitches(layers) {
   const pitch = layers.find(l => l.id === PITCH_LAYER)
   if (!pitch) return
   pitch.paint = { ...pitch.paint, 'fill-outline-color': '@stadium_outline_color' }
+}
+
+/** Shopping streets and office blocks, which MapTiler leaves the colour of the ground. */
+function addCommercialLanduse(layers) {
+  const residential = layers.findIndex(l => l.id === RESIDENTIAL_LAYER)
+  if (residential < 0) throw new Error(`no ${RESIDENTIAL_LAYER} layer to put commercial land over`)
+  layers.splice(residential + 1, 0, {
+    id: COMMERCIAL_LAYER,
+    type: 'fill',
+    source: SOURCE,
+    'source-layer': 'landuse',
+    minzoom: 11,
+    filter: ['in', ['get', 'class'], ['literal', ['commercial', 'retail']]],
+    paint: {
+      'fill-color': '@commercial_fill_color',
+      'fill-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0, 13, 1],
+    },
+  })
 }
 
 function sinkInstitutionalLanduse(layers) {
@@ -1929,6 +1962,7 @@ async function main() {
   }
 
   outlinePitches(layers)
+  addCommercialLanduse(layers)
   sinkInstitutionalLanduse(layers)
   raiseSandAboveSurfaces(layers)
   applyRoadInk(layers)
@@ -2085,11 +2119,11 @@ async function main() {
   // Pedestrian surfaces: paving a step darker than the daylight ground so plazas
   // read, and a step lighter than the night ground, with the casing darker still.
   tokens.light.path_surface = 'hsl(40, 20%, 90.5%)'
-  tokens.light.path_casing = 'hsl(40, 14%, 80%)'
-  tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
-  tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
-  tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
-  tokens.dark.path_bridge_casing = 'hsl(216, 24%, 13%)'
+  tokens.light.path_casing = 'hsl(36, 12%, 80%)'
+  tokens.light.path_bridge_casing = 'hsl(36, 14%, 72%)'
+  tokens.dark.path_surface = 'hsl(218, 12%, 23%)'
+  tokens.dark.path_casing = 'hsl(218, 20%, 14%)'
+  tokens.dark.path_bridge_casing = 'hsl(218, 22%, 11%)'
 
   for (const [rung, color] of Object.entries(ROAD_INK.light)) tokens.light[`road_${rung}`] = color
   for (const [rung, color] of Object.entries(ROAD_INK.dark)) tokens.dark[`road_${rung}`] = color
@@ -2100,7 +2134,7 @@ async function main() {
     if (name in tokens.dark) tokens.dark[name] = color
   }
 
-  Object.assign(tokens.dark, DARK_FOLIAGE)
+  Object.assign(tokens.dark, DARK_LAND, DARK_FOLIAGE)
 
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.
@@ -2141,10 +2175,10 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(48, 16%, 94.5%)  hsl(36, 20%, 84%)
-  //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
+  //   light   hsl(42, 24%, 94%)    hsl(38, 14%, 88%)
+  //   dark    hsl(218, 24%, 17%)   hsl(218, 16%, 25%)
   //
-  // Daylight is the one place the roof goes the other way — seven points below
+  // Daylight is the one place the roof goes the other way — six points below
   // the cream and a good deal less saturated. It stays in the warm family, so a
   // roof reads as a made surface rather than a grey object dropped on the land,
   // but it must not land *on* the ground's colour: a block has to be a thing
@@ -2153,12 +2187,12 @@ async function main() {
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(36, 20%, 84%)'
-  tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(38, 14%, 88%)'
+  tokens.dark.building_3d_fill_extrusion_color = 'hsl(218, 16%, 25%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(36, 14%, 71%)'
-  tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
+  tokens.light.building_roof_edge = 'hsl(34, 12%, 73%)'
+  tokens.dark.building_roof_edge = 'hsl(218, 20%, 16%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every

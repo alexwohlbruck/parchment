@@ -13,7 +13,7 @@ describe('groundColor', () => {
   test('turns a lawn to straw in winter: warmer, duller, paler', () => {
     const [h0, s0, l0] = parse(baseGroundColor('Grass', 'light'))
     const [h, s, l] = parse(groundColor('Grass', 'light', day(20)))
-    expect(h).toBeLessThan(h0 - 40)
+    expect(h).toBeLessThan(h0 - 30)
     expect(s).toBeLessThan(s0)
     expect(l).toBeGreaterThan(l0)
   })

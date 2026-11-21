@@ -1,6 +1,6 @@
 import type { FlavorId } from '@/lib/map-style/build'
-import lightTokens from '@/lib/map-style/tokens.light.json'
-import darkTokens from '@/lib/map-style/tokens.dark.json'
+import { themeRoadSurface, themeTokens } from '@/lib/map-style/themes'
+import type { MapStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import { TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
 import type { DeckPalette } from './deck.types'
@@ -19,12 +19,11 @@ export function hsl(text: string): Rgb {
   return [0, 8, 4].map(n => light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))) as Rgb
 }
 
-const TOKENS: Record<FlavorId, Record<string, string>> = { light: lightTokens, dark: darkTokens }
-
 /** The basemap's own road and path colours, which a deck takes below street zoom, for the walkways it carries and for a street deck's top beside its carriageway. */
-const basemap = (flavor: FlavorId) => {
-  const t = TOKENS[flavor]
-  return { lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), deck: hsl(t.path_surface) }
+const basemap = (flavor: FlavorId, style?: MapStyleId) => {
+  const t = themeTokens(style, flavor)
+  const asphalt = themeRoadSurface(style, flavor)?.asphalt
+  return { ...(asphalt && { surface: hsl(asphalt) }), lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), deck: hsl(t.path_surface) }
 }
 
 /** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */
@@ -61,6 +60,11 @@ export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
     travelledCasing: rgb(TRAVELLED_CASE_COLOR),
     ...basemap('dark'),
   },
+}
+
+/** The flavor's palette with the map theme's own road and path colours. */
+export function deckPalette(flavor: FlavorId, style?: MapStyleId): DeckPalette {
+  return style && style !== 'parchment' ? { ...DECK_PALETTE[flavor], ...basemap(flavor, style) } : DECK_PALETTE[flavor]
 }
 
 /** The palette with routes on decks drawn in other colours, as the navigated route's. */

@@ -3,9 +3,9 @@
  * spring, and woods seen from above turn rust in fall and grey-brown once bare.
  * Summer is the style's own colour. The year is the plants' (see `map-objects/seasons`).
  */
+import type { MapStyleId } from '@/types/map.types'
 import type { FlavorId } from './build'
-import lightTokens from './tokens.light.json'
-import darkTokens from './tokens.dark.json'
+import { themeTokens } from './themes'
 
 /** The fills that change, by layer id, and the token each one's own colour comes from. */
 export const GROUND_LAYERS = {
@@ -41,8 +41,6 @@ const WOODLAND: Key[] = [
 
 const KEYS: Record<GroundLayer, Key[]> = { Grass: LAWN, Cemetery: LAWN, Wood: WOODLAND }
 
-const TOKENS: Record<FlavorId, Record<string, string>> = { light: lightTokens, dark: darkTokens }
-
 function at(keys: Key[], day: number): [hue: number, saturation: number, lightness: number, weight: number] {
   const next = keys.findIndex(k => k[0] > day)
   const b = keys[next === -1 ? 0 : next]
@@ -59,8 +57,8 @@ function at(keys: Key[], day: number): [hue: number, saturation: number, lightne
 const parse = (hsl: string) => (hsl.match(/-?[\d.]+/g) ?? []).map(Number) as [number, number, number]
 
 /** A fill's colour on a point in the plants' year (0-1), as `hsl()`. */
-export function groundColor(layer: GroundLayer, flavor: FlavorId, year: number): string {
-  const [h, s, l] = parse(TOKENS[flavor][GROUND_LAYERS[layer]])
+export function groundColor(layer: GroundLayer, flavor: FlavorId, year: number, style?: MapStyleId): string {
+  const [h, s, l] = parse(baseGroundColor(layer, flavor, style))
   const [hue, saturation, lightness, weight] = at(KEYS[layer], (((year % 1) + 1) % 1) * 365)
   const toward = (from: number, to: number) => from + (to - from) * weight
   const sat = Math.min(100, s * toward(1, saturation))
@@ -69,6 +67,6 @@ export function groundColor(layer: GroundLayer, flavor: FlavorId, year: number):
 }
 
 /** A fill's colour as the style has it. */
-export function baseGroundColor(layer: GroundLayer, flavor: FlavorId): string {
-  return TOKENS[flavor][GROUND_LAYERS[layer]]
+export function baseGroundColor(layer: GroundLayer, flavor: FlavorId, style?: MapStyleId): string {
+  return themeTokens(style, flavor)[GROUND_LAYERS[layer]]
 }

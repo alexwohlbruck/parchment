@@ -62,7 +62,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
 
 /**
  * Daylight's colour: a warm sun and a cool sky multiplying the lit and shaded
- * sides, blue-violet cast shadows, walls lightening toward their tops and
+ * sides, umber cast shadows that read as shade on paper rather than a blue stain, walls lightening toward their tops and
  * roofs a step above the walls. Night keeps the neutral defaults.
  */
 const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
@@ -70,11 +70,13 @@ const SHAPE_BY_FLAVOR: Record<FlavorId, Partial<typeof SHAPE>> = {
   dark: {},
 }
 
-const DAYLIGHT: Record<FlavorId, Partial<Pick<Shading, 'sunTint' | 'skyTint' | 'shadowColor' | 'wallRise' | 'roofLift'>>> = {
+export type ThemeShading = Partial<Pick<Shading, 'sunTint' | 'skyTint' | 'shadowColor' | 'wallRise' | 'roofLift'>>
+
+const DAYLIGHT: Record<FlavorId, ThemeShading> = {
   light: {
-    sunTint: [1.06, 1.01, 0.92],
-    skyTint: [0.9, 0.94, 1.06],
-    shadowColor: [0.16, 0.2, 0.4],
+    sunTint: [1.04, 1.01, 0.95],
+    skyTint: [0.95, 0.96, 1.01],
+    shadowColor: [0.33, 0.27, 0.25],
     wallRise: 0.14,
     roofLift: 0.07,
   },
@@ -155,7 +157,7 @@ export function liveBuildingShade(): Shading | null {
  * Turn the map's shading on, tuned for a flavor. `minZoom` is the zoom the
  * style's building layer switches on at, which the ground effects ramp in from.
  */
-export function createBuildingShade(map: MaplibreMap, flavor: FlavorId, minZoom?: number): Shading {
+export function createBuildingShade(map: MaplibreMap, flavor: FlavorId, minZoom?: number, theme?: ThemeShading): Shading {
   lightIntensity = LIGHT_INTENSITY[flavor]
   live = map.setShading({
     ...(minZoom === undefined ? {} : { minZoom }),
@@ -168,6 +170,7 @@ export function createBuildingShade(map: MaplibreMap, flavor: FlavorId, minZoom?
     ...TUNING[flavor],
     ...DAYLIGHT[flavor],
     ...LAMPLIGHT[flavor],
+    ...theme,
   })!
   return live
 }

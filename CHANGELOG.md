@@ -38,11 +38,13 @@
 * 3D trees and plants change through the year: buds and cherry blossom in spring, gold and rust in fall, bare branches in winter, each tree on its own schedule. Evergreens stay green, and lawns and woods follow the season too. Turn it off under Settings → Appearance.
 * Zoomed out, the globe shows forests, grasslands and deserts, shaded mountains, ocean depths, and the names of continents, oceans, seas and mountain ranges.
 * The map shows Indigenous lands, such as reserves, Inuit Owned Lands and tribal lands, each named in its own language where it has one.
+* Two new map styles under Settings → Appearance: Cupertino, clean and neutral like Apple Maps, and Mountain View, with crisp white streets like Google Maps.
 
 ### Changed
 
 * Profile photos are rounded squares everywhere, including friends on the map.
 * The map draws sooner when it first opens, without waiting for 3D models, landmarks and the globe sky to get ready.
+* The Parchment map has a warmer, calmer palette: cream land, softer greens and water, and buildings in one family of stone tones. At night it's a dark ink instead of bright navy.
 
 ### Fixed
 

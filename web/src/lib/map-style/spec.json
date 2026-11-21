@@ -53,6 +53,43 @@
    ]
   },
   {
+   "id": "Commercial",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 11,
+   "filter": [
+    "in",
+    [
+     "get",
+     "class"
+    ],
+    [
+     "literal",
+     [
+      "commercial",
+      "retail"
+     ]
+    ]
+   ],
+   "paint": {
+    "fill-color": "@commercial_fill_color",
+    "fill-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     11,
+     0,
+     13,
+     1
+    ]
+   }
+  },
+  {
    "id": "Cemetery",
    "type": "fill",
    "source": "openmaptiles",
@@ -23430,7 +23467,7 @@
           "scale",
           [
            "/",
-           46,
+           30,
            [
             "max",
             [
@@ -23953,7 +23990,7 @@
           "scale",
           [
            "/",
-           11,
+           13,
            [
             "max",
             [

@@ -11,7 +11,7 @@ import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
 export const BASEMAPS = ['standard', 'satellite', 'hybrid'] as const
 export type Basemap = (typeof BASEMAPS)[number]
 /** Basemap style. Light/dark is driven by the app theme, not by this. */
-export const MAP_STYLE_IDS = ['parchment'] as const
+export const MAP_STYLE_IDS = ['parchment', 'cupertino', 'mountain-view'] as const
 export type MapStyleId = (typeof MAP_STYLE_IDS)[number]
 
 /**

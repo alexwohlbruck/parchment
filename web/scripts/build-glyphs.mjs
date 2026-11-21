@@ -9,7 +9,7 @@
  * not draw. Generating the composite stacks ourselves is what lets the style
  * name its fonts exactly as MapTiler Streets does.
  *
- * Geist is OFL and Noto Sans is OFL, so both are ours to redistribute.
+ * Geist, Inter, Roboto and Noto Sans are all OFL or Apache, so ours to redistribute.
  * They arrive from @fontsource as woff2 (there is no ttf release), which
  * `wawoff2` turns back into the sfnt fontnik needs.
  *
@@ -56,6 +56,16 @@ const STACKS = [
   { name: 'Geist Medium', weight: '500-normal', style: 'Medium' },
   { name: 'Geist SemiBold', weight: '600-normal', style: 'SemiBold' },
   { name: 'Geist Bold', weight: '700-normal', style: 'Bold' },
+  // The Cupertino and Mountain View map themes' families: the nearest open
+  // faces to SF Pro and to the one Google Maps sets its labels in.
+  ...['Inter', 'Roboto'].flatMap(family => [
+    { name: `${family} Regular`, weight: '400-normal', style: 'Regular' },
+    { name: `${family} Medium`, weight: '500-normal', style: 'Medium' },
+    { name: `${family} SemiBold`, weight: '600-normal', style: 'SemiBold' },
+    { name: `${family} Bold`, weight: '700-normal', style: 'Bold' },
+  ]),
+  // Cupertino's tall, narrow district names.
+  { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', style: 'SemiBold' },
 ]
 
 /**
@@ -80,6 +90,8 @@ const SCRIPT_FALLBACKS = ['NotoSansCanadianAboriginal', 'NotoSansCherokee']
 const SUBSET_DIRS = {
   Roboto: resolve(WEB, 'node_modules/@fontsource/roboto/files'),
   Geist: resolve(WEB, 'node_modules/@fontsource/geist-sans/files'),
+  Inter: resolve(WEB, 'node_modules/@fontsource/inter/files'),
+  'Barlow Condensed': resolve(WEB, 'node_modules/@fontsource/barlow-condensed/files'),
 }
 
 /** @fontsource splits each weight across these subsets. */
@@ -91,7 +103,7 @@ const SUBSETS = [
 /** Every subset @fontsource ships for a family at one weight, as sfnt. */
 async function familyFaces(family, weight) {
   const dir = SUBSET_DIRS[family]
-  const slug = family.toLowerCase() === 'geist' ? 'geist-sans' : family.toLowerCase()
+  const slug = family === 'Geist' ? 'geist-sans' : family.toLowerCase().replace(/ /g, '-')
   const out = []
   for (const subset of SUBSETS) {
     const file = join(dir, `${slug}-${subset}-${weight}.woff2`)
@@ -113,7 +125,7 @@ async function main() {
 
   for (const stack of STACKS) {
     const faces = [
-      ...(await familyFaces(stack.name.split(' ')[0], stack.weight)),
+      ...(await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
       await readFile(join(VENDOR, 'NotoSans-Regular.ttf')),
       ...(await Promise.all(SCRIPT_FALLBACKS.map(f => readFile(join(VENDOR, `${f}-${stack.style}.ttf`))))),
     ]

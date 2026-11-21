@@ -25,8 +25,9 @@
  * Placement is a position, a bearing, a scale and an elevation and nothing
  * else, which is the model frame Barrelman documents: +Y up, -Z north, +X
  * east, metres, origin at the anchor, at the lowest ground under the
- * footprint. The elevation then raises or sinks the grounded model; see
- * `elevationDrape`.
+ * footprint. The model is set on the terrain whole, never bent to it (see
+ * `landmark-ground`), and the elevation then raises or sinks it; see
+ * `elevationGround`.
  *
  * A few landmarks move: a Ferris wheel turns. Such a model carries a standard
  * glTF clip of rigid node motion (see `poseGlb`), and its moving parts are
@@ -38,7 +39,7 @@
 import { sourceFeatures } from '@/lib/map/source-features'
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
-  baseSink, elevationDrape, GROUND_STRIDE, groundContacts, groundLifts, modelGround, type Contact, type ElevationDrape, type ModelGround,
+  elevationGround, groundContacts, groundModel, groundSink, modelGround, type Contact, type ElevationGround, type ModelGround,
 } from './landmark-ground'
 import {
   ENTRANCE_GLOW, FLOODLIGHT, GROUND_GRID, materialRole, NEON_GLOW, ROLE, groundGrid, insideFootprint, isWindow, materialEmission, MAX_ENTRANCES, modelToLngLat, paletteFor, parseLandmark,
@@ -112,62 +113,26 @@ const SEED_BELOW = 0.5
 /** Metres up to which a part closes in the ground under it in full, and from which it does not: a span high over the water. */
 const SEED_REACH = [6, 20]
 
-/**
- * Model metres over which a landmark goes from following the ground to
- * standing rigid. Below it every vertex is lifted by the terrain under it, so
- * a stadium's street side sits on the street and its field side on the
- * field; above it the model takes the footprint's mean ground, so roofs stay
- * level and towers straight. Walls stay vertical either way: a vertex only
- * ever moves up or down.
- *
- * Measured from the model's own ground, not from y = 0: a coaster built over
- * a slope has its feet metres up the model at the top of it, and they follow
- * the map's ground as fully as the ones at the bottom. See `landmark-ground`.
- */
-const GROUND_BLEND = 25
-
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
 
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
 const LOC = { a_position: 0, a_normal: 1, a_uv: 2, a_material: 3, a_floodlight: 4 }
 
 /**
- * The terrain under a landmark, as a GROUND_GRID² grid over its plan extent
- * (`u_bounds`: minX, minZ, maxX, maxZ), in model metres: per point, the map's
- * rise above the lowest ground, the ground the model itself was built on (0
- * for a flat base; see `groundLifts`), and how far the fill brought the
- * first down from the ground the model was built on (0 but for a model that
- * follows the terrain). A vertex is lifted by the rise it was built on — the
- * first plus the third — less its own ground, as far as GROUND_BLEND says;
- * `u_ground_mean` is that difference averaged, which is what the rigid part
- * above the blend takes. Its feet go on down by the third, to the ground
- * the map draws, and what stands just above them part of the way (`u_sink.z`).
- * All zero with the terrain off.
- *
- * How the placement's elevation changes that is `elevationDrape`'s: `u_rigid`
- * 1 stands a raised model rigid on the mean, `u_ground_at` measures the blend
- * from the real ground rather than the model's own, for a sunk one, and
- * `u_floor` clips what goes under the flat map with the terrain off.
- *
- * `u_sink` pushes the base under the terrain (see `baseSink`): by `.x`, every
- * vertex no more than `.y` above the ground it meets; and `.z` is the height
- * above that over which the fill's depth fades out.
+ * The terrain under a landmark, for its contact shading only: the drawn
+ * ground over the placed origin, in model units, on a GROUND_GRID² grid over
+ * its plan extent (`u_bounds`: minX, minZ, maxX, maxZ); see `groundModel`.
+ * `u_ground_at` is the street a sunk model meets, and `u_floor` clips what
+ * goes under the flat map with the terrain off; see `elevationGround`.
  */
 const GROUND = `
-  uniform vec3 u_ground[${GROUND_GRID * GROUND_GRID}];
-  uniform float u_ground_mean;
+  uniform float u_ground[${GROUND_GRID * GROUND_GRID}];
   uniform vec4 u_bounds;
-  uniform float u_blend;
-  uniform float u_rigid;
   uniform float u_ground_at;
   uniform float u_floor;
-  uniform vec3 u_sink;
-  vec3 groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
-  /**
-   * At a plan point, held at the grid's edge beyond it: x the map's rise, y
-   * the model's own ground, z the depth the fill took off the first.
-   */
-  vec3 groundUnder(vec2 xz) {
+  float groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
+  /** At a plan point, held at the grid's edge beyond it. */
+  float groundUnder(vec2 xz) {
     vec2 span = max(u_bounds.zw - u_bounds.xy, vec2(1e-3));
     vec2 g = clamp((xz - u_bounds.xy) / span, 0.0, 1.0) * float(${GROUND_GRID - 1});
     ivec2 c = min(ivec2(floor(g)), ivec2(${GROUND_GRID - 2}));
@@ -176,16 +141,7 @@ const GROUND = `
       mix(groundAt(c.x, c.y), groundAt(c.x + 1, c.y), f.x),
       mix(groundAt(c.x, c.y + 1), groundAt(c.x + 1, c.y + 1), f.x),
       f.y);
-  }
-  vec3 drape(vec3 p, float sink) {
-    vec3 g = groundUnder(p.xz);
-    float above = p.y - g.y - u_ground_at;
-    float follow = (1.0 - u_rigid) * (1.0 - clamp(above / u_blend, 0.0, 1.0));
-    float foot = (1.0 - u_rigid) * step(above, u_sink.y);
-    float filled = (1.0 - u_rigid) * (1.0 - clamp((above - u_sink.y) / u_sink.z, 0.0, 1.0));
-    return p + vec3(0.0, mix(u_ground_mean, g.x + g.z - g.y, follow) - filled * g.z - foot * sink, 0.0);
-  }
-  vec3 onGround(vec3 p) { return drape(p, u_sink.x); }`
+  }`
 
 /** Outside the clip volume, where a vertex goes to not be drawn. */
 const OFF_SCREEN = 'vec4(0.0, 0.0, 2.0, 1.0)'
@@ -211,9 +167,6 @@ const NODE = `
  * axis swap, the bearing and the scale; `u_matrix` the anchor's position and
  * the camera, composed in double precision on the CPU so a model is not
  * quantised to the four-metre float32 grid mercator coordinates land on.
- *
- * The ground is applied after the node, so a part follows the terrain under
- * where it is now, not where it started.
  */
 const DRAW_VS = `#version 300 es
   uniform mat4 u_matrix;
@@ -257,9 +210,9 @@ const DRAW_VS = `#version 300 es
     v_normal = u_turn * (mat3(u_node) * a_normal);
     v_uv = a_uv;
     vec3 p = (u_node * vec4(a_position, 1.0)).xyz;
-    vec3 q = u_local * onGround(p);
+    vec3 q = u_local * p;
     v_floor = q.z - u_floor;
-    v_above = (p.y - groundUnder(p.xz).y - u_ground_at) * u_scale;
+    v_above = (p.y - groundUnder(p.xz) - u_ground_at) * u_scale;
     v_model = vec3(p.x, p.z, p.y) * u_scale;
     v_modelNormal = mat3(u_node) * a_normal;
     v_sun = u_sun * vec4(q, 1.0);
@@ -518,12 +471,11 @@ const GLOW_VS = `#version 300 es
   uniform mat3 u_local;
   uniform vec3 u_points[${MAX_ENTRANCES}];
   uniform float u_radius;
-  ${GROUND}
+  uniform float u_floor;
   layout(location = 0) in vec2 a_corner;
   out vec2 v_corner;
   void main() {
-    // At the door's true height: only the model's base is pushed under the ground.
-    vec3 centre = u_local * drape(u_points[gl_InstanceID], 0.0);
+    vec3 centre = u_local * u_points[gl_InstanceID];
     // A door below the flat map's ground is not drawn, so neither is its glow.
     if (centre.z < u_floor - ${GLOW_FLOOR_SLACK.toFixed(1)}) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -561,7 +513,6 @@ const HALO_PULL = 0.5
 const HALO_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
-  ${GROUND}
   layout(location = 0) in vec2 a_corner;
   layout(location = 1) in vec3 a_centre;
   layout(location = 2) in vec3 a_u;
@@ -576,7 +527,7 @@ const HALO_VS = `#version 300 es
   flat out vec4 v_glow;
   flat out float v_disc;
   void main() {
-    vec3 centre = u_local * drape(a_centre, 0.0);
+    vec3 centre = u_local * a_centre;
     mat4 m = u_matrix;
     vec3 away = normalize(vec3(m[0][3], m[1][3], m[2][3]));
     vec3 du = u_local * a_u, dv = u_local * a_v;
@@ -682,13 +633,10 @@ export type Replaced = { refs: string[]; featureIds: number[] }
 
 type Placement = Landmark & {
   placed: Anchor
-  /** The map's rise, the model's own ground and the fill's depth, per grid point, in model metres; see GROUND. */
+  /** The drawn ground over its placed origin, per grid point, in model units; see GROUND. */
   ground: Float32Array
-  groundMean: number
-  /** How far its base is pushed under the terrain, what counts as base, and how far above it the fill fades out, in model units; see `baseSink`. */
-  sink: { depth: number; band: number; fade: number }
-  /** How its elevation changes the way it meets the ground; see GROUND. */
-  drape: ElevationDrape
+  /** How its elevation changes the ground it meets; see GROUND. */
+  elevated: ElevationGround
   /** Whether it is close enough for its detail model; see `drawnModel`. */
   detailed: boolean
   /** `entrances`, flattened for the glow's uniform array. */
@@ -821,21 +769,20 @@ export class LandmarkLayer {
     }
     this.draw = new LazyProgram(DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_colors', 'u_painted', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emissions', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node',
+        'u_emissions', 'u_panes', 'u_ground', 'u_bounds', 'u_ground_at', 'u_floor', 'u_node',
         'u_palette', 'u_harmony', 'u_harmonyFloor', 'u_harmonyNeutral', 'u_paint_lift', 'u_paint_tone', 'u_height', 'u_crown', 'u_seed', 'u_scale', 'u_opacity', 'u_eye', 'u_ghost',
         'u_occlusion', 'u_band', ...FACADE_UNIFORMS, 'u_sun', ...SUN_SHADOW_UNIFORMS, 'u_lightUv', ...LAMP_LIGHT_UNIFORMS], 'landmarks')
     this.sunDepth = new LazyProgram(DRAW_VS, SUN_DEPTH_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_sun', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'], 'landmarks')
+        'u_ground', 'u_bounds', 'u_ground_at', 'u_floor', 'u_node'], 'landmarks')
     this.seed = new LazyProgram(DRAW_VS, SEED_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_mask', 'u_cutoff', 'u_scale', 'u_emissions',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink', 'u_node'], 'landmarks')
+        'u_ground', 'u_bounds', 'u_ground_at', 'u_floor', 'u_node'], 'landmarks')
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = new LazyProgram(GLOW_VS, GLOW_FS,
-      ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend',
-        'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'], 'landmarks')
+      ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_floor'], 'landmarks')
     this.halo = new LazyProgram(HALO_VS, HALO_FS,
-      ['u_matrix', 'u_local', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_rigid', 'u_ground_at', 'u_floor', 'u_sink'], 'landmarks')
+      ['u_matrix', 'u_local', 'u_opacity'], 'landmarks')
     for (const p of [this.draw, this.sunDepth, this.seed, this.glow, this.halo]) p.start(gl)
     const vao = gl.createVertexArray()!
     const buffer = gl.createBuffer()!
@@ -1055,9 +1002,9 @@ export class LandmarkLayer {
   }
 
   /**
-   * A landmark set on the terrain as it stands now: its base at the lowest
-   * ground under its footprint, and the ground per grid point — the map's and
-   * the model's own — for the vertex shader. Until the model has loaded its
+   * A landmark set on the terrain as it stands now, whole: its origin on the
+   * lowest ground under its footprint, moved by its own ground's offset and
+   * then its elevation; see `groundModel`. Until the model has loaded its
    * extent is unknown, so the anchor stands in; the load invalidates and this
    * runs again.
    */
@@ -1068,32 +1015,23 @@ export class LandmarkLayer {
   ): Placement {
     const model = this.models.get(landmark.model)
     const footprint = model?.footprint
-    let ground: Float32Array = new Float32Array(GROUND_GRID * GROUND_GRID * GROUND_STRIDE)
-    let base = 0, groundMean = 0
-    let own: ModelGround = { follows: false }
+    let ground = new Float32Array(GROUND_GRID * GROUND_GRID)
+    let base = 0
     if (sample) {
       const points = footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]
-      const fill = this.fills.get(placementKey(landmark))
       const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1
-      const drawn = this.drawnGround(sample, fill, exaggeration)
-      if (footprint && model) own = this.modelGround(landmark, model, drawn)
-      const raw = points.map(p => (fill && drawn.filled(p) ? this.bareAt(p) : NaN))
-      const lifts = groundLifts(points.map(drawn.at), exaggeration, own, landmark.scale, raw)
-      base = lifts.lowest
-      if (footprint) {
-        ground = lifts.lifts
-        groundMean = lifts.mean
-      }
+      const drawn = this.drawnGround(sample, this.fills.get(placementKey(landmark)), exaggeration)
+      const own: ModelGround = footprint && model ? this.modelGround(landmark, model, drawn) : { follows: false }
+      const sink = groundSink(own, true)
+      const grounded = groundModel(points.map(drawn.at), exaggeration, own, landmark.scale, sink, points.map(p => this.bareAt(p)))
+      base = grounded.lowest + grounded.offset * landmark.scale - sink
+      if (footprint) ground = grounded.ground
     }
-    // Elevation is applied after grounding, to the anchor as a whole: the
-    // model's own ground stays where the terrain put it, then the model moves
-    // up or down from there. GROUND decides how it meets the terrain.
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
-    const drape = elevationDrape(landmark.elevation, landmark.scale, !!sample)
-    const sink = baseSink(own, landmark.scale, !!sample)
+    const elevated = elevationGround(landmark.elevation, landmark.scale, !!sample)
     const doors = new Float32Array(landmark.entrances.flat())
-    return { ...landmark, placed, ground, groundMean, sink, drape, detailed, doors }
+    return { ...landmark, placed, ground, elevated, detailed, doors }
   }
 
   /**
@@ -1109,7 +1047,6 @@ export class LandmarkLayer {
         const f = h ? filled(point) : null
         return f === null ? h : Math.min(h, f * exaggeration)
       },
-      filled: (point: [number, number]) => filled(point) !== null,
       unfilled: (point: [number, number]) => (filled(point) !== null ? this.bareAt(point) : sample(point) / exaggeration || NaN),
     }
   }
@@ -1129,12 +1066,15 @@ export class LandmarkLayer {
    * Work out the terrain filled under a landmark, a step at a time, once
    * its model and the bare ground round it have loaded. Not under a raised
    * one: nothing of it meets the ground, and the plinth the map does not
-   * draw may be the terrain's.
+   * draw may be the terrain's. Nor under one built on the DEM, whose feet
+   * stand on that ground; that waits until its ground is known.
    */
   private *fill(landmark: Landmark): Generator<void> {
     const key = placementKey(landmark)
-    const coverage = this.models.get(landmark.model)?.coverage
-    if (!this.options.carver || this.fills.has(key) || !coverage || landmark.elevation > 0) return
+    const model = this.models.get(landmark.model)
+    const coverage = model?.coverage
+    if (!this.options.carver || this.fills.has(key) || !model || !coverage || landmark.elevation > 0) return
+    if (this.knownGround(landmark, model)?.follows !== false) return
     const bare = this.bareGround()
     if (!bare) return
     const fill = yield* groundFillSteps(coverage, (x, z) => mercator(modelToLngLat(landmark, x, z)), landmark.scale, p => bare.ground.at(p))
@@ -1158,19 +1098,25 @@ export class LandmarkLayer {
    * exaggerated — and kept once all of them have loaded at full detail.
    */
   private modelGround(landmark: Landmark, model: Model, ground: { unfilled: (point: [number, number]) => number }): ModelGround {
+    const known = this.knownGround(landmark, model)
+    if (known) return known
+    const contacts = model.contacts ?? []
+    return modelGround(contacts, contacts.map(([x, , z]) => ground.unfilled(modelToLngLat(landmark, x, z))), landmark.scale)
+  }
+
+  /** The ground a placed model was built on, once the detailed DEM under all its contacts has loaded; null until then. */
+  private knownGround(landmark: Landmark, model: Model): ModelGround | null {
     const key = `${landmark.id} ${landmark.model} ${landmark.lng} ${landmark.lat} ${landmark.bearing} ${landmark.scale}`
     const known = this.grounds.get(key)
     if (known) return known
-    const contacts = model.contacts ?? []
-    const points = contacts.map(([x, , z]) => modelToLngLat(landmark, x, z))
+    const contacts = model.contacts
+    if (!contacts) return null
     // Kept only from the detailed DEM: the drawn terrain is coarse far from the eye, and read there it can make a model built on the terrain look flat.
-    const bare = points.map(point => this.bareAt(point))
-    if (contacts.length && bare.every(Number.isFinite)) {
-      const fitted = modelGround(contacts, bare, landmark.scale)
-      this.grounds.set(key, fitted)
-      return fitted
-    }
-    return modelGround(contacts, points.map(ground.unfilled), landmark.scale)
+    const bare = contacts.map(([x, , z]) => this.bareAt(modelToLngLat(landmark, x, z)))
+    if (!bare.every(Number.isFinite)) return null
+    const fitted = modelGround(contacts, bare, landmark.scale)
+    this.grounds.set(key, fitted)
+    return fitted
   }
 
   /**
@@ -1716,14 +1662,10 @@ export class LandmarkLayer {
    */
   private groundUniforms(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, p: Placement) {
     const f = this.models.get(p.model)?.footprint
-    gl.uniform3fv(u.u_ground, p.ground)
-    gl.uniform1f(u.u_ground_mean, p.groundMean)
+    gl.uniform1fv(u.u_ground, p.ground)
     gl.uniform4f(u.u_bounds, f?.minX ?? 0, f?.minZ ?? 0, f?.maxX ?? 1, f?.maxZ ?? 1)
-    gl.uniform1f(u.u_blend, GROUND_BLEND / p.scale)
-    gl.uniform1f(u.u_rigid, p.drape.rigid ? 1 : 0)
-    gl.uniform1f(u.u_ground_at, p.drape.groundAt)
-    gl.uniform1f(u.u_floor, p.drape.floor)
-    gl.uniform3f(u.u_sink, p.sink.depth, p.sink.band, p.sink.fade)
+    gl.uniform1f(u.u_ground_at, p.elevated.groundAt)
+    gl.uniform1f(u.u_floor, p.elevated.floor)
   }
 
   /**

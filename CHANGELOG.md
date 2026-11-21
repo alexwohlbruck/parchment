@@ -7,6 +7,7 @@
 ### Changed
 
 * The previous default map style is now called Charlotte.
+* 3D landmarks now stand on hills whole instead of bending over them, so small bridges no longer sag into the dips they cross.
 
 ### Fixed
 

@@ -263,6 +263,7 @@ const DARK_LAND = {
   background_background_color_2: 'hsl(218, 24%, 16.5%)',
   residential_fill_color: 'hsl(218, 22%, 17.5%)',
   residential_fill_color_2: 'hsl(218, 18%, 18%)',
+  commercial_fill_color: 'hsl(30, 14%, 19.5%)',
   industrial_fill_color: 'hsl(222, 16%, 19%)',
   industrial_fill_color_2: 'hsl(222, 16%, 19%)',
   industrial_fill_color_3: 'hsl(222, 16%, 19%)',
@@ -349,6 +350,9 @@ async function shieldImages() {
  * as the campus, one layer down.
  */
 const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'School']
+
+const RESIDENTIAL_LAYER = 'Residential'
+const COMMERCIAL_LAYER = 'Commercial'
 
 /** Sports surfaces — `pitch`, `playground` and `stadium` share one layer. */
 const PITCH_LAYER = 'Stadium'
@@ -444,6 +448,7 @@ const LIGHT_LAND = {
   background_background_color_2: 'hsl(42, 22%, 93.5%)',
   residential_fill_color: 'hsl(40, 18%, 92.5%)',
   residential_fill_color_2: 'hsl(40, 18%, 93%)',
+  commercial_fill_color: 'hsl(40, 44%, 90%)',
   pier_fill_color: 'hsl(38, 16%, 90.5%)',
   bridge_outline_line_color: 'hsl(40, 30%, 94%)',
   // The two translucent members keep their alpha, which is what they are for.
@@ -934,6 +939,24 @@ function outlinePitches(layers) {
   const pitch = layers.find(l => l.id === PITCH_LAYER)
   if (!pitch) return
   pitch.paint = { ...pitch.paint, 'fill-outline-color': '@stadium_outline_color' }
+}
+
+/** Shopping streets and office blocks, which MapTiler leaves the colour of the ground. */
+function addCommercialLanduse(layers) {
+  const residential = layers.findIndex(l => l.id === RESIDENTIAL_LAYER)
+  if (residential < 0) throw new Error(`no ${RESIDENTIAL_LAYER} layer to put commercial land over`)
+  layers.splice(residential + 1, 0, {
+    id: COMMERCIAL_LAYER,
+    type: 'fill',
+    source: SOURCE,
+    'source-layer': 'landuse',
+    minzoom: 11,
+    filter: ['in', ['get', 'class'], ['literal', ['commercial', 'retail']]],
+    paint: {
+      'fill-color': '@commercial_fill_color',
+      'fill-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0, 13, 1],
+    },
+  })
 }
 
 function sinkInstitutionalLanduse(layers) {
@@ -1939,6 +1962,7 @@ async function main() {
   }
 
   outlinePitches(layers)
+  addCommercialLanduse(layers)
   sinkInstitutionalLanduse(layers)
   raiseSandAboveSurfaces(layers)
   applyRoadInk(layers)

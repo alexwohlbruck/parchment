@@ -15,9 +15,9 @@ describe('map themes', () => {
     },
   )
 
-  test('parchment is the generated tokens', () => {
-    expect(themeTokens('parchment', 'light')).toEqual(lightTokens)
-    expect(themeTokens('parchment', 'dark')).toEqual(darkTokens)
+  test('charlotte is the generated tokens', () => {
+    expect(themeTokens('charlotte', 'light')).toEqual(lightTokens)
+    expect(themeTokens('charlotte', 'dark')).toEqual(darkTokens)
   })
 
   test.each(MAP_STYLE_IDS)('%s fades the horizon into its own ground', style => {

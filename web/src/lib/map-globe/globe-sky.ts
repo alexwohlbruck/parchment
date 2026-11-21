@@ -218,7 +218,11 @@ export class GlobeSky implements CustomLayerInterface {
     }
   }
 
-  constructor(private readonly satellite: () => boolean = () => false) {}
+  constructor(
+    private readonly satellite: () => boolean = () => false,
+    /** Leave the space around the globe to the page, as a printed chart does. */
+    private readonly hidden: () => boolean = () => false,
+  ) {}
 
   onAdd(map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
     const gl = context as WebGL2RenderingContext
@@ -232,7 +236,7 @@ export class GlobeSky implements CustomLayerInterface {
     if (!this.map || !this.vao) return
     const zoom = this.map.getZoom()
     const transition = input.defaultProjectionData.projectionTransition
-    if (transition < 0.999 || zoom >= 6) return
+    if (transition < 0.999 || zoom >= 6 || this.hidden()) return
     const fade = 1 - Math.min(1, Math.max(0, (zoom - 4) / 2))
     const inverse = DOMMatrix.fromFloat32Array(new Float32Array(input.defaultProjectionData.mainMatrix)).inverse()
     const gl = context as WebGL2RenderingContext

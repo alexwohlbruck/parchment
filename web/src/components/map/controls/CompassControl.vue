@@ -5,12 +5,17 @@ import { Button } from '@/components/ui/button'
 import { useMapService } from '@/services/map/map.service'
 import { useMapCamera } from '@/composables/map/useMapCamera'
 import { useMapStore } from '@/stores/map.store'
-import { ControlVisibility } from '@/types/map.types'
+import { ControlVisibility, MapEngine } from '@/types/map.types'
 import CompassIcon from './CompassIcon.vue'
+import CompassRoseIcon from './CompassRoseIcon.vue'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
-const { controlSettings } = storeToRefs(mapStore)
+const { controlSettings, settings } = storeToRefs(mapStore)
+
+const onChart = computed(() =>
+  settings.value.mapStyle === 'chart' && settings.value.engine === MapEngine.MAPLIBRE && settings.value.basemap === 'standard',
+)
 const { camera, onCameraMove, compassTransform } = useMapCamera()
 
 const isDragging = ref(false)
@@ -96,7 +101,8 @@ onUnmounted(() => {
       @mousedown.prevent="onDragStart"
       :class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
     >
-      <CompassIcon class="size-5" :style="{ transform: compassTransform }" />
+      <CompassRoseIcon v-if="onChart" class="size-7" :style="{ transform: compassTransform }" />
+      <CompassIcon v-else class="size-5" :style="{ transform: compassTransform }" />
     </Button>
   </transition>
 </template>

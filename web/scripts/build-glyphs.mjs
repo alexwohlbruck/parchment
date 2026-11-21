@@ -9,7 +9,7 @@
  * not draw. Generating the composite stacks ourselves is what lets the style
  * name its fonts exactly as MapTiler Streets does.
  *
- * Geist is OFL and Noto Sans is OFL, so both are ours to redistribute.
+ * Geist, Inter, Roboto and Noto Sans are all OFL or Apache, so ours to redistribute.
  * They arrive from @fontsource as woff2 (there is no ttf release), which
  * `wawoff2` turns back into the sfnt fontnik needs.
  *
@@ -56,6 +56,14 @@ const STACKS = [
   { name: 'Geist Medium', weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
   { name: 'Geist SemiBold', weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
   { name: 'Geist Bold', weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
+  // The Cupertino and Mountain View map themes' families: the nearest open
+  // faces to SF Pro and to the one Google Maps sets its labels in.
+  ...['Inter', 'Roboto'].flatMap(family => [
+    { name: `${family} Regular`, weight: '400-normal', fallback: 'NotoSans-Regular.ttf' },
+    { name: `${family} Medium`, weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
+    { name: `${family} SemiBold`, weight: '600-normal', fallback: 'NotoSans-Regular.ttf' },
+    { name: `${family} Bold`, weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
+  ]),
 ]
 
 /**
@@ -72,6 +80,7 @@ const STACKS = [
 const SUBSET_DIRS = {
   Roboto: resolve(WEB, 'node_modules/@fontsource/roboto/files'),
   Geist: resolve(WEB, 'node_modules/@fontsource/geist-sans/files'),
+  Inter: resolve(WEB, 'node_modules/@fontsource/inter/files'),
 }
 
 /** @fontsource splits each weight across these subsets. */

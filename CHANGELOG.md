@@ -2,6 +2,16 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+* The zoomed-out globe shows its forests, deserts, ocean depths and place names on the web, where it had shown a plain globe.
+
+## [0.23.1] - 2026-11-20
+
+### Added
+
 * Hills and mountains are shaded by the sun in 3D, so their slopes stand out and turn with the time of day.
 * At night, buildings and landmarks still cast soft shadows: from the moon when it's up, or faintly from the sky's glow.
 * Crop and zoom your profile photo before you save it, and change or remove it any time under Settings → Account.
@@ -11,6 +21,8 @@
 * Ask can plan a ride, run or walk for you: it builds a loop through the places you mention, saves it to Routes in your library and puts it on a canvas with the stops marked.
 * Ask can save places to your collections, change or archive routes and canvases, shade how far you can get in a set time on a canvas, and share a canvas by link.
 * Ask can tell you where a transit line goes and whether it's running, what's at a spot on the map, and whether there are wildfires or smoke nearby.
+* Zoomed out, the globe shows forests, grasslands and deserts, shaded mountains, ocean depths, and the names of continents, oceans, seas and mountain ranges.
+* The map shows Indigenous lands, such as reserves, Inuit Owned Lands and tribal lands, each named in its own language where it has one.
 
 ### Changed
 

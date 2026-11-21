@@ -10,6 +10,8 @@
  *     is exact; old hashes age out by LRU.
  *   - `map-static`: glyphs, sprites, 3D models. Same-origin, versioned by
  *     deploy only.
+ *   - `map-globe`: the bundled zoomed-out globe tiles. Versioned in their
+ *     path, so cache-first is exact; the whole set is a few MB.
  *   - `map-tiles`: basemap/layer tiles through the API's /proxy/*, plus the
  *     third-party raster sources (satellite imagery, terrain). Bounded LRU
  *     so recently seen areas of the map survive a restart offline — the
@@ -97,6 +99,17 @@ registerRoute(
         maxAgeSeconds: 60 * DAY,
         purgeOnQuotaError: true,
       }),
+    ],
+  }),
+)
+
+registerRoute(
+  ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/globe/'),
+  new CacheFirst({
+    cacheName: 'map-globe',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 2000, maxAgeSeconds: 180 * DAY, purgeOnQuotaError: true }),
     ],
   }),
 )

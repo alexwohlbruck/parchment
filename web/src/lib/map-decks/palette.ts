@@ -1,5 +1,5 @@
 import type { FlavorId } from '@/lib/map-style/build'
-import { themeTokens } from '@/lib/map-style/themes'
+import { themeRoadSurface, themeTokens } from '@/lib/map-style/themes'
 import type { MapStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import { TRAVELLED_CASE_COLOR, TRAVELLED_COLOR } from '@/lib/guidance/route-line'
@@ -22,7 +22,8 @@ export function hsl(text: string): Rgb {
 /** The basemap's own road and path colours, which a deck takes below street zoom, for the walkways it carries and for a street deck's top beside its carriageway. */
 const basemap = (flavor: FlavorId, style?: MapStyleId) => {
   const t = themeTokens(style, flavor)
-  return { lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), deck: hsl(t.path_surface) }
+  const asphalt = themeRoadSurface(style, flavor)?.asphalt
+  return { ...(asphalt && { surface: hsl(asphalt) }), lowRoad: hsl(t.road_minor), lowMajor: hsl(t.road_major), lowHighway: hsl(t.road_highway), lowPath: hsl(t.path_surface), walkway: hsl(t.path_surface), deck: hsl(t.path_surface) }
 }
 
 /** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */

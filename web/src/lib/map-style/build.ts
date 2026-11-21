@@ -509,7 +509,7 @@ export function buildLayers(options: {
 
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
-  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel), flavor, indoorLabels, fixtures) as LayerSpecification[]
+  return spliceIndoorLayers(spliceDetailLayers(converted, flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures) as LayerSpecification[]
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */
@@ -609,7 +609,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId, paint: BuildingP
  * on the ground rather than part of it — and because that is where the 3D form
  * has to sit, so the flat and the modelled versions occupy the same slot.
  */
-function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle): any[] {
+function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, detailLabel: DetailLabelStyle, mapStyle?: MapStyleId): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
@@ -719,13 +719,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId, hdRoads: boolean, d
   const rails = Math.min(bridges, ...[out.findIndex(l => l.id === RAIL_AT_GRADE[0])].filter(i => i >= 0))
   const tunnels = tunnelledTrack(out)
   out.splice(rails, 0, ...tunnels)
-  const roads = asphaltRoads(liftedTrack(out), flavor)
+  const roads = asphaltRoads(liftedTrack(out), flavor, mapStyle)
   // Found again in the result: asphaltRoads adds layers (cycle tracks) ahead of the tunnels.
   const lastTunnel = tunnels.at(-1)?.id
   const ground = lastTunnel ? roads.findIndex(l => l.id === lastTunnel) + 1 : roads.findIndex(l => l.id === out[rails]?.id)
   const decks = aboveBridgesIndex(roads)
-  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
-  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
+  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true, mapStyle))
+  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false, mapStyle))
   return roads
 }
 

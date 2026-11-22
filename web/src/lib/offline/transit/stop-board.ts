@@ -12,10 +12,11 @@ export function findStop(
   tt: Timetable,
   { feedId, stopId, lat, lng }: { feedId?: string; stopId?: string; lat?: number; lng?: number },
 ): number | null {
+  // A named stop that isn't here has no board here; a neighbour's would mislead.
   if (feedId && stopId) {
     const feed = tt.pkg.feeds.findIndex(f => f.id === feedId)
     const index = tt.stops.findIndex(s => s.feed === feed && s.stopId === stopId)
-    if (index >= 0) return tt.stops[index].parent ?? index
+    return index >= 0 ? (tt.stops[index].parent ?? index) : null
   }
   if (lat === undefined || lng === undefined) return null
   let best: number | null = null

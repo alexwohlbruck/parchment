@@ -14,9 +14,9 @@
  *     path, so cache-first is exact; the whole set is a few MB.
  *   - `map-tiles`: basemap/layer tiles through the API's /proxy/*, plus the
  *     third-party raster sources (satellite imagery, terrain). Bounded LRU
- *     so recently seen areas of the map survive a restart offline — the
- *     first step toward offline maps, not the final architecture for
- *     downloadable regions.
+ *     so recently seen areas of the map survive a restart offline.
+ *   - `offline-regions`: areas the user saved for offline use. Never expires;
+ *     the app adds and prunes entries, and it answers before any other cache.
  *
  * Auth `token` query params are stripped from tile cache keys so the same
  * tile isn't stored once per session credential.
@@ -29,9 +29,12 @@ import {
   precacheAndRoute,
 } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies'
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
+import type { RouteHandlerCallbackOptions } from 'workbox-core/types'
+import type { Strategy } from 'workbox-strategies'
+import { OFFLINE_CACHE, offlineCacheKey, toSavedResponse } from './lib/offline/offline-cache'
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -66,6 +69,28 @@ const stripAuthParams = {
   },
 }
 
+const offlineCache = caches.open(OFFLINE_CACHE)
+
+async function refreshSaved(key: string, request: Request) {
+  try {
+    const saved = await toSavedResponse(await fetch(request))
+    if (saved) await (await offlineCache).put(key, saved)
+  } catch {
+    // Offline or flaky: the saved copy stays.
+  }
+}
+
+/** Saved regions answer first. A proxy tile refreshes its saved copy behind it. */
+function savedFirst(strategy: Strategy, revalidate = false) {
+  return async ({ request, event }: RouteHandlerCallbackOptions) => {
+    const key = offlineCacheKey(request.url)
+    const saved = await (await offlineCache).match(key)
+    if (!saved) return strategy.handle({ request, event })
+    if (revalidate) event.waitUntil(refreshSaved(key, request))
+    return saved
+  }
+}
+
 const tileCachePlugins = [
   stripAuthParams,
   new CacheableResponsePlugin({ statuses: [200] }),
@@ -80,12 +105,12 @@ const tileCachePlugins = [
 // once and refreshed behind it; an import shows up on the next visit.
 registerRoute(
   ({ url }) => TILE_PROXY_PATH.test(url.pathname),
-  new StaleWhileRevalidate({ cacheName: 'map-tiles', plugins: tileCachePlugins }),
+  savedFirst(new StaleWhileRevalidate({ cacheName: 'map-tiles', plugins: tileCachePlugins }), true),
 )
 
 registerRoute(
   ({ url }) => TILE_HOSTS.test(url.hostname),
-  new CacheFirst({ cacheName: 'map-tiles', plugins: tileCachePlugins }),
+  savedFirst(new CacheFirst({ cacheName: 'map-tiles', plugins: tileCachePlugins })),
 )
 
 registerRoute(
@@ -117,15 +142,24 @@ registerRoute(
 registerRoute(
   ({ url, sameOrigin }) =>
     sameOrigin && /^\/(fonts|sprites|models)\//.test(url.pathname),
-  new CacheFirst({
-    cacheName: 'map-static',
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [200] }),
-      new ExpirationPlugin({
-        maxEntries: 500,
-        maxAgeSeconds: 60 * DAY,
-        purgeOnQuotaError: true,
-      }),
-    ],
-  }),
+  savedFirst(
+    new CacheFirst({
+      cacheName: 'map-static',
+      plugins: [
+        new CacheableResponsePlugin({ statuses: [200] }),
+        new ExpirationPlugin({
+          maxEntries: 500,
+          maxAgeSeconds: 60 * DAY,
+          purgeOnQuotaError: true,
+        }),
+      ],
+    }),
+  ),
+)
+
+// Tiles from anywhere else, such as a custom layer's own server, only ever
+// come from a saved region; online they pass straight through.
+registerRoute(
+  ({ url, request }) => request.method === 'GET' && /\/\d+\/\d+\/\d+(\.\w+)?$/.test(url.pathname),
+  savedFirst(new NetworkOnly()),
 )

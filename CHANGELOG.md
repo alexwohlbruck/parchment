@@ -2,6 +2,8 @@
 
 ### Added
 
+* Walking directions cross plazas in one step, such as "Turn right across Times Square", instead of calling out every corner on the way.
+
 ### Changed
 
 ### Fixed

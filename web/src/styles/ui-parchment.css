@@ -1,5 +1,5 @@
 /* Parchment: the interface as a sheet of an engraved sea chart. Buff paper,
-   sepia ink rules and lettering, Garamond text under Fell titles. By night,
+   sepia ink rules and lettering, Fell titles over plain text. By night,
    the same sheet under a lamp. The accent colour still sets --primary. */
 
 html.ui-parchment {
@@ -27,8 +27,7 @@ html.ui-parchment {
   --destructive: 6 58% 42%;
   --destructive-foreground: 42 60% 95%;
 
-  --font-sans: 'EB Garamond', ui-serif, Georgia, serif;
-  --font-display: 'IM Fell English', 'EB Garamond', ui-serif, Georgia, serif;
+  --font-display: 'IM Fell English', ui-serif, Georgia, serif;
 
   --shadow-sm: 0 1px 0 hsla(28, 40%, 20%, 0.06), 0 1px 2px hsla(28, 40%, 20%, 0.08);
   --shadow-md: 0 1px 0 hsla(28, 40%, 20%, 0.06), 0 4px 14px hsla(28, 40%, 20%, 0.1);
@@ -36,13 +35,6 @@ html.ui-parchment {
   --shadow-xl: 0 24px 60px hsla(28, 45%, 16%, 0.22), 0 4px 12px hsla(28, 40%, 20%, 0.1);
 
   --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.22 0 0 0 0 0.08 0 0 0 0.11 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-
-  font-family: var(--font-sans);
-  /* Garamond's x-height is small; size it to match the sans layouts were set in. */
-  font-size-adjust: 0.5;
-  font-weight: 400;
-  letter-spacing: 0;
-  font-feature-settings: 'kern', 'liga', 'lnum';
 }
 
 html.ui-parchment.dark {
@@ -91,8 +83,4 @@ html.ui-parchment :is([class*='bg-background'], [class*='bg-card'], [class*='bg-
 html.ui-parchment :is(h1, h2, h3, .font-display, .font-display-heavy) {
   font-weight: 400;
   letter-spacing: 0.005em;
-}
-
-html.ui-parchment :is(code, kbd, pre, samp, .font-mono) {
-  font-size-adjust: none;
 }

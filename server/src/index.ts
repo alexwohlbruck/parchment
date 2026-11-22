@@ -16,6 +16,7 @@ import {
   place as placeController,
   proxy as proxyController,
   transit as transitController,
+  offline as offlineController,
   gbfs as gbfsController,
   isochrone as isochroneController,
   library as libraryController,
@@ -105,6 +106,7 @@ async function main() {
   app.use(placeController)
   app.use(proxyController)
   app.use(transitController)
+  app.use(offlineController)
   app.use(gbfsController)
   app.use(isochroneController)
   app.use(libraryController)

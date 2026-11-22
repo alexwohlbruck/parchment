@@ -29,6 +29,7 @@ export default {
           'CORS for tile sources MapLibre fetches directly',
       },
       { name: 'Transit', description: 'Transit vehicles, routes, and stops' },
+      { name: 'Offline', description: 'Region packages for search and directions without a connection' },
       { name: 'GBFS', description: 'Shared mobility docks and availability' },
       { name: 'Isochrone', description: 'Travel-time reachability polygons' },
       { name: 'Weather', description: 'Weather data' },

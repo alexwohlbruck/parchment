@@ -4,6 +4,8 @@
 
 ### Changed
 
+* 3D landmarks now stand on hills whole instead of bending over them, so small bridges no longer sag into the dips they cross.
+
 ### Fixed
 
 ## [0.24.0] - 2026-11-21
@@ -15,7 +17,6 @@
 ### Changed
 
 * The previous default map style is now called Charlotte.
-* 3D landmarks now stand on hills whole instead of bending over them, so small bridges no longer sag into the dips they cross.
 * Well-known places such as major hospitals, parks and landmarks keep their labels over smaller neighbours, and the biggest now show from further out.
 
 ### Fixed

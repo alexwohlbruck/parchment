@@ -1403,7 +1403,8 @@
       "saving": "Guardando · {percent}%",
       "paused": "En pausa · {percent}%",
       "failed": "No se pudo guardar 1 parte | No se pudieron guardar {count} partes",
-      "ready": "{size} · Actualizado el {date}"
+      "ready": "{size} · Actualizado el {date}",
+      "readyTransit": "{size} · Horarios hasta el {date}"
     },
     "actions": {
       "pause": "Pausar",
@@ -1430,7 +1431,12 @@
       "tooLarge": "Amplía para elegir una zona más pequeña",
       "needsConnection": "Conéctate a internet para guardar una zona",
       "download": "Descargar",
-      "defaultName": "Zona guardada"
+      "defaultName": "Zona guardada",
+      "features": "Usar sin conexión"
+    },
+    "features": {
+      "search": "Buscar lugares",
+      "directions": "Cómo llegar"
     }
   },
   "timeline": {

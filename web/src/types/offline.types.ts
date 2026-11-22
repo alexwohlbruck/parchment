@@ -1,3 +1,5 @@
+import type { OfflinePackageKind } from './offline-package.types'
+
 /** [west, south, east, north] in degrees. */
 export type Bounds = [number, number, number, number]
 
@@ -26,6 +28,12 @@ export interface OfflineLayerOption {
   required?: boolean
 }
 
+/** Data saved beside the tiles so search and directions work offline. */
+export interface OfflinePackageRef {
+  kind: OfflinePackageKind
+  url: string
+}
+
 export type OfflineRegionStatus = 'downloading' | 'paused' | 'ready' | 'failed'
 
 export interface OfflineRegion {
@@ -35,6 +43,11 @@ export interface OfflineRegion {
   layers: { id: string; name: string }[]
   sources: OfflineSource[]
   files: string[]
+  /** Absent on regions saved before packages existed. */
+  packages?: OfflinePackageRef[]
+  /** Last service day the saved timetable covers, `YYYY-MM-DD`. */
+  timetableUntil?: string
+  timetableSavedAt?: string
   status: OfflineRegionStatus
   total: number
   saved: number

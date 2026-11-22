@@ -3,14 +3,27 @@ import { computed, ref, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { isOffline, onReconnected } from '@/lib/connectivity'
 import { planRegion } from '@/lib/offline/region-plan'
+import { TIMETABLE_REFRESH_MS } from '@/lib/offline/packages'
 import {
   downloadRegion,
   isOfflineStorageSupported,
+  packageRefs,
   pruneOfflineCache,
+  refreshPackage,
   requestPersistentStorage,
   storageEstimate,
 } from '@/services/offline/offline-cache.service'
+import { setOfflineRegions } from '@/services/offline/offline-engine.service'
+import type { OfflinePackageKind } from '@/types/offline-package.types'
 import type { Bounds, OfflineLayerOption, OfflineRegion } from '@/types/offline.types'
+
+/** The server builds a timetable for this many days from the day it is fetched. */
+const TIMETABLE_DAYS = 14
+
+const timetableDates = (savedAt: Date) => ({
+  timetableSavedAt: savedAt.toISOString(),
+  timetableUntil: new Date(savedAt.getTime() + (TIMETABLE_DAYS - 1) * 86_400_000).toISOString().slice(0, 10),
+})
 
 export const useOfflineStore = defineStore('offline', () => {
   const regions = useStorage<OfflineRegion[]>('parchment-offline-regions', [])
@@ -50,7 +63,13 @@ export const useOfflineStore = defineStore('offline', () => {
         refresh,
         onProgress: p => patch(id, p),
       })
-      patch(id, { ...result, status: result.failed ? 'failed' : 'ready', updatedAt: new Date().toISOString() })
+      const now = new Date()
+      patch(id, {
+        ...result,
+        status: result.failed ? 'failed' : 'ready',
+        updatedAt: now.toISOString(),
+        ...(region.packages?.some(p => p.kind === 'timetable') && timetableDates(now)),
+      })
     } catch {
       // A dropped connection leaves it 'downloading', so reconnecting resumes it.
       if (find(id) && pausedByUser.has(id)) patch(id, { status: 'paused' })
@@ -61,8 +80,14 @@ export const useOfflineStore = defineStore('offline', () => {
     }
   }
 
-  async function createRegion(input: { name: string; bounds: Bounds; options: OfflineLayerOption[] }) {
+  async function createRegion(input: {
+    name: string
+    bounds: Bounds
+    options: OfflineLayerOption[]
+    packages: OfflinePackageKind[]
+  }) {
     const plan = planRegion(input.bounds, input.options)
+    const packages = packageRefs(input.packages, input.bounds)
     const now = new Date().toISOString()
     const region: OfflineRegion = {
       id: crypto.randomUUID(),
@@ -71,8 +96,9 @@ export const useOfflineStore = defineStore('offline', () => {
       layers: input.options.map(o => ({ id: o.id, name: o.name })),
       sources: plan.sources,
       files: plan.files,
+      packages,
       status: 'downloading',
-      total: plan.total,
+      total: plan.total + packages.length,
       saved: 0,
       failed: 0,
       bytes: 0,
@@ -104,16 +130,39 @@ export const useOfflineStore = defineStore('offline', () => {
     await refreshUsage()
   }
 
+  /** Fetch timetables again well before they run out, so offline departures stay current. */
+  async function refreshTimetables() {
+    for (const region of regions.value) {
+      const ref = region.packages?.find(p => p.kind === 'timetable')
+      const age = Date.now() - Date.parse(region.timetableSavedAt ?? region.updatedAt)
+      if (!ref || region.status !== 'ready' || downloads.has(region.id) || age < TIMETABLE_REFRESH_MS) continue
+      if (await refreshPackage(ref, new AbortController().signal)) patch(region.id, timetableDates(new Date()))
+    }
+  }
+
   /** Pick up downloads a reload or a dropped connection interrupted. */
   function resumeInterrupted() {
     if (!supported || isOffline.value) return
     for (const region of regions.value) {
       if (region.status === 'downloading' && !downloads.has(region.id)) void run(region.id)
     }
+    void refreshTimetables()
   }
 
   resumeInterrupted()
   onReconnected(resumeInterrupted)
+  watch(
+    () =>
+      regions.value
+        .filter(r => r.status === 'ready' && r.packages?.length)
+        .map(r => ({
+          id: r.id,
+          savedAt: `${r.updatedAt}|${r.timetableSavedAt ?? ''}`,
+          urls: Object.fromEntries(r.packages!.map(p => [p.kind, p.url])),
+        })),
+    setOfflineRegions,
+    { immediate: true },
+  )
   // Offline fetches fail fast; stop rather than mark every remaining tile failed.
   watch(isOffline, offline => {
     if (offline) for (const controller of downloads.values()) controller.abort()

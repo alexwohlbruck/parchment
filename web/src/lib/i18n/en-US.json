@@ -1483,7 +1483,8 @@
       "saving": "Saving · {percent}%",
       "paused": "Paused · {percent}%",
       "failed": "1 part couldn't be saved | {count} parts couldn't be saved",
-      "ready": "{size} · Updated {date}"
+      "ready": "{size} · Updated {date}",
+      "readyTransit": "{size} · Transit times until {date}"
     },
     "actions": {
       "pause": "Pause",
@@ -1510,7 +1511,12 @@
       "tooLarge": "Zoom in to pick a smaller area",
       "needsConnection": "Connect to the internet to save an area",
       "download": "Download",
-      "defaultName": "Saved area"
+      "defaultName": "Saved area",
+      "features": "Use offline"
+    },
+    "features": {
+      "search": "Search places",
+      "directions": "Get directions"
     }
   },
   "timeline": {

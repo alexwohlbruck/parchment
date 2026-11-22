@@ -46,11 +46,13 @@ const detail = computed(() => {
       return t('offlineMaps.region.paused', { percent: percent.value })
     case 'failed':
       return t('offlineMaps.region.failed', r.failed)
-    default:
-      return t('offlineMaps.region.ready', {
-        size: formatBytes(r.bytes, locale.value),
-        date: new Date(r.updatedAt).toLocaleDateString(locale.value, { month: 'short', day: 'numeric' }),
-      })
+    default: {
+      const day = (date: string) => new Date(date).toLocaleDateString(locale.value, { month: 'short', day: 'numeric' })
+      const size = formatBytes(r.bytes, locale.value)
+      return r.timetableUntil
+        ? t('offlineMaps.region.readyTransit', { size, date: day(`${r.timetableUntil}T12:00:00`) })
+        : t('offlineMaps.region.ready', { size, date: day(r.updatedAt) })
+    }
   }
 })
 

@@ -20,7 +20,9 @@ import { planRegion } from '@/lib/offline/region-plan'
 import { boundsWidthKm } from '@/lib/offline/tiles'
 import { BASEMAP_OPTION_ID, TERRAIN_OPTION_ID } from '@/lib/offline/layer-options'
 import { formatBytes } from '@/lib/offline/format'
+import { estimatePackageBytes } from '@/lib/offline/packages'
 import { AppRoute } from '@/router'
+import type { OfflinePackageKind } from '@/types/offline-package.types'
 import type { Bounds, OfflineLayerOption } from '@/types/offline.types'
 
 /** Past this many tiles a download takes too long and too much space. */
@@ -61,6 +63,24 @@ function toggle(id: string, on: boolean) {
 
 const chosen = computed(() => options.value.filter(isChosen))
 
+const FEATURES = [
+  { id: 'search', icon: 'SearchIcon', packages: ['places'] },
+  { id: 'directions', icon: 'RouteIcon', packages: ['streets', 'timetable'] },
+] as const satisfies readonly { id: string; icon: string; packages: readonly OfflinePackageKind[] }[]
+
+const features = ref(new Set<string>(FEATURES.map(f => f.id)))
+
+function toggleFeature(id: string, on: boolean) {
+  const next = new Set(features.value)
+  if (on) next.add(id)
+  else next.delete(id)
+  features.value = next
+}
+
+const packages = computed<OfflinePackageKind[]>(() =>
+  FEATURES.filter(f => features.value.has(f.id)).flatMap(f => f.packages),
+)
+
 /** Measured bytes of one tile per source, keyed by its template, kept while the map moves. */
 const tileBytes = shallowRef(new Map<string, number>())
 const plan = computed(() =>
@@ -87,7 +107,7 @@ const summary = computed(() => {
   if (!bounds.value || !plan.value) return ''
   if (tooLarge.value) return t('offlineMaps.new.tooLarge')
   return t('offlineMaps.new.summary', {
-    size: formatBytes(plan.value.estimatedBytes, locale.value),
+    size: formatBytes(plan.value.estimatedBytes + estimatePackageBytes(packages.value, bounds.value), locale.value),
     width: Math.round(boundsWidthKm(bounds.value)),
   })
 })
@@ -114,7 +134,12 @@ async function save() {
   saving.value = true
   const area = bounds.value
   try {
-    await offlineStore.createRegion({ name: await regionName(area), bounds: area, options: chosen.value })
+    await offlineStore.createRegion({
+      name: await regionName(area),
+      bounds: area,
+      options: chosen.value,
+      packages: packages.value,
+    })
     router.replace({ name: AppRoute.OFFLINE_MAPS })
   } finally {
     saving.value = false
@@ -143,6 +168,15 @@ async function save() {
           :disabled="option.required"
           @update:model-value="toggle(option.id, $event)"
         />
+      </label>
+    </div>
+
+    <SectionHeader :title="t('offlineMaps.new.features')" class="mt-5 mb-1.5 px-1" />
+    <div class="flex flex-col">
+      <label v-for="feature in FEATURES" :key="feature.id" class="flex cursor-pointer items-center gap-3 rounded-lg px-1 py-2">
+        <ItemIcon :icon="feature.icon" color="parchment" size="sm" variant="ghost" />
+        <span class="flex-1 text-sm">{{ t(`offlineMaps.features.${feature.id}`) }}</span>
+        <Switch :model-value="features.has(feature.id)" @update:model-value="toggleFeature(feature.id, $event)" />
       </label>
     </div>
 

@@ -95,7 +95,7 @@ function beginOtp({
       <div class="w-full max-w-sm space-y-6">
         <!-- Form Card -->
         <div
-          class="form-card bg-white/90 dark:bg-parchment-900/90 rounded-xl p-8 space-y-6"
+          class="form-card bg-card/90 dark:bg-parchment-900/90 rounded-xl p-8 space-y-6"
         >
           <!-- Title -->
           <div class="text-center space-y-1">

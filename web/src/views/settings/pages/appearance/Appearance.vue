@@ -32,7 +32,9 @@ import {
   allColors,
   colorSchemes,
   uiScales,
+  uiThemes,
   type ColorScheme,
+  type UiTheme,
 } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { usePowerStore } from '@/stores/power.store'
@@ -49,8 +51,8 @@ import ControlSettingsSection from '@/components/map/controls/ControlSettingsSec
 
 // Theme store
 const themeStore = useThemeStore()
-const { colorScheme, accentColor, radius, uiScale } = storeToRefs(themeStore)
-const { setColorScheme, setAccentColor, setRadius, setUiScale } = themeStore
+const { colorScheme, accentColor, radius, uiScale, uiTheme } = storeToRefs(themeStore)
+const { setColorScheme, setAccentColor, setRadius, setUiScale, setUiTheme } = themeStore
 
 // Map store
 const mapStore = useMapStore()
@@ -87,6 +89,26 @@ const handleColorChange = (value: any) => {
       id="app-theme"
       :title="$t('settings.appearance.appTheme.title')"
     >
+      <SettingsItem :title="$t('settings.appearance.appTheme.uiTheme.title')">
+        <Select
+          :model-value="uiTheme"
+          @update:model-value="value => setUiTheme(value as UiTheme)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="theme in uiThemes"
+              :key="theme"
+              :value="theme"
+            >
+              {{ $t(`settings.appearance.appTheme.uiTheme.values.${theme}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
       <SettingsItem :title="$t('settings.appearance.appTheme.color.title')">
         <Select
           :model-value="accentColor"

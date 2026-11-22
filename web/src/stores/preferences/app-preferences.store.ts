@@ -6,7 +6,7 @@ import { saveAppPreferences } from '@/services/preferences.service'
 import { useAppStore, type HomeSheetStart } from '@/stores/app.store'
 import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
 import { useMapStore } from '@/stores/map.store'
-import { allColors, allRadii, colorSchemes, useThemeStore, type ColorScheme } from '@/stores/theme.store'
+import { allColors, allRadii, colorSchemes, uiThemes, useThemeStore, type ColorScheme, type UiTheme } from '@/stores/theme.store'
 import {
   BASEMAPS,
   ENGINE_PROJECTIONS,
@@ -24,6 +24,7 @@ interface ThemeSettings {
   accentColor: string
   radius: number
   colorScheme: ColorScheme
+  uiTheme: UiTheme
 }
 
 interface GeneralSettings {
@@ -53,6 +54,7 @@ const THEME: Validators<ThemeSettings> = {
   accentColor: oneOf<string>(allColors),
   radius: oneOf(allRadii),
   colorScheme: oneOf(colorSchemes),
+  uiTheme: oneOf(uiThemes),
 }
 
 const GENERAL: Validators<GeneralSettings> = {

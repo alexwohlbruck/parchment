@@ -4,6 +4,8 @@
 
 ### Changed
 
+* During navigation, the departure list now also shows earlier trains that look too close to catch, so you can switch to one you know you'll make.
+
 ### Fixed
 
 * Faster trips offered during navigation now only use the ways you're already traveling, so a transit trip won't switch you onto a bike share or scooter.

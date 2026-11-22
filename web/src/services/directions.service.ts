@@ -82,6 +82,12 @@ function directionsService() {
       }))
   }
 
+  /** The address line the router snaps onto, so a building is reached from its own street. */
+  function waypointAddress(place?: Place) {
+    const address = place?.address?.value
+    return address?.street1 || address?.formatted || undefined
+  }
+
   /**
    * Build the API request for a run of waypoints.
    *
@@ -100,6 +106,7 @@ function directionsService() {
               ? 'destination'
               : 'via',
         label: wp.place ? getSearchResultName(wp.place as Place) : '',
+        address: waypointAddress(wp.place as Place | undefined),
         // Per-waypoint time constraints
         ...constraintRequestFields(wp.timeConstraint),
         ...(i === 0 && wp.place?.id === CURRENT_LOCATION_ID && currentMotion()),

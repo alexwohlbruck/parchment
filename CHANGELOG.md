@@ -4,6 +4,8 @@
 
 ### Changed
 
+* During navigation, the departure list now also shows earlier trains that look too close to catch, so you can switch to one you know you'll make.
+
 ### Fixed
 
 * When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.

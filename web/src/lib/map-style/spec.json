@@ -1828,7 +1828,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@path_surface",
+    "line-color": "@path_line",
     "line-width": [
      "interpolate",
      [
@@ -7190,7 +7190,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@path_surface",
+    "line-color": "@path_line",
     "line-width": [
      "interpolate",
      [

@@ -8,6 +8,9 @@
 
 ### Fixed
 
+* Opening the app with no connection no longer signs you out.
+* Directions without a connection say you're offline, then plan the trip once you're back online.
+
 ## [0.24.1] - 2026-11-21
 
 ### Changed

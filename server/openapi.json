@@ -2401,6 +2401,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {
@@ -2785,6 +2786,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {
@@ -3169,6 +3171,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {
@@ -5836,6 +5839,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {
@@ -6220,6 +6224,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {
@@ -6604,6 +6609,7 @@
                           ]
                         },
                         "address": {
+                          "description": "The address line, e.g. \"139 Rogers Avenue\". The route ends on that street when it runs near the location.",
                           "type": "string"
                         },
                         "label": {

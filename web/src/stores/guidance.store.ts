@@ -597,7 +597,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const end = segments.value.at(-1)?.geometry?.at(-1)
     if (!navRoute || !ridden || !from || !end || index >= segments.value.length - 1) return
     try {
-      const fresh = earliestItinerary(await requestTransitItineraries({ position: from, destination: end, departAt: new Date(ridden.endTime ?? guidanceClock.now()) }))
+      const fresh = earliestItinerary(segments.value.slice(index + 1), await requestTransitItineraries({ position: from, destination: end, departAt: new Date(ridden.endTime ?? guidanceClock.now()) }))
       if (!fresh || route.value !== navRoute) return
       reshape([...segments.value.slice(0, index + 1), ...adoptItinerary(segments.value, index + 1, fresh.segments as LegSegment[])])
     } catch {

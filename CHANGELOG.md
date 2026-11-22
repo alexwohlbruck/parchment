@@ -6,7 +6,17 @@
 
 ### Fixed
 
+## [0.24.2] - 2026-11-22
+
+### Changed
+
+* During navigation, the departure list now also shows earlier trains that look too close to catch, so you can switch to one you know you'll make.
+
+### Fixed
+
+* Faster trips offered during navigation now only use the ways you're already traveling, so a transit trip won't switch you onto a bike share or scooter.
 * When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
+* Transit lines no longer flicker into broken dashes while you pan or zoom out past the city.
 
 ## [0.24.1] - 2026-11-21
 

@@ -6,6 +6,12 @@
 
 ### Fixed
 
+## [0.24.3] - 2026-11-22
+
+### Added
+
+* A Parchment style for the whole app: chart paper, sepia ink and old-style serif titles. Pick it in Settings › Appearance.
+
 ## [0.24.2] - 2026-11-22
 
 ### Changed

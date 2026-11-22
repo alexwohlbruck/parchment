@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.24.2",
+  "version": "0.24.3",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -41,6 +41,7 @@
     "@alexwohlbruck/vaul-vue": "^0.4.5",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
+    "@fontsource/im-fell-english": "^5.3.0",
     "@internationalized/date": "^3.5.4",
     "@mapbox/maki": "^8.2.0",
     "@maplibre/maplibre-gl-style-spec": "^26.9.0",
@@ -111,7 +112,6 @@
   "devDependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/eb-garamond": "^5.3.0",
-    "@fontsource/im-fell-english": "^5.3.0",
     "@fontsource/im-fell-english-sc": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/roboto": "^5.3.0",

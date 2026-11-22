@@ -16,6 +16,7 @@ import { PermissionId } from '../../types/auth.types'
 import {
   describePlace,
   openNow,
+  shownReviews,
   summarizePlace,
 } from '../../lib/ask/place-summary'
 import {
@@ -275,6 +276,7 @@ const getPlace: AskTool<{ id: string }> = {
     )
     if (!place) throw new AskToolError(`No place found for ${id}`)
     context.seen.set(id, { ...place, id })
+    context.reviews.set(id, shownReviews(place))
     return describePlace(
       { ...place, id },
       { now: context.now, origin: context.origin, units: context.units },
@@ -534,6 +536,12 @@ export const answerTool: ChatTool = {
                 type: 'string',
                 description:
                   'What sets it apart for this question, under 10 words. Not its distance or hours.',
+              },
+              reviews: {
+                type: 'array',
+                items: { type: 'number' },
+                description:
+                  'The ref of each get_place review the reason rests on, at most 2. Omit when no review backs it.',
               },
             },
             required: ['id', 'reason'],

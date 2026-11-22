@@ -69,6 +69,7 @@ function context(events: AskEvent[] = []): AskContext {
     routingPreferences: { hills: 0.2, useKnownParkingLocations: true },
     now: new Date('2026-11-20T15:00:00Z'),
     seen: new Map(),
+    reviews: new Map(),
     routes: new Map(),
     sources: new Map(),
     emit: (event) => events.push(event),

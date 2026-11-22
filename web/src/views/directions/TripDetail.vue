@@ -55,7 +55,7 @@ import { useRouteWaypoints } from '@/composables/directions/useRouteWaypoints'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
-import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit/transit-alerts'
+import { splitFeedId, isInEffect, sortByRelevance, withRouteDetours } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'
@@ -152,7 +152,11 @@ function alertQueryForSegment(seg: any): {
       .filter(Boolean) as string[],
   ]
 
-  const stopIds = [td?.departureStop?.id, td?.arrivalStop?.id]
+  const stopIds = [
+    td?.departureStop?.id,
+    ...((td?.stops ?? []) as Array<{ id?: string }>).map((s) => s.id),
+    td?.arrivalStop?.id,
+  ]
     .map((id) => local(id))
     .filter(Boolean) as string[]
 
@@ -184,10 +188,14 @@ async function loadAlerts() {
         .map((d) => (d.tripId ? splitFeedId(d.tripId).localId : null))
         .filter(Boolean) as string[]
 
-      const alerts = await alertsStore.fetchAlerts({
-        ...query,
-        tripIds: [...new Set([...query.tripIds, ...boardTripIds])],
-      })
+      const [onLeg, onRoute] = await Promise.all([
+        alertsStore.fetchAlerts({
+          ...query,
+          tripIds: [...new Set([...query.tripIds, ...boardTripIds])],
+        }),
+        alertsStore.fetchAlerts({ feedId: query.feedId, routeIds: query.routeIds }),
+      ])
+      const alerts = withRouteDetours(onLeg, onRoute)
       if (alerts.length) next[idx] = alerts
     }),
   )

@@ -6,6 +6,22 @@
 
 ### Fixed
 
+## [0.24.0] - 2026-11-21
+
+### Added
+
+* A new Parchment map style drawn like an old engraved sea chart: inked coasts, italic sea names, towns in small capitals and a paper-grained sheet.
+
+### Changed
+
+* The previous default map style is now called Charlotte.
+* Well-known places such as major hospitals, parks and landmarks keep their labels over smaller neighbours, and the biggest now show from further out.
+
+### Fixed
+
+* Trips now show when your train or bus is detoured, so a ride taking an unusual path no longer looks like a wrong plan.
+* Directions to an address now end on that address's street, not whichever street is closest to the building's middle.
+
 ## [0.23.3] - 2026-11-21
 
 ### Added

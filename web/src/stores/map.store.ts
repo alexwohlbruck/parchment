@@ -18,6 +18,7 @@ import {
   StartupLocation,
   GridSnapMode,
   ShadowMode,
+  MAP_STYLE_IDS,
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
@@ -31,7 +32,7 @@ const defaultSettings: MapSettings = {
   engine: MapEngine.MAPLIBRE,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
-  mapStyle: 'parchment',
+  mapStyle: 'charlotte',
   poiStyle: 'badge',
   terrain3d: true,
   buildings3d: true,
@@ -131,6 +132,8 @@ export const useMapStore = defineStore('map', () => {
   settings.value.shadows ??= ShadowMode.ALWAYS
   settings.value.plantDay ??= null
   settings.value.seasons ??= true
+  // A retired style id, such as the one Charlotte had while it was called Parchment.
+  if (!MAP_STYLE_IDS.includes(settings.value.mapStyle)) settings.value.mapStyle = defaultSettings.mapStyle
 
   // HD roads became default-on for MapLibre. A stored `false` from the old
   // default can't be told apart from a chosen one, so clear it once.

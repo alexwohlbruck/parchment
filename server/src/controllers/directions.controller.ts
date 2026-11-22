@@ -37,7 +37,7 @@ const RerouteBodySchema = t.Object({
 
 const WaypointSchema = t.Object({
   location: CoordinateSchema,
-  address: t.Optional(t.String()),
+  address: t.Optional(t.String({ description: 'The address line, e.g. "139 Rogers Avenue". The route ends on that street when it runs near the location.' })),
   label: t.Optional(t.String()),
   type: t.Union([
     t.Literal('origin'),

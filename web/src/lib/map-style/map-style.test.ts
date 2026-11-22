@@ -350,8 +350,8 @@ describe('flavors', () => {
 describe('badge POI treatment', () => {
   const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
 
-  test('there are POI layers to style', () => {
-    expect(poi.length).toBeGreaterThan(5)
+  test('every family draws in one POI layer, beside the stations', () => {
+    expect(poi.map(l => l.id)).toEqual(['POI', 'Station'])
   })
 
   test('no circle layer survives — the badge is its own image', () => {
@@ -908,6 +908,48 @@ describe('badge POI treatment', () => {
  * what ports is the treatment, applied to the family layers we already derive
  * from v2.
  */
+describe('POI importance', () => {
+  const poi = (spec.layers as any[]).find(l => l.id === 'POI')
+  const filter = featureFilter(poi.filter, 'POI.filter')
+  const shows = (zoom: number, properties: Record<string, unknown>) =>
+    filter.filter({ zoom } as any, { type: 1, properties: { name: 'X', ...properties } } as any, {} as any)
+  const sortKey = expression.createExpression(poi.layout['symbol-sort-key'], latest.layout_symbol['symbol-sort-key'] as any)
+  const order = (properties: Record<string, unknown>) =>
+    (sortKey as any).value.evaluate({ zoom: 14 }, { properties })
+
+  test('a landmark shows before z14, a minor place does not', () => {
+    expect(shows(12, { class: 'museum', importance: 55, rank: 1 })).toBe(true)
+    expect(shows(12, { class: 'museum', importance: 45, rank: 1 })).toBe(false)
+    expect(shows(13, { class: 'museum', importance: 45, rank: 1 })).toBe(true)
+    expect(shows(13, { class: 'cafe', importance: 10, rank: 1 })).toBe(false)
+  })
+
+  test('importance gets a place through a crowded cell', () => {
+    expect(shows(14, { class: 'cafe', importance: 10, rank: 6 })).toBe(false)
+    expect(shows(14, { class: 'hospital', importance: 40, rank: 6 })).toBe(true)
+  })
+
+  test('the top of each cell still shows where nothing scores high', () => {
+    expect(shows(14, { class: 'cafe', importance: 2, rank: 1 })).toBe(true)
+  })
+
+  test("importance overrides a family's late minzoom, rank does not", () => {
+    expect(shows(14, { class: 'town_hall', importance: 46, rank: 3 })).toBe(true)
+    expect(shows(14, { class: 'town_hall', importance: 10, rank: 1 })).toBe(false)
+    expect(shows(16, { class: 'town_hall', importance: 10, rank: 1 })).toBe(true)
+  })
+
+  test('an early landmark keeps its badge', () => {
+    const opacity = expression.createExpression(poi.paint['icon-opacity'], latest.paint_symbol['icon-opacity'] as any)
+    expect((opacity as any).value.evaluate({ zoom: 14 }, { properties: { class: 'town_hall', importance: 46 } })).toBe(1)
+  })
+
+  test('places the more important POI first, across families', () => {
+    expect(order({ class: 'museum', importance: 50, rank: 3 })).toBeLessThan(order({ class: 'hospital', importance: 30, rank: 1 }))
+    expect(order({ class: 'parking', rank: 1 })).toBeLessThan(order({ class: 'parking', rank: 2 }))
+  })
+})
+
 describe('glyph-only POI style', () => {
   const badge = buildLayers({ flavor: 'dark' }) as any[]
   const glyph = buildLayers({ flavor: 'dark', poiStyle: 'glyph' }) as any[]
@@ -930,7 +972,7 @@ describe('glyph-only POI style', () => {
     // The badge treatment composites its own image and tints nothing at draw
     // time; this one is a plain sprite glyph the layer tints, in the same
     // colour as its label.
-    expect(l.paint['icon-color']).toBe(l.paint['text-color'])
+    expect(l.paint['icon-color']).toEqual(l.paint['text-color'])
     expect(JSON.stringify(l.layout['icon-image'])).not.toContain('poi|')
   })
 
@@ -939,9 +981,9 @@ describe('glyph-only POI style', () => {
    * not ours — so it must not resolve to the category colours the badge uses.
    */
   test('it uses the v4 family palette, not the app categories', () => {
-    const food = glyph.find(l => l.id === 'Food')
-    expect(food.paint['icon-color']).toBe(darkTokens.poi_v4_food)
-    expect(food.paint['icon-color']).not.toBe(darkTokens.poi_ink_food_and_drink)
+    const color = JSON.stringify(glyph.find(l => l.id === 'POI').paint['icon-color'])
+    expect(color).toContain(darkTokens.poi_v4_food)
+    expect(color).not.toContain(darkTokens.poi_ink_food_and_drink)
   })
 
   test('light and dark differ, in both ink and halo', () => {
@@ -1795,7 +1837,7 @@ describe('label typography', () => {
       WEIGHT[layers.find(l => l.id === id)!.layout['text-font'][0] as keyof typeof WEIGHT]
 
     const street = faceOf('Road labels')
-    const poi = faceOf('Food')
+    const poi = faceOf('POI')
     const station = faceOf('Station')
     expect(street).toBeLessThan(poi)
     expect(poi).toBeLessThan(station)
@@ -1826,7 +1868,6 @@ describe('label typography', () => {
 
   test('the POI labels all take the tight leading', () => {
     const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
-    expect(poi.length).toBeGreaterThan(5)
     for (const l of poi) expect(l.layout['text-line-height'], l.id).toBe(1.05)
   })
 
@@ -2719,7 +2760,7 @@ describe('golf courses', () => {
 
     test(`${flavor}: hole numbers are written like park names`, () => {
       const layers = buildLayers({ flavor }) as any[]
-      const park = layers.find(l => l.id === 'Park')
+      const park = layers.find(l => l.id === 'POI')
       const hole = layers.find(l => l.id === GOLF_HOLE_LABEL_LAYER)
       expect(hole.layout['text-font']).toEqual(park.layout['text-font'])
       expect(hole.paint['text-halo-color']).toBe(park.paint['text-halo-color'])
@@ -2908,7 +2949,7 @@ describe('poiBadgeColors', () => {
   const categoryColors = { education: 'hsl(30, 50%, 70%)' }
 
   test('are the colours the basemap badges a POI of that category with', () => {
-    const education = (buildLayers({ flavor: 'dark', categoryColors }) as any[]).find(l => l.id === 'Education')
+    const education = (buildLayers({ flavor: 'dark', categoryColors }) as any[]).find(l => l.id === 'POI')
     const { plate, ink, ring, lift } = poiBadgeColors('education', 'dark', categoryColors)
     const image = JSON.stringify(education.layout['icon-image'])
     for (const color of [plate, ink, ring, lift]) expect(image).toContain(JSON.stringify(color))

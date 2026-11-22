@@ -33,6 +33,7 @@ import type {
 import { logError, logWarn, logger } from '../../lib/logger'
 import { graphHopperSigns } from '../../lib/graphhopper-signs'
 import { metersBetween } from '../../util/geometry-conversion'
+import { streetHints } from '../../lib/directions/street-hint'
 
 /**
  * GraphHopper integration for routing
@@ -48,7 +49,6 @@ import { metersBetween } from '../../util/geometry-conversion'
  * - Distance influence for shortest vs fastest routes
  *
  * Additional GraphHopper features that could be added:
- * - point_hints: Street name hints for better waypoint snapping
  * - curbsides: Specify approach side (useful for pickups/dropoffs)
  * - headings: Preferred direction at waypoints
  * - pass_through: Avoid U-turns at via points
@@ -292,6 +292,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         ...(snapPreventions && { snap_preventions: snapPreventions }),
         ...(locale && { locale }),
       }
+      const pointHints = streetHints(request.waypoints)
+      if (pointHints) requestBody.point_hints = pointHints
 
       // Apply preferences
       if (request.preferences) {

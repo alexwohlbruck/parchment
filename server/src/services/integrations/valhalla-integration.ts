@@ -200,6 +200,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
           lon: waypoint.coordinate.lng,
           type: this.mapWaypointType(waypoint.type),
           heading: waypoint.heading,
+          street: waypoint.street,
         })),
         costing: this.mapTravelModeToCosting(request.mode),
         costing_options: this.buildCostingOptions(request),

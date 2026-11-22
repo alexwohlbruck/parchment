@@ -32,7 +32,9 @@ async function loadWithLocalFallback(
   placeId: string,
   fetchDetails: () => Promise<unknown>,
 ) {
-  const seeded = seedPlaceFromLocal(placeId) ?? (isOffline.value ? await seedPlaceFromOffline(placeId) : null)
+  // Offline, a saved area's row beats the bare result a search tap leaves behind.
+  const local = seedPlaceFromLocal(placeId)
+  const seeded = (isOffline.value ? await seedPlaceFromOffline(placeId, local) : null) ?? local
   if (seeded) handlePlaceResult(seeded)
   const place = await fetchDetails()
   if (!place && seeded) currentPlace.value = seeded

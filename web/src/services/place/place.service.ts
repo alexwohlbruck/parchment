@@ -14,7 +14,10 @@ import { useRecentsStore } from '@/stores/recents.store'
 import { isSamePlace } from '@/lib/library/external-ids'
 import { localPlace, placeIdExternalIds } from '@/lib/search/local-search'
 import { packageIdFromPlaceId, packagePlaceAsPlace } from '@/lib/offline/search/package-place'
-import { offlinePlace } from '@/services/offline/offline-engine.service'
+import { offlinePlace, searchOffline } from '@/services/offline/offline-engine.service'
+import { haversineMeters } from '@/lib/geo/geo-line'
+
+const SAME_STOP_METRES = 150
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
@@ -328,11 +331,21 @@ function placeService() {
     return null
   }
 
-  /** The place as a saved area holds it, for opening a page with no connection. */
-  async function seedPlaceFromOffline(placeId: string): Promise<Partial<Place> | null> {
+  /**
+   * The place as a saved area holds it, for opening a page with no connection.
+   * A station the map or a recent names by its OSM id is matched to the saved
+   * stop of the same name beside it, which carries the departures.
+   */
+  async function seedPlaceFromOffline(placeId: string, known?: Partial<Place> | null): Promise<Partial<Place> | null> {
     const id = packageIdFromPlaceId(placeId)
     const row = id ? await offlinePlace(id).catch(() => null) : null
-    return row ? (currentPlace.value = packagePlaceAsPlace(row)) : null
+    if (row) return (currentPlace.value = packagePlaceAsPlace(row))
+    const name = known?.name?.value
+    const center = known?.geometry?.value?.center
+    if (!known || !name || !center) return null
+    const nearby = await searchOffline(name, center, 5).catch(() => [])
+    const stop = nearby.find(p => p.transit && haversineMeters(center.lat, center.lng, p.lat, p.lng) < SAME_STOP_METRES)
+    return stop ? (currentPlace.value = { ...known, widgets: packagePlaceAsPlace(stop).widgets }) : null
   }
 
   /**

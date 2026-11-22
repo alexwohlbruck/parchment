@@ -4,6 +4,9 @@
 
 * Save an area of the map, with the layers you choose, and see it with no connection. Find your saved areas under Offline maps.
 * Saved areas also work for search, place details, scheduled departures and walking, cycling and transit directions when you have no connection.
+* Keep a saved area until you delete it, or for a week, a month, a year or until a date you pick.
+* See how much space each layer and feature of a saved area takes before you download it.
+* Pages answered from a saved area say so, since details, live times and closures may be missing.
 
 ### Changed
 

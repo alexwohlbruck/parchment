@@ -4,6 +4,12 @@
 
 ### Changed
 
+### Fixed
+
+## [0.24.2] - 2026-11-22
+
+### Changed
+
 * During navigation, the departure list now also shows earlier trains that look too close to catch, so you can switch to one you know you'll make.
 
 ### Fixed

@@ -79,6 +79,8 @@ export enum AppRoute {
   TRANSIT_ROUTE = 'transit-route',
   DASHBOARD = 'dashboard',
   TIMELINE = 'timeline',
+  OFFLINE_MAPS = 'offline-maps',
+  OFFLINE_MAPS_NEW = 'offline-maps-new',
   NOT_FOUND = 'not-found',
 }
 
@@ -415,6 +417,16 @@ const router = createRouter({
           meta: {
             auth: true,
           },
+        },
+        {
+          path: '/offline-maps',
+          name: AppRoute.OFFLINE_MAPS,
+          component: () => import('@/views/offline/OfflineMaps.vue'),
+        },
+        {
+          path: '/offline-maps/new',
+          name: AppRoute.OFFLINE_MAPS_NEW,
+          component: () => import('@/views/offline/NewOfflineMap.vue'),
         },
       ],
     },

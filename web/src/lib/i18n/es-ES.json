@@ -1391,7 +1391,47 @@
     }
   },
   "offlineMaps": {
-    "title": "Mapas sin conexión"
+    "title": "Mapas sin conexión",
+    "create": "Guardar una zona",
+    "unsupported": "Este navegador no puede guardar mapas sin conexión",
+    "storage": "Los mapas sin conexión ocupan {used} · {free} libres",
+    "empty": {
+      "title": "Aún no hay mapas sin conexión",
+      "description": "Guarda una zona para verla sin conexión"
+    },
+    "region": {
+      "saving": "Guardando · {percent}%",
+      "paused": "En pausa · {percent}%",
+      "failed": "No se pudo guardar 1 parte | No se pudieron guardar {count} partes",
+      "ready": "{size} · Actualizado el {date}"
+    },
+    "actions": {
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "update": "Actualizar",
+      "rename": "Cambiar nombre"
+    },
+    "rename": {
+      "title": "Cambiar nombre del mapa"
+    },
+    "delete": {
+      "title": "¿Eliminar mapa sin conexión?",
+      "description": "{name} volverá a necesitar conexión"
+    },
+    "layers": {
+      "basemap": "Mapa",
+      "terrain": "Relieve 3D"
+    },
+    "new": {
+      "title": "Guardar una zona",
+      "hint": "Mueve y amplía el mapa para encajar la zona en el cuadro",
+      "layers": "Incluir",
+      "summary": "Unos {size} · {width} km de ancho",
+      "tooLarge": "Amplía para elegir una zona más pequeña",
+      "needsConnection": "Conéctate a internet para guardar una zona",
+      "download": "Descargar",
+      "defaultName": "Zona guardada"
+    }
   },
   "timeline": {
     "title": "Cronología",

@@ -1471,7 +1471,47 @@
     }
   },
   "offlineMaps": {
-    "title": "Offline maps"
+    "title": "Offline maps",
+    "create": "Save an area",
+    "unsupported": "This browser can't save maps for offline use",
+    "storage": "Offline maps use {used} · {free} free",
+    "empty": {
+      "title": "No offline maps yet",
+      "description": "Save an area to see it with no connection"
+    },
+    "region": {
+      "saving": "Saving · {percent}%",
+      "paused": "Paused · {percent}%",
+      "failed": "1 part couldn't be saved | {count} parts couldn't be saved",
+      "ready": "{size} · Updated {date}"
+    },
+    "actions": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "update": "Update",
+      "rename": "Rename"
+    },
+    "rename": {
+      "title": "Rename offline map"
+    },
+    "delete": {
+      "title": "Delete offline map?",
+      "description": "{name} will need a connection again"
+    },
+    "layers": {
+      "basemap": "Map",
+      "terrain": "3D terrain"
+    },
+    "new": {
+      "title": "Save an area",
+      "hint": "Move and zoom the map to fit the area in the square",
+      "layers": "Include",
+      "summary": "About {size} · {width} km across",
+      "tooLarge": "Zoom in to pick a smaller area",
+      "needsConnection": "Connect to the internet to save an area",
+      "download": "Download",
+      "defaultName": "Saved area"
+    }
   },
   "timeline": {
     "title": "Timeline",

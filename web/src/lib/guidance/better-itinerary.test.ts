@@ -40,6 +40,17 @@ describe('chooseItinerary', () => {
     expect(chooseItinerary(current, [plan(walk(4), shapeless, walk(20))], NOW)).toBeNull()
   })
 
+  test('never brings in a shared vehicle the current plan does not use', () => {
+    const bikeShare = { mode: 'cycling', ownership: 'shared', endTime: at(15), geometry: line }
+    expect(chooseItinerary(current, [plan(walk(4), ride('B', 10), bikeShare)], NOW)).toBeNull()
+  })
+
+  test('keeps a shared vehicle the current plan already uses', () => {
+    const bikeShare = (end: number) => ({ mode: 'cycling', ownership: 'shared', endTime: at(end), geometry: line })
+    const sharing = [walk(5), ride('A', 30), bikeShare(45)]
+    expect(chooseItinerary(sharing, [plan(walk(4), ride('B', 15), bikeShare(25))], NOW)?.lines).toEqual(['B'])
+  })
+
   test('leaves a leg with a bike or car in it alone', () => {
     const biking = [{ mode: 'cycling', endTime: at(10), geometry: line }, ride('A', 30)]
     expect(chooseItinerary(biking, [plan(walk(4), ride('B', 15), walk(20))], NOW)).toBeNull()
@@ -54,11 +65,17 @@ test('isTransitOnly wants a ride, and nothing personal to bring along', () => {
 })
 
 describe('earliestItinerary', () => {
+  test('skips a plan with a shared vehicle the current plan does not use', () => {
+    const scooter = plan(walk(2), ride('B', 10), { mode: 'scooter', ownership: 'shared', endTime: at(12), geometry: line })
+    const late = plan(walk(2), ride('C', 30), walk(34))
+    expect(earliestItinerary(current, [scooter, late])).toBe(late)
+  })
+
   test('takes the first to arrive among plans without a personal vehicle', () => {
     const drive = plan({ mode: 'driving', endTime: at(10), geometry: line })
     const early = plan(walk(2), ride('B', 20), walk(24))
     const late = plan(walk(2), ride('C', 30), walk(34))
-    expect(earliestItinerary([late, drive, early])).toBe(early)
-    expect(earliestItinerary([drive])).toBeNull()
+    expect(earliestItinerary(current, [late, drive, early])).toBe(early)
+    expect(earliestItinerary(current, [drive])).toBeNull()
   })
 })

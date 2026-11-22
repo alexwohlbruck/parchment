@@ -66,6 +66,7 @@ import { getTimezone } from '../../lib/timezone'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 import { peliasLayerLabel } from '../../lib/place-type-label'
 import { rankCodesByProximity } from '../../lib/barrelman-search-rank'
+import { streetHints } from '../../lib/directions/street-hint'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -1361,6 +1362,9 @@ export class BarrelmanIntegration
         'bike_priority',
       ],
     }
+
+    const pointHints = streetHints(request.waypoints)
+    if (pointHints) requestBody.point_hints = pointHints
 
     // Favour leaving in the direction already travelled, so a reroute
     // doesn't start with a U-turn.

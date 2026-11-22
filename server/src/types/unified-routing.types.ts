@@ -49,6 +49,7 @@ export interface RouteWaypoint {
   // Routing hints
   heading?: number // preferred direction (0-360)
   radius?: number // search radius in meters
+  street?: string // snap onto this street when one is near
 }
 
 export interface VehicleConfig {

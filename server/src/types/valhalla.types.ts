@@ -1,6 +1,8 @@
 export type Location = {
   type: 'coordinates' // | 'place' | 'address'
   value: [number, number] // | string
+  /** The street the place is addressed on, to snap there rather than to the nearest road. */
+  street?: string
 }
 
 export type Directions = {

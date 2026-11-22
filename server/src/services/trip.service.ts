@@ -60,6 +60,9 @@ import {
   type CoveredBoard,
 } from '../lib/directions/departure-profile'
 import { expectedMissPenaltySec } from '../lib/directions/connection-risk'
+import { waypointLocation } from '../lib/directions/street-hint'
+
+type WalkEndpoint = Pick<Waypoint, 'location' | 'address'>
 
 /** A leg that carries an already-chosen journey on to the next stop. */
 interface Continuation {
@@ -1073,11 +1076,8 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          {
-            type: 'coordinates',
-            value: [from.location.lat, from.location.lng],
-          },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'pedestrian',
         preferences,
@@ -1156,10 +1156,7 @@ export class TripService {
       // Walk to car
       const walkRoute = await routingService.getRoute(
         [
-          {
-            type: 'coordinates',
-            value: [from.location.lat, from.location.lng],
-          },
+          waypointLocation(from),
           { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
         ],
         'pedestrian',
@@ -1170,7 +1167,7 @@ export class TripService {
       const driveRoute = await routingService.getRoute(
         [
           { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(to),
         ],
         'auto',
         preferences,
@@ -1253,11 +1250,8 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          {
-            type: 'coordinates',
-            value: [from.location.lat, from.location.lng],
-          },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'auto',
         preferences,
@@ -1419,7 +1413,7 @@ export class TripService {
           if (distToCar > 50) {
             const walkRoute = await routingService.getRoute(
               [
-                { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+                waypointLocation(from),
                 { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
               ],
               'pedestrian',
@@ -1517,7 +1511,7 @@ export class TripService {
         const walkRoute = await routingService.getRoute(
           [
             { type: 'coordinates', value: [parkingCoord.lat, parkingCoord.lng] },
-            { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+            waypointLocation(to),
           ],
           'pedestrian',
           preferences,
@@ -1695,7 +1689,7 @@ export class TripService {
           if (distToBike > 50) {
             const walkRoute = await routingService.getRoute(
               [
-                { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+                waypointLocation(from),
                 { type: 'coordinates', value: [bikeLocation.lat, bikeLocation.lng] },
               ],
               'pedestrian',
@@ -1780,7 +1774,7 @@ export class TripService {
         const walkRoute = await routingService.getRoute(
           [
             { type: 'coordinates', value: [parkingCoord.lat, parkingCoord.lng] },
-            { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+            waypointLocation(to),
           ],
           'pedestrian',
           preferences,
@@ -1952,10 +1946,7 @@ export class TripService {
       // Walk to bike
       const walkRoute = await routingService.getRoute(
         [
-          {
-            type: 'coordinates',
-            value: [from.location.lat, from.location.lng],
-          },
+          waypointLocation(from),
           { type: 'coordinates', value: [bikeLocation.lat, bikeLocation.lng] },
         ],
         'pedestrian',
@@ -1966,7 +1957,7 @@ export class TripService {
       const bikeRoute = await routingService.getRoute(
         [
           { type: 'coordinates', value: [bikeLocation.lat, bikeLocation.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(to),
         ],
         'bicycle',
         preferences,
@@ -2047,11 +2038,8 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          {
-            type: 'coordinates',
-            value: [from.location.lat, from.location.lng],
-          },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'bicycle',
         preferences,
@@ -2139,8 +2127,8 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'auto',
         { ...(request.routingPreferences || {}), language: request.language },
@@ -3032,8 +3020,8 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'pedestrian',
         preferences,
@@ -3373,23 +3361,21 @@ export class TripService {
   private walkRouteCache = new MemoCache<Awaited<ReturnType<typeof routingService.getRoute>>>({ max: 500 })
 
   private cachedWalkRoute(
-    start: Coordinate,
-    end: Coordinate,
+    start: WalkEndpoint,
+    end: WalkEndpoint,
     preferences?: any,
   ): Promise<Awaited<ReturnType<typeof routingService.getRoute>>> {
+    const from = waypointLocation(start)
+    const to = waypointLocation(end)
     // Preferences ride in the key: they change the route and the language of
     // its instructions, so two requests may share endpoints but not a result.
     const key = [
-      start.lat.toFixed(5), start.lng.toFixed(5),
-      end.lat.toFixed(5), end.lng.toFixed(5),
+      ...[from, to].flatMap((l) => [l.value[0].toFixed(5), l.value[1].toFixed(5), l.street ?? '']),
       JSON.stringify(preferences ?? null),
     ].join(',')
 
     return this.walkRouteCache.get(key, () => routingService.getRoute(
-      [
-        { type: 'coordinates', value: [start.lat, start.lng] },
-        { type: 'coordinates', value: [end.lat, end.lng] },
-      ],
+      [from, to],
       'pedestrian',
       preferences,
     ))
@@ -3453,7 +3439,7 @@ export class TripService {
     const meters = await Promise.all(guesses.map((e) => {
       const door = { lat: e.lat, lng: e.lon }
       const [from, to] = end === 'board' ? [street, door] : [door, street]
-      return this.cachedWalkRoute(from, to, preferences)
+      return this.cachedWalkRoute({ location: from }, { location: to }, preferences)
         .then((r) => r.routes[0]?.legs[0]?.distance ?? null)
         .catch(() => null)
     }))
@@ -3666,8 +3652,8 @@ export class TripService {
         // 3. GraphHopper re-route between the (possibly moved) endpoints
         try {
           const route = await this.cachedWalkRoute(
-            seg.start.location,
-            seg.end.location,
+            seg.start,
+            seg.end,
             preferences,
           )
           if (!route.routes.length) return
@@ -3770,8 +3756,8 @@ export class TripService {
         try {
           const route = await routingService.getRoute(
             [
-              { type: 'coordinates', value: [seg.start.location.lat, seg.start.location.lng] },
-              { type: 'coordinates', value: [seg.end.location.lat, seg.end.location.lng] },
+              waypointLocation(seg.start),
+              waypointLocation(seg.end),
             ],
             'bicycle',
             preferences,
@@ -4022,8 +4008,8 @@ export class TripService {
     const geometryPromise = routingService
       .getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          waypointLocation(from),
+          waypointLocation(to),
         ],
         'auto',
         preferences,

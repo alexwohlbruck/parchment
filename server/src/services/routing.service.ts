@@ -76,6 +76,7 @@ export class RoutingService {
         lat: location.value[0], // Frontend sends [lat, lng]
         lng: location.value[1],
       },
+      street: location.street,
       type:
         index === 0 || index === locations.length - 1
           ? WaypointType.STOP

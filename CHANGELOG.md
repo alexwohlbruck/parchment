@@ -7,6 +7,7 @@
 ### Changed
 
 * The previous default map style is now called Charlotte.
+* Well-known places such as major hospitals, parks and landmarks keep their labels over smaller neighbours, and the biggest now show from further out.
 
 ### Fixed
 

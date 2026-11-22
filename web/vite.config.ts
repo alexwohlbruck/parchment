@@ -209,6 +209,9 @@ export default defineConfig({
           // Search and directions in saved areas run here; with no connection
           // it can only come from the precache.
           'assets/offline-engine.worker-*.js',
+          // A stop's departures board, which saved areas answer offline.
+          'assets/TransitWidget-*.js',
+          'assets/ServiceAlerts*.js',
         ],
         // The single entry chunk is ~8MB; the default 2MB cap would silently
         // drop it from the precache and break offline startup.

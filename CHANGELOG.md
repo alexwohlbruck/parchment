@@ -3,6 +3,7 @@
 ### Added
 
 * Save an area of the map, with the layers you choose, and see it with no connection. Find your saved areas under Offline maps.
+* Saved areas also work for search, place details, scheduled departures and walking, cycling and transit directions when you have no connection.
 
 ### Changed
 

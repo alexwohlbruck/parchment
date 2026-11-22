@@ -37,6 +37,14 @@ export function isTransitOnly(segments: ItinerarySegment[]): boolean {
   return segments.some(s => s.mode === 'transit') && segments.every(s => OWN_LEGS.has(s.mode) || s.ownership === 'shared')
 }
 
+const vehicleKey = (s: ItinerarySegment) => `${s.mode}:${s.ownership ?? ''}`
+
+/** Brings along no kind of vehicle, a shared bike say, that `remaining` doesn't already use. */
+export function keepsModes(remaining: ItinerarySegment[], candidate: ItinerarySegment[]): boolean {
+  const used = new Set(remaining.map(vehicleKey))
+  return candidate.every(s => OWN_LEGS.has(s.mode) || used.has(vehicleKey(s)))
+}
+
 /** Each ride by its vehicle run, each other leg by its mode: the same plan found again has the same one. */
 function signature(segments: ItinerarySegment[]): string {
   return segments.map(s => (s.mode === 'transit' ? s.tripId ?? s.lineName ?? '' : s.mode)).join('|')
@@ -51,8 +59,8 @@ export function neededGain(plannedEndMs: number, nowMs: number): number {
 }
 
 /** The candidate that arrives first, for when the plan being followed no longer connects. */
-export function earliestItinerary<T extends Itinerary>(candidates: T[]): T | null {
-  return candidates.filter(c => isFollowable(c.segments)).sort((a, b) => ms(a.endTime) - ms(b.endTime))[0] ?? null
+export function earliestItinerary<T extends Itinerary>(remaining: ItinerarySegment[], candidates: T[]): T | null {
+  return candidates.filter(c => isFollowable(c.segments) && keepsModes(remaining, c.segments)).sort((a, b) => ms(a.endTime) - ms(b.endTime))[0] ?? null
 }
 
 /** The candidate worth interrupting for, if any; `remaining` is the rest of the plan being followed. */
@@ -64,7 +72,7 @@ export function chooseItinerary<T extends Itinerary>(remaining: ItinerarySegment
   let best: ItineraryOffer<T> | null = null
   for (const candidate of candidates) {
     const segments = candidate.segments
-    if (!isFollowable(segments)) continue
+    if (!isFollowable(segments) || !keepsModes(remaining, segments)) continue
     if (signature(segments) === current) continue
     const gainMs = plannedEnd - ms(candidate.endTime)
     if (gainMs >= needed && (!best || gainMs > best.gainMs)) {

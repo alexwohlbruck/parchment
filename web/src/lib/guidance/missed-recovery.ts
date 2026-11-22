@@ -1,7 +1,7 @@
 // After a missed boarding: wait for the same line's next run, or ride something else.
 
 import { SAME_RUN_MS } from '@/lib/transit/run'
-import { isFollowable, neededGain, type Itinerary, type ItinerarySegment } from './better-itinerary'
+import { isFollowable, keepsModes, neededGain, type Itinerary, type ItinerarySegment } from './better-itinerary'
 
 interface RecoveryStop {
   id?: string
@@ -71,7 +71,7 @@ function asPlan<T extends Itinerary<RecoverySegment>>(itinerary: T, plannedEndMs
 /** What to offer a rider who missed `missed`, from plans fresh from where they stand. */
 export function classifyRecovery<T extends Itinerary<RecoverySegment>>(missed: MissedRide, candidates: T[], nowMs: number): Recovery<T> | null {
   const plans = candidates
-    .filter(c => isFollowable(c.segments))
+    .filter(c => isFollowable(c.segments) && keepsModes(missed.remaining, c.segments))
     .map(c => asPlan(c, missed.plannedEndMs))
     .filter(p => Number.isFinite(p.arrivalMs) && p.departureMs >= nowMs)
     .sort((a, b) => a.arrivalMs - b.arrivalMs)

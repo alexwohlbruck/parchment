@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { useStorage } from '@vueuse/core'
+import { useEventListener, useStorage } from '@vueuse/core'
 import { isOffline, onReconnected } from '@/lib/connectivity'
 import { planRegion } from '@/lib/offline/region-plan'
 import { TIMETABLE_REFRESH_MS } from '@/lib/offline/packages'
+import { isExpired } from '@/lib/offline/expiry'
 import {
   downloadRegion,
   isOfflineStorageSupported,
@@ -85,6 +86,7 @@ export const useOfflineStore = defineStore('offline', () => {
     bounds: Bounds
     options: OfflineLayerOption[]
     packages: OfflinePackageKind[]
+    keepUntil: string | null
   }) {
     const plan = planRegion(input.bounds, input.options)
     const packages = packageRefs(input.packages, input.bounds)
@@ -97,6 +99,7 @@ export const useOfflineStore = defineStore('offline', () => {
       sources: plan.sources,
       files: plan.files,
       packages,
+      ...(input.keepUntil && { keepUntil: input.keepUntil }),
       status: 'downloading',
       total: plan.total + packages.length,
       saved: 0,
@@ -123,12 +126,24 @@ export const useOfflineStore = defineStore('offline', () => {
     patch(id, { name })
   }
 
-  async function remove(id: string) {
-    downloads.get(id)?.abort()
-    regions.value = regions.value.filter(r => r.id !== id)
+  function setKeepUntil(id: string, keepUntil: string | null) {
+    const region = find(id)
+    if (!region) return
+    if (keepUntil) region.keepUntil = keepUntil
+    else delete region.keepUntil
+  }
+
+  async function removeWhere(drop: (region: OfflineRegion) => boolean) {
+    const dropped = regions.value.filter(drop)
+    if (!dropped.length) return
+    for (const region of dropped) downloads.get(region.id)?.abort()
+    regions.value = regions.value.filter(r => !drop(r))
     await pruneOfflineCache(regions.value)
     await refreshUsage()
   }
+
+  const remove = (id: string) => removeWhere(r => r.id === id)
+  const removeExpired = () => removeWhere(r => isExpired(r.keepUntil))
 
   /** Fetch timetables again well before they run out, so offline departures stay current. */
   async function refreshTimetables() {
@@ -149,8 +164,10 @@ export const useOfflineStore = defineStore('offline', () => {
     void refreshTimetables()
   }
 
+  void removeExpired()
   resumeInterrupted()
   onReconnected(resumeInterrupted)
+  useEventListener(document, 'visibilitychange', () => document.visibilityState === 'visible' && void removeExpired())
   watch(
     () =>
       regions.value
@@ -179,6 +196,7 @@ export const useOfflineStore = defineStore('offline', () => {
     resume,
     update,
     rename,
+    setKeepUntil,
     remove,
   }
 })

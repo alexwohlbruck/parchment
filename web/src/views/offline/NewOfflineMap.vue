@@ -3,9 +3,11 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { watchDebounced } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import { DownloadIcon } from 'lucide-vue-next'
+import { ChevronsUpDownIcon, DownloadIcon } from 'lucide-vue-next'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import RegionFrame from '@/components/offline/RegionFrame.vue'
+import KeepUntilPicker from '@/components/offline/KeepUntilPicker.vue'
+import StorageMeter, { type StoragePart } from '@/components/offline/StorageMeter.vue'
 import SheetFooter from '@/components/sheet/SheetFooter.vue'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -64,9 +66,14 @@ function toggle(id: string, on: boolean) {
 const chosen = computed(() => options.value.filter(isChosen))
 
 const FEATURES = [
-  { id: 'search', icon: 'SearchIcon', packages: ['places'] },
-  { id: 'directions', icon: 'RouteIcon', packages: ['streets', 'timetable'] },
-] as const satisfies readonly { id: string; icon: string; packages: readonly OfflinePackageKind[] }[]
+  { id: 'search', icon: 'SearchIcon', color: 'coral', packages: ['places'] },
+  { id: 'directions', icon: 'RouteIcon', color: 'teal', packages: ['streets', 'timetable'] },
+] as const satisfies readonly { id: string; icon: string; color: string; packages: readonly OfflinePackageKind[] }[]
+
+const LAYER_COLORS: Record<string, string> = { [BASEMAP_OPTION_ID]: 'cobalt', [TERRAIN_OPTION_ID]: 'forest' }
+const MORE_LAYER_COLORS = ['violet', 'amber', 'sky', 'magenta', 'olive', 'periwinkle']
+
+const keepUntil = ref<string | null>(null)
 
 const features = ref(new Set<string>(FEATURES.map(f => f.id)))
 
@@ -103,14 +110,39 @@ watchDebounced(
 )
 const tooLarge = computed(() => (plan.value?.total ?? 0) > MAX_TILES)
 
+const parts = computed<StoragePart[]>(() => {
+  const area = bounds.value
+  if (!area || !plan.value) return []
+  let more = 0
+  const layers = chosen.value.map(o => ({
+    id: o.id,
+    label: optionName(o),
+    bytes: plan.value!.optionBytes[o.id] ?? 0,
+    color: LAYER_COLORS[o.id] ?? MORE_LAYER_COLORS[more++ % MORE_LAYER_COLORS.length],
+  }))
+  const extras = FEATURES.filter(f => features.value.has(f.id)).map(f => ({
+    id: f.id,
+    label: t(`offlineMaps.features.${f.id}`),
+    bytes: estimatePackageBytes(f.packages, area),
+    color: f.color,
+  }))
+  return [...layers, ...extras]
+})
+
 const summary = computed(() => {
   if (!bounds.value || !plan.value) return ''
   if (tooLarge.value) return t('offlineMaps.new.tooLarge')
   return t('offlineMaps.new.summary', {
-    size: formatBytes(plan.value.estimatedBytes + estimatePackageBytes(packages.value, bounds.value), locale.value),
+    size: formatBytes(parts.value.reduce((sum, p) => sum + p.bytes, 0), locale.value),
     width: Math.round(boundsWidthKm(bounds.value)),
   })
 })
+
+const free = computed(() => {
+  const usage = offlineStore.usage
+  return usage?.quota ? t('offlineMaps.new.free', { size: formatBytes(usage.quota - usage.usage, locale.value) }) : ''
+})
+void offlineStore.refreshUsage()
 
 const optionName = (o: OfflineLayerOption) => {
   if (o.id === BASEMAP_OPTION_ID) return t('offlineMaps.layers.basemap')
@@ -139,6 +171,7 @@ async function save() {
       bounds: area,
       options: chosen.value,
       packages: packages.value,
+      keepUntil: keepUntil.value,
     })
     router.replace({ name: AppRoute.OFFLINE_MAPS })
   } finally {
@@ -180,12 +213,23 @@ async function save() {
       </label>
     </div>
 
+    <KeepUntilPicker v-slot="{ label, open }" v-model="keepUntil">
+      <button type="button" class="mt-3 flex w-full cursor-pointer items-center gap-3 rounded-lg px-1 py-2 text-left text-sm" @click="open">
+        <ItemIcon icon="CalendarClockIcon" color="parchment" size="sm" variant="ghost" />
+        <span class="flex-1">{{ t('offlineMaps.keep.title') }}</span>
+        <span class="text-muted-foreground">{{ label }}</span>
+        <ChevronsUpDownIcon class="size-4 text-muted-foreground" />
+      </button>
+    </KeepUntilPicker>
+
     <SheetFooter
       class="flex flex-col gap-2 px-4 pt-2 pb-3 md:-mx-4 md:-mb-4 bg-background/80 backdrop-blur-xl border-t border-border/50"
     >
-      <p class="px-1 text-sm" :class="tooLarge ? 'text-destructive' : 'text-muted-foreground'">
-        {{ isOffline ? t('offlineMaps.new.needsConnection') : summary }}
-      </p>
+      <div class="flex items-baseline gap-2 px-1 text-sm" :class="tooLarge ? 'text-destructive' : 'text-muted-foreground'">
+        <span class="flex-1">{{ isOffline ? t('offlineMaps.new.needsConnection') : summary }}</span>
+        <span v-if="free && !isOffline && !tooLarge" class="text-xs">{{ free }}</span>
+      </div>
+      <StorageMeter v-if="!isOffline && !tooLarge && parts.length" :parts="parts" class="px-1 pb-1" />
       <Button :disabled="!bounds || tooLarge || isOffline || saving" class="gap-2" @click="save">
         <DownloadIcon class="size-4" />
         {{ t('offlineMaps.new.download') }}

@@ -29,6 +29,8 @@ export interface RegionPlan {
   files: string[]
   total: number
   estimatedBytes: number
+  /** Estimated bytes per option id; a source or file two options share counts toward the first. */
+  optionBytes: Record<string, number>
 }
 
 /** `sampledBytes` gives the measured size of one tile from a source, when known. */
@@ -39,27 +41,35 @@ export function planRegion(
 ): RegionPlan {
   const seen = new Set<string>()
   const sources: OfflineSource[] = []
+  const files = new Set<string>()
+  const optionBytes: Record<string, number> = {}
   let tiles = 0
-  let estimatedBytes = 0
-  for (const source of options.flatMap(o => o.sources)) {
-    if (seen.has(source.tiles[0])) continue
-    seen.add(source.tiles[0])
-    const zooms = countTilesByZoom(source, bounds)
-    const count = zooms.reduce((sum, z) => sum + z.count, 0)
-    if (!count) continue
-    sources.push(source)
-    tiles += count
-    const sample = sampledBytes(source)
-    for (const { z, count: n } of zooms) {
-      estimatedBytes +=
-        n * (sample === undefined ? AVERAGE_TILE_BYTES[source.kind] : scaledTileBytes(sample, source.maxzoom, z))
+  for (const option of options) {
+    let bytes = 0
+    const optionFiles = [...option.files]
+    for (const source of option.sources) {
+      if (seen.has(source.tiles[0])) continue
+      seen.add(source.tiles[0])
+      const zooms = countTilesByZoom(source, bounds)
+      const count = zooms.reduce((sum, z) => sum + z.count, 0)
+      if (!count) continue
+      sources.push(source)
+      optionFiles.push(...(source.files ?? []))
+      tiles += count
+      const sample = sampledBytes(source)
+      for (const { z, count: n } of zooms) {
+        bytes += n * (sample === undefined ? AVERAGE_TILE_BYTES[source.kind] : scaledTileBytes(sample, source.maxzoom, z))
+      }
     }
+    for (const file of optionFiles) {
+      if (files.has(file)) continue
+      files.add(file)
+      bytes += AVERAGE_FILE_BYTES
+    }
+    optionBytes[option.id] = bytes
   }
-  const files = [
-    ...new Set([...options.flatMap(o => o.files), ...sources.flatMap(s => s.files ?? [])]),
-  ]
-  estimatedBytes += files.length * AVERAGE_FILE_BYTES
-  return { sources, files, total: tiles + files.length, estimatedBytes }
+  const estimatedBytes = Object.values(optionBytes).reduce((sum, b) => sum + b, 0)
+  return { sources, files: [...files], total: tiles + files.size, estimatedBytes, optionBytes }
 }
 
 export function* regionUrls(region: Pick<OfflineRegion, 'bounds' | 'sources' | 'files'>): Generator<string> {

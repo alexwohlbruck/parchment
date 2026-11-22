@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  CalendarClockIcon,
   MoreHorizontalIcon,
   PauseIcon,
   PencilIcon,
@@ -23,6 +24,8 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map/map.service'
 import { useOfflineStore } from '@/stores/offline.store'
 import { formatBytes } from '@/lib/offline/format'
+import { dayAsDate } from '@/lib/offline/expiry'
+import KeepUntilPicker from '@/components/offline/KeepUntilPicker.vue'
 import type { OfflineRegion } from '@/types/offline.types'
 
 const props = defineProps<{ region: OfflineRegion }>()
@@ -47,14 +50,26 @@ const detail = computed(() => {
     case 'failed':
       return t('offlineMaps.region.failed', r.failed)
     default: {
-      const day = (date: string) => new Date(date).toLocaleDateString(locale.value, { month: 'short', day: 'numeric' })
+      const day = (date: Date) => date.toLocaleDateString(locale.value, { month: 'short', day: 'numeric' })
       const size = formatBytes(r.bytes, locale.value)
+      if (r.keepUntil) return t('offlineMaps.region.keepUntil', { size, date: day(dayAsDate(r.keepUntil)) })
       return r.timetableUntil
-        ? t('offlineMaps.region.readyTransit', { size, date: day(`${r.timetableUntil}T12:00:00`) })
-        : t('offlineMaps.region.ready', { size, date: day(r.updatedAt) })
+        ? t('offlineMaps.region.readyTransit', { size, date: day(dayAsDate(r.timetableUntil)) })
+        : t('offlineMaps.region.ready', { size, date: day(new Date(r.updatedAt)) })
     }
   }
 })
+
+const keepOpen = ref(false)
+let openKeepOnClose = false
+const armKeep = () => (openKeepOnClose = true)
+
+function keepAfterMenu(event: Event) {
+  if (!openKeepOnClose) return
+  openKeepOnClose = false
+  event.preventDefault()
+  keepOpen.value = true
+}
 
 function show() {
   const [minLng, minLat, maxLng, maxLat] = props.region.bounds
@@ -123,25 +138,36 @@ async function remove() {
         <RefreshCwIcon v-else class="size-4" />
       </Button>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child @click.stop>
-          <Button variant="ghost" size="icon" class="shrink-0">
-            <MoreHorizontalIcon class="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem :disabled="region.status === 'downloading'" @click="offlineStore.update(region.id)">
-            <RefreshCwIcon class="size-4" /> {{ t('offlineMaps.actions.update') }}
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="rename">
-            <PencilIcon class="size-4" /> {{ t('offlineMaps.actions.rename') }}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem class="text-destructive" @click="remove">
-            <Trash2Icon class="size-4" /> {{ t('general.delete') }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <KeepUntilPicker
+        v-model:open="keepOpen"
+        :model-value="region.keepUntil ?? null"
+        @update:model-value="offlineStore.setKeepUntil(region.id, $event)"
+      >
+        <div class="shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child @click.stop>
+              <Button variant="ghost" size="icon" class="shrink-0">
+                <MoreHorizontalIcon class="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" @close-auto-focus="keepAfterMenu">
+              <DropdownMenuItem :disabled="region.status === 'downloading'" @click="offlineStore.update(region.id)">
+                <RefreshCwIcon class="size-4" /> {{ t('offlineMaps.actions.update') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="armKeep">
+                <CalendarClockIcon class="size-4" /> {{ t('offlineMaps.actions.keep') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="rename">
+                <PencilIcon class="size-4" /> {{ t('offlineMaps.actions.rename') }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem class="text-destructive" @click="remove">
+                <Trash2Icon class="size-4" /> {{ t('general.delete') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </KeepUntilPicker>
     </template>
   </ItemRow>
 </template>

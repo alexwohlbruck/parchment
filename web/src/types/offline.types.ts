@@ -48,6 +48,8 @@ export interface OfflineRegion {
   /** Last service day the saved timetable covers, `YYYY-MM-DD`. */
   timetableUntil?: string
   timetableSavedAt?: string
+  /** Deleted after this local day, `YYYY-MM-DD`; absent keeps it until the user deletes it. */
+  keepUntil?: string
   status: OfflineRegionStatus
   total: number
   saved: number

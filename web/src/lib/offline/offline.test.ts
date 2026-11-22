@@ -196,6 +196,8 @@ describe('planRegion', () => {
     expect(plan.sources.map(s => s.tiles[0])).toEqual(['https://t/nyc/{z}/{x}/{y}'])
     expect(plan.files).toEqual(['https://t/index.json', 'https://t/nyc/style.json'])
     expect(plan.total).toBe(5)
+    expect(plan.optionBytes.b).toBe(0)
+    expect(plan.optionBytes.a).toBe(plan.estimatedBytes)
     expect([...regionUrls({ bounds: MIDTOWN, ...plan })]).toHaveLength(5)
   })
 })

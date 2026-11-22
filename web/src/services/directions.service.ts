@@ -21,6 +21,11 @@ import { usePlaceService } from '@/services/place/place.service'
 import { constraintRequestFields } from '@/lib/directions/waypoint-time'
 import { mapCandidate } from '@/lib/directions/trip-response'
 import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
+import { isOffline } from '@/lib/connectivity'
+import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-errors'
+import { i18n } from '@/lib/i18n'
+import { stepText } from '@/lib/guidance/instructions/instruction-text'
+import { hasOfflineRegions, planOffline } from '@/services/offline/offline-engine.service'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -190,10 +195,16 @@ function directionsService() {
         return
       }
 
-      const { data } = await api.post('/directions/', request, {
-        signal: controller.signal,
-        timeout: 30_000,
-      })
+      const data = isOffline.value
+        ? await planFromSavedAreas(request)
+        : await api
+            .post('/directions/', request, { signal: controller.signal, timeout: 30_000 })
+            .then(r => r.data)
+            .catch(async error => {
+              if (!isRetriableNetworkError(getNetworkErrorKind(error))) throw error
+              return (await planFromSavedAreas(request)) ?? Promise.reject(error)
+            })
+      if (!data) throw new Error('No saved area covers this trip')
 
       const response = await toTripsResponse(data, validWaypoints, request)
 
@@ -217,6 +228,25 @@ function directionsService() {
         abortController.value = null
       }
     }
+  }
+
+  /** Trips planned on the device from saved areas, or null when none covers the trip. */
+  async function planFromSavedAreas(request: ReturnType<typeof buildTripRequest>) {
+    if (!hasOfflineRegions()) return null
+    const ends = [request.waypoints[0], request.waypoints.at(-1)!]
+    const response = await planOffline({
+      origin: ends[0].location,
+      destination: ends[1].location,
+      selectedMode: request.selectedMode,
+      departAfter: request.preferredDepartureTime ? Date.parse(request.preferredDepartureTime) : Date.now(),
+      requestId: request.requestId,
+    })
+    if (!response?.trips.length) return null
+    const t = (i18n.global as unknown as { t: (key: string, named?: Record<string, unknown>) => string }).t
+    for (const { trip } of response.trips) {
+      for (const segment of trip.segments) for (const step of segment.instructions) step.text = stepText(step, t)
+    }
+    return { ...response, request }
   }
 
   /** The planner's answer for these waypoints, as the trips the panel lists. */

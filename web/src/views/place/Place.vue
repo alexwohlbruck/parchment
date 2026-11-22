@@ -15,11 +15,11 @@ import { useRecentsStore } from '@/stores/recents.store'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace, seedPlaceFromLocal } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace, seedPlaceFromLocal, seedPlaceFromOffline } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
-const { onReconnected } = useConnectivity()
+const { isOffline, onReconnected } = useConnectivity()
 const markerLngLat = shallowRef<LngLat | null>(null)
 const recentsStore = useRecentsStore()
 
@@ -32,7 +32,7 @@ async function loadWithLocalFallback(
   placeId: string,
   fetchDetails: () => Promise<unknown>,
 ) {
-  const seeded = seedPlaceFromLocal(placeId)
+  const seeded = seedPlaceFromLocal(placeId) ?? (isOffline.value ? await seedPlaceFromOffline(placeId) : null)
   if (seeded) handlePlaceResult(seeded)
   const place = await fetchDetails()
   if (!place && seeded) currentPlace.value = seeded

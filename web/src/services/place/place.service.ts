@@ -13,6 +13,8 @@ import { usePlaceCacheStore, buildPlaceCacheKey } from '@/stores/place-cache.sto
 import { useRecentsStore } from '@/stores/recents.store'
 import { isSamePlace } from '@/lib/library/external-ids'
 import { localPlace, placeIdExternalIds } from '@/lib/search/local-search'
+import { packageIdFromPlaceId, packagePlaceAsPlace } from '@/lib/offline/search/package-place'
+import { offlinePlace } from '@/services/offline/offline-engine.service'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
@@ -326,6 +328,13 @@ function placeService() {
     return null
   }
 
+  /** The place as a saved area holds it, for opening a page with no connection. */
+  async function seedPlaceFromOffline(placeId: string): Promise<Partial<Place> | null> {
+    const id = packageIdFromPlaceId(placeId)
+    const row = id ? await offlinePlace(id).catch(() => null) : null
+    return row ? (currentPlace.value = packagePlaceAsPlace(row)) : null
+  }
+
   /**
    * Fetch place details by name near a coordinate — the fallback for a place
    * that has a label but no id we can look up (a geocoder hit whose source we
@@ -410,6 +419,7 @@ function placeService() {
     fetchPlaceDetailsByCoordinates,
     setPartialPlace,
     seedPlaceFromLocal,
+    seedPlaceFromOffline,
     findCachedPlace,
     clearPlace,
     setBookmarkStatus,

@@ -1,7 +1,8 @@
 /**
  * The runs a rider could have boarded instead of the planned one: any run of
  * the leg's interchangeable routes leaving the boarding stop around the
- * planned time, and runs of other routes that also reach the alighting stop.
+ * planned time, and runs of other routes that also reach the alighting stop
+ * or share the leg's next stop, so a rider on one that ends early can be told apart.
  */
 
 export interface BoardDeparture {
@@ -94,6 +95,7 @@ export function boardingCandidates(input: {
   const to = input.toMs ?? input.plannedMs + LATE_MINUTES * 60_000
   const routes = new Set(input.routes)
   const alightId = input.later.at(-1)?.stopId
+  const nextId = input.later[0]?.stopId
   const callsByTrip = new Map<string, Map<string, number>>()
   for (const stop of input.later) {
     for (const d of departuresOf(stop.boards)) {
@@ -118,7 +120,8 @@ export function boardingCandidates(input: {
     const sameDirection = input.directionId == null || d.directionId == null || String(d.directionId) === String(input.directionId)
     const interchangeable = !!d.route.shortName && routes.has(d.route.shortName) && sameDirection
     const reachesAlight = calls.some((c) => c.stopId === alightId)
-    if (!interchangeable && !reachesAlight) continue
+    const sharesNextStop = !!nextId && calls[0]?.stopId === nextId
+    if (!interchangeable && !reachesAlight && !sharesNextStop) continue
     out.push({
       tripId: d.tripId,
       route: d.route,

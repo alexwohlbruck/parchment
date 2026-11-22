@@ -36,6 +36,10 @@ export interface StopObservation {
 export interface RideEvidence {
   /** When the rider left the boarding stop at vehicle speed. */
   boardedAtMs: number | null
+  /** The last fix placing the rider at the boarding stop: no run that left before it was boarded. */
+  seenAtBoardMs: number | null
+  /** When guidance took the rider as aboard, GPS or not: no run that left after it was boarded. */
+  ridingSinceMs: number | null
   stops: StopObservation[]
   /** The next planned stop when the rider left the planned path for good. */
   divergedBefore: string | null
@@ -49,6 +53,8 @@ export interface RideSample {
   snapped: boolean
   position: LngLat
   nowMs: number
+  /** When the fix behind this sample was taken; the sample may repeat a stale one. */
+  fixMs?: number
 }
 
 const AT_STOP_METERS = 30
@@ -84,7 +90,7 @@ export class RideObserver {
     const board = this.stops[0]
     if (!board) return
     if (this.boardedAtMs == null) {
-      if (sample.s <= board.s + AT_STOP_METERS) this.lastAtBoardMs = sample.nowMs
+      if (sample.s <= board.s + AT_STOP_METERS) this.lastAtBoardMs = sample.fixMs ?? sample.nowMs
       if (sample.snapped && sample.s > board.s + BOARDED_METERS && sample.speed >= VEHICLE_SPEED) {
         this.boardedAtMs = this.lastAtBoardMs ?? sample.nowMs
       }
@@ -120,9 +126,11 @@ export class RideObserver {
     if (!this.closest || gap <= this.closest.gap) this.closest = { gap, atMs: sample.nowMs }
   }
 
-  evidence(): RideEvidence {
+  evidence(ridingSinceMs: number | null = null): RideEvidence {
     return {
       boardedAtMs: this.boardedAtMs,
+      seenAtBoardMs: this.lastAtBoardMs,
+      ridingSinceMs,
       stops: [...this.observed],
       divergedBefore: this.divergedBefore,
       position: this.position,
@@ -140,6 +148,8 @@ const DEPARTURE_SIGMA_MS = 75_000
 /** A vehicle can't have been boarded this long before it left, or this long after. */
 const BOARDED_BEFORE_MS = 3 * 60_000
 const BOARDED_AFTER_MS = 6 * 60_000
+/** Slack on a boarding bracketed by sightings rather than timed, for feed times that run off the clock. */
+const BRACKET_SLACK_MS = 60_000
 const CALL_SIGMA_MS = 120_000
 const CALL_OFF_MS = 8 * 60_000
 const POSITION_SIGMA_M = 600
@@ -158,6 +168,10 @@ function logScore(candidate: VehicleCandidate, evidence: RideEvidence, known: Se
     const late = evidence.boardedAtMs - candidate.departureMs
     if (late < -BOARDED_BEFORE_MS || late > BOARDED_AFTER_MS) return null
     score += gauss(late, DEPARTURE_SIGMA_MS)
+  } else {
+    const { seenAtBoardMs: after, ridingSinceMs: before } = evidence
+    if (after != null && candidate.departureMs < after - BRACKET_SLACK_MS) return null
+    if (before != null && candidate.departureMs > before + BRACKET_SLACK_MS) return null
   }
   for (const seen of evidence.stops) {
     if (!known.has(seen.stop)) continue

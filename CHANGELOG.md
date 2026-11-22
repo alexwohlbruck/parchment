@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
+
 ## [0.24.1] - 2026-11-21
 
 ### Changed

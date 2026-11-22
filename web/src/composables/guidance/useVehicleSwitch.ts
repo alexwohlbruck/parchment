@@ -4,6 +4,7 @@ import { rideStops, secondsToStop } from '@/lib/guidance/transit-progress'
 import { earlierRun, liveRun, rankCandidates, RideObserver, vehicleVerdict, type CandidateSet, type RankedCandidate, type VehicleCandidate } from '@/lib/guidance/vehicle-switch'
 import { fetchVehicleCandidates } from '@/services/guidance/vehicle-candidates.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
+import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 
 const REFRESH_MS = 30_000
 /** Soon after a run seems gone, check the feed hasn't just got it running late. */
@@ -25,6 +26,7 @@ interface Watch {
   fetchedAt: number
   fetching: boolean
   done: boolean
+  ridingSinceMs: number | null
 }
 
 export interface VehicleQuestion {
@@ -57,6 +59,7 @@ export function useVehicleSwitch() {
       fetchedAt: 0,
       fetching: false,
       done: false,
+      ridingSinceMs: null,
     }
   }
 
@@ -133,20 +136,26 @@ export function useVehicleSwitch() {
     if (!watched) return
     const nowMs = guidanceClock.now()
     const riding = stage.kind === 'riding'
-    if (riding) followVehicle(watched)
+    if (riding) {
+      watched.ridingSinceMs ??= nowMs
+      followVehicle(watched)
+    }
     if (watched.done) return
     // An estimated puck follows the plan's timetable, so it says nothing about which run this is.
     const estimated = guidance.rideEstimate != null && !guidance.rideEstimate.fresh
-    if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs })
+    const fix = guidanceEngine.diagnostics?.lastFix
+    const fixMs = fix ? fix.t * 1000 + nowMs - Date.now() : undefined
+    if ((puck.snapped || riding) && !estimated) watched.observer.update({ s: puck.s, speed: puck.speed, snapped: puck.snapped, position: puck.position, nowMs, fixMs })
 
     const due = Date.now() - watched.fetchedAt > (stage.kind === 'missed-vehicle' ? MISSED_REFRESH_MS : REFRESH_MS)
     if (due && !watched.fetching) void refresh(watched)
 
-    const boardedAt = watched.observer.boardedAtMs
+    // Underground there is often no fix to time the boarding by, so the runs that could have left between sightings stand.
+    const boardedAt = watched.observer.boardedAtMs ?? watched.ridingSinceMs
     if (!riding || !watched.set || boardedAt == null) return
     if (nowMs - boardedAt > GIVE_UP_AFTER_MS) return settle(watched, null)
     const alightStop = watched.set.known.includes(watched.alightStop ?? '') ? watched.alightStop : null
-    const verdict = vehicleVerdict(rankCandidates(watched.set, watched.observer.evidence(), watched.plannedTripId, nowMs), alightStop)
+    const verdict = vehicleVerdict(rankCandidates(watched.set, watched.observer.evidence(watched.ridingSinceMs), watched.plannedTripId, nowMs), alightStop)
     if (verdict.kind === 'settled') return settle(watched, verdict.candidate)
     if (verdict.kind === 'unknown') return
     const best = verdict.kind === 'guess' ? verdict.candidate : verdict.options[0].candidate

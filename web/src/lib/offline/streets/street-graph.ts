@@ -113,11 +113,49 @@ export function canTraverse(graph: StreetGraph, e: number, reverse: boolean, pro
   return !(flags & (reverse ? STREET_FLAGS.BIKE_FORWARD_ONLY : STREET_FLAGS.BIKE_BACKWARD_ONLY))
 }
 
-function usable(graph: StreetGraph, n: number, profile: StreetProfile): boolean {
-  for (let i = graph.adjStart[n]; i < graph.adjStart[n + 1]; i++) {
-    if (canTraverse(graph, graph.adjEdge[i], graph.adjReverse[i] === 1, profile)) return true
+const mainNetworks = new WeakMap<StreetGraph, Partial<Record<StreetProfile, Uint8Array>>>()
+
+/**
+ * Nodes on the largest network `profile` can travel, ignoring one-way rules.
+ * Paths cut off at the area's edge leave stray pieces; snapping onto one
+ * strands the route.
+ */
+function mainNetwork(graph: StreetGraph, profile: StreetProfile): Uint8Array {
+  const cached = mainNetworks.get(graph)?.[profile]
+  if (cached) return cached
+  const nodes = graph.nodeLng.length
+  const component = new Int32Array(nodes).fill(-1)
+  const sizes: number[] = []
+  const stack: number[] = []
+  const walkable = (i: number) => {
+    const e = graph.adjEdge[i]
+    return canTraverse(graph, e, false, profile) || canTraverse(graph, e, true, profile)
   }
-  return false
+  for (let start = 0; start < nodes; start++) {
+    if (component[start] >= 0) continue
+    const id = sizes.length
+    let size = 0
+    component[start] = id
+    stack.push(start)
+    while (stack.length) {
+      const n = stack.pop()!
+      size++
+      for (let i = graph.adjStart[n]; i < graph.adjStart[n + 1]; i++) {
+        if (!walkable(i)) continue
+        const e = graph.adjEdge[i]
+        const next = graph.adjReverse[i] ? graph.edgeFrom[e] : graph.edgeTo[e]
+        if (component[next] < 0) {
+          component[next] = id
+          stack.push(next)
+        }
+      }
+    }
+    sizes.push(size)
+  }
+  const largest = sizes.indexOf(Math.max(...sizes))
+  const main = Uint8Array.from(component, c => (c === largest ? 1 : 0))
+  mainNetworks.set(graph, { ...mainNetworks.get(graph), [profile]: main })
+  return main
 }
 
 /** Equirectangular distance in metres, exact enough within a city. */
@@ -132,7 +170,7 @@ export function containsPoint(graph: StreetGraph, lng: number, lat: number): boo
   return lng >= w && lng <= e && lat >= s && lat <= n
 }
 
-/** The nearest node `profile` can leave from, within `maxMeters`. */
+/** The nearest node on the main network `profile` travels, within `maxMeters`. */
 export function nearestNode(
   graph: StreetGraph,
   lng: number,
@@ -143,6 +181,7 @@ export function nearestNode(
   const reach = Math.ceil(maxMeters / 111_195 / CELL_DEG / Math.max(0.2, Math.cos((lat * Math.PI) / 180)))
   const cx = Math.floor(lng / CELL_DEG)
   const cy = Math.floor(lat / CELL_DEG)
+  const main = mainNetwork(graph, profile)
   let best: number | null = null
   let bestDist = maxMeters
   for (let ring = 0; ring <= reach; ring++) {
@@ -151,7 +190,7 @@ export function nearestNode(
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue
         for (const n of graph.cells.get(`${cx + dx}:${cy + dy}`) ?? []) {
           const d = approxMeters(lng, lat, graph.nodeLng[n], graph.nodeLat[n])
-          if (d < bestDist && usable(graph, n, profile)) {
+          if (d < bestDist && main[n]) {
             best = n
             bestDist = d
           }

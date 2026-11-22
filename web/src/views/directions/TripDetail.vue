@@ -61,6 +61,7 @@ import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'
 import { useUnits } from '@/composables/useUnits'
 import { useI18n } from 'vue-i18n'
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1071,6 +1072,8 @@ const routeWaypoints = useRouteWaypoints(() => ({
       </p>
       </div>
       </SheetHeader>
+
+      <OfflineDataNotice v-if="directionsStore.plannedOffline" :text="translate('offlineMaps.notice.directions')" class="mt-3" />
 
       <TripStrip :segments="trip.segments" :waypoints="routeWaypoints" :color-by="colorBy" fold class="pt-4">
         <TripColorLegend :segments="trip.segments" :color-by="colorBy" class="mb-4" />

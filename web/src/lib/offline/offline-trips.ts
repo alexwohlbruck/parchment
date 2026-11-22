@@ -2,6 +2,7 @@
  * Trips planned on the device from saved region packages, shaped like the
  * server's planner response so Directions shows them unchanged.
  */
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import {
   approxMeters,
   containsPoint,
@@ -50,7 +51,7 @@ const MAX_ACCESS_SECONDS = 15 * 60
 /** Off-network walking, where no street joins the point, at a detour of a quarter on the straight line. */
 const DETOUR = 1.25
 const TRANSIT_OPTIONS = 3
-const DATA_SOURCE = { id: 'offline', name: 'Saved area', url: '', type: 'gtfs_static' as const }
+const DATA_SOURCE = { id: OFFLINE_SOURCE_ID, name: 'Saved area', url: '', type: 'gtfs_static' as const }
 
 const toCoordinate = ([lng, lat]: [number, number]): Coordinate => ({ lat, lng })
 const iso = (epochSeconds: number) => new Date(epochSeconds * 1000).toISOString()

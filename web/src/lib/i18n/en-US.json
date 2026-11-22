@@ -1484,13 +1484,15 @@
       "paused": "Paused · {percent}%",
       "failed": "1 part couldn't be saved | {count} parts couldn't be saved",
       "ready": "{size} · Updated {date}",
-      "readyTransit": "{size} · Transit times until {date}"
+      "readyTransit": "{size} · Transit times until {date}",
+      "keepUntil": "{size} · Deletes {date}"
     },
     "actions": {
       "pause": "Pause",
       "resume": "Resume",
       "update": "Update",
-      "rename": "Rename"
+      "rename": "Rename",
+      "keep": "Keep for…"
     },
     "rename": {
       "title": "Rename offline map"
@@ -1512,11 +1514,28 @@
       "needsConnection": "Connect to the internet to save an area",
       "download": "Download",
       "defaultName": "Saved area",
-      "features": "Use offline"
+      "features": "Use offline",
+      "free": "{size} free"
     },
     "features": {
       "search": "Search places",
       "directions": "Get directions"
+    },
+    "keep": {
+      "title": "Keep",
+      "forever": "Until you delete it",
+      "until": "Until {date}",
+      "week": "1 week",
+      "month": "1 month",
+      "months3": "3 months",
+      "year": "1 year",
+      "pick": "Pick a date"
+    },
+    "notice": {
+      "place": "Saved offline, so some details may be missing or out of date",
+      "departures": "Scheduled times only, with no live updates",
+      "directions": "Planned offline, so live delays and closures aren’t included",
+      "search": "Places saved on this device, so results may be incomplete"
     }
   },
   "timeline": {

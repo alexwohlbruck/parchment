@@ -22,3 +22,6 @@ export function estimatePackageBytes(kinds: readonly OfflinePackageKind[], bound
 
 /** A timetable older than this is fetched again when online, so it never runs out. */
 export const TIMETABLE_REFRESH_MS = 5 * 86_400_000
+
+/** Marks data the device answered from a saved area rather than the server. */
+export const OFFLINE_SOURCE_ID = 'offline'

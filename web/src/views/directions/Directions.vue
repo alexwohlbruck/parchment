@@ -20,6 +20,7 @@ import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store
 import { storeToRefs } from 'pinia'
 import WaypointInput from '@/components/directions/WaypointInput.vue'
 import TripsList from '@/components/directions/TripsList.vue'
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import TripList from '@/components/directions/TripList.vue'
 import RoutingPreferences from '@/components/directions/preferences/RoutingPreferences.vue'
 import TripModeToggles from '@/components/directions/preferences/TripModeToggles.vue'
@@ -60,7 +61,7 @@ onReconnected(() => {
 })
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
+const { waypoints, trips, plannedOffline, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 const navigationPreferences = useNavigationPreferencesStore()
 
@@ -432,6 +433,7 @@ useMapListener(
 
     <!-- Trips results — the time-scaled timeline, or a plain list -->
     <template v-else-if="trips">
+      <OfflineDataNotice v-if="plannedOffline" :text="t('offlineMaps.notice.directions')" class="mb-2" />
       <TripsList
         v-if="tripView === 'timeline'"
         :trips="trips"

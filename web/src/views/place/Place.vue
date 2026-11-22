@@ -24,7 +24,7 @@ const markerLngLat = shallowRef<LngLat | null>(null)
 const recentsStore = useRecentsStore()
 
 /** The page shows only what the device held, so reconnecting should load the rest. */
-let shownOffline = false
+const shownOffline = shallowRef(false)
 
 /**
  * Shows what the device knows about the place straight away, then keeps it
@@ -40,8 +40,8 @@ async function loadWithLocalFallback(
   const seeded = (isOffline.value ? await seedPlaceFromOffline(placeId, local) : null) ?? local
   if (seeded) handlePlaceResult(seeded)
   // A fetch with no connection only answers from the cache, which may hold less than the seed.
-  shownOffline = !!seeded && isOffline.value
-  if (shownOffline) return
+  shownOffline.value = !!seeded && isOffline.value
+  if (shownOffline.value) return
   const place = await fetchDetails()
   if (!place && seeded) currentPlace.value = seeded
   // Re-frame only for new data; the seeded place is already on the map.
@@ -223,7 +223,7 @@ watch(
 )
 
 onReconnected(() => {
-  if (!currentPlace.value || shownOffline) showPlace()
+  if (!currentPlace.value || shownOffline.value) showPlace()
 })
 
 onUnmounted(() => {
@@ -234,6 +234,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Place :place="currentPlace" :loading="loading" @retry="showPlace" />
+  <Place :place="currentPlace" :loading="loading" :offline="shownOffline" @retry="showPlace" />
   <OffscreenMarkerHint :lng-lat="markerLngLat" @select="returnToPlace" />
 </template>

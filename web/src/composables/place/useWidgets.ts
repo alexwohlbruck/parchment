@@ -1,3 +1,4 @@
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import { shallowRef, triggerRef, watch, onUnmounted, type Ref } from 'vue'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
@@ -94,7 +95,7 @@ export function useWidgets(place: Ref<Partial<Place> | null>) {
       lat: p.lat !== undefined ? Number(p.lat) : undefined,
       lng: p.lng !== undefined ? Number(p.lng) : undefined,
     }).catch(() => null)
-    return board ? { type: WidgetType.TRANSIT, data: { value: board, sourceId: 'offline' }, sources: [] } : null
+    return board ? { type: WidgetType.TRANSIT, data: { value: board, sourceId: OFFLINE_SOURCE_ID }, sources: [] } : null
   }
 
   async function fetchWidget(descriptor: WidgetDescriptor, signal: AbortSignal) {

@@ -26,6 +26,7 @@ import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-erro
 import { i18n } from '@/lib/i18n'
 import { stepText } from '@/lib/guidance/instructions/instruction-text'
 import { hasOfflineRegions, planOffline } from '@/services/offline/offline-engine.service'
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -246,7 +247,7 @@ function directionsService() {
     for (const { trip } of response.trips) {
       for (const segment of trip.segments) for (const step of segment.instructions) step.text = stepText(step, t)
     }
-    return { ...response, request }
+    return { ...response, request, metadata: { ...response.metadata, providers: [OFFLINE_SOURCE_ID] } }
   }
 
   /** The planner's answer for these waypoints, as the trips the panel lists. */

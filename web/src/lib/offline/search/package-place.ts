@@ -1,3 +1,4 @@
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import { localPlace } from '@/lib/search/local-search'
 import { WidgetDataType, WidgetType, type Place } from '@/types/place.types'
 import type { PackagePlace } from '@/types/offline-package.types'
@@ -53,7 +54,7 @@ export function packagePlaceAsPlace(p: PackagePlace): Place {
     iconPack: p.iconPack,
     externalIds: OSM_ID.test(p.id) ? { osm: p.id } : {},
   })
-  const field = <T>(value: T) => ({ value, sourceId: 'offline' })
+  const field = <T>(value: T) => ({ value, sourceId: OFFLINE_SOURCE_ID })
   if (p.phone) place.contactInfo.phone = field(p.phone)
   if (p.website) place.contactInfo.website = field(p.website)
   if (p.hours) {

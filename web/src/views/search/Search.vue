@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -698,6 +699,7 @@ watch(
       class="flex-1"
     >
       <div class="max-w-4xl mx-auto">
+        <OfflineDataNotice v-if="isOffline && searchStore.hasResults" :text="t('offlineMaps.notice.search')" class="mb-2" />
         <PlaceList
           :places="searchStore.filteredSearchResults"
           :loading="searchStore.isSearching && !searchStore.hasResults"

@@ -7,6 +7,7 @@
 ### Fixed
 
 * When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
+* Transit lines no longer flicker into broken dashes while you pan or zoom out past the city.
 
 ## [0.24.1] - 2026-11-21
 

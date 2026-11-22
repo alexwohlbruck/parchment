@@ -37,6 +37,8 @@ import { Waypoint } from '@/types/map.types'
 import { SelectedMode } from '@/types/multimodal.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -52,6 +54,10 @@ const route = useRoute()
 const { t } = useI18n()
 const startFreeRoam = useStartFreeRoam()
 const directionsService = useDirectionsService()
+const { isOffline, onReconnected } = useConnectivity()
+onReconnected(() => {
+  if (!trips.value) void directionsService.getDirections()
+})
 const directionsStore = useDirectionsStore()
 
 const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
@@ -441,6 +447,14 @@ useMapListener(
         {{ t(`guidance.free.withoutDestination.${freeRoamMode}`) }}
       </Button>
     </div>
+
+    <EmptyState
+      v-else-if="isOffline && waypoints.some(wp => wp.lngLat)"
+      :title="t('offline.emptyState.title')"
+      offline
+      class="mt-16"
+      @retry="directionsService.getDirections()"
+    />
 
     <!-- No results -->
     <div

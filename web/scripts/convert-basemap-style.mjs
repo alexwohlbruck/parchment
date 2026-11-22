@@ -35,6 +35,7 @@
  * Run with: bun run build:style
  */
 import { readFile, writeFile } from 'node:fs/promises'
+import * as styleSpec from '@maplibre/maplibre-gl-style-spec'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -1146,8 +1147,9 @@ const GEIST = {
 }
 
 /**
- * How many POIs earn a glyph and a name at each zoom, keyed on OpenMapTiles'
- * own `rank` (1 = most important in the tile).
+ * How many stations earn a glyph and a name at each zoom, keyed on
+ * OpenMapTiles' own `rank` (1 = first in its label-grid cell). Every other
+ * POI is gated by `POI_GATES`.
  *
  * Mapbox thins its POIs with `filterrank`, which its tileset carries and ours
  * does not — without an equivalent, every POI in a downtown block gets a name
@@ -1190,6 +1192,120 @@ function rankStep(atThreshold) {
 const RANK_GATE = rankStep(limit =>
   limit === Infinity ? true : ['<=', RANK, limit],
 )
+
+/** The badge layer every POI family except `Station` folds into. */
+const POI_LAYER = 'POI'
+const STATION_LAYER = 'Station'
+
+/** The fork's 0–100 prominence score (see planetiler-openmaptiles FORK.md); unnamed POIs carry none. */
+const IMPORTANCE = ['case', ['has', 'importance'], ['to-number', ['get', 'importance']], -1]
+
+/**
+ * Which POIs earn a badge at each zoom: anything at or above `importance`, or
+ * anything ranked within `rank` in its label-grid cell. The rank arm keeps
+ * quiet neighbourhoods labelled where nothing scores high; the importance arm
+ * lets a landmark through a crowded cell, and ignores its family's minzoom.
+ * z12 and z13 match the zooms the fork starts emitting important POIs at.
+ */
+const POI_GATES = [
+  { zoom: 12, importance: 50, rank: 0 },
+  { zoom: 13, importance: 42, rank: 0 },
+  { zoom: 14, importance: 35, rank: 4 },
+  { zoom: 15, importance: 28, rank: 8 },
+  { zoom: 16, importance: 20, rank: 16 },
+  { zoom: 17, importance: 20, rank: 40 },
+  { zoom: 18, importance: 0, rank: Infinity },
+]
+
+/** Placement order: most important first, then by rank among the unscored. */
+const POI_SORT_KEY = ['+', ['-', 100, IMPORTANCE], ['/', ['min', RANK, 999], 1000]]
+
+const isZoomStep = v => Array.isArray(v) && v[0] === 'step' && Array.isArray(v[1]) && v[1][0] === 'zoom'
+
+const stepZooms = value => (isZoomStep(value) ? zoomStops(value).map(([zoom]) => zoom) : [])
+
+function valueAtZoom(value, zoom) {
+  if (!isZoomStep(value)) return value
+  let out = value[2]
+  for (let i = 3; i < value.length; i += 2) if (value[i] <= zoom) out = value[i + 1]
+  return out
+}
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
+/** One value per family, as a `case` on the family filters; the last family is the fallback. */
+function caseByFamily(families, values) {
+  if (values.every(v => same(v, values[0]))) return values[0]
+  const arms = families.slice(0, -1).flatMap((f, i) => [f.clause, values[i]])
+  return ['case', ...arms, values.at(-1)]
+}
+
+/**
+ * Fold per-family values of one property into a single expression. Zoom steps
+ * are merged on the union of their stops, because `["zoom"]` may only feed the
+ * outermost step. `wrap` rewrites each zoom's branch.
+ */
+function mergeByFamily(families, values, { stops: extra = [], wrap = v => v } = {}) {
+  const stops = [...new Set([...values.flatMap(stepZooms), ...extra])].sort((a, b) => a - b)
+  const at = zoom => wrap(caseByFamily(families, values.map(v => valueAtZoom(v, zoom))), zoom)
+  if (!stops.length) return at(-Infinity)
+  return ['step', ['zoom'], at(-Infinity), ...stops.flatMap(zoom => [zoom, at(zoom)])]
+}
+
+const gateAt = zoom => [...POI_GATES].reverse().find(g => g.zoom <= zoom)
+
+/** Families whose own minzoom has not arrived are admitted by importance alone. */
+function poiGate(families) {
+  const branch = ({ zoom, importance, rank }) => {
+    if (rank === Infinity) return true
+    const byImportance = ['>=', IMPORTANCE, importance]
+    if (!rank) return byImportance
+    const early = families.filter(f => f.minzoom > zoom).map(f => f.clause)
+    const byRank = ['all', ...(early.length ? [['!', ['any', ...early]]] : []), ['<=', RANK, rank]]
+    return ['any', byImportance, byRank]
+  }
+  return ['step', ['zoom'], false, ...POI_GATES.flatMap(g => [g.zoom, branch(g)])]
+}
+
+/**
+ * MapTiler draws POIs as 11 family layers. `symbol-sort-key` only orders
+ * placement within a layer, so a family higher in the stack beat every POI
+ * below it regardless of importance. Folding them into one layer lets a famous
+ * museum outrank a nearby clinic. `Station` stays apart for the transit toggle.
+ */
+function mergePoiFamilies(layers) {
+  const members = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol' && l.id !== STATION_LAYER)
+  const families = members.map(l => ({ id: l.id, clause: l.filter, minzoom: l.minzoom ?? 0 }))
+  const keys = section => [...new Set(members.flatMap(l => Object.keys(l[section] ?? {})))]
+  const merged = section => Object.fromEntries(keys(section).map(key => {
+    const fallback = styleSpec.latest[`${section}_symbol`][key]?.default
+    const values = members.map(l => l[section]?.[key] ?? fallback)
+    if (key === 'icon-opacity') {
+      // A POI let in early by importance would otherwise inherit its family's hidden icon.
+      const wrap = (value, zoom) => {
+        const gate = gateAt(zoom)
+        return gate && value !== 1 ? ['case', ['>=', IMPORTANCE, gate.importance], 1, value] : value
+      }
+      return [key, mergeByFamily(families, values, { stops: POI_GATES.map(g => g.zoom), wrap })]
+    }
+    return [key, mergeByFamily(families, values)]
+  }))
+
+  const layer = {
+    id: POI_LAYER,
+    type: 'symbol',
+    source: members[0].source,
+    'source-layer': 'poi',
+    minzoom: POI_GATES[0].zoom,
+    filter: ['all', ['any', ...families.map(f => f.clause)], poiGate(families)],
+    layout: { ...merged('layout'), 'symbol-sort-key': POI_SORT_KEY },
+    paint: merged('paint'),
+  }
+  const first = layers.indexOf(members[0])
+  if (!members.every((l, i) => layers[first + i] === l)) throw new Error('POI family layers are no longer contiguous')
+  layers.splice(first, members.length, layer)
+  return families
+}
 
 /**
  * Translate a legacy filter into expression syntax.
@@ -1651,8 +1767,12 @@ const V4_HALO_BLUR = ['interpolate', ['linear'], ['zoom'], 12, 1, 14, 0.5, 16, 0
  */
 const V4_ICON = [...POI_ICON, ['image', 'dot']]
 
-function poiGlyphTreatment(layerId) {
-  const family = V4_FAMILY[layerId] ? `@poi_v4_${slug(layerId)}` : '@poi_v4_public'
+const v4FamilyToken = id => (V4_FAMILY[id] ? `@poi_v4_${slug(id)}` : '@poi_v4_public')
+
+function poiGlyphTreatment(layerId, families) {
+  const family = layerId === POI_LAYER
+    ? caseByFamily(families, families.map(f => v4FamilyToken(f.id)))
+    : v4FamilyToken(layerId)
   return {
     layout: {
       'icon-image': V4_ICON,
@@ -1666,7 +1786,7 @@ function poiGlyphTreatment(layerId) {
       // instead of forcing every icon to draw.
       'icon-allow-overlap': false,
       'icon-ignore-placement': false,
-      'symbol-sort-key': RANK,
+      'symbol-sort-key': layerId === POI_LAYER ? POI_SORT_KEY : RANK,
       'text-anchor': 'top',
       'text-offset': [0, 0.8],
       'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 12, 22, 14],
@@ -1857,9 +1977,10 @@ async function main() {
       // The name takes the badge's glyph colour — the glyph rather than the
       // plate, which is a pale tint and would be unreadable as lettering.
       // Transit is the exception; see `poiTextInk`.
-      out.filter = out.filter
+      // Every family but stations is gated once, after the merge; see `mergePoiFamilies`.
+      out.filter = layer.id === STATION_LAYER
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
-        : RANK_GATE
+        : toExpressionFilter(out.filter)
       out.layout = { ...out.layout, ...POI_LAYOUT }
       out.paint = { ...out.paint, ...POI_PAINT, 'text-color': poiTextInk }
       // MapTiler tints its glyphs with these; ours arrive already coloured, and
@@ -1961,6 +2082,7 @@ async function main() {
     layers.push(out)
   }
 
+  const poiFamilies = mergePoiFamilies(layers)
   outlinePitches(layers)
   addCommercialLanduse(layers)
   sinkInstitutionalLanduse(layers)
@@ -2201,7 +2323,7 @@ async function main() {
     glyph: Object.fromEntries(
       layers
         .filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
-        .map(l => [l.id, poiGlyphTreatment(l.id)]),
+        .map(l => [l.id, poiGlyphTreatment(l.id, poiFamilies)]),
     ),
   }
   console.log(`glyph-only POI treatment: ${Object.keys(poiStyles.glyph).length} layers`)

@@ -145,6 +145,9 @@ const TILE_FORMAT = 1
 
 export const SOURCE = 'openmaptiles'
 
+/** The converter folds every POI family but stations into this one layer. */
+export const BASEMAP_POI_LAYER = 'POI'
+
 /**
  * How far the camera may tilt.
  *
@@ -504,13 +507,13 @@ export function buildLayers(options: {
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))), flavor)
 
-  const park = converted.find(l => l.id === 'Park')
+  const poi = converted.find(l => l.id === BASEMAP_POI_LAYER)
   const detailLabel: DetailLabelStyle = {
-    font: park?.layout?.['text-font'] ?? ['Geist SemiBold'],
+    font: poi?.layout?.['text-font'] ?? ['Geist SemiBold'],
     color: resolve('@poi_ink_park', tokens, categories, flavor),
     halo: resolve('@poi_halo', tokens, categories, flavor),
-    haloWidth: park?.paint?.['text-halo-width'] ?? 1.5,
-    haloBlur: park?.paint?.['text-halo-blur'] ?? 0,
+    haloWidth: poi?.paint?.['text-halo-width'] ?? 1.5,
+    haloBlur: poi?.paint?.['text-halo-blur'] ?? 0,
   }
 
   const indoorLabels = resolve(indoorLabelLayers(flavor, detailLabel), tokens, categories, flavor)

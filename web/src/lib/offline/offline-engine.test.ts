@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decodeStreetGraph, nearestNode } from './streets/street-graph'
-import { pathManeuvers, shortestPath } from './streets/street-router'
+import { pathManeuvers, shortestPath, travelTimes } from './streets/street-router'
 import { decodeTimetable, departuresFrom, localMidnight } from './transit/timetable'
 import { planJourneys } from './transit/raptor'
 import { buildPlaceIndex, searchPlaceIndex } from './search/place-index'
@@ -52,9 +52,10 @@ describe('street routing', () => {
     expect(path.distance).toBeGreaterThan(150)
   })
 
-  it('keeps cyclists off a one-way street the wrong way', () => {
-    expect(shortestPath(graph, 0, 3, 'cycling')).toBeNull()
-    expect(shortestPath(graph, 3, 0, 'cycling')).not.toBeNull()
+  it('only takes a one-way street the wrong way when nothing else connects', () => {
+    expect(travelTimes(graph, 0, 'cycling', 3600).has(3)).toBe(false)
+    expect(travelTimes(graph, 3, 'cycling', 3600).has(0)).toBe(true)
+    expect(shortestPath(graph, 0, 3, 'cycling')?.steps.map(s => s.edge)).toEqual([0, 2])
   })
 
   it('names a turn where the street changes', () => {

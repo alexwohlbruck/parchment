@@ -105,12 +105,17 @@ export function decodeStreetGraph(pkg: StreetsPackage): StreetGraph {
   }
 }
 
-/** Whether `profile` may travel edge `e`, in the given direction. */
-export function canTraverse(graph: StreetGraph, e: number, reverse: boolean, profile: StreetProfile): boolean {
+/** Whether a cyclist riding edge `e` in this direction goes against a one-way street. */
+export function againstOneWay(graph: StreetGraph, e: number, reverse: boolean): boolean {
+  return (graph.edgeFlags[e] & (reverse ? STREET_FLAGS.BIKE_FORWARD_ONLY : STREET_FLAGS.BIKE_BACKWARD_ONLY)) !== 0
+}
+
+/** Whether `profile` may travel edge `e` in the given direction; `walkBike` lets a cyclist push against one-way streets. */
+export function canTraverse(graph: StreetGraph, e: number, reverse: boolean, profile: StreetProfile, walkBike = false): boolean {
   const flags = graph.edgeFlags[e]
   if (profile === 'walking') return (flags & STREET_FLAGS.FOOT) !== 0
   if (!(flags & STREET_FLAGS.BIKE)) return false
-  return !(flags & (reverse ? STREET_FLAGS.BIKE_FORWARD_ONLY : STREET_FLAGS.BIKE_BACKWARD_ONLY))
+  return walkBike || !againstOneWay(graph, e, reverse)
 }
 
 const mainNetworks = new WeakMap<StreetGraph, Partial<Record<StreetProfile, Uint8Array>>>()

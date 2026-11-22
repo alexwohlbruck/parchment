@@ -1,5 +1,5 @@
 import { STREET_FLAGS } from '@/types/offline-package.types'
-import { approxMeters, canTraverse, edgePoints, type StreetGraph, type StreetProfile } from './street-graph'
+import { againstOneWay, approxMeters, canTraverse, edgePoints, type StreetGraph, type StreetProfile } from './street-graph'
 
 /** Metres per second. */
 export const STREET_SPEED: Record<StreetProfile, number> = { walking: 1.35, cycling: 4.5 }
@@ -17,6 +17,9 @@ export interface StreetPath {
   /** Seconds. */
   duration: number
 }
+
+/** Pushing a bike the wrong way down a one-way street: slow, and a last resort. */
+const WALK_BIKE_FACTOR = 4
 
 /** How much less pleasant than its length an edge is to travel. */
 function costFactor(flags: number, profile: StreetProfile): number {
@@ -86,7 +89,7 @@ function search(
   graph: StreetGraph,
   source: number,
   profile: StreetProfile,
-  { target, maxCost }: { target?: number; maxCost?: number },
+  { target, maxCost, walkBike = false }: { target?: number; maxCost?: number; walkBike?: boolean },
 ): Search {
   const nodes = graph.nodeLng.length
   const cost = new Float64Array(nodes).fill(Infinity)
@@ -111,9 +114,10 @@ function search(
     for (let i = graph.adjStart[n]; i < graph.adjStart[n + 1]; i++) {
       const e = graph.adjEdge[i]
       const reverse = graph.adjReverse[i] === 1
-      if (!canTraverse(graph, e, reverse, profile)) continue
+      if (!canTraverse(graph, e, reverse, profile, walkBike)) continue
       const next = reverse ? graph.edgeFrom[e] : graph.edgeTo[e]
-      const c = cost[n] + (graph.edgeLength[e] * costFactor(graph.edgeFlags[e], profile)) / speed
+      const pushed = walkBike && againstOneWay(graph, e, reverse) ? WALK_BIKE_FACTOR : 1
+      const c = cost[n] + (graph.edgeLength[e] * costFactor(graph.edgeFlags[e], profile) * pushed) / speed
       if (c >= cost[next] || (maxCost !== undefined && c > maxCost)) continue
       cost[next] = c
       via[next] = i
@@ -145,7 +149,9 @@ export function shortestPath(
   profile: StreetProfile,
 ): StreetPath | null {
   if (source === target) return { steps: [], distance: 0, duration: 0 }
-  const result = search(graph, source, profile, { target })
+  let result = search(graph, source, profile, { target })
+  // In a grid of one-way streets cut off at the area's edge, the legal way round may lie outside it.
+  if (result.via[target] < 0 && profile === 'cycling') result = search(graph, source, profile, { target, walkBike: true })
   if (result.via[target] < 0) return null
   return pathTo(graph, result, source, target, profile)
 }

@@ -12,6 +12,7 @@
 
 * Footpaths are easier to see on the dark map.
 * Trips now show when your train or bus is detoured, so a ride taking an unusual path no longer looks like a wrong plan.
+* When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
 
 ## [0.23.3] - 2026-11-21
 

@@ -51,7 +51,7 @@ function run(tripId: string, line: string, dep: number, pattern: 'local' | 'expr
 }
 
 const evidence = (partial: Partial<RideEvidence>): RideEvidence => ({
-  boardedAtMs: null, stops: [], divergedBefore: null, position: null, positionMs: null, ...partial,
+  boardedAtMs: null, seenAtBoardMs: null, ridingSinceMs: null, stops: [], divergedBefore: null, position: null, positionMs: null, ...partial,
 })
 
 function decide(candidates: VehicleCandidate[], seen: Partial<RideEvidence>) {
@@ -123,6 +123,17 @@ describe('vehicleVerdict', () => {
     const candidates = [run('planned', '3', 0), run('two', '2', 0.5, 'express')]
     const verdict = decide(candidates, { boardedAtMs: min(0.3), divergedBefore: 'S1' })
     expect(verdict).toMatchObject({ kind: 'settled', candidate: { tripId: 'two' } })
+  })
+
+  test('with no boarding fix, asks between close runs seen off the platform when only some reach the stop', () => {
+    const short = { ...run('short', '5', 2), calls: [{ stop: 'S1', timeMs: min(4) }] }
+    const verdict = decide([run('missed', '3', -4), short, run('planned', '3', 4)], { seenAtBoardMs: min(-1), ridingSinceMs: min(5) })
+    expect(verdict.kind).toBe('ask')
+    if (verdict.kind === 'ask') expect(verdict.options.map(o => o.candidate.tripId).sort()).toEqual(['planned', 'short'])
+  })
+
+  test('with no boarding fix, guesses when every run in the bracket reaches the stop', () => {
+    expect(decide([run('two', '2', 2), run('planned', '3', 4)], { seenAtBoardMs: min(-1), ridingSinceMs: min(5) }).kind).toBe('guess')
   })
 
   test('nothing to go on keeps the plan', () => {

@@ -6,6 +6,14 @@
 
 ### Fixed
 
+* When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
+
+## [0.24.1] - 2026-11-21
+
+### Changed
+
+* 3D landmarks now stand on hills whole instead of bending over them, so small bridges no longer sag into the dips they cross.
+
 ## [0.24.0] - 2026-11-21
 
 ### Added

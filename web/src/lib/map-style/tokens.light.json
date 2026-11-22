@@ -75,7 +75,7 @@
  "poi_transit_ink": "@@tint-ink:hsl(214, 78%, 52%)",
  "poi_transit_ring": "@@tint-ring:hsl(214, 78%, 52%)",
  "path_surface": "hsl(40, 20%, 90.5%)",
- "path_line": "hsl(40, 20%, 90.5%)",
+ "path_walkway": "hsl(40, 20%, 90.5%)",
  "path_casing": "hsl(36, 12%, 80%)",
  "path_bridge_casing": "hsl(36, 14%, 72%)",
  "road_highway": "hsl(38, 46%, 86%)",

@@ -725,8 +725,8 @@ describe('badge POI treatment', () => {
   })
 
   /** The surface is continuous pavement; dashing it reads as a trail. */
-  test('the path surface is solid and matches the plaza fill', () => {
-    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+  test.each(['light', 'dark'] as const)('the path surface is solid and matches the plaza fill (%s)', theme => {
+    const layers = buildMapStyle({ ...opts, theme }).layers
     const path = layers.find(l => l.id === 'Path')!
     const plaza = layers.find(l => l.id === 'Pedestrian')!
     expect(path.paint!['line-dasharray']).toBeUndefined()

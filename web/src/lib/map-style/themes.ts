@@ -144,7 +144,7 @@ function roads(c: {
   minor: string
   minorCasing: string
   path: string
-  pathLine?: string
+  walkway?: string
   pathCasing: string
   rail: string
 }): Tokens {
@@ -156,7 +156,7 @@ function roads(c: {
     road_minor: c.minor,
     road_minor_casing: c.minorCasing,
     path_surface: c.path,
-    path_line: c.pathLine ?? c.path,
+    path_walkway: c.walkway ?? c.path,
     path_casing: c.pathCasing,
     path_bridge_casing: c.pathCasing,
     major_rail_line_color: c.rail,
@@ -264,7 +264,7 @@ const CUPERTINO: MapTheme = {
         minor: 'hsl(213, 20%, 39%)',
         minorCasing: 'hsl(213, 28%, 22%)',
         path: 'hsl(213, 18%, 34%)',
-        pathLine: 'hsl(213, 22%, 44%)',
+        walkway: 'hsl(213, 22%, 44%)',
         pathCasing: 'hsl(213, 28%, 22%)',
         rail: 'hsl(214, 16%, 48%)',
       }),
@@ -375,7 +375,7 @@ const MOUNTAIN_VIEW: MapTheme = {
         minor: 'hsl(211, 31%, 36%)',
         minorCasing: 'hsl(217, 39%, 15%)',
         path: 'hsl(213, 30%, 30%)',
-        pathLine: 'hsl(212, 30%, 40%)',
+        walkway: 'hsl(212, 30%, 40%)',
         pathCasing: 'hsl(217, 39%, 15%)',
         rail: 'hsl(215, 20%, 42%)',
       }),
@@ -495,7 +495,7 @@ const CHART: MapTheme = {
         minor: 'hsl(36, 22%, 29%)',
         minorCasing: 'hsl(30, 26%, 12%)',
         path: 'hsl(36, 20%, 26%)',
-        pathLine: 'hsl(36, 24%, 36%)',
+        walkway: 'hsl(36, 24%, 36%)',
         pathCasing: 'hsl(30, 26%, 12%)',
         rail: 'hsl(36, 22%, 46%)',
       }),

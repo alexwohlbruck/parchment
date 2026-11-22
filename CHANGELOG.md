@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.24.0] - 2026-11-21
+
+### Added
+
 * A new Parchment map style drawn like an old engraved sea chart: inked coasts, italic sea names, towns in small capitals and a paper-grained sheet.
 
 ### Changed

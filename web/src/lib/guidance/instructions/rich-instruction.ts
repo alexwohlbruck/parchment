@@ -143,6 +143,12 @@ function enteredPark(route: NavRoute, step: NavStep): RichInstruction['park'] | 
   return after.parkName ? { name: after.parkName } : {}
 }
 
+/** The plaza a walker sets off across at `s`, named as the router names the way through it. */
+function plazaAt(route: NavRoute, s: number, name?: string): RichInstruction['plaza'] | undefined {
+  if (!edgeAt(route, s + PAST_TURN_METERS)?.plaza || (s > 0 && edgeAt(route, s - PAST_TURN_METERS)?.plaza)) return undefined
+  return name ? { name } : {}
+}
+
 const nearSide = (route: NavRoute): Side => route.drivingSide
 const farSide = (route: NavRoute): Side => (route.drivingSide === 'left' ? 'right' : 'left')
 
@@ -216,6 +222,8 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
   if (target) instruction.target = target
   const park = target?.kind !== 'named' && onFoot ? enteredPark(route, step) : undefined
   if (park) instruction.park = park
+  const plaza = onFoot ? plazaAt(route, step.startDistance, stepName(step)) : undefined
+  if (plaza) instruction.plaza = plaza
   if (step.crossing && instruction.action.kind !== 'crosswalk') {
     instruction.crossing = step.crossing
     if (target?.kind !== 'named') delete instruction.target
@@ -233,7 +241,10 @@ export function richInstruction(route: NavRoute, step: NavStep, context: Instruc
   const arrival = route.steps[step.index + 1]
   if (instruction.action.kind === 'crosswalk' && context.destinationSide && arrival && maneuverKind(arrival.instruction) === 'arrive'
     && arrival.startDistance - step.startDistance <= ARRIVAL_AFTER_CROSSING_METERS) instruction.arrival = context.destinationSide
-  if (onFoot && !instruction.crossing && instruction.target?.kind !== 'named' && instruction.action.kind !== 'crosswalk') {
+  if (plaza) {
+    const leadsTo = nameAhead(route, step.startDistance, plaza.name)
+    if (leadsTo) instruction.leadsTo = leadsTo
+  } else if (onFoot && !instruction.crossing && instruction.target?.kind !== 'named' && instruction.action.kind !== 'crosswalk') {
     const leadsTo = nameAhead(route, step.startDistance)
     if (leadsTo) instruction.leadsTo = leadsTo
   }
@@ -254,7 +265,9 @@ export function departure(route: NavRoute, step: NavStep | null): RichInstructio
   }
   const target = step ? walkedRoad(route, step) : undefined
   if (target) instruction.target = target
-  const leadsTo = ON_FOOT.has(mode) ? nameAhead(route, 0, target?.kind === 'named' ? target.name : '') : undefined
+  const plaza = ON_FOOT.has(mode) ? plazaAt(route, 0, step ? stepName(step) : undefined) : undefined
+  if (plaza) instruction.plaza = plaza
+  const leadsTo = ON_FOOT.has(mode) ? nameAhead(route, 0, plaza?.name ?? (target?.kind === 'named' ? target.name : '')) : undefined
   if (leadsTo) instruction.leadsTo = leadsTo
   return instruction
 }

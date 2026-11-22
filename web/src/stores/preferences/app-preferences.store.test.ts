@@ -39,7 +39,7 @@ async function settle() {
 describe('app preferences store', () => {
   it('takes the account values without echoing them back', async () => {
     useAppPreferencesStore().adopt({
-      theme: { accentColor: 'teal', radius: 1, colorScheme: 'dark' },
+      theme: { accentColor: 'teal', radius: 1, colorScheme: 'dark', uiTheme: 'parchment' },
       map: { basemap: 'satellite', roadLabels: false },
       general: { floorNumbering: FloorNumbering.ONE_BASED, homeSheetStart: 'library' },
       layerAppearances: { 'default:group:cycling': 'suitability' },
@@ -47,7 +47,8 @@ describe('app preferences store', () => {
     await settle()
 
     const theme = useThemeStore()
-    expect([theme.accentColor, theme.radius, theme.colorScheme]).toEqual(['teal', 1, 'dark'])
+    expect([theme.accentColor, theme.radius, theme.colorScheme, theme.uiTheme]).toEqual(['teal', 1, 'dark', 'parchment'])
+    expect(document.documentElement.classList).toContain('ui-parchment')
     expect(useMapStore().settings).toMatchObject({ basemap: 'satellite', roadLabels: false })
     expect(useAppStore().floorNumbering).toBe(FloorNumbering.ONE_BASED)
     expect(useAppStore().homeSheetStart).toBe('library')

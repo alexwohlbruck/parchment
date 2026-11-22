@@ -1,7 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { toRefs, useStorage, useToggle } from '@vueuse/core'
 import { type Theme, themes } from '@/lib/registry/themes'
-import { type Style, styles } from '@/lib/registry/styles'
 import { defineStore } from 'pinia'
 import { useDark } from '@vueuse/core'
 import { usePowerStore } from '@/stores/power.store'
@@ -9,10 +8,13 @@ import { usePowerStore } from '@/stores/power.store'
 export const colorSchemes = ['auto', 'light', 'dark'] as const
 export type ColorScheme = (typeof colorSchemes)[number]
 
+export const uiThemes = ['modern', 'parchment'] as const
+export type UiTheme = (typeof uiThemes)[number]
+
 interface Config {
   accentColor: Theme['name']
   radius: number
-  style: Style
+  uiTheme: UiTheme
   uiScale: number
 }
 
@@ -67,14 +69,14 @@ export const useThemeStore = defineStore('theme', () => {
     {
       accentColor: 'parchment',
       radius: 0.5,
-      style: styles[0].name,
+      uiTheme: 'modern',
       uiScale: 1,
     },
     undefined,
     { mergeDefaults: true },
   )
 
-  const { accentColor, radius, style, uiScale } = toRefs(config)
+  const { accentColor, radius, uiTheme, uiScale } = toRefs(config)
 
   /* Interface size: per device, since it depends on the screen */
 
@@ -86,6 +88,22 @@ export const useThemeStore = defineStore('theme', () => {
     uiScale,
     scale => {
       document.documentElement.style.fontSize = scale === 1 ? '' : `${scale * 100}%`
+    },
+    { immediate: true },
+  )
+
+  /* Interface theme */
+
+  function setUiTheme(theme: UiTheme) {
+    config.value.uiTheme = theme
+  }
+
+  watch(
+    uiTheme,
+    theme => {
+      const { classList } = document.documentElement
+      classList.remove(...uiThemes.map(t => `ui-${t}`))
+      classList.add(`ui-${theme}`)
     },
     { immediate: true },
   )
@@ -155,7 +173,8 @@ export const useThemeStore = defineStore('theme', () => {
     uiScale,
     setUiScale,
     themeClass,
-    style,
+    uiTheme,
+    setUiTheme,
     themePrimary,
   }
 })

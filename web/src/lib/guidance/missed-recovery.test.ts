@@ -70,6 +70,11 @@ describe('classifyRecovery', () => {
     expect(recovery.next.arrivalMs).toBe(at(37).getTime())
   })
 
+  test('never offers a plan that adds a shared bike', () => {
+    const bikeShare = plan(walk(1), ride('2', 'Borough Hall', 'Wall St', 2, 12), { mode: 'cycling', ownership: 'shared', endTime: at(18), geometry: line })
+    expect(classifyRecovery(missed, [nextFour(6), bikeShare], NOW)?.kind).toBe('retime')
+  })
+
   test('lists the options when the next run is far behind them', () => {
     const recovery = classifyRecovery(missed, [nextFour(30), two(2, 31), two(10, 40)], NOW)
     expect(recovery?.kind).toBe('choose')

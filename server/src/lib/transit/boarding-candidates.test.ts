@@ -41,15 +41,15 @@ describe('boardingCandidates', () => {
     expect(out.map((c) => c.tripId)).toEqual(['t1'])
   })
 
-  test('adds another route only when it reaches the alighting stop', () => {
-    const board = [{ departures: [run('t1', '3', 0), run('bus', 'B44', 2), run('other', 'Q', 3)] }]
+  test('adds another route when it reaches the alighting stop or shares the next stop', () => {
+    const board = [{ departures: [run('t1', '3', 0), run('bus', 'B44', 2), run('short', '5', 3), run('away', 'Q', 4)] }]
     const out = boardingCandidates({
       board,
-      later: later({ MID: [['other', 6]], ALIGHT: [['bus', 12], ['t1', 10]] }),
+      later: later({ NEXT: [['t1', 3], ['short', 6]], MID: [['t1', 6], ['away', 8]], ALIGHT: [['bus', 12], ['t1', 10]] }),
       plannedMs: T,
       routes: ['3'],
     })
-    expect(out.map((c) => c.tripId)).toEqual(['t1', 'bus'])
+    expect(out.map((c) => c.tripId)).toEqual(['t1', 'bus', 'short'])
   })
 
   test('lists the later stops each run calls at, so an express can be told from a local', () => {

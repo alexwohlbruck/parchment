@@ -1,4 +1,4 @@
-import { approachReach, isOutOfReach, type DepartureReachability } from '@/lib/transit/transit-reachability'
+import { approachReach, type DepartureReachability } from '@/lib/transit/transit-reachability'
 import { SAME_RUN_MS } from '@/lib/transit/run'
 import type { CandidateSet, VehicleCandidate } from './vehicle-switch'
 
@@ -25,7 +25,7 @@ export interface RunChoiceInput {
 
 const MAX_CHOICES = 8
 
-/** The runs the rider can still make that get them off where planned, soonest first, the booked one marked. */
+/** The runs still to leave that get the rider off where planned, soonest first, the booked one marked. */
 export function runChoices(input: RunChoiceInput): RunChoice[] {
   const { set, alightStop, nowMs, toStopSec } = input
   const alightKnown = alightStop != null && set.known.includes(alightStop)
@@ -36,7 +36,7 @@ export function runChoices(input: RunChoiceInput): RunChoice[] {
       const reach = approachReach(candidate.departureMs, nowMs, toStopSec, input.runFactor ?? null)
       const arrivalMs = alightKnown ? candidate.calls.find(c => c.stop === alightStop)?.timeMs : undefined
       if (alightKnown && arrivalMs == null) return []
-      if (isOutOfReach(reach) && !(booked && reach !== 'departed')) return []
+      if (reach === 'departed') return []
       const spareSec = (candidate.departureMs - nowMs) / 1000 - toStopSec
       return [{ candidate, reach, arrivalMs, spareSec, booked }]
     })

@@ -11,6 +11,7 @@ import { DAYNIGHT_LAYER_TEMPLATES } from './daynight'
 import { ENVIRONMENT_LAYER_TEMPLATES } from './environment'
 import { NOTES_LAYER_TEMPLATES } from './notes'
 import { USER_LAYER_TEMPLATES } from './user-templates'
+import { IMAGERY_LAYER_TEMPLATES } from './imagery'
 
 export const DEFAULT_GROUP_TEMPLATES: DefaultLayerGroupTemplate[] = DEFAULT_LAYER_GROUPS
 
@@ -26,6 +27,7 @@ export const DEFAULT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   ...ENVIRONMENT_LAYER_TEMPLATES,
   ...NOTES_LAYER_TEMPLATES,
   ...USER_LAYER_TEMPLATES,
+  ...IMAGERY_LAYER_TEMPLATES,
 ]
 
 export function getProxyUrl(serverUrl: string, endpoint: string): string {

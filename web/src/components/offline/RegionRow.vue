@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import {
   CalendarClockIcon,
+  FrameIcon,
   MoreHorizontalIcon,
   PauseIcon,
   PencilIcon,
@@ -21,19 +24,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAppService } from '@/services/app.service'
-import { useMapService } from '@/services/map/map.service'
 import { useOfflineStore } from '@/stores/offline.store'
 import { formatBytes } from '@/lib/offline/format'
 import { dayAsDate } from '@/lib/offline/expiry'
 import KeepUntilPicker from '@/components/offline/KeepUntilPicker.vue'
 import type { OfflineRegion } from '@/types/offline.types'
 
-const props = defineProps<{ region: OfflineRegion }>()
+const props = defineProps<{ region: OfflineRegion; highlighted?: boolean }>()
 
 const { t, locale } = useI18n()
 const offlineStore = useOfflineStore()
 const appService = useAppService()
-const mapService = useMapService()
 
 const percent = computed(() =>
   props.region.total ? Math.floor(((props.region.saved + props.region.failed) / props.region.total) * 100) : 0,
@@ -60,6 +61,9 @@ const detail = computed(() => {
   }
 })
 
+const router = useRouter()
+const edit = () => router.push({ name: AppRoute.OFFLINE_MAPS_EDIT, params: { id: props.region.id } })
+
 const keepOpen = ref(false)
 let openKeepOnClose = false
 const armKeep = () => (openKeepOnClose = true)
@@ -71,10 +75,6 @@ function keepAfterMenu(event: Event) {
   keepOpen.value = true
 }
 
-function show() {
-  const [minLng, minLat, maxLng, maxLat] = props.region.bounds
-  mapService.fitBounds({ minLng, minLat, maxLng, maxLat })
-}
 
 async function rename() {
   const name = await appService.prompt({
@@ -97,7 +97,13 @@ async function remove() {
 </script>
 
 <template>
-  <ItemRow :title="region.name" size="md" interactive has-details @click="show">
+  <ItemRow
+    :title="region.name"
+    size="md"
+    interactive
+    has-details
+    :class="highlighted && 'bg-accent'"
+  >
     <template #icon="{ size }">
       <ItemIcon icon="MapIcon" color="cobalt" :size="size" />
     </template>
@@ -151,6 +157,9 @@ async function remove() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" @close-auto-focus="keepAfterMenu">
+              <DropdownMenuItem @click="edit">
+                <FrameIcon class="size-4" /> {{ t('offlineMaps.actions.edit') }}
+              </DropdownMenuItem>
               <DropdownMenuItem :disabled="region.status === 'downloading'" @click="offlineStore.update(region.id)">
                 <RefreshCwIcon class="size-4" /> {{ t('offlineMaps.actions.update') }}
               </DropdownMenuItem>

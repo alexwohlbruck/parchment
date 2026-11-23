@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { CloudDownloadIcon, PlusIcon } from 'lucide-vue-next'
@@ -8,6 +8,7 @@ import RegionRow from '@/components/offline/RegionRow.vue'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useOfflineStore } from '@/stores/offline.store'
+import { useOfflineRegionLayer } from '@/composables/offline/useOfflineRegionLayer'
 import { formatBytes } from '@/lib/offline/format'
 import { AppRoute } from '@/router'
 
@@ -27,7 +28,15 @@ const storage = computed(() => {
 
 const create = () => router.push({ name: AppRoute.OFFLINE_MAPS_NEW })
 
-onMounted(() => void offlineStore.refreshUsage())
+const highlighted = ref<string | null>(null)
+const edit = (id: string) => router.push({ name: AppRoute.OFFLINE_MAPS_EDIT, params: { id } })
+
+const { showAll } = useOfflineRegionLayer(highlighted, edit)
+
+onMounted(() => {
+  void offlineStore.refreshUsage()
+  showAll()
+})
 </script>
 
 <template>
@@ -59,7 +68,15 @@ onMounted(() => void offlineStore.refreshUsage())
     </EmptyState>
 
     <div v-else class="flex flex-col gap-2">
-      <RegionRow v-for="region in offlineStore.regions" :key="region.id" :region="region" />
+      <RegionRow
+        v-for="region in offlineStore.regions"
+        :key="region.id"
+        :region="region"
+        :highlighted="highlighted === region.id"
+        @click="edit(region.id)"
+        @mouseenter="highlighted = region.id"
+        @mouseleave="highlighted = null"
+      />
     </div>
 
     <p v-if="storage && offlineStore.regions.length" class="mt-4 px-1 text-xs text-muted-foreground">

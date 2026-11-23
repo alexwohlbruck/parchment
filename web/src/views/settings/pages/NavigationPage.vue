@@ -26,6 +26,7 @@ const defaultSort = computed({
     <SettingsSection
       id="modes"
       :title="$t('settings.navigation.modes.title')"
+      sync-key="navigation.excludedModes"
       :description="$t('settings.navigation.modes.description')"
     >
       <TripModeToggles layout="settings" />
@@ -34,6 +35,7 @@ const defaultSort = computed({
     <SettingsSection id="trip-preference" :title="$t('settings.navigation.tripPreference.title')">
       <SettingsItem
         :title="$t('settings.navigation.tripPreference.rankBy')"
+        sync-key="navigation.sortPreference"
         :description="$t('settings.navigation.tripPreference.rankByDescription')"
         :icon="ArrowDownWideNarrowIcon"
       >
@@ -41,7 +43,7 @@ const defaultSort = computed({
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection id="routing" :title="$t('settings.navigation.routing.title')">
+    <SettingsSection id="routing" :title="$t('settings.navigation.routing.title')" sync-key="navigation.routing.general">
       <RoutingGeneralFields layout="settings" />
     </SettingsSection>
 
@@ -50,6 +52,7 @@ const defaultSort = computed({
       :id="`routing-${mode}`"
       :key="mode"
       :title="$t(`settings.navigation.routing.modes.${mode}`)"
+      :sync-key="`navigation.routing.mode.${mode}`"
     >
       <RoutingModeFields :mode="mode" layout="settings" />
     </SettingsSection>

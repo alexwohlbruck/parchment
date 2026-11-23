@@ -3,6 +3,7 @@
 ### Added
 
 * Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
+* Settings that follow your account show a cloud next to them; tap it to keep that setting on this device only.
 
 ### Changed
 

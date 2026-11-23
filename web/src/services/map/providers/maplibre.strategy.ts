@@ -975,7 +975,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   private applyLandmarks() {
     const map = this.mapInstance
-    const want = this.map3dObjects && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
+    const want = this.objectsShown() && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Settings applied while the first tiles load land here too; the wait adds the layer.
     if (want && this.landmarksAfterTiles && this.landmarksAfterTiles === map.style) return
@@ -1020,7 +1020,6 @@ export class MaplibreStrategy extends MapStrategy {
     shadowCasters.add(layer)
     // Beside the other models: above the buildings, below every label.
     map.addLayer(layer as any, firstLabelLayer(map))
-    this.syncModelVisibility()
   }
 
   /**
@@ -1148,14 +1147,14 @@ export class MaplibreStrategy extends MapStrategy {
         map.setPaintProperty(
           id,
           layer.type === 'line' ? 'line-opacity' : 'circle-opacity',
-          this.map3dObjects ? 0 : TREE_OPACITY,
+          this.objectsShown() ? 0 : TREE_OPACITY,
         )
       }
       this.updateGolfPins(true)
       this.applyGround()
     }
 
-    if (!this.map3dObjects) {
+    if (!this.objectsShown()) {
       if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       if (this.objectLayer && map.getLayer(this.objectLayer.id)) {
         map.removeLayer(this.objectLayer.id)
@@ -1182,7 +1181,7 @@ export class MaplibreStrategy extends MapStrategy {
 
     // The setting may have been turned back off, or the style swapped, while
     // the models were in flight.
-    if (!this.map3dObjects) return flat()
+    if (!this.objectsShown()) return flat()
     if (!map.style?._loaded) return
 
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
@@ -1205,7 +1204,6 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
-    this.syncModelVisibility()
     this.objectLayer.setOpacity(this.surfaceOpacity())
     shadowCasters.add(this.objectLayer)
     flat()
@@ -1283,7 +1281,7 @@ export class MaplibreStrategy extends MapStrategy {
    */
   private applyDecks() {
     const map = this.mapInstance
-    const active = this.map3dObjects && !!map.getTerrain?.()
+    const active = this.objectsShown() && !!map.getTerrain?.()
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Probed rather than read off `getStyle()`, which the deck layer would otherwise serialise on every styledata.
     const routes = () => {
@@ -1297,7 +1295,6 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, deckPalette(flavor, this.options.mapStyle), { terrain: fineTerrain, carver: this.terrainCarver })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
-      this.syncModelVisibility()
     } else if (!active && this.tunnelLayer) {
       shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
@@ -1317,7 +1314,6 @@ export class MaplibreStrategy extends MapStrategy {
       shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
-      this.syncModelVisibility()
     } else if (!active && this.deckLayer) {
       shadowCasters.delete(this.deckLayer)
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
@@ -1646,7 +1642,7 @@ export class MaplibreStrategy extends MapStrategy {
     if (this.photorealistic?.url === url) return
     if (this.photorealistic && map.getLayer(this.photorealistic.layer.id)) map.removeLayer(this.photorealistic.layer.id)
     this.photorealistic = null
-    if (!url) return this.syncModelVisibility()
+    if (!url) return
 
     const style = map.style
     const { PhotorealisticLayer } = await import('@/lib/imagery/photorealistic-layer')
@@ -1658,17 +1654,15 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.photorealistic = { url, layer }
     map.addLayer(layer, labelsOnTop(map))
-    this.syncModelVisibility()
   }
 
-  /** Google's mesh already holds every building, tree and bridge; ours would stand inside it. */
-  private syncModelVisibility() {
-    const map = this.mapInstance
-    const visibility = this.photorealistic ? 'none' : 'visible'
-    for (const layer of [this.objectLayer, this.landmarkLayer, this.deckLayer, this.tunnelLayer]) {
-      const id = (layer as { id?: string } | null)?.id
-      if (id && map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility)
-    }
+  /**
+   * Trees, furniture, landmarks and raised decks belong to the drawn map. Over
+   * aerial imagery they stand on top of the photographed ones, and Google's
+   * mesh already holds them all.
+   */
+  private objectsShown() {
+    return this.map3dObjects && this.currentBasemap === 'standard'
   }
 
   /** Replace the imagery under the rest of the style, which a full reload would rebuild for nothing. */

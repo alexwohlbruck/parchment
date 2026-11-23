@@ -8,6 +8,7 @@
 ### Changed
 
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
+* Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos.
 
 ### Fixed
 

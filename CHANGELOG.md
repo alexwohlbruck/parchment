@@ -2,6 +2,8 @@
 
 ### Added
 
+* While driving, find parking near your destination and get walking directions from the spot you pick.
+
 ### Changed
 
 ### Fixed

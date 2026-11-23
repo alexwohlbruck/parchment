@@ -76,4 +76,6 @@ export type DialogOptions =
 export interface SheetMeta {
   dismissable?: boolean
   snapPoints?: (number | string)[]
+  /** Past this detent the sheet stops shrinking the map's visible area. */
+  maxObstructingSnapIndex?: number
 }

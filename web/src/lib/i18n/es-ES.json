@@ -3077,6 +3077,13 @@
       "title": "Apariencia",
       "appTheme": {
         "title": "Tema de la aplicación",
+        "uiTheme": {
+          "title": "Estilo",
+          "values": {
+            "modern": "Moderno",
+            "parchment": "Pergamino"
+          }
+        },
         "color": {
           "title": "Color",
           "values": {

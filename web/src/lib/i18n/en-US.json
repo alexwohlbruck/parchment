@@ -3221,6 +3221,13 @@
       "title": "Appearance",
       "appTheme": {
         "title": "App theme",
+        "uiTheme": {
+          "title": "Style",
+          "values": {
+            "modern": "Modern",
+            "parchment": "Parchment"
+          }
+        },
         "color": {
           "title": "Color",
           "values": {

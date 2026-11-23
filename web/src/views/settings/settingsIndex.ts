@@ -303,6 +303,7 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'settings.appearance.appTheme.title',
         keywords: ['dark mode', 'light mode', 'color', 'accent'],
         items: [
+          { titleKey: 'settings.appearance.appTheme.uiTheme.title', keywords: ['parchment', 'modern', 'chart'] },
           { titleKey: 'settings.appearance.appTheme.color.title' },
           { titleKey: 'settings.appearance.appTheme.radius.title' },
           { titleKey: 'settings.appearance.appTheme.theme.title' },

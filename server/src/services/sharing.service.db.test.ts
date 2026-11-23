@@ -455,3 +455,106 @@ describe('requireWriteAccessToCollection', () => {
     ).rejects.toThrow(sharingService.CollectionAccessDeniedError)
   })
 })
+
+describe('cross-server shares naming local resources', () => {
+  const MALLORY = `mallory_${RUN_SUFFIX}@peer.test`
+
+  beforeAll(async () => {
+    await db.insert(friendships).values({
+      id: generateId(),
+      userId: bobId,
+      friendHandle: MALLORY,
+      friendEncryptionKey: 'mallory-enc-key',
+      status: 'accepted',
+    })
+  })
+
+  const deliver = (resourceId: string) =>
+    sharingService.handleIncomingResourceShare(
+      MALLORY,
+      BOB_ALIAS,
+      'collection',
+      resourceId,
+      'ct',
+      'n',
+      'sig',
+      'editor',
+    )
+
+  test('rejects a remote share naming a collection stored here', async () => {
+    const collectionId = await makeCollection(aliceId)
+    const result = await deliver(collectionId)
+    expect(result.success).toBe(false)
+    const rows = await db
+      .select()
+      .from(incomingShares)
+      .where(eq(incomingShares.resourceId, collectionId))
+    expect(rows).toHaveLength(0)
+  })
+
+  test('accepts a remote share of a resource on the peer', async () => {
+    const remoteId = generateId()
+    const result = await deliver(remoteId)
+    expect(result.success).toBe(true)
+  })
+
+  test('a remote-sent incoming row grants no access to a local collection', async () => {
+    const collectionId = await makeCollection(aliceId)
+    await db.insert(incomingShares).values({
+      id: generateId(),
+      userId: bobId,
+      senderHandle: MALLORY,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+      status: 'accepted',
+    })
+    expect(
+      await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+    ).toBeNull()
+  })
+
+  test('an incoming row without an outgoing share grants no access', async () => {
+    const collectionId = await makeCollection(aliceId)
+    await db.insert(incomingShares).values({
+      id: generateId(),
+      userId: bobId,
+      senderHandle: aliceHandle,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+      status: 'accepted',
+    })
+    expect(
+      await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+    ).toBeNull()
+  })
+})
+
+describe('writableCollectionIds', () => {
+  test('keeps owned and editor-shared collections, drops viewer and unrelated ones', async () => {
+    const owned = await makeCollection(bobId)
+    const edited = await makeCollection(aliceId)
+    const viewed = await makeCollection(aliceId)
+    const unrelated = await makeCollection(aliceId)
+    for (const [resourceId, role] of [[edited, 'editor'], [viewed, 'viewer']] as const) {
+      await sharingService.createShare({
+        userId: aliceId,
+        recipientHandle: bobHandle,
+        resourceType: 'collection',
+        resourceId,
+        encryptedData: 'ct',
+        nonce: 'n',
+        role,
+      })
+    }
+
+    expect(
+      await sharingService.writableCollectionIds(bobId, [owned, edited, viewed, unrelated]),
+    ).toEqual([owned, edited])
+  })
+})

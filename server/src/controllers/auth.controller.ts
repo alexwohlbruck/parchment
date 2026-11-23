@@ -53,6 +53,7 @@ import {
 } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { publicSessionId } from '../lib/public-session-id'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -85,6 +86,22 @@ const codeAttemptLimit = rateLimitHandler(
 
 const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
+/** Matches the session cookie's attributes; a challenge only lives for one ceremony. */
+const challengeCookie = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 5 * 60,
+} as const
+
+/** The fixed OTP for the store-review tester account, or null when the bypass is off. */
+function appTesterCode(email: string): string | null {
+  const { APP_TESTER_EMAIL: testerEmail, APP_TESTER_CODE: code } = process.env
+  if (!testerEmail || !code || !/^\d{8}$/.test(code)) return null
+  return email === testerEmail ? code : null
+}
+
 app.post(
   '/verify',
   async ({ body: { email }, set, status, t, language }) => {
@@ -100,12 +117,13 @@ app.post(
       user = await createOpenRegistrationUser(email)
     }
 
-    const isAppTester = user.email === process.env.APP_TESTER_EMAIL
+    const testerCode = appTesterCode(user.email)
+    const isAppTester = testerCode !== null
 
     const verificationCode = await createServerToken(
       'otp',
       user.id,
-      isAppTester ? '00000000' : undefined,
+      testerCode ?? undefined,
     )
     const emailSuccess = isAppTester
       ? true
@@ -150,7 +168,7 @@ app.group('/passkeys', (app) => {
             user.id,
             email,
           )
-          challenge.value = options.challenge
+          challenge.set({ value: options.challenge, ...challengeCookie })
           return options
         } catch (err) {
           set.status = 500
@@ -270,7 +288,7 @@ app.group('/passkeys', (app) => {
       async ({ set, cookie: { challenge } }) => {
         try {
           const options = await generateWebauthnOptions('authenticate')
-          challenge.value = options.challenge
+          challenge.set({ value: options.challenge, ...challengeCookie })
           return options
         } catch (err) {
           set.status = 500
@@ -327,7 +345,13 @@ app.group('/passkeys', (app) => {
           },
         })
 
+        challenge.remove()
+
         if (verification.verified) {
+          await db
+            .update(passkeys)
+            .set({ counter: verification.authenticationInfo.newCounter })
+            .where(eq(passkeys.id, passkey.id))
           const user = await fetchUser(passkey.userId)
           const session = await createSession(user.id, {
             set,
@@ -340,7 +364,6 @@ app.group('/passkeys', (app) => {
           }
         }
 
-        challenge.remove()
         return status(401, {
           message: t('errors.auth.passkeyVerificationFailed'),
         })
@@ -598,17 +621,38 @@ app.group('/sessions', (app) => {
 
     guarded.get(
       '/',
-      async ({ set, user }) => {
-        return await db
+      async ({ user, request }) => {
+        const currentId = getSessionId(request)
+        const rows = await db
           .select()
           .from(sessions)
           .where(eq(sessions.userId, user.id))
           .orderBy(desc(sessions.createdAt))
+        return rows.map(({ id, createdAt, expiresAt, ipv4, userAgent }) => ({
+          id: publicSessionId(id),
+          current: id === currentId,
+          createdAt,
+          expiresAt,
+          ipv4,
+          userAgent,
+        }))
       },
       {
+        response: t.Array(
+          t.Object({
+            id: t.String(),
+            current: t.Boolean(),
+            createdAt: t.Date(),
+            expiresAt: t.Date(),
+            ipv4: t.Nullable(t.String()),
+            userAgent: t.Nullable(t.String()),
+          }),
+        ),
         detail: {
           tags: ['Auth'],
           summary: 'Get all sessions for current user',
+          description:
+            'Each `id` is a hash of the session, never the session token itself.',
         },
       },
     )
@@ -616,16 +660,24 @@ app.group('/sessions', (app) => {
     guarded.delete(
       '/:sessionId',
       async ({ set, user, params: { sessionId } }) => {
-        if (!user) return (set.status = 401)
-        await db
-          .delete(sessions)
-          .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
+        const rows = await db
+          .select({ id: sessions.id })
+          .from(sessions)
+          .where(eq(sessions.userId, user.id))
+        const target = rows.find((row) => publicSessionId(row.id) === sessionId)
+        if (target) {
+          await db
+            .delete(sessions)
+            .where(and(eq(sessions.id, target.id), eq(sessions.userId, user.id)))
+        }
         return (set.status = 204)
       },
       {
+        params: t.Object({ sessionId: t.String() }),
         detail: {
           tags: ['Auth'],
           summary: 'Delete a session',
+          description: 'Takes the `id` returned by `GET /auth/sessions`.',
         },
       },
     )
@@ -641,7 +693,7 @@ app.group('/sessions', (app) => {
         return null
       }
 
-      const sessionId = getSessionId(request)
+      const bearer = request.headers.get('Authorization')?.startsWith('Bearer ')
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
 
       const subscription = billing.enabled
@@ -650,13 +702,15 @@ app.group('/sessions', (app) => {
 
       return {
         user: me,
-        token: sessionId,
+        ...(bearer && { token: getSessionId(request) }),
         subscription,
       }
     },
     {
       detail: {
         tags: ['Auth', 'Users'],
+        description:
+          'The current user. `token` is echoed only to bearer-authenticated clients.',
       },
     },
   )

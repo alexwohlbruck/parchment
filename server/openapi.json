@@ -1835,14 +1835,341 @@
         }
       },
       "get": {
+        "responses": {
+          "200": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "current": {
+                  "type": "boolean"
+                },
+                "createdAt": {
+                  "anyOf": [
+                    {
+                      "type": "Date"
+                    },
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "expiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "Date"
+                    },
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "ipv4": {
+                  "nullable": true,
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "userAgent": {
+                  "nullable": true,
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "current",
+                "createdAt",
+                "expiresAt",
+                "ipv4",
+                "userAgent"
+              ]
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "ipv4": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "userAgent": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "current",
+                      "createdAt",
+                      "expiresAt",
+                      "ipv4",
+                      "userAgent"
+                    ]
+                  }
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "ipv4": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "userAgent": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "current",
+                      "createdAt",
+                      "expiresAt",
+                      "ipv4",
+                      "userAgent"
+                    ]
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "ipv4": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "userAgent": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "current",
+                      "createdAt",
+                      "expiresAt",
+                      "ipv4",
+                      "userAgent"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
         "operationId": "getAuthSessions",
         "tags": [
           "Auth"
         ],
         "summary": "Get all sessions for current user",
-        "responses": {
-          "200": {}
-        }
+        "description": "Each `id` is a hash of the session, never the session token itself."
       }
     },
     "/auth/sessions/all": {
@@ -1937,11 +2264,6 @@
     },
     "/auth/sessions/{sessionId}": {
       "delete": {
-        "operationId": "deleteAuthSessionsBySessionId",
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Delete a session",
         "parameters": [
           {
             "schema": {
@@ -1952,6 +2274,12 @@
             "required": true
           }
         ],
+        "operationId": "deleteAuthSessionsBySessionId",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Delete a session",
+        "description": "Takes the `id` returned by `GET /auth/sessions`.",
         "responses": {
           "200": {}
         }
@@ -1964,6 +2292,7 @@
           "Auth",
           "Users"
         ],
+        "description": "The current user. `token` is echoed only to bearer-authenticated clients.",
         "responses": {
           "200": {}
         }
@@ -2068,7 +2397,7 @@
           "Users"
         ],
         "summary": "Upload avatar",
-        "description": "Accepts a JPEG, PNG or WebP up to 2MB, center-crops it to a 256px square WebP and sets it as the caller’s picture. Each upload gets a new URL, so it can be cached indefinitely.",
+        "description": "Accepts a JPEG, PNG or WebP up to 2MB (judged by its contents, not its name), center-crops it to a 256px square WebP and sets it as the caller’s picture. Each upload gets a new URL, so it can be cached indefinitely.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8001,14 +8330,196 @@
             "required": true
           }
         ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "handle": {
+                      "type": "string"
+                    },
+                    "signingKey": {
+                      "type": "string"
+                    },
+                    "encryptionKey": {
+                      "type": "string"
+                    },
+                    "inbox": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "picture": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "handle",
+                    "signingKey",
+                    "encryptionKey",
+                    "inbox"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "handle": {
+                      "type": "string"
+                    },
+                    "signingKey": {
+                      "type": "string"
+                    },
+                    "encryptionKey": {
+                      "type": "string"
+                    },
+                    "inbox": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "picture": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "handle",
+                    "signingKey",
+                    "encryptionKey",
+                    "inbox"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "handle": {
+                      "type": "string"
+                    },
+                    "signingKey": {
+                      "type": "string"
+                    },
+                    "encryptionKey": {
+                      "type": "string"
+                    },
+                    "inbox": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "picture": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "handle",
+                    "signingKey",
+                    "encryptionKey",
+                    "inbox"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "operationId": "getFriendsResolveByHandle",
         "tags": [
           "Friends"
         ],
-        "description": "Resolve a handle to user info (local or remote)",
-        "responses": {
-          "200": {}
-        }
+        "description": "Resolve a handle to user info (local or remote)"
       }
     },
     "/friends/sync-keys": {

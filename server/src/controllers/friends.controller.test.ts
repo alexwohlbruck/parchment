@@ -56,10 +56,15 @@ mock.module('../services/friends.service', () => ({
   syncFriendKeys,
 }))
 
-const resolveHandle = mock(
-  async (_handle: string) =>
-    ({ alias: 'alice', publicKey: 'pk' }) as unknown,
-)
+const remoteUser = {
+  handle: 'alice@peer.test',
+  signingKey: 'sk',
+  encryptionKey: 'ek',
+  inbox: 'https://peer.test/federation/inbox',
+  name: 'Alice',
+  internal: 'peer-supplied extra',
+}
+const resolveHandle = mock(async (_handle: string) => remoteUser as unknown)
 mock.module('../services/federation.service', () => ({ resolveHandle }))
 
 // parseHandle is the real format check; keep it honest by only stubbing the
@@ -91,7 +96,7 @@ beforeEach(() => {
   removeFriend.mockImplementation(async () => ok())
   syncFriendKeys.mockClear()
   resolveHandle.mockClear()
-  resolveHandle.mockImplementation(async () => ({ alias: 'alice', publicKey: 'pk' }))
+  resolveHandle.mockImplementation(async () => remoteUser)
   parseHandle.mockClear()
 })
 
@@ -345,7 +350,13 @@ describe('GET /friends/resolve/:handle', () => {
 
     expect(res.status).toBe(200)
     expect(resolveHandle).toHaveBeenCalledWith('alice@peer.test')
-    expect(res.body.alias).toBe('alice')
+    expect(res.body).toEqual({
+      handle: 'alice@peer.test',
+      signingKey: 'sk',
+      encryptionKey: 'ek',
+      inbox: 'https://peer.test/federation/inbox',
+      name: 'Alice',
+    })
   })
 
   test('decodes a percent-encoded handle', async () => {

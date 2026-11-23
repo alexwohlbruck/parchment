@@ -2,12 +2,12 @@ import { Page, expect } from '@playwright/test'
 
 /**
  * Test user credentials.
- * Must match seed user; APP_TESTER_EMAIL in .env.test and docker-compose.test.yml.
- * That user always gets OTP 00000000.
+ * Must match seed user; APP_TESTER_EMAIL and APP_TESTER_CODE in .env.test and
+ * docker-compose.test.yml.
  */
 export const TEST_USER = {
   email: process.env.APP_TESTER_EMAIL || 'test@parchment.local',
-  otp: '00000000', // 8 digits: 0000-0000
+  otp: process.env.APP_TESTER_CODE || '00000000',
 }
 
 /**

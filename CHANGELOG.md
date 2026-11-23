@@ -8,6 +8,11 @@
 
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 
+## [0.25.1] - 2026-11-23
+
+### Fixed
+
+* Tightened security across sharing, sign-in, saved places and profile photos, so your account and shared collections are better protected.
 * Links from map data, transit agencies and search sources only open real web, email and phone addresses, never scripts.
 
 ## [0.25.0] - 2026-11-23

@@ -38,6 +38,7 @@ services:
       SERVER_ORIGIN: ${SERVER_ORIGIN:-http://localhost:5001}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5174}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-test@parchment.local}
+      APP_TESTER_CODE: ${APP_TESTER_CODE:-00000000}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-true}

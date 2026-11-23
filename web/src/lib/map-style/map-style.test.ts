@@ -1600,11 +1600,12 @@ describe('assembled styles', () => {
     })
   })
 
-  test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
+  test('hybrid keeps only labels over the imagery', () => {
     const imagery = [{ id: 'photo', kind: 'raster' as const, source: { type: 'raster' as const, tiles: ['https://photo/{z}/{x}/{y}'] } }]
     const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery })
     const ids = style.layers.map(l => l.id)
     expect(ids[0]).toBe('imagery:photo')
+    expect(style.layers.filter(l => l.type === 'line')).toEqual([])
     expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
     expect(ids).not.toContain('Background')
   })

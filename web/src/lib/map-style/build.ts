@@ -830,8 +830,8 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 }
 
 /**
- * Satellite / hybrid: the user's imagery stack, with the basemap's labels and
- * arterial network over it in hybrid mode.
+ * Satellite / hybrid: the user's imagery stack, with the basemap's labels over
+ * it in hybrid mode. The photographed streets are the street lines.
  *
  * Hybrid always uses the dark flavor's labels regardless of app theme: the
  * ground here is imagery, always busy and mid-to-dark, not a flavor's own
@@ -859,9 +859,7 @@ export function buildSatelliteStyle(
     }).filter(
       l =>
         (l.type === 'symbol' && (l as any).source === SOURCE) ||
-        (l as any)['source-layer'] === GLOBE_NAMES ||
-        // Keep the arterial network so the imagery stays navigable.
-        /^(Highway|Major road)$/.test(l.id),
+        (l as any)['source-layer'] === GLOBE_NAMES,
     )
     layers.push(...overlay)
   }

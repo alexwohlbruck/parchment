@@ -6,7 +6,11 @@
 
 ### Changed
 
+* When your bike share station fills up or runs out of bikes, pick another from a list. If you don't tap one, the closest is chosen after 10 seconds.
+
 ### Fixed
+
+* Bike share station checks no longer stop partway through a ride.
 
 ## [0.25.1] - 2026-11-23
 

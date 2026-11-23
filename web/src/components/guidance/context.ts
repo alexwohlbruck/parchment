@@ -9,7 +9,7 @@ import type { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import type { useParkingOffer } from '@/composables/guidance/useParkingOffer'
 import type { FreeMode } from '@/lib/guidance/free-roam'
 
-export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination' | 'parking'
+export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination' | 'parking' | 'docks'
 
 export interface GuidanceContext {
   camera: ReturnType<typeof useGuidanceCamera>

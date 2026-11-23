@@ -51,7 +51,7 @@ const vehicleSwitch = useVehicleSwitch()
 
 const panel = ref<GuidancePanelKind | null>(null)
 const openedFrom = ref<GuidancePanelKind | null>(null)
-const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes', 'destination'])
+const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes', 'destination', 'parking', 'docks'])
 
 function openPanel(next: GuidancePanelKind) {
   openedFrom.value = panel.value
@@ -65,6 +65,8 @@ function closePanel(outright = false) {
   openedFrom.value = null
   if (leaving && MAP_PANELS.has(leaving)) camera.follow()
 }
+
+watch(docks.pickRequested, requested => requested && panel.value !== 'docks' && openPanel('docks'))
 
 // Away from the route there is nothing to follow; show the whole of it until the traveller joins.
 watch(

@@ -8,7 +8,7 @@
   # build:ci is `vue-tsc && vite build` — it deliberately omits the unit tests
   # that `bun run build` runs, because CI already runs them on every push. Type
   # errors still fail the deploy.
-  command = "bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build:ci"
+  command = "bun install --frozen-lockfile && cd ../server && bun install --frozen-lockfile --ignore-scripts && cd ../web && bun run build:ci"
 
   # Skip the build when nothing the bundle is made of changed. This is a
   # monorepo, so most server-only work (controllers, services, migrations)
@@ -22,6 +22,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  BUN_VERSION = "1.3.14"
   # Node's default ~2 GB heap runs out while Vite renders the chunks.
   NODE_OPTIONS = "--max-old-space-size=6144"
 

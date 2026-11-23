@@ -121,6 +121,57 @@ app.get(
   },
 )
 
+/** A Photorealistic 3D Tiles path: the root tileset, or a tileset or glTF under a dataset. */
+const GOOGLE_3D_PATH = /^(root\.json|datasets\/[\w-]+\/files\/[\w.-]+\.(json|glb))$/
+/** Upstream headers passed on; Google requires clients to honour its caching ones. */
+const GOOGLE_3D_HEADERS = ['content-type', 'cache-control', 'etag', 'expires', 'last-modified']
+
+app.get(
+  '/google/3dtiles/*',
+  async ({ params, request }) => {
+    const path = params['*']
+    if (!GOOGLE_3D_PATH.test(path)) return badTileRequest()
+
+    const apiKey = integrationManager
+      .getConfiguredIntegrations()
+      .find((i) => i.integrationId === IntegrationId.GOOGLE_MAPS)?.config?.apiKey
+    if (!apiKey) return new Response('google-maps not configured', { status: 501 })
+
+    // The renderer sends a placeholder key so it attaches the session the way
+    // it would against Google; the real key replaces it here.
+    const query = new URL(request.url).searchParams
+    query.set('key', apiKey)
+
+    try {
+      const response = await fetch(`https://tile.googleapis.com/v1/3dtiles/${path}?${query}`, {
+        headers: request.headers.get('if-none-match')
+          ? { 'If-None-Match': request.headers.get('if-none-match')! }
+          : undefined,
+      })
+      const headers = new Headers()
+      for (const name of GOOGLE_3D_HEADERS) {
+        const value = response.headers.get(name)
+        if (value) headers.set(name, value)
+      }
+      if (!response.ok && response.status !== 304) {
+        logError(`Google 3D tiles: ${response.status} ${response.statusText}`)
+      }
+      return new Response(response.body, { status: response.status, headers })
+    } catch (error) {
+      logError('Google 3D tiles proxy error', error)
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Google Photorealistic 3D Tiles',
+      description:
+        'The root tileset and every tileset and glTF under it, with the Google Maps integration key attached server-side. Caching headers are passed through unchanged.',
+    },
+  },
+)
+
 // Proxy route for Loom tile service
 app.get(
   '/loom/:service/geo/:z/:x/:y',

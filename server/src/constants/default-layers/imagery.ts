@@ -78,4 +78,28 @@ export const IMAGERY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     maxzoom: 19,
     attribution: 'Powered by <a href="https://www.esri.com" target="_blank">Esri</a> | Esri, Maxar, Earthstar Geographics, and the GIS User Community',
   }, 'esri'),
+  // Meshes rather than a raster: drawn by its own layer on top of the raster
+  // sources, which show through while it loads and on the zoomed-out globe.
+  {
+    templateId: 'default:imagery-google-3d',
+    name: 'Google Photorealistic 3D',
+    type: LayerType.IMAGERY,
+    engine: ['maplibre'],
+    icon: 'SatelliteIcon',
+    showInLayerSelector: false,
+    visible: true,
+    order: 5,
+    groupId: GROUP,
+    isSubLayer: true,
+    integrationId: 'google-maps',
+    configuration: {
+      id: 'imagery-google-3d',
+      type: 'custom',
+      source: {
+        id: 'imagery-google-3d',
+        type: '3d-tiles',
+        url: '{PROXY_URL}/google/3dtiles/root.json',
+      },
+    },
+  },
 ]

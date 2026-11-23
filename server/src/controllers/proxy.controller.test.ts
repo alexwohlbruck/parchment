@@ -765,3 +765,34 @@ describe('GET /proxy/esri/:service/:z/:y/:x', () => {
     expect(res.status).toBe(502)
   })
 })
+
+describe('GET /proxy/google/3dtiles/*', () => {
+  const google = { integrationId: 'google-maps', config: { apiKey: 'g-key' } }
+
+  test('501s when Google Maps is not configured', async () => {
+    configuredIntegrations = []
+    const res = await req(app).get('/proxy/google/3dtiles/root.json?key=proxy')
+    expect(res.status).toBe(501)
+  })
+
+  test('only fetches the root and files under a dataset', async () => {
+    configuredIntegrations = [google]
+    const res = await req(app).get('/proxy/google/3dtiles/../v1/2dtiles/root.json')
+    expect(res.status).not.toBe(200)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test('swaps the placeholder key for the real one and keeps the session', async () => {
+    configuredIntegrations = [google]
+    fetchResponses = [
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'model/gltf-binary', 'cache-control': 'private, max-age=14400' },
+      }),
+    ]
+    const res = await req(app).get('/proxy/google/3dtiles/datasets/CgA/files/abc_-1.glb?session=s1&key=proxy')
+    expect(res.status).toBe(200)
+    expect(fetchCalls[0]).toBe('https://tile.googleapis.com/v1/3dtiles/datasets/CgA/files/abc_-1.glb?session=s1&key=g-key')
+    expect(res.headers.get('cache-control')).toBe('private, max-age=14400')
+    expect(JSON.stringify([...res.headers])).not.toContain('g-key')
+  })
+})

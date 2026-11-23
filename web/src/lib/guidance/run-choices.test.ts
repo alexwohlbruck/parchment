@@ -43,13 +43,10 @@ describe('runChoices', () => {
     expect(comfortable.spareSec).toBe(6 * 60)
   })
 
-  test('drops runs out of reach even at a run, and ones already gone', () => {
+  test('keeps earlier runs out of reach, so the rider can still pick one, and drops ones already gone', () => {
     const choices = runChoices(input([run('gone', -1), run('far', 2), run('booked', 9)]))
-    expect(ids(choices)).toEqual(['booked'])
-  })
-
-  test('keeps the booked run while it is still to come, even out of reach', () => {
-    expect(ids(runChoices(input([run('booked', 2), run('later', 14)])))).toEqual(['booked', 'later'])
+    expect(ids(choices)).toEqual(['far', 'booked'])
+    expect(choices[0].reach).toBe('unreachable')
   })
 
   test('skips runs that pass the stop the rider gets off at', () => {

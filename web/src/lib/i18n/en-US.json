@@ -1471,7 +1471,74 @@
     }
   },
   "offlineMaps": {
-    "title": "Offline maps"
+    "title": "Offline maps",
+    "create": "Save an area",
+    "unsupported": "This browser can't save maps for offline use",
+    "storage": "Offline maps use {used} · {free} free",
+    "empty": {
+      "title": "No offline maps yet",
+      "description": "Save an area to see it with no connection"
+    },
+    "region": {
+      "saving": "Saving · {percent}%",
+      "paused": "Paused · {percent}%",
+      "failed": "1 part couldn't be saved | {count} parts couldn't be saved",
+      "ready": "{size} · Updated {date}",
+      "readyTransit": "{size} · Transit times until {date}",
+      "keepUntil": "{size} · Deletes {date}"
+    },
+    "actions": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "update": "Update",
+      "rename": "Rename",
+      "keep": "Keep for…",
+      "edit": "Edit"
+    },
+    "rename": {
+      "title": "Rename offline map"
+    },
+    "delete": {
+      "title": "Delete offline map?",
+      "description": "{name} will need a connection again"
+    },
+    "layers": {
+      "basemap": "Map",
+      "terrain": "3D terrain"
+    },
+    "new": {
+      "title": "Save an area",
+      "saveChanges": "Save changes",
+      "hint": "Move and zoom the map to fit the area in the square",
+      "layers": "Include",
+      "summary": "About {size} · {width} km across",
+      "tooLarge": "Zoom in to pick a smaller area",
+      "needsConnection": "Connect to the internet to save an area",
+      "download": "Download",
+      "defaultName": "Saved area",
+      "features": "Use offline",
+      "free": "{size} free"
+    },
+    "features": {
+      "search": "Search places",
+      "directions": "Get directions"
+    },
+    "keep": {
+      "title": "Keep",
+      "forever": "Until you delete it",
+      "until": "Until {date}",
+      "week": "1 week",
+      "month": "1 month",
+      "months3": "3 months",
+      "year": "1 year",
+      "pick": "Pick a date"
+    },
+    "notice": {
+      "place": "Saved offline, so some details may be missing or out of date",
+      "departures": "Scheduled times only, with no live updates",
+      "directions": "Planned offline, so live delays and closures aren’t included",
+      "search": "Places saved on this device, so results may be incomplete"
+    }
   },
   "timeline": {
     "title": "Timeline",
@@ -3160,6 +3227,13 @@
       "title": "Appearance",
       "appTheme": {
         "title": "App theme",
+        "uiTheme": {
+          "title": "Style",
+          "values": {
+            "modern": "Modern",
+            "parchment": "Parchment"
+          }
+        },
         "color": {
           "title": "Color",
           "values": {

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { tripSignature } from '@/lib/directions/trip-signature'
 import { withTravelTimes, type TravelTimes } from '@/lib/directions/mode-estimates'
 import { Directions, TripsResponse } from '@/types/directions.types'
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, TripView } from '@/types/multimodal.types'
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone-warning'
@@ -169,9 +170,13 @@ export const useDirectionsStore = defineStore('directions', () => {
     isLoading.value = loading
   }
 
+  /** Planned on the device from a saved area, with no live traffic, delays or closures. */
+  const plannedOffline = computed(() => !!trips.value?.metadata?.providers?.includes(OFFLINE_SOURCE_ID))
+
   return {
     directions,
     trips,
+    plannedOffline,
     plannedKey,
     plannedAt,
     waypoints,

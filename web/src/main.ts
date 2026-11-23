@@ -11,6 +11,8 @@ import '@fontsource/geist-sans/600.css'
 import '@fontsource/geist-sans/700.css'
 import '@fontsource/geist-mono/400.css'
 import '@fontsource/geist-mono/500.css'
+import '@fontsource/im-fell-english/400.css'
+import '@fontsource/im-fell-english/400-italic.css'
 import App from './App.vue'
 import router from './router'
 import VueTransitions from '@morev/vue-transitions'
@@ -23,6 +25,7 @@ import '@/services/library/sync-bootstrap'
 
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
+import '@/styles/ui-parchment.css'
 
 // TODO: Move to dedicated file
 // import 'mapillary-js/dist/mapillary.css'

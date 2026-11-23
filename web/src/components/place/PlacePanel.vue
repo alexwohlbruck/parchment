@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import {
   ref,
   watch,
@@ -43,6 +44,8 @@ import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 const props = defineProps<{
   place: Partial<Place> | null
   loading: boolean
+  /** Shown from what the device saved, with no connection to load the rest. */
+  offline?: boolean
 }>()
 
 const emit = defineEmits<{ retry: [] }>()
@@ -309,6 +312,8 @@ function handleBrandLogoError() {
           </div>
 
           <PlaceDisplayChips :place="place" />
+
+          <OfflineDataNotice v-if="offline" :text="t('offlineMaps.notice.place')" />
 
           <!-- Skeleton loaders while full data loads -->
           <template v-if="loading">

@@ -73,11 +73,6 @@ function authService() {
     const hasCachedUser = authStore.me !== undefined && authStore.me !== null
 
     const sessionPromise = api.get('auth/sessions/current')
-    // Resolve to no user on timeout/network error so router guard doesn't wait forever
-    const authenticatedUserPromise = sessionPromise.catch(() => {
-      authStore.updateUser(null)
-      return { data: { user: null, token: null } }
-    })
 
     // If we have cached user, set a resolved promise so router guards don't block
     // The actual server request will validate/update in background
@@ -113,7 +108,12 @@ function authService() {
       return { user: authStore.me }
     }
 
-    // No cache - wait for server response (or timeout → no user)
+    // No cache - wait for server response (or timeout → no user), so the
+    // router guard doesn't wait forever
+    const authenticatedUserPromise = sessionPromise.catch(() => {
+      authStore.updateUser(null)
+      return { data: { user: null, token: null } }
+    })
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
 
     const response = await authenticatedUserPromise

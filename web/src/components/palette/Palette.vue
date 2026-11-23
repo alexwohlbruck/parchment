@@ -3,6 +3,8 @@ import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useAbortController } from '@/composables/useAbortController'
+import { useConnectivity } from '@/composables/useConnectivity'
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
@@ -86,6 +88,7 @@ const listStyle = computed(() =>
 )
 
 const { t } = useI18n()
+const { isOffline } = useConnectivity()
 const route = useRoute()
 const commandStore = useCommandStore()
 const appStore = useAppStore()
@@ -629,6 +632,11 @@ const filterFunction = computed(() => {
 
           <!-- Grouped rendering for search command -->
           <template v-else-if="groupedArgumentOptions">
+            <OfflineDataNotice
+              v-if="isOffline && query.length && groupedArgumentOptions.length"
+              :text="t('offlineMaps.notice.search')"
+              class="mx-2 mt-2"
+            />
             <CommandEmpty v-if="groupedArgumentOptions.length === 0">
               No results found.
             </CommandEmpty>

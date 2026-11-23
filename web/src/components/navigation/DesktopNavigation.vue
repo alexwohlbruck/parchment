@@ -40,6 +40,7 @@ import {
   LayoutDashboardIcon,
   TelescopeIcon,
   MessageCircleQuestionIcon,
+  CloudDownloadIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import SyncStatus from '@/components/sync/SyncStatus.vue'
@@ -218,6 +219,7 @@ const items = computed<NavItem[]>(() => [
   { label: capitalize(t('library.title')), icon: LibraryIcon, to: '/library' },
   { label: 'Lookout', icon: TelescopeIcon, to: '/lookout' },
   { label: t('timeline.title'), icon: HistoryIcon, to: '/timeline' },
+  { label: t('offlineMaps.title'), icon: CloudDownloadIcon, to: '/offline-maps' },
 ])
 
 /**

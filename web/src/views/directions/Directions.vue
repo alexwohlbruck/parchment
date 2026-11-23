@@ -20,6 +20,7 @@ import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store
 import { storeToRefs } from 'pinia'
 import WaypointInput from '@/components/directions/WaypointInput.vue'
 import TripsList from '@/components/directions/TripsList.vue'
+import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import TripList from '@/components/directions/TripList.vue'
 import RoutingPreferences from '@/components/directions/preferences/RoutingPreferences.vue'
 import TripModeToggles from '@/components/directions/preferences/TripModeToggles.vue'
@@ -37,6 +38,8 @@ import { Waypoint } from '@/types/map.types'
 import { SelectedMode } from '@/types/multimodal.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -52,9 +55,13 @@ const route = useRoute()
 const { t } = useI18n()
 const startFreeRoam = useStartFreeRoam()
 const directionsService = useDirectionsService()
+const { isOffline, onReconnected } = useConnectivity()
+onReconnected(() => {
+  if (!trips.value) void directionsService.getDirections()
+})
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
+const { waypoints, trips, plannedOffline, selectedMode, departureTime, sortPreference, effectiveSort, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 const navigationPreferences = useNavigationPreferencesStore()
 
@@ -426,6 +433,7 @@ useMapListener(
 
     <!-- Trips results — the time-scaled timeline, or a plain list -->
     <template v-else-if="trips">
+      <OfflineDataNotice v-if="plannedOffline" :text="t('offlineMaps.notice.directions')" class="mb-2" />
       <TripsList
         v-if="tripView === 'timeline'"
         :trips="trips"
@@ -441,6 +449,14 @@ useMapListener(
         {{ t(`guidance.free.withoutDestination.${freeRoamMode}`) }}
       </Button>
     </div>
+
+    <EmptyState
+      v-else-if="isOffline && waypoints.some(wp => wp.lngLat)"
+      :title="t('offline.emptyState.title')"
+      offline
+      class="mt-16"
+      @retry="directionsService.getDirections()"
+    />
 
     <!-- No results -->
     <div

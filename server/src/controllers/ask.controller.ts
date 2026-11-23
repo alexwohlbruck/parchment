@@ -93,6 +93,7 @@ const app = new Elysia()
                 now: new Date(),
                 signal: request.signal,
                 seen: new Map<string, Place>(),
+                reviews: new Map(),
                 model: preferences.webSearch ? meter.model : undefined,
                 sources: new Map(),
                 emit,

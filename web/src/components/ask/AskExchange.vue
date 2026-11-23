@@ -16,6 +16,7 @@ import AskFollowUps from './AskFollowUps.vue'
 import AskSources from './AskSources.vue'
 import AskTripCard from './AskTripCard.vue'
 import AskRouteCard from './AskRouteCard.vue'
+import AskReviewQuotes from './AskReviewQuotes.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
 import type { AskExchange } from '@/types/ask.types'
@@ -120,16 +121,17 @@ const browseRoute = computed(() => {
 
     <ol v-if="exchange.places.length" class="flex flex-col gap-2">
       <li
-        v-for="{ place, reason } in exchange.places"
+        v-for="{ place, reason, reviews } in exchange.places"
         :key="place.id"
         :class="ITEM_ROW_SURFACES.row"
         @mouseenter="emit('place-hover', place.id)"
         @mouseleave="emit('place-leave')"
       >
         <PlaceCard :place="place" variant="plain" size="sm" density="rich" />
-        <p v-if="reason" class="px-3 pb-2.5 text-sm text-foreground">
+        <p v-if="reason" class="px-3 text-sm text-foreground" :class="reviews?.length ? 'pb-1.5' : 'pb-2.5'">
           {{ reason }}
         </p>
+        <AskReviewQuotes v-if="reviews?.length" :place="place" :reviews="reviews" />
       </li>
     </ol>
 

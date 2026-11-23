@@ -2,13 +2,44 @@
 
 ### Added
 
+* Save an area of the map, with the layers you choose, and see it with no connection. Find your saved areas under Offline maps.
+* Saved areas also work for search, place details, scheduled departures and walking, cycling and transit directions when you have no connection.
+* Keep a saved area until you delete it, or for a week, a month, a year or until a date you pick.
+* See how much space each layer and feature of a saved area takes before you download it.
+* Pages answered from a saved area say so, since details, live times and closures may be missing.
+* Saved areas show on the map in Offline maps; tap one to change its area, layers or how long it's kept.
 * Walking directions cross plazas in one step, such as "Turn right across Times Square", instead of calling out every corner on the way.
 
 ### Changed
 
 ### Fixed
 
+* Opening the app with no connection no longer signs you out.
+* Directions without a connection say you're offline, then plan the trip once you're back online.
+
+## [0.24.4] - 2026-11-22
+
+### Added
+
+* Ask quotes the reviews behind a pick, like "quiet" or "great coffee", under its place card.
+
+## [0.24.3] - 2026-11-22
+
+### Added
+
+* A Parchment style for the whole app: chart paper, sepia ink and old-style serif titles. Pick it in Settings › Appearance.
+
+## [0.24.2] - 2026-11-22
+
+### Changed
+
+* During navigation, the departure list now also shows earlier trains that look too close to catch, so you can switch to one you know you'll make.
+
+### Fixed
+
+* Faster trips offered during navigation now only use the ways you're already traveling, so a transit trip won't switch you onto a bike share or scooter.
 * When two trains leave close together and only one gets you there, navigation now asks which one you boarded, even underground without GPS.
+* Transit lines no longer flicker into broken dashes while you pan or zoom out past the city.
 
 ## [0.24.1] - 2026-11-21
 

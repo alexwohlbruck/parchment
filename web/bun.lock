@@ -8,6 +8,7 @@
         "@alexwohlbruck/vaul-vue": "^0.4.5",
         "@fontsource/geist-mono": "^5.2.8",
         "@fontsource/geist-sans": "^5.2.5",
+        "@fontsource/im-fell-english": "^5.3.0",
         "@internationalized/date": "^3.5.4",
         "@mapbox/maki": "^8.2.0",
         "@maplibre/maplibre-gl-style-spec": "^26.9.0",
@@ -48,7 +49,7 @@
         "lucide-vue-next": "0.475.0",
         "mapbox-gl": "^3.27.0",
         "mapillary-js": "^4.1.2",
-        "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.5",
+        "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.7",
         "mitt": "^3.0.1",
         "modern-screenshot": "^4.7.0",
         "mousetrap": "^1.6.5",
@@ -78,7 +79,6 @@
       "devDependencies": {
         "@fontsource/barlow-condensed": "^5.3.0",
         "@fontsource/eb-garamond": "^5.3.0",
-        "@fontsource/im-fell-english": "^5.3.0",
         "@fontsource/im-fell-english-sc": "^5.3.0",
         "@fontsource/inter": "^5.3.0",
         "@fontsource/roboto": "^5.3.0",
@@ -1795,7 +1795,7 @@
 
     "mapillary-js": ["mapillary-js@4.1.2", "", { "dependencies": { "@types/earcut": "^2.1.1", "@types/node": "^14.14.31", "@types/pako": "^1.0.2", "@types/pbf": "^3.0.2", "@types/polylabel": "^1.0.5", "@types/rbush": "^3.0.0", "@types/three": "^0.134.0", "@types/virtual-dom": "^2.1.1", "earcut": "^2.2.3", "martinez-polygon-clipping": "^0.7.1", "pako": "^2.0.4", "pbf": "^3.2.1", "polylabel": "^1.1.0", "rbush": "^3.0.1", "rxjs": "^7.3.0", "s2-geometry": "^1.2.10", "three": "^0.134.0", "virtual-dom": "^2.1.1" } }, "sha512-LYj6xbp/Y9wfBkr/prRwgJGb3+KwvzUri0yl5QEpMEH7oC1p52ErshWmPXysKefmm6JaFML4D7FJ89viwJ4T5g=="],
 
-    "maplibre-gl": ["maplibre-gl@github:alexwohlbruck/maplibre-gl-js#97b92ac", { "dependencies": { "@mapbox/point-geometry": "^1.1.0", "@mapbox/tiny-sdf": "^2.3.0", "@mapbox/unitbezier": "^1.0.0", "@mapbox/vector-tile": "^3.0.0", "@maplibre/geojson-vt": "^6.3.1", "@maplibre/maplibre-gl-style-spec": "^26.8.0", "@maplibre/mlt": "^1.3.0", "@maplibre/vt-pbf": "^4.3.3", "@types/geojson": "^7946.0.16", "bidi-js": "^1.1.0", "earcut": "^3.2.4", "gl-matrix": "^3.4.4", "kdbush": "^4.1.0", "murmurhash-js": "^1.0.0", "pbf": "^5.1.2", "potpack": "^2.1.0", "quickselect": "^3.0.0", "tinyqueue": "^3.0.0", "zustand": "^5.1.0" } }, "alexwohlbruck-maplibre-gl-js-97b92ac", "sha512-IA/h9wS5XOsyaOGGJk84pOzt2FP/QL5PHRdnMtzSVrLux59qgNfN3MWrDJp14M+PlhEK4iO8tqQ3Q7+d3p2K2Q=="],
+    "maplibre-gl": ["maplibre-gl@github:alexwohlbruck/maplibre-gl-js#a2e2ff6", { "dependencies": { "@mapbox/point-geometry": "^1.1.0", "@mapbox/tiny-sdf": "^2.3.0", "@mapbox/unitbezier": "^1.0.0", "@mapbox/vector-tile": "^3.0.0", "@maplibre/geojson-vt": "^6.3.1", "@maplibre/maplibre-gl-style-spec": "^26.8.0", "@maplibre/mlt": "^1.3.0", "@maplibre/vt-pbf": "^4.3.3", "@types/geojson": "^7946.0.16", "bidi-js": "^1.1.0", "earcut": "^3.2.4", "gl-matrix": "^3.4.4", "kdbush": "^4.1.0", "murmurhash-js": "^1.0.0", "pbf": "^5.1.2", "potpack": "^2.1.0", "quickselect": "^3.0.0", "tinyqueue": "^3.0.0", "zustand": "^5.1.0" } }, "alexwohlbruck-maplibre-gl-js-a2e2ff6", "sha512-qQ1UVOZ5YuvOIFxCs+LSjA59F4eHai0eKahqNRUrTWJeTMjZeZPoliimknpxcUM+2JNpgtd0q35SK/UhI0xaKA=="],
 
     "martinez-polygon-clipping": ["martinez-polygon-clipping@0.7.4", "", { "dependencies": { "robust-predicates": "^2.0.4", "splaytree": "^0.1.4", "tinyqueue": "^1.2.0" } }, "sha512-jBEwrKtA0jTagUZj2bnmb4Yg2s4KnJGRePStgI7bAVjtcipKiF39R4LZ2V/UT61jMYWrTcBhPazexeqd6JAVtw=="],
 

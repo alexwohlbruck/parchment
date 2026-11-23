@@ -1,4 +1,4 @@
-import type { Place } from '../../types/place.types'
+import type { AttributedValue, Place, Review } from '../../types/place.types'
 import { distance, point } from '@turf/turf'
 import { isOpenAt } from '../opening-hours'
 import { distanceText } from './distance-text'
@@ -30,11 +30,17 @@ export interface PlaceDetail extends PlaceSummary {
   busiestHours?: string
   /** Where ratings and reviews come from, e.g. ["foursquare", "google"]. */
   sources?: string[]
-  reviews?: { text: string; stars?: number; date?: string; from: string }[]
+  /** `ref` is what an answer cites a review by. */
+  reviews?: { ref: number; text: string; stars?: number; date?: string; from: string }[]
 }
 
 const MAX_REVIEWS = 5
 const MAX_REVIEW_CHARS = 300
+
+/** The reviews `describePlace` shows, in ref order from 1. */
+export function shownReviews(place: Place): AttributedValue<Review>[] {
+  return place.reviews?.slice(0, MAX_REVIEWS) ?? []
+}
 
 export function openNow(place: Place, now: Date): boolean | undefined {
   const hours = place.openingHours?.value
@@ -126,8 +132,9 @@ export function describePlace(
     busiestHours: place.popularHours?.value.rawText,
     sources: thirdPartySources(place),
     reviews: place.reviews?.length
-      ? place.reviews.slice(0, MAX_REVIEWS).map(({ value, sourceId }) =>
+      ? shownReviews(place).map(({ value, sourceId }, index) =>
           dropEmpty({
+            ref: index + 1,
             text: value.text.slice(0, MAX_REVIEW_CHARS),
             stars: stars(value.rating),
             date: value.createdAt?.slice(0, 10),

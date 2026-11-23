@@ -28,3 +28,6 @@ web/e2e/.auth/
 
 # Local file storage (STORAGE_DRIVER=local)
 server/data/uploads/
+
+# Per-developer Codex config (may hold local MCP tokens)
+.codex/

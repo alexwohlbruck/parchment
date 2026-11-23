@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import { computed } from 'vue'
 import { I18nT, useI18n } from 'vue-i18n'
 import type { Place } from '@/types/place.types'
@@ -45,8 +46,8 @@ function separatorBefore(i: number): string {
         <template v-for="(source, i) in sources" :key="source.key">
           <template v-if="i > 0">{{ separatorBefore(i) }}</template>
           <a
-            v-if="source.url"
-            :href="source.url"
+            v-if="safeHref(source.url)"
+            :href="safeHref(source.url)"
             target="_blank"
             rel="noopener noreferrer"
             class="font-semibold text-foreground/80 hover:underline"

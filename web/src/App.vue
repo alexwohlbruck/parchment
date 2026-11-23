@@ -201,8 +201,7 @@ function handleExternalLinkClick(event: MouseEvent) {
     href.startsWith('http://') ||
     href.startsWith('https://') ||
     href.startsWith('mailto:') ||
-    href.startsWith('tel:') ||
-    href.startsWith('//') // Protocol-relative URLs
+    href.startsWith('tel:')
 
   // Check if it's an internal route (starts with / but not http:// or https://)
   const isInternalRoute = href.startsWith('/') && !href.startsWith('//')

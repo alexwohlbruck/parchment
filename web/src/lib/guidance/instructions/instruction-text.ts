@@ -16,6 +16,9 @@ const K = 'guidance.rich'
 const MAX_ORDINAL = 8
 const SAY_PUSH_DISTANCE_METERS = 30
 const ONTO = new Set<Action['kind']>(['turn', 'end-of-road', 'fork', 'roundabout', 'two-stage'])
+/** Turns told as turns into a plaza; anything gentler just crosses it. */
+const TURNS_INTO_PLAZA = new Set<ManeuverKind>(['left', 'right', 'sharp-left', 'sharp-right', 'uturn'])
+const CROSSES_PLAZA = new Set<Action['kind']>(['turn', 'stay', 'fork', 'depart'])
 /** Actions the banner names over the road they lead onto. */
 const OWN_TITLE = new Set<Action['kind']>(['crosswalk', 'station'])
 const SIGNPOSTED = new Set<Action['kind']>(['fork', 'stay', 'exit'])
@@ -182,8 +185,21 @@ export function bannerHeadline(status: string, offRoute: boolean, t: TFn): strin
   return offRoute ? t('guidance.banner.offRoute') : null
 }
 
+/** "Cross Foley Square", "Turn left across the plaza", "Head south across Foley Square toward Duane Street". */
+function plazaText(instruction: RichInstruction, plaza: { name?: string }, t: TFn): string {
+  const { action, maneuver, leadsTo } = instruction
+  const named = plaza.name ? '' : 'Unnamed'
+  const text = action.kind === 'depart'
+    ? t(`${K}.headAcrossPlaza${named}`, { heading: t(`guidance.voice.headings.${action.heading}`), plaza: plaza.name })
+    : TURNS_INTO_PLAZA.has(maneuver)
+      ? t(`${K}.acrossPlaza${named}`, { action: t(`guidance.voice.maneuvers.${maneuver}`), plaza: plaza.name })
+      : t(`${K}.crossPlaza${named}`, { plaza: plaza.name })
+  return leadsTo ? t(`${K}.toward`, { action: text, destination: leadsTo }) : text
+}
+
 function maneuverText(instruction: RichInstruction, t: TFn): string {
   const { action, maneuver, target, toward, leadsTo } = instruction
+  if (instruction.plaza && CROSSES_PLAZA.has(action.kind)) return plazaText(instruction, instruction.plaza, t)
   const road = target && roadText(target, t)
   if (action.kind === 'depart' && action.along && leadsTo) {
     return road ? t(`${K}.headAlongToward`, { road, destination: leadsTo }) : t(`${K}.headToward`, { destination: leadsTo })
@@ -228,6 +244,7 @@ function lanesText(lanes: LaneAdvice, t: TFn): string {
 function infinitive(instruction: RichInstruction, t: TFn): string | null {
   const { action, maneuver, target } = instruction
   if (!['turn', 'fork', 'end-of-road', 'stay', 'exit'].includes(action.kind) || maneuver === 'arrive') return null
+  if (instruction.plaza) return inline(plazaText({ ...instruction, leadsTo: undefined }, instruction.plaza, t))
   const base = t(action.kind === 'exit' ? `${K}.infinitive.exit` : `${K}.infinitive.${maneuver}`)
   return target && ONTO.has(action.kind) ? t('guidance.voice.onto', { action: base, road: roadText(target, t) }) : base
 }

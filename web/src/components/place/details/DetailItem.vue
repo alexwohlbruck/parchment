@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
+import { safeHref } from '@/lib/safe-href'
 
-defineProps<{
+const props = defineProps<{
   icon: any
   label?: string
   value?: string
@@ -14,6 +16,8 @@ defineProps<{
   target?: string
   color?: string
 }>()
+
+const linkHref = computed(() => safeHref(props.href))
 </script>
 
 <template>
@@ -26,11 +30,11 @@ defineProps<{
     <div class="flex flex-col flex-1 min-w-0">
       <slot>
         <template v-if="value">
-          <div :class="[color, { 'text-primary': href }]">
+          <div :class="[color, { 'text-primary': linkHref }]">
             <div class="truncate">
               <a
-                v-if="href"
-                :href="href"
+                v-if="linkHref"
+                :href="linkHref"
                 :target="target"
                 class="hover:underline"
                 rel="noopener noreferrer"

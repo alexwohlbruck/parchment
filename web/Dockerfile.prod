@@ -1,11 +1,11 @@
 # Build stage
-FROM oven/bun:latest AS builder
+FROM oven/bun:1.3.14 AS builder
 WORKDIR /app
 
 # First, copy and install server dependencies (needed for shared types)
 COPY server/package.json server/bun.lock ./server/
 WORKDIR /app/server
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # Copy server source code
 COPY server/src ./src
@@ -13,7 +13,7 @@ COPY server/src ./src
 # Now switch to web and install web dependencies
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # Copy web source code
 COPY web/. ./
@@ -24,7 +24,7 @@ COPY server/src ../server/src
 RUN bunx vite build
 
 # Production stage
-FROM node:18 AS production
+FROM node:22-slim AS production
 WORKDIR /app
 RUN npm install -g http-server
 COPY --from=builder /app/web/dist /app/dist

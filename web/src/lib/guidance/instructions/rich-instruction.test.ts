@@ -332,6 +332,26 @@ describe('on foot', () => {
     expect(voiceText(step(turn), tEs)).toBe('Gira a la derecha para entrar en el parque')
   })
 
+  test('turning across a plaza, toward where it leads', () => {
+    const plaza = { startDistance: 600, endDistance: 1000, roadClass: 'pedestrian', plaza: true }
+    const named = walk({ right: { streetName: 'Foley Square' }, edges: [plaza] })
+    expect(voiceText(step(named), t)).toBe('Turn right across Foley Square toward College Street')
+    expect(voiceText(step(named), tEs)).toBe('Gira a la derecha y cruza Foley Square en dirección a College Street')
+    expect(bannerTitle(step(named), t)).toBe('Foley Square')
+    const unnamed = walk({ right: { streetName: undefined }, edges: [plaza] })
+    expect(bannerTitle(step(unnamed), t)).toBe('Turn right across the plaza toward College Street')
+  })
+
+  test('a gentle turn into a plaza just crosses it', () => {
+    const route = walk({ right: { type: 'continue', modifier: 'slight-right', streetName: undefined }, edges: [{ startDistance: 600, endDistance: 1000, roadClass: 'pedestrian', plaza: true }] })
+    expect(voiceText(step(route), t)).toBe('Cross the plaza toward College Street')
+  })
+
+  test('a turn already inside a plaza does not cross it again', () => {
+    const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 1000, roadClass: 'pedestrian', plaza: true }] })
+    expect(step(route).plaza).toBeUndefined()
+  })
+
   test('a turn already inside the park does not enter it again', () => {
     const route = walk({ right: { streetName: undefined }, edges: [{ startDistance: 500, endDistance: 1000, roadClass: 'path', inPark: true }] })
     expect(step(route).park).toBeUndefined()
@@ -359,6 +379,12 @@ describe('on foot', () => {
       edgeSegments: [{ startDistance: 0, endDistance: 600, roadClass: 'footway', streetName: 'Tryon Street', streetNameSource: 'geometry' }],
     }])
     expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north along Tryon Street')
+  })
+
+  test('sets off across a plaza', () => {
+    const route = ahead([{ startDistance: 0, endDistance: 600, roadClass: 'pedestrian', plaza: true }])
+    expect(voiceText(departure(route, route.steps[0]), t)).toBe('Head north across the plaza')
+    expect(voiceText(departure(route, route.steps[0]), tEs)).toBe('Ve hacia el norte cruzando la plaza')
   })
 
   test('sets off along the road toward the first street ahead', () => {

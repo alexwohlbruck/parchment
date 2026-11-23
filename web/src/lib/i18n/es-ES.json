@@ -2078,6 +2078,12 @@
       "enterParkUnnamed": "Entra en el parque y sigue el sendero",
       "intoPark": "{action} para entrar en {park}",
       "intoParkUnnamed": "{action} para entrar en el parque",
+      "crossPlaza": "Cruza {plaza}",
+      "crossPlazaUnnamed": "Cruza la plaza",
+      "acrossPlaza": "{action} y cruza {plaza}",
+      "acrossPlazaUnnamed": "{action} y cruza la plaza",
+      "headAcrossPlaza": "Ve hacia el {heading} cruzando {plaza}",
+      "headAcrossPlazaUnnamed": "Ve hacia el {heading} cruzando la plaza",
       "home": "Bienvenido a casa",
       "homeSide": {
         "left": "Bienvenido a casa. Tu destino está a la izquierda",

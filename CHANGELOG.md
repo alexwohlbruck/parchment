@@ -16,6 +16,7 @@
 * See how much space each layer and feature of a saved area takes before you download it.
 * Pages answered from a saved area say so, since details, live times and closures may be missing.
 * Saved areas show on the map in Offline maps; tap one to change its area, layers or how long it's kept.
+* Walking directions cross plazas in one step, such as "Turn right across Times Square", instead of calling out every corner on the way.
 
 ### Fixed
 

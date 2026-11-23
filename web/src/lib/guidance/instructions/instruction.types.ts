@@ -75,6 +75,8 @@ export interface RichInstruction {
   lanes?: LaneAdvice
   /** The park the maneuver enters, on foot. */
   park?: { name?: string }
+  /** The plaza the maneuver sets off across, on foot. */
+  plaza?: { name?: string }
   /** A street crossed on foot as part of a turn. */
   crossing?: StepCrossing
   /** On foot, where a path or a departure leads: the next street or park along it. */

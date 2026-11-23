@@ -6,7 +6,7 @@ import TripListItem from './TripListItem.vue'
 import TripRows from './TripRows.vue'
 import CrossoverTip from './CrossoverTip.vue'
 
-const props = defineProps<{ trips: TripsResponse }>()
+const props = defineProps<{ trips: TripsResponse; grouped?: boolean }>()
 
 const { openTrip } = useTripNavigation(() => props.trips.request)
 const advice = useTripListAdvice(() => props.trips.trips)
@@ -14,7 +14,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
 
 <template>
   <CrossoverTip v-if="advice.crossover" :tip="advice.crossover" />
-  <TripRows :trips="trips.trips" :advice="advice" v-slot="{ trip, status }">
-    <TripListItem :trip="trip" :status="status" @click="openTrip" />
+  <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status, sectioned }">
+    <TripListItem :trip="trip" :status="status" :hide-type="sectioned" @click="openTrip" />
   </TripRows>
 </template>

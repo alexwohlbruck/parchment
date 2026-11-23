@@ -2,6 +2,8 @@
 
 ### Added
 
+* Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
+
 ### Changed
 
 ### Fixed

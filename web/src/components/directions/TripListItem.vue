@@ -12,6 +12,7 @@ interface Props {
   trip: TripOption
   status?: AdviceStatus | null
   isClickable?: boolean
+  hideType?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), { isClickable: true })
@@ -60,6 +61,6 @@ function handleClick() {
 
     <TripLegChips :segments="trip.segments" />
 
-    <TripMeta :trip="trip" :status="status" show-distance />
+    <TripMeta :trip="trip" :status="status" :hide-type="hideType" show-distance />
   </div>
 </template>

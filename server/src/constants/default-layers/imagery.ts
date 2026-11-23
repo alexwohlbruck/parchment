@@ -35,8 +35,8 @@ function imagery(
 export const IMAGERY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Public domain, 0.3–0.6 m. An uncached image service that renders each tile
   // on request: exported at twice the tile size for high-DPI screens (larger
-  // exports time out), and only from zoom 13, below which Sentinel-2 looks
-  // much the same.
+  // exports time out), and only from zoom 13, below which the imagery under it
+  // looks the same.
   imagery('usgs-naip', 'USGS NAIP', 0, {
     tiles: [
       'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=512,512&format=jpgpng&f=image',

@@ -4,24 +4,36 @@ import type {
 } from 'maplibre-gl'
 import { LayerType, type Layer } from '@/types/map.types'
 
-/** One source in the satellite basemap's stack. */
-export interface ImagerySource {
-  id: string
-  source: RasterSourceSpecification
-  paint?: Record<string, unknown>
-}
+/** One source in the satellite basemap's stack: a raster in the style, or 3D tiles drawn by their own layer. */
+export type ImagerySource =
+  | { id: string; kind: 'raster'; source: RasterSourceSpecification; paint?: Record<string, unknown> }
+  | { id: string; kind: '3d-tiles'; url: string }
 
 const PREFIX = 'imagery:'
 
 export const isImageryStyleId = (id: string) => id.startsWith(PREFIX)
+
+const IMAGERY_SOURCE_TYPES = new Set(['raster', '3d-tiles'])
 
 export function isImageryLayer(layer: Layer): boolean {
   const source = layer.configuration?.source
   return (
     layer.type === LayerType.IMAGERY &&
     typeof source === 'object' &&
-    source?.type === 'raster'
+    IMAGERY_SOURCE_TYPES.has(source?.type)
   )
+}
+
+function toImagerySource(layer: Layer): ImagerySource {
+  const { id: _, ...source } = layer.configuration.source as Record<string, unknown>
+  if (source.type === '3d-tiles') return { id: layer.id, kind: '3d-tiles', url: String(source.url) }
+  const paint = layer.configuration.paint as Record<string, unknown> | undefined
+  return {
+    id: layer.id,
+    kind: 'raster',
+    source: source as unknown as RasterSourceSpecification,
+    ...(paint ? { paint } : {}),
+  }
 }
 
 /** The chosen imagery, top first, without any that left the library. */
@@ -32,11 +44,13 @@ export function resolveImageryStack(
   const byId = new Map(layers.filter(isImageryLayer).map(l => [l.id, l]))
   return ids.flatMap(id => {
     const layer = byId.get(id)
-    if (!layer) return []
-    const { id: _, ...source } = layer.configuration.source as Record<string, unknown>
-    const paint = layer.configuration.paint as Record<string, unknown> | undefined
-    return [{ id, source: source as unknown as RasterSourceSpecification, ...(paint ? { paint } : {}) }]
+    return layer ? [toImagerySource(layer)] : []
   })
+}
+
+/** The 3D tiles to draw over the rasters: the topmost in the stack, since a mesh hides all below it. */
+export function photorealisticSource(stack: readonly ImagerySource[]) {
+  return stack.find(s => s.kind === '3d-tiles')
 }
 
 /**
@@ -47,9 +61,10 @@ export function imageryStyle(stack: readonly ImagerySource[]): {
   sources: Record<string, RasterSourceSpecification>
   layers: LayerSpecification[]
 } {
+  const rasters = stack.flatMap(s => (s.kind === 'raster' ? [s] : []))
   return {
-    sources: Object.fromEntries(stack.map(s => [PREFIX + s.id, s.source])),
-    layers: [...stack].reverse().map(
+    sources: Object.fromEntries(rasters.map(s => [PREFIX + s.id, s.source])),
+    layers: [...rasters].reverse().map(
       s =>
         ({
           id: PREFIX + s.id,

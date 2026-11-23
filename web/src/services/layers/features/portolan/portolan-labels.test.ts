@@ -25,7 +25,7 @@ import {
   LABEL_TEXT_LIGHT_MAP,
 } from './portolan-expressions'
 
-const IMAGERY = [{ id: 'photo', source: { type: 'raster', tiles: ['https://photo/{z}/{x}/{y}'] } }]
+const IMAGERY = [{ id: 'photo', kind: 'raster' as const, source: { type: 'raster', tiles: ['https://photo/{z}/{x}/{y}'] } }]
 
 const opts = { tileServerUrl: 'https://example.test/tiles' }
 const STYLES: Array<[string, () => any]> = [

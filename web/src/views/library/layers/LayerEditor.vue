@@ -192,7 +192,9 @@ async function save() {
 const destination = computed(() =>
   canvasId.value
     ? { name: AppRoute.CANVAS_EDITOR, params: { id: canvasId.value } }
-    : { name: AppRoute.LIBRARY_LAYERS },
+    : route.query.imagery
+      ? { name: AppRoute.APPEARANCE }
+      : { name: AppRoute.LIBRARY_LAYERS },
 )
 
 /**
@@ -261,7 +263,11 @@ function setImagery(on: boolean) {
 }
 
 const title = computed(() =>
-  existing.value ? t('layers.editor.editTitle') : t('layers.editor.newTitle'),
+  existing.value
+    ? t('layers.editor.editTitle')
+    : isImagery.value
+      ? t('layers.editor.newImageryTitle')
+      : t('layers.editor.newTitle'),
 )
 </script>
 

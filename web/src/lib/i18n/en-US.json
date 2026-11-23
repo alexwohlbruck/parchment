@@ -768,6 +768,7 @@
     },
     "editor": {
       "newTitle": "New layer",
+      "newImageryTitle": "New imagery source",
       "editTitle": "Edit layer",
       "namePlaceholder": "Layer name",
       "layerType": "Draw as",

@@ -747,6 +747,7 @@
     },
     "editor": {
       "newTitle": "Nueva capa",
+      "newImageryTitle": "Nueva fuente de imágenes",
       "editTitle": "Editar capa",
       "namePlaceholder": "Nombre de la capa",
       "layerType": "Dibujar como",

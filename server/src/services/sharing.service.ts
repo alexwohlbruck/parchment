@@ -4,7 +4,7 @@
  * Handles E2EE resource sharing between users (same-server and cross-server)
  */
 
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, exists, inArray, like } from 'drizzle-orm'
 import { db } from '../db'
 import {
   shares,
@@ -23,6 +23,7 @@ import {
   isLocalHandle,
   sendFederationMessage,
   buildHandle,
+  getServerDomain,
 } from './federation.service'
 import { parseHandle } from '../lib/crypto'
 import { publish } from './realtime/event-bus.service'
@@ -656,6 +657,10 @@ export async function handleIncomingResourceShare(
   // (see federation-canonical.ts) so a peer can't silently upgrade it.
   const effectiveRole: ShareRole = role === 'editor' ? 'editor' : 'viewer'
 
+  if (await namesForeignLocalResource(senderHandle, resourceType, resourceId)) {
+    return { success: false, error: 'Unknown resource' }
+  }
+
   await createIncomingShare({
     userId: localUserId,
     senderHandle: senderHandle,
@@ -670,9 +675,53 @@ export async function handleIncomingResourceShare(
   return { success: true }
 }
 
+/**
+ * True when a share names a resource stored on this server that the sender
+ * does not own. Remote resources are never in the local tables.
+ */
+async function namesForeignLocalResource(
+  senderHandle: string,
+  resourceType: string,
+  resourceId: string,
+): Promise<boolean> {
+  if (resourceType !== 'collection') return false
+  const [collection] = await db
+    .select({ ownerAlias: users.alias })
+    .from(collections)
+    .innerJoin(users, eq(users.id, collections.userId))
+    .where(eq(collections.id, resourceId))
+    .limit(1)
+  if (!collection) return false
+  return !collection.ownerAlias || buildHandle(collection.ownerAlias) !== senderHandle
+}
+
 // ============================================================================
 // Access-check helpers (for write-gate enforcement)
 // ============================================================================
+
+/**
+ * An incoming_shares row grants access to a local resource only when a local
+ * user sent it and a matching outgoing `shares` row exists. Rows a remote peer
+ * delivered describe resources on that peer, never one stored here.
+ */
+export function grantsLocalAccess() {
+  return and(
+    inArray(incomingShares.status, ['accepted', 'pending']),
+    like(incomingShares.senderHandle, `%@${getServerDomain()}`),
+    exists(
+      db
+        .select({ id: shares.id })
+        .from(shares)
+        .where(
+          and(
+            eq(shares.recipientUserId, incomingShares.userId),
+            eq(shares.resourceType, incomingShares.resourceType),
+            eq(shares.resourceId, incomingShares.resourceId),
+          ),
+        ),
+    ),
+  )
+}
 
 /**
  * The effective role a user has on a collection. Owners always get
@@ -714,10 +763,7 @@ export async function getEffectiveRoleOnCollection(
         eq(incomingShares.userId, userId),
         eq(incomingShares.resourceType, 'collection'),
         eq(incomingShares.resourceId, collectionId),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
     .limit(1)

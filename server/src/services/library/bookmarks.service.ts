@@ -421,7 +421,7 @@ export async function getCollectionsForBookmark(
   // Split into owned + shared. Owned: straight lookup. Shared: via
   // incoming_shares. Union of the two is what the caller can see.
   const { incomingShares } = await import('../../schema/shares.schema')
-  const { or } = await import('drizzle-orm')
+  const { grantsLocalAccess } = await import('../sharing.service')
 
   const owned = await db
     .select()
@@ -441,10 +441,7 @@ export async function getCollectionsForBookmark(
         eq(incomingShares.userId, userId),
         eq(incomingShares.resourceType, 'collection'),
         inArray(incomingShares.resourceId, collectionIds),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
 

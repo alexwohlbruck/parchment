@@ -7,7 +7,8 @@ import {
 } from '../../schema/library.schema'
 import { shares, incomingShares, ShareRole } from '../../schema/shares.schema'
 import { users } from '../../schema/users.schema'
-import { and, eq, count, sql, or } from 'drizzle-orm'
+import { and, eq, count, sql } from 'drizzle-orm'
+import { grantsLocalAccess } from '../sharing.service'
 import { parseHandle } from '../../lib/crypto'
 import { buildHandle, isLocalHandle } from '../federation.service'
 import { emit } from '../realtime/emit'
@@ -164,10 +165,7 @@ export async function getAccessibleCollection(
         eq(incomingShares.userId, userId),
         eq(incomingShares.resourceType, 'collection'),
         eq(incomingShares.resourceId, id),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
     .limit(1)
@@ -207,10 +205,7 @@ export async function getSharedCollections(
       and(
         eq(incomingShares.userId, userId),
         eq(incomingShares.resourceType, 'collection'),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
 

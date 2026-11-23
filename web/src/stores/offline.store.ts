@@ -81,27 +81,34 @@ export const useOfflineStore = defineStore('offline', () => {
     }
   }
 
-  async function createRegion(input: {
-    name: string
+  interface RegionInput {
     bounds: Bounds
     options: OfflineLayerOption[]
     packages: OfflinePackageKind[]
     keepUntil: string | null
-  }) {
+  }
+
+  function contents(input: RegionInput) {
     const plan = planRegion(input.bounds, input.options)
     const packages = packageRefs(input.packages, input.bounds)
-    const now = new Date().toISOString()
-    const region: OfflineRegion = {
-      id: crypto.randomUUID(),
-      name: input.name,
+    return {
       bounds: input.bounds,
       layers: input.options.map(o => ({ id: o.id, name: o.name })),
       sources: plan.sources,
       files: plan.files,
       packages,
+      total: plan.total + packages.length,
+    }
+  }
+
+  async function createRegion(input: RegionInput & { name: string }) {
+    const now = new Date().toISOString()
+    const region: OfflineRegion = {
+      id: crypto.randomUUID(),
+      name: input.name,
+      ...contents(input),
       ...(input.keepUntil && { keepUntil: input.keepUntil }),
       status: 'downloading',
-      total: plan.total + packages.length,
       saved: 0,
       failed: 0,
       bytes: 0,
@@ -112,6 +119,22 @@ export const useOfflineStore = defineStore('offline', () => {
     persisted.value = await requestPersistentStorage()
     void run(region.id)
     return region
+  }
+
+  /** Saved files the new contents still use are kept, so only what changed downloads. */
+  async function editRegion(id: string, input: RegionInput) {
+    if (!find(id)) return
+    downloads.get(id)?.abort()
+    const next = contents(input)
+    const keepsTimetable = next.packages.some(p => p.kind === 'timetable')
+    patch(id, {
+      ...next,
+      ...(!keepsTimetable && { timetableUntil: undefined, timetableSavedAt: undefined }),
+      status: 'downloading',
+    })
+    setKeepUntil(id, input.keepUntil)
+    await pruneOfflineCache(regions.value)
+    void run(id)
   }
 
   function pause(id: string) {
@@ -192,6 +215,7 @@ export const useOfflineStore = defineStore('offline', () => {
     supported,
     refreshUsage,
     createRegion,
+    editRegion,
     pause,
     resume,
     update,

@@ -1412,7 +1412,8 @@
       "resume": "Reanudar",
       "update": "Actualizar",
       "rename": "Cambiar nombre",
-      "keep": "Conservar durante…"
+      "keep": "Conservar durante…",
+      "edit": "Editar"
     },
     "rename": {
       "title": "Cambiar nombre del mapa"
@@ -1427,6 +1428,7 @@
     },
     "new": {
       "title": "Guardar una zona",
+      "saveChanges": "Guardar cambios",
       "hint": "Mueve y amplía el mapa para encajar la zona en el cuadro",
       "layers": "Incluir",
       "summary": "Unos {size} · {width} km de ancho",

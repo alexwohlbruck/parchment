@@ -1492,7 +1492,8 @@
       "resume": "Resume",
       "update": "Update",
       "rename": "Rename",
-      "keep": "Keep for…"
+      "keep": "Keep for…",
+      "edit": "Edit"
     },
     "rename": {
       "title": "Rename offline map"
@@ -1507,6 +1508,7 @@
     },
     "new": {
       "title": "Save an area",
+      "saveChanges": "Save changes",
       "hint": "Move and zoom the map to fit the area in the square",
       "layers": "Include",
       "summary": "About {size} · {width} km across",

@@ -81,6 +81,7 @@ export enum AppRoute {
   TIMELINE = 'timeline',
   OFFLINE_MAPS = 'offline-maps',
   OFFLINE_MAPS_NEW = 'offline-maps-new',
+  OFFLINE_MAPS_EDIT = 'offline-maps-edit',
   NOT_FOUND = 'not-found',
 }
 
@@ -427,6 +428,12 @@ const router = createRouter({
           path: '/offline-maps/new',
           name: AppRoute.OFFLINE_MAPS_NEW,
           component: () => import('@/views/offline/NewOfflineMap.vue'),
+        },
+        {
+          path: '/offline-maps/:id/edit',
+          name: AppRoute.OFFLINE_MAPS_EDIT,
+          component: () => import('@/views/offline/NewOfflineMap.vue'),
+          props: true,
         },
       ],
     },

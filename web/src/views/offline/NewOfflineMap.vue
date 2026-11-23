@@ -13,9 +13,12 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { SectionHeader } from '@/components/ui/section-header'
+import { whenMapReady } from '@/composables/map/whenMapReady'
 import { useOfflineLayerOptions } from '@/composables/offline/useOfflineLayerOptions'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useOfflineStore } from '@/stores/offline.store'
+import { useAppStore } from '@/stores/app.store'
+import { useMapService } from '@/services/map/map.service'
 import { reverseGeocode } from '@/services/geocoding.service'
 import { sampleTileBytes, sampleUrl } from '@/services/offline/tile-sample.service'
 import { planRegion } from '@/lib/offline/region-plan'
@@ -32,9 +35,14 @@ const MAX_TILES = 30_000
 const NAME_TIMEOUT_MS = 3000
 const SAMPLE_DEBOUNCE_MS = 500
 
+/** Editing an area when set; saving a new one otherwise. */
+const props = defineProps<{ id?: string }>()
+
 const { t, locale } = useI18n()
 const router = useRouter()
 const offlineStore = useOfflineStore()
+const editing = props.id ? offlineStore.regions.find(r => r.id === props.id) : undefined
+if (props.id && !editing) router.replace({ name: AppRoute.OFFLINE_MAPS })
 const { isOffline } = useConnectivity()
 const { options, visibleIds } = useOfflineLayerOptions()
 
@@ -49,7 +57,8 @@ watch(
   list => {
     if (preselected || !list.length) return
     preselected = true
-    selected.value = new Set(list.filter(o => visibleIds.value.has(o.id)).map(o => o.id))
+    const saved = new Set(editing?.layers.map(l => l.id))
+    selected.value = new Set(list.filter(o => (editing ? saved : visibleIds.value).has(o.id)).map(o => o.id))
   },
   { immediate: true },
 )
@@ -73,9 +82,28 @@ const FEATURES = [
 const LAYER_COLORS: Record<string, string> = { [BASEMAP_OPTION_ID]: 'cobalt', [TERRAIN_OPTION_ID]: 'forest' }
 const MORE_LAYER_COLORS = ['violet', 'amber', 'sky', 'magenta', 'olive', 'periwinkle']
 
-const keepUntil = ref<string | null>(null)
+const keepUntil = ref<string | null>(editing?.keepUntil ?? null)
 
-const features = ref(new Set<string>(FEATURES.map(f => f.id)))
+const savedKinds = new Set(editing?.packages?.map(p => p.kind))
+const features = ref(
+  new Set<string>(FEATURES.filter(f => !editing || f.packages.some(k => savedKinds.has(k))).map(f => f.id)),
+)
+
+/** The frame covers this share of the shorter side of the visible map. */
+const FRAME_FRACTION = 0.8
+if (editing) {
+  const appStore = useAppStore()
+  const mapService = useMapService()
+  whenMapReady(() => {
+    const { width, height } = appStore.visibleMapArea
+    const inset = (Math.min(width, height) * (1 - FRAME_FRACTION)) / 2
+    const [minLng, minLat, maxLng, maxLat] = editing.bounds
+    mapService.fitBounds(
+      { minLng, minLat, maxLng, maxLat },
+      { padding: { top: inset, right: inset, bottom: inset, left: inset }, duration: 0 },
+    )
+  })
+}
 
 function toggleFeature(id: string, on: boolean) {
   const next = new Set(features.value)
@@ -165,14 +193,10 @@ async function save() {
   if (!bounds.value || tooLarge.value) return
   saving.value = true
   const area = bounds.value
+  const input = { bounds: area, options: chosen.value, packages: packages.value, keepUntil: keepUntil.value }
   try {
-    await offlineStore.createRegion({
-      name: await regionName(area),
-      bounds: area,
-      options: chosen.value,
-      packages: packages.value,
-      keepUntil: keepUntil.value,
-    })
+    if (editing) await offlineStore.editRegion(editing.id, input)
+    else await offlineStore.createRegion({ name: await regionName(area), ...input })
     router.replace({ name: AppRoute.OFFLINE_MAPS })
   } finally {
     saving.value = false
@@ -181,7 +205,7 @@ async function save() {
 </script>
 
 <template>
-  <DetailPanelLayout :title="t('offlineMaps.new.title')">
+  <DetailPanelLayout :title="editing ? editing.name : t('offlineMaps.new.title')">
     <RegionFrame v-model:bounds="bounds" :too-large="tooLarge" />
 
     <p class="px-1 text-sm text-muted-foreground">{{ t('offlineMaps.new.hint') }}</p>
@@ -232,7 +256,7 @@ async function save() {
       <StorageMeter v-if="!isOffline && !tooLarge && parts.length" :parts="parts" class="px-1 pb-1" />
       <Button :disabled="!bounds || tooLarge || isOffline || saving" class="gap-2" @click="save">
         <DownloadIcon class="size-4" />
-        {{ t('offlineMaps.new.download') }}
+        {{ editing ? t('offlineMaps.new.saveChanges') : t('offlineMaps.new.download') }}
       </Button>
     </SheetFooter>
   </DetailPanelLayout>

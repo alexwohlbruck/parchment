@@ -4,7 +4,7 @@
 
 ### Changed
 
-* Ferry routes are lighter and thinner, so busy harbours no longer turn into a solid band over the water.
+* Ferry routes draw as the map's own dashed ferry lanes, so busy harbours no longer turn into a solid band over the water.
 
 ### Fixed
 

@@ -124,6 +124,20 @@ export function modeExprs(st: PortolanStyleSet | null): { w: Expr; o: Expr } {
 
 export const RIBBON_COLOR: Expr = ['concat', '#', ['get', 'route_color']]
 
+const MODE: Expr = ['coalesce', ['get', 'mode'], '']
+export const IS_FERRY: Expr = ['==', MODE, 'ferry']
+export const NOT_FERRY: Expr = ['!=', MODE, 'ferry']
+
+/** How a ferry is drawn: the basemap's own ferry lane paint, so a route
+ *  matched onto a lane reads as that lane rather than a second line
+ *  beside it. Used when the basemap has no ferry layer to copy. */
+export const FERRY_LINE = {
+  color: '#4A9EDB',
+  width: ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.8] as Expr,
+  dasharray: [2, 2],
+  opacity: 0.5,
+}
+
 /**
  * The ribbon colour with its per-class opacity folded into the alpha
  * channel, so `line-opacity` can stay a constant.

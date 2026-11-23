@@ -118,6 +118,7 @@ async function callTool(
     now: new Date(),
     signal: caller.signal,
     seen: new Map<string, Place>(),
+    reviews: new Map(),
     sources: new Map(),
     emit: () => {},
   }

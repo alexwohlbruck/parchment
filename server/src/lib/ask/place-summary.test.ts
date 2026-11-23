@@ -88,7 +88,7 @@ describe('describePlace', () => {
       reviewCount: 120,
       busiestHours: 'Sa-Su 10:00-13:00',
       sources: ['foursquare', 'google'],
-      reviews: [{ text: 'Great bagels', stars: 5, date: '2026-10-01', from: 'google' }],
+      reviews: [{ ref: 1, text: 'Great bagels', stars: 5, date: '2026-10-01', from: 'google' }],
     })
   })
 })

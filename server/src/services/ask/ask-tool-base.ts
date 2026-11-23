@@ -7,7 +7,7 @@ import { forwardGeocode } from '../geocoding.service'
 import { lookupEnrichedPlaceById } from '../place.service'
 import type { Source } from '../../lib/constants'
 import type { Language } from '../../lib/i18n/i18n.types'
-import type { Place } from '../../types/place.types'
+import type { AttributedValue, Place, Review } from '../../types/place.types'
 import type { RoutingPreferences, Vehicle } from '../../types/trip.types'
 import type { TripModeToken } from '../../types/departure-profile.types'
 import type { LanguageModelCapability } from '../../types/language-model.types'
@@ -45,6 +45,8 @@ export interface AskContext {
   signal?: AbortSignal
   /** Every place a tool has returned, by id. The answer may only cite these. */
   seen: Map<string, Place>
+  /** The reviews get_place showed, by place id, in ref order. An answer may cite only these. */
+  reviews: Map<string, AttributedValue<Review>[]>
   /** Answers web searches; absent where the caller has its own (MCP). */
   model?: LanguageModelCapability
   /** Web pages a search read, by url. */

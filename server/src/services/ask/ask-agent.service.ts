@@ -3,7 +3,7 @@ import type {
   ChatToolCall,
   LanguageModelCapability,
 } from '../../types/language-model.types'
-import type { Place } from '../../types/place.types'
+import type { AttributedValue, Place, Review } from '../../types/place.types'
 import {
   ANSWER_TOOL,
   answerTool,
@@ -26,6 +26,7 @@ import { foundCount } from '../../lib/ask/tool-result'
 export const MAX_STEPS = 10
 const MAX_TOKENS = 2000
 const MAX_FOLLOW_UPS = 3
+const MAX_QUOTES = 2
 const MAX_TOOL_RESULT_CHARS = 12_000
 
 export interface AskRequest {
@@ -60,6 +61,7 @@ function systemPrompt(context: AskContext): string {
     'Use the tools to find real places; never name a place a tool did not return.',
     'Prefer browse_category with tags for kinds of places, and get_place to check hours or reviews before recommending.',
     'Results carry openNow and hours from the map data. Trust them over anything a review or web page says.',
+    "When a pick's reason comes from what reviewers say (quiet, great coffee, friendly staff), cite those reviews by ref so the app can quote them.",
     'For a ride, run or walk taken for its own sake (a loop, a tour, around an island, through a park), design it yourself and save it with create_route: pick points in order along the way you mean, enough of them to hold it to the shore, greenway or bridge, ending where it started for a round trip. Then call create_canvas with that route and a layer marking the places it was built around. Say the distance and climb in the answer.',
     'Call create_canvas when the user asks for a map or canvas, or for a route as above, after finding or building what goes on it.',
     "Change the user's library only when they ask: save_place to save a place, edit_route to change a route, share_canvas for a link anyone can open, archive to file something away.",
@@ -133,10 +135,19 @@ export interface GroundedAnswer {
   unknownIds: string[]
 }
 
-/** Keep only places a tool actually returned, so the model cannot invent one. */
+function quotedReviews(refs: unknown, shown: AttributedValue<Review>[] = []) {
+  if (!Array.isArray(refs)) return []
+  const picked = new Set(
+    refs.filter((ref): ref is number => Number.isInteger(ref) && ref >= 1 && ref <= shown.length),
+  )
+  return [...picked].slice(0, MAX_QUOTES).map((ref) => shown[ref - 1])
+}
+
+/** Keep only places and reviews a tool actually returned, so the model cannot invent one. */
 export function groundAnswer(
   args: { text?: unknown; places?: unknown; follow_ups?: unknown },
   seen: Map<string, Place>,
+  reviews: Map<string, AttributedValue<Review>[]> = new Map(),
 ): GroundedAnswer {
   const cited = Array.isArray(args.places) ? args.places : []
   const places: GroundedAnswer['places'] = []
@@ -151,9 +162,11 @@ export function groundAnswer(
     }
     if (used.has(id)) continue
     used.add(id)
+    const quotes = quotedReviews(entry.reviews, reviews.get(id))
     places.push({
       place,
       reason: typeof entry.reason === 'string' ? entry.reason : '',
+      ...(quotes.length && { reviews: quotes }),
     })
   }
   return {
@@ -226,7 +239,7 @@ export async function runAsk(
 
     const answerCall = calls.find((call) => call.function.name === ANSWER_TOOL)
     if (answerCall) {
-      const answer = groundAnswer(parseArgs(answerCall), context.seen)
+      const answer = groundAnswer(parseArgs(answerCall), context.seen, context.reviews)
       if (!answer.unknownIds.length || last) {
         if (context.proposedTrip) context.emit(context.proposedTrip)
         const intent = classifyQuery(request.question, {

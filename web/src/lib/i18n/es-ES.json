@@ -831,6 +831,8 @@
       "options": {
         "showInSelectorHint": "Mostrar esta capa en el menú de capas del mapa.",
         "fadeBasemapHint": "Atenuar el mapa base mientras esta capa está activa.",
+        "imagery": "Imágenes de satélite",
+        "imageryHint": "Dibujarla bajo el mapa satélite en lugar de como capa superpuesta.",
         "filter": "Filtro",
         "filterHint": "Una expresión de estilo. Solo se dibujan los elementos que coincidan.",
         "rawLayer": "JSON de paint y layout",
@@ -864,6 +866,7 @@
         "urlRequired": "Se necesita una URL.",
         "tilesRequired": "Añade al menos una URL de teselas.",
         "tileTemplate": "Las URLs de teselas necesitan {z}, {x} e {y}.",
+        "imageryNeedsRaster": "Las imágenes de satélite deben ser una fuente ráster.",
         "sourceLayerRequired": "Las capas vectoriales necesitan una capa de origen.",
         "invalidGeoJson": "Eso no es GeoJSON válido.",
         "cornersRequired": "Una imagen necesita cuatro coordenadas de esquina.",
@@ -3210,6 +3213,16 @@
         "poiStyle": "Iconos de lugares",
         "poiStyleBadge": "Insignias de color",
         "poiStyleGlyph": "Solo iconos",
+        "imagery": {
+          "title": "Imágenes de satélite",
+          "description": "Las de arriba tienen prioridad; las de abajo rellenan los huecos",
+          "add": "Añadir",
+          "create": "Nueva fuente…",
+          "moveUp": "Subir",
+          "moveDown": "Bajar",
+          "remove": "Quitar",
+          "empty": "Sin fuentes, el satélite muestra un mapa vacío"
+        },
         "descriptionMaplibre": "Estilo visual del mapa",
         "descriptionMapbox": "Mapbox usa su propio estilo estándar",
         "placeholder": "Elige un estilo"

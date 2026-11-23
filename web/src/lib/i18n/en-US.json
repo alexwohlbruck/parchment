@@ -852,6 +852,8 @@
       "options": {
         "showInSelectorHint": "List this layer in the map's layer menu.",
         "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "imagery": "Satellite imagery",
+        "imageryHint": "Draw this under the satellite map instead of as an overlay.",
         "filter": "Filter",
         "filterHint": "A style expression. Only features matching it are drawn.",
         "rawLayer": "Paint and layout JSON",
@@ -885,6 +887,7 @@
         "urlRequired": "A URL is required.",
         "tilesRequired": "Add at least one tile URL.",
         "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "imageryNeedsRaster": "Satellite imagery has to be a raster source.",
         "sourceLayerRequired": "Vector layers need a source layer.",
         "invalidGeoJson": "That isn't valid GeoJSON.",
         "cornersRequired": "An image needs four corner coordinates.",
@@ -3355,6 +3358,16 @@
         "poiStyle": "Place icons",
         "poiStyleBadge": "Colored badges",
         "poiStyleGlyph": "Icons only",
+        "imagery": {
+          "title": "Satellite imagery",
+          "description": "Higher sources win; lower ones fill the gaps",
+          "add": "Add",
+          "create": "New source…",
+          "moveUp": "Move up",
+          "moveDown": "Move down",
+          "remove": "Remove",
+          "empty": "No sources, so satellite shows a blank map"
+        },
         "descriptionMaplibre": "Visual style for the map",
         "descriptionMapbox": "Mapbox uses its own standard style",
         "placeholder": "Choose a style"

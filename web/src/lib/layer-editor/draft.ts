@@ -12,7 +12,7 @@
  * because the rules live here and are unit-tested directly.
  */
 
-import { MapEngine, SourceType, type Layer } from '@/types/map.types'
+import { LayerType, MapEngine, SourceType, type Layer } from '@/types/map.types'
 import {
   LAYER_KINDS_BY_SOURCE,
   requiresSourceLayer,
@@ -50,6 +50,7 @@ export interface SourceDraft {
 
 export interface LayerDraft {
   /** Library metadata. */
+  type: LayerType
   name: string
   icon: string | null
   showInLayerSelector: boolean
@@ -140,6 +141,7 @@ export function createLayerDraft(
 ): LayerDraft {
   const layerKind = LAYER_KINDS_BY_SOURCE[kind][0]
   return {
+    type: LayerType.CUSTOM,
     name: '',
     icon: null,
     showInLayerSelector: true,
@@ -248,6 +250,7 @@ export function layerToDraft(layer: Layer): LayerDraft {
   const kind = (configuration.type as StyleLayerKind) ?? 'raster'
 
   return {
+    type: layer.type ?? LayerType.CUSTOM,
     name: layer.name ?? '',
     icon: layer.icon ?? null,
     showInLayerSelector: layer.showInLayerSelector ?? true,
@@ -344,10 +347,12 @@ export function draftToConfiguration(
 
 /** The library fields of a draft, ready for the layers store. */
 export function draftToLayerFields(draft: LayerDraft) {
+  const imagery = draft.type === LayerType.IMAGERY
   return {
+    type: draft.type,
     name: draft.name.trim(),
     icon: draft.icon,
-    showInLayerSelector: draft.showInLayerSelector,
+    showInLayerSelector: imagery ? false : draft.showInLayerSelector,
     fadeBasemap: draft.fadeBasemap,
     visible: draft.visible,
     engine: [...draft.engines],
@@ -376,7 +381,8 @@ export interface DraftIssue {
   message: string
 }
 
-const TILE_TEMPLATE = /\{z\}/i
+/** XYZ tiles, or a WMS-style export addressed by tile bounds. */
+const TILE_TEMPLATE = /\{z\}|\{bbox-epsg-3857\}/i
 
 export function parseGeoJson(text: string): unknown | null {
   if (!text.trim()) return null
@@ -424,6 +430,10 @@ export function validateDraft(draft: LayerDraft): DraftIssue[] {
     } else if (!tiles.every(t => TILE_TEMPLATE.test(t))) {
       issues.push({ field: 'source.tiles', message: 'tileTemplate' })
     }
+  }
+
+  if (draft.type === LayerType.IMAGERY && source.kind !== 'raster') {
+    issues.push({ field: 'source.kind', message: 'imageryNeedsRaster' })
   }
 
   if (requiresSourceLayer(source.kind) && !draft.sourceLayer.trim()) {

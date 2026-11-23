@@ -2,7 +2,11 @@
 
 ### Added
 
+* Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
+
 ### Changed
+
+* The satellite map now uses open imagery by default: sharp USGS aerial photos across the US, with Sentinel-2 elsewhere.
 
 ### Fixed
 

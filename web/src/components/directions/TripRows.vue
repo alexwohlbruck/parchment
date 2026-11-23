@@ -43,16 +43,18 @@ const keys = computed(() => stableTripKeys(props.trips))
   <!-- Staggered entrance as a fresh set of suggestions loads -->
   <TransitionGroup name="trip" tag="div" class="flex flex-col" appear>
     <template v-for="(group, groupIndex) in groups" :key="group.key ?? 'all'">
-      <!-- Sticky left so the heading stays put while the timeline pans -->
-      <h4
+      <!-- A full-width band; the label is sticky-left so it stays put while the timeline pans -->
+      <div
         v-if="group.key && group.heading"
         :key="`heading-${group.key}`"
-        class="sticky left-0 w-fit flex items-center gap-1.5 px-4 pb-0.5 text-[13px] font-semibold"
-        :class="groupIndex > 0 ? 'pt-5' : 'pt-3'"
+        class="bg-muted/40 border-b border-border/50"
+        :class="groupIndex > 0 && 'border-t'"
       >
-        <component :is="group.heading.icon" class="size-3.5" :style="{ color: group.heading.color }" />
-        {{ t(`directions.tripTypes.${group.key}`) }}
-      </h4>
+        <h4 class="sticky left-0 w-fit flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-muted-foreground">
+          <component :is="group.heading.icon" class="size-3" :style="{ color: group.heading.color }" />
+          {{ t(`directions.tripTypes.${group.key}`) }}
+        </h4>
+      </div>
       <div
         v-for="(trip, index) in group.trips"
         :key="keys.get(trip.id) ?? trip.id"

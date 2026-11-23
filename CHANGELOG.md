@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Ferry routes are lighter and thinner, so busy harbours no longer turn into a solid band over the water.
+
 ### Fixed
 
 ## [0.25.1] - 2026-11-23

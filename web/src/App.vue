@@ -48,6 +48,7 @@ import { useFeedback } from '@/composables/integrations/useFeedback'
 import { useShakeGesture } from '@/composables/useShakeGesture'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useHistoryStore } from '@/stores/history.store'
+import { useOfflineStore } from '@/stores/offline.store'
 import DialogView from '@/components/shell/DialogHost.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
@@ -95,6 +96,8 @@ watchEffect(() => {
 
 
 const historyStore = useHistoryStore()
+// Resumes offline map downloads a reload interrupted.
+useOfflineStore()
 const undoKeys = { allowInInput: historyStore.keyAllowedIn, category: 'general' as const }
 useHotkeys([
   {

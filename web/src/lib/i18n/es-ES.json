@@ -1391,7 +1391,74 @@
     }
   },
   "offlineMaps": {
-    "title": "Mapas sin conexión"
+    "title": "Mapas sin conexión",
+    "create": "Guardar una zona",
+    "unsupported": "Este navegador no puede guardar mapas sin conexión",
+    "storage": "Los mapas sin conexión ocupan {used} · {free} libres",
+    "empty": {
+      "title": "Aún no hay mapas sin conexión",
+      "description": "Guarda una zona para verla sin conexión"
+    },
+    "region": {
+      "saving": "Guardando · {percent}%",
+      "paused": "En pausa · {percent}%",
+      "failed": "No se pudo guardar 1 parte | No se pudieron guardar {count} partes",
+      "ready": "{size} · Actualizado el {date}",
+      "readyTransit": "{size} · Horarios hasta el {date}",
+      "keepUntil": "{size} · Se elimina el {date}"
+    },
+    "actions": {
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "update": "Actualizar",
+      "rename": "Cambiar nombre",
+      "keep": "Conservar durante…",
+      "edit": "Editar"
+    },
+    "rename": {
+      "title": "Cambiar nombre del mapa"
+    },
+    "delete": {
+      "title": "¿Eliminar mapa sin conexión?",
+      "description": "{name} volverá a necesitar conexión"
+    },
+    "layers": {
+      "basemap": "Mapa",
+      "terrain": "Relieve 3D"
+    },
+    "new": {
+      "title": "Guardar una zona",
+      "saveChanges": "Guardar cambios",
+      "hint": "Mueve y amplía el mapa para encajar la zona en el cuadro",
+      "layers": "Incluir",
+      "summary": "Unos {size} · {width} km de ancho",
+      "tooLarge": "Amplía para elegir una zona más pequeña",
+      "needsConnection": "Conéctate a internet para guardar una zona",
+      "download": "Descargar",
+      "defaultName": "Zona guardada",
+      "features": "Usar sin conexión",
+      "free": "{size} libres"
+    },
+    "features": {
+      "search": "Buscar lugares",
+      "directions": "Cómo llegar"
+    },
+    "keep": {
+      "title": "Conservar",
+      "forever": "Hasta que lo elimines",
+      "until": "Hasta el {date}",
+      "week": "1 semana",
+      "month": "1 mes",
+      "months3": "3 meses",
+      "year": "1 año",
+      "pick": "Elegir fecha"
+    },
+    "notice": {
+      "place": "Guardado sin conexión: puede faltar información o estar desactualizada",
+      "departures": "Solo horarios programados, sin actualizaciones en tiempo real",
+      "directions": "Calculado sin conexión: no incluye retrasos ni cortes en tiempo real",
+      "search": "Lugares guardados en este dispositivo: los resultados pueden estar incompletos"
+    }
   },
   "timeline": {
     "title": "Cronología",

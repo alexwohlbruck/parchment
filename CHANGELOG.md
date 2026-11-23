@@ -6,6 +6,22 @@
 
 ### Fixed
 
+## [0.25.0] - 2026-11-23
+
+### Added
+
+* Save an area of the map, with the layers you choose, and see it with no connection. Find your saved areas under Offline maps.
+* Saved areas also work for search, place details, scheduled departures and walking, cycling and transit directions when you have no connection.
+* Keep a saved area until you delete it, or for a week, a month, a year or until a date you pick.
+* See how much space each layer and feature of a saved area takes before you download it.
+* Pages answered from a saved area say so, since details, live times and closures may be missing.
+* Saved areas show on the map in Offline maps; tap one to change its area, layers or how long it's kept.
+
+### Fixed
+
+* Opening the app with no connection no longer signs you out.
+* Directions without a connection say you're offline, then plan the trip once you're back online.
+
 ## [0.24.4] - 2026-11-22
 
 ### Added

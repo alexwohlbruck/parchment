@@ -21,6 +21,8 @@ import { localAutocomplete, coordinateResult, what3wordsResult } from '@/lib/sea
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useRecentsStore } from '@/stores/recents.store'
+import { hasOfflineRegions, searchOffline } from '@/services/offline/offline-engine.service'
+import { packagePlaceAsResult } from '@/lib/offline/search/package-place'
 
 interface AdvancedSearchResponse {
   query: string
@@ -168,14 +170,21 @@ function searchService() {
     await recentsStore.ensurePlacesHydrated().catch(() => {})
     const encryptedPoints = Object.values(useEncryptedPointsStore().pointsByCollection).flat()
 
-    return localAutocomplete(
+    const limit = options.maxResults ?? 20
+    const mine = localAutocomplete(
       options.query,
       {
         savedPlaces: [...useBookmarksStore().bookmarks, ...encryptedPoints],
         recentPlaces: recentsStore.places,
       },
-      { center, limit: options.maxResults },
+      { center, limit },
     )
+    if (!hasOfflineRegions() || mine.length >= limit) return mine
+    // Saved areas fill in after the user's own places, which are likelier to be what they want.
+    const saved = await searchOffline(options.query, center, limit).catch(() => [])
+    const seen = new Set(mine.map(r => r.id))
+    const fromAreas = saved.map(packagePlaceAsResult).filter(r => !seen.has(r.id))
+    return [...mine, ...fromAreas].slice(0, limit)
   }
 
   /**

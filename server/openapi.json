@@ -79,6 +79,10 @@
       "description": "Transit vehicles, routes, and stops"
     },
     {
+      "name": "Offline",
+      "description": "Region packages for search and directions without a connection"
+    },
+    {
       "name": "GBFS",
       "description": "Shared mobility docks and availability"
     },
@@ -14915,6 +14919,153 @@
             }
           }
         },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/offline/places": {
+      "get": {
+        "parameters": [
+          {
+            "description": "west,south,east,north in WGS 84",
+            "examples": [
+              "-74.000,40.715,-73.965,40.745"
+            ],
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$"
+            },
+            "in": "query",
+            "name": "bbox",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 21,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 21,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "operationId": "getOfflinePlaces",
+        "tags": [
+          "Offline"
+        ],
+        "summary": "Places package",
+        "description": "Named places, streets and transit stops inside the box, for searching and opening place pages offline.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/offline/timetable": {
+      "get": {
+        "parameters": [
+          {
+            "description": "west,south,east,north in WGS 84",
+            "examples": [
+              "-74.000,40.715,-73.965,40.745"
+            ],
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$"
+            },
+            "in": "query",
+            "name": "bbox",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 21,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 21,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "operationId": "getOfflineTimetable",
+        "tags": [
+          "Offline"
+        ],
+        "summary": "Timetable package",
+        "description": "Scheduled transit inside the box: stops, routes, trips and walking transfers for the next `days` days (14 by default).",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/offline/streets": {
+      "get": {
+        "parameters": [
+          {
+            "description": "west,south,east,north in WGS 84",
+            "examples": [
+              "-74.000,40.715,-73.965,40.745"
+            ],
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$"
+            },
+            "in": "query",
+            "name": "bbox",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 21,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 21,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "operationId": "getOfflineStreets",
+        "tags": [
+          "Offline"
+        ],
+        "summary": "Street graph package",
+        "description": "A walking and cycling street graph covering the box.",
         "responses": {
           "200": {}
         }

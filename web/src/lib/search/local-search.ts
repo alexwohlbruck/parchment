@@ -8,6 +8,7 @@ import { parseCoordinateQuery, parsePlusCode, type LatLng } from '@server/lib/co
 import { loadWhatFreeWords, parseWhat3words } from '@server/lib/whatfreewords'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
+import { everyTokenPrefixes, tokenize } from './tokenize'
 import type { AutocompleteResult } from '@/types/search.types'
 import type { Place } from '@/types/place.types'
 import type { RecentPlaceEntry } from '@/lib/recents'
@@ -161,19 +162,6 @@ function matchScore(tokens: string[], name: string, address?: string): number {
   if (everyTokenPrefixes(tokens, nameWords)) return 2
   if (address && everyTokenPrefixes(tokens, [...nameWords, ...tokenize(address)])) return 1
   return 0
-}
-
-function everyTokenPrefixes(tokens: string[], words: string[]): boolean {
-  return tokens.every(t => words.some(w => w.startsWith(t)))
-}
-
-function tokenize(text: string): string[] {
-  return text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean)
 }
 
 /**

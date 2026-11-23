@@ -566,6 +566,9 @@ jobs:
   # the auto-updater from the jobs above. Nothing on that host polls Docker
   # Hub, so a release that skips this job never reaches production.
   #
+  # DEPLOY_KNOWN_HOSTS pins the host key (`ssh-keyscan <host>`, checked
+  # against the host's own fingerprint).
+  #
   # DEPLOY_SSH_KEY is a key for the `deploy` user whose authorized_keys entry
   # forces `sudo /usr/local/bin/deploy-parchment` (pull, recreate with
   # --no-deps, wait for a healthy answer) and allows nothing else, so the
@@ -585,23 +588,28 @@ jobs:
         id: creds
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          if [ -n "$SSH_KEY" ] && [ -n "$DEPLOY_HOST" ]; then
+          if [ -n "$SSH_KEY" ] && [ -n "$KNOWN_HOSTS" ] && [ -n "$DEPLOY_HOST" ]; then
             echo "ready=true" >> $GITHUB_OUTPUT
           else
             echo "ready=false" >> $GITHUB_OUTPUT
-            echo "::warning::DEPLOY_SSH_KEY or DEPLOY_HOST is not set — this release was not deployed to production."
+            echo "::warning::DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS or DEPLOY_HOST is not set — this release was not deployed to production."
           fi
 
       - name: Load the deploy key
         if: steps.creds.outputs.ready == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
       - name: Pull, recreate and verify
         if: steps.creds.outputs.ready == 'true'
         run: |
-          ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+          ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=20 \
             "$DEPLOY_USER@$DEPLOY_HOST" deploy

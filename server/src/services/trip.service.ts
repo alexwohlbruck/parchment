@@ -411,7 +411,8 @@ export class TripService {
       preferredDepartureTime: departAt,
       preferredArrivalTime: undefined,
       selectedMode:
-        (strategy ? TripService.strategyMode(strategy) : null)
+        (carried && !strategy?.includes('transit') ? carried.mode : null)
+        ?? (strategy ? TripService.strategyMode(strategy) : null)
         ?? carried?.mode
         ?? request.selectedMode,
       // Mid-journey the rider is wherever the last leg left them, so the
@@ -420,6 +421,9 @@ export class TripService {
       availableVehicles: strategy
         ? (carried?.vehicle ? [carried.vehicle] : [])
         : request.availableVehicles,
+      ...(carried?.vehicle?.location && {
+        routingPreferences: { ...request.routingPreferences, useKnownVehicleLocations: true },
+      }),
     }
   }
 
@@ -465,21 +469,34 @@ export class TripService {
   /**
    * The personal vehicle a trip leaves the rider holding, if any.
    *
-   * Read off the last segment rather than any parking bookkeeping: a trip
-   * that leaves its vehicle somewhere always finishes on foot or on transit,
-   * whether or not it knew the vehicle well enough to record where it went.
-   * A shared bike ends docked, so it is never carried on.
+   * A vehicle ridden to the end is still in hand. One parked near the stop
+   * and walked away from is still the rider's, waiting where it was left, so
+   * the next leg starts by walking back to it. One left at a station is
+   * behind them, as is a shared bike, which ends docked.
    */
   private vehicleLeftInHand(
     trip: TripResponse,
   ): CarriedVehicle | null {
-    const last = trip.segments[trip.segments.length - 1]
+    if (trip.segments.some((s) => s.mode === 'transit')) return null
+    const last = trip.segments.findLast((s) => s.mode !== 'walking')
     if (!last || last.ownership === 'shared') return null
     if (last.mode !== 'driving' && last.mode !== 'biking') return null
 
+    const parked = last !== trip.segments[trip.segments.length - 1]
+    if (!parked) {
+      return {
+        mode: last.mode,
+        ...(last.vehicle && { vehicle: { ...last.vehicle, location: undefined } }),
+      }
+    }
     return {
       mode: last.mode,
-      ...(last.vehicle && { vehicle: { ...last.vehicle } }),
+      vehicle: {
+        id: 'parked',
+        type: last.mode === 'driving' ? 'car' : 'bike',
+        ...last.vehicle,
+        location: last.end.location,
+      },
     }
   }
 
@@ -1144,7 +1161,7 @@ export class TripService {
 
     // Direct driving (assume car at origin) — still uses the car's energy
     // type for cost/CO2 when one is registered.
-    if (!car || !useKnownLocations) {
+    if (!car?.location || !useKnownLocations) {
       return this.planDirectDrive(from, to, state, preferences, car)
     }
 
@@ -1934,7 +1951,7 @@ export class TripService {
     const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
     // Direct biking (assume bike at origin)
-    if (!bike || !useKnownLocations) {
+    if (!bike?.location || !useKnownLocations) {
       return this.planDirectBike(from, to, state, preferences)
     }
 

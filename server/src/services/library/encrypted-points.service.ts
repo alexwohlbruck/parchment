@@ -115,6 +115,7 @@ export async function createEncryptedPoint(
  */
 export async function updateEncryptedPoint(
   id: string,
+  collectionId: string,
   userId: string,
   encryptedData: string,
   nonce: string,
@@ -127,7 +128,11 @@ export async function updateEncryptedPoint(
       updatedAt: new Date(),
     })
     .where(
-      and(eq(encryptedPoints.id, id), eq(encryptedPoints.userId, userId)),
+      and(
+        eq(encryptedPoints.id, id),
+        eq(encryptedPoints.collectionId, collectionId),
+        eq(encryptedPoints.userId, userId),
+      ),
     )
     .returning()
 
@@ -147,12 +152,17 @@ export async function updateEncryptedPoint(
  */
 export async function deleteEncryptedPoint(
   id: string,
+  collectionId: string,
   userId: string,
 ): Promise<boolean> {
   const result = await db
     .delete(encryptedPoints)
     .where(
-      and(eq(encryptedPoints.id, id), eq(encryptedPoints.userId, userId)),
+      and(
+        eq(encryptedPoints.id, id),
+        eq(encryptedPoints.collectionId, collectionId),
+        eq(encryptedPoints.userId, userId),
+      ),
     )
     .returning()
 

@@ -735,7 +735,7 @@ describe('encrypted points', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(updateEncryptedPoint).toHaveBeenCalledWith('pt-1', OWNER_ID, 'new', 'n2')
+    expect(updateEncryptedPoint).toHaveBeenCalledWith('pt-1', 'col-1', OWNER_ID, 'new', 'n2')
   })
 
   test('update 404s when the point does not exist', async () => {
@@ -765,7 +765,7 @@ describe('encrypted points', () => {
     const res = await req(app).delete('/collections/col-1/encrypted-points/pt-1')
 
     expect(res.status).toBe(204)
-    expect(deleteEncryptedPoint).toHaveBeenCalledWith('pt-1', TEST_USER.id)
+    expect(deleteEncryptedPoint).toHaveBeenCalledWith('pt-1', 'col-1', TEST_USER.id)
   })
 
   test('delete 404s when the point is gone', async () => {

@@ -529,6 +529,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ))!.userId
         const point = await encryptedPointsService.updateEncryptedPoint(
           params.pointId,
+          params.id,
           ownerId,
           body.encryptedData,
           body.nonce,
@@ -578,6 +579,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ))!.userId
         const deleted = await encryptedPointsService.deleteEncryptedPoint(
           params.pointId,
+          params.id,
           ownerId,
         )
         if (!deleted) {

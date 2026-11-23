@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     cachedUser.value = user // Persist to localStorage
     sessionId.value = _sessionId
 
-    if (isTauri) {
+    if (isTauri && _sessionId) {
       await deviceStore.setToken(_sessionId)
     }
 
@@ -140,12 +140,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // --- Impersonation (dev only) ---
+  // Held in memory only, so the admin's token never reaches storage; a reload ends impersonation.
   const originalSession = ref<{
     token: string | null
     user: User
-  } | null>(
-    JSON.parse(sessionStorage.getItem('parchment-original-session') ?? 'null'),
-  )
+  } | null>(null)
 
   const isImpersonating = computed(() => originalSession.value !== null)
 
@@ -154,14 +153,8 @@ export const useAuthStore = defineStore('auth', () => {
       token: sessionId.value,
       user: me.value!,
     }
-    sessionStorage.setItem(
-      'parchment-original-session',
-      JSON.stringify(originalSession.value),
-    )
-
     sessionId.value = newToken
     me.value = newUser
-    cachedUser.value = newUser
     api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
   }
 
@@ -171,7 +164,6 @@ export const useAuthStore = defineStore('auth', () => {
     const orig = originalSession.value
     sessionId.value = orig.token
     me.value = orig.user
-    cachedUser.value = orig.user
 
     if (orig.token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${orig.token}`
@@ -180,7 +172,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     originalSession.value = null
-    sessionStorage.removeItem('parchment-original-session')
   }
 
   return {

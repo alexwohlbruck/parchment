@@ -98,7 +98,7 @@ app.post(
         'Inbound federation request failed S2S auth',
       )
       return status(401, {
-        message: `Federation auth failed: ${(err as Error).message}`,
+        message: 'Federation auth failed',
         supported_protocol_versions: getSupportedProtocolVersions(),
       })
     }

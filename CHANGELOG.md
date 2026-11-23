@@ -6,6 +6,13 @@
 
 ### Fixed
 
+## [0.25.1] - 2026-11-23
+
+### Fixed
+
+* Tightened security across sharing, sign-in, saved places and profile photos, so your account and shared collections are better protected.
+* Links from map data, transit agencies and search sources only open real web, email and phone addresses, never scripts.
+
 ## [0.25.0] - 2026-11-23
 
 ### Added
@@ -16,6 +23,7 @@
 * See how much space each layer and feature of a saved area takes before you download it.
 * Pages answered from a saved area say so, since details, live times and closures may be missing.
 * Saved areas show on the map in Offline maps; tap one to change its area, layers or how long it's kept.
+* Walking directions cross plazas in one step, such as "Turn right across Times Square", instead of calling out every corner on the way.
 
 ### Fixed
 

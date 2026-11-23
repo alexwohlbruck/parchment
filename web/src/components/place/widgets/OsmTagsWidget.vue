@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
@@ -71,11 +72,8 @@ function formatOsmDate(value: string): string | null {
 }
 
 function formatValue(key: string, value: string): { text: string; href?: string } {
-  // URL
-  try {
-    const u = new URL(value)
-    if (u.protocol === 'http:' || u.protocol === 'https:') return { text: value, href: value }
-  } catch { /* not a URL */ }
+  const href = safeHref(value)
+  if (href) return { text: value, href }
 
   // Floor/level display — adjust for one-based numbering
   if (key === 'level') {

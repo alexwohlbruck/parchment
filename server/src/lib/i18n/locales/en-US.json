@@ -125,6 +125,7 @@
       "collectionDeleteFailed": "Collection not found or delete failed",
       "collectionViewerReadOnly": "Viewer role cannot modify this collection",
       "collectionPointsViewerReadOnly": "Viewer role cannot modify encrypted points in this collection",
+      "pointCreateFailed": "Failed to save the point",
       "pointNotFound": "Point not found",
       "bookmarkCreateFailed": "Failed to create bookmark",
       "bookmarkUpdateFailed": "Bookmark not found or update failed",

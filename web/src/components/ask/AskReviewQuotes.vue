@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { AttributedValue, Place, Review } from '@/types/place.types'
@@ -26,12 +27,12 @@ function attribution({ value, sourceId }: AttributedValue<Review>): string {
       class="border-l-2 border-border pl-2.5"
     >
       <component
-        :is="review.value.url ? 'a' : 'p'"
-        :href="review.value.url"
+        :is="safeHref(review.value.url) ? 'a' : 'p'"
+        :href="safeHref(review.value.url)"
         target="_blank"
         rel="noopener noreferrer"
         class="line-clamp-2 text-sm text-muted-foreground"
-        :class="{ 'hover:text-foreground': review.value.url }"
+        :class="{ 'hover:text-foreground': safeHref(review.value.url) }"
       >
         “{{ review.value.text }}”
       </component>

@@ -260,6 +260,7 @@ export interface RouteEdgeSegment {
   state?: string            // the state or province the edge is in
   inPark?: boolean          // on foot, inside a park
   parkName?: string
+  plaza?: boolean           // across a plaza or other pedestrian area, on a path the router draws through it
   crossingIsland?: boolean  // a crosswalk with a refuge island partway across
   buttonOperated?: boolean  // a signalled crosswalk that waits for its push button
   crossingDiagonal?: boolean // a crosswalk cutting diagonally across a junction, for an all-way walk phase

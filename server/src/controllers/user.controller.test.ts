@@ -305,6 +305,15 @@ describe('POST /users — duplicate email', () => {
 })
 
 describe('POST /users/:id/impersonate', () => {
+  test('is refused without the users:update permission', async () => {
+    setHasPermission(false)
+
+    const res = await req(app).post('/users/other-user/impersonate')
+
+    expect(res.status).toBe(403)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
   test('is refused outright in production', async () => {
     const previous = process.env.NODE_ENV
     process.env.NODE_ENV = 'production'

@@ -21,6 +21,7 @@ import {
 import { createBookmarkSearchCondition } from '../../util/text-search.util'
 import { emit } from '../realtime/emit'
 import { logWarn } from '../../lib/logger'
+import { writableCollectionIds } from '../sharing.service'
 
 // Automatically generate select fields with geometry conversion - no manual field listing needed!
 const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarks)
@@ -145,58 +146,55 @@ async function updateBookmarkInternal(
 
 /**
  * Updates a bookmark and optionally re-assigns its collections.
+ *
+ * Bookmark fields are owner-only. Membership may be changed by the owner or
+ * by anyone who can write a collection that holds the bookmark, and only the
+ * links to collections the caller can write are ever removed. Returns
+ * undefined when the caller may not touch the bookmark at all.
  */
 export async function updateBookmark(
   bookmarkId: string,
   userId: string,
   updates: Partial<Bookmark> & { collectionIds?: string[] },
-  _collectionIdsFromController?: string[] | undefined,
-): Promise<BookmarkWithCollections | null> {
+): Promise<BookmarkWithCollections | null | undefined> {
   const { collectionIds, ...bookmarkUpdates } = updates
-
-  // Separate the two paths:
-  //   - If any bookmark-row fields changed (name, icon, lat/lng, etc.),
-  //     only the bookmark's owner may update those. `updateBookmarkInternal`
-  //     enforces that via its `userId` filter.
-  //   - If ONLY `collectionIds` changed, we're really just editing pivot
-  //     rows. A collection owner or editor should be able to add/remove
-  //     a bookmark from their collection even when someone else created
-  //     it (e.g. Alice removing a bookmark Bob added as editor to her
-  //     shared collection). Skip the bookmark-row update in that case
-  //     and fall through to the membership diff. The controller's
-  //     `assertCanWriteCollections` already gated on collection access.
   const hasBookmarkFieldChanges = Object.keys(bookmarkUpdates).length > 0
 
   let updatedBookmark: Bookmark | undefined
-  if (hasBookmarkFieldChanges) {
-    updatedBookmark = await updateBookmarkInternal(
-      bookmarkId,
-      userId,
-      bookmarkUpdates,
-    )
-    if (!updatedBookmark) return null
-  } else {
-    // Collection-only update. Look up the row as it stands (no userId
-    // filter — access control has already happened one level up). If
-    // the bookmark doesn't exist at all, null out as before.
+  let membership: { linkedIds: string[]; writableIds: string[]; owns: boolean } | null = null
+
+  if (collectionIds !== undefined) {
     const [row] = await db
       .select(bookmarkSelectFields)
       .from(bookmarks)
       .where(eq(bookmarks.id, bookmarkId))
       .limit(1)
     if (!row) return null
-    updatedBookmark = row as Bookmark
-  }
-
-  if (collectionIds !== undefined) {
-    const currentCollectionIds = (
+    const linkedIds = (
       await db
         .select({ collectionId: bookmarksCollections.collectionId })
         .from(bookmarksCollections)
         .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
-    ).map((row) => row.collectionId)
+    ).map((link) => link.collectionId)
+    const writableIds = await writableCollectionIds(userId, linkedIds)
+    const owns = row.userId === userId
+    if (!owns && writableIds.length === 0) return undefined
+    membership = { linkedIds, writableIds, owns }
+    updatedBookmark = row as Bookmark
+  }
 
-    const collectionsToRemove = currentCollectionIds.filter(
+  if (hasBookmarkFieldChanges) {
+    updatedBookmark = await updateBookmarkInternal(
+      bookmarkId,
+      userId,
+      bookmarkUpdates,
+    )
+  }
+  if (!updatedBookmark) return null
+
+  if (collectionIds !== undefined && membership) {
+    const currentCollectionIds = membership.linkedIds
+    const collectionsToRemove = membership.writableIds.filter(
       (id) => !collectionIds.includes(id),
     )
     const collectionsToAdd = collectionIds.filter(
@@ -234,7 +232,7 @@ export async function updateBookmark(
         .where(inArray(collections.id, collectionsToAdd))
     }
 
-    if (collectionsToRemove.length > 0) {
+    if (collectionsToRemove.length > 0 && membership.owns) {
       const remainingCollectionsCount = await db
         .select({ value: count() })
         .from(bookmarksCollections)
@@ -421,7 +419,7 @@ export async function getCollectionsForBookmark(
   // Split into owned + shared. Owned: straight lookup. Shared: via
   // incoming_shares. Union of the two is what the caller can see.
   const { incomingShares } = await import('../../schema/shares.schema')
-  const { or } = await import('drizzle-orm')
+  const { grantsLocalAccess } = await import('../sharing.service')
 
   const owned = await db
     .select()
@@ -441,10 +439,7 @@ export async function getCollectionsForBookmark(
         eq(incomingShares.userId, userId),
         eq(incomingShares.resourceType, 'collection'),
         inArray(incomingShares.resourceId, collectionIds),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
 

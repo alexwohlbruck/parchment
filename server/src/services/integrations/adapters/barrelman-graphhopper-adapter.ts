@@ -98,6 +98,7 @@ export class BarrelmanGraphHopperAdapter {
         streetName: seg.streetName,
         streetNameSource: seg.streetNameSource,
         crossingName: seg.crossingName,
+        plaza: seg.plaza,
         crossingIsland: seg.crossingIsland,
         buttonOperated: seg.buttonOperated,
         crossingDiagonal: seg.crossingDiagonal,

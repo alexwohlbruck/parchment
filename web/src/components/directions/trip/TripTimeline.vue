@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -41,6 +42,8 @@ import type { RouteInstruction } from '@/types/directions.types'
 import type { ServiceAlert } from '@/types/transit.types'
 import LegCard from './LegCard.vue'
 import HandoffPill from './HandoffPill.vue'
+
+const RIDESHARE_APP_PROTOCOLS = ['lyft:']
 
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -504,8 +507,8 @@ const legKey = (entry: TimelineEntry) => {
                 {{ translate('directions.leg.pickupIn', { minutes: Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }) }}
               </span>
               <a
-                v-if="entry.segment.rideshareDetails.bookingUrl"
-                :href="entry.segment.rideshareDetails.bookingUrl"
+                v-if="safeHref(entry.segment.rideshareDetails.bookingUrl, RIDESHARE_APP_PROTOCOLS)"
+                :href="safeHref(entry.segment.rideshareDetails.bookingUrl, RIDESHARE_APP_PROTOCOLS)"
                 target="_blank"
                 class="text-primary hover:underline"
               >
@@ -549,8 +552,8 @@ const legKey = (entry: TimelineEntry) => {
                 </span>
               </div>
               <a
-                v-if="entry.segment.sharedMobilityDetails.unlockUri"
-                :href="entry.segment.sharedMobilityDetails.unlockUri"
+                v-if="safeHref(entry.segment.sharedMobilityDetails.unlockUri)"
+                :href="safeHref(entry.segment.sharedMobilityDetails.unlockUri)"
                 target="_blank"
                 rel="noopener"
                 class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 text-[13px] font-medium text-white transition-colors hover:bg-teal-700"

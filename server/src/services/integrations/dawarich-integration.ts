@@ -24,6 +24,13 @@ import {
   type DawarichTimelineDay,
   type DawarichTracksResponse,
 } from './adapters/dawarich-adapter'
+import {
+  assertPublicUrl,
+  OutboundAddressError,
+  outboundRequestConfig,
+} from '../../lib/outbound-fetch'
+
+const MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 
 /**
  * Dawarich — self-hosted location-history service.
@@ -103,7 +110,9 @@ export class DawarichIntegration
     try {
       // /api/v1/stats has no required params and returns 200 with auth, 401
       // without — a clean way to verify both reachability and the token.
+      await assertPublicUrl(baseUrl)
       await axios.get(`${baseUrl}/api/v1/stats`, {
+        ...outboundRequestConfig,
         headers: {
           Authorization: `Bearer ${config.apiToken}`,
           Accept: 'application/json',
@@ -112,6 +121,9 @@ export class DawarichIntegration
       })
       return { success: true }
     } catch (err: any) {
+      if (err instanceof OutboundAddressError) {
+        return { success: false, message: 'Private network addresses are not allowed' }
+      }
       const status = err?.response?.status as number | undefined
       if (status === 401 || status === 403) {
         return { success: false, message: 'Invalid API token' }
@@ -137,10 +149,7 @@ export class DawarichIntegration
       ) {
         return { success: false, message: 'Could not reach the host' }
       }
-      return {
-        success: false,
-        message: `Connection failed: ${err?.message ?? 'unknown error'}`,
-      }
+      return { success: false, message: 'Could not connect to Dawarich' }
     }
   }
 
@@ -291,7 +300,9 @@ export class DawarichIntegration
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   private buildClient(credentials: IntegrationCredentials): AxiosInstance {
-    return axios.create({
+    const client = axios.create({
+      ...outboundRequestConfig,
+      maxContentLength: MAX_RESPONSE_BYTES,
       baseURL: credentials.endpoint.replace(/\/+$/, ''),
       timeout: DEFAULT_TIMEOUT_MS,
       headers: {
@@ -299,6 +310,11 @@ export class DawarichIntegration
         Accept: 'application/json',
       },
     })
+    client.interceptors.request.use(async (config) => {
+      await assertPublicUrl(new URL(config.url ?? '', config.baseURL))
+      return config
+    })
+    return client
   }
 
   /**

@@ -20,7 +20,9 @@ mock.module('./user.service', () => ({
   },
 }))
 
-const { setAvatar, removeAvatar, migrateLegacyAvatars } = await import('./avatar.service')
+const { setAvatar, removeAvatar, migrateLegacyAvatars, UnreadableImageError } = await import(
+  './avatar.service'
+)
 const { blobStore } = await import('./storage/storage.service')
 
 const image = (width: number, height: number, background = '#3366ff') =>
@@ -70,7 +72,20 @@ describe('setAvatar', () => {
 
   test('rejects data that is not an image', async () => {
     dbMock.queueSelect([{ picture: null }])
-    await expect(setAvatar('u3', new Uint8Array([1, 2, 3]))).rejects.toThrow()
+    await expect(setAvatar('u3', new Uint8Array([1, 2, 3]))).rejects.toThrow(UnreadableImageError)
+    expect(profileUpdates).toHaveLength(0)
+  })
+
+  test('rejects formats outside JPEG, PNG and WebP', async () => {
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>',
+    )
+    const tiff = await sharp({ create: { width: 4, height: 4, channels: 3, background: '#000' } })
+      .tiff()
+      .toBuffer()
+    for (const input of [svg, tiff]) {
+      await expect(setAvatar('u4', new Uint8Array(input))).rejects.toThrow(UnreadableImageError)
+    }
     expect(profileUpdates).toHaveLength(0)
   })
 })

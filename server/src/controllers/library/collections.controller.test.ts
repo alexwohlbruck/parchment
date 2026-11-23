@@ -426,7 +426,7 @@ describe('DELETE /collections/:id', () => {
     expect(res.status).toBe(404)
   })
 
-  test('400s with the service message when deletion is refused', async () => {
+  test('400s without echoing the internal error when deletion fails', async () => {
     deleteCollection.mockRejectedValueOnce(
       new Error('Cannot delete a collection with active shares'),
     )
@@ -434,7 +434,7 @@ describe('DELETE /collections/:id', () => {
     const res = await req(app).delete('/collections/col-1')
 
     expect(res.status).toBe(400)
-    expect(res.body.error).toContain('active shares')
+    expect(res.body.error).not.toContain('active shares')
   })
 })
 
@@ -711,7 +711,7 @@ describe('encrypted points', () => {
     })
 
     expect(res.status).toBe(400)
-    expect(res.body.error).toContain('not e2ee')
+    expect(res.body.error).toBe('Failed to save the point')
   })
 
   test('422s without the ciphertext', async () => {
@@ -735,7 +735,7 @@ describe('encrypted points', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(updateEncryptedPoint).toHaveBeenCalledWith('pt-1', OWNER_ID, 'new', 'n2')
+    expect(updateEncryptedPoint).toHaveBeenCalledWith('pt-1', 'col-1', OWNER_ID, 'new', 'n2')
   })
 
   test('update 404s when the point does not exist', async () => {
@@ -765,7 +765,7 @@ describe('encrypted points', () => {
     const res = await req(app).delete('/collections/col-1/encrypted-points/pt-1')
 
     expect(res.status).toBe(204)
-    expect(deleteEncryptedPoint).toHaveBeenCalledWith('pt-1', TEST_USER.id)
+    expect(deleteEncryptedPoint).toHaveBeenCalledWith('pt-1', 'col-1', TEST_USER.id)
   })
 
   test('delete 404s when the point is gone', async () => {

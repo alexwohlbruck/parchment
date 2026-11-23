@@ -792,7 +792,7 @@ app.group('', (admin) =>
 // --- Impersonation (dev only) ---
 app.group('', (admin) =>
   admin
-    .use(requireAuth)
+    .use(permissions(PermissionId.USERS_UPDATE))
     .post(
       '/:id/impersonate',
       async ({ params, user, status, t }) => {

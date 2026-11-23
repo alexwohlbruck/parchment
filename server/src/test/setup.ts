@@ -40,6 +40,9 @@ const defaults: Record<string, string> = {
   SMTP_HOST: '',
 
   APP_TESTER_EMAIL: 'test@parchment.local',
+
+  // Fixture peers use reserved names that never resolve.
+  OUTBOUND_ALLOW_PRIVATE: 'true',
 }
 
 for (const [key, value] of Object.entries(defaults)) {

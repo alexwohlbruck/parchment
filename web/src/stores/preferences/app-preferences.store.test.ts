@@ -5,6 +5,7 @@ import { useAppPreferencesStore } from './app-preferences.store'
 import { useAppStore } from '@/stores/app.store'
 import { useMapStore } from '@/stores/map.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useDeviceOnlyStore } from './device-only.store'
 import { FloorNumbering, MapProjection } from '@/types/map.types'
 
 const save = vi.hoisted(() => vi.fn(async (_patch: AppPreferences) => {}))
@@ -113,5 +114,42 @@ describe('app preferences store', () => {
     expect(mapStore.parkedSettings.placeLabels).toBe(false)
     expect(mapStore.settings.placeLabels).toBe(true)
     expect(mapStore.settings.basemap).toBe('satellite')
+  })
+
+  describe('a setting kept on this device', () => {
+    const theme = { accentColor: 'teal', radius: 0, colorScheme: 'auto', uiTheme: 'parchment' }
+
+    beforeEach(() => useDeviceOnlyStore().setDeviceOnly('app.theme.radius', true))
+
+    it('keeps its own value when adopting the account', async () => {
+      useThemeStore().setRadius(0.75)
+      useAppPreferencesStore().adopt({ ...saved, theme: { radius: 0, accentColor: 'teal' } })
+      await settle()
+
+      expect(useThemeStore().radius).toBe(0.75)
+      expect(useThemeStore().accentColor).toBe('teal')
+    })
+
+    it("saves the account's value for it, not this device's", async () => {
+      useAppPreferencesStore().adopt({ ...saved, theme })
+      useThemeStore().setRadius(1)
+      await settle()
+      expect(save).not.toHaveBeenCalled()
+
+      useThemeStore().setAccentColor('cobalt')
+      await settle()
+      expect(save.mock.calls[0][0].theme).toMatchObject({ radius: 0, accentColor: 'cobalt' })
+    })
+
+    it("sends this device's value once it syncs again", async () => {
+      useAppPreferencesStore().adopt({ ...saved, theme })
+      useThemeStore().setRadius(1)
+      await settle()
+      expect(save).not.toHaveBeenCalled()
+
+      useDeviceOnlyStore().setDeviceOnly('app.theme.radius', false)
+      await settle()
+      expect(save.mock.calls[0][0].theme).toMatchObject({ radius: 1 })
+    })
   })
 })

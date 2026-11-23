@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 import { storedLocale } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app.store'
+import { useDeviceOnlyStore } from '@/stores/preferences/device-only.store'
 import { UnitSystem } from '@/types/map.types'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 import type { AskPreferences } from '@/types/ask.types'
@@ -35,9 +36,9 @@ function toUnitSystem(value: string): UnitSystem {
 export async function syncPreferencesFromBackend(): Promise<UserPreferences | null> {
   try {
     const { data } = await api.get<UserPreferences>('/users/me/preferences')
-    storedLocale.value = toLocale(data.language)
-    const appStore = useAppStore()
-    appStore.unitSystem = toUnitSystem(data.unitSystem)
+    const deviceOnly = useDeviceOnlyStore()
+    if (!deviceOnly.isDeviceOnly('account.language')) storedLocale.value = toLocale(data.language)
+    if (!deviceOnly.isDeviceOnly('account.unitSystem')) useAppStore().unitSystem = toUnitSystem(data.unitSystem)
     return data
   } catch {
     return null
@@ -74,9 +75,8 @@ export async function updatePreferences(updates: {
   if (updates.language !== undefined) body.language = updates.language
   if (updates.unitSystem !== undefined) body.unitSystem = updates.unitSystem
   const { data } = await api.put<UserPreferences>('/users/me/preferences', body)
-  storedLocale.value = toLocale(data.language)
-  const appStore = useAppStore()
-  appStore.unitSystem = toUnitSystem(data.unitSystem)
+  if (body.language !== undefined) storedLocale.value = toLocale(data.language)
+  if (body.unitSystem !== undefined) useAppStore().unitSystem = toUnitSystem(data.unitSystem)
   return data
 }
 

@@ -74,6 +74,7 @@ import {
   classFilterExpr,
   composeFilter,
   modeExprs,
+  modeStyle,
   routeFilterExpr,
   pickRouteToken,
   routesOf,
@@ -545,13 +546,13 @@ function isolatedLineStyle(): { color: string; w: number; o: number } {
       const routes = `,${f.properties?.routes ?? ''},`
       if (!routes.includes(`,${isolatedRoute},`)) continue
       const st = styleForFeed(sid.slice('portolan-tiles-'.length))
-      const m = st?.modes?.[f.properties?.mode as string]
+      const m = modeStyle(st, f.properties?.mode as string)
       return {
         color: f.properties?.route_color
           ? `#${f.properties.route_color}`
           : fallback.color,
-        w: m?.width ?? 1,
-        o: m?.opacity ?? 1,
+        w: m.width,
+        o: m.opacity,
       }
     }
   }

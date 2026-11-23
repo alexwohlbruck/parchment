@@ -87,17 +87,34 @@ export const widthExpr = (w: Expr): Expr => [
   ['*', 3.6, w],
 ]
 
-/** Per-class width and opacity matches from a feed's resolved style set.
- *  Absent classes fall through to 1; a missing manifest (barrelman may
- *  not serve one) is a literal 1 — a match with zero branches is not a
- *  valid expression. */
+/** Ceilings over a feed's own class style. Ferry lanes fan out across a
+ *  harbour, so at manifest weight they read as a solid band over the water. */
+const MODE_CEILING: Record<string, { width: number; opacity: number }> = {
+  ferry: { width: 0.45, opacity: 0.4 },
+}
+
+/** A class's width and opacity: the feed's manifest, held under the ceiling. */
+export function modeStyle(st: PortolanStyleSet | null, mode: string): { width: number; opacity: number } {
+  const m = st?.modes?.[mode]
+  const cap = MODE_CEILING[mode]
+  return {
+    width: Math.min(m?.width ?? 1, cap?.width ?? Infinity),
+    opacity: Math.min(m?.opacity ?? 1, cap?.opacity ?? Infinity),
+  }
+}
+
+/** Per-class width and opacity matches. Absent classes fall through to 1;
+ *  with no manifest and no ceiling a literal 1 — a match with zero
+ *  branches is not a valid expression. */
 export function modeExprs(st: PortolanStyleSet | null): { w: Expr; o: Expr } {
   const w: Expr[] = ['match', ['coalesce', ['get', 'mode'], '']]
   const o: Expr[] = ['match', ['coalesce', ['get', 'mode'], '']]
-  for (const [name, m] of Object.entries(st?.modes ?? {})) {
-    if (name === 'unknown') continue
-    w.push(name, m.width ?? 1)
-    o.push(name, m.opacity ?? 1)
+  const modes = new Set([...Object.keys(st?.modes ?? {}), ...Object.keys(MODE_CEILING)])
+  modes.delete('unknown')
+  for (const name of modes) {
+    const m = modeStyle(st, name)
+    w.push(name, m.width)
+    o.push(name, m.opacity)
   }
   if (w.length === 2) return { w: 1, o: 1 }
   w.push(1)

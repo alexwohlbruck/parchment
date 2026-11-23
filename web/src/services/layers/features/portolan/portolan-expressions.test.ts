@@ -189,16 +189,25 @@ describe('class filter composition', () => {
 })
 
 describe('modeExprs', () => {
-  test('missing manifest yields literal 1s, not an empty match', () => {
-    expect(modeExprs(null)).toEqual({ w: 1, o: 1 })
+  const MODE = ['coalesce', ['get', 'mode'], '']
+
+  test('missing manifest still holds ferries under their ceiling', () => {
+    expect(modeExprs(null)).toEqual({
+      w: ['match', MODE, 'ferry', 0.45, 1],
+      o: ['match', MODE, 'ferry', 0.4, 1],
+    })
   })
 
   test('classes map to their width/opacity with fallback 1', () => {
     const { w, o } = modeExprs({
-      modes: { metro: { width: 1.4, opacity: 0.9 }, unknown: { width: 9, opacity: 9 } },
+      modes: {
+        metro: { width: 1.4, opacity: 0.9 },
+        ferry: { width: 0.7, opacity: 0.3 },
+        unknown: { width: 9, opacity: 9 },
+      },
     } as any)
-    expect(w).toEqual(['match', ['coalesce', ['get', 'mode'], ''], 'metro', 1.4, 1])
-    expect(o).toEqual(['match', ['coalesce', ['get', 'mode'], ''], 'metro', 0.9, 1])
+    expect(w).toEqual(['match', MODE, 'metro', 1.4, 'ferry', 0.45, 1])
+    expect(o).toEqual(['match', MODE, 'metro', 0.9, 'ferry', 0.3, 1])
   })
 })
 

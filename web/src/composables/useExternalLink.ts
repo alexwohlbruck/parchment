@@ -1,5 +1,6 @@
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { getIsTauri } from '@/lib/api'
+import { safeHref } from '@/lib/safe-href'
 
 /**
  * Composable for handling external links in Tauri applications.
@@ -7,10 +8,10 @@ import { getIsTauri } from '@/lib/api'
  * falls back to window.open in web environments.
  */
 export function useExternalLink() {
-  const openExternalLink = async (url: string, target?: string) => {
-    // Validate URL
+  const openExternalLink = async (rawUrl: string, target?: string) => {
+    const url = safeHref(rawUrl)
     if (!url) {
-      console.warn('useExternalLink: No URL provided')
+      console.warn('useExternalLink: refusing to open', rawUrl)
       return
     }
 

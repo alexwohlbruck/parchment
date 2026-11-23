@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo, WidgetResponse } from '@/types/place.types'
@@ -390,8 +391,8 @@ function openTransitlandLink() {
       <div v-if="departures.length > 0 && departures[0].agency">
         Operated by
         <a
-          v-if="departures[0].agency?.url"
-          :href="departures[0].agency.url"
+          v-if="safeHref(departures[0].agency?.url)"
+          :href="safeHref(departures[0].agency?.url)"
           target="_blank"
           class="text-primary hover:underline"
         ><strong>{{ departures[0].agency.name }}</strong></a>

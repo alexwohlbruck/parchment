@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeHref } from '@/lib/safe-href'
 import { useI18n } from 'vue-i18n'
 import { GlobeIcon } from 'lucide-vue-next'
 import { siteName } from '@/lib/ask/site-name'
@@ -12,10 +13,11 @@ const { t } = useI18n()
   <div class="flex flex-col gap-1.5">
     <span class="text-[12.5px] text-muted-foreground">{{ t('ask.sources') }}</span>
     <div class="flex flex-wrap gap-1.5">
-      <a
+      <component
+        :is="safeHref(source.url) ? 'a' : 'span'"
         v-for="source in sources"
         :key="source.url"
-        :href="source.url"
+        :href="safeHref(source.url)"
         :title="source.title"
         target="_blank"
         rel="noopener noreferrer"
@@ -23,7 +25,7 @@ const { t } = useI18n()
       >
         <GlobeIcon class="size-3 shrink-0 text-muted-foreground" />
         <span class="truncate">{{ siteName(source.url) }}</span>
-      </a>
+      </component>
     </div>
   </div>
 </template>

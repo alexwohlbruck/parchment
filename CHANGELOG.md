@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Links from map data, transit agencies and search sources only open real web, email and phone addresses, never scripts.
+
 ## [0.25.0] - 2026-11-23
 
 ### Added

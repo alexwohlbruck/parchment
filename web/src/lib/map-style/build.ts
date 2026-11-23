@@ -1,4 +1,5 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
+import { imageryStyle, type ImagerySource } from '@/lib/imagery/imagery-stack'
 import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
@@ -829,7 +830,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 }
 
 /**
- * Satellite / hybrid: ESRI World Imagery, with the basemap's labels and
+ * Satellite / hybrid: the user's imagery stack, with the basemap's labels and
  * arterial network over it in hybrid mode.
  *
  * Hybrid always uses the dark flavor's labels regardless of app theme: the
@@ -837,26 +838,13 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
  * background.
  */
 export function buildSatelliteStyle(
-  options: BasemapStyleOptions & { hybrid?: boolean },
+  options: BasemapStyleOptions & { hybrid?: boolean; imagery: readonly ImagerySource[] },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads, imagery } = options
 
-  const sources: StyleSpecification['sources'] = {
-    'satellite-raster': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution:
-        '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-    },
-  }
-
-  const layers: StyleSpecification['layers'] = [
-    { id: 'satellite-raster', type: 'raster', source: 'satellite-raster' },
-  ]
+  const stack = imageryStyle(imagery)
+  const sources: StyleSpecification['sources'] = { ...stack.sources }
+  const layers: StyleSpecification['layers'] = [...stack.layers]
 
   if (hybrid) {
     sources[SOURCE] = vectorSource(tileServerUrl)

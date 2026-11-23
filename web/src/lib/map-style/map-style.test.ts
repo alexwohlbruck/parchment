@@ -1021,8 +1021,8 @@ describe('assembled styles', () => {
   const cases: Array<[string, () => any]> = [
     ['light', () => buildMapStyle({ ...opts, theme: 'light' })],
     ['dark', () => buildMapStyle({ ...opts, theme: 'dark' })],
-    ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })],
-    ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
+    ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery: [] })],
+    ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false, imagery: [] })],
     ['light glyph POIs', () => buildMapStyle({ ...opts, theme: 'light', poiStyle: 'glyph' })],
     ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
     ['light HD roads', () => buildMapStyle({ ...opts, theme: 'light', hdRoads: true })],
@@ -1349,7 +1349,7 @@ describe('assembled styles', () => {
       expect(sky['fog-color'], theme).toBeTruthy()
     }
     // The imagery basemap is daylight photography whatever the app theme is.
-    expect((buildSatelliteStyle({ ...opts, theme: 'dark' }) as any).sky).toEqual(
+    expect((buildSatelliteStyle({ ...opts, theme: 'dark', imagery: [] }) as any).sky).toEqual(
       (buildMapStyle({ ...opts, theme: 'light' }) as any).sky,
     )
   })
@@ -1601,9 +1601,10 @@ describe('assembled styles', () => {
   })
 
   test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
-    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })
+    const imagery = [{ id: 'photo', source: { type: 'raster' as const, tiles: ['https://photo/{z}/{x}/{y}'] } }]
+    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery })
     const ids = style.layers.map(l => l.id)
-    expect(ids[0]).toBe('satellite-raster')
+    expect(ids[0]).toBe('imagery:photo')
     expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
     expect(ids).not.toContain('Background')
   })
@@ -1774,8 +1775,8 @@ describe('projection', () => {
     const styles = [
       buildMapStyle({ ...opts, theme: 'light' } as any),
       buildMapStyle({ ...opts, theme: 'dark' } as any),
-      buildSatelliteStyle({ ...opts, hybrid: false } as any),
-      buildSatelliteStyle({ ...opts, hybrid: true } as any),
+      buildSatelliteStyle({ ...opts, hybrid: false, imagery: [] } as any),
+      buildSatelliteStyle({ ...opts, hybrid: true, imagery: [] } as any),
     ]
     expect(styles.map(s => s.sky?.['atmosphere-blend'])).toEqual([0, 0, 0, 0])
   })

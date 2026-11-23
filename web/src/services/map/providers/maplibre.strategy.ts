@@ -98,6 +98,7 @@ import {
   BUILDING_BASE_EXPRESSION,
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
+import { imageryStyle, isImageryStyleId, type ImagerySource } from '@/lib/imagery/imagery-stack'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
@@ -338,6 +339,7 @@ export class MaplibreStrategy extends MapStrategy {
   private frameCap?: ReturnType<typeof createFrameCap>
   private tileServerUrl?: string
   private currentBasemap: Basemap = 'standard'
+  private imagery: readonly ImagerySource[]
   private poiHandlerCleanup: (() => void) | null = null
   /** The two switches gating the building lighting; see `applyBuildingShade`. */
   private buildingShade = true
@@ -377,9 +379,11 @@ export class MaplibreStrategy extends MapStrategy {
     options: MapSettings,
     accessToken?: string,
     tileServerUrl?: string,
+    imagery: readonly ImagerySource[] = [],
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
+    this.imagery = imagery
     if (tileServerUrl) recallBarrelmanBuildings(tileServerUrl, DETAIL_TILES)
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
@@ -1601,6 +1605,26 @@ export class MaplibreStrategy extends MapStrategy {
     this.reloadStyle()
   }
 
+  override setSatelliteImagery(stack: readonly ImagerySource[]) {
+    if (JSON.stringify(stack) === JSON.stringify(this.imagery)) return
+    this.imagery = stack
+    if (this.currentBasemap === 'standard' || this.roadsOnly()) return
+    if (this.mapInstance.isStyleLoaded()) this.swapImagery()
+    else this.reloadStyle()
+  }
+
+  /** Replace the imagery under the rest of the style, which a full reload would rebuild for nothing. */
+  private swapImagery() {
+    const map = this.mapInstance
+    const style = map.getStyle()
+    for (const { id } of style.layers) if (isImageryStyleId(id)) map.removeLayer(id)
+    for (const id of Object.keys(style.sources)) if (isImageryStyleId(id)) map.removeSource(id)
+    const beneath = map.getStyle().layers[0]?.id
+    const { sources, layers } = imageryStyle(this.imagery)
+    for (const [id, source] of Object.entries(sources)) map.addSource(id, source)
+    for (const layer of layers) map.addLayer(layer, beneath)
+  }
+
   setMapStyle(styleId: MapStyleId) {
     this.options.mapStyle = styleId
     this.deckLayer?.setPalette(this.deckPalette(this.options.theme === 'dark' ? 'dark' : 'light'))
@@ -1807,9 +1831,9 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.roadsOnly()) return buildRoadsOnlyStyle(styleOpts)
       switch (this.currentBasemap) {
         case 'satellite':
-          return buildSatelliteStyle({ ...styleOpts, hybrid: false })
+          return buildSatelliteStyle({ ...styleOpts, hybrid: false, imagery: this.imagery })
         case 'hybrid':
-          return buildSatelliteStyle({ ...styleOpts, hybrid: true })
+          return buildSatelliteStyle({ ...styleOpts, hybrid: true, imagery: this.imagery })
         default:
           return buildMapStyle(styleOpts)
       }

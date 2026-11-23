@@ -78,12 +78,16 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
+import { resolveImageryStack } from '@/lib/imagery/imagery-stack'
 
 
 function mapService() {
   const mapStore = useMapStore()
   const layersStore = useLayersStore()
   const layersService = useLayersService()
+  const imageryStack = computed(() =>
+    resolveImageryStack(mapStore.settings.satelliteImagery ?? [], layersStore.layers),
+  )
   const placePolygonLayerService = usePlacePolygonLayerService()
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
@@ -174,6 +178,7 @@ function mapService() {
           options,
           accessToken,
           proxyBaseUrl,
+          imageryStack.value,
         )
       }
     }
@@ -1328,6 +1333,8 @@ function mapService() {
       mapStrategy?.setBasemap(basemap)
     },
   )
+
+  watch(imageryStack, stack => mapStrategy?.setSatelliteImagery(stack))
 
   watch(
     () => mapStore.settings.mapStyle,

@@ -24,6 +24,7 @@ import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
 import type { IndoorFocus } from '@/lib/indoor/indoor-venue'
 import { resolveHdRoads } from '@/lib/map-style/hd-roads'
+import { DEFAULT_IMAGERY_STACK } from '@server/constants/default-imagery'
 
 const emitter = mitt<MapEvents>()
 
@@ -50,6 +51,7 @@ const defaultSettings: MapSettings = {
   gridSnapMode: GridSnapMode.NORTH_UP,
   locateFlySpeed: LocateFlySpeed.NORMAL,
   startupLocation: StartupLocation.LAST_VISITED,
+  satelliteImagery: [...DEFAULT_IMAGERY_STACK],
 }
 
 // Compute default control settings based on screen size (mobile vs desktop)
@@ -132,6 +134,7 @@ export const useMapStore = defineStore('map', () => {
   settings.value.shadows ??= ShadowMode.ALWAYS
   settings.value.plantDay ??= null
   settings.value.seasons ??= true
+  settings.value.satelliteImagery ??= [...DEFAULT_IMAGERY_STACK]
   // A retired style id, such as the one Charlotte had while it was called Parchment.
   if (!MAP_STYLE_IDS.includes(settings.value.mapStyle)) settings.value.mapStyle = defaultSettings.mapStyle
 
@@ -204,6 +207,10 @@ export const useMapStore = defineStore('map', () => {
     settings.value.poiStyle = poiStyle
   }
 
+  function setSatelliteImagery(ids: string[]) {
+    settings.value.satelliteImagery = ids
+  }
+
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,
@@ -251,6 +258,7 @@ export const useMapStore = defineStore('map', () => {
     setBasemap,
     setMapStyle,
     setPoiStyle,
+    setSatelliteImagery,
     on,
     off,
     emit,

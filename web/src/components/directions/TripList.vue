@@ -14,7 +14,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
 
 <template>
   <CrossoverTip v-if="advice.crossover" :tip="advice.crossover" />
-  <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status }">
-    <TripListItem :trip="trip" :status="status" @click="openTrip" />
+  <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status, sectioned }">
+    <TripListItem :trip="trip" :status="status" :hide-type="sectioned" @click="openTrip" />
   </TripRows>
 </template>

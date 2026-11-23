@@ -235,7 +235,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
             : undefined,
         }"
       >
-        <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status }">
+        <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status, sectioned }">
           <TripItem
             :trip="trip"
             :status="status"
@@ -244,6 +244,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
             :px-per-minute="pxPerMinute"
             :sidebar-width="sidebarWidth"
             :bar-area-width="barAreaWidth"
+            :hide-type="sectioned"
             @click="openTrip"
           />
         </TripRows>

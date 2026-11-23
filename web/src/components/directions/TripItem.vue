@@ -20,6 +20,7 @@ interface Props {
   /** Visible width of the bar column; bounds the pinned summary. */
   barAreaWidth: number
   isClickable?: boolean
+  hideType?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -79,7 +80,7 @@ function handleMouseEnter() {
 
       <!-- Trip summary — travels with the bar, then pins at the panel edge -->
       <div class="sticky left-3 w-fit" :style="{ maxWidth: `${barAreaWidth}px` }">
-        <TripMeta :trip="trip" :status="status" class="mt-1.5 pr-4" />
+        <TripMeta :trip="trip" :status="status" :hide-type="hideType" class="mt-1.5 pr-4" />
       </div>
     </div>
   </div>

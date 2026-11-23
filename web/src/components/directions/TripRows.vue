@@ -4,6 +4,9 @@ import { useI18n } from 'vue-i18n'
 import type { TripListAdvice } from '@/composables/directions/useTripAdvice'
 import { byRank } from '@/lib/directions/trip-display'
 import { groupByTripType } from '@/lib/directions/trip-groups'
+import { getTripTypeIcon } from '@/lib/directions/travel-mode-icons'
+import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { tripType } from '@/lib/directions/trip-type'
 import { stableTripKeys } from '@/lib/directions/trip-signature'
 import type { TripOption } from '@/types/directions.types'
 
@@ -18,10 +21,19 @@ const { t } = useI18n()
 
 const groups = computed(() => {
   const byType = groupByTripType(props.trips)
-  return props.grouped && byType.length > 1
-    ? byType
-    : [{ key: null, trips: byRank(props.trips) }]
+  if (!props.grouped || byType.length < 2) return [{ key: null, trips: byRank(props.trips), heading: null }]
+  return byType.map(group => {
+    const lead = group.trips[0].segments
+    return {
+      ...group,
+      heading: {
+        icon: getTripTypeIcon(lead),
+        color: getTravelModeColor(tripType(lead).iconMode),
+      },
+    }
+  })
 })
+const sectioned = computed(() => groups.value.length > 1)
 const ranked = computed(() => groups.value.flatMap(group => group.trips))
 const position = computed(() => new Map(ranked.value.map((trip, index) => [trip.id, index])))
 const keys = computed(() => stableTripKeys(props.trips))
@@ -30,13 +42,15 @@ const keys = computed(() => stableTripKeys(props.trips))
 <template>
   <!-- Staggered entrance as a fresh set of suggestions loads -->
   <TransitionGroup name="trip" tag="div" class="flex flex-col" appear>
-    <template v-for="group in groups" :key="group.key ?? 'all'">
+    <template v-for="(group, groupIndex) in groups" :key="group.key ?? 'all'">
       <!-- Sticky left so the heading stays put while the timeline pans -->
       <h4
-        v-if="group.key"
+        v-if="group.key && group.heading"
         :key="`heading-${group.key}`"
-        class="sticky left-0 w-fit px-4 pt-4 pb-1 text-xs font-medium text-muted-foreground"
+        class="sticky left-0 w-fit flex items-center gap-1.5 px-4 pb-0.5 text-[13px] font-semibold"
+        :class="groupIndex > 0 ? 'pt-5' : 'pt-3'"
       >
+        <component :is="group.heading.icon" class="size-3.5" :style="{ color: group.heading.color }" />
         {{ t(`directions.tripTypes.${group.key}`) }}
       </h4>
       <div
@@ -44,7 +58,12 @@ const keys = computed(() => stableTripKeys(props.trips))
         :key="keys.get(trip.id) ?? trip.id"
         :style="{ '--trip-delay': `${Math.min(position.get(trip.id)!, 8) * 45}ms` }"
       >
-        <slot :trip="trip" :index="position.get(trip.id)!" :status="advice.status[trip.id] ?? null" />
+        <slot
+          :trip="trip"
+          :index="position.get(trip.id)!"
+          :status="advice.status[trip.id] ?? null"
+          :sectioned="sectioned"
+        />
         <div
           v-if="index < group.trips.length - 1"
           class="border-b border-border/50 mx-4"

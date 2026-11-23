@@ -33,19 +33,22 @@ function imagery(
 }
 
 export const IMAGERY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
-  // Public domain, 0.3–0.6 m. An uncached image service, so each tile is
-  // rendered on request: exported at twice the tile size for high-DPI screens,
-  // and only from zoom 12, below which the cached USGS tiles look the same.
+  // Public domain, 0.3–0.6 m. An uncached image service that renders each tile
+  // on request: exported at twice the tile size for high-DPI screens (larger
+  // exports time out), and only from zoom 13, below which Sentinel-2 looks
+  // much the same.
   imagery('usgs-naip', 'USGS NAIP', 0, {
     tiles: [
-      'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=1024,1024&format=jpgpng&f=image',
+      'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=512,512&format=jpgpng&f=image',
     ],
-    tileSize: 512,
-    minzoom: 12,
-    maxzoom: 17,
+    tileSize: 256,
+    minzoom: 13,
+    maxzoom: 18,
     bounds: CONUS_BOUNDS,
     attribution: 'USGS The National Map, USDA NAIP',
   }),
+  // Fills tiles outside its coverage with white rather than leaving them
+  // empty, so it hides whatever sits below it in a stack.
   imagery('usgs', 'USGS Imagery', 1, {
     tiles: [
       'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',

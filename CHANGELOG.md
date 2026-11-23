@@ -6,7 +6,7 @@
 
 ### Changed
 
-* The satellite map now uses open imagery by default: sharp USGS aerial photos across the US, with Sentinel-2 elsewhere.
+* The satellite map now uses open imagery by default: sharp USGS aerial photos across the contiguous US, with Sentinel-2 elsewhere.
 
 ### Fixed
 

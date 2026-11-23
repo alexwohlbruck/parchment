@@ -4,6 +4,5 @@
  */
 export const DEFAULT_IMAGERY_STACK = [
   'default:imagery-usgs-naip',
-  'default:imagery-usgs',
   'default:imagery-s2cloudless',
 ] as const

@@ -5,6 +5,7 @@ import {
   updateIntegration,
   deleteIntegration,
   testIntegrationConfig,
+  IntegrationRequestError,
   getConfiguredIntegrations,
   getAvailableIntegrations,
   getIntegrationDefinition,
@@ -349,15 +350,11 @@ app.post(
           message: t('errors.integration.schemeAlreadyConfigured'),
         })
       }
-      // Known Error throws from the service carry human-facing messages
-      // (validation, not-found, test-failed) — surface as 400. Non-Error
-      // throws are unexpected (DB / runtime bugs): log + generic 500 so
-      // we don't echo internal details to the caller.
-      if (err instanceof Error) {
-        logger.warn({ err, integrationId }, 'createIntegration failed')
+      if (err instanceof IntegrationRequestError) {
+        logger.warn({ err, integrationId }, 'createIntegration rejected')
         return status(400, { message: err.message })
       }
-      logger.error({ err }, 'createIntegration unexpected non-Error throw')
+      logger.error({ err, integrationId }, 'createIntegration failed')
       return status(500, { message: t('errors.integration.createFailed') })
     }
   },
@@ -451,11 +448,11 @@ app.put(
       emitIntegrationUpdated(userId, integration.integrationId)
       return updatedIntegration
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        logger.warn({ err, id }, 'updateIntegration failed')
+      if (err instanceof IntegrationRequestError) {
+        logger.warn({ err, id }, 'updateIntegration rejected')
         return status(400, { message: err.message })
       }
-      logger.error({ err }, 'updateIntegration unexpected non-Error throw')
+      logger.error({ err, id }, 'updateIntegration failed')
       return status(500, { message: t('errors.integration.updateFailed') })
     }
   },
@@ -590,11 +587,11 @@ app.delete(
       set.status = 204
       return null
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        logger.warn({ err, id }, 'deleteIntegration failed')
+      if (err instanceof IntegrationRequestError) {
+        logger.warn({ err, id }, 'deleteIntegration rejected')
         return status(400, { message: err.message })
       }
-      logger.error({ err }, 'deleteIntegration unexpected non-Error throw')
+      logger.error({ err, id }, 'deleteIntegration failed')
       return status(500, { message: t('errors.integration.deleteFailed') })
     }
   },
@@ -660,11 +657,11 @@ app.post(
       )
       return result
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        logger.warn({ err, integrationId }, 'testIntegrationConfig failed')
+      if (err instanceof IntegrationRequestError) {
+        logger.warn({ err, integrationId }, 'testIntegrationConfig rejected')
         return status(400, { message: err.message })
       }
-      logger.error({ err }, 'testIntegrationConfig unexpected non-Error throw')
+      logger.error({ err, integrationId }, 'testIntegrationConfig failed')
       return status(500, { message: t('errors.integration.testFailed') })
     }
   },

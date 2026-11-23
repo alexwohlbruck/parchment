@@ -121,9 +121,8 @@ app.use(requireAuth).get(
 
       return { url: url.toString(), manualCallback: needsManualCallback(osmCfg) }
     } catch (error: any) {
-      return status(500, {
-        message: error.message || 'Failed to initiate OAuth2 flow',
-      })
+      logError('OSM OAuth2 authorize error', error)
+      return status(500, { message: 'Failed to initiate OAuth2 flow' })
     }
   },
   {
@@ -235,7 +234,7 @@ publicApi.get(
       const message =
         error instanceof arctic.OAuth2RequestError
           ? `OAuth2 error: ${error.code}`
-          : error.message || 'OAuth2 callback failed'
+          : 'OAuth2 callback failed'
       return oauthCallbackResponse({ status: 'error', message }, wantsJson)
     }
   },
@@ -312,9 +311,8 @@ app.use(requireAuth).get(
       if (errorStatus === 401) {
         return status(401, { message: t('errors.osm.accessTokenInvalid') })
       }
-      return status(500, {
-        message: error.message || 'Failed to fetch OSM profile',
-      })
+      logError('OSM profile refresh error', error)
+      return status(500, { message: 'Failed to fetch OSM profile' })
     }
   },
   {
@@ -343,9 +341,8 @@ app.use(requireAuth).post(
 
       return { success: true }
     } catch (error: any) {
-      return status(500, {
-        message: error.message || 'Failed to disconnect OSM account',
-      })
+      logError('OSM disconnect error', error)
+      return status(500, { message: 'Failed to disconnect OSM account' })
     }
   },
   {

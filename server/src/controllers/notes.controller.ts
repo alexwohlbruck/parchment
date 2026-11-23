@@ -10,6 +10,7 @@ import {
 } from '../types/integration.types'
 import { getOsmConfig } from '../config/osm.config'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { logError } from '../lib/logger'
 
 /**
  * Look up the user's OSM access token from their configured integrations.
@@ -52,6 +53,12 @@ function notesErrorStatus(error: any): number {
   return error.response?.status ?? 500
 }
 
+/** Logs the upstream failure and answers with its status and a fixed message. */
+function notesFailure(error: any, message: string) {
+  logError(message, error, { upstreamStatus: error.response?.status })
+  return [notesErrorStatus(error), { message }] as const
+}
+
 const app = new Elysia({ prefix: '/notes' })
 
 /**
@@ -69,10 +76,7 @@ app.get(
       const features = response.data?.features || []
       return features.map((feature: any) => adaptNoteFeature(feature))
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to fetch notes',
-      })
+      return status(...notesFailure(error, 'Failed to fetch notes'))
     }
   },
   {
@@ -101,10 +105,7 @@ app.get(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to fetch note',
-      })
+      return status(...notesFailure(error, 'Failed to fetch note'))
     }
   },
   {
@@ -144,10 +145,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to create note',
-      })
+      return status(...notesFailure(error, 'Failed to create note'))
     }
   },
   {
@@ -188,10 +186,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to comment on note',
-      })
+      return status(...notesFailure(error, 'Failed to comment on note'))
     }
   },
   {
@@ -233,10 +228,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to close note',
-      })
+      return status(...notesFailure(error, 'Failed to close note'))
     }
   },
   {
@@ -278,10 +270,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = notesErrorStatus(error)
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to reopen note',
-      })
+      return status(...notesFailure(error, 'Failed to reopen note'))
     }
   },
   {

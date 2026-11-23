@@ -125,6 +125,7 @@
       "collectionDeleteFailed": "Colección no encontrada o error al eliminar",
       "collectionViewerReadOnly": "El rol de lector no puede modificar esta colección",
       "collectionPointsViewerReadOnly": "El rol de lector no puede modificar los puntos cifrados de esta colección",
+      "pointCreateFailed": "No se pudo guardar el punto",
       "pointNotFound": "Punto no encontrado",
       "bookmarkCreateFailed": "Error al crear el marcador",
       "bookmarkUpdateFailed": "Marcador no encontrado o error al actualizar",

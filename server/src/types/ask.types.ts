@@ -1,4 +1,4 @@
-import type { Place } from './place.types'
+import type { AttributedValue, Place, Review } from './place.types'
 import type { IsochroneGeometry } from './isochrone.types'
 import type { QueryIntent } from './search.types'
 import type { MultimodalTripResponse, RoutingPreferences, Vehicle } from './trip.types'
@@ -67,6 +67,8 @@ export interface AskTurn {
 export interface AskCitation {
   place: Place
   reason: string
+  /** Reviews the reason rests on. */
+  reviews?: AttributedValue<Review>[]
 }
 
 /** A web page Ask read to answer. */

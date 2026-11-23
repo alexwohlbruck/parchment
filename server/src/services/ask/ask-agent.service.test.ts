@@ -91,6 +91,7 @@ function context(): AskContext & { events: AskEvent[] } {
     vehicles: [],
     now: new Date('2026-11-14T15:00:00Z'),
     seen: new Map(),
+    reviews: new Map(),
     routes: new Map(),
     sources: new Map(),
     emit: (event) => events.push(event),
@@ -116,6 +117,28 @@ describe('groundAnswer', () => {
     expect(answer.text).toBe('Try Real.')
     expect(answer.places.map(({ place }) => place.name.value)).toEqual(['Real'])
     expect(answer.unknownIds).toEqual(['osm/node/9'])
+  })
+
+  test('quotes only reviews get_place showed for that place', () => {
+    const review = (id: string) => ({ value: { id, text: id }, sourceId: 'foursquare' as any })
+    const seen = new Map([
+      ['osm/node/1', place('osm/node/1', 'Quiet')],
+      ['osm/node/2', place('osm/node/2', 'Unread')],
+    ])
+    const reviews = new Map([['osm/node/1', [review('a'), review('b'), review('c')]]])
+    const answer = groundAnswer(
+      {
+        text: 'Quiet is quiet.',
+        places: [
+          { id: 'osm/node/1', reason: 'calm', reviews: [3, 3, 9, 0, 'x', 1, 2] },
+          { id: 'osm/node/2', reason: 'near', reviews: [1] },
+        ],
+      },
+      seen,
+      reviews,
+    )
+    expect(answer.places[0].reviews?.map(({ value }) => value.id)).toEqual(['c', 'a'])
+    expect(answer.places[1].reviews).toBeUndefined()
   })
 })
 

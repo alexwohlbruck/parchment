@@ -159,6 +159,8 @@ addEventListener('message', (e) => {
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    // Interprets messages instead of compiling them with `new Function`, which the CSP forbids.
+    __INTLIFY_JIT_COMPILATION__: true,
   },
   plugins: [
     vue(),

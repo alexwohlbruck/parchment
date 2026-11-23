@@ -83,6 +83,7 @@ function previewTitle(): Plugin {
 
 const IDENTITY_KEYS = ['parchment-identity-seed', 'parchment-device-id']
 const IDENTITY_PATH = '/__preview-identity'
+const PREVIEW_SLOTS = 8 // scripts/preview.sh MAX_SLOT; slot n is served on the base web port + n
 
 /**
  * Keep one sign-in across every branch preview.
@@ -100,8 +101,11 @@ function previewIdentity(): Plugin {
 
   const sharePage = `<!doctype html><script>
 const keys = ${keys}
+const basePort = Number(location.port)
+const previewOrigins = Array.from({ length: ${PREVIEW_SLOTS} }, (_, i) =>
+  location.protocol + '//' + location.hostname + ':' + (basePort + i + 1))
 addEventListener('message', (e) => {
-  if (new URL(e.origin).hostname !== location.hostname) return
+  if (!basePort || !previewOrigins.includes(e.origin)) return
   if (e.data?.type === 'push') keys.forEach((k) => localStorage.setItem(k, e.data.identity[k]))
   if (e.data?.type === 'pull') {
     const identity = Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]))

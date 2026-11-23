@@ -10,6 +10,15 @@ import { updateUserDisplayProfile } from './user.service'
 import { logger } from '../lib/logger'
 
 export const AVATAR_SIZE = 256
+const MAX_INPUT_PIXELS = 50_000_000
+const DECODABLE_FORMATS = new Set(['jpeg', 'png', 'webp'])
+
+export class UnreadableImageError extends Error {
+  constructor() {
+    super('Unreadable or unsupported image')
+    this.name = 'UnreadableImageError'
+  }
+}
 
 function avatarPrefix(userId: string) {
   return `avatars/${userId}/`
@@ -37,13 +46,24 @@ async function storeAvatar(userId: string, webp: Uint8Array) {
   return key
 }
 
-/** Normalizes any decodable image to a square webp and makes it the user's picture. */
+async function toAvatarWebp(image: Uint8Array) {
+  const input = sharp(image, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' })
+  try {
+    const { format } = await input.metadata()
+    if (!format || !DECODABLE_FORMATS.has(format)) throw new UnreadableImageError()
+    return await input
+      .rotate()
+      .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
+      .webp({ quality: 85 })
+      .toBuffer()
+  } catch (error) {
+    throw error instanceof UnreadableImageError ? error : new UnreadableImageError()
+  }
+}
+
+/** Normalizes a JPEG, PNG or WebP to a square webp and makes it the user's picture. */
 export async function setAvatar(userId: string, image: Uint8Array) {
-  const webp = await sharp(image)
-    .rotate()
-    .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
-    .webp({ quality: 85 })
-    .toBuffer()
+  const webp = await toAvatarWebp(image)
 
   const previousKey = ownAvatarKey(userId, await currentPicture(userId))
   const key = await storeAvatar(userId, webp)

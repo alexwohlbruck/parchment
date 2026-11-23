@@ -11,6 +11,7 @@ env:
   SERVER_ORIGIN: http://localhost:5001
   CLIENT_ORIGIN: http://localhost:5174
   APP_TESTER_EMAIL: test@parchment.local
+  APP_TESTER_CODE: '00000000'
   GMAIL_EMAIL: ''
   GMAIL_APP_PASSWORD: ''
 
@@ -51,6 +52,7 @@ jobs:
           echo "SERVER_ORIGIN=$SERVER_ORIGIN" >> .env.test
           echo "CLIENT_ORIGIN=$CLIENT_ORIGIN" >> .env.test
           echo "APP_TESTER_EMAIL=$APP_TESTER_EMAIL" >> .env.test
+          echo "APP_TESTER_CODE=$APP_TESTER_CODE" >> .env.test
           echo "GMAIL_EMAIL=$GMAIL_EMAIL" >> .env.test
           echo "GMAIL_APP_PASSWORD=$GMAIL_APP_PASSWORD" >> .env.test
           cat .env.test

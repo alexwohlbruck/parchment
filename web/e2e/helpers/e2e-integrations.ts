@@ -6,7 +6,7 @@
  */
 
 const TEST_USER_EMAIL = process.env.APP_TESTER_EMAIL || 'test@parchment.local'
-const TEST_OTP = '00000000'
+const TEST_OTP = process.env.APP_TESTER_CODE || '00000000'
 
 function getBaseUrl(): string {
   const base = process.env.SERVER_ORIGIN || 'http://localhost:5001'

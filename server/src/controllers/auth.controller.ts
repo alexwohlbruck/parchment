@@ -86,6 +86,13 @@ const codeAttemptLimit = rateLimitHandler(
 
 const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
+/** The fixed OTP for the store-review tester account, or null when the bypass is off. */
+function appTesterCode(email: string): string | null {
+  const { APP_TESTER_EMAIL: testerEmail, APP_TESTER_CODE: code } = process.env
+  if (!testerEmail || !code || !/^\d{8}$/.test(code)) return null
+  return email === testerEmail ? code : null
+}
+
 app.post(
   '/verify',
   async ({ body: { email }, set, status, t, language }) => {
@@ -101,12 +108,13 @@ app.post(
       user = await createOpenRegistrationUser(email)
     }
 
-    const isAppTester = user.email === process.env.APP_TESTER_EMAIL
+    const testerCode = appTesterCode(user.email)
+    const isAppTester = testerCode !== null
 
     const verificationCode = await createServerToken(
       'otp',
       user.id,
-      isAppTester ? '00000000' : undefined,
+      testerCode ?? undefined,
     )
     const emailSuccess = isAppTester
       ? true

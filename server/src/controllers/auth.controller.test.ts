@@ -203,8 +203,9 @@ describe('POST /auth/verify', () => {
   // `registrationMode` is read from the config module namespace at import, so
   // a second value needs its own module registry.
 
-  test('uses the fixed code and skips email for the app tester account', async () => {
+  test('uses the configured code and skips email for the app tester account', async () => {
     process.env.APP_TESTER_EMAIL = 'tester@parchment.test'
+    process.env.APP_TESTER_CODE = '13572468'
     existingUser = { id: 'tester', email: 'tester@parchment.test' }
 
     const res = await req(app).post('/auth/verify', {
@@ -212,8 +213,22 @@ describe('POST /auth/verify', () => {
     })
 
     expect(res.status).toBe(201)
-    expect(createServerToken.mock.calls[0][2]).toBe('00000000')
+    expect(createServerToken.mock.calls[0][2]).toBe('13572468')
     expect(sendEmailVerificationCode).not.toHaveBeenCalled()
+  })
+
+  test('emails a random code to the tester when no tester code is set', async () => {
+    process.env.APP_TESTER_EMAIL = 'tester@parchment.test'
+    delete process.env.APP_TESTER_CODE
+    existingUser = { id: 'tester', email: 'tester@parchment.test' }
+
+    const res = await req(app).post('/auth/verify', {
+      body: { email: 'tester@parchment.test' },
+    })
+
+    expect(res.status).toBe(201)
+    expect(createServerToken.mock.calls[0][2]).toBeUndefined()
+    expect(sendEmailVerificationCode).toHaveBeenCalled()
   })
 
   test('500s when the verification email fails to send', async () => {

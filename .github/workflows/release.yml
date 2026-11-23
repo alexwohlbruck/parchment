@@ -146,8 +146,14 @@ jobs:
 
       - name: Setup macOS code signing
         if: matrix.platform == 'macos-latest'
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
         run: |
-          if [ -z "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" ]; then
+          if [ -z "$CERTIFICATE_BASE64" ]; then
             echo "Warning: APPLE_MACOS_CERTIFICATE_BASE64 not set. macOS app will not be signed."
             exit 0
           fi
@@ -157,8 +163,8 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
-          echo -n "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
-          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           SIGNING_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | grep -o '".*"' | tr -d '"')
@@ -167,14 +173,12 @@ jobs:
             exit 1
           fi
           echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $GITHUB_ENV
-          echo "APPLE_CERTIFICATE=${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" >> $GITHUB_ENV
-          echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" >> $GITHUB_ENV
-          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+          if [ -n "$APPLE_API_ISSUER" ]; then
             mkdir -p ~/.appstoreconnect/private_keys
-            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
-            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
-            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
-            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+            printf '%s\n' "$APPLE_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY.p8
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=$APPLE_API_KEY" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY.p8" >> $GITHUB_ENV
           fi
           rm $CERTIFICATE_PATH
 
@@ -305,14 +309,21 @@ jobs:
           workspaces: 'web/src-tauri -> target'
 
       - name: Setup code signing
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
-          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+          if [ -n "$APPLE_API_ISSUER" ]; then
             echo "Using automatic signing with App Store Connect API"
             mkdir -p ~/.appstoreconnect/private_keys
-            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
-            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
-            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
-            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+            printf '%s\n' "$APPLE_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY.p8
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=$APPLE_API_KEY" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY.p8" >> $GITHUB_ENV
           else
             echo "Using manual signing with certificates"
             KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -321,12 +332,12 @@ jobs:
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
             CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
-            echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
-            security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            printf '%s' "$CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+            security import $CERTIFICATE_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
             security list-keychain -d user -s $KEYCHAIN_PATH
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
             PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-            echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
+            printf '%s' "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
             mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
             PP_UUID=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract UUID raw -)
             cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
@@ -516,6 +527,7 @@ jobs:
     runs-on: macos-latest
     env:
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
     steps:
       - name: Download iOS artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -525,9 +537,11 @@ jobs:
 
       - name: Setup App Store Connect API key
         if: ${{ env.APPLE_API_ISSUER != '' }}
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
-          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          printf '%s\n' "$APPLE_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY.p8
 
       - name: Upload to App Store Connect
         if: ${{ env.APPLE_API_ISSUER != '' }}
@@ -541,8 +555,8 @@ jobs:
           xcrun altool --upload-app \
             -t ios \
             -f "$IPA_PATH" \
-            --apiKey "${{ secrets.APPLE_API_KEY }}" \
-            --apiIssuer "${{ secrets.APPLE_API_ISSUER }}"
+            --apiKey "$APPLE_API_KEY" \
+            --apiIssuer "$APPLE_API_ISSUER"
 
   # ── Deploy ────────────────────────────────────────────────────────────
   #

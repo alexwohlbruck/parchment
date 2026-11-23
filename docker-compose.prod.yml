@@ -23,8 +23,6 @@ services:
     volumes:
       - server-db:/var/lib/postgresql/data
       - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
-    ports:
-      - "5432:5432"
     restart: unless-stopped
 
   # Parchment backend (Elysia)
@@ -83,7 +81,7 @@ services:
       R2_API_TOKEN: ${R2_API_TOKEN:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
       - server-data:/app/data
     depends_on:
@@ -97,7 +95,7 @@ services:
     environment:
       VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       - parchment-server
     restart: unless-stopped

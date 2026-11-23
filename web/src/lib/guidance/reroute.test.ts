@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { distanceMeters } from '@/lib/map/movement-interpolation'
-import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop } from './reroute'
+import { adoptItinerary, parkAndWalk, rerouteOrigin, spliceReroute, splitAtStop } from './reroute'
 import type { NavSegmentInput } from './nav-route'
 
 describe('rerouteOrigin', () => {
@@ -68,5 +68,37 @@ describe('adoptItinerary', () => {
     expect(leg.map(s => s.legIndex)).toEqual([2, 2])
     expect(leg[1].end).toEqual({ label: 'Home' })
     expect(leg[0].end).toBeUndefined()
+  })
+})
+
+describe('parkAndWalk', () => {
+  const door = { label: 'Bakery', location: { lat: 2, lng: 2 } }
+  const lot = { label: 'Deck', location: { lat: 1, lng: 1 } }
+  const toLot = { geometry: [{ lat: 0, lng: 0 }, lot.location] }
+  const walk = { mode: 'walking', geometry: [lot.location, door.location] }
+  type Seg = NavSegmentInput & { legIndex?: number; end?: { label?: string; location?: { lat: number; lng: number } } }
+
+  test('ends a drive to the door at the lot and walks on to the door', () => {
+    const leg: Seg[] = [{ mode: 'driving', geometry: [], legIndex: 1, end: door }]
+    const result = parkAndWalk(leg, 0, toLot, walk, lot)
+    expect(result.map(s => s.mode)).toEqual(['driving', 'walking'])
+    expect(result[0].end).toEqual(lot)
+    expect(result[1]).toMatchObject({ legIndex: 1, end: door, geometry: walk.geometry })
+  })
+
+  test('replaces the walk from a lot the leg already parks at', () => {
+    const leg: Seg[] = [
+      { mode: 'driving', geometry: [], end: { label: 'Far lot' } },
+      { mode: 'walking', geometry: [], end: door },
+      { mode: 'transit', geometry: [] },
+    ]
+    const result = parkAndWalk(leg, 0, toLot, walk, lot)
+    expect(result.map(s => s.mode)).toEqual(['driving', 'walking', 'transit'])
+    expect(result[1].end).toEqual(door)
+  })
+
+  test('does not carry the drive onto the walk', () => {
+    const leg: Seg[] = [{ mode: 'driving', geometry: [], drivingSide: 'left', end: door }]
+    expect(parkAndWalk(leg, 0, toLot, walk, lot)[1].drivingSide).toBeUndefined()
   })
 })

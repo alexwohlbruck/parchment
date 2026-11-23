@@ -50,3 +50,23 @@ export function splitAtStop<T extends NavSegmentInput & { end?: { label?: string
     continuation: [{ ...withoutLanes(current), ...fromStop }, ...segments.slice(index + 1)],
   }
 }
+
+/** The drive at `index` now ends at `lot`, and a walk takes over to where the leg was headed. */
+export function parkAndWalk<T extends NavSegmentInput & { legIndex?: number; end?: { label?: string; location?: LngLat } }>(
+  segments: T[],
+  index: number,
+  toLot: Partial<T>,
+  walk: Partial<T>,
+  lot: AddedStop,
+): T[] {
+  const drive = segments[index]
+  if (!drive) return segments
+  const next = segments[index + 1]
+  const walksOn = next?.mode === 'walking'
+  const base = walksOn ? withoutLanes(next) : ({ legIndex: drive.legIndex, end: drive.end } as T)
+  return [
+    { ...withoutLanes(drive), ...toLot, end: { label: lot.label, location: lot.location } },
+    { ...base, ...walk, mode: 'walking' },
+    ...segments.slice(index + (walksOn ? 2 : 1)),
+  ]
+}

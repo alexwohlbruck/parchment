@@ -47,6 +47,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-}
       APP_TESTER_CODE: ${APP_TESTER_CODE:-}
+      OUTBOUND_ALLOW_PRIVATE: ${OUTBOUND_ALLOW_PRIVATE:-}
       # Crypto keys — two INDEPENDENT base64 32-byte values, required in prod.
       # Generate each with: openssl rand -base64 32
       # In production the server refuses to boot without these.

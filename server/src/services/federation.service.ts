@@ -33,6 +33,7 @@ import {
 } from './federation-auth.service'
 import { origins } from '../config'
 import { logger } from '../lib/logger'
+import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
 
 // ============================================================================
 // Types
@@ -186,8 +187,10 @@ export async function resolveRemoteUser(
 
   try {
     const scheme = isLocalDevDomain(domain) ? 'http' : 'https'
-    const url = `${scheme}://${domain}/.well-known/user/${alias}`
+    const url = `${scheme}://${domain}/.well-known/user/${encodeURIComponent(alias)}`
+    await assertPublicUrl(url)
     const response = await axios.get<RemoteUserInfo>(url, {
+      ...outboundRequestConfig,
       timeout: 10000,
       headers: {
         Accept: 'application/json',
@@ -295,7 +298,9 @@ export async function sendFederationMessage(
       timestamp: envelopeTimestamp,
     })
 
+    await assertPublicUrl(inboxUrl)
     const response = await axios.post(inboxUrl, bodyJson, {
+      ...outboundRequestConfig,
       timeout: 15000,
       headers: {
         'Content-Type': 'application/json',

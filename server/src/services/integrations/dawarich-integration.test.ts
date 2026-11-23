@@ -8,7 +8,10 @@ const mockAxiosGet = mock((_url: string, _config?: any) =>
 mock.module('axios', () => ({
   default: {
     get: mockAxiosGet,
-    create: () => ({ get: mockAxiosGet }),
+    create: () => ({
+      get: mockAxiosGet,
+      interceptors: { request: { use: () => 0 } },
+    }),
   },
 }))
 
@@ -180,7 +183,19 @@ describe('DawarichIntegration', () => {
         apiToken: 'abc',
       })
       expect(result.success).toBe(false)
-      expect(result.message).toContain('boom')
+      expect(result.message).not.toContain('boom')
+    })
+
+    test('refuses a private network address without making a request', async () => {
+      const previous = process.env.OUTBOUND_ALLOW_PRIVATE
+      process.env.OUTBOUND_ALLOW_PRIVATE = 'false'
+      const result = await integration.testConnection({
+        url: 'http://10.0.0.5:3000',
+        apiToken: 'abc',
+      })
+      process.env.OUTBOUND_ALLOW_PRIVATE = previous
+      expect(result.success).toBe(false)
+      expect(mockAxiosGet).not.toHaveBeenCalled()
     })
   })
 

@@ -628,7 +628,7 @@ describe('federation two-server integration', () => {
       const r = await sendFriendInvite()
       expect(r.status).toBe(401)
       const body = r.data as { message?: string }
-      expect((body.message ?? '').toLowerCase()).toContain('identity key')
+      expect(body.message).toBe('Federation auth failed')
     } finally {
       // Restore for subsequent tests (if any are added later).
       aManifestKey = SERVER_A_PUB

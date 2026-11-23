@@ -126,7 +126,7 @@ describe('POST /federation/inbox — S2S authentication', () => {
     const res = await req(app).post('/federation/inbox', { body: validMessage })
 
     expect(res.status).toBe(401)
-    expect(res.body.message).toContain('bad signature')
+    expect(res.body.message).not.toContain('bad signature')
   })
 
   test('a failed signature check never reaches the message handler', async () => {

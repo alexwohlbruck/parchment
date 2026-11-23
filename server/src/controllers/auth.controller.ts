@@ -86,6 +86,15 @@ const codeAttemptLimit = rateLimitHandler(
 
 const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
+/** Matches the session cookie's attributes; a challenge only lives for one ceremony. */
+const challengeCookie = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 5 * 60,
+} as const
+
 /** The fixed OTP for the store-review tester account, or null when the bypass is off. */
 function appTesterCode(email: string): string | null {
   const { APP_TESTER_EMAIL: testerEmail, APP_TESTER_CODE: code } = process.env
@@ -159,7 +168,7 @@ app.group('/passkeys', (app) => {
             user.id,
             email,
           )
-          challenge.value = options.challenge
+          challenge.set({ value: options.challenge, ...challengeCookie })
           return options
         } catch (err) {
           set.status = 500
@@ -279,7 +288,7 @@ app.group('/passkeys', (app) => {
       async ({ set, cookie: { challenge } }) => {
         try {
           const options = await generateWebauthnOptions('authenticate')
-          challenge.value = options.challenge
+          challenge.set({ value: options.challenge, ...challengeCookie })
           return options
         } catch (err) {
           set.status = 500
@@ -336,7 +345,13 @@ app.group('/passkeys', (app) => {
           },
         })
 
+        challenge.remove()
+
         if (verification.verified) {
+          await db
+            .update(passkeys)
+            .set({ counter: verification.authenticationInfo.newCounter })
+            .where(eq(passkeys.id, passkey.id))
           const user = await fetchUser(passkey.userId)
           const session = await createSession(user.id, {
             set,
@@ -349,7 +364,6 @@ app.group('/passkeys', (app) => {
           }
         }
 
-        challenge.remove()
         return status(401, {
           message: t('errors.auth.passkeyVerificationFailed'),
         })

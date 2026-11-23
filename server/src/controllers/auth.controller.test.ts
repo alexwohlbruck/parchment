@@ -117,7 +117,10 @@ const getSubscriptionStatus = mock(async (_userId: string) => ({
 mock.module('../services/subscription.service', () => ({ getSubscriptionStatus }))
 
 mock.module('@simplewebauthn/server', () => ({
-  verifyAuthenticationResponse: mock(async () => ({ verified: true })),
+  verifyAuthenticationResponse: mock(async () => ({
+    verified: true,
+    authenticationInfo: { newCounter: 8 },
+  })),
   verifyRegistrationResponse: mock(async () => ({ verified: true })),
 }))
 
@@ -533,6 +536,46 @@ describe('passkey management', () => {
 
     expect((await req(app).get('/auth/passkeys')).status).toBe(401)
     expect((await req(app).delete('/auth/passkeys/pk-1')).status).toBe(401)
+  })
+})
+
+describe('passkey sign-in', () => {
+  const assertion = {
+    id: 'cred-1',
+    rawId: 'cred-1',
+    response: {
+      authenticatorData: 'a',
+      clientDataJSON: 'c',
+      signature: 's',
+      userHandle: 'u',
+    },
+    type: 'public-key',
+    clientExtensionResults: {},
+    authenticatorAttachment: 'platform',
+  }
+
+  test('issues the challenge as an httpOnly cookie', async () => {
+    const res = await req(app).post('/auth/passkeys/authenticate/options')
+
+    const cookie = res.headers.get('set-cookie') ?? ''
+    expect(cookie).toContain('challenge=chal')
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('SameSite=Lax')
+  })
+
+  test('stores the new signature counter and clears the challenge', async () => {
+    dbMock.queueSelect([
+      { id: 'cred-1', publicKey: '', counter: 7, transports: 'internal', userId: 'user-1' },
+    ])
+
+    const res = await req(app).post('/auth/passkeys/authenticate/verify', {
+      body: assertion,
+      headers: { cookie: 'challenge=chal' },
+    })
+
+    expect(res.status).toBe(201)
+    expect(dbMock.updated).toContainEqual({ counter: 8 })
+    expect(res.headers.get('set-cookie') ?? '').toMatch(/challenge=;|Max-Age=0|Expires=Thu, 01 Jan 1970/)
   })
 })
 

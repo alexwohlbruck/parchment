@@ -3573,6 +3573,7 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "esri": "World Imagery for the satellite map",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
         "openrouter": "The language model behind Ask"
       },

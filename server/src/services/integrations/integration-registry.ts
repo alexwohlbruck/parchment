@@ -24,6 +24,7 @@ import { UberIntegration } from './uber-integration'
 import { LyftIntegration } from './lyft-integration'
 import { OpenAqIntegration } from './openaq-integration'
 import { FirmsIntegration } from './firms-integration'
+import { EsriIntegration } from './esri-integration'
 import { QuackbackIntegration } from './quackback-integration'
 import { OpenRouterIntegration } from './openrouter-integration'
 
@@ -65,6 +66,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new LyftIntegration())
     this.registerIntegration(new OpenAqIntegration())
     this.registerIntegration(new FirmsIntegration())
+    this.registerIntegration(new EsriIntegration())
     this.registerIntegration(new QuackbackIntegration())
     this.registerIntegration(new OpenRouterIntegration())
   }

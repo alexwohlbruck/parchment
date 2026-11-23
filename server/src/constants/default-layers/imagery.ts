@@ -11,6 +11,7 @@ function imagery(
   name: string,
   order: number,
   source: Record<string, unknown>,
+  integrationId?: string,
 ): DefaultLayerTemplate {
   const id = `imagery-${key}`
   return {
@@ -24,6 +25,7 @@ function imagery(
     order,
     groupId: GROUP,
     isSubLayer: true,
+    ...(integrationId ? { integrationId } : {}),
     configuration: {
       id,
       type: 'raster',
@@ -68,20 +70,12 @@ export const IMAGERY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     attribution:
       '<a href="https://s2maps.eu" target="_blank">Sentinel-2 cloudless</a> by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016)',
   }),
+  // Through ArcGIS Location Platform: the proxy attaches the Esri integration's
+  // key, and the source is only offered once that integration is configured.
   imagery('esri', 'Esri World Imagery', 3, {
-    tiles: [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    ],
+    tiles: ['{PROXY_URL}/esri/world-imagery/{z}/{y}/{x}'],
     tileSize: 256,
     maxzoom: 19,
-    attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-  }),
-  imagery('esri-clarity', 'Esri Clarity', 4, {
-    tiles: [
-      'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    ],
-    tileSize: 256,
-    maxzoom: 19,
-    attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-  }),
+    attribution: 'Powered by <a href="https://www.esri.com" target="_blank">Esri</a> | Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+  }, 'esri'),
 ]

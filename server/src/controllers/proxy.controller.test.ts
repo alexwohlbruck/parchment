@@ -731,3 +731,37 @@ describe('bridge deck index proxy', () => {
   })
 })
 
+
+describe('GET /proxy/esri/:service/:z/:y/:x', () => {
+  const esri = { integrationId: 'esri', config: { apiKey: 'esri-key' } }
+
+  test('501s when Esri is not configured', async () => {
+    configuredIntegrations = []
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(501)
+  })
+
+  test('only fetches services it knows', async () => {
+    configuredIntegrations = [esri]
+    const res = await req(app).get('/proxy/esri/World_Street_Map/3/2/1')
+    expect(res.status).toBe(400)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test('attaches the key upstream and never returns it', async () => {
+    configuredIntegrations = [esri]
+    fetchResponses = [new Response(new Uint8Array([9]), { headers: { 'content-type': 'image/jpeg' } })]
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/jpeg')
+    expect(fetchCalls[0]).toBe('https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/3/2/1?token=esri-key')
+    expect(JSON.stringify([...res.headers])).not.toContain('esri-key')
+  })
+
+  test('turns a 200 JSON error into a failed tile', async () => {
+    configuredIntegrations = [esri]
+    fetchResponses = [new Response('{"error":{"code":498}}', { headers: { 'content-type': 'application/json' } })]
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(502)
+  })
+})

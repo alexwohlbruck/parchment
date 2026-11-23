@@ -98,7 +98,8 @@ import {
   BUILDING_BASE_EXPRESSION,
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
-import { imageryStyle, isImageryStyleId, type ImagerySource } from '@/lib/imagery/imagery-stack'
+import { imageryStyle, isImageryStyleId, photorealisticSource, type ImagerySource } from '@/lib/imagery/imagery-stack'
+import type { PhotorealisticLayer } from '@/lib/imagery/photorealistic-layer'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
@@ -329,6 +330,17 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 }
 
 
+/**
+ * The first of the labels that end the style, so a layer added before it is
+ * drawn over every line and fill and under every one of those labels.
+ */
+function labelsOnTop(map: MaplibreMap): string | undefined {
+  const layers = map.getStyle()?.layers ?? []
+  let start = layers.length
+  while (start > 0 && layers[start - 1].type === 'symbol') start--
+  return layers[start]?.id
+}
+
 const NEVER_MATCH = ['literal', false]
 
 export class MaplibreStrategy extends MapStrategy {
@@ -340,6 +352,7 @@ export class MaplibreStrategy extends MapStrategy {
   private tileServerUrl?: string
   private currentBasemap: Basemap = 'standard'
   private imagery: readonly ImagerySource[]
+  private photorealistic: { url: string; layer: PhotorealisticLayer } | null = null
   private poiHandlerCleanup: (() => void) | null = null
   /** The two switches gating the building lighting; see `applyBuildingShade`. */
   private buildingShade = true
@@ -579,6 +592,9 @@ export class MaplibreStrategy extends MapStrategy {
       // opacity, so the shading has to be re-added rather than merely left be.
       this.applyBuildingShade()
       this.updateRoofEdge()
+      // Dropped with the old style.
+      this.photorealistic = null
+      void this.applyPhotorealistic()
       // A style swap drops custom layers with it, and rebuilds the flat form's
       // visibility from the stylesheet. A dropped layer must stop casting too:
       // its buffers went with the old style.
@@ -1004,6 +1020,7 @@ export class MaplibreStrategy extends MapStrategy {
     shadowCasters.add(layer)
     // Beside the other models: above the buildings, below every label.
     map.addLayer(layer as any, firstLabelLayer(map))
+    this.syncModelVisibility()
   }
 
   /**
@@ -1188,6 +1205,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    this.syncModelVisibility()
     this.objectLayer.setOpacity(this.surfaceOpacity())
     shadowCasters.add(this.objectLayer)
     flat()
@@ -1279,6 +1297,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, deckPalette(flavor, this.options.mapStyle), { terrain: fineTerrain, carver: this.terrainCarver })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
+      this.syncModelVisibility()
     } else if (!active && this.tunnelLayer) {
       shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
@@ -1298,6 +1317,7 @@ export class MaplibreStrategy extends MapStrategy {
       shadowCasters.add(this.deckLayer)
       // Under the objects: a deck end is drawn toward the eye, and what stands on it must be drawn after.
       map.addLayer(this.deckLayer as any, map.getLayer(OBJECT_LAYER_ID) ? OBJECT_LAYER_ID : firstLabelLayer(map))
+      this.syncModelVisibility()
     } else if (!active && this.deckLayer) {
       shadowCasters.delete(this.deckLayer)
       if (map.getLayer(this.deckLayer.id)) map.removeLayer(this.deckLayer.id)
@@ -1609,8 +1629,46 @@ export class MaplibreStrategy extends MapStrategy {
     if (JSON.stringify(stack) === JSON.stringify(this.imagery)) return
     this.imagery = stack
     if (this.currentBasemap === 'standard' || this.roadsOnly()) return
-    if (this.mapInstance.isStyleLoaded()) this.swapImagery()
-    else this.reloadStyle()
+    if (this.mapInstance.isStyleLoaded()) {
+      this.swapImagery()
+      void this.applyPhotorealistic()
+    } else this.reloadStyle()
+  }
+
+  /**
+   * Draw the stack's 3D tiles over its rasters and under the labels, or stop.
+   * The renderer is loaded on first use; most maps never need it.
+   */
+  private async applyPhotorealistic() {
+    const map = this.mapInstance
+    const wanted = this.currentBasemap === 'standard' || this.roadsOnly() ? undefined : photorealisticSource(this.imagery)
+    const url = wanted?.kind === '3d-tiles' ? wanted.url : null
+    if (this.photorealistic?.url === url) return
+    if (this.photorealistic && map.getLayer(this.photorealistic.layer.id)) map.removeLayer(this.photorealistic.layer.id)
+    this.photorealistic = null
+    if (!url) return this.syncModelVisibility()
+
+    const style = map.style
+    const { PhotorealisticLayer } = await import('@/lib/imagery/photorealistic-layer')
+    if (map.style !== style || this.photorealistic) return
+    const layer = new PhotorealisticLayer({
+      url,
+      groundAt: (lng, lat) => this.groundHeight(lng, lat) ?? 0,
+      onCredits: credits => mapEventBus.emit('imagery:credits', credits),
+    })
+    this.photorealistic = { url, layer }
+    map.addLayer(layer, labelsOnTop(map))
+    this.syncModelVisibility()
+  }
+
+  /** Google's mesh already holds every building, tree and bridge; ours would stand inside it. */
+  private syncModelVisibility() {
+    const map = this.mapInstance
+    const visibility = this.photorealistic ? 'none' : 'visible'
+    for (const layer of [this.objectLayer, this.landmarkLayer, this.deckLayer, this.tunnelLayer]) {
+      const id = (layer as { id?: string } | null)?.id
+      if (id && map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility)
+    }
   }
 
   /** Replace the imagery under the rest of the style, which a full reload would rebuild for nothing. */

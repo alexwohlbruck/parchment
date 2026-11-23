@@ -27,7 +27,7 @@ export interface StyleSourceSpec {
 }
 
 /** Our proxies to the same providers. */
-const NO_BULK_PROXIES = /\/proxy\/esri\//
+const NO_BULK_PROXIES = /\/proxy\/(esri|google)\//
 
 function allowsBulk(template: string): boolean {
   try {

@@ -237,6 +237,8 @@ export type MapEvents = {
     trackerId: string
   }
   indoor: IndoorFocus
+  /** Credits the 3D imagery on screen requires, or null while none is drawn. */
+  'imagery:credits': string | null
 }
 
 export enum SourceType {

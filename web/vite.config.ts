@@ -235,7 +235,13 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@morev/vue-transitions'],
+    include: [
+      '@morev/vue-transitions',
+      'three',
+      'three/examples/jsm/loaders/DRACOLoader.js',
+      '3d-tiles-renderer/three',
+      '3d-tiles-renderer/plugins',
+    ],
     // MapLibre 6 is ESM-only and loads its worker as a real URL rather than a
     // blob — `new Worker(new URL('./maplibre-gl-worker.mjs', import.meta.url))`.
     // Pre-bundling rewrites that module into `.vite/deps/`, where the worker

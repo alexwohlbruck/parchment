@@ -38,6 +38,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
+    "3d-tiles-renderer": "0.5.4",
     "@alexwohlbruck/vaul-vue": "^0.4.5",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
@@ -98,6 +99,7 @@
     "suncalc": "^1.9.0",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "0.187.0",
     "ua-parser-js": "^1.0.37",
     "uuid": "^11.0.5",
     "vee-validate": "^4.12.8",
@@ -123,6 +125,7 @@
     "@types/node": "^22.15.21",
     "@types/qrcode": "^1.5.6",
     "@types/simple-icons": "^5.21.1",
+    "@types/three": "0.187.0",
     "@types/vue-router": "^2.0.0",
     "@vitejs/plugin-vue": "^6.0.4",
     "@vitest/ui": "^4.0.18",

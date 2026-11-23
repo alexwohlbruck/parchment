@@ -35,4 +35,13 @@
 [[headers]]
   for = "/manifest.webmanifest"
   [headers.values]
-    Content-Type = "application/manifest+json" 
+    Content-Type = "application/manifest+json"
+
+# Map data, tiles and the API server are user-selectable, so connect-src and
+# img-src stay open; script-src is what blocks injected script.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; font-src 'self' https: data:; media-src 'self' https: http: data: blob:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; connect-src 'self' https: http: wss: ws: data: blob:; frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

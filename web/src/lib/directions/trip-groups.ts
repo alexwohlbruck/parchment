@@ -7,7 +7,29 @@ export interface TripGroup<T> {
   trips: T[]
 }
 
-/** Trips by type, each group led by its best-ranked trip and ordered by it. */
+/** Most common ways of getting around first, combined trips after. */
+const TYPE_ORDER = [
+  'transit',
+  'transitWalking',
+  'driving',
+  'walking',
+  'cycling',
+  'bikeshare',
+  'scootershare',
+  'rideshare',
+  'transitBikeShare',
+  'transitScooter',
+  'parkAndRide',
+  'transitBike',
+  'transitRideshare',
+]
+
+const typeRank = (key: string) => {
+  const index = TYPE_ORDER.indexOf(key)
+  return index === -1 ? TYPE_ORDER.length : index
+}
+
+/** Trips by type, common types first, each group in rank order. */
 export function groupByTripType<T extends { rank: number; segments: TripTypeSegment[] }>(
   trips: readonly T[],
 ): TripGroup<T>[] {
@@ -18,5 +40,7 @@ export function groupByTripType<T extends { rank: number; segments: TripTypeSegm
     if (group) group.push(trip)
     else groups.set(key, [trip])
   }
-  return [...groups].map(([key, members]) => ({ key, trips: members }))
+  return [...groups]
+    .map(([key, members]) => ({ key, trips: members }))
+    .sort((a, b) => typeRank(a.key) - typeRank(b.key))
 }

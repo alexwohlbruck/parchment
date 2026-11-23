@@ -9,7 +9,7 @@ const trip = (id: string, rank: number, segments: { mode: string; duration: numb
   ({ id, rank, segments })
 
 describe('groupByTripType', () => {
-  it('orders groups by their best trip and keeps rank order inside each', () => {
+  it('puts common types before combined ones and keeps rank order inside each', () => {
     const groups = groupByTripType([
       trip('walkTransit', 3, [walk, train, walk]),
       trip('bikeTransit', 1, [bike, train, walk]),
@@ -19,9 +19,9 @@ describe('groupByTripType', () => {
     ])
 
     expect(groups.map(g => [g.key, g.trips.map(t => t.id)])).toEqual([
-      ['transitBike', ['bikeTransit', 'bikeTransitLater']],
       ['transit', ['walkTransit', 'walkTransitLater']],
       ['cycling', ['cycling']],
+      ['transitBike', ['bikeTransit', 'bikeTransitLater']],
     ])
   })
 

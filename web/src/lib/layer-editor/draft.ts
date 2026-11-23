@@ -305,7 +305,7 @@ export function draftToSourceSpec(
   } else if (draft.mode === 'tilejson') {
     spec.url = draft.url
   } else {
-    spec.tiles = draft.tiles.map(t => t.trim()).filter(Boolean)
+    spec.tiles = tileTemplates(draft.tiles)
   }
 
   if (draft.kind === 'raster' && draft.tileSize) spec.tileSize = draft.tileSize
@@ -381,8 +381,13 @@ export interface DraftIssue {
   message: string
 }
 
-/** XYZ tiles, or a WMS-style export addressed by tile bounds. */
-const TILE_TEMPLATE = /\{z\}|\{bbox-epsg-3857\}/i
+/** XYZ or quadkey tiles, or a WMS-style export addressed by tile bounds. */
+const TILE_TEMPLATE = /\{z\}|\{quadkey\}|\{bbox-epsg-3857\}/i
+
+/** The tile URLs as MapLibre reads them; some providers (Nearmap) spell zoom `{zoom}`. */
+export function tileTemplates(tiles: readonly string[]): string[] {
+  return tiles.map(t => t.trim().replace(/\{zoom\}/gi, '{z}')).filter(Boolean)
+}
 
 export function parseGeoJson(text: string): unknown | null {
   if (!text.trim()) return null
@@ -424,7 +429,7 @@ export function validateDraft(draft: LayerDraft): DraftIssue[] {
       issues.push({ field: 'source.url', message: 'urlRequired' })
     }
   } else {
-    const tiles = source.tiles.map(t => t.trim()).filter(Boolean)
+    const tiles = tileTemplates(source.tiles)
     if (!tiles.length) {
       issues.push({ field: 'source.tiles', message: 'tilesRequired' })
     } else if (!tiles.every(t => TILE_TEMPLATE.test(t))) {

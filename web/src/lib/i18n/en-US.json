@@ -887,7 +887,7 @@
         "nameRequired": "Give the layer a name.",
         "urlRequired": "A URL is required.",
         "tilesRequired": "Add at least one tile URL.",
-        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "tileTemplate": "Tile URLs need {'{z}'}, {'{x}'} and {'{y}'} placeholders.",
         "imageryNeedsRaster": "Satellite imagery has to be a raster source.",
         "sourceLayerRequired": "Vector layers need a source layer.",
         "invalidGeoJson": "That isn't valid GeoJSON.",

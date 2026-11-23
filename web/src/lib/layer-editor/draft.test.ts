@@ -162,6 +162,13 @@ describe('validateDraft', () => {
     expect(validateDraft(validRaster())).toEqual([])
   })
 
+  it('reads a {zoom} placeholder as {z}', () => {
+    const draft = validRaster()
+    draft.source.tiles = ['https://api.nearmap.com/tiles/v3/Vert/{zoom}/{x}/{y}.img']
+    expect(validateDraft(draft)).toEqual([])
+    expect(draftToSourceSpec(draft.source).tiles).toEqual(['https://api.nearmap.com/tiles/v3/Vert/{z}/{x}/{y}.img'])
+  })
+
   it('accepts a tile-bounds export URL', () => {
     const draft = validRaster()
     draft.source.tiles = ['https://wms/export?bbox={bbox-epsg-3857}&f=image']

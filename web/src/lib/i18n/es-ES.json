@@ -866,7 +866,7 @@
         "nameRequired": "Ponle un nombre a la capa.",
         "urlRequired": "Se necesita una URL.",
         "tilesRequired": "Añade al menos una URL de teselas.",
-        "tileTemplate": "Las URLs de teselas necesitan {z}, {x} e {y}.",
+        "tileTemplate": "Las URLs de teselas necesitan {'{z}'}, {'{x}'} e {'{y}'}.",
         "imageryNeedsRaster": "Las imágenes de satélite deben ser una fuente ráster.",
         "sourceLayerRequired": "Las capas vectoriales necesitan una capa de origen.",
         "invalidGeoJson": "Eso no es GeoJSON válido.",

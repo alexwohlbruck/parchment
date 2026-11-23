@@ -290,6 +290,14 @@ function navigateToRoute(routeName: AppRoute) {
 
           <Card
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
+            @click="navigateTo('/offline-maps')"
+          >
+            <ItemIcon icon="CloudDownload" color="cobalt" size="sm" variant="ghost" />
+            <span class="font-medium text-sm">{{ t('offlineMaps.title') }}</span>
+          </Card>
+
+          <Card
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/settings')"
           >
             <ItemIcon icon="Settings" color="parchment" size="sm" variant="ghost" />

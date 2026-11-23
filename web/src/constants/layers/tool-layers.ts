@@ -125,3 +125,7 @@ export const AREA_LINE_LAYER_SPEC = {
     'line-opacity': 0.65,
   },
 } as const
+
+export const OFFLINE_REGIONS_SOURCE_ID = 'offline-regions'
+export const OFFLINE_REGIONS_FILL_LAYER_ID = 'offline-regions-fill-layer'
+export const OFFLINE_REGIONS_LINE_LAYER_ID = 'offline-regions-line-layer'

@@ -1,9 +1,12 @@
+import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import { shallowRef, triggerRef, watch, onUnmounted, type Ref } from 'vue'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { api } from '@/lib/api'
 import type { Place, WidgetDescriptor, WidgetResponse } from '@/types/place.types'
-import { WidgetDataType } from '@/types/place.types'
+import { WidgetDataType, WidgetType } from '@/types/place.types'
+import { isOffline } from '@/lib/connectivity'
+import { offlineDepartures } from '@/services/offline/offline-engine.service'
 
 export interface WidgetState {
   loading: boolean
@@ -82,8 +85,27 @@ export function useWidgets(place: Ref<Partial<Place> | null>) {
     { immediate: true },
   )
 
+  /** Scheduled departures from a saved area's timetable, for a stop opened with no connection. */
+  async function offlineWidget(descriptor: WidgetDescriptor): Promise<WidgetResponse | null> {
+    if (descriptor.type !== WidgetType.TRANSIT) return null
+    const p = descriptor.params as Record<string, string | number | undefined>
+    const board = await offlineDepartures({
+      feedId: p.feedId ? String(p.feedId) : undefined,
+      stopId: p.stopId ? String(p.stopId) : undefined,
+      lat: p.lat !== undefined ? Number(p.lat) : undefined,
+      lng: p.lng !== undefined ? Number(p.lng) : undefined,
+    }).catch(() => null)
+    return board ? { type: WidgetType.TRANSIT, data: { value: board, sourceId: OFFLINE_SOURCE_ID }, sources: [] } : null
+  }
+
   async function fetchWidget(descriptor: WidgetDescriptor, signal: AbortSignal) {
     const key = descriptorKey(descriptor)
+    const offline = isOffline.value ? await offlineWidget(descriptor) : null
+    if (offline) {
+      widgetStates.value.set(key, { loading: false, data: offline, error: null })
+      triggerRef(widgetStates)
+      return
+    }
     try {
       const response = await api.get<WidgetResponse>(
         `/places/widgets/${descriptor.type}`,

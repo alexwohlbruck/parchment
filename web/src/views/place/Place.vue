@@ -15,13 +15,16 @@ import { useRecentsStore } from '@/stores/recents.store'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace, seedPlaceFromLocal } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace, seedPlaceFromLocal, seedPlaceFromOffline } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
-const { onReconnected } = useConnectivity()
+const { isOffline, onReconnected } = useConnectivity()
 const markerLngLat = shallowRef<LngLat | null>(null)
 const recentsStore = useRecentsStore()
+
+/** The page shows only what the device held, so reconnecting should load the rest. */
+const shownOffline = shallowRef(false)
 
 /**
  * Shows what the device knows about the place straight away, then keeps it
@@ -32,8 +35,13 @@ async function loadWithLocalFallback(
   placeId: string,
   fetchDetails: () => Promise<unknown>,
 ) {
-  const seeded = seedPlaceFromLocal(placeId)
+  // Offline, a saved area's row beats the bare result a search tap leaves behind.
+  const local = seedPlaceFromLocal(placeId)
+  const seeded = (isOffline.value ? await seedPlaceFromOffline(placeId, local) : null) ?? local
   if (seeded) handlePlaceResult(seeded)
+  // A fetch with no connection only answers from the cache, which may hold less than the seed.
+  shownOffline.value = !!seeded && isOffline.value
+  if (shownOffline.value) return
   const place = await fetchDetails()
   if (!place && seeded) currentPlace.value = seeded
   // Re-frame only for new data; the seeded place is already on the map.
@@ -215,7 +223,7 @@ watch(
 )
 
 onReconnected(() => {
-  if (!currentPlace.value) showPlace()
+  if (!currentPlace.value || shownOffline.value) showPlace()
 })
 
 onUnmounted(() => {
@@ -226,6 +234,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Place :place="currentPlace" :loading="loading" @retry="showPlace" />
+  <Place :place="currentPlace" :loading="loading" :offline="shownOffline" @retry="showPlace" />
   <OffscreenMarkerHint :lng-lat="markerLngLat" @select="returnToPlace" />
 </template>

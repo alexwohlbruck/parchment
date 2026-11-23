@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* On a trip with several stops, directions walk you back to where you parked before driving or riding to the next stop.
+
 ## [0.25.1] - 2026-11-23
 
 ### Fixed

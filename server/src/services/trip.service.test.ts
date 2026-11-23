@@ -3939,6 +3939,38 @@ describe('TripService — multi-stop journeys', () => {
     expect(modesOf(driving)).toEqual(['driving', 'driving'])
   })
 
+  test('a car parked near a stop is walked back to for the next leg', async () => {
+    const lot = { lat: 35.2205, lng: -80.8505 }
+    mockSearchByCategory.mockImplementation(async () => [
+      { geometry: { value: { center: lot } }, name: { value: 'Midpoint Deck' }, tags: {} },
+    ])
+    mockGetRoute.mockImplementation(async (_points: any, profile: string) =>
+      profile === 'auto' ? makeBasicWalkRoute(9000, 600) : makeBasicWalkRoute(300, 240))
+
+    const response = await multiStop({
+      selectedMode: 'driving',
+      routingPreferences: { useKnownParkingLocations: true },
+    })
+    const parked = response.trips.find((t) => t.trip.segments[0].end.label === 'Midpoint Deck')!
+    const secondLeg = parked.trip.segments.filter((s) => s.legIndex === 1)
+
+    expect(secondLeg.map((s) => s.mode)).toEqual(['walking', 'driving', 'walking'])
+    expect(secondLeg[0].end.location).toEqual(lot)
+    expect(secondLeg[1].start.location).toEqual(lot)
+  })
+
+  test('a car driven to a stop is not walked back to where it started', async () => {
+    mockGetRoute.mockImplementation(async (_points: any, profile: string) =>
+      profile === 'auto' ? makeBasicWalkRoute(9000, 600) : makeBasicWalkRoute(100, 80))
+    const car = { id: 'car-1', type: 'car', location: CHARLOTTE_ORIGIN.location }
+
+    const response = await multiStop({ selectedMode: 'driving', availableVehicles: [car] })
+    const driving = response.trips.find((t) => modesOf(t).includes('driving'))!
+
+    expect(driving.trip.segments.filter((s) => s.legIndex === 1).map((s) => s.mode))
+      .toEqual(['driving'])
+  })
+
   test('each leg departs when the one before it arrives', async () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 

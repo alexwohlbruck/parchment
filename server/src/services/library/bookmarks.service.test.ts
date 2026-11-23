@@ -4,10 +4,9 @@
  * `updateBookmark` carries the subtlety. It deliberately splits two cases:
  *
  *   - changing bookmark FIELDS is owner-only (the `userId` filter enforces it);
- *   - changing only `collectionIds` edits pivot rows, so a collection owner or
- *     editor may re-link a bookmark someone else created — access control
- *     already happened in the controller. That path must NOT apply the owner
- *     filter, or Alice couldn't remove a bookmark Bob added to her collection.
+ *   - changing `collectionIds` edits pivot rows, so a collection owner or
+ *     editor may re-link a bookmark someone else created, but only within the
+ *     collections they can write, and never deletes a bookmark they don't own.
  *
  * The orphan path is the other trap: when the last collection link is removed
  * the bookmark row is deleted inline using the PRE-delete collection set,
@@ -38,6 +37,12 @@ mock.module('../realtime/emit', () => ({
     bookmark: emitBookmark,
     bookmarkAcrossCollections: emitAcrossCollections,
   },
+}))
+
+const writableCollectionIds = mock(async (_userId: string, ids: string[]) => ids)
+mock.module('../sharing.service', () => ({
+  writableCollectionIds,
+  grantsLocalAccess: () => undefined,
 }))
 
 mock.module('../../lib/logger', () => ({
@@ -71,6 +76,8 @@ beforeEach(() => {
   dbMock.reset()
   emitBookmark.mockClear()
   emitAcrossCollections.mockClear()
+  writableCollectionIds.mockClear()
+  writableCollectionIds.mockImplementation(async (_userId: string, ids: string[]) => ids)
 })
 
 describe('getBookmarkById', () => {
@@ -185,7 +192,6 @@ describe('updateBookmark — ownership split', () => {
     // Alice must be able to unlink a bookmark Bob created in her collection.
     dbMock.queueSelect([bookmark]) // unfiltered lookup
     dbMock.queueSelect([{ collectionId: 'col-1' }]) // current links
-    dbMock.queueSelect([{ value: 1 }]) // remaining count
     dbMock.queueSelect([{ collectionId: 'col-2' }]) // post-update links
 
     const result = await updateBookmark('bm-1', 'not-the-owner', {
@@ -258,6 +264,7 @@ describe('updateBookmark — ownership split', () => {
 describe('updateBookmark — collection membership diff', () => {
   test('adds newly listed collections', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
     dbMock.queueSelect([{ collectionId: 'col-1' }]) // current
     dbMock.queueSelect([{ collectionId: 'col-1' }, { collectionId: 'col-2' }])
 
@@ -272,6 +279,7 @@ describe('updateBookmark — collection membership diff', () => {
 
   test('removes collections that dropped off the list', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
     dbMock.queueSelect([{ collectionId: 'col-1' }, { collectionId: 'col-2' }])
     dbMock.queueSelect([{ value: 1 }]) // still linked somewhere
     dbMock.queueSelect([{ collectionId: 'col-1' }])
@@ -286,6 +294,7 @@ describe('updateBookmark — collection membership diff', () => {
 
   test('emits unlinked for the removed collections', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
     dbMock.queueSelect([{ collectionId: 'col-1' }, { collectionId: 'col-2' }])
     dbMock.queueSelect([{ value: 1 }])
     dbMock.queueSelect([{ collectionId: 'col-1' }])
@@ -329,6 +338,7 @@ describe('updateBookmark — collection membership diff', () => {
 describe('updateBookmark — orphan deletion', () => {
   function orphaning() {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
     dbMock.queueSelect([{ collectionId: 'col-1' }]) // current links
     dbMock.queueSelect([{ value: 0 }]) // nothing left after removal
   }
@@ -366,6 +376,56 @@ describe('updateBookmark — orphan deletion', () => {
     await updateBookmark('bm-1', 'user-1', { name: 'Renamed', collectionIds: [] })
 
     expect(emitBookmark).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateBookmark — membership access', () => {
+  const othersBookmark = { ...bookmark, userId: 'owner' }
+
+  test('refuses a caller who neither owns it nor writes a collection holding it', async () => {
+    dbMock.queueSelect([othersBookmark])
+    dbMock.queueSelect([{ collectionId: 'col-1' }])
+    writableCollectionIds.mockImplementation(async () => [])
+
+    const result = await updateBookmark('bm-1', 'stranger', {
+      collectionIds: ['mine'],
+    })
+
+    expect(result).toBeUndefined()
+    expect(dbMock.insertCount).toBe(0)
+    expect(dbMock.deleteCount).toBe(0)
+  })
+
+  test('only unlinks collections the caller can write', async () => {
+    dbMock.queueSelect([othersBookmark])
+    dbMock.queueSelect([{ collectionId: 'shared' }, { collectionId: 'private' }])
+    dbMock.queueSelect([{ collectionId: 'private' }])
+    writableCollectionIds.mockImplementation(async () => ['shared'])
+
+    await updateBookmark('bm-1', 'editor', { collectionIds: [] })
+
+    expect(emitAcrossCollections).toHaveBeenCalledWith(
+      'bookmark:unlinked',
+      { id: 'bm-1', collectionIds: ['shared'] },
+      ['shared'],
+    )
+  })
+
+  test('never deletes a bookmark the caller does not own', async () => {
+    dbMock.queueSelect([othersBookmark])
+    dbMock.queueSelect([{ collectionId: 'shared' }])
+    dbMock.queueSelect([])
+
+    const result = await updateBookmark('bm-1', 'editor', { collectionIds: [] })
+
+    expect(result).not.toBeNull()
+    // Only the pivot row goes; the bookmark itself stays.
+    expect(dbMock.deleteCount).toBe(1)
+    expect(emitAcrossCollections).not.toHaveBeenCalledWith(
+      'bookmark:deleted',
+      expect.anything(),
+      expect.anything(),
+    )
   })
 })
 

@@ -534,3 +534,27 @@ describe('cross-server shares naming local resources', () => {
     ).toBeNull()
   })
 })
+
+describe('writableCollectionIds', () => {
+  test('keeps owned and editor-shared collections, drops viewer and unrelated ones', async () => {
+    const owned = await makeCollection(bobId)
+    const edited = await makeCollection(aliceId)
+    const viewed = await makeCollection(aliceId)
+    const unrelated = await makeCollection(aliceId)
+    for (const [resourceId, role] of [[edited, 'editor'], [viewed, 'viewer']] as const) {
+      await sharingService.createShare({
+        userId: aliceId,
+        recipientHandle: bobHandle,
+        resourceType: 'collection',
+        resourceId,
+        encryptedData: 'ct',
+        nonce: 'n',
+        role,
+      })
+    }
+
+    expect(
+      await sharingService.writableCollectionIds(bobId, [owned, edited, viewed, unrelated]),
+    ).toEqual([owned, edited])
+  })
+})

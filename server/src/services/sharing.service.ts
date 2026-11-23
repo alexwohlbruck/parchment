@@ -772,6 +772,34 @@ export async function getEffectiveRoleOnCollection(
   return share.role === 'editor' ? 'editor' : 'viewer'
 }
 
+/** The subset of `collectionIds` the user owns or holds an editor share on. */
+export async function writableCollectionIds(
+  userId: string,
+  collectionIds: string[],
+): Promise<string[]> {
+  if (collectionIds.length === 0) return []
+  const [owned, edited] = await Promise.all([
+    db
+      .select({ id: collections.id })
+      .from(collections)
+      .where(and(inArray(collections.id, collectionIds), eq(collections.userId, userId))),
+    db
+      .select({ id: incomingShares.resourceId })
+      .from(incomingShares)
+      .where(
+        and(
+          eq(incomingShares.userId, userId),
+          eq(incomingShares.resourceType, 'collection'),
+          inArray(incomingShares.resourceId, collectionIds),
+          eq(incomingShares.role, 'editor'),
+          grantsLocalAccess(),
+        ),
+      ),
+  ])
+  const writable = new Set([...owned, ...edited].map((row) => row.id))
+  return collectionIds.filter((id) => writable.has(id))
+}
+
 /**
  * Thrown by `requireWriteAccessToCollection` when the caller is a viewer
  * or has no role. Controllers catch this and turn it into a 403.

@@ -1,6 +1,6 @@
 export type Session = {
   id: string
-  userId: string
+  current: boolean
   createdAt: string
   expiresAt: string
   userAgent?: string

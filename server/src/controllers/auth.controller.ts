@@ -53,6 +53,7 @@ import {
 } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { publicSessionId } from '../lib/public-session-id'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -598,17 +599,38 @@ app.group('/sessions', (app) => {
 
     guarded.get(
       '/',
-      async ({ set, user }) => {
-        return await db
+      async ({ user, request }) => {
+        const currentId = getSessionId(request)
+        const rows = await db
           .select()
           .from(sessions)
           .where(eq(sessions.userId, user.id))
           .orderBy(desc(sessions.createdAt))
+        return rows.map(({ id, createdAt, expiresAt, ipv4, userAgent }) => ({
+          id: publicSessionId(id),
+          current: id === currentId,
+          createdAt,
+          expiresAt,
+          ipv4,
+          userAgent,
+        }))
       },
       {
+        response: t.Array(
+          t.Object({
+            id: t.String(),
+            current: t.Boolean(),
+            createdAt: t.Date(),
+            expiresAt: t.Date(),
+            ipv4: t.Nullable(t.String()),
+            userAgent: t.Nullable(t.String()),
+          }),
+        ),
         detail: {
           tags: ['Auth'],
           summary: 'Get all sessions for current user',
+          description:
+            'Each `id` is a hash of the session, never the session token itself.',
         },
       },
     )
@@ -616,16 +638,24 @@ app.group('/sessions', (app) => {
     guarded.delete(
       '/:sessionId',
       async ({ set, user, params: { sessionId } }) => {
-        if (!user) return (set.status = 401)
-        await db
-          .delete(sessions)
-          .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
+        const rows = await db
+          .select({ id: sessions.id })
+          .from(sessions)
+          .where(eq(sessions.userId, user.id))
+        const target = rows.find((row) => publicSessionId(row.id) === sessionId)
+        if (target) {
+          await db
+            .delete(sessions)
+            .where(and(eq(sessions.id, target.id), eq(sessions.userId, user.id)))
+        }
         return (set.status = 204)
       },
       {
+        params: t.Object({ sessionId: t.String() }),
         detail: {
           tags: ['Auth'],
           summary: 'Delete a session',
+          description: 'Takes the `id` returned by `GET /auth/sessions`.',
         },
       },
     )
@@ -641,7 +671,7 @@ app.group('/sessions', (app) => {
         return null
       }
 
-      const sessionId = getSessionId(request)
+      const bearer = request.headers.get('Authorization')?.startsWith('Bearer ')
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
 
       const subscription = billing.enabled
@@ -650,13 +680,15 @@ app.group('/sessions', (app) => {
 
       return {
         user: me,
-        token: sessionId,
+        ...(bearer && { token: getSessionId(request) }),
         subscription,
       }
     },
     {
       detail: {
         tags: ['Auth', 'Users'],
+        description:
+          'The current user. `token` is echoed only to bearer-authenticated clients.',
       },
     },
   )

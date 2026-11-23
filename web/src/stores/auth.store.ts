@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     cachedUser.value = user // Persist to localStorage
     sessionId.value = _sessionId
 
-    if (isTauri) {
+    if (isTauri && _sessionId) {
       await deviceStore.setToken(_sessionId)
     }
 

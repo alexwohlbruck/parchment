@@ -31,8 +31,7 @@ const { isTabletScreen } = useResponsive()
 
 onMounted(authService.getSessions)
 
-const { sessionId: currentSessionId, sessions: originalSessions } =
-  storeToRefs(authStore)
+const { sessions: originalSessions } = storeToRefs(authStore)
 
 function parseUAString(session: OriginalSession) {
   return {
@@ -60,7 +59,7 @@ const columns = computed<ColumnDef<Session>[]>(() => {
         // "macOS · Chrome" style summary. Apple pins OS version on the
         // web anyway, so showing the exact version is misleading.
         const label = [osName, browserName].filter(Boolean).join(' · ') || t('settings.auth.sessions.unknownDevice')
-        const isCurrent = row.original.id === currentSessionId.value
+        const isCurrent = row.original.current
         return h('div', { class: 'flex items-center gap-2' }, [
           h('span', {}, label),
           isCurrent
@@ -106,7 +105,7 @@ async function deleteSession(sessionId: Session['id']) {
   const parsed = session.userAgentParsed
   const browser = parsed?.getBrowser().name ?? t('settings.auth.sessions.thisBrowser')
   const osName = parsed?.getOS().name ?? t('settings.auth.sessions.thisDeviceFallback')
-  const isCurrent = sessionId === currentSessionId.value
+  const isCurrent = session.current
 
   const confirmed = await appService.confirm({
     title: isCurrent
@@ -128,7 +127,7 @@ async function deleteSession(sessionId: Session['id']) {
 }
 
 const hasOtherSessions = computed(() =>
-  sessions.value.some(s => s.id !== currentSessionId.value),
+  sessions.value.some(s => !s.current),
 )
 const isSigningOutOthers = ref(false)
 

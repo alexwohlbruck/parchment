@@ -122,6 +122,7 @@ mock.module('@simplewebauthn/server', () => ({
 }))
 
 mock.module('../util', () => ({ generateId: () => 'generated-id' }))
+const { publicSessionId } = await import('../lib/public-session-id')
 mock.module('../lib/passkey-aaguid', () => ({
   passkeyNameFromAAGUID: () => 'iCloud Keychain',
 }))
@@ -365,13 +366,22 @@ describe('session teardown', () => {
     expect(destroyOtherSessions).not.toHaveBeenCalled()
   })
 
-  test('DELETE /auth/sessions/:id is scoped to the caller’s own sessions', async () => {
-    const res = await req(app).delete('/auth/sessions/some-session')
+  test('DELETE /auth/sessions/:id deletes the caller’s session it names', async () => {
+    dbMock.queueSelect([{ id: 'session-1' }, { id: 'session-2' }])
+
+    const res = await req(app).delete(`/auth/sessions/${publicSessionId('session-2')}`)
 
     expect(res.status).toBe(204)
-    // The WHERE clause pairs the session id with the caller's user id, so a
-    // token belonging to another user can't be revoked here.
     expect(dbMock.deleteCount).toBe(1)
+  })
+
+  test('DELETE /auth/sessions/:id ignores an id outside the caller’s sessions', async () => {
+    dbMock.queueSelect([{ id: 'session-1' }])
+
+    const res = await req(app).delete('/auth/sessions/session-1')
+
+    expect(res.status).toBe(204)
+    expect(dbMock.deleteCount).toBe(0)
   })
 
   test('DELETE /auth/sessions/:id rejects an unauthenticated caller', async () => {
@@ -393,6 +403,18 @@ describe('GET /auth/sessions/current', () => {
     expect(res.status).toBe(200)
     expect(res.body.user.id).toBe(TEST_USER.id)
     expect(res.body.subscription.tier).toBe('basic')
+  })
+
+  test('echoes the token only to a bearer-authenticated caller', async () => {
+    dbMock.queueSelect([{ id: TEST_USER.id }])
+    const cookie = await req(app).get('/auth/sessions/current')
+    expect(cookie.body.token).toBeUndefined()
+
+    dbMock.queueSelect([{ id: TEST_USER.id }])
+    const bearer = await req(app).get('/auth/sessions/current', {
+      headers: { Authorization: 'Bearer session-for-test-user-1' },
+    })
+    expect(bearer.body.token).toBe('session-for-test-user-1')
   })
 
   test('answers 204 when signed out, not 401', async () => {
@@ -447,13 +469,22 @@ describe('GET /auth/sessions/current/permissions', () => {
 })
 
 describe('GET /auth/sessions', () => {
-  test('lists the caller’s sessions', async () => {
-    dbMock.queueSelect([{ id: 'session-1' }, { id: 'session-2' }])
+  test('lists the caller’s sessions without their tokens', async () => {
+    const row = { createdAt: new Date(), expiresAt: new Date(), ipv4: null, userAgent: null }
+    dbMock.queueSelect([
+      { id: 'session-for-test-user-1', ...row },
+      { id: 'session-2', ...row },
+    ])
 
     const res = await req(app).get('/auth/sessions')
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveLength(2)
+    expect(res.body.map((s: any) => s.id)).toEqual([
+      publicSessionId('session-for-test-user-1'),
+      publicSessionId('session-2'),
+    ])
+    expect(res.body.map((s: any) => s.current)).toEqual([true, false])
+    expect(JSON.stringify(res.body)).not.toContain('session-2"')
   })
 
   test('rejects an unauthenticated caller', async () => {

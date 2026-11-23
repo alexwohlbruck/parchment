@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ListIcon, MapPinIcon, SearchIcon, SplitIcon, SquareParkingIcon } from 'lucide-vue-next'
+import { BikeIcon, ListIcon, MapPinIcon, SearchIcon, SplitIcon, SquareParkingIcon } from 'lucide-vue-next'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { FREE_MODES } from '@/lib/guidance/free-roam'
@@ -31,7 +31,7 @@ const actions = computed(() => guidance.kind === 'free' ? [
   { key: 'alongTheWay', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
 ] : [
   { key: 'searchAlongRoute', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
-  ...(parking.destination.value ? [{ key: 'parking', icon: SquareParkingIcon, enabled: true, open: () => openPanel('parking') }] : []),
+  ...(parking.destination.value ? [{ key: 'parking', icon: parking.destination.value.vehicle === 'bike' ? BikeIcon : SquareParkingIcon, enabled: true, open: () => openPanel('parking') }] : []),
   { key: 'routes', icon: SplitIcon, enabled: canReroute(travelMode.value), open: () => openPanel('routes') },
   { key: 'steps', icon: ListIcon, enabled: !!guidance.route?.steps.length, open: () => openPanel('steps') },
 ])

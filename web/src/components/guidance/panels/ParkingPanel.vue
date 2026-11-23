@@ -35,7 +35,7 @@ async function pick(option: ParkingOption) {
 onMounted(async () => {
   const destination = offer.destination.value
   if (!destination) return
-  await search(destination.location)
+  await search(destination)
   if (options.value.length) emit('found')
 })
 </script>
@@ -52,7 +52,7 @@ onMounted(async () => {
     </div>
   </div>
   <p v-else-if="failed || !options.length" class="py-6 text-center text-sm text-muted-foreground">
-    {{ t(failed ? 'guidance.parking.unavailable' : 'guidance.parking.empty') }}
+    {{ t(failed ? 'guidance.parking.unavailable' : `guidance.parking.${offer.destination.value?.vehicle ?? 'car'}.empty`) }}
   </p>
   <ol v-else class="-mx-2">
     <li v-for="(option, i) in options" :key="option.id">

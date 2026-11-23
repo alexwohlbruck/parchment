@@ -13,7 +13,7 @@ import { cardinal, TurnAroundWatch, type Cardinal } from '@/lib/guidance/turn-ar
 import { travellerHeading } from '@/lib/directions/start-motion'
 import { useOrientationService } from '@/services/orientation.service'
 import { adoptItinerary, parkAndWalk, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
-import { parkingDestination } from '@/lib/guidance/parking'
+import { PARKING, parkingDestination } from '@/lib/guidance/parking'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
 import type { LanePlan } from '@/lib/guidance/lanes'
@@ -912,7 +912,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     const target = parkingDestination(segments.value, index)
     if (!target) return false
     const [toLot, walk] = await Promise.all([
-      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: lot.location, mode: 'driving' }),
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: lot.location, mode: PARKING[target.vehicle].rideMode }),
       requestReroute({ position: lot.location, heading: null, destination: target.location, mode: 'walking' }),
     ])
     if (!toLot || !walk || route.value !== navRoute) return false

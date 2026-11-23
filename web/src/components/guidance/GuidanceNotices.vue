@@ -82,9 +82,9 @@ const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'a
         @dismiss="docks.dismiss()"
       />
     </div>
-    <div v-if="parking.offered.value && !offer" key="parking" class="nav-card p-4">
+    <div v-if="parking.offered.value && parking.destination.value && !offer" key="parking" class="nav-card p-4">
       <ParkingOffer
-        :destination="parking.destination.value?.label ?? null"
+        :destination="parking.destination.value"
         @find="openPanel('parking')"
         @dismiss="parking.dismiss()"
       />

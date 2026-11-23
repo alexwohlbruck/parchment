@@ -2,7 +2,7 @@
 
 ### Added
 
-* While driving, find parking near your destination and get walking directions from the spot you pick.
+* While driving or biking, find parking or a bike rack near your destination and get walking directions from the spot you pick.
 
 ### Changed
 

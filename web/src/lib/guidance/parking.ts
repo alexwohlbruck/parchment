@@ -4,15 +4,26 @@ import { modeProfile } from './mode-profiles'
 import type { LngLat } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 
-/** Close enough to the door that it's time to think about where to leave the car. */
-export const PARKING_OFFER_M = 1500
-/** How far from the destination a lot is still worth walking from. */
-export const PARKING_SEARCH_M = 600
+export type ParkedVehicle = 'car' | 'bike'
+
+interface VehicleParking {
+  presetId: string
+  /** Close enough to the door that it's time to think about where to leave it. */
+  offerMeters: number
+  /** How far from the destination a spot is still worth walking from. */
+  searchMeters: number
+  rideMode: 'driving' | 'cycling'
+}
+
+export const PARKING: Record<ParkedVehicle, VehicleParking> = {
+  car: { presetId: 'amenity/parking', offerMeters: 1500, searchMeters: 600, rideMode: 'driving' },
+  bike: { presetId: 'amenity/bicycle_parking', offerMeters: 500, searchMeters: 300, rideMode: 'cycling' },
+}
 const MAX_OPTIONS = 6
 /** Streets add this much to the straight line between a lot and the door. */
 const WALK_DETOUR = 1.3
 
-export type ParkingKind = 'garage' | 'underground' | 'street' | 'lot'
+export type ParkingKind = 'garage' | 'underground' | 'street' | 'lot' | 'rack' | 'lockers' | 'shelter'
 
 export interface ParkingOption {
   id: string
@@ -24,13 +35,15 @@ export interface ParkingOption {
   paid: boolean | null
 }
 
-interface DrivenSegment {
+interface RiddenSegment {
   mode: string
+  ownership?: string
   geometry?: LngLat[]
   end?: { label?: string; location?: LngLat }
 }
 
 export function parkingKind(tags?: Record<string, string> | null): ParkingKind {
+  if (tags?.amenity === 'bicycle_parking') return bikeParkingKind(tags)
   switch (tags?.parking) {
     case 'multi-storey':
     case 'rooftop':
@@ -47,21 +60,40 @@ export function parkingKind(tags?: Record<string, string> | null): ParkingKind {
   }
 }
 
+function bikeParkingKind(tags: Record<string, string>): ParkingKind {
+  switch (tags.bicycle_parking) {
+    case 'lockers':
+      return 'lockers'
+    case 'shed':
+    case 'building':
+      return 'shelter'
+    default:
+      return tags.covered === 'yes' ? 'shelter' : 'rack'
+  }
+}
+
+/** The vehicle a rider would park at the end of `segment`, if it's theirs to leave anywhere. */
+export function parkedVehicle(segment?: RiddenSegment): ParkedVehicle | null {
+  if (segment?.mode === 'driving') return 'car'
+  if ((segment?.mode === 'cycling' || segment?.mode === 'biking') && segment.ownership !== 'shared') return 'bike'
+  return null
+}
+
 function paid(tags?: Record<string, string> | null): boolean | null {
   if (tags?.fee === 'yes') return true
   if (tags?.fee === 'no') return false
   return null
 }
 
-/** Public lots within walking distance of `destination`, shortest walk first. */
-export function parkingOptions(places: Place[], destination: LngLat): ParkingOption[] {
+/** Public spots within walking distance of `destination`, shortest walk first. */
+export function parkingOptions(places: Place[], destination: LngLat, vehicle: ParkedVehicle = 'car'): ParkingOption[] {
   const walkSpeed = modeProfile('walking').baseSpeed
   return places
     .flatMap(place => {
       const center = place.geometry?.value?.center
       if (!center || !isPublicParking(place.tags)) return []
       const meters = distanceMeters(center, destination)
-      if (meters > PARKING_SEARCH_M) return []
+      if (meters > PARKING[vehicle].searchMeters) return []
       return [{
         id: place.id,
         name: place.name?.value || place.tags?.operator || null,
@@ -76,20 +108,28 @@ export function parkingOptions(places: Place[], destination: LngLat): ParkingOpt
     .slice(0, MAX_OPTIONS)
 }
 
-/**
- * Where the walk from a lot should lead, while driving segment `index`: the
- * end of the walk that already follows it, or the drive's own end.
- */
-export function parkingDestination(segments: DrivenSegment[], index: number): { location: LngLat; label: string | null } | null {
-  const drive = segments[index]
-  if (drive?.mode !== 'driving') return null
-  const next = segments[index + 1]
-  const target = next?.mode === 'walking' ? next : drive
-  const location = target.end?.location ?? target.geometry?.at(-1)
-  return location ? { location, label: target.end?.label ?? null } : null
+export interface ParkingDestination {
+  location: LngLat
+  label: string | null
+  vehicle: ParkedVehicle
 }
 
-/** Whether to offer parking unprompted: the drive ends at the door, and the door is near. */
-export function offersParking(segments: DrivenSegment[], index: number, metersLeft: number): boolean {
-  return segments[index]?.mode === 'driving' && index === segments.length - 1 && metersLeft <= PARKING_OFFER_M
+/**
+ * Where the walk from a spot should lead, while riding segment `index`: the
+ * end of the walk that already follows it, or the ride's own end.
+ */
+export function parkingDestination(segments: RiddenSegment[], index: number): ParkingDestination | null {
+  const ride = segments[index]
+  const vehicle = parkedVehicle(ride)
+  if (!vehicle) return null
+  const next = segments[index + 1]
+  const target = next?.mode === 'walking' ? next : ride
+  const location = target.end?.location ?? target.geometry?.at(-1)
+  return location ? { location, label: target.end?.label ?? null, vehicle } : null
+}
+
+/** Whether to offer parking unprompted: the ride ends at the door, and the door is near. */
+export function offersParking(segments: RiddenSegment[], index: number, metersLeft: number): boolean {
+  const vehicle = parkedVehicle(segments[index])
+  return !!vehicle && index === segments.length - 1 && metersLeft <= PARKING[vehicle].offerMeters
 }

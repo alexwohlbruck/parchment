@@ -10,6 +10,7 @@ import RoutesPanel from './RoutesPanel.vue'
 import DestinationSearch from './DestinationSearch.vue'
 import ParkingPanel from './ParkingPanel.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
+import { parkingTitle } from '../parking-copy'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
 
 const props = defineProps<{
@@ -27,13 +28,13 @@ const TITLES = {
   search: 'guidance.ahead.title',
   routes: 'guidance.alternatives.title',
   destination: 'guidance.free.whereTo',
-  parking: 'guidance.parking.title',
+  parking: 'guidance.menu.parking',
 } as const
 
 const title = computed(() => {
   if (props.kind === 'search' && guidance.kind === 'free') return t('guidance.free.ahead.title')
-  const place = parking.destination.value?.label
-  if (props.kind === 'parking' && place) return t('guidance.parking.near', { place })
+  const destination = parking.destination.value
+  if (props.kind === 'parking' && destination) return parkingTitle(t, destination)
   return t(TITLES[props.kind])
 })
 

@@ -3,10 +3,9 @@ import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useAbortController } from '@/composables/useAbortController'
 import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
-import { parkingOptions, PARKING_SEARCH_M, type ParkingOption } from '@/lib/guidance/parking'
+import { PARKING, parkingOptions, type ParkingDestination, type ParkingOption } from '@/lib/guidance/parking'
 import { fetchParkingNear } from '@/services/guidance/parking.service'
 import { AheadResultsLayer } from '@/services/guidance/ahead-results-layer'
-import type { LngLat } from '@/types/map.types'
 
 /** Finds parking near the destination, marks it on the map, and parks at the one picked. */
 export function useParkingSearch() {
@@ -19,11 +18,12 @@ export function useParkingSearch() {
   const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
   const layer = map ? new AheadResultsLayer(map) : null
 
-  async function search(destination: LngLat) {
+  async function search({ location, vehicle }: ParkingDestination) {
+    const { presetId, searchMeters } = PARKING[vehicle]
     loading.value = true
     failed.value = false
     try {
-      options.value = parkingOptions(await fetchParkingNear(destination, PARKING_SEARCH_M, nextSignal()), destination)
+      options.value = parkingOptions(await fetchParkingNear(presetId, location, searchMeters, nextSignal()), location, vehicle)
     } catch (error) {
       if ((error as Error)?.name === 'CanceledError') return
       failed.value = true
